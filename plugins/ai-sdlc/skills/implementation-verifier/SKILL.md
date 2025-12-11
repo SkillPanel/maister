@@ -344,6 +344,13 @@ Recommend investigating before merging.
 
 ## PHASE 4: Verify Standards Compliance
 
+**CRITICAL**: Standards verification must use active reasoning, not a hardcoded checklist.
+- Read ALL standards from docs/INDEX.md
+- Reason about each standard's applicability to THIS implementation
+- Document reasoning for audit trail
+- Check compliance for all applicable standards
+- Project-specific standards are automatically included
+
 ### Step 1: Review Work Log for Applied Standards
 
 Read `implementation/work-log.md` to identify:
@@ -362,35 +369,58 @@ From work-log.md:
 - [Continue listing]
 ```
 
-### Step 2: Check docs/INDEX.md for Relevant Standards
+### Step 2: Active Standards Discovery from INDEX.md
 
-Read `docs/INDEX.md` and identify standards that SHOULD apply to this implementation:
+**IMPORTANT**: Do NOT use a predefined/hardcoded list of standards. Instead, actively discover and reason about which standards apply to THIS specific implementation.
 
-**Based on task type and layers**:
-- Database layer → backend/database.md, backend/migrations.md
-- API layer → backend/api.md, global/error-handling.md
-- Frontend layer → frontend/components.md, frontend/forms.md
-- All implementations → global/naming-conventions.md, global/code-organization.md
+**2.1 Read docs/INDEX.md comprehensively**:
+- Scan ALL standards listed (not just common ones)
+- Note each standard's description/purpose from INDEX.md
+- Include project-specific standards that may not exist in other projects
 
-**Create checklist**:
+**2.2 Analyze implementation scope**:
+- What files were modified? (from implementation-plan.md and work-log.md)
+- What patterns were used? (API endpoints, database models, UI components, forms, etc.)
+- What domains are touched? (auth, payments, file handling, user input, etc.)
+
+**2.3 For each standard in INDEX.md, reason about applicability**:
+
+Use a **hybrid approach**:
+- **Clear from name/description**: Most standards (naming-conventions, api, components) - reason from INDEX.md entry
+- **Ambiguous scope**: Read the standard file to understand what it actually covers
+
+**Reasoning examples**:
+| Implementation Pattern | Standards to Check |
+|----------------------|-------------------|
+| Form inputs added | validation.md, accessibility.md, error-handling.md |
+| User data handled | security.md, data-privacy.md (if exists) |
+| API endpoints added | api.md, authentication.md, rate-limiting.md (if exists) |
+| Database touched | database.md, migrations.md, query-optimization.md (if exists) |
+| File uploads | security.md, file-handling.md (if exists) |
+
+**2.4 Document reasoning** (creates audit trail):
+
 ```markdown
-### Expected Standards for This Implementation
+### Standards Applicability Analysis
 
-Based on implementation scope (from implementation-plan.md):
-- [ ] global/naming-conventions.md
-- [ ] global/code-organization.md
-- [ ] [Area-specific standards based on task groups]
+| Standard | Applies? | Reasoning |
+|----------|----------|-----------|
+| global/naming-conventions.md | ✅ Yes | All implementations touch code |
+| frontend/accessibility.md | ✅ Yes | Implementation includes form inputs (PatientForm.tsx) |
+| backend/security.md | ✅ Yes | API handles user authentication |
+| frontend/animations.md | ❌ No | No UI animations in scope |
+| [project-specific]/custom-standard.md | ✅ Yes | [Reasoned justification] |
 ```
 
-### Step 3: Cross-Reference Applied vs Expected
+### Step 3: Cross-Reference Applied vs Applicable
 
-Compare standards from work-log.md against expected standards:
+Compare standards from work-log.md against applicable standards (from Step 2):
 
 ```markdown
 ### Standards Compliance Analysis
 
-**Applied Standards**: [N]
-**Expected Standards**: [M]
+**Applied Standards** (from work-log.md): [N]
+**Applicable Standards** (from reasoning): [M]
 
 **Correctly Applied**:
 - ✅ global/naming-conventions.md - Evidence in work-log.md

@@ -462,7 +462,7 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 | `specification-creator` | Creates specs through 4 phases: initialize → research → write → verify | `skills/specification-creator/skill.md` |
 | `implementation-planner` | Breaks specs into task groups with test-driven steps | `skills/implementation-planner/skill.md` |
 | `implementer` | Executes plans with continuous standards discovery from INDEX.md | `skills/implementer/skill.md` |
-| `implementation-verifier` | Read-only QA: runs full test suite, checks compliance, creates report | `skills/implementation-verifier/skill.md` |
+| `implementation-verifier` | Read-only QA: runs tests, actively reasons about applicable standards from INDEX.md, verifies compliance | `skills/implementation-verifier/skill.md` |
 | `code-reviewer` | Automated code quality, security, performance analysis | `skills/code-reviewer/skill.md` |
 | `production-readiness-checker` | Pre-deployment verification with GO/NO-GO recommendation | `skills/production-readiness-checker/skill.md` |
 | `docs-manager` | Manages standards in `.ai-sdlc/docs/`, handles discovery and updates | `skills/docs-manager/skill.md` |
