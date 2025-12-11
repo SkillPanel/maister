@@ -414,15 +414,16 @@ Recommended scope: "Complete allergy management with input + display in 5 key to
 
    **Code Review Recommendation**:
    ```
-   IF files_modified >= 20 OR critical_files_modified.length > 0 OR complexity == "high" OR risk_level == "high":
+   # For enhancements, code review is always recommended (modificative changes are risky)
+   IF enhancement_type == "modificative" OR enhancement_type == "refactor-based":
      recommendation = "strongly_recommended"
-     reason = "20+ files modified" OR "Includes [auth/payment/security] changes" OR "High complexity" OR "High risk enhancement"
-   ELSE IF files_modified >= 10 OR complexity == "medium" OR risk_level == "medium" OR enhancement_type == "modificative":
-     recommendation = "recommended"
-     reason = "10-19 files modified" OR "Medium complexity" OR "Modificative enhancement"
+     reason = "All modificative/refactor enhancements should have code review"
+   ELSE IF files_modified >= 10 OR critical_files_modified.length > 0 OR complexity == "high" OR risk_level == "high":
+     recommendation = "strongly_recommended"
+     reason = "{N} files modified" OR "Includes critical file changes" OR "High complexity/risk"
    ELSE:
-     recommendation = "optional"
-     reason = "Minor changes, low complexity, additive enhancement"
+     recommendation = "recommended"
+     reason = "Enhancement workflows benefit from code review"
    ```
 
    **Production Readiness Recommendation**:
@@ -490,13 +491,10 @@ Recommended scope: "Complete allergy management with input + display in 5 key to
 
    Auto-decide without prompting:
    ```
-   IF code_review_recommendation in ["strongly_recommended", "recommended"]:
-     code_review_enabled = true
-     code_review_scope = "all"
-     Output: "✅ Auto-enabling code review ({recommendation}: {reason})"
-   ELSE:
-     code_review_enabled = false
-     Output: "⏭️ Skipping code review (optional for this enhancement)"
+   # For enhancements, always enable code review (no "optional" tier anymore)
+   code_review_enabled = true
+   code_review_scope = "all"
+   Output: "✅ Auto-enabling code review (recommended for all enhancements)"
 
    IF production_readiness_recommendation == "strongly_recommended":
      production_check_enabled = true
@@ -505,6 +503,11 @@ Recommended scope: "Complete allergy management with input + display in 5 key to
    ELSE:
      production_check_enabled = false
      Output: "⏭️ Skipping production readiness (not critical for this enhancement)"
+
+   # Reality assessment and pragmatic review are always enabled for enhancements
+   pragmatic_review_enabled = true
+   reality_check_enabled = true
+   Output: "✅ Auto-enabling reality assessment + pragmatic review (mandatory for enhancements)"
    ```
 
 5. **Update orchestrator state** with decisions:
@@ -518,6 +521,8 @@ Recommended scope: "Complete allergy management with input + display in 5 key to
        production_check_enabled: true | false
        production_check_target: "production" | "staging"
        production_check_requested_by: "auto" | "user" | "flag"
+       pragmatic_review_enabled: true      # Always true for enhancements
+       reality_check_enabled: true          # Always true for enhancements
    ```
 
 6. **Output confirmation**:
@@ -528,12 +533,12 @@ Recommended scope: "Complete allergy management with input + display in 5 key to
    Will run:
    - ✅ Basic Verification (implementation plan, tests, standards, docs)
    - ✅ Compatibility Verification (backward compatibility checks)
+   - ✅ Reality Assessment (always enabled for enhancements)
+   - ✅ Pragmatic Review (always enabled for enhancements)
    [If code_review_enabled]
    - ✅ Code Review (Scope: {scope})
    [If production_check_enabled]
    - ✅ Production Readiness Check (Target: {target})
-   [If both disabled]
-   - ⏭️ Optional checks disabled
 
    Proceeding to Phase 6: Verification + Compatibility...
    ```

@@ -423,6 +423,11 @@ Keywords indicating UI-intensive work:
    ELSE:
      production_check_enabled = false
      Output: "⏭️ Skipping production readiness (not critical for this change)"
+
+   # Reality assessment and pragmatic review are always enabled for features
+   pragmatic_review_enabled = true
+   reality_check_enabled = true
+   Output: "✅ Auto-enabling reality assessment + pragmatic review (mandatory for features)"
    ```
 
 5. **Update orchestrator state** with decisions:
@@ -436,6 +441,8 @@ Keywords indicating UI-intensive work:
        production_check_enabled: true | false
        production_check_target: "production" | "staging"
        production_check_requested_by: "auto" | "user" | "flag"
+       pragmatic_review_enabled: true      # Always true for features
+       reality_check_enabled: true          # Always true for features
    ```
 
 6. **Output confirmation**:
@@ -445,12 +452,12 @@ Keywords indicating UI-intensive work:
 
    Will run:
    - ✅ Basic Verification (implementation plan, tests, standards, docs)
+   - ✅ Reality Assessment (always enabled for features)
+   - ✅ Pragmatic Review (always enabled for features)
    [If code_review_enabled]
    - ✅ Code Review (Scope: {scope})
    [If production_check_enabled]
    - ✅ Production Readiness Check (Target: {target})
-   [If both disabled]
-   - ⏭️ Optional checks disabled
 
    Proceeding to Phase 5: Verification...
    ```
