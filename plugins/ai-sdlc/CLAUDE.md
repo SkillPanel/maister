@@ -584,6 +584,22 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 | `production-readiness-checker` | Pre-deployment verification with GO/NO-GO recommendation | `skills/production-readiness-checker/skill.md` |
 | `docs-manager` | Manages standards in `.ai-sdlc/docs/`, handles discovery and updates | `skills/docs-manager/skill.md` |
 
+### Orchestrator Framework
+
+All orchestrators share common patterns documented in `skills/orchestrator-framework/references/`:
+
+| Pattern | File | Purpose |
+|---------|------|---------|
+| Phase Execution | `phase-execution-pattern.md` | 7-step loop for each phase |
+| State Management | `state-management.md` | orchestrator-state.yml schema and operations |
+| Interactive Mode | `interactive-mode.md` | Post-phase prompts and user decisions |
+| Initialization | `initialization-pattern.md` | Startup sequence and directory setup |
+
+Each orchestrator references these patterns (via `../orchestrator-framework/references/`) and implements domain-specific behavior. This approach:
+- **Single source of truth**: Patterns documented once, referenced everywhere
+- **Self-contained orchestrators**: Each has enough context to work independently
+- **No execution overhead**: Reference files are documentation, not invoked skills
+
 ### Orchestrator Skills
 
 Orchestrators manage complete workflows with state management, auto-recovery, and pause/resume.

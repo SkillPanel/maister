@@ -58,15 +58,22 @@ When invoked, expect these parameters from the orchestrator:
 
 ### Step 2: Launch 3 Parallel Explore Subagents
 
-**CRITICAL: Use a single message with 3 Task tool calls to run in parallel.**
+**CRITICAL: You MUST use the built-in Explore agent via the Task tool.**
 
 ```
-Use Task tool 3 times in ONE message:
+Use Task tool 3 times in ONE message with subagent_type="Explore":
 
-Task 1: File Discovery Agent
-Task 2: Code Analysis Agent
-Task 3: Context Discovery Agent
+Task 1: File Discovery Agent (subagent_type: "Explore")
+Task 2: Code Analysis Agent (subagent_type: "Explore")
+Task 3: Context Discovery Agent (subagent_type: "Explore")
 ```
+
+**Required Task tool parameters:**
+- `subagent_type`: MUST be `"Explore"` - the built-in fast exploration agent
+- `description`: Short 3-5 word description (e.g., "Find relevant files")
+- `prompt`: Task-type-specific prompt from templates below
+
+**Why Explore agent?** The built-in Explore agent is optimized for codebase exploration with access to Glob, Grep, and Read tools. It's faster and more reliable than general-purpose agents for file discovery tasks.
 
 #### Agent 1: File Discovery
 

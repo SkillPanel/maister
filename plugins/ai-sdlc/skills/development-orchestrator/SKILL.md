@@ -179,15 +179,18 @@ This orchestrator follows shared patterns. See:
 
 ### Phase 1: Codebase Analysis
 
-**Skill**: `codebase-analyzer`
+**IMMEDIATE ACTION REQUIRED**: Invoke the codebase-analyzer skill NOW:
 
-**Invocation**:
 ```
 Use Skill tool:
   skill: "ai-sdlc:codebase-analyzer"
 ```
 
-**Purpose**: Analyze codebase to understand context before making changes
+**Do NOT analyze codebase directly.** The codebase-analyzer skill handles:
+- 3 parallel Explore subagents for comprehensive analysis
+- Task-type-specific focus (bug/enhancement/feature)
+- Risk level assessment
+- Structured output for downstream phases
 
 **Focus by Task Type**:
 
@@ -392,15 +395,18 @@ prompt: |
 
 ### Phase 5: Specification
 
-**Skill**: `specification-creator`
+**IMMEDIATE ACTION REQUIRED**: Invoke the specification-creator skill NOW:
 
-**Invocation**:
 ```
 Use Skill tool:
   skill: "ai-sdlc:specification-creator"
 ```
 
-**Standards Reminder**: Review `.ai-sdlc/docs/INDEX.md` before creating spec
+**Do NOT create specification directly.** The specification-creator skill handles:
+- 4-phase spec creation (init → research → write → verify)
+- Standards awareness from docs/INDEX.md
+- Task-type-specific sections (bug/enhancement/feature)
+- Requirements gathering and documentation
 
 **Task-Type-Specific Sections**:
 - **Bug**: Root cause, fix approach, regression prevention
@@ -455,15 +461,18 @@ Use Skill tool:
 
 ### Phase 7: Implementation Planning
 
-**Skill**: `implementation-planner`
+**IMMEDIATE ACTION REQUIRED**: Invoke the implementation-planner skill NOW:
 
-**Invocation**:
 ```
 Use Skill tool:
   skill: "ai-sdlc:implementation-planner"
 ```
 
-**Standards Reminder**: Review `.ai-sdlc/docs/INDEX.md` for project conventions
+**Do NOT create implementation plan directly.** The implementation-planner skill handles:
+- Task groups organized by layer (database, API, frontend, testing)
+- Test-driven steps (2-8 tests per group)
+- Dependency ordering and acceptance criteria
+- Standards compliance checks from docs/INDEX.md
 
 **Task-Type-Specific Considerations**:
 - **Bug**: Regression test preservation
@@ -478,15 +487,18 @@ Use Skill tool:
 
 ### Phase 8: Implementation
 
-**Skill**: `implementer`
+**IMMEDIATE ACTION REQUIRED**: Invoke the implementer skill NOW:
 
-**Invocation**:
 ```
 Use Skill tool:
   skill: "ai-sdlc:implementer"
 ```
 
-**Standards Reminder**: Continuous standards discovery from docs/INDEX.md
+**Do NOT implement directly.** The implementer skill handles:
+- Continuous standards discovery from docs/INDEX.md
+- Execution mode selection (direct/delegated/orchestrated based on complexity)
+- Progress tracking in work-log.md
+- Test-driven verification per task group
 
 **Outputs**: Implemented code, updated implementation-plan.md, `implementation/work-log.md`
 
@@ -539,13 +551,18 @@ Use Skill tool:
 
 ### Phase 11: Verification
 
-**Skill**: `implementation-verifier`
+**IMMEDIATE ACTION REQUIRED**: Invoke the implementation-verifier skill NOW:
 
-**Invocation**:
 ```
 Use Skill tool:
   skill: "ai-sdlc:implementation-verifier"
 ```
+
+**Do NOT verify implementation directly.** The implementation-verifier skill handles:
+- Full test suite execution (not just feature tests)
+- Standards compliance verification from docs/INDEX.md
+- Optional reviews (code, pragmatic, production, reality)
+- Read-only verification (reports issues, doesn't fix them)
 
 **Reads orchestrator-state.yml** to determine which checks to run
 

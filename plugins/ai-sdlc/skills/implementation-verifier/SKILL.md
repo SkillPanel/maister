@@ -148,8 +148,19 @@ Determine status: ✅ Complete / ⚠️ Adequate / ❌ Incomplete
 
 ### Phase 6: Code Review
 
-**Skill**: `code-reviewer`
-**Scope options**: all / quality / security / performance
+**IMMEDIATE ACTION REQUIRED**: Invoke the code-reviewer skill NOW:
+
+```
+Use Skill tool:
+  skill: "ai-sdlc:code-reviewer"
+```
+
+**Do NOT review code directly.** The code-reviewer skill handles:
+- Automated code quality analysis
+- Security vulnerability detection
+- Performance issue identification
+- Scope-specific reviews (all / quality / security / performance)
+
 **Impact**: Critical issues → overall status ❌ Failed
 
 ### Phase 6.5: Pragmatic Review
@@ -160,8 +171,19 @@ Determine status: ✅ Complete / ⚠️ Adequate / ❌ Incomplete
 
 ### Phase 7: Production Readiness Check
 
-**Skill**: `production-readiness-checker`
-**Purpose**: Verify deployment readiness (config, monitoring, error handling, security)
+**IMMEDIATE ACTION REQUIRED**: Invoke the production-readiness-checker skill NOW:
+
+```
+Use Skill tool:
+  skill: "ai-sdlc:production-readiness-checker"
+```
+
+**Do NOT check production readiness directly.** The production-readiness-checker skill handles:
+- Configuration management verification
+- Monitoring setup checks
+- Error handling assessment
+- Security hardening verification
+
 **Impact**: Deployment blockers → overall status ❌ Failed
 
 ### Phase 7.5: Reality Assessment

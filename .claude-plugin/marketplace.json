@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "aisdlc-plugins",
-  "version": "1.1.5",
+  "version": "1.1.13",
   "description": "Bundled plugins for AI Driven SDLC",
   "owner": {
     "name": "Skillpanel",
