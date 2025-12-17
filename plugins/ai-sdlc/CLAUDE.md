@@ -578,7 +578,7 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 | `codebase-analyzer` | Phase 1 analysis using 3 parallel Explore subagents (file discovery, code analysis, context discovery) | `skills/codebase-analyzer/SKILL.md` |
 | `specification-creator` | Creates specs through 4 phases: initialize → research → write → verify | `skills/specification-creator/skill.md` |
 | `implementation-planner` | Breaks specs into task groups with test-driven steps | `skills/implementation-planner/skill.md` |
-| `implementer` | Executes plans with continuous standards discovery from INDEX.md | `skills/implementer/skill.md` |
+| `implementer` | Executes plans with **mandatory** standards reading (INDEX.md + implementation-plan.md Standards Compliance section + keyword-triggered) and **test step enforcement** (requires user approval to skip N.1 tests) | `skills/implementer/SKILL.md` |
 | `implementation-verifier` | Read-only QA: runs tests, actively reasons about applicable standards from INDEX.md, verifies compliance | `skills/implementation-verifier/skill.md` |
 | `code-reviewer` | Automated code quality, security, performance analysis | `skills/code-reviewer/skill.md` |
 | `production-readiness-checker` | Pre-deployment verification with GO/NO-GO recommendation | `skills/production-readiness-checker/skill.md` |

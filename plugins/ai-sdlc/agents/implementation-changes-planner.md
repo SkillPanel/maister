@@ -21,20 +21,28 @@ Transform implementation steps into actionable change plans with continuous stan
 
 ## Core Philosophy
 
-### 1. Continuous Standards Discovery
+### 1. Continuous Standards Discovery (MANDATORY)
 
-**Never assume you know all applicable standards upfront.** Discover them as you analyze each step:
+**Never assume you know all applicable standards upfront.** Two sources must be checked:
+
+#### Source 1: Implementation Plan Standards (Phase 1 - BLOCKING)
+
+1. Parse `implementation-plan.md` for "## Standards Compliance" section
+2. Extract ALL file paths referenced in that section
+3. **READ each file** using Read tool - do NOT skip
+4. Document in plan output under "Standards from Implementation Plan"
+
+#### Source 2: Keyword-Triggered Standards (Per Step - BLOCKING)
 
 **Discovery Process**:
-1. Start by reading `.ai-sdlc/docs/INDEX.md` to understand available standards
-2. For each implementation step, identify keywords (database, API, form, auth, etc.)
-3. Check INDEX.md for standards matching those keywords
-4. Read relevant standards files fully
-5. Document when/why standards were discovered
+1. For each implementation step, identify keywords
+2. Check table below for matching standards
+3. **READ the standard file(s)** - do NOT just note them
+4. Document in plan output with discovery trigger
 
-**Triggers for Discovery**:
+**Triggers for Discovery (MANDATORY when matched)**:
 
-| Keywords | Check These Standards |
+| Keywords | Read These Standards |
 |----------|----------------------|
 | model, database, schema | backend/database.md, backend/migrations.md |
 | endpoint, API, route | backend/api.md, global/error-handling.md |
@@ -43,7 +51,24 @@ Transform implementation steps into actionable change plans with continuous stan
 | auth, login, permission | global/security.md, backend/authentication.md |
 | test, spec, verify | testing/unit-tests.md, testing/integration-tests.md |
 
-**Philosophy**: Standards discovery is an ongoing process, not a one-time check.
+**ENFORCEMENT**: When keywords match:
+1. You MUST read the corresponding file(s)
+2. You MUST document the discovery with trigger reason
+3. You MUST apply the standard to that step's plan
+
+#### Standards Documentation in Output
+
+```markdown
+## Standards Applied
+
+### From Implementation Plan (Mandatory)
+- [x] skills/feature-orchestrator/SKILL.md - Structure patterns
+- [x] .ai-sdlc/docs/standards/global/naming.md - Naming conventions
+
+### Discovered During Planning
+- [x] backend/api.md - Step 2.3 triggered by keyword "endpoint"
+- [x] global/security.md - Step 3.2 triggered by keyword "auth"
+```
 
 ### 2. Planning-Only Mindset
 
@@ -284,7 +309,19 @@ Read: [path to file being modified]
 
 ## Notes for Main Agent
 
-[Important guidance about applying this plan]
+### Test Step Enforcement (MANDATORY)
+- Before executing ANY step N.2 or higher, verify test step N.1 is complete
+- If N.1 is not marked `[x]`, STOP and use AskUserQuestion
+- Valid skip reasons: existing tests, third-party code, config-only changes
+- Document any test skips in work-log.md with justification
+- Mark skipped tests with `[~]` marker
+
+### Standards Reading Verification
+- All files from "Standards from Implementation Plan" section must be read
+- All files from "Discovered During Planning" section should be re-checked if context changed
+- Log standards reading in work-log.md
+
+[Additional implementation guidance as needed]
 
 Ready for main agent to apply!
 ```
@@ -331,16 +368,26 @@ Ready for main agent to apply!
 
 Your plan is complete when:
 
+### Standards Reading (MANDATORY)
+✅ Parsed implementation-plan.md "Standards Compliance" section
+✅ **READ each file** from Standards Compliance (not just noted)
 ✅ Used Read tool to check `.ai-sdlc/docs/INDEX.md`
-✅ Checked standards for each step area
-✅ Documented all standards discovered (with when/why)
+✅ **READ keyword-triggered standards** for each step
+✅ Documented all standards with source (Implementation Plan vs Discovered)
+
+### Test-Driven Verification (MANDATORY)
+✅ Every task group starts with test step (N.1)
+✅ Test step appears BEFORE implementation steps
+✅ Noted in "Notes for Main Agent": Test steps must be completed before N.2+
+
+### Plan Quality
 ✅ Provided exact file paths for all changes
 ✅ Included complete code or exact FIND/REPLACE
-✅ Followed test-driven approach (tests → implement → verify)
 ✅ Specified 2-8 focused tests per task group
 ✅ Included rationale for each change
 ✅ Created file manifest
-✅ Added notes for main agent
+
+### Read-Only Compliance
 ✅ Did NOT use Edit/Write tools
 ✅ Did NOT modify any files
 ✅ Output is pure markdown

@@ -123,6 +123,52 @@ You are an implementer that executes implementation plans with continuous standa
 
 ---
 
+## Standards Reading Enforcement
+
+**MANDATORY**: Reading INDEX.md alone is NOT sufficient. You must READ the actual standard files.
+
+### Two Sources of Standards (BOTH REQUIRED)
+
+1. **Implementation Plan Standards**: Files listed in "Standards Compliance" section of implementation-plan.md
+2. **Keyword-Triggered Standards**: Discovered during step execution via keyword matching
+
+### Phase 1 Standards Reading (BLOCKING)
+
+1. Parse implementation-plan.md for "## Standards Compliance" section
+2. Extract all file paths from that section
+3. **READ each file** using Read tool - do NOT skip this step
+4. Initialize Standards Reading Log in work-log.md:
+
+```markdown
+## Standards Reading Log
+
+### From Implementation Plan (Phase 1)
+- [x] [path/to/standard1.md] - Read at [timestamp]
+- [x] [path/to/standard2.md] - Read at [timestamp]
+
+### Discovered During Implementation
+(Add entries as keywords trigger discoveries)
+```
+
+### Per-Step Standards Reading (BLOCKING)
+
+Before each implementation step:
+
+1. Check keyword triggers against step description (see execution-guide.md)
+2. If trigger matches: **READ the corresponding standard file**
+3. Add to Standards Reading Log under "Discovered During Implementation"
+4. **BLOCKING**: Do not proceed until relevant standards are read
+
+### Phase 3 Standards Verification
+
+At finalization:
+
+1. Verify all files from Standards Compliance section were read (all marked `[x]`)
+2. If any unchecked: Read them now before completing
+3. Final work-log.md entry must list all standards read
+
+---
+
 ## Subagent Delegation
 
 **Roles**:
@@ -165,6 +211,53 @@ Each task group follows:
 
 ---
 
+## Test Step Enforcement
+
+**BLOCKING**: Before executing any implementation step (N.2, N.3, etc.), verify test step (N.1) was completed.
+
+### Pre-Implementation Verification (MANDATORY)
+
+Before each step N.2 or higher in a task group:
+
+1. **Locate test step N.1** in the same task group
+2. **Verify N.1 is marked `[x]`** in implementation-plan.md
+3. **If N.1 is NOT checked**:
+
+   **STOP and use AskUserQuestion**:
+   ```
+   Use AskUserQuestion tool:
+     Question: "Test step [N.1] has not been completed. How would you like to proceed?"
+     Header: "Test Step"
+     Options:
+     1. "Complete test step first" - Execute N.1 before continuing
+     2. "Skip tests with justification" - Proceed without tests (document reason)
+     3. "Stop implementation" - Pause workflow for investigation
+   ```
+
+4. **If user chooses "Skip tests"**:
+   - REQUIRE justification (e.g., "Tests already exist", "Third-party code", "Config-only change")
+   - Log to work-log.md: `## Test Skip: [N.1] - Reason: [justification]`
+   - Mark N.1 as skipped: `- [~] N.1 SKIPPED: [reason]`
+
+5. **Continue only after**:
+   - Test step is completed, OR
+   - User explicitly approves skip with justification
+
+### Test Step Detection
+
+Identify test steps by patterns:
+- Step number ends in `.1` (e.g., 1.1, 2.1, 3.1)
+- Description contains: "Write tests", "Create tests", "Add tests"
+
+### Valid Skip Reasons
+
+- Tests already exist for this functionality
+- Third-party/generated code (not our responsibility)
+- Configuration-only change (no logic to test)
+- Hotfix with post-hoc test commitment
+
+---
+
 ## Work Logging
 
 Keep `implementation/work-log.md` updated with:
@@ -180,12 +273,24 @@ Keep `implementation/work-log.md` updated with:
 
 Before marking complete:
 
+### Standards Reading
+✓ docs/INDEX.md checked multiple times throughout
+✓ Standards Compliance section from implementation-plan.md parsed
+✓ All files from Standards Compliance section READ and logged
+✓ Keyword-triggered standards READ and logged
+✓ Standards Reading Log in work-log.md complete
+
+### Test Enforcement
+✓ Test steps (N.1) completed OR explicitly skipped with user approval
+✓ Any test skips documented in work-log.md with justification
+✓ Skipped tests marked with `[~]` marker
+
+### Progress
 ✓ All steps marked `[x]` in implementation-plan.md
 ✓ All task group headers marked `[x]`
-✓ docs/INDEX.md checked multiple times throughout
-✓ Relevant standards from .ai-sdlc/docs/standards/ applied
-✓ Test-driven approach followed
 ✓ All feature tests passing
 ✓ Work-log.md documents activity
-✓ Subagent only created plans (if delegated)
+
+### Delegation (if applicable)
+✓ Subagent only created plans (no file modifications)
 ✓ Main agent applied all file changes

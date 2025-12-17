@@ -64,7 +64,19 @@ When subagent creates a change plan, expect this structure:
 
 ---
 
-## Standards Discovery
+## Standards Discovery and Enforcement
+
+### Two Sources of Standards (BOTH MANDATORY)
+
+1. **Implementation Plan Standards**: Files listed in "Standards Compliance" section of implementation-plan.md
+2. **Keyword-Triggered Standards**: Discovered during step execution via keyword matching
+
+### Phase 1: Read Standards Compliance Section (BLOCKING)
+
+1. Parse `implementation-plan.md` for "## Standards Compliance" section
+2. Extract all file paths (e.g., `skills/feature-orchestrator/SKILL.md`, `.ai-sdlc/docs/standards/global/`)
+3. **READ each file** using Read tool - do NOT skip
+4. Initialize Standards Reading Log in work-log.md
 
 ### When to Check docs/INDEX.md
 
@@ -73,12 +85,11 @@ When subagent creates a change plan, expect this structure:
 | Initial (Phase 1) | Understand available standards |
 | Before each task group | Identify specialty-area standards |
 | Before each step | Check if keywords suggest new standards |
-| Before applying changes | Verify compliance |
 | Final (Phase 3) | Ensure nothing missed |
 
-### Discovery Triggers
+### Discovery Triggers (MANDATORY when matched)
 
-| Keywords in Step | Check These Standards |
+| Keywords in Step | Read These Standards |
 |-----------------|----------------------|
 | file, upload, download | file-handling, storage, security |
 | auth, login, permission | security, authentication |
@@ -88,9 +99,31 @@ When subagent creates a change plan, expect this structure:
 | API, endpoint | api, error-handling |
 | migration, schema | database, migrations |
 
-### Discovery Principle
+**ENFORCEMENT**: When keywords match, you MUST:
+1. **Read** the corresponding standard file(s) using Read tool
+2. **Add** to Standards Reading Log under "Discovered During Implementation"
+3. **Apply** the standard to current step
 
-Not all standards are obvious initially. Standards become relevant as implementation progresses. Check continuously, apply immediately when discovered, document in work-log.md.
+### Standards Reading Log Format
+
+```markdown
+## Standards Reading Log
+
+### From Implementation Plan (Phase 1)
+- [x] skills/feature-orchestrator/SKILL.md - Read at 2025-01-15 10:30
+- [x] .ai-sdlc/docs/standards/global/naming.md - Read at 2025-01-15 10:31
+
+### Discovered During Implementation
+- [x] .ai-sdlc/docs/standards/backend/api.md - Step 2.3 (keyword: "endpoint")
+- [x] .ai-sdlc/docs/standards/global/security.md - Step 3.2 (keyword: "auth")
+```
+
+### Phase 3 Verification
+
+Before completing, verify:
+1. All files from Standards Compliance are marked `[x]`
+2. All keyword-triggered discoveries are logged
+3. Final work-log entry lists total standards read
 
 ---
 
@@ -126,6 +159,60 @@ Never batch updates. Never mark ahead.
 ### Validation
 
 Phase 3 runs blocking validation. No unmarked `- [ ]` steps can remain. If validation fails, mark missing steps before proceeding.
+
+---
+
+## Test Step Verification
+
+### Pre-Implementation Check (BLOCKING)
+
+Before executing step N.2 or higher in any task group:
+
+1. **Locate test step N.1** in the same task group
+2. **Verify N.1 checkbox is `[x]`**
+3. **If unchecked**: STOP and prompt user
+
+### User Prompt for Test Skip
+
+```
+Use AskUserQuestion tool:
+  Question: "Test step [N.1] has not been completed. How would you like to proceed?"
+  Header: "Test Step"
+  Options:
+  1. "Complete test step first" - Execute N.1 now
+  2. "Skip tests with justification" - Document reason and proceed
+  3. "Stop implementation" - Pause for investigation
+```
+
+### Documenting Test Skips
+
+If user approves skip, add to work-log.md:
+
+```markdown
+## Test Skip: 2.1
+
+**Reason**: [User-provided justification]
+**Approved by**: User at [timestamp]
+**Impact**: [Note any risks]
+```
+
+Mark in implementation-plan.md:
+```
+- [~] 2.1 SKIPPED: [reason]
+```
+
+### Valid Skip Reasons
+
+- Tests already exist for this functionality
+- Third-party/generated code (not our responsibility)
+- Configuration-only change (no logic to test)
+- Hotfix with post-hoc test commitment
+
+### Invalid Skip Reasons (Require Further Discussion)
+
+- "Too complex to test" - Suggest breaking down
+- "No time for tests" - Tests save time long-term
+- "Tests will slow us down" - Technical debt concern
 
 ---
 
