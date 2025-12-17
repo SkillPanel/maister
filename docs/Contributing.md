@@ -230,13 +230,15 @@ Test via Skill tool or command:
 
 ### Skill Best Practices
 
-1. **Phase-based structure** - Break workflow into clear phases
-2. **State persistence** - Always persist state for pause/resume
+1. **Phase-based structure** - Break workflow into clear phases following the 7-step phase execution pattern
+2. **State persistence** - Always persist state for pause/resume (see `orchestrator-framework/references/state-management.md`)
 3. **Auto-recovery** - Implement intelligent error handling (max 3 attempts per phase)
 4. **Agent delegation** - Delegate specialized work to agents
 5. **Standards discovery** - Check INDEX.md throughout execution
 6. **Evidence-based** - All analysis must reference actual code/files
 7. **Read-only verification** - Verification phases never modify code
+
+**For New Orchestrators**: Reference the shared patterns in `skills/orchestrator-framework/references/` instead of duplicating common logic. See existing orchestrators (development-orchestrator, security-orchestrator) for examples of how to reference framework patterns.
 
 ---
 
@@ -884,10 +886,14 @@ Follow the plugin's documentation philosophy (see [CLAUDE.md](../CLAUDE.md#plugi
 
 Study existing implementations:
 
+**Orchestrator Framework** (start here for new orchestrators):
+- `skills/orchestrator-framework/references/` - Shared patterns all orchestrators use
+- `skills/orchestrator-framework/SKILL.md` - Framework overview
+
 **Orchestrator Pattern**:
-- skills/feature-orchestrator
-- skills/bug-fix-orchestrator
-- skills/enhancement-orchestrator
+- skills/development-orchestrator - Unified workflow (bug/enhancement/feature)
+- skills/security-orchestrator - Security remediation workflow
+- skills/refactoring-orchestrator - Safe refactoring with behavior verification
 
 **Analysis Pattern**:
 - agents/refactoring-analyzer.md

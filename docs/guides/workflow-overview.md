@@ -29,6 +29,7 @@ Use specialized orchestrator skills for guided, automated workflows. Best for mo
 - Auto-recovery from common failures
 - Pause/resume capability with state management
 - Guided workflow from start to finish
+- Common orchestration patterns from the shared framework
 
 ### Using `/work` Command (Automatic Classification)
 
@@ -177,6 +178,21 @@ Orchestrators use `TodoWrite` for real-time progress visibility:
 - At workflow start: Creates todos for all phases (pending)
 - At each phase: Marks current as `in_progress`, then `completed`
 - On failure: Keeps as `in_progress`; state file tracks details
+
+---
+
+## Common Orchestration Patterns
+
+All orchestrators follow shared patterns defined in `skills/orchestrator-framework/references/`:
+
+| Pattern | Purpose |
+|---------|---------|
+| **Phase Execution** | 7-step loop for consistent phase management |
+| **State Management** | YAML-based state persistence for pause/resume |
+| **Interactive Mode** | Post-phase reviews and user decisions |
+| **Initialization** | Task directory setup and state initialization |
+
+These patterns ensure consistent behavior across all workflows. For implementation details, see the [orchestrator framework documentation](../../plugins/ai-sdlc/skills/orchestrator-framework/SKILL.md).
 
 ---
 

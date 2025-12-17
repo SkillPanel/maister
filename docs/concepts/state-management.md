@@ -2,6 +2,9 @@
 
 How workflow state is persisted, managed, and used for pause/resume capability.
 
+> **Note**: For the authoritative orchestrator state specification, see
+> `plugins/ai-sdlc/skills/orchestrator-framework/references/state-management.md`
+
 ## Overview
 
 State management enables workflows to pause and resume by persisting execution state to files. This allows long-running workflows to be interrupted and continued later without losing progress.

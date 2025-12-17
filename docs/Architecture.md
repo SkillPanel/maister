@@ -104,6 +104,21 @@ Skills are autonomous workflows that orchestrate complex multi-phase tasks.
 - Handle auto-recovery
 - Delegate to specialized agents
 
+#### Shared Orchestration Framework
+
+All orchestrators use common patterns from `skills/orchestrator-framework/references/`:
+
+| Pattern | Purpose |
+|---------|---------|
+| **Phase Execution Loop** | 7-step pattern for consistent phase management |
+| **State Management** | orchestrator-state.yml schema for pause/resume |
+| **Interactive Mode** | Post-phase reviews and user decisions |
+| **Initialization** | Task directory and state setup |
+
+This reduces duplication (~64% line reduction) and ensures consistent behavior across all orchestrators. Each orchestrator references these patterns via relative paths and implements domain-specific logic.
+
+See: `skills/orchestrator-framework/SKILL.md`
+
 **Architecture of a Skill**:
 
 ```

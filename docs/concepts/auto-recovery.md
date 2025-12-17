@@ -2,6 +2,9 @@
 
 How intelligent failure handling and automatic recovery work in workflows.
 
+> **Note**: Auto-recovery is implemented via the phase execution pattern. See
+> `plugins/ai-sdlc/skills/orchestrator-framework/references/phase-execution-pattern.md` (STEP 5: Error Handling)
+
 ## Overview
 
 Auto-recovery is the system's ability to automatically detect and fix common failures during workflow execution, reducing manual intervention and improving success rates.

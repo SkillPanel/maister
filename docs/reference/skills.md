@@ -8,6 +8,23 @@ Skills are autonomous workflows that orchestrate complex tasks. There are two ty
 - **Orchestrator Skills**: Multi-phase workflows for complete task execution
 - **Utility Skills**: Specialized capabilities invoked by orchestrators
 
+## Orchestrator Framework (Shared Patterns)
+
+All orchestrator skills share common patterns documented in `skills/orchestrator-framework/references/`:
+
+| Pattern | File | Purpose |
+|---------|------|---------|
+| Phase Execution | `phase-execution-pattern.md` | 7-step loop for each phase |
+| State Management | `state-management.md` | orchestrator-state.yml schema |
+| Interactive Mode | `interactive-mode.md` | Post-phase prompts, user decisions |
+| Initialization | `initialization-pattern.md` | Startup sequence, directory setup |
+
+This is a **non-executable reference skill** - it provides documentation, not workflow execution. All orchestrators reference these patterns via relative paths (`../orchestrator-framework/references/`).
+
+[Framework Documentation](../../plugins/ai-sdlc/skills/orchestrator-framework/SKILL.md)
+
+---
+
 ## Orchestrator Skills (8)
 
 ### development-orchestrator
