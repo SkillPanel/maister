@@ -32,7 +32,8 @@ Use TodoWrite tool with todos:
 
 Add task-type-specific phases as needed:
 - **Bug fixes**: Add `{"content": "Write failing test (TDD Red)", "status": "pending", "activeForm": "Writing failing test"}` after "Analyze gaps" and `{"content": "Verify test passes (TDD Green)", "status": "pending", "activeForm": "Verifying test passes"}` after "Execute implementation"
-- **Features/Enhancements with UI**: Add `{"content": "Generate UI mockups", "status": "pending", "activeForm": "Generating UI mockups"}` after "Analyze gaps"
+- **Features/Enhancements with UI** (ui_heavy=true): Add `{"content": "Clarify UI approach", "status": "pending", "activeForm": "Clarifying UI approach"}` and `{"content": "Generate UI mockups", "status": "pending", "activeForm": "Generating UI mockups"}` after "Analyze gaps"
+- **Complex tasks** (multiple approaches or high risk): Add `{"content": "Clarify technical approach", "status": "pending", "activeForm": "Clarifying technical approach"}` before "Create specification"
 
 ### Step 2: Output Initialization Summary
 
@@ -55,9 +56,30 @@ Workflow phases:
 Starting Phase 1: Analyze codebase...
 ```
 
-### Step 3: Only Then Proceed to Phase 1
+### Step 3: Phase Summary Output (After Each Phase)
 
-After completing Steps 1 and 2, proceed to Phase 1 (Codebase Analysis).
+**CRITICAL: After EVERY phase completes, output a summary BEFORE prompting the user:**
+
+```
+✅ Phase [N] Complete: [Phase Name]
+
+Results:
+- [Key result 1 - what was accomplished]
+- [Key result 2 - what was produced]
+
+Outputs:
+- [output-file.md]
+
+Status: Success
+```
+
+**DO NOT skip this summary.** Users need visibility into what each phase accomplished.
+
+See `orchestrator-framework/references/phase-execution-pattern.md` STEP 7 for full template.
+
+### Step 4: Only Then Proceed to Phase 1
+
+After completing Steps 1, 2, and understanding Step 3, proceed to Phase 1 (Codebase Analysis).
 
 ---
 
@@ -119,7 +141,9 @@ This orchestrator follows shared patterns. See:
 | 1.5 | "Clarify requirements" | "Clarifying requirements" | All |
 | 2 | "Analyze gaps" | "Analyzing gaps" | All |
 | 3 | "Write failing test (TDD Red)" | "Writing failing test" | Bug only |
-| 4 | "Generate UI mockups" | "Generating UI mockups" | Enhancement, Feature (optional) |
+| 3.5 | "Clarify UI approach" | "Clarifying UI approach" | Enhancement, Feature (if ui_heavy) |
+| 4 | "Generate UI mockups" | "Generating UI mockups" | Enhancement, Feature (if ui_heavy) |
+| 4.5 | "Clarify technical approach" | "Clarifying technical approach" | All (if complex) |
 | 5 | "Create specification" | "Creating specification" | All |
 | 5.5 | "Decide architecture" | "Deciding architecture" | Feature, Enhancement (conditional) |
 | 6 | "Audit specification" | "Auditing specification" | All |
@@ -132,7 +156,7 @@ This orchestrator follows shared patterns. See:
 | 13 | "Generate user documentation" | "Generating user documentation" | Optional |
 | 14 | "Finalize workflow" | "Finalizing workflow" | All |
 
-**Workflow Overview**: 15 phases (0-14 + 1.5, 5.5), with some conditional
+**Workflow Overview**: 17 phases (0-14 + 1.5, 3.5, 4.5, 5.5), with some conditional
 
 **CRITICAL TodoWrite Usage**:
 1. At workflow start: Create todos for ALL phases using the Phase Configuration table above (all status=pending)
@@ -272,17 +296,95 @@ prompt: |
 
 **Outputs**: `implementation/tdd-red-gate.md`, failing test file
 
+**⏸️ INTERACTIVE MODE: STOP HERE** - After this phase completes, use `AskUserQuestion` before proceeding to Phase 3.5.
+
+---
+
+### Phase 3.5: Clarify UI Approach (Conditional)
+
+**Execution**: Main orchestrator (direct with AskUserQuestion)
+
+**When**: task_type = enhancement/feature AND ui_heavy = true (from gap analysis)
+
+**Skip if**: Bug fix, not UI-heavy, or UI approach already clear
+
+**Purpose**: Resolve UI-specific decisions BEFORE generating mockups
+
+**Question Categories**:
+
+| Category | Example Questions |
+|----------|-------------------|
+| **Component Choice** | "Use existing DatePicker or build custom?" |
+| **Layout** | "Modal dialog or inline expansion?" |
+| **Styling** | "Match existing theme or new design?" |
+| **Interaction** | "Immediate save or explicit submit?" |
+
+**Process**:
+1. Analyze gap-analysis.md for UI-related gaps
+2. Generate max 3-5 UI-specific questions
+3. Present via AskUserQuestion
+4. Document answers in `analysis/ui-clarifications.md`
+
+**YOLO Mode**: Accept all recommended defaults, log acceptance
+
+**State Update**: After UI clarifications complete:
+- Set `task_context.ui_clarified: true` in orchestrator-state.yml
+
+**Outputs**: `analysis/ui-clarifications.md`
+
 **⏸️ INTERACTIVE MODE: STOP HERE** - After this phase completes, use `AskUserQuestion` before proceeding to Phase 4.
 
 ---
 
-### Phase 4: UI Mockup Generation (Optional)
+### Phase 4: UI Mockup Generation (Conditional)
 
 **Agent**: `ui-mockup-generator` (subagent)
 
 **When**: Enhancement or feature with `ui_heavy = true`
 
 **Outputs**: `analysis/ui-mockups.md`
+
+**⏸️ INTERACTIVE MODE: STOP HERE** - After this phase completes, use `AskUserQuestion` before proceeding to Phase 4.5.
+
+---
+
+### Phase 4.5: Clarify Technical Approach (Conditional)
+
+**Execution**: Main orchestrator (direct with AskUserQuestion)
+
+**When**: Complex task OR multiple valid approaches detected in gap analysis
+
+**Skip if**: Simple/straightforward task, or technical approach already clear from requirements
+
+**Trigger Detection**:
+- Gap analysis mentions multiple approaches
+- Risk level = medium or high
+- New technology/library decision needed
+- Core architecture affected (data model, API, state management)
+
+**Purpose**: Resolve technical decisions BEFORE creating specification
+
+**Question Categories**:
+
+| Category | Example Questions |
+|----------|-------------------|
+| **Data Model** | "New entity or extend existing?" |
+| **API Design** | "REST endpoint or extend existing?" |
+| **State Management** | "Local state or global store?" |
+| **Compatibility** | "Break backward compat or maintain?" |
+
+**Process**:
+1. Analyze gap-analysis.md for technical decision points
+2. Generate max 3-5 technical questions
+3. Present via AskUserQuestion
+4. Document answers in `analysis/technical-clarifications.md`
+
+**YOLO Mode**: Accept all recommended defaults, log acceptance
+
+**State Update**: After technical clarifications complete:
+- Set `task_context.tech_clarified: true` in orchestrator-state.yml
+
+**Outputs**: `analysis/technical-clarifications.md`
 
 **⏸️ INTERACTIVE MODE: STOP HERE** - After this phase completes, use `AskUserQuestion` before proceeding to Phase 5.
 

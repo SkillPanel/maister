@@ -92,20 +92,46 @@ orchestrator:
 Use TodoWrite tool to update current phase status to "completed"
 ```
 
-### STEP 7: Post-Phase Review
+### STEP 7: Post-Phase Summary & Review
+
+**CRITICAL: You MUST output a phase summary BEFORE prompting the user.**
+
+#### STEP 7a: Output Phase Summary (MANDATORY - Both Modes)
+
+**Always output this summary after phase completes:**
+
+```
+✅ Phase [N] Complete: [Phase Name]
+
+Results:
+- [Key result 1 - what was accomplished]
+- [Key result 2 - what was produced]
+- [Key result 3 - key findings if any]
+
+Outputs:
+- [output-file-1.md]
+- [output-file-2.md]
+
+Status: [Success/Success with warnings]
+
+[If warnings exist]
+⚠️ Warnings:
+- [Warning 1]
+- [Warning 2]
+```
+
+**DO NOT skip this summary.** Users need visibility into what each phase accomplished.
+
+#### STEP 7b: Prompt User (Interactive Mode Only)
 
 **IF interactive mode (not YOLO):**
 
-1. Output completion summary with results
-2. Use `AskUserQuestion` for user decision (see `interactive-mode.md`)
-3. Wait for response and handle accordingly
+After outputting the summary, use `AskUserQuestion` for user decision (see `interactive-mode.md`).
 
 **IF YOLO mode:**
 
-Just output and continue:
+After the summary, just continue:
 ```
-✅ Phase [N] Complete: [Phase Name]
-Status: [Success/Success with warnings]
 → Continuing to next phase...
 ```
 
