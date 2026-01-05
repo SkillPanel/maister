@@ -416,7 +416,8 @@ Use this to check that documentation is consistent, up-to-date, and properly int
 3. **Check CLAUDE.md integration:**
    - Verify CLAUDE.md exists
    - Verify it contains documentation reference section
-   - Verify it mentions `.ai-sdlc/docs/INDEX.md`
+   - Verify it uses valid file reference format: @.ai-sdlc/docs/INDEX.md (with @ prefix, without backticks)
+   - Warn if using incorrect formats like `.ai-sdlc/docs/INDEX.md` or `@.ai-sdlc/docs/INDEX.md` (backticks)
 4. **Check project documentation:**
    - Verify critical files exist (vision.md, tech-stack.md)
    - Check if they contain placeholder text vs. actual project information
