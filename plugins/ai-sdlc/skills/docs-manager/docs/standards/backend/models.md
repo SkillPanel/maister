@@ -1,7 +1,7 @@
 ## Database model best practices
 
 - **Clear Naming**: Use singular names for models and plural for tables following your framework's conventions
-- **Timestamps**: Include created and updated timestamps on all tables for auditing and debugging
+- **Timestamps**: Include created and updated timestamps on most tables for auditing and debugging
 - **Data Integrity**: Use database constraints (NOT NULL, UNIQUE, foreign keys) to enforce data rules at the database level
 - **Appropriate Data Types**: Choose data types that match the data's purpose and size requirements
 - **Indexes on Foreign Keys**: Index foreign key columns and other frequently queried fields for performance

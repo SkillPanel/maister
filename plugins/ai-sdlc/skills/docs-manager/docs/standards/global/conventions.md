@@ -7,6 +7,6 @@
 - **Dependency Management**: Keep dependencies up-to-date and minimal; document why major dependencies are used
 - **Code Review Process**: Establish a consistent code review process with clear expectations for reviewers and authors
 - **Testing Requirements**: Define what level of testing is required before merging (unit tests, integration tests, etc.)
-- **Feature Flags**: Use feature flags for incomplete features rather than long-lived feature branches
+- **Feature Flags**: Consider feature flags for incomplete features rather than long-lived feature branches
 - **Changelog Maintenance**: Keep a changelog or release notes to track significant changes and improvements
 - **Minimal Implementation**: Build only what's needed now; avoid speculative methods and "just in case" code (see minimal-implementation.md)

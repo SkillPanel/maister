@@ -56,9 +56,6 @@ Standards for code comments, documentation comments, and inline explanations. Ap
 #### Minimal Implementation (`standards/global/minimal-implementation.md`)
 Standards for avoiding speculative code, unused methods, and "just in case" abstractions. Follow these principles to keep code lean and maintainable.
 
-#### Tech Stack (`standards/global/tech-stack.md`)
-Standards for technology choices, dependency management, and version control. Reference this when considering new libraries or tools.
-
 ---
 
 ### Frontend Standards
