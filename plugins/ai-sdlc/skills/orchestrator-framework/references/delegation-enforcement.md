@@ -319,3 +319,61 @@ These phase types do NOT require delegation:
 5. **Finalization** - Creating summary, updating metadata
 
 For all analysis, planning, implementation, and verification phases: **ALWAYS DELEGATE**.
+
+---
+
+## Pattern 5: Post-Return Continuation Instruction
+
+**Purpose**: Ensure orchestrator executes next action immediately after tool returns.
+
+**For AUTO-CONTINUE phases** (marked ⚡ AUTO in Phase Flow):
+
+After invoking a skill/subagent that has AUTO-CONTINUE:
+1. Process the return value
+2. Verify outputs exist
+3. **IMMEDIATELY proceed to next phase** - do NOT:
+   - Output phase completion summary
+   - Ask user if they want to continue
+   - Stop and wait for input
+
+The next phase handles any needed user interaction.
+
+**See `interactive-mode.md`** for the full list of AUTO-CONTINUE transitions.
+
+---
+
+## Pattern 6: Consuming Subagent Results
+
+**Purpose**: Define how orchestrators handle results returned by delegated skills/subagents.
+
+**Critical Rule**: When a delegated skill completes, **you do NOT stop** - you continue the orchestrator workflow. The skill completion is just one step in the orchestrator's phase execution.
+
+**When a skill (like codebase-analyzer) returns results:**
+
+1. **You are still in the orchestrator context** - the skill has completed, you are back in the orchestrator
+2. **Read the structured output** - extract key fields (status, report_path, risk_level, etc.)
+3. **Update orchestrator state** - write relevant fields to orchestrator-state.yml
+4. **Check the Phase Flow table** - determine if next transition is GATE or AUTO
+5. **Execute the appropriate transition**:
+   - If ⚡ AUTO: Continue immediately to next phase (Pattern 5)
+   - If 🚦 GATE: Check mode and prompt/continue accordingly
+
+**Template after skill returns:**
+
+```
+[Skill tool returns result]
+
+✅ Skill completed. Processing results...
+
+Structured output received:
+- status: [value]
+- report_path: [value]
+- [other fields]
+
+State update: Updated orchestrator-state.yml with [fields]
+
+Phase Flow check: Phase [N] → [N+1] is [GATE/AUTO]
+
+[If AUTO: Proceeding immediately to Phase [N+1]...]
+[If GATE: Checking mode and prompting/continuing...]
+```

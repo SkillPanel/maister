@@ -555,6 +555,7 @@ Before considering an orchestrator complete, verify ALL items:
 
 | Element | Required | Verification |
 |---------|----------|--------------|
+| **Step 0: Load Framework Patterns** | ✓ | Does initialization force reading 4 reference files from orchestrator-framework? |
 | State file creation in initialization | ✓ | Does STEP 3 explicitly CREATE orchestrator-state.yml? |
 | Phase Execution Loop pattern | ✓ | Are all 7 STEPs documented? |
 | Post-phase review with AskUserQuestion | ✓ | Is STEP 7 implemented with explicit tool call? |
@@ -570,6 +571,7 @@ Before considering an orchestrator complete, verify ALL items:
 
 ### Anti-Patterns to Avoid
 
+❌ **Skipping Step 0**: Not reading framework patterns at initialization (causes AUTO-CONTINUE failures)
 ❌ **Structure without orchestration**: Defining phases without Phase Execution Loop
 ❌ **Implicit user prompts**: Describing prompts without explicit AskUserQuestion tool calls
 ❌ **Inline STOP reminders at END of phases**: Use Phase Gates BEFORE the next phase instead (inline reminders at phase end are easily missed)

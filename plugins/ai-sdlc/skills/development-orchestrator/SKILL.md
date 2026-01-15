@@ -11,6 +11,31 @@ Unified workflow for bug fixes, enhancements, and new features with task-type-sp
 
 **CRITICAL: You MUST complete these steps BEFORE executing any workflow phase:**
 
+### Step 0: Load Framework Patterns
+
+**STOP. You MUST read these files NOW using the Read tool before continuing:**
+
+1. `../orchestrator-framework/references/phase-execution-pattern.md` - 7-step phase loop
+2. `../orchestrator-framework/references/delegation-enforcement.md` - Delegation patterns and subagent result handling
+3. `../orchestrator-framework/references/interactive-mode.md` - Phase gates and AUTO-CONTINUE
+4. `../orchestrator-framework/references/state-management.md` - State file operations
+
+**⚠️ FAILURE TO READ THESE FILES IS A WORKFLOW VIOLATION.**
+
+These patterns define:
+- How to execute each phase (7-step loop)
+- How to delegate to skills (mandatory patterns)
+- When to auto-continue vs pause (Phase Gates and ⚡ AUTO)
+- How to consume subagent results and continue workflow
+- How to manage orchestrator-state.yml
+
+**SELF-CHECK:**
+- [ ] Did you use the Read tool to read all 4 files?
+- [ ] Do you understand the AUTO-CONTINUE pattern in interactive-mode.md?
+- [ ] Do you understand Pattern 6 (Consuming Subagent Results) in delegation-enforcement.md?
+
+If NO to any: STOP and read the files now.
+
 ### Step 1: Create TodoWrite with All Phases
 
 **Immediately use the TodoWrite tool** to create todos for all phases:
@@ -124,17 +149,6 @@ Use for **all development tasks**:
 3. **TDD for Bugs**: Mandatory Red→Green discipline for bug fixes
 4. **Gap Analysis for All**: Compare current vs desired state systematically
 5. **Clarifying Questions First**: Resolve ambiguities BEFORE detailed analysis
-
----
-
-## Framework Patterns
-
-This orchestrator follows shared patterns. See:
-
-- **Phase Execution**: `../orchestrator-framework/references/phase-execution-pattern.md`
-- **State Management**: `../orchestrator-framework/references/state-management.md`
-- **Interactive Mode**: `../orchestrator-framework/references/interactive-mode.md`
-- **Initialization**: `../orchestrator-framework/references/initialization-pattern.md`
 
 ---
 

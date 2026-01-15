@@ -188,6 +188,28 @@ Place BETWEEN phases with conditional routing:
 | Placement | BEFORE next phase | BETWEEN phases |
 | Purpose | Allow user review/control | Avoid double-prompting |
 
+### AUTO-CONTINUE Enforcement Rules
+
+**Definition**: Phases marked "⚡ AUTO" in the Phase Flow table MUST continue immediately without stopping.
+
+**Enforcement Rule - After completing a phase marked ⚡ AUTO:**
+1. DO NOT output "Phase N complete" summary
+2. DO NOT prompt user for next action
+3. DO NOT wait for user acknowledgment
+4. **IMMEDIATELY execute the next phase**
+
+**Why**: These phases are followed by phases that handle user interaction internally (e.g., AskUserQuestion). Pausing would cause double-prompting.
+
+**Failure to auto-continue is a workflow violation.**
+
+### AUTO-CONTINUE Phases in development-orchestrator
+
+| Transition | Condition | Reason |
+|-----------|-----------|--------|
+| Phase 1 → 1.5 | Always | Phase 1.5 has AskUserQuestion |
+| Phase 3 → 3.5 | If ui_heavy=true | Phase 3.5 has AskUserQuestion |
+| Phase 4 → 4.5 | If complex=true | Phase 4.5 has AskUserQuestion |
+
 ---
 
 ## Post-Phase Prompt Templates
