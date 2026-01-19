@@ -269,6 +269,10 @@ Each development task follows a common structure with core directories:
 YYYY-MM-DD-task-name/
 ├── orchestrator-state.yml        # Execution state and task metadata
 ├── analysis/                     # Analysis and planning artifacts
+│   ├── research-context/        # From research (if --research provided)
+│   │   ├── research-report.md   # Full research findings
+│   │   ├── recommendations.md   # Decision frameworks (optional)
+│   │   └── specifications.md    # Research requirements (optional)
 │   ├── requirements.md          # Gathered requirements
 │   └── visuals/                 # Design mockups and wireframes
 ├── implementation/               # Implementation work
@@ -684,10 +688,20 @@ Commands invoke orchestrators and utilities. All orchestrators support `--yolo` 
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `/ai-sdlc:development:new` | `[desc] [--type=TYPE] [--yolo] [--e2e] [--user-docs]` | Start bug fix, enhancement, or new feature (auto-detected or `--type=bug\|enhancement\|feature`) |
+| `/ai-sdlc:development:new` | `[desc] [--type=TYPE] [--yolo] [--e2e] [--user-docs] [--research=PATH]` | Start bug fix, enhancement, or new feature (auto-detected or `--type=bug\|enhancement\|feature`) |
 | `/ai-sdlc:development:resume` | `[path] [--from=PHASE] [--reset-attempts]` | Resume interrupted development workflow |
 
 **Task directories by type**: `.ai-sdlc/tasks/bug-fixes/`, `.ai-sdlc/tasks/enhancements/`, `.ai-sdlc/tasks/new-features/`
+
+**Research-Based Development**: Start development informed by a completed research workflow:
+```bash
+# Auto-detect research folder (recommended)
+/ai-sdlc:development:new .ai-sdlc/tasks/research/2026-01-12-oauth-research
+
+# Explicit --research flag
+/ai-sdlc:development:new "Implement OAuth" --research=.ai-sdlc/tasks/research/2026-01-12-oauth-research
+```
+Research context flows through ALL phases without skipping any. Research artifacts are copied to `analysis/research-context/` and summaries pass to every subagent via Pattern 7.
 
 #### Legacy Commands (Aliases)
 

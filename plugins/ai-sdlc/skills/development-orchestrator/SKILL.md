@@ -39,6 +39,60 @@ These patterns define:
 
 If NO to any: STOP and read the files now.
 
+### Step 0.5: Load Research Context (Conditional)
+
+**When**: `--research=<path>` argument provided OR first argument auto-detected as research folder
+
+**Auto-Detection Logic**:
+1. Check if first arg is a path (starts with `.` or `/` or contains `/`)
+2. Check if `[path]/orchestrator-state.yml` exists
+3. Read `task.type` from that file
+4. If `task.type: research`, treat as research-based mode
+5. Extract task description from research question in state file
+
+**Process**:
+1. Validate research task exists and has `analysis/research-report.md`
+2. If auto-detected (no explicit task description), extract from research:
+   - Read `task.description` or research question from `orchestrator-state.yml`
+   - Use as development task description
+3. Read research artifacts:
+   - `[research-path]/analysis/research-report.md` (REQUIRED)
+   - `[research-path]/outputs/recommendations.md` (optional)
+   - `[research-path]/outputs/specifications.md` (optional)
+   - `[research-path]/outputs/knowledge-base.md` (optional)
+   - `[research-path]/orchestrator-state.yml` (for metadata)
+4. Extract summaries:
+   - Summary: 1-2 sentences from research-report executive summary (max 500 chars)
+   - Key findings: Top 5 bullet points from findings
+   - Recommended approach: Primary recommendation from recommendations.md
+   - Decisions made: Key decisions already made during research
+5. Create `analysis/research-context/` directory in task folder
+6. Copy research artifacts to `analysis/research-context/`
+7. Store in orchestrator-state.yml (see Domain Context section for schema)
+
+**Output on success**:
+```
+📚 Research Context Loaded
+Research: [research_question]
+Type: [research_type]
+Confidence: [confidence_level]
+Key findings: [count] items extracted
+Artifacts copied to: analysis/research-context/
+
+This research will inform all workflow phases.
+```
+
+**If research path invalid**:
+```
+⚠️ Research path provided but invalid:
+- Path: [research-path]
+- Issue: [research-report.md not found / directory doesn't exist / not a research task]
+
+Continuing without research context. You can reference research manually during workflow.
+```
+
+**Skip if**: No `--research` argument AND first argument is not a research folder path
+
 ### Step 1: Create TodoWrite with All Phases
 
 **Immediately use the TodoWrite tool** to create todos for all phases:
@@ -1417,8 +1471,21 @@ orchestrator:
     tdd_applicable: true               # Bug only
     reproduction_data: null            # Bug only
 
+    # Research linkage (populated if --research provided or auto-detected, see Step 0.5)
+    research_reference:
+      path: null                       # Path to research task directory
+      research_question: null          # Original research question
+      research_type: null              # technical | requirements | literature | mixed
+      confidence_level: null           # high | medium | low
+
     # Phase summaries for context passing (see Pattern 7-8 in delegation-enforcement.md)
     phase_summaries:
+      # Research is "phase -1" - populated at init if --research provided
+      research:
+        summary: null                  # 1-2 sentence summary
+        key_findings: []               # Max 5 bullet points
+        recommended_approach: null     # Primary recommendation
+        decisions_made: []             # Key decisions from research
       codebase_analysis: {key_files: [], primary_language: null, summary: null}
       clarifications: []               # [{question, answer}]
       gap_analysis: {integration_points: [], summary: null}
@@ -1436,6 +1503,11 @@ orchestrator:
 .ai-sdlc/tasks/[type-directory]/YYYY-MM-DD-task-name/
 ├── orchestrator-state.yml           # Execution state + task metadata
 ├── analysis/
+│   ├── research-context/             # From research (if --research provided)
+│   │   ├── research-report.md        # Full research findings
+│   │   ├── recommendations.md        # Decision frameworks (optional)
+│   │   ├── specifications.md         # Research requirements (optional)
+│   │   └── knowledge-base.md         # Reference patterns (optional)
 │   ├── codebase-analysis.md          # Phase 1
 │   ├── clarifications.md             # Phase 1.5
 │   ├── gap-analysis.md               # Phase 2

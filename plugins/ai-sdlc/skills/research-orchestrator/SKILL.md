@@ -828,6 +828,76 @@ ls -la [task-path]/outputs/
 
 ---
 
+## 🚦 GATE: Phase 6 → Phase 7
+
+**STOP. You cannot proceed until this gate clears.**
+
+1. **Check if Phase 7 applicable**:
+   - Did Phase 4 create `outputs/specifications.md`?
+   - If NO: Skip Phase 7, workflow complete → Output "Research complete."
+   - If YES: Continue to Phase 7
+
+2. **Mode check**: Read `orchestrator-state.yml` → check `mode` value
+3. **If mode = interactive**:
+   - Use `AskUserQuestion` tool NOW (see Phase 7 below)
+4. **If mode = yolo**:
+   - Output: "→ Auto-skipping Phase 7 (Development Spawn) - run manually if needed"
+   - Workflow complete
+
+---
+
+### Phase 7: Spawn Development (Optional)
+
+**Execution**: Main orchestrator (direct)
+
+**Enable if**: `outputs/specifications.md` was generated AND mode = interactive
+**Skip if**: No specifications generated OR mode = yolo
+
+**Purpose**: Offer to start development workflow with research context for seamless research-to-development transition.
+
+**Process**:
+
+1. **Present option to user**:
+```
+Use AskUserQuestion tool:
+  Question: "Research produced specifications. Would you like to start a development workflow using this research?"
+  Header: "Start Development"
+  Options:
+  1. "Start development with this research" - Launch development workflow
+  2. "Skip - I'll start manually later" - End research workflow
+  3. "Review outputs first" - Display research outputs
+```
+
+2. **If user selects "Start development"**:
+   - Determine task type from specifications (feature/enhancement based on content)
+   - Get current research task path
+
+   **INVOKE:**
+   ```
+   Tool: Skill
+   Parameters:
+     skill: "ai-sdlc:development:new"
+     args: "[current-research-task-path]"
+   ```
+
+   The development workflow will auto-detect the research folder and load context.
+
+3. **If user selects "Skip"**:
+   - Output: "Research complete. To start development later, run:"
+   - Display: `/ai-sdlc:development:new [task-path]`
+   - Mark workflow complete
+
+4. **If user selects "Review outputs"**:
+   - Display paths to all generated outputs:
+     - `analysis/research-report.md`
+     - `outputs/specifications.md`
+     - `outputs/recommendations.md` (if exists)
+   - Re-prompt with same AskUserQuestion
+
+**YOLO Mode**: Skip Phase 7 entirely (user can invoke development manually)
+
+---
+
 ## Domain Context (State Extensions)
 
 Research-specific fields in `orchestrator-state.yml`:

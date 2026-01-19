@@ -93,6 +93,30 @@ orchestrator:
     architecture_decision: null          # Feature/Enhancement only
 ```
 
+### Shared: research_reference
+
+When a development workflow is started from a completed research task (`--research` flag or auto-detected), the following fields are populated:
+
+```yaml
+orchestrator:
+  task_context:
+    # Research linkage (populated if --research provided)
+    research_reference:
+      path: null                    # Path to research task directory
+      research_question: null       # Original research question
+      research_type: null           # technical | requirements | literature | mixed
+      confidence_level: null        # high | medium | low
+
+    phase_summaries:
+      research:                     # "Phase -1" - populated at init
+        summary: null               # 1-2 sentence summary
+        key_findings: []            # Max 5 bullet points
+        recommended_approach: null  # Primary recommendation
+        decisions_made: []          # Key decisions from research
+```
+
+**Note**: Research context flows to ALL phases via Pattern 7 (context passing). Research artifacts are also copied to `analysis/research-context/` for full access.
+
 ### Shared: verification_context
 
 All orchestrators with Issue Resolution phases add this shared schema:

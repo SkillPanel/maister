@@ -391,14 +391,27 @@ prompt: |
   [Task instructions]
   Task path: [path]
 
+  ## RESEARCH CONTEXT (only if research_reference.path is not null)
+  Research question: [research_reference.research_question]
+  Confidence: [research_reference.confidence_level]
+  Summary: [phase_summaries.research.summary]
+  Key findings:
+  - [phase_summaries.research.key_findings]
+  Recommended approach: [phase_summaries.research.recommended_approach]
+
+  Full research available at: analysis/research-context/research-report.md
+
   ## CONTEXT FROM PRIOR PHASES
   [Key state fields from orchestrator-state.yml]
   [1-2 sentence summaries of completed phases from phase_summaries]
   [Key decisions made in earlier phases]
 
   ## ARTIFACTS TO READ
+  analysis/research-context/research-report.md (if exists - REQUIRED for research-linked tasks)
   [List relevant files for full details]
 ```
+
+**Research Context Note**: When `research_reference` is populated (development started from research), include the RESEARCH CONTEXT section in EVERY subagent prompt. Research is "phase -1" and always passes to all phases.
 
 **Why**: Subagents run in isolated context. Without summaries, they must re-parse entire files and miss prior decisions.
 
