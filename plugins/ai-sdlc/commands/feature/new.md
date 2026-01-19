@@ -3,11 +3,12 @@ name: ai-sdlc:feature:new
 description: Start a new feature development workflow (alias for /ai-sdlc:development:new --type=feature)
 ---
 
+> **CRITICAL**: Invoke the `ai-sdlc:development-orchestrator` skill using the **Skill tool** IMMEDIATELY with `task_type=feature`.
+> Do NOT execute this workflow manually. Pass all arguments to the skill.
+
 # New Feature Workflow
 
 Alias for `/ai-sdlc:development:new --type=feature`. Starts a new feature development workflow.
-
-**Invoke**: development-orchestrator skill with `task_type=feature`
 
 ## Usage
 

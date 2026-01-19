@@ -3,6 +3,9 @@ name: ai-sdlc:reviews:production-readiness
 description: Verify production deployment readiness with comprehensive checks
 ---
 
+> **CRITICAL**: Invoke the `ai-sdlc:production-readiness-checker` skill using the **Skill tool** IMMEDIATELY.
+> Do NOT execute this workflow manually. Pass path and target arguments to the skill.
+
 You are verifying production deployment readiness using the `production-readiness-checker` skill.
 
 ## Your Task

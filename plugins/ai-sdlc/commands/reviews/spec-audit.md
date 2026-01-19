@@ -3,6 +3,9 @@ name: ai-sdlc:reviews:spec-audit
 description: Independent specification audit to verify completeness and clarity before implementation
 ---
 
+> **CRITICAL**: Invoke the `spec-auditor` agent using the **Task tool** IMMEDIATELY.
+> Do NOT execute this workflow manually. Pass the spec path in the prompt.
+
 You are running an independent specification audit using the `spec-auditor` agent.
 
 ## Your Task

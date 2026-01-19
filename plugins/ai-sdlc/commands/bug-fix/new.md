@@ -3,11 +3,12 @@ name: ai-sdlc:bug-fix:new
 description: Start a comprehensive bug fixing workflow (alias for /ai-sdlc:development:new --type=bug)
 ---
 
+> **CRITICAL**: Invoke the `ai-sdlc:development-orchestrator` skill using the **Skill tool** IMMEDIATELY with `task_type=bug`.
+> Do NOT execute this workflow manually. Pass all arguments to the skill.
+
 # Bug Fix Workflow
 
 Alias for `/ai-sdlc:development:new --type=bug`. Starts a bug fix workflow with TDD Red→Green gates.
-
-**Invoke**: development-orchestrator skill with `task_type=bug`
 
 ## Usage
 

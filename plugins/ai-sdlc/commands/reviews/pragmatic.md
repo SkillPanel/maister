@@ -3,6 +3,9 @@ name: ai-sdlc:reviews:pragmatic
 description: Run pragmatic code review to detect over-engineering and ensure code matches project scale
 ---
 
+> **CRITICAL**: Invoke the `code-quality-pragmatist` agent using the **Task tool** IMMEDIATELY.
+> Do NOT execute this workflow manually. Pass the path to analyze in the prompt.
+
 You are running a pragmatic code review using the `code-quality-pragmatist` agent.
 
 ## Your Task

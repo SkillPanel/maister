@@ -3,6 +3,9 @@ name: ai-sdlc:reviews:reality-check
 description: Comprehensive reality assessment of completed work to verify it actually works and is production-ready
 ---
 
+> **CRITICAL**: Invoke the `reality-assessor` agent using the **Task tool** IMMEDIATELY.
+> Do NOT execute this workflow manually. Pass the task path in the prompt.
+
 You are running a comprehensive reality check using the `reality-assessor` agent.
 
 ## Your Task

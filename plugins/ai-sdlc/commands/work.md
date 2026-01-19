@@ -3,6 +3,9 @@ name: ai-sdlc:work
 description: Unified entry point - auto-classifies tasks and routes to appropriate workflow
 ---
 
+> **CRITICAL**: First invoke the `ai-sdlc:task-classifier` skill using the **Skill tool** to classify the task,
+> then invoke the appropriate orchestrator skill based on classification. Do NOT execute inline.
+
 # Unified Work Entry Point
 
 Auto-classifies tasks and routes to the appropriate workflow orchestrator. Supports resuming existing tasks or starting new ones.

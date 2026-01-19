@@ -3,6 +3,9 @@ name: ai-sdlc:standards:update
 description: Update or create project standards from conversation context or explicit input
 ---
 
+> **CRITICAL**: Invoke the `ai-sdlc:docs-manager` skill using the **Skill tool** IMMEDIATELY.
+> Do NOT execute this workflow manually. Pass the standard path (if provided) to the skill.
+
 # Update Project Standards
 
 You are updating or creating project standards in `.ai-sdlc/docs/standards/` based on team discussions or explicit input. The command automatically determines whether to update an existing standard or create a new one.

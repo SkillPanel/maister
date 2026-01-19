@@ -3,11 +3,12 @@ name: ai-sdlc:development:new
 description: Start a new development workflow (bug fix, enhancement, or new feature) with unified orchestration through all phases
 ---
 
+> **CRITICAL**: Invoke the `ai-sdlc:development-orchestrator` skill using the **Skill tool** IMMEDIATELY.
+> Do NOT execute this workflow manually. Pass all arguments to the skill.
+
 # Development Workflow: New
 
 Start any development task—bug fix, enhancement, or new feature. Task type is auto-detected from description or can be explicitly set.
-
-**Invoke**: development-orchestrator skill
 
 ## Usage
 

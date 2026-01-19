@@ -3,11 +3,12 @@ name: ai-sdlc:enhancement:resume
 description: Resume an interrupted or failed enhancement workflow (alias for /ai-sdlc:development:resume)
 ---
 
+> **CRITICAL**: Invoke the `ai-sdlc:development-orchestrator` skill using the **Skill tool** IMMEDIATELY.
+> Do NOT execute this workflow manually. Pass the task path to the skill.
+
 # Resume Enhancement Workflow
 
 Alias for `/ai-sdlc:development:resume`. Resumes an interrupted enhancement workflow.
-
-MANDATORY: Using Skill tool load development-orchestrator skill in resume mode.
 
 ## Usage
 
