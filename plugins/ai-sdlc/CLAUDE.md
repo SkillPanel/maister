@@ -607,9 +607,7 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 |-------|---------|---------|
 | `codebase-analyzer` | Phase 1 analysis using 3 parallel Explore subagents (file discovery, code analysis, context discovery) | `skills/codebase-analyzer/SKILL.md` |
 | `implementer` | Executes plans with **mandatory** standards reading (INDEX.md + implementation-plan.md Standards Compliance section + keyword-triggered) and **test step enforcement** (requires user approval to skip N.1 tests) | `skills/implementer/SKILL.md` |
-| `implementation-verifier` | Read-only QA: runs tests, actively reasons about applicable standards from INDEX.md, verifies compliance | `skills/implementation-verifier/skill.md` |
-| `code-reviewer` | Automated code quality, security, performance analysis | `skills/code-reviewer/skill.md` |
-| `production-readiness-checker` | Pre-deployment verification with GO/NO-GO recommendation | `skills/production-readiness-checker/skill.md` |
+| `implementation-verifier` | Read-only QA orchestrator: delegates completeness checks, test execution, code review, and production readiness to specialized subagents; compiles results into verification report | `skills/implementation-verifier/SKILL.md` |
 | `docs-manager` | Manages standards in `.ai-sdlc/docs/`, handles discovery and updates | `skills/docs-manager/skill.md` |
 
 ### Orchestrator Framework
@@ -819,6 +817,15 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | `research-planner` | Creates methodology and identifies sources | research-orchestrator | `agents/research-planner.md` |
 | `information-gatherer` | Multi-source data collection with citations | research-orchestrator | `agents/information-gatherer.md` |
 | `research-synthesizer` | Pattern identification, insights generation | research-orchestrator | `agents/research-synthesizer.md` |
+
+### Verification Agents
+
+| Agent | Purpose | Invoked By | Details |
+|-------|---------|------------|---------|
+| `implementation-completeness-checker` | Plan completion + standards compliance + documentation completeness | implementation-verifier | `agents/implementation-completeness-checker.md` |
+| `test-suite-runner` | Runs full test suite, analyzes results, flags regressions | implementation-verifier | `agents/test-suite-runner.md` |
+| `code-reviewer` | Automated code quality, security, performance analysis | implementation-verifier, standalone command | `agents/code-reviewer.md` |
+| `production-readiness-checker` | Pre-deployment verification with GO/NO-GO recommendation | implementation-verifier, performance-orchestrator, standalone command | `agents/production-readiness-checker.md` |
 
 ### Review & Audit Agents
 

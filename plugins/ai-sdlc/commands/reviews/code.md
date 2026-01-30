@@ -3,9 +3,9 @@ name: ai-sdlc:reviews:code
 description: Run automated code quality, security, and performance analysis on your code
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="ai-sdlc:code-reviewer" NOW. Pass path and scope arguments. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the code-reviewer subagent via the Task tool NOW. Pass path and scope arguments. Do not read files, explore code, or execute workflow steps yourself.
 
-You are running a comprehensive code review using the `code-reviewer` skill.
+You are running a comprehensive code review using the `code-reviewer` subagent.
 
 ## Your Task
 
@@ -27,17 +27,21 @@ You are performing automated code analysis to identify quality, security, and pe
 
 ## Your Instructions
 
-**Invoke the code-reviewer skill NOW using the Skill tool:**
+**Invoke the code-reviewer subagent NOW using the Task tool:**
 
 ```
-Skill: code-reviewer
-Path: [path from user or from AskUserQuestion]
-Scope: [quality|security|performance|all]
+Use Task tool:
+  subagent_type: "ai-sdlc:code-reviewer"
+  description: "Code quality review"
+  prompt: |
+    Analyze code at: [path from user or from AskUserQuestion]
+    Scope: [quality|security|performance|all]
+    Report path: [path]/code-review-report.md
 ```
 
-**Wait for the skill to complete before proceeding.**
+**Wait for the subagent to complete before proceeding.**
 
-The code-reviewer skill will:
+The code-reviewer subagent will:
 1. Analyze code for complexity, duplication, and code smells
 2. Detect security vulnerabilities and hardcoded secrets
 3. Identify performance issues (N+1 queries, missing indexes, caching opportunities)

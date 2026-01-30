@@ -192,7 +192,7 @@ Use for:
 ### Phase 4: Load Testing & Production Readiness
 
 **Purpose**: Verify performance under production-like load
-**Execute**: Direct for load tests, Skill tool - `ai-sdlc:production-readiness-checker` for production check
+**Execute**: Direct for load tests, Task tool - `ai-sdlc:production-readiness-checker` subagent for production check
 **Output**: `verification/load-test-results.md`, `verification/production-readiness-report.md`
 **State**: Set load testing and production readiness results
 

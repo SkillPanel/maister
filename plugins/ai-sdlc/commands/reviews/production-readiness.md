@@ -3,9 +3,9 @@ name: ai-sdlc:reviews:production-readiness
 description: Verify production deployment readiness with comprehensive checks
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="ai-sdlc:production-readiness-checker" NOW. Pass path and target arguments. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the production-readiness-checker subagent via the Task tool NOW. Pass path and target arguments. Do not read files, explore code, or execute workflow steps yourself.
 
-You are verifying production deployment readiness using the `production-readiness-checker` skill.
+You are verifying production deployment readiness using the `production-readiness-checker` subagent.
 
 ## Your Task
 
@@ -26,17 +26,21 @@ You are performing comprehensive production readiness analysis covering configur
 
 ## Your Instructions
 
-**Invoke the production-readiness-checker skill NOW using the Skill tool:**
+**Invoke the production-readiness-checker subagent NOW using the Task tool:**
 
 ```
-Skill: production-readiness-checker
-Path: [path from user or from AskUserQuestion]
-Target: [production|staging]
+Use Task tool:
+  subagent_type: "ai-sdlc:production-readiness-checker"
+  description: "Production readiness check"
+  prompt: |
+    Verify production readiness at: [path from user or from AskUserQuestion]
+    Target: [production|staging]
+    Report path: [path]/production-readiness-report.md
 ```
 
-**Wait for the skill to complete before proceeding.**
+**Wait for the subagent to complete before proceeding.**
 
-The production-readiness-checker skill will:
+The production-readiness-checker subagent will:
 1. Verify configuration management (env vars, secrets, feature flags)
 2. Check monitoring & observability (logging, metrics, error tracking, health checks)
 3. Assess error handling & resilience (retries, circuit breakers, graceful shutdown)
@@ -65,7 +69,7 @@ User: /ai-sdlc:reviews:production-readiness .
 ## What to Expect
 
 The production-readiness-checker will provide:
-- Overall readiness score and status (🟢 Ready / 🟡 Concerns / 🔴 Not Ready)
+- Overall readiness score and status (Ready / Concerns / Not Ready)
 - Clear GO/NO-GO deployment decision
 - Category scores (Configuration, Monitoring, Error Handling, Performance, Security, Deployment)
 - Deployment blockers that must be fixed
@@ -76,18 +80,18 @@ The production-readiness-checker will provide:
 
 ## Deployment Decision Outcomes
 
-**🟢 Ready to Deploy**:
+**Ready to Deploy**:
 - All critical checks passed
 - Low risk deployment
 - Optional improvements listed
 
-**🟡 Deploy with Caution**:
+**Deploy with Caution**:
 - No blockers but concerns exist
 - Mitigation plan required
 - Close monitoring needed
 - Medium risk
 
-**🔴 Do Not Deploy**:
+**Do Not Deploy**:
 - Critical issues present
 - High/critical risk
 - Must fix before deployment
