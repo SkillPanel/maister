@@ -277,9 +277,11 @@ Use for **all development tasks**:
 ### Phase 7: Implementation Planning
 
 **Purpose**: Break specification into implementation steps
-**Execute**: Skill tool - `ai-sdlc:implementation-planner`
+**Execute**: Task tool - `ai-sdlc:implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md`
 **State**: Update task groups and dependencies
+
+**Context to pass to subagent**: task_path, task_type, task_description, phase_summaries (specification, gap_analysis, codebase_analysis), research_context (if any)
 
 → Pause
 

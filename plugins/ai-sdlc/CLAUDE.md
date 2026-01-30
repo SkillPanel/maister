@@ -286,7 +286,7 @@ YYYY-MM-DD-task-name/
 
 Task types can add specialized subdirectories as needed (e.g., `analysis/bug-analysis/` for bug fixes, `implementation/metrics/` for performance tasks).
 
-**Note**: The `implementation/implementation-plan.md` file contains implementation steps (the detailed breakdown of actions), created by the implementation-planner skill after the specification is approved.
+**Note**: The `implementation/implementation-plan.md` file contains implementation steps (the detailed breakdown of actions), created by the implementation-planner subagent after the specification is approved.
 
 ### Naming Conventions
 
@@ -606,7 +606,6 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 | Skill | Purpose | Details |
 |-------|---------|---------|
 | `codebase-analyzer` | Phase 1 analysis using 3 parallel Explore subagents (file discovery, code analysis, context discovery) | `skills/codebase-analyzer/SKILL.md` |
-| `implementation-planner` | Breaks specs into task groups with test-driven steps | `skills/implementation-planner/skill.md` |
 | `implementer` | Executes plans with **mandatory** standards reading (INDEX.md + implementation-plan.md Standards Compliance section + keyword-triggered) and **test step enforcement** (requires user approval to skip N.1 tests) | `skills/implementer/SKILL.md` |
 | `implementation-verifier` | Read-only QA: runs tests, actively reasons about applicable standards from INDEX.md, verifies compliance | `skills/implementation-verifier/skill.md` |
 | `code-reviewer` | Automated code quality, security, performance analysis | `skills/code-reviewer/skill.md` |
@@ -772,6 +771,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | `task-classifier` | Classifies task descriptions into 9 types with confidence scoring | `/work` command | `agents/task-classifier.md` |
 | `gap-analyzer` | Compares current vs desired state with task-type support (bug/enhancement/feature) | development-orchestrator | `agents/gap-analyzer.md` |
 | `specification-creator` | Creates specs from gathered requirements with reusability search and self-verification | development-orchestrator, migration-orchestrator | `agents/specification-creator.md` |
+| `implementation-planner` | Breaks specs into task groups with test-driven steps and dependency chains | development-orchestrator, migration-orchestrator | `agents/implementation-planner.md` |
 
 **Deprecated Agent**:
 - `existing-feature-analyzer` → Replaced by `codebase-analyzer` skill (uses 3 parallel Explore subagents)

@@ -81,7 +81,7 @@ Use for:
 | 0.5 | "Check dependencies" | "Checking dependencies" | Direct (initiative only) |
 | 1 | "Plan target state and gaps" | "Planning target state and gaps" | gap-analyzer |
 | 2 | "Gather requirements & create migration strategy" | "Gathering requirements & creating migration strategy" | Direct + specification-creator (subagent) |
-| 3 | "Plan implementation" | "Planning implementation" | implementation-planner |
+| 3 | "Plan implementation" | "Planning implementation" | implementation-planner (subagent) |
 | 4 | "Execute migration" | "Executing migration" | implementer |
 | 5 | "Verify and test compatibility" | "Verifying and testing compatibility" | implementation-verifier |
 | 5.5 | "Resolve verification issues" | "Resolving verification issues" | Direct (conditional) |
@@ -174,9 +174,11 @@ Use for:
 ### Phase 3: Implementation Planning
 
 **Purpose**: Break migration into task groups with rollback steps
-**Execute**: Skill tool - `ai-sdlc:implementation-planner`
+**Execute**: Task tool - `ai-sdlc:implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md` with rollback procedures
 **State**: Update task groups and dependencies
+
+**Context to pass to subagent**: task_path, task_type (migration), migration_type, task_description, phase_summaries (current_state_analysis, gap_analysis, specification)
 
 → Pause
 

@@ -125,7 +125,7 @@ Use Skill tool:
   skill: "ai-sdlc:[skill-name]"
 ```
 
-**Skills**: `implementation-planner`, `implementer`, `implementation-verifier`, `codebase-analyzer`, `code-reviewer`, `production-readiness-checker`, `docs-manager`
+**Skills**: `implementer`, `implementation-verifier`, `codebase-analyzer`, `code-reviewer`, `production-readiness-checker`, `docs-manager`
 
 ### Invoking Agents
 
@@ -138,7 +138,7 @@ Use Task tool:
   prompt: "[detailed prompt]"
 ```
 
-**Agents**: `gap-analyzer`, `specification-creator`, `spec-auditor`, `ui-mockup-generator`, `e2e-test-verifier`, `user-docs-generator`, `security-analyzer`, `performance-profiler`, etc.
+**Agents**: `gap-analyzer`, `specification-creator`, `implementation-planner`, `spec-auditor`, `ui-mockup-generator`, `e2e-test-verifier`, `user-docs-generator`, `security-analyzer`, `performance-profiler`, etc.
 
 ### Key Difference
 
