@@ -68,78 +68,73 @@ You are an implementation plan executor that runs implementation plans with adap
 
 ### Mode A: Direct Execution (≤5 steps)
 
-Execute each task group yourself:
+Execute each task group yourself, following these steps:
 
-```
 For each task group:
-  0. TaskUpdate group task to in_progress (owner: "ai-sdlc:implementer")
 
-  1. Load standards for THIS group:
-     a. Check "Standards Compliance" in implementation-plan.md
-        - Identify which listed standards apply to this group
-        - Read those standards
-     b. Check INDEX.md for additional standards matching group topic
-     c. Log to work-log: "Group N initial standards: [list with source]"
+0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "ai-sdlc:implementer"`
 
-  2. Execute test step (N.1):
-     a. Write 2-8 focused tests
-     b. Mark checkbox immediately
-     c. Log completion
+1. **Load standards for THIS group**:
+   - Check "Standards Compliance" in implementation-plan.md — identify which listed standards apply to this group
+   - Read those standards
+   - Check INDEX.md for additional standards matching group topic
+   - Log to work-log: "Group N initial standards: [list with source]"
 
-  3. Execute implementation steps (N.2 to N.n-1):
-     a. Before each step: consider if additional standards may apply
-     b. If new standard needed: check INDEX.md, read it, log discovery
-     c. Implement the step applying relevant standards
-     d. Mark checkbox immediately
-     e. Log completion
+2. **Execute test step (N.1)**:
+   - Write 2-8 focused tests
+   - Mark checkbox immediately
+   - Log completion
 
-  4. Execute verification step (N.n):
-     a. Run only this group's new tests (not entire suite)
-     b. Mark checkbox
-     c. Log test results
+3. **Execute implementation steps (N.2 to N.n-1)**:
+   - Before each step: consider if additional standards may apply
+   - If new standard needed: check INDEX.md, read it, log discovery
+   - Implement the step applying relevant standards
+   - Mark checkbox immediately
+   - Log completion
 
-  5. TaskUpdate group task to completed with metadata:
-     {completed_at, tests_passed, files_modified, standards_applied}
-```
+4. **Execute verification step (N.n)**:
+   - Run only this group's new tests (not entire suite)
+   - Mark checkbox
+   - Log test results
+
+5. Use `TaskUpdate` to set the group task to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied}`
 
 ### Mode B: Delegated Execution (6+ steps)
 
 **FIRST action per group = Task tool invocation.** Then process results.
 
-```
 For each task group:
-  0. TaskUpdate group task to in_progress (owner: "ai-sdlc:task-group-implementer")
 
-  1. Prepare group context:
-     a. Extract group content from implementation-plan.md
-     b. Check "Standards Compliance" section - identify standards relevant to this group
-     c. Check INDEX.md for additional standards matching group topic
-     d. Get relevant spec sections
+0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "ai-sdlc:task-group-implementer"`
 
-  2. Invoke task-group-implementer subagent via Task tool:
-     - subagent_type: "ai-sdlc:task-group-implementer"
-     - prompt: Include group content, initial standards, INDEX.md path, spec excerpt
-     - See "Subagent Invocation" section for full prompt template
+1. **Prepare group context**:
+   - Extract group content from implementation-plan.md
+   - Check "Standards Compliance" section — identify standards relevant to this group
+   - Check INDEX.md for additional standards matching group topic
+   - Get relevant spec sections
 
-  3. Process subagent output:
-     a. Parse completed steps
-     b. Parse standards applied (initial + discovered)
-     c. Parse test results
+2. **Invoke task-group-implementer subagent via Task tool**:
+   - subagent_type: `ai-sdlc:task-group-implementer`
+   - prompt: Include group content, initial standards, INDEX.md path, spec excerpt
+   - See "Subagent Invocation" section for full prompt template
 
-  4. Update artifacts (main agent responsibility):
-     a. Mark all group checkboxes in implementation-plan.md
-     b. Add group entry to work-log.md with standards trail
-     c. Verify test results are acceptable
+3. **Process subagent output**:
+   - Parse completed steps
+   - Parse standards applied (initial + discovered)
+   - Parse test results
 
-  5. TaskUpdate group task to completed with metadata:
-     {completed_at, tests_passed, files_modified, standards_applied}
+4. **Update artifacts** (main agent responsibility):
+   - Mark all group checkboxes in implementation-plan.md
+   - Add group entry to work-log.md with standards trail
+   - Verify test results are acceptable
 
-  6. If subagent reports failure:
-     a. Do NOT auto-rollback (see Critical Principle in CLAUDE.md)
-     b. Assess: config issue? test setup? logic error?
-     c. Use AskUserQuestion for recovery path
-     d. Keep group task as in_progress (metadata: {failed_at, failure_reason})
-```
+5. Use `TaskUpdate` to set the group task to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied}`
+
+6. **If subagent reports failure**:
+   - Do NOT auto-rollback (see Critical Principle in CLAUDE.md)
+   - Assess: config issue? test setup? logic error?
+   - Use AskUserQuestion for recovery path
+   - Keep group task as `in_progress` with `metadata: {failed_at, failure_reason}`
 
 ## Continuous Standards Discovery
 
