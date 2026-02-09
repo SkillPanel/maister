@@ -35,78 +35,82 @@ Enter Claude Code's planning mode for a task, with automatic discovery of projec
   "What would you like to plan? Please describe the task or feature."
   ```
 
-### Step 2: Check for Standards
+### Step 2: Discover and Read Standards (BEFORE Plan Mode)
 
-**Check if `.ai-sdlc/docs/INDEX.md` exists:**
+**CRITICAL: This step MUST complete before calling EnterPlanMode.**
 
-- **If exists**: Read INDEX.md to understand available standards
-- **If not exists**: Note that no standards are available
+1. **Check if `.ai-sdlc/docs/INDEX.md` exists**
+   - **If not exists**: Note that no standards are available, skip to Step 3
+   - **If exists**: Continue with discovery below
+
+2. **Read INDEX.md** to understand available standards and documentation
+
+3. **Identify applicable standards** based on:
+   - The categories and files listed in INDEX.md
+   - The nature of the task being planned
+   - Keywords and patterns in the task description (e.g., "API" → api standards, "form" → validation standards, "upload" → file-handling standards)
+
+4. **READ the actual standard files** using the Read tool — reading INDEX.md alone is NOT sufficient
+
+5. **Summarize key guidelines** from each standard file read — these will carry into plan mode as context
 
 ### Step 3: Enter Planning Mode
 
 **Use the `EnterPlanMode` tool to trigger Claude Code's builtin planning mode.**
 
+**Standards context from Step 2 MUST actively inform all plan mode phases:**
+
+- **Phase 1 (Explore)**: When launching Explore agents, include in the prompt: "The following project standards apply to this task: [list standard files and key guidelines from Step 2]. Verify how the existing codebase follows these standards."
+- **Phase 2 (Plan)**: When launching Plan agents, include in the prompt: "Apply these project standards in your implementation plan: [list standard files and key guidelines from Step 2]. Each implementation step must conform to these standards."
+- **Phase 4 (Final Plan)**: The plan file must incorporate standards into the implementation steps themselves, not just list them in a separate section.
+
 The planning mode will:
-1. Launch Explore agents to understand the codebase
-2. Launch Plan agents to design implementation approach
+1. Launch Explore agents to understand the codebase (with standards context)
+2. Launch Plan agents to design implementation approach (with standards constraints)
 3. Review and verify alignment with user intent
-4. Write final plan to plan file
-5. Call ExitPlanMode for user approval
+4. Write final plan to plan file (with standards woven into steps)
+5. Call ExitPlanMode for user approval (gated on mandatory standards sections)
 
-### Step 4: Standards-Aware Planning
+### ExitPlanMode Gate: Mandatory Standards Sections
 
-**When in planning mode, apply standards awareness:**
+**BLOCKING: Do NOT call `ExitPlanMode` until the plan file contains these sections:**
 
-During Phase 1 (Explore) and Phase 2 (Plan), instruct agents to:
+1. **"## Applicable Standards"** — list each standard file that was read, with key guidelines extracted from each. If no standards exist, state: "No AI SDLC standards found. Consider running `/init-sdlc`."
 
-1. Read `.ai-sdlc/docs/INDEX.md` to discover available documentation and standards
-2. Dynamically identify which standards are relevant based on:
-   - The categories and files listed in INDEX.md
-   - The nature of the task being planned
-   - Keywords and patterns in the task description
+2. **"## Standards Compliance Checklist"** — checkboxes for each applicable standard guideline that implementation must follow. Example:
+   ```markdown
+   - [ ] API endpoints follow REST naming conventions (from `standards/backend/api.md`)
+   - [ ] Error responses use standard error format (from `standards/backend/api.md`)
+   - [ ] New components use TypeScript strict mode (from `standards/frontend/components.md`)
+   ```
 
-3. Include in the final plan:
-   - Which standards from INDEX.md apply to this task
-   - Key guidelines extracted from applicable standard files
-   - Standards compliance checklist for verification after implementation
-   - Post-implementation verification steps to confirm standards adherence
-
-**MANDATORY for Plan Agents**:
-
-When launching Plan agents, include in the prompt:
-1. "Read `.ai-sdlc/docs/INDEX.md` to discover all available standards"
-2. "Identify which standards apply to this task"
-3. **"READ the actual standard files"** (not just reference their paths)
-4. "Include a Standards Compliance section in the plan with exact file paths"
-
-**BLOCKING**: Plans must include which specific standard files were read and how they apply.
+If these sections are missing from the plan file, add them before calling ExitPlanMode.
 
 ### Graceful Fallback
 
 **If `.ai-sdlc/docs/` does not exist:**
 
-Continue with planning mode normally, but note in the plan:
+Continue with planning mode normally. The "Applicable Standards" section in the plan should note:
 
 ```
-"No AI SDLC standards found. Consider running `/init-sdlc` to initialize
-project documentation and coding standards for better consistency."
+No AI SDLC standards found. Consider running `/init-sdlc` to initialize
+project documentation and coding standards for better consistency.
 ```
 
 ## What This Does
 
 1. **Parses** task description from user input
-2. **Checks** for project standards in `.ai-sdlc/docs/INDEX.md`
-3. **Enters** Claude Code's builtin planning mode via `EnterPlanMode`
-4. **Guides** the planning process with standards awareness
-5. **READS** actual standard files (MANDATORY - not just INDEX.md)
-6. **Produces** a plan file with implementation approach, applicable standards, and Standards Compliance section
+2. **Discovers and READS** applicable standard files from `.ai-sdlc/docs/` (BEFORE plan mode)
+3. **Enters** Claude Code's builtin planning mode via `EnterPlanMode` with standards already loaded
+4. **Produces** a plan file with implementation approach, applicable standards, and compliance checklist
+5. **Gates** ExitPlanMode on mandatory standards sections in the plan file
 
 ## Benefits Over Manual Planning
 
 - Automatic standards discovery and integration
-- Structured approach to understanding codebase
+- Standards read BEFORE planning begins (not as an afterthought)
 - Plan file for review before implementation
-- Standards compliance built into the plan
+- Standards compliance checklist built into the plan
 
 ## After Planning
 
@@ -118,12 +122,9 @@ Once the plan is approved:
 
 After implementation is complete, verify standards compliance using the checklist from the plan:
 
-1. **Review the "Applicable Standards" section** in the plan file
-2. **For each standard listed**:
-   - Re-read the standard file from `.ai-sdlc/docs/`
-   - Verify implementation follows the key guidelines
-   - Check any specific patterns or conventions mentioned
-3. **Document verification results** (pass/fail for each standard)
+1. **Review the "Standards Compliance Checklist"** in the plan file
+2. **For each checklist item**: verify implementation follows the guideline
+3. **Document verification results** (pass/fail for each item)
 4. **Address any violations** before marking task complete
 
 This ensures the discovered standards are actually enforced, not just documented.
