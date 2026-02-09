@@ -242,6 +242,7 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 **State**: Set `options.code_review_enabled`, `options.pragmatic_review_enabled`, `options.production_check_enabled`, `options.reality_check_enabled`
 
 **Always enabled**: Reality check, pragmatic review
+**Auto-set**: `skip_test_suite: true` (full test suite already passed during implementation phase; cleared before re-verification if fixes are applied)
 
 **Interactive**: AskUserQuestion with multiselect - "Which additional verification checks?"
   - "Code review" (recommended)
@@ -261,7 +262,8 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 **Execute**:
 1. Skill tool - `ai-sdlc:implementation-verifier`
 2. If issues found: Fix trivial issues directly, AskUserQuestion for non-trivial
-3. Re-verify after fixes (max 3 fix-then-reverify cycles)
+3. Before re-verification: set `skip_test_suite: false` (code changed, tests must re-run)
+4. Re-verify after fixes (max 3 fix-then-reverify cycles)
 **Output**: `verification/implementation-verification.md`, optional review reports
 **State**: Update `verification_context`
 
@@ -320,6 +322,7 @@ verification_context:
 
 options:
   spec_audit_enabled: null
+  skip_test_suite: true
   code_review_enabled: true
   pragmatic_review_enabled: true
   reality_check_enabled: true

@@ -37,6 +37,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 - **Standalone mode**: If no state file, prompt user for each optional review using AskUserQuestion.
 
 **Orchestrator options** (when present, are mandatory):
+- `skip_test_suite` (when true, test-suite-runner is skipped — full test suite already passed during implementation phase)
 - `code_review_enabled` / `code_review_scope`
 - `pragmatic_review_enabled`
 - `production_check_enabled`
@@ -55,7 +56,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 4. **Determine invocation context** (orchestrator or standalone)
 5. **Create task items for verification tracking** using `TaskCreate` tool:
    - Subject: "Completeness check", activeForm: "Checking implementation completeness"
-   - Subject: "Test suite", activeForm: "Running test suite"
+   - Subject: "Test suite", activeForm: "Running test suite" — only if NOT skip_test_suite. When skip_test_suite is true, create task pre-completed with `metadata: {skipped: true, reason: "Full test suite passed during implementation phase"}`
    - Subject: "Code review", activeForm: "Running code review" — only if code_review_enabled
    - Subject: "Pragmatic review", activeForm: "Running pragmatic review" — only if pragmatic_review_enabled
    - Subject: "Production readiness", activeForm: "Checking production readiness" — only if production_check_enabled
@@ -104,10 +105,12 @@ Task tool call (always):
 - description: `Check implementation completeness`
 - prompt: Include task_path, task_type. The subagent checks plan completion, standards compliance, and documentation completeness.
 
-Task tool call (always):
+Task tool call (if NOT skip_test_suite):
 - subagent_type: `ai-sdlc:test-suite-runner`
 - description: `Run full test suite`
 - prompt: Include task_path, task_type, test_command (if known). The subagent runs ALL tests and analyzes results.
+
+**When `skip_test_suite: true`**: Skip this invocation. The full project test suite already passed during the implementation phase. The verification report will note tests were verified during implementation.
 
 Task tool call (if code_review_enabled):
 - subagent_type: `ai-sdlc:code-reviewer`
@@ -157,9 +160,11 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
 
    | Status | Criteria |
    |--------|----------|
-   | ✅ Passed | 100% implementation, 95%+ tests passing, standards compliant, docs complete, no critical issues from optional reviews |
+   | ✅ Passed | 100% implementation, 95%+ tests passing (or skipped — verified in implementation), standards compliant, docs complete, no critical issues from optional reviews |
    | ⚠️ Passed with Issues | 90-99% implementation OR 90-94% tests OR standards gaps OR optional review warnings |
    | ❌ Failed | <90% implementation OR <90% tests OR critical failures OR deployment blockers |
+
+   **When tests skipped** (`skip_test_suite: true`): Test pass rate is inherited from implementation phase (assumed passing since implementation completed successfully). Note this in the report.
 
 3. **Write verification report** to `verification/implementation-verification.md`
 4. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
@@ -275,7 +280,7 @@ issue_counts:
 
 Before finalizing verification:
 
-- All required subagents invoked (completeness checker + test runner)
+- All required subagents invoked (completeness checker + test runner unless skip_test_suite)
 - Optional reviews invoked per context settings
 - All subagent results processed
 - Verification report created

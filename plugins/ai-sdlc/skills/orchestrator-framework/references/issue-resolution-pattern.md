@@ -22,7 +22,7 @@ After verification phases that return structured issues:
 2. For each issue, reason about how to handle:
    - Trivial/auto-fixable → Fix silently, log action
    - Non-trivial → Use AskUserQuestion for user decision
-3. If any fixes applied → Re-run verification
+3. If any fixes applied → Set skip_test_suite: false (code changed, tests must re-run) → Re-run verification
 4. Loop until: passes OR user proceeds with known issues OR max iterations
 ```
 
@@ -37,6 +37,10 @@ verification_context:
   fixes_applied: []          # What was auto-fixed
   decisions_made: []         # User decisions on non-trivial issues
   reverify_count: 0          # Current iteration (max 3)
+
+# Note: If orchestrator sets skip_test_suite: true for initial verification
+# (test suite already passed during implementation), clear it to false
+# before re-verification since code has changed after fixes.
 ```
 
 ## Fixability Assessment

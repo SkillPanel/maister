@@ -336,7 +336,7 @@ After each task group:
    - Standards Reading Log is complete
    - All group tasks are `completed` via `TaskList` (cross-validate against markdown checkboxes)
 
-2. **Run full test suite** (entire feature, not just incremental)
+2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas)
 
 3. **Final work-log entry**:
    ```markdown

@@ -144,10 +144,10 @@ Use for **all development tasks**:
 **Execute**:
 1. Task tool - `ai-sdlc:gap-analyzer` subagent
 2. Update state with gap analysis results
-3. If `needs_clarification = true`: Direct - use AskUserQuestion for scope/approach decisions
+3. If `decisions_needed.critical` or `decisions_needed.important` contain items: Direct - use AskUserQuestion for all scope/approach decisions
 4. Save scope clarifications to `analysis/scope-clarifications.md`
 **Output**: `analysis/gap-analysis.md`, `analysis/scope-clarifications.md` (conditional)
-**State**: Update `task_context.ui_heavy`, `task_context.needs_clarification`, `task_context.scope_expanded`, `options.e2e_enabled`
+**State**: Update `task_context.ui_heavy`, `task_context.scope_expanded`, `options.e2e_enabled`
 
 **Context to pass**: Risk level, codebase summary, key files, clarifications
 
@@ -347,6 +347,7 @@ Use for **all development tasks**:
 **State**: Set `options.code_review_enabled`, `options.e2e_enabled`, `options.user_docs_enabled`
 
 **Always enabled**: Reality check, pragmatic review
+**Auto-set**: `skip_test_suite: true` (full test suite already passed during implementation phase; cleared before re-verification if fixes are applied)
 
 → Pause
 
@@ -361,7 +362,8 @@ Use for **all development tasks**:
 **Execute**:
 1. Skill tool - `ai-sdlc:implementation-verifier`
 2. If issues found: Fix trivial issues directly, AskUserQuestion for non-trivial
-3. Re-verify after fixes (max 3 fix-then-reverify cycles)
+3. Before re-verification: set `skip_test_suite: false` (code changed, tests must re-run)
+4. Re-verify after fixes (max 3 fix-then-reverify cycles)
 **Output**: `verification/implementation-verification.md`, optional code-review/pragmatic/reality reports, updated `implementation/work-log.md`
 **State**: Update verification results, `verification_context`
 
@@ -430,6 +432,7 @@ orchestrator:
   task_type: bug | enhancement | feature
   options:
     spec_audit_enabled: null
+    skip_test_suite: true
     e2e_enabled: null
     user_docs_enabled: null
     code_review_enabled: true
@@ -439,7 +442,6 @@ orchestrator:
     type: bug | enhancement | feature
     risk_level: null
     ui_heavy: null
-    needs_clarification: null
     clarifications_resolved: null
     scope_expanded: null
     architecture_decision: null
