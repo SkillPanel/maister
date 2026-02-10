@@ -76,6 +76,8 @@ The Task prompt MUST include:
    - `analysis/gap-analysis.md` — gaps between current and desired state
    - `analysis/technical-clarifications.md` — technical decisions (if exists)
    - `analysis/research-context/` — research findings (if exists)
+   - `analysis/research-context/high-level-design.md` — architecture design (if exists, use as primary architectural input)
+   - `analysis/research-context/decision-log.md` — architecture decisions (if exists, reference rather than re-decide)
 4. **Check for visual assets**:
    - Look for .png, .jpg, .jpeg, .gif, .svg, .pdf in `analysis/visuals/`
    - If found: read and analyze each visual for design requirements

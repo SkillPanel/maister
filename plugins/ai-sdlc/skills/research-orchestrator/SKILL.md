@@ -68,7 +68,7 @@ Use when:
 
 | File | When to Use | Purpose |
 |------|-------------|---------|
-| `references/research-methodologies.md` | Phase 1 | Research methodology selection and approach patterns |
+| `references/research-methodologies.md` | Phase 1, Phase 4 | Research methodology, brainstorming and design techniques |
 
 ---
 
@@ -80,10 +80,13 @@ Use when:
 | 1 | "Plan research methodology" | "Planning research methodology" | research-planner |
 | 2 | "Gather information (parallel)" | "Gathering information in parallel" | information-gatherer (x4) |
 | 3 | "Analyze and synthesize" | "Analyzing and synthesizing" | research-synthesizer |
-| 4 | "Generate outputs" | "Generating outputs" | Direct |
-| 5 | "Verify findings" | "Verifying findings" | Direct (optional) |
-| 6 | "Integrate into project" | "Integrating into project" | Direct (optional) |
-| 7 | "Spawn development" | "Spawning development" | Direct (optional) |
+| 3.5 | "Evaluate brainstorming value" | "Evaluating brainstorming value" | Direct |
+| 4 | "Brainstorm solutions" | "Brainstorming solutions" | Direct + solution-brainstormer |
+| 5 | "Design high-level architecture" | "Designing high-level architecture" | Direct + solution-designer |
+| 6 | "Generate outputs" | "Generating outputs" | Direct |
+| 7 | "Verify findings" | "Verifying findings" | Direct (optional) |
+| 8 | "Integrate into project" | "Integrating into project" | Direct (optional) |
+| 9 | "Spawn development" | "Spawning development" | Direct (optional) |
 
 ---
 
@@ -199,17 +202,134 @@ Use Task tool 4 times in ONE message:
 
 → Pause
 
-**Interactive**: AskUserQuestion - "Synthesis complete. Continue to output generation?"
-**YOLO**: "→ Continuing to Phase 4..."
+**Interactive**: AskUserQuestion - "Synthesis complete. Continue to brainstorming evaluation?"
+**YOLO**: "→ Continuing to Phase 3.5..."
 
 ---
 
-### Phase 4: Generate Outputs
+### Phase 3.5: Brainstorming Decision
+
+**Purpose**: Evaluate whether brainstorming/design phases would be valuable and present recommendation to user
+**Execute**: Direct
+**Output**: Updated `orchestrator-state.yml`
+**State**: Set `options.brainstorming_enabled`, `options.design_enabled`
+
+**Auto-resolve if**: `--brainstorm` flag (force enable) or `--no-brainstorm` flag (force skip)
+
+**Process**:
+1. Read `analysis/synthesis.md` summary and `research_type` from state
+2. Evaluate brainstorming value based on:
+   - Research type (requirements/literature/mixed → likely valuable; technical → depends on synthesis findings)
+   - Number of viable approaches identified in synthesis (multiple → valuable)
+   - Problem novelty (new domain → valuable; well-understood → less so)
+   - Whether synthesis identified competing trade-offs (yes → valuable)
+3. Formulate recommendation with brief explanation (2-3 sentences)
+4. AskUserQuestion:
+   - "[Recommendation explanation]. Would you like to run brainstorming and design phases?"
+   - Options: "Yes, explore solutions" / "No, skip to outputs"
+5. Update state: set `brainstorming_enabled` and `design_enabled` based on user choice
+
+**YOLO**: Auto-enable brainstorming (brainstorming is valuable by default; YOLO trusts the process)
+
+→ If brainstorming enabled: continue to Phase 4
+→ If brainstorming disabled: skip to Phase 6
+
+---
+
+### Phase 4: Solution Brainstorming
+
+**Purpose**: Explore solution alternatives through interactive dialogue and structured brainstorming
+**Execute**: Orchestrator-Direct Hybrid
+**Output**: `analysis/brainstorm-dialogue.md`, `outputs/solution-exploration.md`
+**State**: Update `phase_summaries.phase-4`
+
+**Skip if**: `brainstorming_enabled = false` (user chose to skip in Phase 3.5, or `--no-brainstorm` flag)
+
+**Part A — HMW Generation (Direct)**:
+1. Read `analysis/synthesis.md` + `analysis/research-report.md`
+2. Generate 3-5 "How Might We" questions from research findings
+3. Present to user via AskUserQuestion for validation and prioritization
+4. Save validated HMW questions
+
+**Part B — User Preferences (Direct)**:
+5. AskUserQuestion for constraints, priorities, and preferences (4-6 questions, one at a time)
+6. Questions build on previous answers (not canned sequences)
+7. Save dialogue summary to `analysis/brainstorm-dialogue.md`
+
+**Part C — Solution Generation (Subagent)**:
+
+> **ANTI-PATTERN**: Do NOT generate solution alternatives inline. The solution-brainstormer agent has specialized multi-perspective analysis capabilities.
+
+**INVOKE NOW**: Use Task tool with `subagent_type: ai-sdlc:solution-brainstormer`
+
+**Context to pass** (Pattern 7):
+- `task_path`, `synthesis_path`, `research_report_path`
+- `validated_hmw_questions` (from Part A)
+- `user_preferences` (from Part B dialogue)
+- `brainstorm_dialogue_path` (path to `analysis/brainstorm-dialogue.md`)
+- Accumulated context: `research_type`, `research_question`, `confidence_level`, `phase_summaries` (Phases 0-3)
+
+> **SELF-CHECK**: After Task tool returns, verify `outputs/solution-exploration.md` exists and contains alternatives. If missing, this is a CRITICAL failure.
+
+**Part D — Convergence (Direct)**:
+8. Read `outputs/solution-exploration.md`
+9. Present recommended approach to user via AskUserQuestion
+10. Options: "Proceed with recommended approach" / "Choose different alternative" / "Explore further"
+11. If user chooses different: update state with chosen approach
+
+**YOLO mode**: Skip Parts A+B+D. Subagent runs autonomously using research recommendations as defaults. Auto-accept recommended approach.
+
+→ Pause
+
+**Interactive**: AskUserQuestion - "Brainstorming complete. Continue to high-level design?"
+**YOLO**: "→ Continuing to Phase 5..."
+
+---
+
+### Phase 5: High-Level Design
+
+**Purpose**: Create architecture design from selected solution approach
+**Execute**: Orchestrator-Direct Hybrid
+**Output**: `outputs/high-level-design.md`, `outputs/decision-log.md`
+**State**: Update `phase_summaries.phase-5`
+
+**Skip if**: Phase 4 was skipped (brainstorming_enabled = false)
+
+**Part A — Design Direction (Direct)**:
+1. Confirm selected approach from Phase 4
+2. AskUserQuestion for any design preferences or constraints (e.g., "Any architectural constraints or preferences?")
+
+**Part B — Design Generation (Subagent)**:
+
+> **ANTI-PATTERN**: Do NOT generate C4 architecture diagrams or ADRs inline. The solution-designer agent has specialized architecture and MADR documentation capabilities.
+
+**INVOKE NOW**: Use Task tool with `subagent_type: ai-sdlc:solution-designer`
+
+**Context to pass** (Pattern 7):
+- `task_path`, `solution_exploration_path`, `synthesis_path`, `research_report_path`
+- `selected_approach` (from Phase 4 Part D convergence)
+- `design_preferences` (from Part A)
+- Accumulated context: `research_type`, `research_question`, `confidence_level`, `phase_summaries` (Phases 0-4 including brainstorming summary and chosen approach)
+
+> **SELF-CHECK**: After Task tool returns, verify both `outputs/high-level-design.md` and `outputs/decision-log.md` exist. If missing, this is a CRITICAL failure.
+
+**YOLO mode**: Skip Part A design preferences question. Subagent generates design, present summary checkpoint only.
+
+→ Pause
+
+**Interactive**: AskUserQuestion - "Design complete. Continue to output generation?"
+**YOLO**: "→ Continuing to Phase 6..."
+
+---
+
+### Phase 6: Generate Outputs
 
 **Purpose**: Generate conditional outputs based on research type
 **Execute**: Direct - create appropriate output files
 **Output**: `outputs/recommendations.md`, `outputs/knowledge-base.md`, `outputs/specifications.md` (conditional)
 **State**: Track generated outputs
+
+**Note**: If brainstorming/design phases ran, `outputs/solution-exploration.md`, `outputs/high-level-design.md`, and `outputs/decision-log.md` already exist. This phase generates additional outputs as needed.
 
 **Conditional Outputs**:
 | Output | Generate If | Skip If |
@@ -221,11 +341,11 @@ Use Task tool 4 times in ONE message:
 → Pause
 
 **Interactive**: AskUserQuestion - "Outputs generated. Continue to verification?"
-**YOLO**: "→ Continuing to Phase 5..."
+**YOLO**: "→ Continuing to Phase 7..."
 
 ---
 
-### Phase 5: Verification (Optional)
+### Phase 7: Verification (Optional)
 
 **Purpose**: Verify research quality and completeness
 **Execute**: Direct - user review (interactive) or automated checks (YOLO)
@@ -238,11 +358,11 @@ Use Task tool 4 times in ONE message:
 **Interactive Mode**: Present report, request user review
 **YOLO Mode**: Automated checks (citations present, evidence provided, question addressed)
 
-→ Conditional: if integration_enabled continue to Phase 6, else skip to Phase 7 check
+→ Conditional: if integration_enabled continue to Phase 8, else skip to Phase 9 check
 
 ---
 
-### Phase 6: Integration (Optional)
+### Phase 8: Integration (Optional)
 
 **Purpose**: Integrate outputs into project documentation
 **Execute**: Direct - save to appropriate locations
@@ -257,23 +377,23 @@ Use Task tool 4 times in ONE message:
 - For knowledge base: Ask user where to place in `.ai-sdlc/docs/`
 - For recommendations: Ask if decisions should be documented
 
-→ Conditional: if specifications exist continue to Phase 7, else complete workflow
+→ Conditional: if specifications or design artifacts exist continue to Phase 9, else complete workflow
 
 ---
 
-### Phase 7: Spawn Development (Optional)
+### Phase 9: Spawn Development (Optional)
 
 **Purpose**: Offer to start development workflow with research context
 **Execute**: Direct - AskUserQuestion for user decision
 **Output**: Development workflow started (if chosen)
 **State**: Track spawn decision
 
-**Skip if**: No specifications generated OR mode = yolo
+**Skip if**: No specifications or design artifacts generated OR mode = yolo
 
 **Interactive Mode**:
 ```
 AskUserQuestion:
-  Question: "Research produced specifications. Start development workflow?"
+  Question: "Research produced specifications/design. Start development workflow?"
   Options:
   - "Start development with this research"
   - "Skip - I'll start manually later"
@@ -304,8 +424,22 @@ research_context:
   confidence_level: "high" | "medium" | "low"
 
 options:
-  verification_enabled: null  # null=auto-detect
+  brainstorming_enabled: null  # null=not yet decided, set by Phase 3.5 or --brainstorm/--no-brainstorm flag
+  design_enabled: null          # follows brainstorming_enabled
+  verification_enabled: null    # null=auto-detect
   integration_enabled: null
+
+research_context:
+  phase_summaries:
+    phase-4:
+      summary: "..."
+      alternatives_count: 0
+      chosen_approach: null
+      deferred_ideas: []
+    phase-5:
+      summary: "..."
+      architecture_style: null
+      decisions_count: 0
 ```
 
 ---
@@ -328,13 +462,17 @@ options:
 │   │   ├── config-*.md             # Phase 2
 │   │   └── external-*.md           # Phase 2
 │   ├── synthesis.md                # Phase 3
-│   └── research-report.md          # Phase 3
+│   ├── research-report.md          # Phase 3
+│   └── brainstorm-dialogue.md      # Phase 4 (interactive mode)
 ├── outputs/
-│   ├── recommendations.md          # Phase 4 (conditional)
-│   ├── knowledge-base.md           # Phase 4 (conditional)
-│   └── specifications.md           # Phase 4 (conditional)
+│   ├── solution-exploration.md     # Phase 4 (conditional)
+│   ├── high-level-design.md        # Phase 5 (conditional)
+│   ├── decision-log.md             # Phase 5 (conditional)
+│   ├── recommendations.md          # Phase 6 (conditional)
+│   ├── knowledge-base.md           # Phase 6 (conditional)
+│   └── specifications.md           # Phase 6 (conditional)
 └── verification/
-    └── verification-report.md      # Phase 5 (optional)
+    └── verification-report.md      # Phase 7 (optional)
 ```
 
 ---
@@ -348,10 +486,13 @@ options:
 | 2 | 3 | Retry failed agents only, continue with successful categories |
 | 2 | 2 | Merge available findings, note missing categories |
 | 3 | 2 | Request targeted re-gathering for gaps |
-| 4 | 2 | Generate standard outputs, ask user in interactive |
-| 5 | 0 | Read-only, report only |
-| 6 | 0 | Read-only, provide manual guidance |
-| 7 | 0 | User decision only |
+| 3.5 | 1 | Re-evaluate recommendation if synthesis unclear |
+| 4 | 2 | Re-invoke solution-brainstormer with adjusted context |
+| 5 | 2 | Re-invoke solution-designer with adjusted context |
+| 6 | 2 | Generate standard outputs, ask user in interactive |
+| 7 | 0 | Read-only, report only |
+| 8 | 0 | Read-only, provide manual guidance |
+| 9 | 0 | User decision only |
 
 ---
 
@@ -368,8 +509,8 @@ options:
 
 **Integration**:
 1. Parent orchestrator invokes research-orchestrator
-2. Research executes phases 0-4 (skip optional phases 5-7)
-3. Specifications output fed into parent's specification phase
+2. Research executes phases 0-6 (skip optional phases 7-9)
+3. Specifications and design outputs fed into parent's specification phase
 4. Research report saved in parent task's `analysis/research/` directory
 
 **Handoff**:
@@ -378,6 +519,9 @@ research_outputs:
   specifications: "[path to specifications.md]"
   research_report: "[path to research-report.md]"
   findings_directory: "[path to findings/]"
+  solution_exploration: "[path to solution-exploration.md]"
+  high_level_design: "[path to high-level-design.md]"
+  decision_log: "[path to decision-log.md]"
 ```
 
 ---
@@ -385,7 +529,12 @@ research_outputs:
 ## Command Integration
 
 Invoked via:
-- `/ai-sdlc:research:new [question] [--yolo] [--type=TYPE]`
+- `/ai-sdlc:research:new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]`
 - `/ai-sdlc:research:resume [task-path] [--from=PHASE]`
+
+**Brainstorming flags**:
+- `--brainstorm`: Force brainstorming/design phases (auto-resolves Phase 3.5 to "enable")
+- `--no-brainstorm`: Skip brainstorming/design phases (auto-resolves Phase 3.5 to "skip")
+- Neither: Phase 3.5 presents recommendation and asks user
 
 Task directory: `.ai-sdlc/tasks/research/YYYY-MM-DD-task-name/`

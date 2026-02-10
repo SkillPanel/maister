@@ -555,6 +555,9 @@ When research context is detected, read these files from the research folder:
 | Findings | `analysis/findings/00-summary.md` | Consolidated category findings |
 | Specifications | `outputs/specifications.md` | Research-generated specs (input to Phase 5) |
 | Recommendations | `outputs/recommendations.md` | Approach guidance (input to Phase 5.5) |
+| Solution Exploration | `outputs/solution-exploration.md` | Alternatives and trade-offs (input to Phase 5.5) |
+| High-Level Design | `outputs/high-level-design.md` | C4 architecture (input to Phase 5) |
+| Decision Log | `outputs/decision-log.md` | ADR decisions (input to Phase 5.5) |
 
 ### How Research Informs Each Phase
 
@@ -564,8 +567,8 @@ When research context is detected, read these files from the research folder:
 |-------|------------------------------|
 | Phase 1 | Codebase analyzer receives research findings as search guidance |
 | Phase 2 | Gap analyzer uses research recommendations for comparison |
-| Phase 5 | Specification creator subagent uses research specs as INPUT (still creates full spec) |
-| Phase 5.5 | Architecture decision uses research recommendations as INPUT (still presents options) |
+| Phase 5 | Specification creator uses research specs AND high-level-design.md as INPUT (still creates full spec) |
+| Phase 5.5 | Architecture decision uses research recommendations AND decision-log.md (lighter when ADRs comprehensive) |
 | Phase 7 | Implementation planner references research approach for task grouping |
 
 ---

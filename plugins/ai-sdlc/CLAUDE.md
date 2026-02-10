@@ -660,7 +660,7 @@ Orchestrators manage complete workflows with state management, auto-recovery, an
 | `migration-orchestrator` | Code/data/architecture migrations with rollback plans | `skills/migration-orchestrator/skill.md` |
 | `initiative-orchestrator` | Epic-level coordination of 3-15 tasks with dependencies | `skills/initiative-orchestrator/skill.md` |
 | `refactoring-orchestrator` | Safe refactoring with git checkpoints, behavior preservation | `skills/refactoring-orchestrator/skill.md` |
-| `research-orchestrator` | Multi-source research with synthesis and citations | `skills/research-orchestrator/skill.md` |
+| `research-orchestrator` | Multi-source research with synthesis, solution brainstorming, high-level design, and citations | `skills/research-orchestrator/skill.md` |
 
 **Deprecated Orchestrators** (now aliases to `development-orchestrator`):
 - `feature-orchestrator` → Use `development-orchestrator` with `task_type=feature`
@@ -727,7 +727,7 @@ These commands still work but route to `development-orchestrator`:
 | `/ai-sdlc:migration:resume` | `[path] [--from=phase]` | |
 | `/ai-sdlc:refactoring:new` | `[desc] [--yolo]` | `.ai-sdlc/tasks/refactoring/` |
 | `/ai-sdlc:refactoring:resume` | `[path] [--from=phase]` | |
-| `/ai-sdlc:research:new` | `[question] [--yolo] [--type=TYPE]` | `.ai-sdlc/tasks/research/` |
+| `/ai-sdlc:research:new` | `[question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]` | `.ai-sdlc/tasks/research/` |
 | `/ai-sdlc:research:resume` | `[path] [--from=phase]` | |
 
 ### Initiative Commands (Epic-Level)
@@ -815,6 +815,8 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | `research-planner` | Creates methodology and identifies sources | research-orchestrator | `agents/research-planner.md` |
 | `information-gatherer` | Multi-source data collection with citations | research-orchestrator | `agents/information-gatherer.md` |
 | `research-synthesizer` | Pattern identification, insights generation | research-orchestrator | `agents/research-synthesizer.md` |
+| `solution-brainstormer` | Solution alternatives with multi-perspective trade-off analysis | research-orchestrator | `agents/solution-brainstormer.md` |
+| `solution-designer` | High-level C4 architecture design and ADR documentation | research-orchestrator | `agents/solution-designer.md` |
 
 ### Verification Agents
 

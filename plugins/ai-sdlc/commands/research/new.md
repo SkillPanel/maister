@@ -12,13 +12,15 @@ Start comprehensive research to investigate a topic, analyze findings, and gener
 ## Usage
 
 ```bash
-/ai-sdlc:research:new [question] [--yolo] [--type=TYPE]
+/ai-sdlc:research:new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]
 ```
 
 ### Options
 
 - `--yolo`: Continuous execution without pauses
 - `--type=TYPE`: Research type (technical, requirements, literature, mixed)
+- `--brainstorm`: Force brainstorming/design phases (skips Phase 3.5 decision, auto-enables)
+- `--no-brainstorm`: Skip brainstorming/design phases (go directly to output generation)
 
 ## Examples
 
@@ -26,6 +28,8 @@ Start comprehensive research to investigate a topic, analyze findings, and gener
 /ai-sdlc:research:new "How does authentication work in this codebase?"
 /ai-sdlc:research:new "Best practices for real-time notifications" --type=literature
 /ai-sdlc:research:new "Requirements for reporting feature" --yolo
+/ai-sdlc:research:new "Best architecture for notifications" --brainstorm
+/ai-sdlc:research:new "How does auth work?" --no-brainstorm
 ```
 
 ## See Also
