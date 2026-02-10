@@ -13,7 +13,7 @@ color: cyan
 
 | File | Purpose | Required Content |
 |------|---------|-----------------|
-| `outputs/high-level-design.md` | Architecture design | Overview, C4 diagrams, components, data flow, integration points |
+| `outputs/high-level-design.md` | Architecture design | Executive context (business motivation, approach, key decisions), C4 diagrams, components, data flow, integration points |
 | `outputs/decision-log.md` | Decision records | MADR-format ADRs for each significant design decision |
 
 **File Creation Rule**: Always write to these exact file paths. Do NOT put content only in your response - it must be saved to files.
@@ -88,6 +88,10 @@ The Task prompt MUST include:
 3. **Read `analysis/research-report.md`** - comprehensive findings, recommendations
 4. **Parse accumulated context** - phase summaries, selected approach, design preferences
 5. **Identify design scope** - what the chosen approach requires architecturally
+6. **Synthesize Design Overview** - from the loaded context, draft the 2-3 paragraph overview covering:
+   - **Business context**: What problem or opportunity this addresses, why now, who benefits (from research question + motivation)
+   - **Chosen approach**: What solution direction was selected, key architectural style, why this over alternatives (from selected approach + key trade-offs)
+   - **Key decisions**: The most impactful architectural choices, stated plainly (from solution-exploration.md)
 
 ### Phase 2: C4 Architecture Diagrams
 
@@ -233,7 +237,9 @@ Chosen option: [Option N], because [justification, 1-2 sentences]
 # High-Level Design: [Solution Name]
 
 ## Design Overview
-[2-3 paragraphs]
+[Para 1: Business context - what problem/opportunity, why now, who benefits]
+[Para 2: Chosen approach - what solution direction, key architectural style, why this over alternatives]
+[Para 3: Key decisions and trade-offs - most impactful choices made, what was traded off]
 
 ## Architecture
 
