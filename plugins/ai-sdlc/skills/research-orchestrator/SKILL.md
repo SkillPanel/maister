@@ -68,7 +68,9 @@ Use when:
 
 | File | When to Use | Purpose |
 |------|-------------|---------|
-| `references/research-methodologies.md` | Phase 0 (Step 2), Phase 2 | Research methodology, brainstorming and design techniques |
+| `references/research-methodologies.md` | Phase 0 | Research type classification, methodology selection, gathering strategies, analysis frameworks |
+| `references/brainstorming-techniques.md` | Phase 2 | Divergent/convergent thinking, interactive exploration, scope guardrails |
+| `references/design-techniques.md` | Phase 3 | Decision documentation (MADR), ADR guidance, decision linking |
 
 ---
 
@@ -125,6 +127,8 @@ This phase executes 4 sequential steps. On resume, check existing artifacts to s
 
 **Artifacts**: `planning/research-plan.md`, `planning/sources.md`
 **Resume check**: If `planning/research-plan.md` AND `planning/sources.md` exist, skip to Step 3
+
+**Reference**: Read `references/research-methodologies.md` — research type classification, methodology selection, gathering strategies
 
 **INVOKE NOW**: Use Task tool with `subagent_type: ai-sdlc:research-planner`
 
@@ -233,6 +237,8 @@ Update state: `research_context.confidence_level`
 
 **Skip if**: `brainstorming_enabled = false` (user chose to skip in Phase 1, or `--no-brainstorm` flag)
 
+**Reference**: Read `references/brainstorming-techniques.md` — divergent/convergent thinking techniques, scope guardrails, interactive exploration patterns
+
 **Part A — HMW Generation (Direct)**:
 1. Read `analysis/synthesis.md` + `analysis/research-report.md`
 2. Generate 3-5 "How Might We" questions from research findings
@@ -282,6 +288,8 @@ Update state: `research_context.confidence_level`
 **State**: Update `phase_summaries.phase-3`
 
 **Skip if**: Phase 2 was skipped (brainstorming_enabled = false)
+
+**Reference**: Read `references/design-techniques.md` — MADR format, ADR guidance, decision documentation patterns
 
 **Part A — Design Direction (Direct)**:
 1. Confirm selected approach from Phase 2
