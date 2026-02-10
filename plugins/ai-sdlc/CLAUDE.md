@@ -563,6 +563,7 @@ Before considering an orchestrator complete, verify ALL items:
 | Post-phase review with AskUserQuestion | ✓ | Is STEP 7 implemented with explicit tool call? |
 | **Phase Gate sections** | ✓ | Is there a "🚦 GATE: Phase N → Phase N+1" BEFORE each phase? |
 | Explicit AskUserQuestion for all decisions | ✓ | Do ALL user prompts have tool call examples? |
+| **Decision Gate for subagent decisions** | ✓ | Do phases receiving `decisions_needed` have ⛔ DECISION GATE + SELF-CHECK? |
 | Explicit Task tool for subagents | ✓ | Do ALL subagent invocations show Task parameters? |
 | **Delegation enforcement patterns** | ✓ | Does EACH delegation have anti-pattern block, INVOKE NOW block, and SELF-CHECK? |
 | **Context passing (Pattern 7)** | ✓ | Do ALL subagent prompts include ACCUMULATED CONTEXT section? |
@@ -591,9 +592,10 @@ Before considering an orchestrator complete, verify ALL items:
 ❌ **Missing standards**: Not referencing INDEX.md in relevant phases
 ❌ **Incomplete verification**: Running tests without reality check and pragmatic review
 ❌ **No state management**: Not creating/updating orchestrator-state.yml
+❌ **Auto-accepting subagent decisions**: Accepting `decisions_needed` defaults without presenting to user (interactive) or logging (YOLO). See `delegation-enforcement.md` Decision Enforcement section.
 
 **See**: `skills/orchestrator-framework/references/interactive-mode.md` for the Phase Gate pattern.
-**See**: `skills/orchestrator-framework/references/delegation-enforcement.md` for delegation enforcement patterns.
+**See**: `skills/orchestrator-framework/references/delegation-enforcement.md` for delegation and decision enforcement patterns.
 
 ## Available Skills
 
@@ -603,7 +605,7 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 
 | Skill | Purpose | Details |
 |-------|---------|---------|
-| `codebase-analyzer` | Phase 1 analysis using 3 parallel Explore subagents (file discovery, code analysis, context discovery) | `skills/codebase-analyzer/SKILL.md` |
+| `codebase-analyzer` | Phase 1 analysis using adaptive parallel Explore subagents selected from a role pool based on task complexity | `skills/codebase-analyzer/SKILL.md` |
 | `implementer` | Executes plans with **mandatory** standards reading (INDEX.md + implementation-plan.md Standards Compliance section + keyword-triggered) and **test step enforcement** (requires user approval to skip N.1 tests) | `skills/implementer/SKILL.md` |
 | `implementation-verifier` | Read-only QA orchestrator: delegates completeness checks, test execution, code review, and production readiness to specialized subagents; compiles results into verification report | `skills/implementation-verifier/SKILL.md` |
 | `docs-manager` | Manages standards in `.ai-sdlc/docs/`, handles discovery and updates | `skills/docs-manager/skill.md` |
@@ -770,7 +772,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | `implementation-planner` | Breaks specs into task groups with test-driven steps and dependency chains | development-orchestrator, migration-orchestrator | `agents/implementation-planner.md` |
 
 **Deprecated Agent**:
-- `existing-feature-analyzer` → Replaced by `codebase-analyzer` skill (uses 3 parallel Explore subagents)
+- `existing-feature-analyzer` → Replaced by `codebase-analyzer` skill (uses adaptive parallel Explore subagents)
 
 ### UI & Documentation Agents
 

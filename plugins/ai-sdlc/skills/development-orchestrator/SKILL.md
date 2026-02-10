@@ -144,14 +144,28 @@ Use for **all development tasks**:
 **Execute**:
 1. Task tool - `ai-sdlc:gap-analyzer` subagent
 2. Update state with gap analysis results
-3. If `decisions_needed.critical` or `decisions_needed.important` contain items: Direct - use AskUserQuestion for all scope/approach decisions
-4. Save scope clarifications to `analysis/scope-clarifications.md`
+
+**⛔ DECISION GATE** (mandatory — do NOT skip):
+- Parse `decisions_needed` from gap-analyzer output
+- If `decisions_needed.critical` OR `decisions_needed.important` is non-empty:
+  - **Interactive**: MUST use `AskUserQuestion` — one question per critical decision, batch important decisions into a single multi-select question
+  - **YOLO**: Accept recommended defaults, but LOG each decision (id, issue, chosen option, rationale) to `analysis/scope-clarifications.md`
+- If both are empty: Note "No scope decisions needed" in state
+
+**SELF-CHECK** before continuing: "Did the gap-analyzer return `decisions_needed` items? If yes, did I invoke `AskUserQuestion` (interactive) or log decisions (YOLO)? If I skipped this, STOP and go back."
+
+3. Save scope clarifications to `analysis/scope-clarifications.md`
+
 **Output**: `analysis/gap-analysis.md`, `analysis/scope-clarifications.md` (conditional)
 **State**: Update `task_context.ui_heavy`, `task_context.scope_expanded`, `options.e2e_enabled`
 
 **Context to pass**: Risk level, codebase summary, key files, clarifications
 
-**YOLO Mode**: Accept all recommended defaults for scope decisions
+→ Pause (when decisions exist), otherwise Conditional
+
+**Interactive** (decisions exist): AskUserQuestion - "Scope decisions resolved. Continue to Phase 3/4?"
+**Interactive** (no decisions): AskUserQuestion - "Gap analysis complete, no decisions needed. Continue to Phase 3/4?"
+**YOLO**: "→ Continuing..."
 
 → Conditional: if task_type=bug then continue to Phase 3, else skip to Phase 4
 

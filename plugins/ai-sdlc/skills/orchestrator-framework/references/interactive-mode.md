@@ -137,6 +137,7 @@ In YOLO mode, auto-decide based on:
 | Batching phases before pausing | User can't course-correct between phases |
 | "Phase was simple, so I skipped pause" | ALL pauses are mandatory in interactive mode |
 | Checking mode but not actually pausing | Reading state without acting on it |
+| Auto-accepting subagent decisions without asking | User must consent to scope/approach decisions, even when recommendations exist |
 
 ---
 

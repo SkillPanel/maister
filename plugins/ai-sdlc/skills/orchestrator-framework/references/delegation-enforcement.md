@@ -122,3 +122,34 @@ After each phase, extract key findings into `[domain]_context.phase_summaries`:
 3. Update state: `[domain]_context.phase_summaries.[phase_name]`
 
 This enables context passing to downstream phases and supports resume.
+
+---
+
+## Decision Enforcement
+
+When a subagent returns `decisions_needed` items, the orchestrator MUST present them to the user (interactive) or log them (YOLO). Decisions are never silently skipped.
+
+### Anti-Patterns (NEVER do this)
+
+| Anti-Pattern | Why It's Wrong |
+|---|---|
+| "I'll accept the recommended defaults" | User loses control over critical scope decisions |
+| Logging decisions without asking (interactive mode) | Documentation ≠ user consent |
+| "The recommendations are clear, no need to ask" | Clarity ≠ consent. User may disagree with "clear" recommendation |
+| Skipping decisions because task seems simple | Simple tasks can have non-obvious scope implications |
+
+### Decision Gate Pattern
+
+After receiving subagent output with `decisions_needed`:
+
+1. **Parse**: Extract all critical and important decisions from subagent output
+2. **Present** (Interactive): Use `AskUserQuestion` for each critical decision; batch important decisions into multi-select
+3. **Accept** (YOLO): Auto-accept defaults, log each decision (id, issue, chosen option, rationale) to `analysis/scope-clarifications.md`
+4. **SELF-CHECK**: "Did I present/log ALL decisions from `decisions_needed`? If not, STOP."
+
+### YOLO Mode Logging
+
+Even in YOLO mode, decisions must be logged to create an audit trail:
+- Write to `analysis/scope-clarifications.md`
+- Format: decision ID, issue, chosen option, rationale
+- User can review auto-accepted decisions after workflow completes
