@@ -64,7 +64,7 @@ The Task prompt MUST include:
 | `task_path` | Orchestrator | Absolute path to research task directory |
 | `solution_exploration_path` | Orchestrator | Path to `outputs/solution-exploration.md` |
 | `synthesis_path` | Orchestrator | Path to `analysis/synthesis.md` |
-| `research_report_path` | Orchestrator | Path to `analysis/research-report.md` |
+| `research_report_path` | Orchestrator | Path to `outputs/research-report.md` |
 | `selected_approach` | Orchestrator (Phase 2 Part D) | Which alternative was chosen |
 | `design_preferences` | Orchestrator (Phase 3 Part A) | User's design preferences/constraints |
 
@@ -85,7 +85,7 @@ The Task prompt MUST include:
 
 1. **Read `outputs/solution-exploration.md`** - chosen approach, alternatives, trade-offs, deferred ideas
 2. **Read `analysis/synthesis.md`** - patterns, cross-references, technical details
-3. **Read `analysis/research-report.md`** - comprehensive findings, recommendations
+3. **Read `outputs/research-report.md`** - comprehensive findings, recommendations
 4. **Parse accumulated context** - phase summaries, selected approach, design preferences
 5. **Identify design scope** - what the chosen approach requires architecturally
 6. **Synthesize Design Overview** - from the loaded context, draft the 2-3 paragraph overview covering:
@@ -333,7 +333,7 @@ warnings: ["any non-critical observations"]
 - Task directory exists with `analysis/` and `outputs/` subdirectories
 - `outputs/solution-exploration.md` exists (Phase 2 output)
 - `analysis/synthesis.md` exists (Phase 0 output)
-- `analysis/research-report.md` exists (Phase 0 output)
+- `outputs/research-report.md` exists (Phase 0 output)
 
 **Input**: Task path, solution exploration, research artifacts, selected approach, design preferences, accumulated context
 

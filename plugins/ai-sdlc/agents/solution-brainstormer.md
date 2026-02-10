@@ -60,7 +60,7 @@ The Task prompt MUST include:
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to research task directory |
 | `synthesis_path` | Orchestrator | Path to `analysis/synthesis.md` |
-| `research_report_path` | Orchestrator | Path to `analysis/research-report.md` |
+| `research_report_path` | Orchestrator | Path to `outputs/research-report.md` |
 | `validated_hmw_questions` | Orchestrator (Phase 2 Part A) | HMW questions validated/prioritized by user |
 | `user_preferences` | Orchestrator (Phase 2 Part B) | Preferences, constraints, priorities from dialogue |
 
@@ -78,7 +78,7 @@ The Task prompt MUST include:
 ### Phase 1: Load Context
 
 1. **Read `analysis/synthesis.md`** - patterns, cross-references, key insights, gaps
-2. **Read `analysis/research-report.md`** - comprehensive findings, recommendations, evidence
+2. **Read `outputs/research-report.md`** - comprehensive findings, recommendations, evidence
 3. **Read `analysis/brainstorm-dialogue.md`** - user preferences from Socratic dialogue (if exists)
 4. **Parse accumulated context** - research type, question, phase summaries
 5. **Parse validated HMW questions** - user's prioritization and any modifications
@@ -233,7 +233,7 @@ warnings: ["any non-critical observations"]
 **Prerequisites**:
 - Task directory exists with `analysis/` and `outputs/` subdirectories
 - `analysis/synthesis.md` exists (Phase 0 output)
-- `analysis/research-report.md` exists (Phase 0 output)
+- `outputs/research-report.md` exists (Phase 0 output)
 - `analysis/brainstorm-dialogue.md` may exist (Phase 2 Parts A-B output, interactive mode only)
 
 **Input**: Task path, research artifacts, validated HMW questions, user preferences, accumulated context

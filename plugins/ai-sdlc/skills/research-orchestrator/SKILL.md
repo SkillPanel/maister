@@ -82,7 +82,7 @@ Use when:
 | 1 | "Evaluate brainstorming value" | "Evaluating brainstorming value" | Direct |
 | 2 | "Brainstorm solutions" | "Brainstorming solutions" | Direct + solution-brainstormer |
 | 3 | "Design high-level architecture" | "Designing high-level architecture" | Direct + solution-designer |
-| 4 | "Generate outputs" | "Generating outputs" | Direct |
+| 4 | "Review outputs" | "Reviewing outputs" | Direct |
 | 5 | "Verify findings" | "Verifying findings" | Direct (optional) |
 | 6 | "Integrate into project" | "Integrating into project" | Direct (optional) |
 | 7 | "Spawn development" | "Spawning development" | Direct (optional) |
@@ -106,7 +106,7 @@ Use when:
 
 **Purpose**: Initialize research, plan methodology, gather information from all sources, and synthesize findings into a research report
 **Execute**: Multi-step: Direct + research-planner + information-gatherer (xN) + research-synthesizer
-**Output**: `planning/research-brief.md`, `planning/research-plan.md`, `planning/sources.md`, `analysis/findings/*.md`, `analysis/findings/00-summary.md`, `analysis/findings/99-verification.md`, `analysis/synthesis.md`, `analysis/research-report.md`
+**Output**: `planning/research-brief.md`, `planning/research-plan.md`, `planning/sources.md`, `analysis/findings/*.md`, `analysis/synthesis.md`, `outputs/research-report.md`
 **State**: Set `research_context.research_type`, `research_question`, `scope`, `methodology`, `sources`, `confidence_level`, `gathering_strategy`
 
 This phase executes 4 sequential steps. On resume, check existing artifacts to skip completed steps.
@@ -138,8 +138,8 @@ Update state: `research_context.methodology`, `sources`
 
 #### Step 3: Gather + Merge (Parallel Subagents + Direct)
 
-**Artifacts**: `analysis/findings/*.md` (category-specific), `analysis/findings/00-summary.md`, `analysis/findings/99-verification.md`
-**Resume check**: If `analysis/findings/00-summary.md` AND `analysis/findings/99-verification.md` exist, skip to Step 4
+**Artifacts**: `analysis/findings/*.md` (category-specific)
+**Resume check**: If any `analysis/findings/*.md` files exist, skip to Step 4
 
 **Determine gatherer count and categories**:
 1. Read `planning/research-plan.md` for **Gathering Strategy** section
@@ -156,35 +156,18 @@ For each category in strategy:
   Use Task tool: source_category=[category_id] → analysis/findings/[prefix]-*.md
 ```
 
-**After all agents complete, merge findings:**
-
-Read `analysis/findings/` directory using Glob `analysis/findings/*.md` (excluding `00-summary.md` and `99-verification.md`). Group files by their prefix (the category ID).
-
-**Summary Structure** (`00-summary.md`):
-- Research question (from brief)
-- Sources investigated by category
-- Key findings by category
-- Gaps and uncertainties
-- Next steps for synthesis
-
-**Verification Structure** (`99-verification.md`):
-- Cross-source verification checks
-- Confidence assessment (high/medium/low)
-- Identified contradictions
-- Missing information
-
 #### Step 4: Synthesize (Subagent)
 
-**Artifacts**: `analysis/synthesis.md`, `analysis/research-report.md`
-**Resume check**: If `analysis/synthesis.md` AND `analysis/research-report.md` exist, skip (Phase 0 complete)
+**Artifacts**: `analysis/synthesis.md`, `outputs/research-report.md`
+**Resume check**: If `analysis/synthesis.md` AND `outputs/research-report.md` exist, skip (Phase 0 complete)
 
 **INVOKE NOW**: Use Task tool with `subagent_type: ai-sdlc:research-synthesizer`
 
-**Context to pass**: task_path, findings_summary_path, research_question, research_type, methodology
+**Context to pass**: task_path, findings_directory_path, research_question, research_type, methodology
 
 **Synthesizer produces**:
-- Pattern analysis and cross-references
-- Comprehensive research report answering research question
+- Pattern analysis and cross-references (`analysis/synthesis.md`)
+- Comprehensive research report answering research question (`outputs/research-report.md`)
 - Confidence levels for each finding
 - Documented gaps and uncertainties
 
@@ -240,7 +223,7 @@ Update state: `research_context.confidence_level`
 **Read `references/brainstorming-techniques.md` NOW using the Read tool** — divergent/convergent thinking techniques, scope guardrails, interactive exploration patterns
 
 **Part A — HMW Generation (Direct)**:
-1. Read `analysis/synthesis.md` + `analysis/research-report.md`
+1. Read `analysis/synthesis.md` + `outputs/research-report.md`
 2. Generate 3-5 "How Might We" questions from research findings
 3. Present to user via AskUserQuestion for validation and prioritization
 4. Save validated HMW questions
@@ -318,25 +301,21 @@ Update state: `research_context.confidence_level`
 
 ---
 
-### Phase 4: Generate Outputs
+### Phase 4: Review Outputs
 
-**Purpose**: Generate conditional outputs based on research type
-**Execute**: Direct - create appropriate output files
-**Output**: `outputs/recommendations.md`, `outputs/knowledge-base.md`, `outputs/specifications.md` (conditional)
-**State**: Track generated outputs
+**Purpose**: Present research outputs summary to user and confirm completeness
+**Execute**: Direct
+**Output**: No new files — reviews existing outputs
+**State**: Track output inventory
 
-**Note**: If brainstorming/design phases ran, `outputs/solution-exploration.md`, `outputs/high-level-design.md`, and `outputs/decision-log.md` already exist. This phase generates additional outputs as needed.
-
-**Conditional Outputs**:
-| Output | Generate If | Skip If |
-|--------|------------|---------|
-| **Recommendations** | Decision-oriented research, comparing approaches | Purely exploratory |
-| **Knowledge Base** | Reusable knowledge, technical patterns | One-off research |
-| **Specifications** | Feeds into dev workflow, embedded Phase 0 | Standalone research |
+**Process**:
+1. Inventory all generated outputs: `outputs/research-report.md` (always), plus conditional: `solution-exploration.md`, `high-level-design.md`, `decision-log.md`
+2. Present summary of what was produced and key findings
+3. Ask user if anything is missing or needs expansion
 
 → Pause
 
-**Interactive**: AskUserQuestion - "Outputs generated. Continue to verification?"
+**Interactive**: AskUserQuestion - "Research outputs ready. Continue to verification?"
 **YOLO**: "→ Continuing to Phase 5..."
 
 ---
@@ -366,14 +345,13 @@ Update state: `research_context.confidence_level`
 **State**: Track integration status
 
 **Skip if**: Exploratory research not for documentation
-**Enable if**: Specifications generated, knowledge base created
+**Enable if**: Design artifacts generated, research-report useful as reference
 
 **Process**:
-- For specifications: Save path for parent orchestrator
-- For knowledge base: Ask user where to place in `.ai-sdlc/docs/`
-- For recommendations: Ask if decisions should be documented
+- For design artifacts: Save paths for parent orchestrator
+- For research report: Ask user where to reference in `.ai-sdlc/docs/`
 
-→ Conditional: if specifications or design artifacts exist continue to Phase 7, else complete workflow
+→ Conditional: if design artifacts exist continue to Phase 7, else complete workflow
 
 ---
 
@@ -384,12 +362,12 @@ Update state: `research_context.confidence_level`
 **Output**: Development workflow started (if chosen)
 **State**: Track spawn decision
 
-**Skip if**: No specifications or design artifacts generated OR mode = yolo
+**Skip if**: No design artifacts generated OR mode = yolo
 
 **Interactive Mode**:
 ```
 AskUserQuestion:
-  Question: "Research produced specifications/design. Start development workflow?"
+  Question: "Research produced design artifacts. Start development workflow?"
   Options:
   - "Start development with this research"
   - "Skip - I'll start manually later"
@@ -456,23 +434,18 @@ options:
 │   └── sources.md                  # Phase 0, Step 2
 ├── analysis/
 │   ├── findings/
-│   │   ├── 00-summary.md           # Phase 0, Step 3 (merge)
-│   │   ├── 99-verification.md      # Phase 0, Step 3 (merge)
 │   │   ├── codebase-*.md           # Phase 0, Step 3
 │   │   ├── docs-*.md               # Phase 0, Step 3
 │   │   ├── config-*.md             # Phase 0, Step 3
 │   │   ├── external-*.md           # Phase 0, Step 3
 │   │   └── [custom-category]-*.md  # Phase 0, Step 3 (dynamic categories)
-│   ├── synthesis.md                # Phase 0, Step 4
-│   ├── research-report.md          # Phase 0, Step 4
+│   ├── synthesis.md                # Phase 0, Step 4 (reasoning log)
 │   └── brainstorm-dialogue.md      # Phase 2 (interactive mode)
 ├── outputs/
+│   ├── research-report.md          # Phase 0, Step 4 (main deliverable)
 │   ├── solution-exploration.md     # Phase 2 (conditional)
 │   ├── high-level-design.md        # Phase 3 (conditional)
-│   ├── decision-log.md             # Phase 3 (conditional)
-│   ├── recommendations.md          # Phase 4 (conditional)
-│   ├── knowledge-base.md           # Phase 4 (conditional)
-│   └── specifications.md           # Phase 4 (conditional)
+│   └── decision-log.md             # Phase 3 (conditional)
 └── verification/
     └── verification-report.md      # Phase 5 (optional)
 ```
@@ -485,13 +458,12 @@ options:
 |-------|--------------|----------|
 | 0 (Step 1) | 1 | Prompt user for clarification if question unclear |
 | 0 (Step 2) | 2 | Expand search patterns, use fallback mixed methodology |
-| 0 (Step 3 gather) | 3 | Retry failed agents only, continue with successful categories |
-| 0 (Step 3 merge) | 2 | Merge available findings, note missing categories |
+| 0 (Step 3) | 3 | Retry failed agents only, continue with successful categories |
 | 0 (Step 4) | 2 | Request targeted re-gathering for gaps |
 | 1 | 1 | Re-evaluate recommendation if synthesis unclear |
 | 2 | 2 | Re-invoke solution-brainstormer with adjusted context |
 | 3 | 2 | Re-invoke solution-designer with adjusted context |
-| 4 | 2 | Generate standard outputs, ask user in interactive |
+| 4 | 1 | Review only, no generation |
 | 5 | 0 | Read-only, report only |
 | 6 | 0 | Read-only, provide manual guidance |
 | 7 | 0 | User decision only |
@@ -512,18 +484,17 @@ options:
 **Integration**:
 1. Parent orchestrator invokes research-orchestrator
 2. Research executes phases 0-4 (skip optional phases 5-7)
-3. Specifications and design outputs fed into parent's specification phase
+3. Design outputs fed into parent's specification phase
 4. Research report saved in parent task's `analysis/research/` directory
 
 **Handoff**:
 ```yaml
 research_outputs:
-  specifications: "[path to specifications.md]"
-  research_report: "[path to research-report.md]"
-  findings_directory: "[path to findings/]"
-  solution_exploration: "[path to solution-exploration.md]"
-  high_level_design: "[path to high-level-design.md]"
-  decision_log: "[path to decision-log.md]"
+  research_report: "[path to outputs/research-report.md]"
+  findings_directory: "[path to analysis/findings/]"
+  solution_exploration: "[path to outputs/solution-exploration.md]"
+  high_level_design: "[path to outputs/high-level-design.md]"
+  decision_log: "[path to outputs/decision-log.md]"
 ```
 
 ---

@@ -14,7 +14,7 @@ color: purple
 | File | Purpose | Required Content |
 |------|---------|-----------------|
 | `analysis/synthesis.md` | Pattern analysis | Cross-source analysis, patterns, key insights, gaps |
-| `analysis/research-report.md` | Comprehensive report | Executive summary, findings, conclusions, recommendations |
+| `outputs/research-report.md` | Comprehensive report | Executive summary, findings, conclusions, recommendations |
 
 **File Creation Rule**: Always write to these exact file paths. Do NOT put content only in your response - it must be saved to files.
 
@@ -53,9 +53,8 @@ You are a research synthesis specialist that transforms collected information in
 **Input**: All files in `analysis/findings/`
 
 **Actions**:
-1. Read `analysis/findings/00-summary.md` for overview
-2. Load all finding files systematically (codebase, docs, config, external, verification)
-3. Build mental model of collected information
+1. Load all finding files systematically (codebase, docs, config, external)
+2. Build mental model of collected information
 
 **Output**: Complete understanding of all findings
 
@@ -239,7 +238,7 @@ Combine relevant elements from above frameworks based on research objectives.
 
 ### Phase 6: Generate Research Report
 
-**Structure**: `analysis/research-report.md`
+**Structure**: `outputs/research-report.md`
 
 **Core Sections**:
 
@@ -333,7 +332,7 @@ Combine relevant elements from above frameworks based on research objectives.
 
 **Outputs**:
 1. `analysis/synthesis.md` - Pattern analysis and insights
-2. `analysis/research-report.md` - Comprehensive research report
+2. `outputs/research-report.md` - Comprehensive research report
 
 **Final Validation Checklist**:
 - Research question answered completely
@@ -389,12 +388,11 @@ Combine relevant elements from above frameworks based on research objectives.
 ## Integration with Research Orchestrator
 
 **Input from Phase 0, Step 3** (Information Gathering):
-- `analysis/findings/00-summary.md`
 - `analysis/findings/*.md` (all finding files)
 
 **Output to Phase 1** (Brainstorming Decision) / **Phase 2** (Brainstorming):
 - `analysis/synthesis.md` (patterns and insights)
-- `analysis/research-report.md` (comprehensive report)
+- `outputs/research-report.md` (comprehensive report)
 
 **State Update**: Report back to orchestrator (Phase 0, Step 4 complete)
 

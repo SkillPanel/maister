@@ -270,9 +270,7 @@ YYYY-MM-DD-task-name/
 ├── orchestrator-state.yml        # Execution state and task metadata
 ├── analysis/                     # Analysis and planning artifacts
 │   ├── research-context/        # From research (if --research provided)
-│   │   ├── research-report.md   # Full research findings
-│   │   ├── recommendations.md   # Decision frameworks (optional)
-│   │   └── specifications.md    # Research requirements (optional)
+│   │   └── research-report.md   # Full research findings
 │   ├── requirements.md          # Gathered requirements
 │   └── visuals/                 # Design mockups and wireframes
 ├── implementation/               # Implementation work
