@@ -180,17 +180,68 @@ You are a research planning specialist that creates structured, methodical resea
    - Phase 3: Deep dive (what to investigate)
    - Phase 4: Verification (how to validate)
 
-5. **Success Criteria**
+5. **Gathering Strategy**
+   - Number of information gatherer instances to launch (1-8)
+   - Focus area and rationale for each instance
+   - Expected output file prefix for each instance
+
+6. **Success Criteria**
    - Research question answered completely
    - All sub-questions addressed
    - Evidence collected for all claims
    - Patterns and relationships identified
 
-6. **Expected Outputs**
+7. **Expected Outputs**
    - Research report with findings
    - Recommendations (if applicable)
    - Knowledge base documentation (if applicable)
    - Technical specifications (if applicable)
+
+---
+
+### Phase 6.5: Define Gathering Strategy
+
+**Purpose**: Determine optimal parallelization for information gathering
+
+**Output**: "Gathering Strategy" section in `planning/research-plan.md`
+
+**Decision Criteria**:
+- **Scope complexity**: Broader scope → more gatherers with narrower focus
+- **Source diversity**: More source types → align gatherers to source types
+- **Research type**: Technical → heavier codebase focus; Literature → heavier external focus
+- **Multi-project**: If research spans multiple codebases → one gatherer per codebase
+- **Default**: When in doubt, use the standard 4 categories (codebase, documentation, configuration, external)
+
+**Strategy Format** (in research-plan.md):
+
+```markdown
+## Gathering Strategy
+
+### Instances: [N] (max 8)
+
+| # | Category ID | Focus Area | Tools | Output Prefix |
+|---|------------|------------|-------|---------------|
+| 1 | codebase | Source code analysis | Glob, Grep, Read | codebase |
+| 2 | documentation | Project docs & code docs | Read, Grep | docs |
+| 3 | external-apis | External API documentation | WebSearch, WebFetch | external-apis |
+
+### Rationale
+[Brief explanation of why this split was chosen]
+```
+
+**Guardrails**:
+- Minimum: 1 gatherer (simple questions that only need one source type)
+- Maximum: 8 gatherers (prevent token waste and diminishing returns)
+- Each gatherer must have a distinct focus area (no overlapping categories)
+- The category ID becomes the `source_category` parameter for the information-gatherer agent
+- The output prefix becomes the file naming convention: `analysis/findings/[prefix]-*.md`
+
+**Default Fallback** (if not specified):
+When the planner does not include a Gathering Strategy section, the orchestrator falls back to 4 instances:
+1. `codebase` - Source code analysis
+2. `documentation` - Project and code documentation
+3. `configuration` - Configuration files
+4. `external` - Web resources
 
 ---
 
@@ -257,6 +308,7 @@ You are a research planning specialist that creates structured, methodical resea
 **Report Back**: Summary of research plan with:
 - Research type classification
 - Primary methodology
+- Gathering strategy (N instances, category breakdown)
 - Number of data sources identified
 - Expected research phases
 - Success criteria
@@ -345,9 +397,9 @@ You are a research planning specialist that creates structured, methodical resea
 
 ## Integration with Research Orchestrator
 
-**Input from Phase 0**: `planning/research-brief.md`
-**Output to Phase 2**: `planning/research-plan.md`, `planning/sources.md`
+**Input from Phase 0, Step 1**: `planning/research-brief.md`
+**Output to Phase 0, Step 3**: `planning/research-plan.md`, `planning/sources.md`
 
-**State Update**: Mark Phase 1 (Research Planning) as complete in orchestrator-state.yml
+**State Update**: Report back to orchestrator (Phase 0, Step 2 complete)
 
-**Next Phase**: Information gathering agent uses research plan to execute data collection
+**Next Step**: Orchestrator reads gathering strategy and launches information-gatherer agents

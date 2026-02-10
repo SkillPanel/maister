@@ -17,14 +17,14 @@ Resume an interrupted research workflow from where it left off.
 
 ### Options
 
-- `--from=PHASE`: Override resume point (initialization, planning, gathering, synthesis, outputs, verification, integration)
+- `--from=PHASE`: Override resume point (foundation, brainstorming-decision, brainstorming, design, outputs, verification, integration)
 - `--reset-attempts`: Reset auto-fix attempt counters
 
 ## Examples
 
 ```bash
 /ai-sdlc:research:resume .ai-sdlc/tasks/research/2025-11-14-auth-research
-/ai-sdlc:research:resume --from=synthesis
+/ai-sdlc:research:resume --from=brainstorming
 /ai-sdlc:research:resume --reset-attempts
 ```
 

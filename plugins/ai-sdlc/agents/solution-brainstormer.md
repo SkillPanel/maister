@@ -61,8 +61,8 @@ The Task prompt MUST include:
 | `task_path` | Orchestrator | Absolute path to research task directory |
 | `synthesis_path` | Orchestrator | Path to `analysis/synthesis.md` |
 | `research_report_path` | Orchestrator | Path to `analysis/research-report.md` |
-| `validated_hmw_questions` | Orchestrator (Phase 4 Part A) | HMW questions validated/prioritized by user |
-| `user_preferences` | Orchestrator (Phase 4 Part B) | Preferences, constraints, priorities from dialogue |
+| `validated_hmw_questions` | Orchestrator (Phase 2 Part A) | HMW questions validated/prioritized by user |
+| `user_preferences` | Orchestrator (Phase 2 Part B) | Preferences, constraints, priorities from dialogue |
 
 **Accumulated Context** (Pattern 7):
 - `research_type`: technical, requirements, literature, mixed
@@ -228,19 +228,19 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: research-orchestrator (Phase 4, Part C)
+**Invoked by**: research-orchestrator (Phase 2, Part C)
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `outputs/` subdirectories
-- `analysis/synthesis.md` exists (Phase 3 output)
-- `analysis/research-report.md` exists (Phase 3 output)
-- `analysis/brainstorm-dialogue.md` may exist (Phase 4 Parts A-B output, interactive mode only)
+- `analysis/synthesis.md` exists (Phase 0 output)
+- `analysis/research-report.md` exists (Phase 0 output)
+- `analysis/brainstorm-dialogue.md` may exist (Phase 2 Parts A-B output, interactive mode only)
 
 **Input**: Task path, research artifacts, validated HMW questions, user preferences, accumulated context
 
 **Output**: `outputs/solution-exploration.md` + structured result
 
-**Next Phase**: Solution exploration feeds into solution-designer (Phase 5) which creates high-level design from the chosen approach
+**Next Phase**: Solution exploration feeds into solution-designer (Phase 3) which creates high-level design from the chosen approach
 
 ---
 

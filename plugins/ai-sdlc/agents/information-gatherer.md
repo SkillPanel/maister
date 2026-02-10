@@ -29,7 +29,7 @@ color: green
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| `source_category` | No | `all` | Limit gathering to specific source type: `codebase`, `documentation`, `configuration`, `external`, or `all` |
+| `source_category` | No | `all` | Source type to gather: `codebase`, `documentation`, `configuration`, `external`, any custom category ID from gathering strategy, or `all` |
 | `task_path` | Yes | - | Path to task directory (e.g., `.ai-sdlc/tasks/research/2025-01-15-auth-research/`) |
 
 **Source Category Behavior**:
@@ -42,8 +42,13 @@ color: green
 | `external` | URLs, web resources, framework docs | `external-*.md` | WebSearch, WebFetch |
 | `all` | All of the above | All files + `00-summary.md`, `99-verification.md` | All tools |
 
+**Custom Categories**: The `source_category` parameter also accepts custom category IDs defined by the research-planner's gathering strategy (e.g., `external-apis`, `project-a-codebase`, `legacy-system`). When a custom category is provided:
+- Read the Gathering Strategy section from `planning/research-plan.md` to understand the focus area
+- Name output files using the category ID as prefix: `analysis/findings/[category-id]-*.md`
+- Apply the most appropriate tools based on the focus area (codebase-focused → Glob/Grep/Read, external-focused → WebSearch/WebFetch, docs-focused → Read/Grep)
+
 **When source_category is NOT `all`**:
-- Filter `planning/sources.md` to only include matching category
+- Filter `planning/sources.md` to only include matching category (or use gathering strategy focus area for custom categories)
 - Skip summary generation (Phase 7) - handled by orchestrator merge step
 - Skip verification generation - handled by orchestrator merge step
 - Write only category-specific findings files
@@ -89,6 +94,11 @@ You are an information gathering specialist that executes systematic data collec
    - If `source_category` is `configuration`: Filter to "Configuration Sources" section only
    - If `source_category` is `external`: Filter to "External Sources" section only
    - If `source_category` is `all` or not specified: Include all sources (default behavior)
+5. **If custom category** (not one of the 4 standard categories or `all`):
+   - Read the "Gathering Strategy" section from `planning/research-plan.md`
+   - Find the row matching this category ID to understand the specific focus area and recommended tools
+   - Use the focus area description to guide what sources to investigate
+   - Use the output prefix from the strategy for file naming
 
 **Output**: Clear understanding of what to gather and how (filtered by category if specified)
 
@@ -627,14 +637,13 @@ analysis/findings/
 
 ## Integration with Research Orchestrator
 
-**Input from Phase 1**:
-- `planning/research-plan.md` (methodology)
+**Input from Phase 0, Step 2**:
+- `planning/research-plan.md` (methodology + gathering strategy)
 - `planning/sources.md` (data sources)
 
-**Output to Phase 3**:
-- `analysis/findings/00-summary.md` (overview)
-- `analysis/findings/*.md` (detailed findings by source)
+**Output to Phase 0, Step 4** (via merge in Step 3):
+- `analysis/findings/*.md` (detailed findings by source category)
 
-**State Update**: Mark Phase 2 (Information Gathering) as complete in orchestrator-state.yml
+**State Update**: Report back to orchestrator (Phase 0, Step 3 gathering complete)
 
-**Next Phase**: Research synthesizer uses findings to create synthesis and research report
+**Next Step**: Orchestrator merges findings into `00-summary.md` and `99-verification.md`, then invokes research-synthesizer

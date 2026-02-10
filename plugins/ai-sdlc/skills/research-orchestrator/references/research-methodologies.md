@@ -618,7 +618,7 @@ docs/
 
 ## Brainstorming and Design Methodologies
 
-These methodologies guide Phase 4 (Brainstorming) and Phase 5 (Design) of the research workflow.
+These methodologies guide Phase 2 (Brainstorming) and Phase 3 (Design) of the research workflow.
 
 ---
 

@@ -19,7 +19,7 @@ Start comprehensive research to investigate a topic, analyze findings, and gener
 
 - `--yolo`: Continuous execution without pauses
 - `--type=TYPE`: Research type (technical, requirements, literature, mixed)
-- `--brainstorm`: Force brainstorming/design phases (skips Phase 3.5 decision, auto-enables)
+- `--brainstorm`: Force brainstorming/design phases (skips Phase 1 decision, auto-enables)
 - `--no-brainstorm`: Skip brainstorming/design phases (go directly to output generation)
 
 ## Examples
