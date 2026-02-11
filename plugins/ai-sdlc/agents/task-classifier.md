@@ -459,15 +459,12 @@ Use AskUserQuestion: "Yes, improving existing" | "No, completely new"
 6. `/work` routes to appropriate orchestrator
 
 **Classification Routes**:
-- **initiative** → initiative-orchestrator
 - **bug-fix** → development-orchestrator (task_type=bug)
 - **enhancement** → development-orchestrator (task_type=enhancement)
 - **new-feature** → development-orchestrator (task_type=feature)
-- **refactoring** → refactoring-orchestrator
 - **performance** → performance-orchestrator
-- **security** → security-orchestrator
 - **migration** → migration-orchestrator
-- **documentation** → documentation-orchestrator
+- **research** → research-orchestrator
 
 **External Systems**:
 - **GitHub**: Uses MCP tools to fetch issue details, labels, metadata
@@ -478,10 +475,9 @@ Use AskUserQuestion: "Yes, improving existing" | "No, completely new"
 
 ## Success Criteria
 
-✅ Classifies 9 task types with confidence scoring
+✅ Classifies 6 task types with confidence scoring
 ✅ Integrates with GitHub/Jira via MCP when available
 ✅ Performs context analysis for enhancement vs new-feature
-✅ Always detects security-related tasks (100% detection)
 ✅ Provides appropriate confirmation flows based on confidence
 ✅ Handles compound tasks, vague descriptions, unclear context
 ✅ Returns structured output for routing

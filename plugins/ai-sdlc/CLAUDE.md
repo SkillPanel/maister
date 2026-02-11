@@ -42,19 +42,15 @@ All workflows in this plugin follow this pattern when failures occur:
 
 ## Task Types Supported
 
-This plugin supports 9 comprehensive task types, each with adaptive workflows tailored to their specific needs:
+This plugin supports 5 comprehensive task types, each with adaptive workflows tailored to their specific needs:
 
 | Task Type | Purpose | Workflow Stages | Classification Keywords |
 |-----------|---------|----------------|------------------------|
-| **Initiative** | Epic-level multi-task coordination | 6 stages | "epic", "project", "initiative", "feature set", "multiple tasks" |
 | **New Feature** | Add completely new capability | 6-7 stages | "add", "new feature", "create", "build" |
 | **Bug Fix** | Fix defects and errors | 4 stages | "fix", "bug", "broken", "error", "crash" |
 | **Enhancement** | Improve existing features | 6 stages | "improve", "enhance", "better", "upgrade existing" |
-| **Refactoring** | Improve code structure | 5 stages | "refactor", "clean up", "restructure" |
 | **Performance** | Optimize speed/efficiency | 5 stages | "slow", "optimize", "speed up", "faster" |
-| **Security** | Fix vulnerabilities | 4-5 stages | "vulnerability", "security", "exploit", "CVE" |
 | **Migration** | Move tech/patterns | 6 stages | "migrate", "move from X to Y", "upgrade" |
-| **Documentation** | Create user docs | 4 stages | "document", "docs", "write guide", "FAQ" |
 
 ### Design Principles
 
@@ -218,11 +214,8 @@ The ai-sdlc plugin uses this structure:
     ├── new-features/
     ├── bug-fixes/
     ├── enhancements/
-    ├── refactoring/
     ├── performance/
-    ├── security/
-    ├── migrations/
-    └── documentation/
+    └── migrations/
 ```
 
 **Core Principle**:
@@ -242,15 +235,9 @@ Development tasks are organized by type in `.ai-sdlc/tasks/` using type-based fo
 │   └── YYYY-MM-DD-task-name/
 ├── enhancements/
 │   └── YYYY-MM-DD-task-name/
-├── refactoring/
-│   └── YYYY-MM-DD-task-name/
 ├── performance/
 │   └── YYYY-MM-DD-task-name/
-├── security/
-│   └── YYYY-MM-DD-task-name/
-├── migrations/
-│   └── YYYY-MM-DD-task-name/
-└── documentation/
+└── migrations/
     └── YYYY-MM-DD-task-name/
 ```
 
@@ -655,11 +642,7 @@ Orchestrators manage complete workflows with state management, auto-recovery, an
 |-------|---------|---------|
 | `development-orchestrator` | **Unified workflow** (19 phases: 0-14 + 1.5, 3.5, 4.5, 5.5) for bug fixes, enhancements, and new features. Includes clarifying questions (1.5), scope & approach clarifications (3.5), architecture decision (5.5), TDD gates for bugs (3, 9), gap analysis for all. | `skills/development-orchestrator/SKILL.md` |
 | `performance-orchestrator` | Static code analysis for bottleneck detection, reuses standard spec/plan/implement/verify pipeline | `skills/performance-orchestrator/SKILL.md` |
-| `security-orchestrator` | CVSS-scored vulnerability remediation, compliance audit | `skills/security-orchestrator/skill.md` |
-| `documentation-orchestrator` | User docs with Playwright screenshots, readability validation | `skills/documentation-orchestrator/skill.md` |
 | `migration-orchestrator` | Code/data/architecture migrations with rollback plans | `skills/migration-orchestrator/skill.md` |
-| `initiative-orchestrator` | Epic-level coordination of 3-15 tasks with dependencies | `skills/initiative-orchestrator/skill.md` |
-| `refactoring-orchestrator` | Safe refactoring with git checkpoints, behavior preservation | `skills/refactoring-orchestrator/skill.md` |
 | `research-orchestrator` | Multi-source research with synthesis, solution brainstorming, high-level design, and citations | `skills/research-orchestrator/skill.md` |
 
 **Deprecated Orchestrators** (now aliases to `development-orchestrator`):
@@ -719,24 +702,10 @@ These commands still work but route to `development-orchestrator`:
 |---------|-------|----------------|
 | `/ai-sdlc:performance:new` | `[desc] [--yolo]` | `.ai-sdlc/tasks/performance/` |
 | `/ai-sdlc:performance:resume` | `[path] [--from=phase]` | |
-| `/ai-sdlc:security:new` | `[desc] [--yolo]` | `.ai-sdlc/tasks/security/` |
-| `/ai-sdlc:security:resume` | `[path] [--from=phase]` | |
-| `/ai-sdlc:documentation:new` | `[desc] [--yolo] [--type=TYPE]` | `.ai-sdlc/tasks/documentation/` |
-| `/ai-sdlc:documentation:resume` | `[path] [--from=phase]` | |
 | `/ai-sdlc:migration:new` | `[desc] [--yolo] [--type=TYPE]` | `.ai-sdlc/tasks/migrations/` |
 | `/ai-sdlc:migration:resume` | `[path] [--from=phase]` | |
-| `/ai-sdlc:refactoring:new` | `[desc] [--yolo]` | `.ai-sdlc/tasks/refactoring/` |
-| `/ai-sdlc:refactoring:resume` | `[path] [--from=phase]` | |
 | `/ai-sdlc:research:new` | `[question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]` | `.ai-sdlc/tasks/research/` |
 | `/ai-sdlc:research:resume` | `[path] [--from=phase]` | |
-
-### Initiative Commands (Epic-Level)
-
-| Command | Usage | Purpose |
-|---------|-------|---------|
-| `/ai-sdlc:initiative:new` | `[desc] [--yolo]` | Orchestrate 3-15 related tasks with dependencies |
-| `/ai-sdlc:initiative:resume` | `[path] [--from=phase]` | Resume interrupted initiative |
-| `/ai-sdlc:initiative:status` | `[path] [--verbose] [--graph]` | View progress, dependency graph, blocked tasks |
 
 ### Review & Audit Commands
 
@@ -779,35 +748,15 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 
 | Agent | Purpose | Invoked By | Details |
 |-------|---------|------------|---------|
-| `ui-mockup-generator` | ASCII mockups showing UI integration with existing layouts | feature/enhancement | `agents/ui-mockup-generator.md` |
-| `e2e-test-verifier` | Playwright browser testing with screenshots | optional E2E phase | `agents/e2e-test-verifier.md` |
-| `user-docs-generator` | User documentation with Playwright screenshots | optional docs phase | `agents/user-docs-generator.md` |
-| `documentation-planner` | Creates content outlines, identifies audience/tone | documentation-orchestrator | `agents/documentation-planner.md` |
-| `documentation-reviewer` | Validates readability (Flesch scores), completeness | documentation-orchestrator | `agents/documentation-reviewer.md` |
-
-### Refactoring Agents
-
-| Agent | Purpose | Invoked By | Details |
-|-------|---------|------------|---------|
-| `refactoring-analyzer` | Quantitative code quality baseline (complexity, duplication) | refactoring-orchestrator | `agents/refactoring-analyzer.md` |
-| `refactoring-planner` | Incremental plan with git checkpoints | refactoring-orchestrator | `agents/refactoring-planner.md` |
-| `behavioral-snapshot-capturer` | Captures function signatures, test results, side effects | refactoring-orchestrator | `agents/behavioral-snapshot-capturer.md` |
-| `behavioral-verifier` | Verifies behavior unchanged post-refactoring | refactoring-orchestrator | `agents/behavioral-verifier.md` |
+| `ui-mockup-generator` | ASCII mockups showing UI integration with existing layouts | development-orchestrator (feature/enhancement) | `agents/ui-mockup-generator.md` |
+| `e2e-test-verifier` | Playwright browser testing with screenshots | development-orchestrator (optional) | `agents/e2e-test-verifier.md` |
+| `user-docs-generator` | User documentation with Playwright screenshots | development-orchestrator (optional) | `agents/user-docs-generator.md` |
 
 ### Performance Agents
 
 | Agent | Purpose | Invoked By | Details |
 |-------|---------|------------|---------|
 | `bottleneck-analyzer` | Static code analysis detecting N+1 queries, missing indexes, O(n^2) algorithms, blocking I/O, memory leak patterns. Optionally incorporates user-provided profiling data. | performance-orchestrator | `agents/bottleneck-analyzer.md` |
-
-### Security Agents
-
-| Agent | Purpose | Invoked By | Details |
-|-------|---------|------------|---------|
-| `security-analyzer` | CVSS scoring, OWASP classification, vulnerability baseline | security-orchestrator | `agents/security-analyzer.md` |
-| `security-planner` | Risk-prioritized remediation plan | security-orchestrator | `agents/security-planner.md` |
-| `security-verifier` | Before/after security scan comparison | security-orchestrator | `agents/security-verifier.md` |
-| `compliance-auditor` | GDPR, HIPAA, SOC 2, PCI DSS audit | security-orchestrator | `agents/compliance-auditor.md` |
 
 ### Research Agents
 
@@ -835,7 +784,6 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | `code-quality-pragmatist` | Detects over-engineering, ensures scale-appropriate code | implementation-verifier | `agents/code-quality-pragmatist.md` |
 | `spec-auditor` | Independent spec audit with senior auditor perspective | orchestrators | `agents/spec-auditor.md` |
 | `reality-assessor` | Validates work actually solves the problem | implementation-verifier | `agents/reality-assessor.md` |
-| `initiative-planner` | Breaks epics into tasks with dependency graph | initiative-orchestrator | `agents/initiative-planner.md` |
 | `implementation-changes-planner` | Creates detailed change plans (no file modifications) | implementer | `agents/implementation-changes-planner.md` |
 
 **See**: Individual `agents/*.md` files for detailed workflows and philosophies.

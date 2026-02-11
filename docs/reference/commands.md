@@ -27,7 +27,6 @@ Commands to start new workflows for different task types.
 The `/work` command analyzes your task description and automatically classifies it to route to the best workflow. Most intelligent starting point when you're not sure which workflow to use.
 
 **Classification**:
-- Detects initiatives (3+ distinct tasks mentioned)
 - Analyzes codebase context (enhancement vs new-feature)
 - Fetches GitHub/Jira issues for context
 - Shows confidence score and proposed workflow
@@ -35,9 +34,9 @@ The `/work` command analyzes your task description and automatically classifies 
 
 **Examples**:
 ```bash
-/work "Build payment system with Stripe, invoices, and receipts"  # → initiative
 /work "Add sorting to user table"                                 # → enhancement
 /work "Fix login timeout error"                                   # → bug-fix
+/work "Optimize dashboard loading time"                           # → performance
 ```
 
 ---
@@ -198,31 +197,6 @@ These commands still work but route to the unified `development-orchestrator`:
 
 ---
 
-### /ai-sdlc:initiative:new
-
-**Start multi-task initiative**
-
-```bash
-/ai-sdlc:initiative:new [description] [options]
-```
-
-**Options**:
-- `--yolo` - Run in continuous mode
-- `--from=PHASE` - Start from specific phase
-
-**Phases**: 6 phases (Planning → Task Creation → Dependency Resolution → Task Execution → Verification → Finalization)
-
-**Key Feature**: Coordinates 3-15 related tasks with dependency management and parallel execution
-
-**Examples**:
-```bash
-/ai-sdlc:initiative:new "Build complete authentication with login, SSO, and MFA"
-```
-
-[Detailed Guide](../guides/initiatives.md)
-
----
-
 ### /ai-sdlc:performance:new
 
 **Start performance optimization**
@@ -245,56 +219,6 @@ These commands still work but route to the unified `development-orchestrator`:
 ```
 
 [Detailed Guide](../guides/performance-optimization.md)
-
----
-
-### /ai-sdlc:security:new
-
-**Start security remediation**
-
-```bash
-/ai-sdlc:security:new [description] [options]
-```
-
-**Options**:
-- `--yolo` - Run in continuous mode
-- `--from=PHASE` - Start from specific phase
-
-**Phases**: 4-5 phases (Vulnerability Analysis → Remediation Planning → Implementation → Verification → Compliance Audit [optional])
-
-**Key Feature**: CVSS scoring, OWASP classification, risk-based prioritization
-
-**Examples**:
-```bash
-/ai-sdlc:security:new "Fix SQL injection vulnerabilities"
-```
-
-[Detailed Guide](../guides/security-remediation.md)
-
----
-
-### /ai-sdlc:refactoring:new
-
-**Start refactoring workflow**
-
-```bash
-/ai-sdlc:refactoring:new [description] [options]
-```
-
-**Options**:
-- `--yolo` - Run in continuous mode
-- `--from=PHASE` - Start from specific phase
-
-**Phases**: 6 phases (Quality Baseline → Planning → Behavioral Snapshot → Execution → Behavior Verification → Quality Verification)
-
-**Key Feature**: Git checkpoints, automatic rollback on test failure, zero tolerance for behavior changes
-
-**Examples**:
-```bash
-/ai-sdlc:refactoring:new "Extract authentication logic into separate service"
-```
-
-[Detailed Guide](../guides/refactoring.md)
 
 ---
 
@@ -321,32 +245,6 @@ These commands still work but route to the unified `development-orchestrator`:
 ```
 
 [Detailed Guide](../guides/migrations.md)
-
----
-
-### /ai-sdlc:documentation:new
-
-**Start documentation creation**
-
-```bash
-/ai-sdlc:documentation:new [description] [options]
-```
-
-**Options**:
-- `--yolo` - Run in continuous mode
-- `--from=PHASE` - Start from specific phase
-- `--type=TYPE` - Documentation type (user-guide/tutorial/reference/faq/api-docs)
-
-**Phases**: 4 phases (Planning → Content Creation → Review & Validation → Publication)
-
-**Key Feature**: Screenshot automation with Playwright, readability scoring
-
-**Examples**:
-```bash
-/ai-sdlc:documentation:new "User guide for admin dashboard"
-```
-
-[Detailed Guide](../guides/documentation-creation.md)
 
 ---
 
@@ -420,45 +318,14 @@ These still work but route to the unified development-orchestrator:
 All other workflows support resume with similar syntax:
 
 ```bash
-/ai-sdlc:initiative:resume [initiative-path] [options]
 /ai-sdlc:performance:resume [task-path] [options]
-/ai-sdlc:security:resume [task-path] [options]
-/ai-sdlc:refactoring:resume [task-path] [options]
 /ai-sdlc:migration:resume [task-path] [options]
-/ai-sdlc:documentation:resume [task-path] [options]
 /ai-sdlc:research:resume [task-path] [options]
 ```
 
 ---
 
 ## Utility Commands
-
-### /ai-sdlc:initiative:status
-
-**View initiative progress**
-
-```bash
-/ai-sdlc:initiative:status [initiative-path] [options]
-```
-
-**Options**:
-- `--verbose` - Show detailed information
-- `--graph` - Display dependency graph
-
-**Output**:
-- Progress percentage
-- Task states (pending/in-progress/completed/failed)
-- Dependency graph visualization
-- Critical path
-- Blocked tasks
-- Next steps
-
-**Example**:
-```bash
-/ai-sdlc:initiative:status .ai-sdlc/docs/project/initiatives/2025-11-14-auth-system
-```
-
----
 
 ### /ai-sdlc:standards:discover
 
@@ -680,12 +547,8 @@ Comprehensive reality assessment. Ensures work solves actual problem and is prod
 | Task Type | New Command | Resume Command |
 |-----------|-------------|----------------|
 | **Development** (Unified) | `/ai-sdlc:development:new` | `/ai-sdlc:development:resume` |
-| Initiative | `/ai-sdlc:initiative:new` | `/ai-sdlc:initiative:resume` |
-| Refactoring | `/ai-sdlc:refactoring:new` | `/ai-sdlc:refactoring:resume` |
 | Performance | `/ai-sdlc:performance:new` | `/ai-sdlc:performance:resume` |
-| Security | `/ai-sdlc:security:new` | `/ai-sdlc:security:resume` |
 | Migration | `/ai-sdlc:migration:new` | `/ai-sdlc:migration:resume` |
-| Documentation | `/ai-sdlc:documentation:new` | `/ai-sdlc:documentation:resume` |
 | Research | `/ai-sdlc:research:new` | `/ai-sdlc:research:resume` |
 
 **Legacy Commands** (aliases to development):
@@ -710,8 +573,6 @@ Comprehensive reality assessment. Ensures work solves actual problem and is prod
 **Managing Work**:
 - `/ai-sdlc:development:resume` - Resume interrupted development work
 - `/ai-sdlc:[workflow]:resume` - Resume other workflows
-- `/ai-sdlc:initiative:status` - Check progress
-
 **Quality Assurance**:
 - `/ai-sdlc:reviews:code` - Code quality analysis
 - `/ai-sdlc:reviews:pragmatic` - Over-engineering check

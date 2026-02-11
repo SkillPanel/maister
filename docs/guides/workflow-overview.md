@@ -11,12 +11,8 @@ Use specialized orchestrator skills for guided, automated workflows. Best for mo
 | Task Type | Command | Best For |
 |-----------|---------|----------|
 | **Development** (Unified) | `/ai-sdlc:development:new` | Bugs, enhancements, or new features (auto-detects type) |
-| **Initiative** | `/ai-sdlc:initiative:new` | Multi-week projects, feature sets (3-15 related tasks) |
 | **Migration** | `/ai-sdlc:migration:new` | Technology/platform migrations |
-| **Refactoring** | `/ai-sdlc:refactoring:new` | Safe code improvements |
 | **Performance** | `/ai-sdlc:performance:new` | Optimization with benchmarks |
-| **Security** | `/ai-sdlc:security:new` | Vulnerability remediation |
-| **Documentation** | `/ai-sdlc:documentation:new` | User-facing docs with screenshots |
 | **Research** | `/ai-sdlc:research:new` | Pre-development investigation |
 
 **Legacy Commands** (still work as aliases):
@@ -36,14 +32,12 @@ Use specialized orchestrator skills for guided, automated workflows. Best for mo
 The `/work` command automatically classifies your task and routes to the appropriate orchestrator:
 
 ```bash
-/work "Build payment system with Stripe, invoices, and emails"  # → initiative
 /work "Add sorting to user table"                               # → enhancement or new-feature
 /work "Fix login timeout error"                                 # → bug-fix
 /work "Migrate from Redux to Zustand"                          # → migration
 ```
 
 Features:
-- Detects initiatives when 3+ distinct tasks mentioned
 - Analyzes codebase context for enhancement vs new-feature
 - Shows confidence score and proposed workflow
 - Requests confirmation before proceeding
@@ -151,7 +145,6 @@ Some orchestrators include optional phases based on task characteristics:
 | **E2E Testing** | feature, enhancement | `--e2e` flag or UI-heavy feature |
 | **User Documentation** | feature, enhancement | `--user-docs` flag |
 | **UI Mockups** | feature, enhancement | UI keywords in spec |
-| **Compliance Audit** | security | Regulatory requirements detected |
 | **Load Testing** | performance | Production readiness check |
 
 ---
@@ -201,10 +194,6 @@ These patterns ensure consistent behavior across all workflows. For implementati
 - [Feature Development](./feature-development.md)
 - [Bug Fixing](./bug-fixing.md)
 - [Enhancement Workflow](./enhancement-workflow.md)
-- [Initiatives](./initiatives.md)
 - [Migrations](./migrations.md)
-- [Refactoring](./refactoring.md)
 - [Performance Optimization](./performance-optimization.md)
-- [Security Remediation](./security-remediation.md)
-- [Documentation Creation](./documentation-creation.md)
 - [Research](./research.md)

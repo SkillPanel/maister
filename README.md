@@ -14,7 +14,7 @@ AI SDLC is a comprehensive development workflow plugin that helps teams:
 - **Document consistently** with built-in documentation generation and user guides
 - **Track transparently** with detailed work logs and verification reports
 
-Instead of ad-hoc development, you get structured workflows that adapt to your task type—whether you're building a new feature, fixing a bug, optimizing performance, or coordinating multi-task initiatives.
+Instead of ad-hoc development, you get structured workflows that adapt to your task type—whether you're building a new feature, fixing a bug, optimizing performance, or planning a migration.
 
 ## Quick Start
 
@@ -78,21 +78,17 @@ Each task creates a structured directory in `.ai-sdlc/tasks/[type]/YYYY-MM-DD-ta
 
 ## Key Features
 
-### 9 Adaptive Task Types
+### 5 Adaptive Task Types
 
 Each task type has a specialized workflow optimized for its unique needs:
 
 | Task Type | Use When | Key Features |
 |-----------|----------|--------------|
-| **Initiative** | Coordinating 3-15 related tasks | Dependency management, parallel execution, progress tracking |
 | **New Feature** | Adding completely new capability | 6-7 phase workflow, optional E2E testing, user documentation |
 | **Bug Fix** | Fixing defects and errors | TDD Red→Green enforcement, root cause analysis, regression prevention |
 | **Enhancement** | Improving existing features | Existing feature analysis, gap detection, backward compatibility |
-| **Refactoring** | Improving code structure | Git checkpoints, automatic rollback, behavior preservation |
 | **Performance** | Optimizing speed/efficiency | Profiling, bottleneck detection, benchmark validation |
-| **Security** | Fixing vulnerabilities | CVSS scoring, OWASP classification, compliance auditing |
 | **Migration** | Moving tech/patterns | Strategy recommendation, rollback planning, dual-run support |
-| **Documentation** | Creating user guides | Screenshot automation, readability validation, publication |
 
 ### Intelligent Workflow Features
 
@@ -161,22 +157,6 @@ Fix defects with mandatory TDD Red→Green discipline:
 
 ---
 
-### Initiatives (Epic-Level)
-
-Coordinate multiple related tasks with dependency management:
-
-```bash
-/ai-sdlc:initiative:new "Build complete authentication system"
-```
-
-**Phases**: Planning → Task Creation → Dependency Resolution → Task Execution → Verification → Finalization
-
-**Best for**: Multi-week projects, feature sets, coordinating 3-15 tasks
-
-[**📖 Detailed Guide**](docs/guides/initiatives.md)
-
----
-
 ### Performance Optimization
 
 Optimize speed and efficiency with profiling and benchmarking:
@@ -193,38 +173,6 @@ Optimize speed and efficiency with profiling and benchmarking:
 
 ---
 
-### Security Remediation
-
-Fix vulnerabilities with CVSS scoring and compliance auditing:
-
-```bash
-/ai-sdlc:security:new "Fix SQL injection vulnerabilities"
-```
-
-**Phases**: Vulnerability Analysis → Remediation Planning → Implementation → Security Verification → Compliance Audit (optional)
-
-**Best for**: Security vulnerabilities, CVEs, compliance requirements
-
-[**📖 Detailed Guide**](docs/guides/security-remediation.md)
-
----
-
-### Refactoring
-
-Improve code structure with automatic rollback on failure:
-
-```bash
-/ai-sdlc:refactoring:new "Extract user authentication logic into separate service"
-```
-
-**Phases**: Quality Baseline → Planning → Behavioral Snapshot → Execution → Behavior Verification → Quality Verification
-
-**Best for**: Code cleanup, reducing complexity, improving maintainability
-
-[**📖 Detailed Guide**](docs/guides/refactoring.md)
-
----
-
 ### Migrations
 
 Move technologies or patterns with rollback planning:
@@ -238,22 +186,6 @@ Move technologies or patterns with rollback planning:
 **Best for**: Technology upgrades, platform changes, architecture transitions
 
 [**📖 Detailed Guide**](docs/guides/migrations.md)
-
----
-
-### Documentation
-
-Create user-facing documentation with screenshot automation:
-
-```bash
-/ai-sdlc:documentation:new "User guide for admin dashboard"
-```
-
-**Phases**: Planning → Content Creation → Review & Validation → Publication
-
-**Best for**: User guides, tutorials, FAQ sections
-
-[**📖 Detailed Guide**](docs/guides/documentation-creation.md)
 
 ---
 
@@ -284,12 +216,8 @@ Investigate technical questions or gather requirements:
 - [Feature Development](docs/guides/feature-development.md)
 - [Enhancement Workflow](docs/guides/enhancement-workflow.md)
 - [Bug Fixing](docs/guides/bug-fixing.md)
-- [Initiatives](docs/guides/initiatives.md)
 - [Performance Optimization](docs/guides/performance-optimization.md)
-- [Security Remediation](docs/guides/security-remediation.md)
-- [Refactoring](docs/guides/refactoring.md)
 - [Migrations](docs/guides/migrations.md)
-- [Documentation Creation](docs/guides/documentation-creation.md)
 - [Research](docs/guides/research.md)
 
 ### Reference
@@ -320,12 +248,8 @@ Investigate technical questions or gather requirements:
 | `/ai-sdlc:feature:new [desc]` | Start new feature development |
 | `/ai-sdlc:enhancement:new [desc]` | Start enhancement workflow |
 | `/ai-sdlc:bug-fix:new [desc]` | Start bug fix workflow |
-| `/ai-sdlc:initiative:new [desc]` | Start multi-task initiative |
 | `/ai-sdlc:performance:new [desc]` | Start performance optimization |
-| `/ai-sdlc:security:new [desc]` | Start security remediation |
-| `/ai-sdlc:refactoring:new [desc]` | Start refactoring workflow |
 | `/ai-sdlc:migration:new [desc]` | Start migration workflow |
-| `/ai-sdlc:documentation:new [desc]` | Start documentation creation |
 | `/ai-sdlc:research:new [question]` | Start research workflow |
 
 ### Resume Commands
@@ -343,7 +267,6 @@ Example: `/ai-sdlc:feature:resume .ai-sdlc/tasks/new-features/2025-11-17-user-pr
 | Command | Description |
 |---------|-------------|
 | `/init-sdlc` | Initialize AI SDLC framework |
-| `/ai-sdlc:initiative:status [path]` | View initiative progress |
 | `/ai-sdlc:standards:discover` | Auto-discover coding standards |
 | `/ai-sdlc:standards:update [path]` | Update project standards |
 | `/ai-sdlc:reviews:code [path]` | Automated code quality analysis |

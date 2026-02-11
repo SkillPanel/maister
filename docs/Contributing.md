@@ -238,7 +238,7 @@ Test via Skill tool or command:
 6. **Evidence-based** - All analysis must reference actual code/files
 7. **Read-only verification** - Verification phases never modify code
 
-**For New Orchestrators**: Reference the shared patterns in `skills/orchestrator-framework/references/` instead of duplicating common logic. See existing orchestrators (development-orchestrator, security-orchestrator) for examples of how to reference framework patterns.
+**For New Orchestrators**: Reference the shared patterns in `skills/orchestrator-framework/references/` instead of duplicating common logic. See existing orchestrators (development-orchestrator, performance-orchestrator) for examples of how to reference framework patterns.
 
 ---
 
@@ -892,18 +892,16 @@ Study existing implementations:
 
 **Orchestrator Pattern**:
 - skills/development-orchestrator - Unified workflow (bug/enhancement/feature)
-- skills/security-orchestrator - Security remediation workflow
-- skills/refactoring-orchestrator - Safe refactoring with behavior verification
+- skills/performance-orchestrator - Performance optimization workflow
+- skills/migration-orchestrator - Migration workflow
 
 **Analysis Pattern**:
-- agents/refactoring-analyzer.md
-- agents/security-analyzer.md
-- agents/performance-profiler.md
+- agents/bottleneck-analyzer.md
+- agents/gap-analyzer.md
 
 **Verification Pattern**:
-- agents/behavioral-verifier.md
-- agents/performance-verifier.md
-- agents/security-verifier.md
+- agents/spec-auditor.md
+- agents/reality-assessor.md
 
 ### Plugin Development Tips
 

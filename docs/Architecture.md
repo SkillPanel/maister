@@ -38,9 +38,9 @@ The AI SDLC plugin is built on four core component types that work together to p
 │                    Agent Layer                               │
 │  (Specialized subagents for specific tasks)                 │
 │                                                              │
-│  - Analysis agents (refactoring-analyzer, gap-analyzer)     │
+│  - Analysis agents (gap-analyzer, bottleneck-analyzer)       │
 │  - Planning agents (implementation-planner, research-planner)│
-│  - Verification agents (behavioral-verifier, e2e-verifier)  │
+│  - Verification agents (spec-auditor, e2e-verifier)         │
 │  - Utility agents (ui-mockup-generator, task-classifier)    │
 └────────────────────────┬────────────────────────────────────┘
                          │
@@ -135,17 +135,11 @@ skills/feature-orchestrator/
 **Key Orchestrator Skills**:
 
 ```
-Orchestrator Skills (9 total):
-├── feature-orchestrator       → New feature development (6-7 phases)
-├── enhancement-orchestrator   → Improve existing features (6 phases)
-├── bug-fix-orchestrator       → Fix bugs with TDD (4 phases)
-├── refactoring-orchestrator   → Safe refactoring (6 phases)
+Orchestrator Skills (4 total):
+├── development-orchestrator   → Unified workflow: bugs, enhancements, features (15 phases)
 ├── performance-orchestrator   → Performance optimization (5 phases)
-├── security-orchestrator      → Security remediation (4-5 phases)
 ├── migration-orchestrator     → Tech migrations (6 phases)
-├── documentation-orchestrator → User documentation (4 phases)
-├── research-orchestrator      → Research workflows (5 phases)
-└── initiative-orchestrator    → Multi-task coordination (6 phases)
+└── research-orchestrator      → Research workflows (8 phases)
 ```
 
 **Utility Skills (8 total)**:
@@ -174,27 +168,15 @@ Agents are focused subagents that perform specific analysis, planning, or verifi
 ```
 Analysis Agents:
 ├── project-analyzer           → Deep codebase analysis
-├── refactoring-analyzer       → Code quality baseline
-├── performance-profiler       → Performance metrics baseline
 ├── bottleneck-analyzer        → Performance bottleneck detection
-├── security-analyzer          → Vulnerability analysis with CVSS
-├── existing-feature-analyzer  → Existing feature discovery
-└── gap-analyzer              → Gap detection and user journey analysis
+├── gap-analyzer              → Gap detection and user journey analysis
+└── codebase-analysis-reporter → Merge parallel findings into report
 
 Planning Agents:
-├── refactoring-planner        → Incremental refactoring plans
-├── security-planner           → Security remediation plans
 ├── research-planner           → Research methodology planning
-├── documentation-planner      → Documentation structure planning
-├── initiative-planner         → Multi-task breakdown with dependencies
 └── implementation-changes-planner → Change plans without modifying files
 
 Verification Agents:
-├── behavioral-snapshot-capturer → Capture behavior baseline
-├── behavioral-verifier          → Verify behavior preserved
-├── performance-verifier         → Verify performance targets met
-├── security-verifier            → Verify vulnerabilities fixed
-├── documentation-reviewer       → Verify doc quality and readability
 ├── e2e-test-verifier           → Browser-based E2E testing
 ├── spec-auditor                → Independent spec verification
 └── reality-assessor            → Multi-agent validation orchestrator
@@ -205,8 +187,7 @@ Utility Agents:
 ├── user-docs-generator         → User documentation with screenshots
 ├── information-gatherer        → Multi-source data collection
 ├── research-synthesizer        → Research findings synthesis
-├── code-quality-pragmatist     → Over-engineering detection
-└── compliance-auditor          → Regulatory compliance verification
+└── code-quality-pragmatist     → Over-engineering detection
 ```
 
 **Agent Execution Model**:
@@ -699,7 +680,7 @@ All analysis agents must reference actual code/files. No assumptions without evi
 
 ### 5. Read-Only Verification
 
-Verification agents (behavioral-verifier, security-verifier, etc.) never modify code—they only report findings.
+Verification agents (spec-auditor, reality-assessor, etc.) never modify code—they only report findings.
 
 ### 6. Progressive Disclosure
 

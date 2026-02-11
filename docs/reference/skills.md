@@ -25,7 +25,7 @@ This is a **non-executable reference skill** - it provides documentation, not wo
 
 ---
 
-## Orchestrator Skills (8)
+## Orchestrator Skills
 
 ### development-orchestrator
 **Purpose**: Unified workflow for bug fixes, enhancements, and new features
@@ -62,26 +62,6 @@ This is a **non-executable reference skill** - it provides documentation, not wo
 
 ---
 
-### initiative-orchestrator
-**Purpose**: Coordinate multiple related tasks with dependencies
-
-**Phases**: 6 (Planning → Task Creation → Dependency Resolution → Execution → Verification → Finalization)
-
-**Key Features**:
-- Manages 3-15 related tasks
-- Dependency management with validation
-- Mixed parallel/sequential execution
-- File-based state coordination
-- Progress tracking
-
-**Use When**: Multi-task projects with dependencies
-
-**Commands**: `/ai-sdlc:initiative:new`, `/ai-sdlc:initiative:status`, `/ai-sdlc:initiative:resume`
-
-[Detailed Guide](../guides/initiatives.md) | [Skill Documentation](../../skills/initiative-orchestrator/skill.md)
-
----
-
 ### performance-orchestrator
 **Purpose**: Performance optimization with benchmarking
 
@@ -98,44 +78,6 @@ This is a **non-executable reference skill** - it provides documentation, not wo
 **Command**: `/ai-sdlc:performance:new`
 
 [Detailed Guide](../guides/performance-optimization.md) | [Skill Documentation](../../skills/performance-orchestrator/SKILL.md)
-
----
-
-### security-orchestrator
-**Purpose**: Security remediation with CVSS scoring
-
-**Phases**: 4-5 (Vulnerability Analysis → Remediation Planning → Implementation → Verification → Compliance Audit)
-
-**Key Features**:
-- CVSS v3.1 scoring
-- OWASP Top 10 classification
-- Risk-based prioritization
-- Compliance auditing (GDPR, HIPAA, SOC 2, PCI DSS)
-
-**Use When**: Security vulnerabilities, compliance requirements
-
-**Command**: `/ai-sdlc:security:new`
-
-[Detailed Guide](../guides/security-remediation.md) | [Skill Documentation](../../skills/security-orchestrator/SKILL.md)
-
----
-
-### refactoring-orchestrator
-**Purpose**: Safe refactoring with automatic rollback
-
-**Phases**: 6 (Quality Baseline → Planning → Behavioral Snapshot → Execution → Behavior Verification → Quality Verification)
-
-**Key Features**:
-- Git checkpoints before each increment
-- Automatic rollback on ANY test failure
-- Zero tolerance for behavior changes
-- Behavior preservation verification
-
-**Use When**: Improving code structure while preserving behavior
-
-**Command**: `/ai-sdlc:refactoring:new`
-
-[Detailed Guide](../guides/refactoring.md) | [Skill Documentation](../../skills/refactoring-orchestrator/SKILL.md)
 
 ---
 
@@ -158,25 +100,6 @@ This is a **non-executable reference skill** - it provides documentation, not wo
 
 ---
 
-### documentation-orchestrator
-**Purpose**: User documentation with screenshots
-
-**Phases**: 4 (Planning → Content Creation → Review & Validation → Publication)
-
-**Key Features**:
-- Screenshot automation with Playwright
-- Readability scoring (Flesch metrics)
-- Multiple doc types (guide/tutorial/reference/FAQ/API)
-- User-first language
-
-**Use When**: Creating user-facing documentation
-
-**Command**: `/ai-sdlc:documentation:new`
-
-[Detailed Guide](../guides/documentation-creation.md) | [Skill Documentation](../../skills/documentation-orchestrator/SKILL.md)
-
----
-
 ### research-orchestrator
 **Purpose**: Systematic research workflows
 
@@ -196,7 +119,7 @@ This is a **non-executable reference skill** - it provides documentation, not wo
 
 ---
 
-## Utility Skills (9)
+## Utility Skills
 
 ### codebase-analyzer
 **Purpose**: Deep codebase analysis using parallel exploration agents
@@ -342,7 +265,7 @@ This is a **non-executable reference skill** - it provides documentation, not wo
 ### task-classifier
 **Purpose**: Auto-classify task descriptions
 
-**Classification Types**: 9 types (initiative, new-feature, bug-fix, enhancement, refactoring, performance, security, migration, documentation)
+**Classification Types**: 6 types (new-feature, bug-fix, enhancement, performance, migration, research)
 
 **Invoked By**: `/work` command
 

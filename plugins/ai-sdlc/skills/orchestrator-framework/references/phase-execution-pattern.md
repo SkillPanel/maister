@@ -138,7 +138,7 @@ Use Task tool:
   prompt: "[detailed prompt]"
 ```
 
-**Agents**: `gap-analyzer`, `specification-creator`, `implementation-planner`, `implementation-completeness-checker`, `test-suite-runner`, `code-reviewer`, `production-readiness-checker`, `spec-auditor`, `ui-mockup-generator`, `e2e-test-verifier`, `user-docs-generator`, `security-analyzer`, `bottleneck-analyzer`, etc.
+**Agents**: `gap-analyzer`, `specification-creator`, `implementation-planner`, `implementation-completeness-checker`, `test-suite-runner`, `code-reviewer`, `production-readiness-checker`, `spec-auditor`, `ui-mockup-generator`, `e2e-test-verifier`, `user-docs-generator`, `bottleneck-analyzer`, etc.
 
 ### Key Difference
 

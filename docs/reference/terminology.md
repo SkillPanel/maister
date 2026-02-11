@@ -70,9 +70,9 @@ Autonomous workflow that orchestrates complex tasks.
 Specialized subagent that performs focused tasks.
 
 **Categories**:
-- Analysis agents (refactoring-analyzer, security-analyzer)
-- Planning agents (refactoring-planner, research-planner)
-- Verification agents (behavioral-verifier, e2e-test-verifier)
+- Analysis agents (gap-analyzer, bottleneck-analyzer)
+- Planning agents (research-planner, implementation-changes-planner)
+- Verification agents (spec-auditor, e2e-test-verifier)
 - Utility agents (task-classifier, ui-mockup-generator)
 
 **Characteristics**:
@@ -233,75 +233,6 @@ Running subset of test suite (30-70%) focused on affected areas.
 - Tests for dependent features
 - Tests for integrated features
 - Tests for similar patterns
-
----
-
-## Refactoring Concepts
-
-### Git Checkpoint
-Git branch created before each refactoring increment for instant rollback.
-
-**Format**: `refactor-[task-name]-checkpoint-N`
-
-**Purpose**: Enable automatic rollback if tests fail
-
----
-
-### Behavioral Fingerprint
-Comprehensive snapshot of function behavior for exact comparison.
-
-**Includes**:
-- Function signatures
-- Test results
-- Side effects
-- Observable behavior
-
-**Used By**: behavioral-verifier agent
-
----
-
-### Behavior Preservation
-Zero tolerance for any behavior changes during refactoring.
-
-**Rule**: ANY behavior change = failed refactoring
-
-**Verification**: Compare before/after behavioral fingerprints
-
----
-
-## Initiative Concepts
-
-### Initiative
-Epic-level workflow coordinating 3-15 related tasks with dependencies.
-
-**Location**: `.ai-sdlc/docs/project/initiatives/YYYY-MM-DD-initiative-name/`
-
-**Features**:
-- Dependency management
-- Parallel execution where possible
-- Progress tracking
-- State coordination
-
----
-
-### Dependency Graph
-Visual representation of task dependencies showing execution order.
-
-**Format**: Topological sort into execution levels
-
-**Example**:
-```
-Level 0: [task-A, task-B]    ← Independent, run in parallel
-Level 1: [task-C]            ← Depends on Level 0
-Level 2: [task-D, task-E]    ← Depends on Level 1
-```
-
----
-
-### Critical Path
-Longest sequence of dependent tasks determining minimum initiative duration.
-
-**Example**: If task-A → task-C → task-D, this is the critical path
 
 ---
 

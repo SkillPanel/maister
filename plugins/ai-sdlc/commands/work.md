@@ -56,13 +56,9 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 | bug-fix | `ai-sdlc:development-orchestrator` (task_type=bug) |
 | new-feature | `ai-sdlc:development-orchestrator` (task_type=feature) |
 | enhancement | `ai-sdlc:development-orchestrator` (task_type=enhancement) |
-| refactoring | `ai-sdlc:refactoring-orchestrator` |
 | performance | `ai-sdlc:performance-orchestrator` |
-| security | `ai-sdlc:security-orchestrator` |
 | migration | `ai-sdlc:migration-orchestrator` |
-| documentation | `ai-sdlc:documentation-orchestrator` |
 | research | `ai-sdlc:research-orchestrator` |
-| initiative | `ai-sdlc:initiative-orchestrator` |
 
 ---
 
@@ -98,13 +94,13 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 | `bug-fixes/` | bug-fix |
 | `new-features/` | new-feature |
 | `enhancements/` | enhancement |
-| `refactoring/` | refactoring |
+
 | `performance/` | performance |
-| `security/` | security |
+
 | `migrations/` | migration |
-| `documentation/` | documentation |
+
 | `research/` | research |
-| `initiatives/` | initiative |
+
 
 3. Extract status from state file:
    - `completed`: null = in-progress, timestamp = finished
@@ -174,7 +170,7 @@ The skill will:
 2. **Parse classification result:**
 ```yaml
 classification:
-  task_type: [bug-fix|enhancement|new-feature|refactoring|performance|security|migration|documentation|research|initiative]
+  task_type: [bug-fix|enhancement|new-feature|performance|migration|research]
   confidence: [percentage]
   reasoning: [explanation]
 ```
@@ -195,7 +191,7 @@ Use Skill tool:
 - bug-fix (92%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=bug Fix login timeout error"`
 - enhancement (88%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=enhancement Add filtering to user table"`
 - new-feature (85%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=feature Add user authentication"`
-- security (98%): `skill: "ai-sdlc:security-orchestrator"` with `args: "Fix SQL injection in search"`
+- performance (95%): `skill: "ai-sdlc:performance-orchestrator"` with `args: "Optimize slow dashboard queries"`
 
 ---
 
@@ -212,13 +208,9 @@ Use AskUserQuestion with options:
 1. Bug Fix - Fix defects or errors
 2. Enhancement - Improve existing features
 3. New Feature - Add completely new capability
-4. Refactoring - Improve code structure
-5. Performance - Optimize speed/efficiency
-6. Security - Fix security vulnerabilities
-7. Migration - Move to new tech/pattern
-8. Documentation - Create/update docs
-9. Research - Investigate and document findings
-10. Initiative - Epic-level multi-task project
+4. Performance - Optimize speed/efficiency
+5. Migration - Move to new tech/pattern
+6. Research - Investigate and document findings
 
 Then route to selected workflow using Skill tool.
 ```
@@ -230,7 +222,7 @@ Display:
 "Task cancelled. You can:
 - Run /work again when ready
 - Use specific workflow commands directly:
-  /ai-sdlc:development:new, /ai-sdlc:refactoring:new, etc."
+  /ai-sdlc:development:new, /ai-sdlc:performance:new, etc."
 ```
 
 ---
@@ -242,13 +234,9 @@ Display:
 | bug-fix | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
 | new-feature | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE]` |
 | enhancement | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE]` |
-| refactoring | `ai-sdlc:refactoring-orchestrator` | `--resume [path] [--from=PHASE]` |
 | performance | `ai-sdlc:performance-orchestrator` | `--resume [path] [--from=PHASE]` |
-| security | `ai-sdlc:security-orchestrator` | `--resume [path] [--from=PHASE]` |
 | migration | `ai-sdlc:migration-orchestrator` | `--resume [path] [--from=PHASE]` |
-| documentation | `ai-sdlc:documentation-orchestrator` | `--resume [path] [--from=PHASE]` |
 | research | `ai-sdlc:research-orchestrator` | `--resume [path] [--from=PHASE]` |
-| initiative | `ai-sdlc:initiative-orchestrator` | `--resume [path] [--from=PHASE]` |
 
 ---
 

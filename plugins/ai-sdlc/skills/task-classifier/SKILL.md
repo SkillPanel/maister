@@ -70,20 +70,16 @@ When this skill is invoked, you must:
 
 ## Supported Task Types
 
-The subagent classifies into 10 task types:
+The subagent classifies into 6 task types:
 
 | Type | Purpose | Confidence Typical |
 |------|---------|-------------------|
 | **bug-fix** | Fix defects/errors | High (80-94%) |
 | **enhancement** | Improve existing features | High (80-94%) |
 | **new-feature** | Add completely new capability | Medium (60-79%) |
-| **refactoring** | Improve code structure | High (80-94%) |
 | **performance** | Optimize speed/efficiency | High (80-94%) |
-| **security** | Fix security vulnerabilities | **Critical (95%+)** |
 | **migration** | Move to new tech/pattern | High (80-94%) |
-| **documentation** | Create/update docs | High (80-94%) |
 | **research** | Investigate and document findings | High (80-94%) |
-| **initiative** | Epic-level multi-task project | High (80-94%) |
 
 ## Input Format
 
@@ -101,7 +97,7 @@ Returns structured classification in YAML format:
 
 ```yaml
 classification:
-  task_type: [bug-fix|enhancement|new-feature|refactoring|performance|security|migration|documentation]
+  task_type: [bug-fix|enhancement|new-feature|performance|migration|research]
   confidence: [percentage as integer]
   keywords_matched: [list of matched keywords]
 
@@ -156,15 +152,14 @@ The subagent executes a 5-phase workflow:
 
 ### Phase 3: Keyword Classification
 - Extract keywords from description
-- Match against embedded keyword matrix (all 8 types)
+- Match against embedded keyword matrix (all 6 types)
 - Calculate confidence scores with context boosts
 - Resolve multi-type matches with priority rules
 
 ### Phase 4: User Confirmation
-- Critical (95%+): Security warning + explicit confirmation
 - High (80-94%): Quick confirmation with override option
 - Medium (60-79%): Show classification, ask to confirm
-- Low (<60%): Present all 8 options, let user choose
+- Low (<60%): Present all 6 options, let user choose
 
 ### Phase 5: Output Classification
 - Generate structured YAML result
@@ -189,13 +184,9 @@ Classification result routes to:
 - **bug-fix** → development-orchestrator skill (task_type=bug)
 - **enhancement** → development-orchestrator skill (task_type=enhancement)
 - **new-feature** → development-orchestrator skill (task_type=feature)
-- **refactoring** → refactoring-orchestrator skill
 - **performance** → performance-orchestrator skill
-- **security** → security-orchestrator skill
 - **migration** → migration-orchestrator skill
-- **documentation** → documentation-orchestrator skill
 - **research** → research-orchestrator skill
-- **initiative** → initiative-orchestrator skill
 
 ### With External Systems
 
@@ -210,7 +201,6 @@ The subagent handles:
 - **Compound Tasks**: Detects multiple tasks, prompts user to split
 - **Vague Descriptions**: Requests clarification with specific questions
 - **Unclear Context**: Distinguishes existing vs new through codebase search
-- **Security Issues**: Always triggers critical confirmation flow
 - **Ambiguous Types**: Presents options when confidence < 80%
 
 ## Reference Documentation
@@ -226,7 +216,7 @@ For developers extending or understanding the classification methodology, design
 - **Classification time**: < 3 seconds (without external fetch)
 - **With issue fetch**: < 8 seconds (depends on API speed)
 - **Accuracy**: ≥ 90% for high confidence cases
-- **Security detection**: 100% (no false negatives - CRITICAL)
+
 - **User satisfaction**: ≥ 85% with suggested classifications
 
 ## Example Usage

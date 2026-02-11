@@ -56,11 +56,7 @@ All orchestrators follow these principles:
 
 - `development-orchestrator` (bug fixes, enhancements, features)
 - `performance-orchestrator`
-- `security-orchestrator`
-- `documentation-orchestrator`
 - `migration-orchestrator`
-- `initiative-orchestrator`
-- `refactoring-orchestrator`
 - `research-orchestrator`
 
 ## NOT an Executable Skill

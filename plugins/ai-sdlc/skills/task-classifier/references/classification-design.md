@@ -7,24 +7,13 @@
 ## Classification Priority
 
 When multiple types match:
-1. **Security** - ALWAYS overrides (critical)
-2. **Keyword count** - Type with most matches wins
-3. **Context analysis** - Component found, error verified
-4. **User confirmation** - If still ambiguous, ask user
+1. **Keyword count** - Type with most matches wins
+2. **Context analysis** - Component found, error verified
+3. **User confirmation** - If still ambiguous, ask user
 
 ---
 
 ## Task Type Patterns
-
-### Security (CRITICAL - Always Overrides)
-
-| Category | Keywords |
-|----------|----------|
-| **Critical** | vulnerability, CVE-*, exploit, SQL injection, XSS, CSRF, auth bypass |
-| **High** | sensitive data, credential exposure, insecure, security flaw |
-| **Context** | OWASP, CWE numbers, security advisory references |
-
-**Rules**: Confidence 95%+ always. Always require explicit confirmation. Never auto-proceed.
 
 ### Bug Fix
 
@@ -56,16 +45,6 @@ When multiple types match:
 
 **Disambiguation**: If component FOUND in codebase → reclassify as enhancement
 
-### Refactoring
-
-| Category | Keywords |
-|----------|----------|
-| **Structure** | refactor, restructure, reorganize, modularize |
-| **Quality** | clean up, simplify, consolidate, deduplicate |
-| **Architecture** | decouple, extract, separate concerns |
-
-**Key distinction**: Behavior must remain unchanged
-
 ### Performance
 
 | Category | Keywords |
@@ -82,14 +61,6 @@ When multiple types match:
 | **Upgrade** | upgrade from, update from, replace X with Y |
 | **Platform** | new platform, new framework, new database |
 
-### Documentation
-
-| Category | Keywords |
-|----------|----------|
-| **Create** | document, docs, write guide, API docs |
-| **Update** | update docs, documentation update, README |
-| **Types** | tutorial, FAQ, changelog, specification |
-
 ### Research
 
 | Category | Keywords |
@@ -98,21 +69,12 @@ When multiple types match:
 | **Compare** | compare options, evaluate alternatives |
 | **Document** | document findings, spike, proof of concept |
 
-### Initiative
-
-| Category | Keywords |
-|----------|----------|
-| **Scale** | epic, project, initiative, feature set |
-| **Scope** | multiple tasks, phase 1/2/3, milestone |
-| **Duration** | multi-week, Q1/Q2, sprint goals |
-
 ---
 
 ## Confidence Calculation
 
 | Confidence | Meaning | User Flow |
 |------------|---------|-----------|
-| **95%+** | Critical (security) | Warning + explicit confirmation |
 | **80-94%** | High | Quick confirmation with override |
 | **60-79%** | Medium | Show classification, ask to confirm |
 | **<60%** | Low | Present all options, user chooses |
@@ -126,7 +88,7 @@ Base: 50%
 1 primary keyword: +15%
 Each context booster: +10%
 Issue labels match: +5%
-Cap at 94% (except security at 98%)
+Cap at 94%
 ```
 
 ---
@@ -174,9 +136,7 @@ Cap at 94% (except security at 98%)
 | bug, defect | bug-fix | +10% |
 | enhancement | enhancement | +10% |
 | feature | new-feature | +10% |
-| security | security | → 95%+ |
 | performance | performance | +10% |
-| documentation | documentation | +10% |
 
 ---
 
@@ -194,12 +154,5 @@ If multiple distinct tasks detected:
 If <60% confidence on any type:
 - Request clarification
 - Ask specific questions about intent
-- Present all 8 options
+- Present all 6 options
 
-### Security Override
-
-Any security keyword:
-- Immediately classify as security
-- Show warning about critical nature
-- Require explicit "yes" confirmation
-- Never auto-proceed
