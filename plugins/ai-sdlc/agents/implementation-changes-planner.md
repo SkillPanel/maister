@@ -62,7 +62,7 @@ Transform implementation steps into actionable change plans with continuous stan
 ## Standards Applied
 
 ### From Implementation Plan (Mandatory)
-- [x] skills/feature-orchestrator/SKILL.md - Structure patterns
+- [x] skills/development-orchestrator/SKILL.md - Structure patterns
 - [x] .ai-sdlc/docs/standards/global/naming.md - Naming conventions
 
 ### Discovered During Planning

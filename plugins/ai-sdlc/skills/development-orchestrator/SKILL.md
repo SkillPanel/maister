@@ -590,11 +590,6 @@ Invoked via:
 - `/ai-sdlc:development:new [description] [--type=TYPE] [--yolo]`
 - `/ai-sdlc:development:resume [task-path] [--from=PHASE]`
 
-**Legacy Aliases**:
-- `/ai-sdlc:bug-fix:new` → `--type=bug`
-- `/ai-sdlc:enhancement:new` → `--type=enhancement`
-- `/ai-sdlc:feature:new` → `--type=feature`
-
 ---
 
 ## TDD Gate Rules (Bug Fixes)

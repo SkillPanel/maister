@@ -235,7 +235,7 @@ Flow:
 4. Subagent presents: "Classification: Bug Fix (88%)"
 5. User confirms
 6. Subagent returns structured result
-7. /work routes to bug-fix-orchestrator
+7. /work routes to development-orchestrator
 ```
 
 **With GitHub issue:**
@@ -250,7 +250,7 @@ Flow:
    - Labels: ["bug", "authentication"]
 4. Subagent classifies: bug-fix (91%)
 5. User confirms
-6. /work routes to bug-fix-orchestrator
+6. /work routes to development-orchestrator
 ```
 
 ---

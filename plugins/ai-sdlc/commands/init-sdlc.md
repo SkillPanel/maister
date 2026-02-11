@@ -87,7 +87,7 @@ Ask the user (adapt questions based on project type):
 
 Store all responses. Merge auto-detected information with user-provided context.
 
-**NEW: Ask which project documentation to generate:**
+**IMPORTANT: Ask which project documentation to generate:**
 
 Use AskUserQuestion with multi-select enabled:
 - Question: "Which project documentation should we generate?"

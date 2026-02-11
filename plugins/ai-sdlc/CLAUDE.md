@@ -645,11 +645,6 @@ Orchestrators manage complete workflows with state management, auto-recovery, an
 | `migration-orchestrator` | Code/data/architecture migrations with rollback plans | `skills/migration-orchestrator/skill.md` |
 | `research-orchestrator` | Multi-source research with synthesis, solution brainstorming, high-level design, and citations | `skills/research-orchestrator/skill.md` |
 
-**Deprecated Orchestrators** (now aliases to `development-orchestrator`):
-- `feature-orchestrator` → Use `development-orchestrator` with `task_type=feature`
-- `enhancement-orchestrator` → Use `development-orchestrator` with `task_type=enhancement`
-- `bug-fix-orchestrator` → Use `development-orchestrator` with `task_type=bug`
-
 ## Available Commands
 
 Commands invoke orchestrators and utilities. All orchestrators support `--yolo` (continuous) and `--from=phase` (resume point).
@@ -682,19 +677,6 @@ Commands invoke orchestrators and utilities. All orchestrators support `--yolo` 
 /ai-sdlc:development:new "Implement OAuth" --research=.ai-sdlc/tasks/research/2026-01-12-oauth-research
 ```
 Research context flows through ALL phases without skipping any. Research artifacts are copied to `analysis/research-context/` and summaries pass to every subagent via Pattern 7.
-
-#### Legacy Commands (Aliases)
-
-These commands still work but route to `development-orchestrator`:
-
-| Command | Equivalent |
-|---------|------------|
-| `/ai-sdlc:feature:new` | `/ai-sdlc:development:new --type=feature` |
-| `/ai-sdlc:feature:resume` | `/ai-sdlc:development:resume` |
-| `/ai-sdlc:enhancement:new` | `/ai-sdlc:development:new --type=enhancement` |
-| `/ai-sdlc:enhancement:resume` | `/ai-sdlc:development:resume` |
-| `/ai-sdlc:bug-fix:new` | `/ai-sdlc:development:new --type=bug` |
-| `/ai-sdlc:bug-fix:resume` | `/ai-sdlc:development:resume` |
 
 #### Other Workflow Commands
 
@@ -735,7 +717,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | Agent | Purpose | Invoked By | Details |
 |-------|---------|------------|---------|
 | `project-analyzer` | Deep codebase analysis for tech stack, architecture, conventions | `/init-sdlc` | `agents/project-analyzer.md` |
-| `task-classifier` | Classifies task descriptions into 9 types with confidence scoring | `/work` command | `agents/task-classifier.md` |
+| `task-classifier` | Classifies task descriptions into 6 types with confidence scoring | `/work` command | `agents/task-classifier.md` |
 | `gap-analyzer` | Compares current vs desired state with task-type support (bug/enhancement/feature) | development-orchestrator | `agents/gap-analyzer.md` |
 | `specification-creator` | Creates specs from gathered requirements with reusability search and self-verification | development-orchestrator, migration-orchestrator | `agents/specification-creator.md` |
 | `implementation-planner` | Breaks specs into task groups with test-driven steps and dependency chains | development-orchestrator, migration-orchestrator | `agents/implementation-planner.md` |

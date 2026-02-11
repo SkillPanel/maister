@@ -60,5 +60,5 @@ This plugin follows specific documentation guidelines (see @plugins/ai-sdlc/CLAU
 
 1. Navigate to a test project
 2. Run `/init-sdlc` to initialize the framework
-3. Test commands like `/ai-sdlc:feature:new "test feature"`
+3. Test commands like `/ai-sdlc:development:new "test feature"`
 4. Use `--yolo` flag for continuous execution during testing

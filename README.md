@@ -52,9 +52,9 @@ The plugin will:
 **Alternative**: Use specific workflow commands directly:
 
 ```bash
-/ai-sdlc:feature:new "Add user profile page"
-/ai-sdlc:bug-fix:new "Fix login timeout after 5 minutes"
-/ai-sdlc:enhancement:new "Add sorting to user table"
+/ai-sdlc:development:new "Add user profile page" --type=feature
+/ai-sdlc:development:new "Fix login timeout after 5 minutes" --type=bug
+/ai-sdlc:development:new "Add sorting to user table" --type=enhancement
 ```
 
 ### Understanding the Output
@@ -114,7 +114,7 @@ Each task type has a specialized workflow optimized for its unique needs:
 Build completely new capabilities with a comprehensive 6-7 phase workflow:
 
 ```bash
-/ai-sdlc:feature:new "Add two-factor authentication"
+/ai-sdlc:development:new "Add two-factor authentication" --type=feature
 ```
 
 **Phases**: Specification → Planning → Implementation → Verification → E2E Testing (optional) → User Documentation (optional)
@@ -128,7 +128,7 @@ Build completely new capabilities with a comprehensive 6-7 phase workflow:
 Improve existing features with backward compatibility verification:
 
 ```bash
-/ai-sdlc:enhancement:new "Add export to CSV for user reports"
+/ai-sdlc:development:new "Add export to CSV for user reports" --type=enhancement
 ```
 
 **Phases**: Existing Feature Analysis → Gap Analysis → Specification → Planning → Implementation → Compatibility Verification
@@ -142,7 +142,7 @@ Improve existing features with backward compatibility verification:
 Fix defects with mandatory TDD Red→Green discipline:
 
 ```bash
-/ai-sdlc:bug-fix:new "Login timeout after 5 minutes of inactivity"
+/ai-sdlc:development:new "Login timeout after 5 minutes of inactivity" --type=bug
 ```
 
 **Phases**: Bug Analysis → Fix Implementation (TDD) → Testing & Verification → Documentation
@@ -198,9 +198,7 @@ Investigate technical questions or gather requirements:
 | Command | Description |
 |---------|-------------|
 | `/work [description]` | Auto-classify and route to appropriate workflow |
-| `/ai-sdlc:feature:new [desc]` | Start new feature development |
-| `/ai-sdlc:enhancement:new [desc]` | Start enhancement workflow |
-| `/ai-sdlc:bug-fix:new [desc]` | Start bug fix workflow |
+| `/ai-sdlc:development:new [desc]` | Start development workflow (bug fix, enhancement, or new feature) |
 | `/ai-sdlc:performance:new [desc]` | Start performance optimization |
 | `/ai-sdlc:migration:new [desc]` | Start migration workflow |
 | `/ai-sdlc:research:new [question]` | Start research workflow |
@@ -213,7 +211,7 @@ All workflows support pause/resume:
 /ai-sdlc:[workflow]:resume [task-path]
 ```
 
-Example: `/ai-sdlc:feature:resume .ai-sdlc/tasks/new-features/2025-11-17-user-profile`
+Example: `/ai-sdlc:development:resume .ai-sdlc/tasks/new-features/2025-11-17-user-profile`
 
 ### Utility Commands
 
