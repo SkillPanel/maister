@@ -67,7 +67,7 @@ This agent champions **functional reality over technical perfection** and **work
 - Task metadata status
 
 **Reality Questions**:
-- Do tests actually pass (run them, don't trust reports)?
+- Do tests actually pass (run them unless `skip_test_execution: true`)?
 - Do tests cover real scenarios or just happy paths?
 - Does it work end-to-end or just in isolated tests?
 - Does it handle errors gracefully?
@@ -85,10 +85,15 @@ This agent champions **functional reality over technical perfection** and **work
 **Validation Approaches**:
 
 **Functional Testing**:
-- Run actual tests (don't just read reports)
+- Run actual tests to verify they pass (unless `skip_test_execution: true` is set — see below)
 - Test end-to-end workflows (not just unit tests)
 - Try error scenarios (invalid inputs, missing data, edge cases)
 - Test with realistic data (not just "user1", "test@test.com")
+
+**Parallel Execution Mode** (`skip_test_execution: true`):
+When invoked with `skip_test_execution: true` (typically after test-suite-runner has already completed in implementation-verifier's Step 3a), do NOT execute any test commands. Instead, read test results from `verification/test-suite-results.md` (written by test-suite-runner), then analyze code structure, verify completeness through code reading, check integration points, and assess functional gaps using those results.
+
+When `skip_test_execution` is `false` or not set (standalone invocation, or when test-suite-runner was skipped), run tests normally.
 
 **Integration Testing**:
 - Does it integrate with dependent systems?

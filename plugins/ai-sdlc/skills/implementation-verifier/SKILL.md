@@ -82,12 +82,12 @@ If prerequisites missing, report and stop.
 - ❌ "I'll assess whether this solves the problem..." — STOP. Delegate to reality-assessor.
 - ❌ Reading source code to find security/performance issues — STOP. Delegate to code-reviewer.
 
-**ALL verifications are independent. Launch everything in a SINGLE parallel batch.**
+**Verifications run in two sequential steps to avoid parallel test conflicts.**
 
 ### Step 1: Determine enabled optional reviews
 
 1. **Check invocation context** for each optional review:
-   - If orchestrator mode AND option is `true`: Include in parallel batch (mandatory)
+   - If orchestrator mode AND option is `true`: Include in verification (mandatory)
    - If orchestrator mode AND option is `false`: Skip (mark task as completed with `metadata: {skipped: true}`)
    - If orchestrator mode AND option is `null`: Warn and prompt user
    - If standalone mode: Prompt user with AskUserQuestion
@@ -96,21 +96,27 @@ If prerequisites missing, report and stop.
 
 2. Use `TaskUpdate` to set ALL enabled verification tasks to `status: "in_progress"`. For skipped optional reviews, use `TaskUpdate` with `status: "completed"` and `metadata: {"skipped": true}`.
 
-### Step 3: Invoke all subagents
+### Step 3a: Run test suite (sequential, if NOT skip_test_suite)
 
-**INVOKE NOW** — send ALL enabled subagents in a SINGLE message (up to 6 Task tool calls):
+**Why sequential**: Test-suite-runner and reality-assessor both run tests. Running them in parallel causes conflicts. Test-suite-runner runs first and writes results to a file that reality-assessor reads.
+
+Task tool call (if NOT skip_test_suite):
+- subagent_type: `ai-sdlc:test-suite-runner`
+- description: `Run full test suite`
+- prompt: Include task_path, task_type, test_command (if known). The subagent runs ALL tests, analyzes results, and writes results to `verification/test-suite-results.md`.
+
+**Wait for test-suite-runner to complete** before proceeding to Step 3b. Mark the test suite task as `completed` with results.
+
+**When `skip_test_suite: true`**: Skip Step 3a entirely. Go straight to Step 3b. The full project test suite already passed during the implementation phase. The verification report will note tests were verified during implementation.
+
+### Step 3b: Run all other verifications (parallel)
+
+**INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 Task tool calls):
 
 Task tool call (always):
 - subagent_type: `ai-sdlc:implementation-completeness-checker`
 - description: `Check implementation completeness`
 - prompt: Include task_path, task_type. The subagent checks plan completion, standards compliance, and documentation completeness.
-
-Task tool call (if NOT skip_test_suite):
-- subagent_type: `ai-sdlc:test-suite-runner`
-- description: `Run full test suite`
-- prompt: Include task_path, task_type, test_command (if known). The subagent runs ALL tests and analyzes results.
-
-**When `skip_test_suite: true`**: Skip this invocation. The full project test suite already passed during the implementation phase. The verification report will note tests were verified during implementation.
 
 Task tool call (if code_review_enabled):
 - subagent_type: `ai-sdlc:code-reviewer`
@@ -130,9 +136,11 @@ Task tool call (if production_check_enabled):
 Task tool call (if reality_check_enabled):
 - subagent_type: `ai-sdlc:reality-assessor`
 - description: `Reality assessment`
-- prompt: Include task_path, report_path (`[task_path]/verification/reality-check.md`)
+- prompt: Include task_path, report_path (`[task_path]/verification/reality-check.md`).
+  - **If test-suite-runner ran (Step 3a)**: Include `skip_test_execution: true` and path to `verification/test-suite-results.md`. Reality-assessor should read test results from that file instead of running tests.
+  - **If test-suite-runner was skipped**: Include `skip_test_execution: false`. Reality-assessor should run tests itself since no other agent did.
 
-**SELF-CHECK**: Did you just invoke Task tool calls for ALL enabled verifications in a single message? Or did you start reading files, running tests, or checking standards yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you invoke test-suite-runner separately in Step 3a (or skip it), then invoke all remaining subagents in a single parallel message in Step 3b? Or did you launch everything at once? If the latter, STOP — test-suite-runner must complete before the parallel batch.
 
 ### Step 4: Process all results
 

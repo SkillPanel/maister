@@ -104,6 +104,10 @@ If no test command can be identified, report failure with guidance.
 
 ## Output
 
+### File Output
+
+Write test results to `[task_path]/verification/test-suite-results.md` containing: status, test command, metrics (total/passing/failing/errors/skipped/pass_rate), failure details with regression classification, and issue summary. This file is read by other verification agents (e.g., reality-assessor) that run after test-suite-runner completes.
+
 ### Structured Result (returned to orchestrator)
 
 ```yaml
