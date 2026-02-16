@@ -3,7 +3,7 @@ name: reviews-spec-audit
 description: Independent specification audit to verify completeness and clarity before implementation
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="ai-sdlc:spec-auditor" NOW. Pass the spec path in the prompt. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="ai-sdlc-copilot/spec-auditor" NOW. Pass the spec path in the prompt. Do not read files, explore code, or execute workflow steps yourself.
 
 You are running an independent specification audit using the `spec-auditor` agent.
 
@@ -71,17 +71,17 @@ The spec-auditor agent will:
 
 **Example 1**: Pre-implementation spec audit
 ```
-User: /ai-sdlc:reviews:spec-audit .ai-sdlc/tasks/new-features/2025-11-17-user-auth/implementation/spec.md
+User: /ai-sdlc-copilot/reviews:spec-audit .ai-sdlc/tasks/new-features/2025-11-17-user-auth/implementation/spec.md
 ```
 
 **Example 2**: Post-implementation audit
 ```
-User: /ai-sdlc:reviews:spec-audit .ai-sdlc/tasks/new-features/2025-11-17-user-auth/ --post-implementation
+User: /ai-sdlc-copilot/reviews:spec-audit .ai-sdlc/tasks/new-features/2025-11-17-user-auth/ --post-implementation
 ```
 
 **Example 3**: Audit with clarification focus
 ```
-User: /ai-sdlc:reviews:spec-audit spec.md --focus=ambiguity
+User: /ai-sdlc-copilot/reviews:spec-audit spec.md --focus=ambiguity
 ```
 
 ## What to Expect

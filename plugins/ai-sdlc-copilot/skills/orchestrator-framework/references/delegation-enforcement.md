@@ -17,10 +17,10 @@ When a phase requires a skill or subagent:
 
 | Anti-Pattern | Why It's Wrong | Correct Approach |
 |--------------|----------------|------------------|
-| "I'll analyze the codebase..." | Bypasses codebase-analyzer skill | Use `Skill` tool with `ai-sdlc:codebase-analyzer` |
-| "Let me create the specification..." | Bypasses specification-creator | Use `Task` tool with `ai-sdlc:specification-creator` subagent |
-| "Looking at the gaps between..." | Bypasses gap-analyzer subagent | Use `Task` tool with `ai-sdlc:gap-analyzer` |
-| "I'll implement this by..." | Bypasses implementer skill | Use `Skill` tool with `ai-sdlc:implementer` |
+| "I'll analyze the codebase..." | Bypasses codebase-analyzer skill | Use `Skill` tool with `ai-sdlc-copilot/codebase-analyzer` |
+| "Let me create the specification..." | Bypasses specification-creator | Use `Task` tool with `ai-sdlc-copilot/specification-creator` subagent |
+| "Looking at the gaps between..." | Bypasses gap-analyzer subagent | Use `Task` tool with `ai-sdlc-copilot/gap-analyzer` |
+| "I'll implement this by..." | Bypasses implementer skill | Use `Skill` tool with `ai-sdlc-copilot/implementer` |
 | Reading a SKILL.md then doing the work | Skill files are instructions FOR skills | Use Skill tool to invoke |
 | Spawning Explore agents in orchestrator | Codebase-analyzer manages its own agents | Invoke skill, let IT spawn agents |
 
@@ -39,13 +39,13 @@ These do NOT require delegation:
 For all analysis, planning, implementation, and verification phases: **ALWAYS DELEGATE**.
 
 **Never acceptable inline** (regardless of perceived task simplicity):
-- Specification creation → always delegate to `ai-sdlc:specification-creator` subagent
-- Implementation planning → always delegate to `ai-sdlc:implementation-planner` subagent
-- Gap analysis → always delegate to `ai-sdlc:gap-analyzer` subagent
-- Codebase analysis → always delegate to `ai-sdlc:codebase-analyzer` skill
-- Code review → always delegate to `ai-sdlc:code-reviewer` subagent
-- Test execution → always delegate to `ai-sdlc:test-suite-runner` subagent
-- Implementation completeness → always delegate to `ai-sdlc:implementation-completeness-checker` subagent
+- Specification creation → always delegate to `ai-sdlc-copilot/specification-creator` subagent
+- Implementation planning → always delegate to `ai-sdlc-copilot/implementation-planner` subagent
+- Gap analysis → always delegate to `ai-sdlc-copilot/gap-analyzer` subagent
+- Codebase analysis → always delegate to `ai-sdlc-copilot/codebase-analyzer` skill
+- Code review → always delegate to `ai-sdlc-copilot/code-reviewer` subagent
+- Test execution → always delegate to `ai-sdlc-copilot/test-suite-runner` subagent
+- Implementation completeness → always delegate to `ai-sdlc-copilot/implementation-completeness-checker` subagent
 
 "The task is simple" is NOT a valid reason to skip delegation. Subagents provide context isolation regardless of complexity.
 
@@ -56,7 +56,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 ```
 Tool: Skill
 Parameters:
-  skill: "ai-sdlc:[skill-name]"
+  skill: "ai-sdlc-copilot/[skill-name]"
 ```
 
 Wait for skill completion before continuing.
@@ -68,7 +68,7 @@ Wait for skill completion before continuing.
 ```
 Tool: Task
 Parameters:
-  subagent_type: "ai-sdlc:[agent-name]"
+  subagent_type: "ai-sdlc-copilot/[agent-name]"
   description: "[brief description]"
   prompt: |
     [Context and instructions]

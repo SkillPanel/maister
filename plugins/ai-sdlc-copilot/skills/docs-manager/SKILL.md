@@ -45,6 +45,20 @@ Internal skill that manages documentation file operations in `.ai-sdlc/docs/`. N
         └── test-writing.md
 ```
 
+## Standard File Conventions
+
+Standard files follow the structure `standards/[category]/[topic].md`:
+- **Category** = domain folder (global, frontend, backend, testing, or custom)
+- **Topic file** = contains multiple related standards
+
+**Format**: Each file uses `## Topic` as the file heading, with `### Standard Name` for each individual standard. Each standard has a 1-10 line description (excluding code snippets) and an optional brief code example (under 10 lines).
+
+**Conciseness**: Standards are quick-reference conventions, not tutorials. If a file grows unwieldy, split into focused sub-topic files.
+
+**Why ### per standard**: Each standard as a discrete section makes it easier for agents to find, update, and reference individually — no need to parse bullet lists.
+
+---
+
 ## Bundled Resources
 
 This skill bundles the following resources within the plugin:
@@ -100,7 +114,7 @@ Use this when a project doesn't have `.ai-sdlc/docs/` or needs documentation for
 
      *Not initialized for this project. If you need frontend standards, you can:*
      - *Add them manually using the docs-manager skill*
-     - *Run `/ai-sdlc:standards-discover --scope=frontend` to auto-discover*
+     - *Run `/ai-sdlc-copilot/standards-discover --scope=frontend` to auto-discover*
      ```
 6. **MANDATORY - Update .github/copilot-instructions.md:**
    - Check if `.github/copilot-instructions.md` exists in the project root; if not, ask the user if they want to create it
@@ -120,7 +134,7 @@ Use this when a project doesn't have `.ai-sdlc/docs/` or needs documentation for
 
 **Note on Skipped Standards**: If standard categories are skipped during initialization, teams can add them later using:
 - "Add Documentation File" operation to add specific standards
-- `/ai-sdlc:standards-discover` command to auto-discover standards from codebase
+- `/ai-sdlc-copilot/standards-discover` command to auto-discover standards from codebase
 
 ---
 

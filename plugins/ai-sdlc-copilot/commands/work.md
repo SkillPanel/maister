@@ -53,12 +53,12 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 
 | Classification | Routes To (Skill) |
 |----------------|-------------------|
-| bug-fix | `ai-sdlc:development-orchestrator` (task_type=bug) |
-| new-feature | `ai-sdlc:development-orchestrator` (task_type=feature) |
-| enhancement | `ai-sdlc:development-orchestrator` (task_type=enhancement) |
-| performance | `ai-sdlc:performance-orchestrator` |
-| migration | `ai-sdlc:migration-orchestrator` |
-| research | `ai-sdlc:research-orchestrator` |
+| bug-fix | `ai-sdlc-copilot/development-orchestrator` (task_type=bug) |
+| new-feature | `ai-sdlc-copilot/development-orchestrator` (task_type=feature) |
+| enhancement | `ai-sdlc-copilot/development-orchestrator` (task_type=enhancement) |
+| performance | `ai-sdlc-copilot/performance-orchestrator` |
+| migration | `ai-sdlc-copilot/migration-orchestrator` |
+| research | `ai-sdlc-copilot/research-orchestrator` |
 
 ---
 
@@ -139,14 +139,14 @@ Options:
 
 ```
 Use Skill tool:
-  skill: "ai-sdlc:[orchestrator-name]"
+  skill: "ai-sdlc-copilot/[orchestrator-name]"
   args: "--resume [task_path] [flags]"
 ```
 
 Examples:
-- Resume bug-fix: `skill: "ai-sdlc:development-orchestrator"` with `args: "--resume .ai-sdlc/tasks/bug-fixes/2025-10-23-fix"`
-- Restart feature: `skill: "ai-sdlc:development-orchestrator"` with `args: "--resume .ai-sdlc/tasks/new-features/2025-10-26-auth --from=verify"`
-- Fresh attempts: `skill: "ai-sdlc:migration-orchestrator"` with `args: "--resume .ai-sdlc/tasks/migrations/2025-10-20-redux --reset-attempts"`
+- Resume bug-fix: `skill: "ai-sdlc-copilot/development-orchestrator"` with `args: "--resume .ai-sdlc/tasks/bug-fixes/2025-10-23-fix"`
+- Restart feature: `skill: "ai-sdlc-copilot/development-orchestrator"` with `args: "--resume .ai-sdlc/tasks/new-features/2025-10-26-auth --from=verify"`
+- Fresh attempts: `skill: "ai-sdlc-copilot/migration-orchestrator"` with `args: "--resume .ai-sdlc/tasks/migrations/2025-10-20-redux --reset-attempts"`
 
 ### Step 3: Classify & Route New Task
 
@@ -156,7 +156,7 @@ Examples:
 
 ```
 Use Skill tool:
-  skill: "ai-sdlc:task-classifier"
+  skill: "ai-sdlc-copilot/task-classifier"
 
 The skill will:
 - Detect issue identifiers (GitHub, Jira)
@@ -183,15 +183,15 @@ Display:
   Routing to [task_type] workflow...
 
 Use Skill tool:
-  skill: "ai-sdlc:[orchestrator-name]"
+  skill: "ai-sdlc-copilot/[orchestrator-name]"
   args: "[description]"
 ```
 
 **Routing examples:**
-- bug-fix (92%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=bug Fix login timeout error"`
-- enhancement (88%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=enhancement Add filtering to user table"`
-- new-feature (85%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=feature Add user authentication"`
-- performance (95%): `skill: "ai-sdlc:performance-orchestrator"` with `args: "Optimize slow dashboard queries"`
+- bug-fix (92%): `skill: "ai-sdlc-copilot/development-orchestrator"` with `args: "--type=bug Fix login timeout error"`
+- enhancement (88%): `skill: "ai-sdlc-copilot/development-orchestrator"` with `args: "--type=enhancement Add filtering to user table"`
+- new-feature (85%): `skill: "ai-sdlc-copilot/development-orchestrator"` with `args: "--type=feature Add user authentication"`
+- performance (95%): `skill: "ai-sdlc-copilot/performance-orchestrator"` with `args: "Optimize slow dashboard queries"`
 
 ---
 
@@ -222,7 +222,7 @@ Display:
 "Task cancelled. You can:
 - Run /work again when ready
 - Use specific workflow commands directly:
-  /ai-sdlc:development:new, /ai-sdlc:performance:new, etc."
+  /ai-sdlc-copilot/development:new, /ai-sdlc-copilot/performance:new, etc."
 ```
 
 ---
@@ -231,12 +231,12 @@ Display:
 
 | Task Type | Skill | Args |
 |-----------|-------|------|
-| bug-fix | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
-| new-feature | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE]` |
-| enhancement | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE]` |
-| performance | `ai-sdlc:performance-orchestrator` | `--resume [path] [--from=PHASE]` |
-| migration | `ai-sdlc:migration-orchestrator` | `--resume [path] [--from=PHASE]` |
-| research | `ai-sdlc:research-orchestrator` | `--resume [path] [--from=PHASE]` |
+| bug-fix | `ai-sdlc-copilot/development-orchestrator` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
+| new-feature | `ai-sdlc-copilot/development-orchestrator` | `--resume [path] [--from=PHASE]` |
+| enhancement | `ai-sdlc-copilot/development-orchestrator` | `--resume [path] [--from=PHASE]` |
+| performance | `ai-sdlc-copilot/performance-orchestrator` | `--resume [path] [--from=PHASE]` |
+| migration | `ai-sdlc-copilot/migration-orchestrator` | `--resume [path] [--from=PHASE]` |
+| research | `ai-sdlc-copilot/research-orchestrator` | `--resume [path] [--from=PHASE]` |
 
 ---
 

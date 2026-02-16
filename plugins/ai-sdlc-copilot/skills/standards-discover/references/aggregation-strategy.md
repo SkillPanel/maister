@@ -60,3 +60,17 @@ Present each conflict to user with both sides and evidence.
 2. Medium confidence findings (individual review)
 3. Conflicts (resolution required)
 4. Low confidence findings (informational, skip option)
+
+## Presentation Format
+
+Before approval prompts, present a **full summary table** grouped by confidence level. Each finding row shows:
+
+- **Standard name** and **category**
+- **Confidence score** (numeric, 0-100)
+- **Sources** — all contributing sources listed (e.g., "config, code, docs"). This is key for user trust and decision-making.
+- **Brief description** (one line, truncated if needed)
+
+When drilling into individual findings (medium confidence, or user-requested drill-down), show:
+- Full description and examples (preferred/avoid patterns)
+- Evidence items with source attribution (which source provided each piece of evidence)
+- Confidence score breakdown: show points from each factor (source count, consistency, explicitness, evidence strength, PR boost) so user understands why the score is what it is

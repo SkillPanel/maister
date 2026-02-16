@@ -30,7 +30,7 @@ You are performing comprehensive production readiness analysis covering configur
 
 ```
 Use Task tool:
-  subagent_type: "ai-sdlc:production-readiness-checker"
+  subagent_type: "ai-sdlc-copilot/production-readiness-checker"
   description: "Production readiness check"
   prompt: |
     Verify production readiness at: [path from user or from AskUserQuestion]
@@ -53,17 +53,17 @@ The production-readiness-checker subagent will:
 
 **Example 1**: Check specific task for production
 ```
-User: /ai-sdlc:reviews:production-readiness .ai-sdlc/tasks/new-features/2025-10-24-payment-api/
+User: /ai-sdlc-copilot/reviews:production-readiness .ai-sdlc/tasks/new-features/2025-10-24-payment-api/
 ```
 
 **Example 2**: Check feature for staging
 ```
-User: /ai-sdlc:reviews:production-readiness src/features/notifications/ --target=staging
+User: /ai-sdlc-copilot/reviews:production-readiness src/features/notifications/ --target=staging
 ```
 
 **Example 3**: Comprehensive project check
 ```
-User: /ai-sdlc:reviews:production-readiness .
+User: /ai-sdlc-copilot/reviews:production-readiness .
 ```
 
 ## What to Expect

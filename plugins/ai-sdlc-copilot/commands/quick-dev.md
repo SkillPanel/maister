@@ -10,28 +10,28 @@ Implement a task directly without entering planning mode, while still applying p
 ## Usage
 
 ```bash
-/ai-sdlc:quick:dev [task description]
+/ai-sdlc-copilot/quick:dev [task description]
 ```
 
 ## Examples
 
 ```bash
-/ai-sdlc:quick:dev "Add a logout button to the navbar"
-/ai-sdlc:quick:dev "Fix the typo in the error message"
-/ai-sdlc:quick:dev "Update the API endpoint to accept JSON"
+/ai-sdlc-copilot/quick:dev "Add a logout button to the navbar"
+/ai-sdlc-copilot/quick:dev "Fix the typo in the error message"
+/ai-sdlc-copilot/quick:dev "Update the API endpoint to accept JSON"
 ```
 
 ---
 
 ## When to Use
 
-**Use `/ai-sdlc:quick:dev` when:**
+**Use `/ai-sdlc-copilot/quick:dev` when:**
 - Task is clear and well-defined
 - You know what needs to be done
 - No architectural decisions needed
 - Quick fixes, small features, or straightforward changes
 
-**Use `/ai-sdlc:quick:plan` instead when:**
+**Use `/ai-sdlc-copilot/quick:plan` instead when:**
 - Task scope is uncertain
 - Multiple implementation approaches possible
 - Architectural decisions required

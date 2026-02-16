@@ -270,7 +270,7 @@ Please:
 8. Ask clarification questions for ambiguous specifications
 9. Generate comprehensive audit report
 
-Save report to: verification/spec-audit.md
+Save report to: analysis/spec-audit.md
 
 Use Read, Grep, Glob, and Bash tools. Do NOT modify any files.
 Trust nothing, verify everything independently.

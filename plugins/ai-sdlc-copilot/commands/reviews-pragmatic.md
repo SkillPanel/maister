@@ -3,7 +3,7 @@ name: reviews-pragmatic
 description: Run pragmatic code review to detect over-engineering and ensure code matches project scale
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="ai-sdlc:code-quality-pragmatist" NOW. Pass the path to analyze in the prompt. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="ai-sdlc-copilot/code-quality-pragmatist" NOW. Pass the path to analyze in the prompt. Do not read files, explore code, or execute workflow steps yourself.
 
 You are running a pragmatic code review using the `code-quality-pragmatist` agent.
 
@@ -58,17 +58,17 @@ The code-quality-pragmatist agent will:
 
 **Example 1**: Review specific feature
 ```
-User: /ai-sdlc:reviews:pragmatic .ai-sdlc/tasks/new-features/2025-11-17-user-management/
+User: /ai-sdlc-copilot/reviews:pragmatic .ai-sdlc/tasks/new-features/2025-11-17-user-management/
 ```
 
 **Example 2**: Review source directory
 ```
-User: /ai-sdlc:reviews:pragmatic src/features/payments/
+User: /ai-sdlc-copilot/reviews:pragmatic src/features/payments/
 ```
 
 **Example 3**: Review specific file
 ```
-User: /ai-sdlc:reviews:pragmatic src/services/cache-service.ts
+User: /ai-sdlc-copilot/reviews:pragmatic src/services/cache-service.ts
 ```
 
 ## What to Expect

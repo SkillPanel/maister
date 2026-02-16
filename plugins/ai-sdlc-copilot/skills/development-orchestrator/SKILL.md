@@ -104,7 +104,7 @@ Use for **all development tasks**:
 
 **Purpose**: Comprehensive codebase exploration followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `ai-sdlc:codebase-analyzer`
+1. Skill tool - `ai-sdlc-copilot/codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use AskUserQuestion for max 5 critical clarifying questions
 4. Save clarifications to `analysis/clarifications.md`
@@ -121,7 +121,7 @@ Use for **all development tasks**:
 
 **Purpose**: Compare current vs desired state, then resolve scope/approach decisions
 **Execute**:
-1. Task tool - `ai-sdlc:gap-analyzer` subagent
+1. Task tool - `ai-sdlc-copilot/gap-analyzer` subagent
 2. Update state with gap analysis results
 
 **⛔ DECISION GATE** (mandatory — do NOT skip):
@@ -171,7 +171,7 @@ Use for **all development tasks**:
 ### Phase 4: UI Mockup Generation (Conditional)
 
 **Purpose**: Generate ASCII mockups showing UI integration
-**Execute**: Task tool - `ai-sdlc:ui-mockup-generator` subagent
+**Execute**: Task tool - `ai-sdlc-copilot/ui-mockup-generator` subagent
 **Output**: `analysis/ui-mockups.md`
 **State**: Update `phase_summaries.ui_mockups`
 
@@ -223,11 +223,11 @@ Use for **all development tasks**:
 
 **INVOKE NOW** — Task tool call:
 
-6. Task tool - `ai-sdlc:specification-creator` subagent
+6. Task tool - `ai-sdlc-copilot/specification-creator` subagent
 
 **Context to pass to subagent**: task_path, task_type, task_description, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md, vision.md, roadmap.md, tech-stack.md), risk_level, ui_heavy, scope_expanded, phase_summaries (codebase_analysis, gap_analysis, clarifications, scope_clarifications, ui_mockups), research_context (if any)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `ai-sdlc:specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you just invoke the Task tool with `ai-sdlc-copilot/specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 **Output**: `analysis/technical-clarifications.md` (conditional), `analysis/requirements.md`, `implementation/spec.md`
 **State**: Update `task_context.tech_clarified`, `task_context.architecture_decision`, `phase_summaries.specification`
@@ -244,7 +244,7 @@ Use for **all development tasks**:
 ### Phase 6: Specification Audit (Recommended)
 
 **Purpose**: Independent review of specification before implementation
-**Execute**: Task tool - `ai-sdlc:spec-auditor` subagent
+**Execute**: Task tool - `ai-sdlc-copilot/spec-auditor` subagent
 **Output**: `verification/spec-audit.md`
 **State**: Update `options.spec_audit_enabled`
 
@@ -271,13 +271,13 @@ Use for **all development tasks**:
 
 **INVOKE NOW** — Task tool call:
 
-**Execute**: Task tool - `ai-sdlc:implementation-planner` subagent
+**Execute**: Task tool - `ai-sdlc-copilot/implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md`
 **State**: Update task groups and dependencies
 
 **Context to pass to subagent**: task_path, task_type, task_description, phase_summaries (specification, gap_analysis, codebase_analysis), research_context (if any)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `ai-sdlc:implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you just invoke the Task tool with `ai-sdlc-copilot/implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 → Pause
 
@@ -289,7 +289,7 @@ Use for **all development tasks**:
 ### Phase 8: Implementation
 
 **Purpose**: Execute the implementation plan
-**Execute**: Skill tool - `ai-sdlc:implementation-plan-executor`
+**Execute**: Skill tool - `ai-sdlc-copilot/implementation-plan-executor`
 **Output**: Implemented code, `implementation/work-log.md`
 **State**: Update implementation progress
 
@@ -336,7 +336,7 @@ Use for **all development tasks**:
 
 **Purpose**: Comprehensive implementation verification with fix-then-reverify cycles
 **Execute**:
-1. Skill tool - `ai-sdlc:implementation-verifier`
+1. Skill tool - `ai-sdlc-copilot/implementation-verifier`
 2. If issues found: Fix trivial issues directly, AskUserQuestion for non-trivial
 3. Before re-verification: set `skip_test_suite: false` (code changed, tests must re-run)
 4. Re-verify after fixes (max 3 fix-then-reverify cycles)
@@ -353,7 +353,7 @@ Use for **all development tasks**:
 ### Phase 12: E2E Testing (Optional)
 
 **Purpose**: End-to-end browser testing with screenshots
-**Execute**: Task tool - `ai-sdlc:e2e-test-verifier` subagent
+**Execute**: Task tool - `ai-sdlc-copilot/e2e-test-verifier` subagent
 **Output**: `verification/e2e-verification-report.md`, screenshots
 **State**: Update E2E results
 
@@ -369,7 +369,7 @@ Use for **all development tasks**:
 ### Phase 13: User Documentation (Optional)
 
 **Purpose**: Generate user-facing documentation with screenshots
-**Execute**: Task tool - `ai-sdlc:user-docs-generator` subagent
+**Execute**: Task tool - `ai-sdlc-copilot/user-docs-generator` subagent
 **Output**: `documentation/user-guide.md`, screenshots
 **State**: Update docs generation status
 
@@ -508,7 +508,7 @@ When starting development from a completed research task, the orchestrator loads
 
 **Method 1: Research folder as sole argument** (recommended)
 ```
-/ai-sdlc:development:new .ai-sdlc/tasks/research/2026-01-12-oauth-research
+/ai-sdlc-copilot/development:new .ai-sdlc/tasks/research/2026-01-12-oauth-research
 ```
 The orchestrator auto-detects this is a research folder and:
 - Extracts task description from `research_context.research_question`
@@ -517,7 +517,7 @@ The orchestrator auto-detects this is a research folder and:
 
 **Method 2: Explicit --research flag**
 ```
-/ai-sdlc:development:new "Implement OAuth" --research=.ai-sdlc/tasks/research/2026-01-12-oauth-research
+/ai-sdlc-copilot/development:new "Implement OAuth" --research=.ai-sdlc/tasks/research/2026-01-12-oauth-research
 ```
 
 ### Research Artifacts (Standard List)
@@ -548,8 +548,8 @@ When research context is detected, read these files from the research folder:
 ## Command Integration
 
 Invoked via:
-- `/ai-sdlc:development:new [description] [--type=TYPE] [--yolo]`
-- `/ai-sdlc:development:resume [task-path] [--from=PHASE]`
+- `/ai-sdlc-copilot/development:new [description] [--type=TYPE] [--yolo]`
+- `/ai-sdlc-copilot/development:resume [task-path] [--from=PHASE]`
 
 ---
 

@@ -43,8 +43,8 @@ When in doubt, this is the priority order:
 ## AI SDLC Workflows
 
 This project uses the ai-sdlc plugin for structured development. Available orchestrators:
-- `/ai-sdlc:development:new` - Development workflow for features, enhancements, and bug fixes
-- `/ai-sdlc:migration:new` - Technology/platform migrations (with rollback planning)
+- `/ai-sdlc-copilot/development:new` - Development workflow for features, enhancements, and bug fixes
+- `/ai-sdlc-copilot/migration:new` - Technology/platform migrations (with rollback planning)
 
 All orchestrators read @.ai-sdlc/docs/INDEX.md continuously to apply project standards.
 Use interactive mode (default) or `--yolo` for continuous execution.

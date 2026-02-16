@@ -143,7 +143,7 @@ Write each file to `.ai-sdlc/docs/project/`.
 - Next steps:
   1. Review generated documentation
   2. Customize for your team
-  3. Run `/ai-sdlc:standards-discover` to discover existing coding standards
+  3. Run `/ai-sdlc-copilot/standards-discover` to discover existing coding standards
   4. Start development with `/work`
   5. Keep documentation current
 

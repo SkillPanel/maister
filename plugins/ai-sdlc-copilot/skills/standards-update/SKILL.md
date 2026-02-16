@@ -11,8 +11,8 @@ Update or create standards in `.ai-sdlc/docs/standards/` based on conversation c
 ## Usage
 
 ```bash
-/ai-sdlc:standards:update                                    # Detect from conversation
-/ai-sdlc:standards:update "always use React.memo for lists"  # From description
+/ai-sdlc-copilot/standards:update                                    # Detect from conversation
+/ai-sdlc-copilot/standards:update "always use React.memo for lists"  # From description
 ```
 
 ---
@@ -69,6 +69,8 @@ No user prompt needed — just inform: "Updating existing standard: [name]" or "
 ---
 
 ## PHASE 4: Apply via docs-manager
+
+> Each standard uses a `###` heading with 1-10 lines description (excluding code snippets). Multiple standards per topic file. Split large topics into sub-topic files.
 
 **Invoke docs-manager skill** via Skill tool with context:
 

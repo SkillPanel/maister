@@ -10,15 +10,15 @@ Enter Claude Code's planning mode for a task, with automatic discovery of projec
 ## Usage
 
 ```bash
-/ai-sdlc:quick:plan [task description]
+/ai-sdlc-copilot/quick:plan [task description]
 ```
 
 ## Examples
 
 ```bash
-/ai-sdlc:quick:plan "Add user authentication with email/password"
-/ai-sdlc:quick:plan "Refactor the payment processing module"
-/ai-sdlc:quick:plan
+/ai-sdlc-copilot/quick:plan "Add user authentication with email/password"
+/ai-sdlc-copilot/quick:plan "Refactor the payment processing module"
+/ai-sdlc-copilot/quick:plan
 ```
 
 ---

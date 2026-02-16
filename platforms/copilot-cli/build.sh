@@ -36,7 +36,13 @@ find "$OUT/commands" -name "*.md" | while read f; do
   sedi -e 's/^name: ai-sdlc:/name: /' -e 's/^\(name: [^:]*\):/\1-/g' "$f"
 done
 
-# 4. Transform multi-select patterns to sequential
+# 4. Replace ai-sdlc: subagent prefix with ai-sdlc-copilot/
+# Run AFTER command name transform (#3) so name: lines are already clean
+find "$OUT" -name "*.md" | while read f; do
+  sedi 's/ai-sdlc:/ai-sdlc-copilot\//g' "$f"
+done
+
+# 5. Transform multi-select patterns to sequential
 find "$OUT/skills" -name "*.md" | while read f; do
   sedi \
     -e 's/multi-select question/sequential single-select questions (one per option)/g' \
@@ -46,19 +52,19 @@ find "$OUT/skills" -name "*.md" | while read f; do
     "$f"
 done
 
-# 5. Replace CLAUDE.md references with copilot equivalents in skills
+# 6. Replace CLAUDE.md references with copilot equivalents in skills
 find "$OUT/skills" -name "*.md" | while read f; do
   sedi 's/CLAUDE\.md/.github\/copilot-instructions.md/g' "$f"
 done
 
-# 6. Add platform note to plugin's CLAUDE.md
+# 7. Add platform note to plugin's CLAUDE.md
 cat >> "$OUT/CLAUDE.md" << 'EOF'
 
 ## Platform: Copilot CLI
 
 This is the Copilot CLI variant. Key differences from Claude Code:
 - **No multi-select**: When asking users to select multiple options, ask sequential single-select questions instead
-- **Command names**: Use hyphens instead of colons (e.g., `/development-new` not `/ai-sdlc:development:new`)
+- **Command names**: Use hyphens instead of colons (e.g., `/development-new`)
 - **Project instructions file**: Use `.github/copilot-instructions.md` instead of `CLAUDE.md`. If the project uses `AGENTS.md`, support that as well.
 - **Commands directory**: All commands are flat (no subdirectories)
 EOF

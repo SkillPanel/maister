@@ -121,15 +121,37 @@ Display aggregation summary: total raw findings, unique standards, conflicts det
 
 ### Phase 7: User Review & Approval
 
-Present findings grouped by confidence level, highest first.
+**Step 1: Present full summary table** — Before any approval prompts, output ALL findings in a table grouped by confidence level. Each group has a header with count:
 
-**High confidence (>= 80%)**: Offer batch approval ("Apply all N") or individual review.
+```
+### High Confidence (>=80%) — 5 standards
 
-**Medium confidence (60-79%)**: Present each with evidence. Use AskUserQuestion with Accept/Modify/Skip options.
+| # | Standard | Category | Score | Sources | Description |
+|---|----------|----------|-------|---------|-------------|
+| 1 | no-semicolons | global | 92 | config, code, docs | Omit semicolons in all JS/TS files |
+| 2 | ... | ... | ... | ... | ... |
 
-**Low confidence (< threshold)**: Summarize briefly. Offer to show details or skip all.
+### Medium Confidence (60-79%) — 3 standards
+...
 
-**Conflicts**: Present each conflict with sources. Use AskUserQuestion to resolve.
+### Low Confidence (<60%) — 2 standards
+...
+
+### Conflicts — 1 detected
+| # | Standard | Conflict | Sources A | Sources B |
+```
+
+The **Sources** column lists all contributing sources for each finding (config, code, docs, PRs, CI, pre-commit). This gives users full visibility before making decisions.
+
+**Step 2: Approval flow** — After the summary table:
+
+- **High confidence (>= 80%)**: Use AskUserQuestion offering batch approval ("Apply all N high-confidence standards") or individual drill-down review. For drill-down, show full detail per finding: all evidence items with source attribution, examples (preferred/avoid), and confidence score breakdown (which factors contributed how many points).
+
+- **Medium confidence (60-79%)**: Present each individually with full detail (evidence, examples, confidence breakdown). Use AskUserQuestion with Accept/Modify/Skip options per finding.
+
+- **Low confidence (< threshold)**: Show the summary table rows only. Offer to expand details or skip all.
+
+- **Conflicts**: Present each conflict showing both sides with their evidence and sources. Use AskUserQuestion to resolve (pick side A, pick side B, skip, or custom).
 
 If `--auto-apply` is set, automatically approve findings with confidence >= 90% and only prompt for the rest.
 
@@ -137,13 +159,17 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 
 ### Phase 8: Application
 
+> **DELEGATION REQUIRED**: Do NOT write standard files directly using Write/Edit tools. ALL file operations MUST go through the `docs-manager` skill.
+>
+> **SELF-CHECK before each file operation**: "Am I about to write a file directly? STOP — invoke docs-manager instead."
+
 For each approved standard:
 
-1. **Generate content** — Standard name, description, examples (preferred/avoid), rationale from evidence, source citations
+1. **Prepare content** — Standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each standard as a `###` heading with 1-10 lines description (excluding code snippets). Group related standards into the same topic file. Add brief code examples only when they clarify the practice.
 2. **Check if file exists** — Determine create vs update action
-3. **Invoke docs-manager skill** — For creates: new file with content. For updates: merge new findings with existing
-4. **Regenerate INDEX.md** — Invoke docs-manager after all standards applied
-5. **Verify .github/copilot-instructions.md integration** — Ensure standards directory is referenced
+3. **Invoke `docs-manager` skill** — Pass prepared content. For creates: new file. For updates: merge new findings with existing. The docs-manager handles file writing, path conventions, and format consistency.
+4. **After all standards applied, invoke `docs-manager` skill** to regenerate INDEX.md
+5. **Invoke `docs-manager` skill** to verify .github/copilot-instructions.md integration — ensure standards directory is referenced
 
 Display application summary: created count, updated count, total active.
 
@@ -187,17 +213,17 @@ Display final results:
 
 ```bash
 # Full discovery (default)
-/ai-sdlc:standards-discover
+/ai-sdlc-copilot/standards-discover
 
 # Quick scan (config files only, ~30-60s)
-/ai-sdlc:standards-discover --scope=quick
+/ai-sdlc-copilot/standards-discover --scope=quick
 
 # Frontend standards only
-/ai-sdlc:standards-discover --scope=frontend
+/ai-sdlc-copilot/standards-discover --scope=frontend
 
 # High confidence, auto-apply
-/ai-sdlc:standards-discover --confidence=80 --auto-apply
+/ai-sdlc-copilot/standards-discover --confidence=80 --auto-apply
 
 # Skip external analysis (offline/no GitHub)
-/ai-sdlc:standards-discover --skip-external
+/ai-sdlc-copilot/standards-discover --skip-external
 ```

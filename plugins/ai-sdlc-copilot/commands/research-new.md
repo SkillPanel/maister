@@ -3,7 +3,7 @@ name: research-new
 description: Start a new research workflow with guided orchestration through all phases
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="ai-sdlc:research-orchestrator" NOW. Pass all arguments. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="ai-sdlc-copilot/research-orchestrator" NOW. Pass all arguments. Do not read files, explore code, or execute workflow steps yourself.
 
 # Research Workflow: New
 
@@ -12,7 +12,7 @@ Start comprehensive research to investigate a topic, analyze findings, and gener
 ## Usage
 
 ```bash
-/ai-sdlc:research:new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]
+/ai-sdlc-copilot/research:new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]
 ```
 
 ### Options
@@ -25,11 +25,11 @@ Start comprehensive research to investigate a topic, analyze findings, and gener
 ## Examples
 
 ```bash
-/ai-sdlc:research:new "How does authentication work in this codebase?"
-/ai-sdlc:research:new "Best practices for real-time notifications" --type=literature
-/ai-sdlc:research:new "Requirements for reporting feature" --yolo
-/ai-sdlc:research:new "Best architecture for notifications" --brainstorm
-/ai-sdlc:research:new "How does auth work?" --no-brainstorm
+/ai-sdlc-copilot/research:new "How does authentication work in this codebase?"
+/ai-sdlc-copilot/research:new "Best practices for real-time notifications" --type=literature
+/ai-sdlc-copilot/research:new "Requirements for reporting feature" --yolo
+/ai-sdlc-copilot/research:new "Best architecture for notifications" --brainstorm
+/ai-sdlc-copilot/research:new "How does auth work?" --no-brainstorm
 ```
 
 ## See Also

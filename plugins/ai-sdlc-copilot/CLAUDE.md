@@ -324,6 +324,7 @@ Target lengths for different documentation types:
 | Orchestrator sections (in CLAUDE.md) | 20-30 lines | Overview, key features, reference skill |
 | Reference files (in skills/) | <1,000 lines | Conceptual patterns, not implementations |
 | Agent files (in agents/) | 300-450 lines | Core mission, decision frameworks, workflow principles |
+| Individual standards (### sections in standard files) | 1-10 lines (excluding code snippets) | ### heading + description + optional code example. Multiple standards per topic file. |
 
 ### When Adding New Content
 
@@ -657,10 +658,10 @@ Commands invoke orchestrators and utilities. All orchestrators support `--yolo` 
 | Command | Usage | Purpose |
 |---------|-------|---------|
 | `/init-sdlc` | `/init-sdlc` | Initialize framework with project analysis and smart defaults for docs/standards |
-| `/ai-sdlc:standards:update` | `/ai-sdlc:standards:update [path]` | Update/create standards from conversation context |
-| `/ai-sdlc:standards-discover` | `/ai-sdlc:standards-discover [--scope=SCOPE]` | Discover standards from config files and code patterns |
+| `/ai-sdlc-copilot/standards:update` | `/ai-sdlc-copilot/standards:update [path]` | Update/create standards from conversation context |
+| `/ai-sdlc-copilot/standards-discover` | `/ai-sdlc-copilot/standards-discover [--scope=SCOPE]` | Discover standards from config files and code patterns |
 
-> **Note**: These are all skills (not commands). `/init-sdlc`, `/ai-sdlc:standards:update`, and `/ai-sdlc:standards-discover` invoke their respective skills which delegate file operations to the internal `docs-manager` skill.
+> **Note**: These are all skills (not commands). `/init-sdlc`, `/ai-sdlc-copilot/standards:update`, and `/ai-sdlc-copilot/standards-discover` invoke their respective skills which delegate file operations to the internal `docs-manager` skill.
 
 ### Workflow Commands
 
@@ -668,18 +669,18 @@ Commands invoke orchestrators and utilities. All orchestrators support `--yolo` 
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `/ai-sdlc:development:new` | `[desc] [--type=TYPE] [--yolo] [--e2e] [--user-docs] [--research=PATH]` | Start bug fix, enhancement, or new feature (auto-detected or `--type=bug\|enhancement\|feature`) |
-| `/ai-sdlc:development:resume` | `[path] [--from=PHASE] [--reset-attempts]` | Resume interrupted development workflow |
+| `/ai-sdlc-copilot/development:new` | `[desc] [--type=TYPE] [--yolo] [--e2e] [--user-docs] [--research=PATH]` | Start bug fix, enhancement, or new feature (auto-detected or `--type=bug\|enhancement\|feature`) |
+| `/ai-sdlc-copilot/development:resume` | `[path] [--from=PHASE] [--reset-attempts]` | Resume interrupted development workflow |
 
 **Task directories by type**: `.ai-sdlc/tasks/bug-fixes/`, `.ai-sdlc/tasks/enhancements/`, `.ai-sdlc/tasks/new-features/`
 
 **Research-Based Development**: Start development informed by a completed research workflow:
 ```bash
 # Auto-detect research folder (recommended)
-/ai-sdlc:development:new .ai-sdlc/tasks/research/2026-01-12-oauth-research
+/ai-sdlc-copilot/development:new .ai-sdlc/tasks/research/2026-01-12-oauth-research
 
 # Explicit --research flag
-/ai-sdlc:development:new "Implement OAuth" --research=.ai-sdlc/tasks/research/2026-01-12-oauth-research
+/ai-sdlc-copilot/development:new "Implement OAuth" --research=.ai-sdlc/tasks/research/2026-01-12-oauth-research
 ```
 Research context flows through ALL phases without skipping any. Research artifacts are copied to `analysis/research-context/` and summaries pass to every subagent via Pattern 7.
 
@@ -687,29 +688,29 @@ Research context flows through ALL phases without skipping any. Research artifac
 
 | Command | Usage | Task Directory |
 |---------|-------|----------------|
-| `/ai-sdlc:performance:new` | `[desc] [--yolo]` | `.ai-sdlc/tasks/performance/` |
-| `/ai-sdlc:performance:resume` | `[path] [--from=phase]` | |
-| `/ai-sdlc:migration:new` | `[desc] [--yolo] [--type=TYPE]` | `.ai-sdlc/tasks/migrations/` |
-| `/ai-sdlc:migration:resume` | `[path] [--from=phase]` | |
-| `/ai-sdlc:research:new` | `[question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]` | `.ai-sdlc/tasks/research/` |
-| `/ai-sdlc:research:resume` | `[path] [--from=phase]` | |
+| `/ai-sdlc-copilot/performance:new` | `[desc] [--yolo]` | `.ai-sdlc/tasks/performance/` |
+| `/ai-sdlc-copilot/performance:resume` | `[path] [--from=phase]` | |
+| `/ai-sdlc-copilot/migration:new` | `[desc] [--yolo] [--type=TYPE]` | `.ai-sdlc/tasks/migrations/` |
+| `/ai-sdlc-copilot/migration:resume` | `[path] [--from=phase]` | |
+| `/ai-sdlc-copilot/research:new` | `[question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]` | `.ai-sdlc/tasks/research/` |
+| `/ai-sdlc-copilot/research:resume` | `[path] [--from=phase]` | |
 
 ### Review & Audit Commands
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `/ai-sdlc:reviews:code` | `[path] [--scope=SCOPE]` | Automated code quality, security, performance analysis |
-| `/ai-sdlc:reviews:pragmatic` | `[path]` | Detect over-engineering, ensure code matches project scale |
-| `/ai-sdlc:reviews:spec-audit` | `[spec-path]` | Independent spec audit for completeness and clarity |
-| `/ai-sdlc:reviews:reality-check` | `[task-path]` | Validate work actually solves the problem |
-| `/ai-sdlc:reviews:production-readiness` | `[path] [--target=ENV]` | Pre-deployment verification with GO/NO-GO recommendation |
+| `/ai-sdlc-copilot/reviews:code` | `[path] [--scope=SCOPE]` | Automated code quality, security, performance analysis |
+| `/ai-sdlc-copilot/reviews:pragmatic` | `[path]` | Detect over-engineering, ensure code matches project scale |
+| `/ai-sdlc-copilot/reviews:spec-audit` | `[spec-path]` | Independent spec audit for completeness and clarity |
+| `/ai-sdlc-copilot/reviews:reality-check` | `[task-path]` | Validate work actually solves the problem |
+| `/ai-sdlc-copilot/reviews:production-readiness` | `[path] [--target=ENV]` | Pre-deployment verification with GO/NO-GO recommendation |
 
 ### Quick Commands
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `/ai-sdlc:quick:plan` | `[task description]` | Enter planning mode with standards awareness from INDEX.md |
-| `/ai-sdlc:quick:dev` | `[task description]` | Implement directly with standards awareness (no planning) |
+| `/ai-sdlc-copilot/quick:plan` | `[task description]` | Enter planning mode with standards awareness from INDEX.md |
+| `/ai-sdlc-copilot/quick:dev` | `[task description]` | Implement directly with standards awareness (no planning) |
 
 **See**: Individual `commands/*/` and `skills/*/skill.md` files for detailed documentation.
 
@@ -871,6 +872,6 @@ When implementing or modifying plugin features:
 
 This is the Copilot CLI variant. Key differences from Claude Code:
 - **No multi-select**: When asking users to select multiple options, ask sequential single-select questions instead
-- **Command names**: Use hyphens instead of colons (e.g., `/development-new` not `/ai-sdlc:development:new`)
+- **Command names**: Use hyphens instead of colons (e.g., `/development-new`)
 - **Project instructions file**: Use `.github/copilot-instructions.md` instead of `CLAUDE.md`. If the project uses `AGENTS.md`, support that as well.
 - **Commands directory**: All commands are flat (no subdirectories)

@@ -12,6 +12,8 @@ validate:
 	@test $$(find plugins/ai-sdlc-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
 	@echo "Checking no CLAUDE.md references in skills..."
 	@! grep -ri 'CLAUDE\.md' plugins/ai-sdlc-copilot/skills/ 2>/dev/null || (echo "FAIL: CLAUDE.md references found in skills" && exit 1)
+	@echo "Checking no ai-sdlc: subagent prefixes..."
+	@! grep -r 'ai-sdlc:' plugins/ai-sdlc-copilot/ --include="*.md" 2>/dev/null || (echo "FAIL: ai-sdlc: prefix found" && exit 1)
 	@echo "All checks passed"
 
 clean:
