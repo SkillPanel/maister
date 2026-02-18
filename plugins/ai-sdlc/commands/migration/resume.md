@@ -1,9 +1,9 @@
 ---
-name: ai-sdlc:migration:resume
+name: maister:migration-resume
 description: Resume an interrupted or failed migration workflow from where it left off
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="ai-sdlc:migration-orchestrator" NOW. Pass the task path and all arguments. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="maister:migration-orchestrator" NOW. Pass the task path and all arguments. Do not read files, explore code, or execute workflow steps yourself.
 
 # Migration Workflow: Resume
 
@@ -12,7 +12,7 @@ Resume an interrupted migration from where it left off.
 ## Usage
 
 ```bash
-/ai-sdlc:migration:resume [task-path] [--from=PHASE] [--reset-attempts]
+/maister:migration-resume [task-path] [--from=PHASE] [--reset-attempts]
 ```
 
 ### Options
@@ -23,12 +23,12 @@ Resume an interrupted migration from where it left off.
 ## Examples
 
 ```bash
-/ai-sdlc:migration:resume .ai-sdlc/tasks/migrations/2025-10-20-express-fastify
-/ai-sdlc:migration:resume --from=verify
-/ai-sdlc:migration:resume --reset-attempts
+/maister:migration-resume .maister/tasks/migrations/2025-10-20-express-fastify
+/maister:migration-resume --from=verify
+/maister:migration-resume --reset-attempts
 ```
 
 ## See Also
 
 - Workflow details: `skills/migration-orchestrator/skill.md`
-- Task output: `.ai-sdlc/tasks/migrations/YYYY-MM-DD-name/`
+- Task output: `.maister/tasks/migrations/YYYY-MM-DD-name/`

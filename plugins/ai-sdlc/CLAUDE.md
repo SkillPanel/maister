@@ -66,7 +66,7 @@ To avoid confusion, this plugin uses specific terminology:
 **Development Task** (or simply "Task")
 - The high-level work item: a bug fix, new feature, enhancement, refactoring, etc.
 - Represents the overall piece of work from start to finish
-- Located in: `.ai-sdlc/tasks/[type]/YYYY-MM-DD-task-name/`
+- Located in: `.maister/tasks/[type]/YYYY-MM-DD-task-name/`
 - Contains: specification, requirements, implementation plan, and verification results
 
 **Implementation Step** (or "Implementation Task")
@@ -172,13 +172,13 @@ For UI-heavy features/enhancements, the plugin can generate ASCII mockups:
 
 This plugin separates reference documentation from work items:
 
-**`.ai-sdlc/docs/`** - Reference documentation (stable)
+**`.maister/docs/`** - Reference documentation (stable)
 - Project vision, roadmap, tech stack
 - Coding standards and conventions
 - Architecture documentation
 - Read these to understand the project
 
-**`.ai-sdlc/tasks/`** - Work items (active, growing)
+**`.maister/tasks/`** - Work items (active, growing)
 - Individual development tasks
 - Feature implementations, bug fixes, etc.
 - Active work in progress
@@ -194,10 +194,10 @@ This plugin separates reference documentation from work items:
 
 ### Project Documentation Structure
 
-The ai-sdlc plugin uses this structure:
+The maister plugin uses this structure:
 
 ```
-.ai-sdlc/
+.maister/
 ├── docs/                         # Reference documentation (stable)
 │   ├── INDEX.md                 # Master index - READ THIS FIRST
 │   ├── project/                 # Project-level documentation
@@ -219,16 +219,16 @@ The ai-sdlc plugin uses this structure:
 ```
 
 **Core Principle**:
-- Reference documentation in `.ai-sdlc/docs/` is the source of truth for understanding the project
+- Reference documentation in `.maister/docs/` is the source of truth for understanding the project
 - Always read `docs/INDEX.md` first to understand available documentation and standards
-- Development tasks live separately in `.ai-sdlc/tasks/` for better organization and scalability
+- Development tasks live separately in `.maister/tasks/` for better organization and scalability
 
 ### Development Task Organization
 
-Development tasks are organized by type in `.ai-sdlc/tasks/` using type-based folders:
+Development tasks are organized by type in `.maister/tasks/` using type-based folders:
 
 ```
-.ai-sdlc/tasks/
+.maister/tasks/
 ├── new-features/
 │   └── YYYY-MM-DD-task-name/
 ├── bug-fixes/
@@ -290,9 +290,9 @@ Task types can add specialized subdirectories as needed (e.g., `analysis/bug-ana
 
 ### Integration
 
-- **Documentation Discovery**: Always read `.ai-sdlc/docs/INDEX.md` before starting work to understand project context
-- **Task Discovery**: Browse `.ai-sdlc/tasks/[type]/` to find development tasks by type
-- **Standards Compliance**: Follow standards from `.ai-sdlc/docs/standards/` during implementation
+- **Documentation Discovery**: Always read `.maister/docs/INDEX.md` before starting work to understand project context
+- **Task Discovery**: Browse `.maister/tasks/[type]/` to find development tasks by type
+- **Standards Compliance**: Follow standards from `.maister/docs/standards/` during implementation
 - **Task Tracking**: Task status, priority, tags, and time tracking are in the `task:` section of `orchestrator-state.yml`
 - **Activity Logging**: Record work in `implementation/work-log.md` for transparency
 
@@ -516,7 +516,7 @@ When creating new workflow orchestrators, ensure ALL of these elements are inclu
 ### Required Standards Integration
 
 7. **Standards Discovery**
-   Reference `.ai-sdlc/docs/INDEX.md` in these phases:
+   Reference `.maister/docs/INDEX.md` in these phases:
    - Phase 5 (Spec): Read INDEX.md before creating spec
    - Phase 7 (Plan): Ensure plan follows project conventions
    - Phase 8 (Implement): Continuous standards discovery
@@ -525,7 +525,7 @@ When creating new workflow orchestrators, ensure ALL of these elements are inclu
    Include reminder before these phases:
    ```
    📋 Standards Discovery
-   Reading .ai-sdlc/docs/INDEX.md to check applicable standards...
+   Reading .maister/docs/INDEX.md to check applicable standards...
    ```
 
 ### Required Verification Elements
@@ -597,8 +597,8 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 | `implementer` | Executes plans with **mandatory** standards reading (INDEX.md + implementation-plan.md Standards Compliance section + keyword-triggered) and **test step enforcement** (requires user approval to skip N.1 tests) | `skills/implementer/SKILL.md` |
 | `implementation-verifier` | Read-only QA orchestrator: delegates completeness checks, test execution, code review, and production readiness to specialized subagents; compiles results into verification report | `skills/implementation-verifier/SKILL.md` |
 | `standards-discover` | Parallel multi-source standards discovery (config, code, docs, PRs/CI) with confidence scoring | `skills/standards-discover/SKILL.md` |
-| `docs-manager` | Internal engine for doc file operations, INDEX.md generation, CLAUDE.md integration. Not user-invocable — called by init-sdlc, standards-update, standards-discover | `skills/docs-manager/skill.md` |
-| `init-sdlc` | Initialize `.ai-sdlc/docs/` with project analysis, documentation generation, and baseline standards | `skills/init-sdlc/SKILL.md` |
+| `docs-manager` | Internal engine for doc file operations, INDEX.md generation, CLAUDE.md integration. Not user-invocable — called by maister:init, standards-update, standards-discover | `skills/docs-manager/skill.md` |
+| `maister:init` | Initialize `.maister/docs/` with project analysis, documentation generation, and baseline standards | `skills/init/SKILL.md` |
 | `standards-update` | Update or create standards from conversation context or explicit input | `skills/standards-update/SKILL.md` |
 
 ### Orchestrator Framework
@@ -657,11 +657,11 @@ Commands invoke orchestrators and utilities. All orchestrators support `--yolo` 
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `/init-sdlc` | `/init-sdlc` | Initialize framework with project analysis and smart defaults for docs/standards |
-| `/ai-sdlc:standards:update` | `/ai-sdlc:standards:update [path]` | Update/create standards from conversation context |
-| `/ai-sdlc:standards-discover` | `/ai-sdlc:standards-discover [--scope=SCOPE]` | Discover standards from config files and code patterns |
+| `/maister:init` | `/maister:init` | Initialize framework with project analysis and smart defaults for docs/standards |
+| `/maister:standards-update` | `/maister:standards-update [path]` | Update/create standards from conversation context |
+| `/maister:standards-discover` | `/maister:standards-discover [--scope=SCOPE]` | Discover standards from config files and code patterns |
 
-> **Note**: These are all skills (not commands). `/init-sdlc`, `/ai-sdlc:standards:update`, and `/ai-sdlc:standards-discover` invoke their respective skills which delegate file operations to the internal `docs-manager` skill.
+> **Note**: These are all skills (not commands). `/maister:init`, `/maister:standards-update`, and `/maister:standards-discover` invoke their respective skills which delegate file operations to the internal `docs-manager` skill.
 
 ### Workflow Commands
 
@@ -669,18 +669,18 @@ Commands invoke orchestrators and utilities. All orchestrators support `--yolo` 
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `/ai-sdlc:development:new` | `[desc] [--type=TYPE] [--yolo] [--e2e] [--user-docs] [--research=PATH]` | Start bug fix, enhancement, or new feature (auto-detected or `--type=bug\|enhancement\|feature`) |
-| `/ai-sdlc:development:resume` | `[path] [--from=PHASE] [--reset-attempts]` | Resume interrupted development workflow |
+| `/maister:development-new` | `[desc] [--type=TYPE] [--yolo] [--e2e] [--user-docs] [--research=PATH]` | Start bug fix, enhancement, or new feature (auto-detected or `--type=bug\|enhancement\|feature`) |
+| `/maister:development-resume` | `[path] [--from=PHASE] [--reset-attempts]` | Resume interrupted development workflow |
 
-**Task directories by type**: `.ai-sdlc/tasks/bug-fixes/`, `.ai-sdlc/tasks/enhancements/`, `.ai-sdlc/tasks/new-features/`
+**Task directories by type**: `.maister/tasks/bug-fixes/`, `.maister/tasks/enhancements/`, `.maister/tasks/new-features/`
 
 **Research-Based Development**: Start development informed by a completed research workflow:
 ```bash
 # Auto-detect research folder (recommended)
-/ai-sdlc:development:new .ai-sdlc/tasks/research/2026-01-12-oauth-research
+/maister:development-new .maister/tasks/research/2026-01-12-oauth-research
 
 # Explicit --research flag
-/ai-sdlc:development:new "Implement OAuth" --research=.ai-sdlc/tasks/research/2026-01-12-oauth-research
+/maister:development-new "Implement OAuth" --research=.maister/tasks/research/2026-01-12-oauth-research
 ```
 Research context flows through ALL phases without skipping any. Research artifacts are copied to `analysis/research-context/` and summaries pass to every subagent via Pattern 7.
 
@@ -688,29 +688,29 @@ Research context flows through ALL phases without skipping any. Research artifac
 
 | Command | Usage | Task Directory |
 |---------|-------|----------------|
-| `/ai-sdlc:performance:new` | `[desc] [--yolo]` | `.ai-sdlc/tasks/performance/` |
-| `/ai-sdlc:performance:resume` | `[path] [--from=phase]` | |
-| `/ai-sdlc:migration:new` | `[desc] [--yolo] [--type=TYPE]` | `.ai-sdlc/tasks/migrations/` |
-| `/ai-sdlc:migration:resume` | `[path] [--from=phase]` | |
-| `/ai-sdlc:research:new` | `[question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]` | `.ai-sdlc/tasks/research/` |
-| `/ai-sdlc:research:resume` | `[path] [--from=phase]` | |
+| `/maister:performance-new` | `[desc] [--yolo]` | `.maister/tasks/performance/` |
+| `/maister:performance-resume` | `[path] [--from=phase]` | |
+| `/maister:migration-new` | `[desc] [--yolo] [--type=TYPE]` | `.maister/tasks/migrations/` |
+| `/maister:migration-resume` | `[path] [--from=phase]` | |
+| `/maister:research-new` | `[question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]` | `.maister/tasks/research/` |
+| `/maister:research-resume` | `[path] [--from=phase]` | |
 
 ### Review & Audit Commands
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `/ai-sdlc:reviews:code` | `[path] [--scope=SCOPE]` | Automated code quality, security, performance analysis |
-| `/ai-sdlc:reviews:pragmatic` | `[path]` | Detect over-engineering, ensure code matches project scale |
-| `/ai-sdlc:reviews:spec-audit` | `[spec-path]` | Independent spec audit for completeness and clarity |
-| `/ai-sdlc:reviews:reality-check` | `[task-path]` | Validate work actually solves the problem |
-| `/ai-sdlc:reviews:production-readiness` | `[path] [--target=ENV]` | Pre-deployment verification with GO/NO-GO recommendation |
+| `/maister:reviews-code` | `[path] [--scope=SCOPE]` | Automated code quality, security, performance analysis |
+| `/maister:reviews-pragmatic` | `[path]` | Detect over-engineering, ensure code matches project scale |
+| `/maister:reviews-spec-audit` | `[spec-path]` | Independent spec audit for completeness and clarity |
+| `/maister:reviews-reality-check` | `[task-path]` | Validate work actually solves the problem |
+| `/maister:reviews-production-readiness` | `[path] [--target=ENV]` | Pre-deployment verification with GO/NO-GO recommendation |
 
 ### Quick Commands
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `/ai-sdlc:quick:plan` | `[task description]` | Enter planning mode with standards awareness from INDEX.md |
-| `/ai-sdlc:quick:dev` | `[task description]` | Implement directly with standards awareness (no planning) |
+| `/maister:quick-plan` | `[task description]` | Enter planning mode with standards awareness from INDEX.md |
+| `/maister:quick-dev` | `[task description]` | Implement directly with standards awareness (no planning) |
 
 **See**: Individual `commands/*/` and `skills/*/skill.md` files for detailed documentation.
 
@@ -722,7 +722,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 
 | Agent | Purpose | Invoked By | Details |
 |-------|---------|------------|---------|
-| `project-analyzer` | Deep codebase analysis for tech stack, architecture, conventions | `/init-sdlc` | `agents/project-analyzer.md` |
+| `project-analyzer` | Deep codebase analysis for tech stack, architecture, conventions | `/maister:init` | `agents/project-analyzer.md` |
 | `task-classifier` | Classifies task descriptions into 6 types with confidence scoring | `/work` command | `agents/task-classifier.md` |
 | `gap-analyzer` | Compares current vs desired state with task-type support (bug/enhancement/feature) | development-orchestrator | `agents/gap-analyzer.md` |
 | `specification-creator` | Creates specs from gathered requirements with reusability search and self-verification | development-orchestrator, migration-orchestrator | `agents/specification-creator.md` |
@@ -822,7 +822,7 @@ This hook fires after context compaction and injects a reminder into Claude's co
 
 **Purpose**: Prevents interactive mode from being bypassed when Claude receives "continue without asking" instructions after compaction. The compacted context retains information about which task was being worked on, but may lose the explicit `mode: interactive` setting.
 
-**Logging**: Hook executions are logged to `~/.ai-sdlc-hooks.log` for debugging:
+**Logging**: Hook executions are logged to `~/.maister-hooks.log` for debugging:
 ```
 [2026-01-19 14:30:45] SessionStart(compact) | project=/Users/marek/myproject
 ```
@@ -862,7 +862,7 @@ Before working with this plugin, read the following up-to-date documentation:
 
 When implementing or modifying plugin features:
 1. **Current official documentation** (links above) - Always check for latest updates
-2. **Project-specific documentation** (this file and .ai-sdlc/docs/)
+2. **Project-specific documentation** (this file and .maister/docs/)
 3. **Code patterns** in this plugin's codebase
 4. **General best practices**
 

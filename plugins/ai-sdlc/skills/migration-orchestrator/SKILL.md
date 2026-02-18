@@ -25,7 +25,7 @@ Systematic migration workflow from current state analysis to verified migration 
 ### Step 2: Initialize Workflow
 
 1. **Create Task Items**: Use `TaskCreate` for all phases (see Phase Configuration), then set dependencies with `TaskUpdate addBlockedBy`
-2. **Create Task Directory**: `.ai-sdlc/tasks/migrations/YYYY-MM-DD-task-name/`
+2. **Create Task Directory**: `.maister/tasks/migrations/YYYY-MM-DD-task-name/`
 3. **Initialize State**: Create `orchestrator-state.yml` with mode and migration context
 
 **Output**:
@@ -94,7 +94,7 @@ Use for:
 
 **Purpose**: Comprehensive analysis of current system before migration, followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `ai-sdlc:codebase-analyzer`
+1. Skill tool - `maister:codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use AskUserQuestion for max 5 critical clarifying questions about migration scope, target system, and constraints
 4. Save clarifications to `analysis/clarifications.md`
@@ -110,7 +110,7 @@ Use for:
 ### Phase 2: Target State Planning & Gap Analysis
 
 **Purpose**: Define target system and identify migration gaps
-**Execute**: Task tool - `ai-sdlc:gap-analyzer` subagent
+**Execute**: Task tool - `maister:gap-analyzer` subagent
 **Output**: `analysis/target-state-plan.md`
 **State**: Update `migration_context.migration_type`, `target_system`, `risk_level`, `breaking_changes`
 
@@ -144,7 +144,7 @@ Use for:
 2. Save gathered requirements to `analysis/requirements.md`
 
 **Part B — Specification Creation (subagent)**:
-3. Task tool - `ai-sdlc:specification-creator` subagent
+3. Task tool - `maister:specification-creator` subagent
 
 **Context to pass to subagent**: task_path, task_type (migration), task_description, requirements_path (analysis/requirements.md), project_context_paths, migration_type, current_system, target_system, risk_level, breaking_changes, phase_summaries (current_state_analysis, gap_analysis)
 
@@ -163,7 +163,7 @@ Use for:
 ### Phase 4: Implementation Planning
 
 **Purpose**: Break migration into task groups with rollback steps
-**Execute**: Task tool - `ai-sdlc:implementation-planner` subagent
+**Execute**: Task tool - `maister:implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md` with rollback procedures
 **State**: Update task groups and dependencies
 
@@ -179,11 +179,11 @@ Use for:
 ### Phase 5: Migration Execution
 
 **Purpose**: Execute migration steps with incremental verification
-**Execute**: Skill tool - `ai-sdlc:implementer`
+**Execute**: Skill tool - `maister:implementer`
 **Output**: Implemented migration changes, `implementation/work-log.md`
 **State**: Update implementation progress
 
-**Standards Reminder**: Review `.ai-sdlc/docs/INDEX.md` before implementing.
+**Standards Reminder**: Review `.maister/docs/INDEX.md` before implementing.
 
 → Pause
 
@@ -195,7 +195,7 @@ Use for:
 ### Phase 6: Verification + Compatibility Testing
 
 **Purpose**: Verify migration success with compatibility and rollback testing
-**Execute**: Skill tool - `ai-sdlc:implementation-verifier`
+**Execute**: Skill tool - `maister:implementation-verifier`
 **Output**: `verification/implementation-verification.md`, `verification/compatibility-test-results.md`
 **State**: Update verification results
 
@@ -241,7 +241,7 @@ Use for:
 ### Phase 8: Documentation (Optional)
 
 **Purpose**: Create migration guide for end users
-**Execute**: Task tool - `ai-sdlc:user-docs-generator` subagent
+**Execute**: Task tool - `maister:user-docs-generator` subagent
 **Output**: `documentation/migration-guide.md`
 **State**: Set documentation complete
 
@@ -301,7 +301,7 @@ options:
 ## Task Structure
 
 ```
-.ai-sdlc/tasks/migrations/YYYY-MM-DD-migration-name/
+.maister/tasks/migrations/YYYY-MM-DD-migration-name/
 ├── orchestrator-state.yml
 ├── analysis/
 │   ├── current-state-analysis.md     # Phase 1
@@ -339,7 +339,7 @@ options:
 ## Command Integration
 
 Invoked via:
-- `/ai-sdlc:migration:new [description] [--yolo] [--type=TYPE]`
-- `/ai-sdlc:migration:resume [task-path] [--from=PHASE]`
+- `/maister:migration-new [description] [--yolo] [--type=TYPE]`
+- `/maister:migration-resume [task-path] [--from=PHASE]`
 
-Task directory: `.ai-sdlc/tasks/migrations/YYYY-MM-DD-task-name/`
+Task directory: `.maister/tasks/migrations/YYYY-MM-DD-task-name/`

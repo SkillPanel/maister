@@ -25,7 +25,7 @@ Systematic research workflow from question definition to evidence-based document
 ### Step 2: Initialize Workflow
 
 1. **Create Task Items**: Use `TaskCreate` for all phases (see Phase Configuration), then set dependencies with `TaskUpdate addBlockedBy`
-2. **Create Task Directory**: `.ai-sdlc/tasks/research/YYYY-MM-DD-task-name/`
+2. **Create Task Directory**: `.maister/tasks/research/YYYY-MM-DD-task-name/`
 3. **Initialize State**: Create `orchestrator-state.yml` with mode and research context
 
 **Output**:
@@ -130,7 +130,7 @@ This phase executes 4 sequential steps. On resume, check existing artifacts to s
 
 **Read `references/research-methodologies.md` NOW using the Read tool** — research type classification, methodology selection, gathering strategies
 
-**INVOKE NOW**: Use Task tool with `subagent_type: ai-sdlc:research-planner`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister:research-planner`
 
 **Context to pass**: task_path, research_brief_path, research_type, research_question, scope
 
@@ -161,7 +161,7 @@ For each category in strategy:
 **Artifacts**: `analysis/synthesis.md`, `outputs/research-report.md`
 **Resume check**: If `analysis/synthesis.md` AND `outputs/research-report.md` exist, skip (Phase 1 complete)
 
-**INVOKE NOW**: Use Task tool with `subagent_type: ai-sdlc:research-synthesizer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister:research-synthesizer`
 
 **Context to pass**: task_path, findings_directory_path, research_question, research_type, methodology
 
@@ -237,7 +237,7 @@ Update state: `research_context.confidence_level`
 
 > **ANTI-PATTERN**: Do NOT generate solution alternatives inline. The solution-brainstormer agent has specialized multi-perspective analysis capabilities.
 
-**INVOKE NOW**: Use Task tool with `subagent_type: ai-sdlc:solution-brainstormer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister:solution-brainstormer`
 
 **Context to pass** (Pattern 7):
 - `task_path`, `synthesis_path`, `research_report_path`
@@ -288,7 +288,7 @@ Update state: `research_context.confidence_level`
 
 > **ANTI-PATTERN**: Do NOT generate C4 architecture diagrams or ADRs inline. The solution-designer agent has specialized architecture and MADR documentation capabilities.
 
-**INVOKE NOW**: Use Task tool with `subagent_type: ai-sdlc:solution-designer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister:solution-designer`
 
 **Context to pass** (Pattern 7):
 - `task_path`, `solution_exploration_path`, `synthesis_path`, `research_report_path`
@@ -363,7 +363,7 @@ Update state: `research_context.confidence_level`
 
 **Process**:
 - For design artifacts: Save paths for parent orchestrator
-- For research report: Ask user where to reference in `.ai-sdlc/docs/`
+- For research report: Ask user where to reference in `.maister/docs/`
 
 → Conditional: if design artifacts exist continue to Phase 8, else complete workflow
 
@@ -389,7 +389,7 @@ AskUserQuestion:
 ```
 
 If user chooses "Start development":
-- Invoke Skill: `ai-sdlc:development:new [current-research-task-path]`
+- Invoke Skill: `maister:development-new [current-research-task-path]`
 
 → End of workflow
 
@@ -440,7 +440,7 @@ options:
 ## Task Structure
 
 ```
-.ai-sdlc/tasks/research/YYYY-MM-DD-research-name/
+.maister/tasks/research/YYYY-MM-DD-research-name/
 ├── orchestrator-state.yml
 ├── planning/
 │   ├── research-brief.md           # Phase 1, Step 1
@@ -488,7 +488,7 @@ options:
 
 ### As Standalone Research
 
-**Command**: `/ai-sdlc:research:new [research-question]`
+**Command**: `/maister:research-new [research-question]`
 **Flow**: Complete all phases, save outputs in task directory
 
 ### As Embedded Research Phase
@@ -516,12 +516,12 @@ research_outputs:
 ## Command Integration
 
 Invoked via:
-- `/ai-sdlc:research:new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]`
-- `/ai-sdlc:research:resume [task-path] [--from=PHASE]`
+- `/maister:research-new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]`
+- `/maister:research-resume [task-path] [--from=PHASE]`
 
 **Brainstorming flags**:
 - `--brainstorm`: Force brainstorming/design phases (auto-resolves Phase 2 to "enable")
 - `--no-brainstorm`: Skip brainstorming/design phases (auto-resolves Phase 2 to "skip")
 - Neither: Phase 2 presents recommendation and asks user
 
-Task directory: `.ai-sdlc/tasks/research/YYYY-MM-DD-task-name/`
+Task directory: `.maister/tasks/research/YYYY-MM-DD-task-name/`

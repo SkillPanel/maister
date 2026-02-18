@@ -1,37 +1,37 @@
 ---
-name: ai-sdlc:quick:dev
+name: maister:quick-dev
 description: Implement task directly with AI SDLC standards awareness (no planning mode)
 ---
 
 # Quick Development with Standards Awareness
 
-Implement a task directly without entering planning mode, while still applying project standards from `.ai-sdlc/docs/`.
+Implement a task directly without entering planning mode, while still applying project standards from `.maister/docs/`.
 
 ## Usage
 
 ```bash
-/ai-sdlc:quick:dev [task description]
+/maister:quick-dev [task description]
 ```
 
 ## Examples
 
 ```bash
-/ai-sdlc:quick:dev "Add a logout button to the navbar"
-/ai-sdlc:quick:dev "Fix the typo in the error message"
-/ai-sdlc:quick:dev "Update the API endpoint to accept JSON"
+/maister:quick-dev "Add a logout button to the navbar"
+/maister:quick-dev "Fix the typo in the error message"
+/maister:quick-dev "Update the API endpoint to accept JSON"
 ```
 
 ---
 
 ## When to Use
 
-**Use `/ai-sdlc:quick:dev` when:**
+**Use `/maister:quick-dev` when:**
 - Task is clear and well-defined
 - You know what needs to be done
 - No architectural decisions needed
 - Quick fixes, small features, or straightforward changes
 
-**Use `/ai-sdlc:quick:plan` instead when:**
+**Use `/maister:quick-plan` instead when:**
 - Task scope is uncertain
 - Multiple implementation approaches possible
 - Architectural decisions required
@@ -53,7 +53,7 @@ Implement a task directly without entering planning mode, while still applying p
 
 ### Step 2: Discover Standards
 
-**Check if `.ai-sdlc/docs/INDEX.md` exists:**
+**Check if `.maister/docs/INDEX.md` exists:**
 
 **If exists:**
 1. Read INDEX.md to discover available documentation and standards
@@ -65,7 +65,7 @@ Implement a task directly without entering planning mode, while still applying p
 
 **If not exists:**
 - Note that no standards are available
-- Suggest running `/init-sdlc` in completion message
+- Suggest running `/maister:init` in completion message
 
 ### Standards Reading Enforcement (MANDATORY)
 
@@ -116,7 +116,7 @@ Implement a task directly without entering planning mode, while still applying p
 ## What This Does
 
 1. **Parses** task description from user input
-2. **Discovers** applicable standards from `.ai-sdlc/docs/INDEX.md`
+2. **Discovers** applicable standards from `.maister/docs/INDEX.md`
 3. **READS** actual standard files (MANDATORY - not just INDEX.md)
 4. **Implements** directly without planning mode approval
 5. **Verifies** standards were followed
@@ -124,11 +124,11 @@ Implement a task directly without entering planning mode, while still applying p
 
 ## Graceful Fallback
 
-**If `.ai-sdlc/docs/` does not exist:**
+**If `.maister/docs/` does not exist:**
 
 Proceed with implementation normally, then note:
 
 ```
-"No AI SDLC standards found. Consider running `/init-sdlc` to initialize
+"No AI SDLC standards found. Consider running `/maister:init` to initialize
 project documentation and coding standards for better consistency."
 ```

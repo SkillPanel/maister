@@ -1,9 +1,9 @@
 ---
-name: ai-sdlc:reviews:reality-check
+name: maister:reviews-reality-check
 description: Comprehensive reality assessment of completed work to verify it actually works and is production-ready
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="ai-sdlc:reality-assessor" NOW. Pass the task path in the prompt. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="maister:reality-assessor" NOW. Pass the task path in the prompt. Do not read files, explore code, or execute workflow steps yourself.
 
 You are running a comprehensive reality check using the `reality-assessor` agent.
 
@@ -66,17 +66,17 @@ The reality-assessor agent will:
 
 **Example 1**: Reality check before deployment
 ```
-User: /ai-sdlc:reviews:reality-check .ai-sdlc/tasks/new-features/2025-11-17-payment-processing/
+User: /maister:reviews-reality-check .maister/tasks/new-features/2025-11-17-payment-processing/
 ```
 
 **Example 2**: Verify claimed completion
 ```
-User: /ai-sdlc:reviews:reality-check .ai-sdlc/tasks/bug-fixes/2025-11-17-login-timeout/
+User: /maister:reviews-reality-check .maister/tasks/bug-fixes/2025-11-17-login-timeout/
 ```
 
 **Example 3**: Production readiness check
 ```
-User: /ai-sdlc:reviews:reality-check .ai-sdlc/tasks/enhancements/2025-11-17-user-dashboard/ --production
+User: /maister:reviews-reality-check .maister/tasks/enhancements/2025-11-17-user-dashboard/ --production
 ```
 
 ## What to Expect

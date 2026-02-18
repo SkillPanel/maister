@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "aisdlc-plugins",
+  "name": "maister-plugins",
   "version": "2.0.0-beta.1",
   "description": "Bundled plugins for AI Driven SDLC",
   "owner": {
@@ -9,15 +9,15 @@
   },
   "plugins": [
     {
-      "name": "ai-sdlc",
+      "name": "maister",
       "description": "AI SDLC workflows with standards management (Claude Code)",
       "source": "./plugins/ai-sdlc",
       "category": "development"
     },
     {
-      "name": "ai-sdlc-copilot",
+      "name": "maister-copilot",
       "description": "AI SDLC workflows with standards management (GitHub Copilot CLI)",
-      "source": "./plugins/ai-sdlc-copilot",
+      "source": "./plugins/maister-copilot",
       "category": "development"
     }
   ]

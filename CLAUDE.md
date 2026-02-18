@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a Claude Code plugin marketplace repository containing bundled plugins for AI-driven SDLC workflows. The main plugin is `ai-sdlc` which provides structured development workflows.
+This is a Claude Code plugin marketplace repository containing bundled plugins for AI-driven SDLC workflows. The main plugin is `maister` which provides structured development workflows.
 
 ## Structure
 
@@ -59,6 +59,6 @@ This plugin follows specific documentation guidelines (see @plugins/ai-sdlc/CLAU
 ## Testing Changes
 
 1. Navigate to a test project
-2. Run `/init-sdlc` to initialize the framework
-3. Test commands like `/ai-sdlc:development:new "test feature"`
+2. Run `/maister:init` to initialize the framework
+3. Test commands like `/maister:development-new "test feature"`
 4. Use `--yolo` flag for continuous execution during testing

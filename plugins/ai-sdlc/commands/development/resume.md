@@ -1,9 +1,9 @@
 ---
-name: ai-sdlc:development:resume
+name: maister:development-resume
 description: Resume an interrupted or failed development workflow from where it left off
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="ai-sdlc:development-orchestrator" NOW. Pass the task path and all arguments. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="maister:development-orchestrator" NOW. Pass the task path and all arguments. Do not read files, explore code, or execute workflow steps yourself.
 
 # Development Workflow: Resume
 
@@ -12,7 +12,7 @@ Resume an interrupted development workflow from where it left off.
 ## Usage
 
 ```bash
-/ai-sdlc:development:resume [task-path] [--from=PHASE] [--reset-attempts]
+/maister:development-resume [task-path] [--from=PHASE] [--reset-attempts]
 ```
 
 ### Options
@@ -24,16 +24,16 @@ Resume an interrupted development workflow from where it left off.
 
 ```bash
 # Resume most recent incomplete task
-/ai-sdlc:development:resume
+/maister:development-resume
 
 # Resume specific task
-/ai-sdlc:development:resume .ai-sdlc/tasks/enhancements/2025-01-15-add-sorting/
+/maister:development-resume .maister/tasks/enhancements/2025-01-15-add-sorting/
 
 # Resume from specific phase
-/ai-sdlc:development:resume --from=implement
+/maister:development-resume --from=implement
 
 # Reset retry counters
-/ai-sdlc:development:resume --reset-attempts
+/maister:development-resume --reset-attempts
 ```
 
 ## See Also

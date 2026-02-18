@@ -24,7 +24,7 @@ Unified workflow for bug fixes, enhancements, and new features with task-type-sp
 
 ### Step 2: Detect Research Context
 
-**If argument is a research folder path** (matches `.ai-sdlc/tasks/research/*`):
+**If argument is a research folder path** (matches `.maister/tasks/research/*`):
 - Auto-detect research folder, extract task description from `research_context.research_question`
 - Read research artifacts (see Research-Based Development section below)
 - Set `research_reference` in state automatically
@@ -37,7 +37,7 @@ Unified workflow for bug fixes, enhancements, and new features with task-type-sp
 ### Step 3: Initialize Workflow
 
 1. **Create Task Items**: Use `TaskCreate` for all phases (see Phase Configuration), then set dependencies with `TaskUpdate addBlockedBy`
-2. **Create Task Directory**: `.ai-sdlc/tasks/[type]/YYYY-MM-DD-task-name/`
+2. **Create Task Directory**: `.maister/tasks/[type]/YYYY-MM-DD-task-name/`
 3. **Initialize State**: Create `orchestrator-state.yml` with mode, task info, and research reference
 
 **Output**:
@@ -69,9 +69,9 @@ Use for **all development tasks**:
 
 | Type | Keywords | Directory |
 |------|----------|-----------|
-| **Bug** | fix, bug, broken, error, crash | `.ai-sdlc/tasks/bug-fixes/` |
-| **Enhancement** | improve, enhance, better, update | `.ai-sdlc/tasks/enhancements/` |
-| **Feature** | add, new, create, build, implement | `.ai-sdlc/tasks/new-features/` |
+| **Bug** | fix, bug, broken, error, crash | `.maister/tasks/bug-fixes/` |
+| **Enhancement** | improve, enhance, better, update | `.maister/tasks/enhancements/` |
+| **Feature** | add, new, create, build, implement | `.maister/tasks/new-features/` |
 
 **Override**: Use `--type=bug|enhancement|feature` flag
 
@@ -104,7 +104,7 @@ Use for **all development tasks**:
 
 **Purpose**: Comprehensive codebase exploration followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `ai-sdlc:codebase-analyzer`
+1. Skill tool - `maister:codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use AskUserQuestion for max 5 critical clarifying questions
 4. Save clarifications to `analysis/clarifications.md`
@@ -121,7 +121,7 @@ Use for **all development tasks**:
 
 **Purpose**: Compare current vs desired state, then resolve scope/approach decisions
 **Execute**:
-1. Task tool - `ai-sdlc:gap-analyzer` subagent
+1. Task tool - `maister:gap-analyzer` subagent
 2. Update state with gap analysis results
 
 **⛔ DECISION GATE** (mandatory — do NOT skip):
@@ -171,7 +171,7 @@ Use for **all development tasks**:
 ### Phase 4: UI Mockup Generation (Conditional)
 
 **Purpose**: Generate ASCII mockups showing UI integration
-**Execute**: Task tool - `ai-sdlc:ui-mockup-generator` subagent
+**Execute**: Task tool - `maister:ui-mockup-generator` subagent
 **Output**: `analysis/ui-mockups.md`
 **State**: Update `phase_summaries.ui_mockups`
 
@@ -223,11 +223,11 @@ Use for **all development tasks**:
 
 **INVOKE NOW** — Task tool call:
 
-6. Task tool - `ai-sdlc:specification-creator` subagent
+6. Task tool - `maister:specification-creator` subagent
 
 **Context to pass to subagent**: task_path, task_type, task_description, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md, vision.md, roadmap.md, tech-stack.md), risk_level, ui_heavy, scope_expanded, phase_summaries (codebase_analysis, gap_analysis, clarifications, scope_clarifications, ui_mockups), research_context (if any)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `ai-sdlc:specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister:specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 **Output**: `analysis/technical-clarifications.md` (conditional), `analysis/requirements.md`, `implementation/spec.md`
 **State**: Update `task_context.tech_clarified`, `task_context.architecture_decision`, `phase_summaries.specification`
@@ -244,7 +244,7 @@ Use for **all development tasks**:
 ### Phase 6: Specification Audit (Recommended)
 
 **Purpose**: Independent review of specification before implementation
-**Execute**: Task tool - `ai-sdlc:spec-auditor` subagent
+**Execute**: Task tool - `maister:spec-auditor` subagent
 **Output**: `verification/spec-audit.md`
 **State**: Update `options.spec_audit_enabled`
 
@@ -271,13 +271,13 @@ Use for **all development tasks**:
 
 **INVOKE NOW** — Task tool call:
 
-**Execute**: Task tool - `ai-sdlc:implementation-planner` subagent
+**Execute**: Task tool - `maister:implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md`
 **State**: Update task groups and dependencies
 
 **Context to pass to subagent**: task_path, task_type, task_description, phase_summaries (specification, gap_analysis, codebase_analysis), research_context (if any)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `ai-sdlc:implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister:implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 → Pause
 
@@ -289,7 +289,7 @@ Use for **all development tasks**:
 ### Phase 8: Implementation
 
 **Purpose**: Execute the implementation plan
-**Execute**: Skill tool - `ai-sdlc:implementation-plan-executor`
+**Execute**: Skill tool - `maister:implementation-plan-executor`
 **Output**: Implemented code, `implementation/work-log.md`
 **State**: Update implementation progress
 
@@ -336,7 +336,7 @@ Use for **all development tasks**:
 
 **Purpose**: Comprehensive implementation verification with fix-then-reverify cycles
 **Execute**:
-1. Skill tool - `ai-sdlc:implementation-verifier`
+1. Skill tool - `maister:implementation-verifier`
 2. If issues found: Fix trivial issues directly, AskUserQuestion for non-trivial
 3. Before re-verification: set `skip_test_suite: false` (code changed, tests must re-run)
 4. Re-verify after fixes (max 3 fix-then-reverify cycles)
@@ -353,7 +353,7 @@ Use for **all development tasks**:
 ### Phase 12: E2E Testing (Optional)
 
 **Purpose**: End-to-end browser testing with screenshots
-**Execute**: Task tool - `ai-sdlc:e2e-test-verifier` subagent
+**Execute**: Task tool - `maister:e2e-test-verifier` subagent
 **Output**: `verification/e2e-verification-report.md`, screenshots
 **State**: Update E2E results
 
@@ -369,7 +369,7 @@ Use for **all development tasks**:
 ### Phase 13: User Documentation (Optional)
 
 **Purpose**: Generate user-facing documentation with screenshots
-**Execute**: Task tool - `ai-sdlc:user-docs-generator` subagent
+**Execute**: Task tool - `maister:user-docs-generator` subagent
 **Output**: `documentation/user-guide.md`, screenshots
 **State**: Update docs generation status
 
@@ -444,7 +444,7 @@ orchestrator:
 ## Task Structure
 
 ```
-.ai-sdlc/tasks/[type]/YYYY-MM-DD-task-name/
+.maister/tasks/[type]/YYYY-MM-DD-task-name/
 ├── orchestrator-state.yml
 ├── analysis/
 │   ├── research-context/          # If --research provided
@@ -508,7 +508,7 @@ When starting development from a completed research task, the orchestrator loads
 
 **Method 1: Research folder as sole argument** (recommended)
 ```
-/ai-sdlc:development:new .ai-sdlc/tasks/research/2026-01-12-oauth-research
+/maister:development-new .maister/tasks/research/2026-01-12-oauth-research
 ```
 The orchestrator auto-detects this is a research folder and:
 - Extracts task description from `research_context.research_question`
@@ -517,7 +517,7 @@ The orchestrator auto-detects this is a research folder and:
 
 **Method 2: Explicit --research flag**
 ```
-/ai-sdlc:development:new "Implement OAuth" --research=.ai-sdlc/tasks/research/2026-01-12-oauth-research
+/maister:development-new "Implement OAuth" --research=.maister/tasks/research/2026-01-12-oauth-research
 ```
 
 ### Research Artifacts (Standard List)
@@ -548,8 +548,8 @@ When research context is detected, read these files from the research folder:
 ## Command Integration
 
 Invoked via:
-- `/ai-sdlc:development:new [description] [--type=TYPE] [--yolo]`
-- `/ai-sdlc:development:resume [task-path] [--from=PHASE]`
+- `/maister:development-new [description] [--type=TYPE] [--yolo]`
+- `/maister:development-resume [task-path] [--from=PHASE]`
 
 ---
 

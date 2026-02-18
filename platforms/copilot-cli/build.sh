@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CORE="$ROOT/plugins/ai-sdlc"
-OUT="$ROOT/plugins/ai-sdlc-copilot"
+OUT="$ROOT/plugins/maister-copilot"
 
 # Cross-platform sed in-place (macOS needs '' arg, Linux doesn't)
 sedi() {
@@ -20,7 +20,7 @@ cp -r "$CORE" "$OUT"
 rm -rf "$OUT/hooks"
 
 # 1. Update plugin.json name
-sedi 's/"name": "ai-sdlc"/"name": "ai-sdlc-copilot"/' "$OUT/.claude-plugin/plugin.json"
+sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"
 
 # 2. Flatten commands: move all .md files from subdirs to commands/ root
 #    e.g. development/new.md → development-new.md
@@ -31,15 +31,15 @@ find "$OUT/commands" -mindepth 2 -name "*.md" | while read f; do
 done
 find "$OUT/commands" -mindepth 1 -type d -empty -delete
 
-# 3. Rename commands: strip "ai-sdlc:" prefix, replace remaining ":" with "-" in value only
+# 3. Rename commands: replace "maister:" prefix with "maister-"
 find "$OUT/commands" -name "*.md" | while read f; do
-  sedi -e 's/^name: ai-sdlc:/name: /' -e 's/^\(name: [^:]*\):/\1-/g' "$f"
+  sedi 's/^name: maister:/name: maister-/' "$f"
 done
 
-# 4. Replace ai-sdlc: subagent prefix with ai-sdlc-copilot/
+# 4. Replace maister: prefix with maister-copilot/ for subagent/skill refs
 # Run AFTER command name transform (#3) so name: lines are already clean
 find "$OUT" -name "*.md" | while read f; do
-  sedi 's/ai-sdlc:/ai-sdlc-copilot\//g' "$f"
+  sedi 's/maister:/maister-copilot\//g' "$f"
 done
 
 # 5. Transform multi-select patterns to sequential
@@ -64,7 +64,7 @@ cat >> "$OUT/CLAUDE.md" << 'EOF'
 
 This is the Copilot CLI variant. Key differences from Claude Code:
 - **No multi-select**: When asking users to select multiple options, ask sequential single-select questions instead
-- **Command names**: Use hyphens instead of colons (e.g., `/development-new`)
+- **Command names**: Use hyphens instead of colons (e.g., `/maister-development-new`)
 - **Project instructions file**: Use `.github/copilot-instructions.md` instead of `CLAUDE.md`. If the project uses `AGENTS.md`, support that as well.
 - **Commands directory**: All commands are flat (no subdirectories)
 EOF

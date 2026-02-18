@@ -14,7 +14,7 @@ Coding standards, conventions, and best practices organized by domain.
 
 ## Project Documentation
 
-Located in `.ai-sdlc/docs/project/`
+Located in `.maister/docs/project/`
 
 ### Vision (`project/vision.md`)
 Defines the project's mission, goals, target users, and long-term vision. Read this to understand the "why" behind the project and align development decisions with project objectives.
@@ -34,7 +34,7 @@ Describes the system architecture, component structure, data flow, and design pa
 
 ### Global Standards
 
-Located in `.ai-sdlc/docs/standards/global/`
+Located in `.maister/docs/standards/global/`
 
 These standards apply across the entire codebase, regardless of frontend/backend context.
 
@@ -60,7 +60,7 @@ No speculative code, no unused methods, no "just in case" abstractions, YAGNI pr
 
 ### Frontend Standards
 
-Located in `.ai-sdlc/docs/standards/frontend/`
+Located in `.maister/docs/standards/frontend/`
 
 These standards apply to frontend code (UI components, client-side logic, styling).
 
@@ -80,7 +80,7 @@ Breakpoint definitions, mobile-first approach, responsive layout patterns, touch
 
 ### Backend Standards
 
-Located in `.ai-sdlc/docs/standards/backend/`
+Located in `.maister/docs/standards/backend/`
 
 These standards apply to backend code (APIs, services, data layer).
 
@@ -100,7 +100,7 @@ Migration naming conventions, schema change patterns, data migration approach, r
 
 ### Testing Standards
 
-Located in `.ai-sdlc/docs/standards/testing/`
+Located in `.maister/docs/standards/testing/`
 
 These standards apply to all testing code (unit, integration, E2E).
 
@@ -160,7 +160,7 @@ Use the Documentation Manager skill to:
 
 When making development decisions, follow this priority order:
 
-1. **Project documentation** in `.ai-sdlc/docs/` (highest priority)
+1. **Project documentation** in `.maister/docs/` (highest priority)
    - Represents team decisions and project-specific requirements
 2. **Code patterns** visible in the codebase
    - Shows how the team actually implements things
@@ -169,7 +169,7 @@ When making development decisions, follow this priority order:
 4. **General best practices** (lowest priority)
    - Default to industry standards when no specific guidance exists
 
-**The documentation in `.ai-sdlc/docs/` represents team decisions and should be followed unless the user explicitly overrides them.**
+**The documentation in `.maister/docs/` represents team decisions and should be followed unless the user explicitly overrides them.**
 
 ---
 

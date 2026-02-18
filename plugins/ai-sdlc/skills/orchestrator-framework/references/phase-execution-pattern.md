@@ -98,7 +98,7 @@ For each phase:
 | Phase starting | `status: "in_progress"`, `activeForm` from Phase Configuration |
 | Phase completed | `status: "completed"`, `metadata: {completed_at, artifact_paths}` |
 | Phase skipped | `status: "completed"`, `metadata: {skipped: true, reason: "..."}` |
-| Phase delegated | `owner: "ai-sdlc:[skill-or-agent-name]"` |
+| Phase delegated | `owner: "maister:[skill-or-agent-name]"` |
 | Phase failed | Keep as `in_progress` (state file tracks failure details) |
 
 ---
@@ -129,7 +129,7 @@ Use the `Skill` tool:
 
 ```
 Use Skill tool:
-  skill: "ai-sdlc:[skill-name]"
+  skill: "maister:[skill-name]"
 ```
 
 **Skills**: `implementer`, `implementation-verifier`, `codebase-analyzer`, `docs-manager`
@@ -140,7 +140,7 @@ Use the `Task` tool with `subagent_type`:
 
 ```
 Use Task tool:
-  subagent_type: "ai-sdlc:[agent-name]"
+  subagent_type: "maister:[agent-name]"
   description: "[brief description]"
   prompt: "[detailed prompt]"
 ```
@@ -158,14 +158,14 @@ Use Task tool:
 
 ## Standards Discovery
 
-Before specification, planning, implementation, and verification phases, check `.ai-sdlc/docs/INDEX.md` for applicable standards:
+Before specification, planning, implementation, and verification phases, check `.maister/docs/INDEX.md` for applicable standards:
 
 ```
 📋 Standards Discovery
-Reading .ai-sdlc/docs/INDEX.md to check applicable standards...
+Reading .maister/docs/INDEX.md to check applicable standards...
 
 [If found] Applying: [list relevant standards]
-[If not found] No INDEX.md found. Consider running /ai-sdlc:init-sdlc.
+[If not found] No INDEX.md found. Consider running /maister:init.
 ```
 
 ---

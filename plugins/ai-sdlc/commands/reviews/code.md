@@ -1,5 +1,5 @@
 ---
-name: ai-sdlc:reviews:code
+name: maister:reviews-code
 description: Run automated code quality, security, and performance analysis on your code
 ---
 
@@ -31,7 +31,7 @@ You are performing automated code analysis to identify quality, security, and pe
 
 ```
 Use Task tool:
-  subagent_type: "ai-sdlc:code-reviewer"
+  subagent_type: "maister:code-reviewer"
   description: "Code quality review"
   prompt: |
     Analyze code at: [path from user or from AskUserQuestion]
@@ -52,17 +52,17 @@ The code-reviewer subagent will:
 
 **Example 1**: Review specific task
 ```
-User: /ai-sdlc:reviews:code .ai-sdlc/tasks/new-features/2025-10-24-auth/
+User: /maister:reviews-code .maister/tasks/new-features/2025-10-24-auth/
 ```
 
 **Example 2**: Review with specific scope
 ```
-User: /ai-sdlc:reviews:code src/api/ --scope=security
+User: /maister:reviews-code src/api/ --scope=security
 ```
 
 **Example 3**: Review entire project
 ```
-User: /ai-sdlc:reviews:code src/
+User: /maister:reviews-code src/
 ```
 
 ## What to Expect

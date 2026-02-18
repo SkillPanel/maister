@@ -250,7 +250,7 @@ Return your analysis in the conversation response (do NOT create files):
 1. **Structured JSON block**: Machine-readable analysis for downstream phases
 2. **Markdown summary**: Human-readable overview for user review
 
-**IMPORTANT**: Do NOT write any files to disk. The init-sdlc command will use your returned analysis to generate proper documentation in `.ai-sdlc/docs/`.
+**IMPORTANT**: Do NOT write any files to disk. The maister:init command will use your returned analysis to generate proper documentation in `.maister/docs/`.
 
 ---
 
@@ -353,6 +353,6 @@ Before returning your analysis, verify:
 5. Identify conventions (naming, organization, documentation)
 6. Generate structured report (JSON + markdown)
 
-**Output**: Return structured analysis (JSON + markdown) in your response. Do NOT create files - the calling command handles file creation in `.ai-sdlc/docs/`.
+**Output**: Return structured analysis (JSON + markdown) in your response. Do NOT create files - the calling command handles file creation in `.maister/docs/`.
 
 **Remember**: You are an analyzer, not a modifier. Read, analyze, return results in conversation. All findings must be evidence-based.

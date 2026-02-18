@@ -60,7 +60,7 @@ You are an implementer that executes implementation plans with continuous standa
 
 **Before each task group**:
 - `TaskUpdate` the group's task to `in_progress`
-- Set `owner` to the executing agent (e.g., `"ai-sdlc:task-group-implementer"` in delegated mode, `"ai-sdlc:implementer"` in direct mode)
+- Set `owner` to the executing agent (e.g., `"maister:task-group-implementer"` in delegated mode, `"maister:implementer"` in direct mode)
 
 **Before each step**:
 1. Re-check docs/INDEX.md for newly relevant standards

@@ -1,9 +1,9 @@
 ---
-name: ai-sdlc:research:new
+name: maister:research-new
 description: Start a new research workflow with guided orchestration through all phases
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="ai-sdlc:research-orchestrator" NOW. Pass all arguments. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Skill tool with skill="maister:research-orchestrator" NOW. Pass all arguments. Do not read files, explore code, or execute workflow steps yourself.
 
 # Research Workflow: New
 
@@ -12,7 +12,7 @@ Start comprehensive research to investigate a topic, analyze findings, and gener
 ## Usage
 
 ```bash
-/ai-sdlc:research:new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]
+/maister:research-new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]
 ```
 
 ### Options
@@ -25,14 +25,14 @@ Start comprehensive research to investigate a topic, analyze findings, and gener
 ## Examples
 
 ```bash
-/ai-sdlc:research:new "How does authentication work in this codebase?"
-/ai-sdlc:research:new "Best practices for real-time notifications" --type=literature
-/ai-sdlc:research:new "Requirements for reporting feature" --yolo
-/ai-sdlc:research:new "Best architecture for notifications" --brainstorm
-/ai-sdlc:research:new "How does auth work?" --no-brainstorm
+/maister:research-new "How does authentication work in this codebase?"
+/maister:research-new "Best practices for real-time notifications" --type=literature
+/maister:research-new "Requirements for reporting feature" --yolo
+/maister:research-new "Best architecture for notifications" --brainstorm
+/maister:research-new "How does auth work?" --no-brainstorm
 ```
 
 ## See Also
 
 - Workflow details: `skills/research-orchestrator/skill.md`
-- Task output: `.ai-sdlc/tasks/research/YYYY-MM-DD-name/`
+- Task output: `.maister/tasks/research/YYYY-MM-DD-name/`

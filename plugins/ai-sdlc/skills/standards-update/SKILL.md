@@ -6,13 +6,13 @@ argument-hint: "[description of standard/convention]"
 
 # Update Project Standards
 
-Update or create standards in `.ai-sdlc/docs/standards/` based on conversation context or a provided description. Automatically detects the best-matching category and file. Supports both baseline categories (global, frontend, backend, testing) and custom user-defined categories.
+Update or create standards in `.maister/docs/standards/` based on conversation context or a provided description. Automatically detects the best-matching category and file. Supports both baseline categories (global, frontend, backend, testing) and custom user-defined categories.
 
 ## Usage
 
 ```bash
-/ai-sdlc:standards:update                                    # Detect from conversation
-/ai-sdlc:standards:update "always use React.memo for lists"  # From description
+/maister:standards-update                                    # Detect from conversation
+/maister:standards-update "always use React.memo for lists"  # From description
 ```
 
 ---
@@ -25,7 +25,7 @@ Update or create standards in `.ai-sdlc/docs/standards/` based on conversation c
 
 **Step 2: Discover existing categories and files**
 
-Scan `.ai-sdlc/docs/standards/*/` to find all existing categories and standard files. This determines what's available — not limited to baseline categories.
+Scan `.maister/docs/standards/*/` to find all existing categories and standard files. This determines what's available — not limited to baseline categories.
 
 **Step 3: Match to category and file**
 
@@ -95,4 +95,4 @@ Wait for completion.
 
 ## Prerequisites
 
-If `.ai-sdlc/docs/` doesn't exist, offer to run `/init-sdlc` first.
+If `.maister/docs/` doesn't exist, offer to run `/maister:init` first.

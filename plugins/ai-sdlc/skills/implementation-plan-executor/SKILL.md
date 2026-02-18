@@ -42,7 +42,7 @@ You are an implementation plan executor that runs implementation plans with adap
 2. **Validate files exist**:
    - `implementation/implementation-plan.md` (required)
    - `implementation/spec.md` (recommended)
-   - `.ai-sdlc/docs/INDEX.md` (required for standards)
+   - `.maister/docs/INDEX.md` (required for standards)
 3. **Count steps** in implementation-plan.md
 4. **Select mode**: ≤5 → Direct, 6+ → Delegated
 5. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (fallback for plans created before task system migration).
@@ -72,7 +72,7 @@ Execute each task group yourself, following these steps:
 
 For each task group:
 
-0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "ai-sdlc:implementer"`
+0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "maister:implementer"`
 
 1. **Load standards for THIS group**:
    - Check "Standards Compliance" in implementation-plan.md — identify which listed standards apply to this group
@@ -105,7 +105,7 @@ For each task group:
 
 For each task group:
 
-0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "ai-sdlc:task-group-implementer"`
+0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "maister:task-group-implementer"`
 
 1. **Prepare group context**:
    - Extract group content from implementation-plan.md
@@ -114,7 +114,7 @@ For each task group:
    - Get relevant spec sections
 
 2. **Invoke task-group-implementer subagent via Task tool**:
-   - subagent_type: `ai-sdlc:task-group-implementer`
+   - subagent_type: `maister:task-group-implementer`
    - prompt: Include group content, initial standards, INDEX.md path, spec excerpt
    - See "Subagent Invocation" section for full prompt template
 
@@ -144,7 +144,7 @@ For each task group:
 
 1. **Implementation Plan Standards**: The "Standards Compliance" section in implementation-plan.md lists standards identified during planning. Filter these per task group based on relevance.
 
-2. **INDEX.md Discovery**: The file `.ai-sdlc/docs/INDEX.md` maps topics to standard files. Use it to find standards not listed in the plan.
+2. **INDEX.md Discovery**: The file `.maister/docs/INDEX.md` maps topics to standard files. Use it to find standards not listed in the plan.
 
 3. **Keyword-Triggered Discovery**: During execution, step descriptions may reveal need for additional standards.
 
@@ -188,17 +188,17 @@ Per task group:
 
 ### Group 1: [Name]
 **From Implementation Plan**:
-- [x] .ai-sdlc/docs/standards/backend/api.md - Listed in Standards Compliance
+- [x] .maister/docs/standards/backend/api.md - Listed in Standards Compliance
 
 **From INDEX.md**:
-- [x] .ai-sdlc/docs/standards/global/naming.md - Group topic match
+- [x] .maister/docs/standards/global/naming.md - Group topic match
 
 **Discovered During Execution**:
-- [x] .ai-sdlc/docs/standards/global/security.md - Step 1.3 (auth-related logic)
+- [x] .maister/docs/standards/global/security.md - Step 1.3 (auth-related logic)
 
 ### Group 2: [Name]
 **From Implementation Plan**:
-- [x] .ai-sdlc/docs/standards/frontend/forms.md - Listed in Standards Compliance
+- [x] .maister/docs/standards/frontend/forms.md - Listed in Standards Compliance
 ```
 
 ## Subagent Invocation
@@ -221,7 +221,7 @@ Identify which are relevant to this group and read them:
 - [path/to/standard2.md] - [likely relevant because...]
 
 ### Standards Discovery
-You have access to `.ai-sdlc/docs/INDEX.md` for continuous standards discovery.
+You have access to `.maister/docs/INDEX.md` for continuous standards discovery.
 - Check INDEX.md for additional standards matching this group's topic
 - During implementation, discover more standards as step context reveals needs
 - Do not limit discovery to explicit keyword matches - use judgment
@@ -252,13 +252,13 @@ The task-group-implementer returns structured output:
 
 ### Standards Applied
 **From Implementation Plan**:
-- .ai-sdlc/docs/standards/backend/api.md
+- .maister/docs/standards/backend/api.md
 
 **From INDEX.md** (group topic):
-- .ai-sdlc/docs/standards/global/naming.md
+- .maister/docs/standards/global/naming.md
 
 **Discovered During Execution**:
-- .ai-sdlc/docs/standards/global/error-handling.md (step N.2, error handling logic)
+- .maister/docs/standards/global/error-handling.md (step N.2, error handling logic)
 
 ### Test Results
 **Command**: [test command run]

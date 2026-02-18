@@ -1,9 +1,9 @@
 ---
-name: ai-sdlc:reviews:pragmatic
+name: maister:reviews-pragmatic
 description: Run pragmatic code review to detect over-engineering and ensure code matches project scale
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="ai-sdlc:code-quality-pragmatist" NOW. Pass the path to analyze in the prompt. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="maister:code-quality-pragmatist" NOW. Pass the path to analyze in the prompt. Do not read files, explore code, or execute workflow steps yourself.
 
 You are running a pragmatic code review using the `code-quality-pragmatist` agent.
 
@@ -31,7 +31,7 @@ Task Tool:
     You are the code-quality-pragmatist agent. Review the code at: [path]
 
     Your task:
-    1. Assess overall complexity relative to project scale (check .ai-sdlc/docs/project/ for scale)
+    1. Assess overall complexity relative to project scale (check .maister/docs/project/ for scale)
     2. Detect over-engineering patterns (infrastructure overkill, excessive abstraction, enterprise patterns in simple code)
     3. Assess developer experience (setup complexity, feedback loops, error messages, consistency)
     4. Verify requirements alignment (if spec.md available, compare implementation to requirements)
@@ -58,17 +58,17 @@ The code-quality-pragmatist agent will:
 
 **Example 1**: Review specific feature
 ```
-User: /ai-sdlc:reviews:pragmatic .ai-sdlc/tasks/new-features/2025-11-17-user-management/
+User: /maister:reviews-pragmatic .maister/tasks/new-features/2025-11-17-user-management/
 ```
 
 **Example 2**: Review source directory
 ```
-User: /ai-sdlc:reviews:pragmatic src/features/payments/
+User: /maister:reviews-pragmatic src/features/payments/
 ```
 
 **Example 3**: Review specific file
 ```
-User: /ai-sdlc:reviews:pragmatic src/services/cache-service.ts
+User: /maister:reviews-pragmatic src/services/cache-service.ts
 ```
 
 ## What to Expect

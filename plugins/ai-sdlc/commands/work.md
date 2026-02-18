@@ -1,5 +1,5 @@
 ---
-name: ai-sdlc:work
+name: maister:work
 description: Unified entry point - auto-classifies tasks and routes to appropriate workflow
 ---
 
@@ -19,7 +19,7 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 
 | Input Type | Example |
 |------------|---------|
-| Task folder path | `.ai-sdlc/tasks/bug-fixes/2025-10-23-login-timeout` |
+| Task folder path | `.maister/tasks/bug-fixes/2025-10-23-login-timeout` |
 | Folder name only | `2025-10-26-user-auth` (searches all task types) |
 | Task description | `"Fix login timeout error on mobile"` |
 | GitHub issue | `#456`, `GH-456`, `https://github.com/owner/repo/issues/456` |
@@ -30,7 +30,7 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 
 ```bash
 # Resume existing task
-/work ".ai-sdlc/tasks/bug-fixes/2025-10-23-login-timeout"
+/work ".maister/tasks/bug-fixes/2025-10-23-login-timeout"
 /work "2025-10-26-user-auth"
 
 # New task (auto-classifies)
@@ -53,12 +53,12 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 
 | Classification | Routes To (Skill) |
 |----------------|-------------------|
-| bug-fix | `ai-sdlc:development-orchestrator` (task_type=bug) |
-| new-feature | `ai-sdlc:development-orchestrator` (task_type=feature) |
-| enhancement | `ai-sdlc:development-orchestrator` (task_type=enhancement) |
-| performance | `ai-sdlc:performance-orchestrator` |
-| migration | `ai-sdlc:migration-orchestrator` |
-| research | `ai-sdlc:research-orchestrator` |
+| bug-fix | `maister:development-orchestrator` (task_type=bug) |
+| new-feature | `maister:development-orchestrator` (task_type=feature) |
+| enhancement | `maister:development-orchestrator` (task_type=enhancement) |
+| performance | `maister:performance-orchestrator` |
+| migration | `maister:migration-orchestrator` |
+| research | `maister:research-orchestrator` |
 
 ---
 
@@ -69,8 +69,8 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 **Check if input is an existing task folder:**
 
 1. Try path as-is (absolute path)
-2. Try prepending `.ai-sdlc/` (relative path)
-3. Search `.ai-sdlc/tasks/*/` for folder name match
+2. Try prepending `.maister/` (relative path)
+3. Search `.maister/tasks/*/` for folder name match
 
 **If folder exists AND contains `orchestrator-state.yml`:**
 - Go to **Step 2: Resume Existing Task**
@@ -139,14 +139,14 @@ Options:
 
 ```
 Use Skill tool:
-  skill: "ai-sdlc:[orchestrator-name]"
+  skill: "maister:[orchestrator-name]"
   args: "--resume [task_path] [flags]"
 ```
 
 Examples:
-- Resume bug-fix: `skill: "ai-sdlc:development-orchestrator"` with `args: "--resume .ai-sdlc/tasks/bug-fixes/2025-10-23-fix"`
-- Restart feature: `skill: "ai-sdlc:development-orchestrator"` with `args: "--resume .ai-sdlc/tasks/new-features/2025-10-26-auth --from=verify"`
-- Fresh attempts: `skill: "ai-sdlc:migration-orchestrator"` with `args: "--resume .ai-sdlc/tasks/migrations/2025-10-20-redux --reset-attempts"`
+- Resume bug-fix: `skill: "maister:development-orchestrator"` with `args: "--resume .maister/tasks/bug-fixes/2025-10-23-fix"`
+- Restart feature: `skill: "maister:development-orchestrator"` with `args: "--resume .maister/tasks/new-features/2025-10-26-auth --from=verify"`
+- Fresh attempts: `skill: "maister:migration-orchestrator"` with `args: "--resume .maister/tasks/migrations/2025-10-20-redux --reset-attempts"`
 
 ### Step 3: Classify & Route New Task
 
@@ -156,7 +156,7 @@ Examples:
 
 ```
 Use Skill tool:
-  skill: "ai-sdlc:task-classifier"
+  skill: "maister:task-classifier"
 
 The skill will:
 - Detect issue identifiers (GitHub, Jira)
@@ -183,15 +183,15 @@ Display:
   Routing to [task_type] workflow...
 
 Use Skill tool:
-  skill: "ai-sdlc:[orchestrator-name]"
+  skill: "maister:[orchestrator-name]"
   args: "[description]"
 ```
 
 **Routing examples:**
-- bug-fix (92%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=bug Fix login timeout error"`
-- enhancement (88%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=enhancement Add filtering to user table"`
-- new-feature (85%): `skill: "ai-sdlc:development-orchestrator"` with `args: "--type=feature Add user authentication"`
-- performance (95%): `skill: "ai-sdlc:performance-orchestrator"` with `args: "Optimize slow dashboard queries"`
+- bug-fix (92%): `skill: "maister:development-orchestrator"` with `args: "--type=bug Fix login timeout error"`
+- enhancement (88%): `skill: "maister:development-orchestrator"` with `args: "--type=enhancement Add filtering to user table"`
+- new-feature (85%): `skill: "maister:development-orchestrator"` with `args: "--type=feature Add user authentication"`
+- performance (95%): `skill: "maister:performance-orchestrator"` with `args: "Optimize slow dashboard queries"`
 
 ---
 
@@ -222,7 +222,7 @@ Display:
 "Task cancelled. You can:
 - Run /work again when ready
 - Use specific workflow commands directly:
-  /ai-sdlc:development:new, /ai-sdlc:performance:new, etc."
+  /maister:development-new, /maister:performance-new, etc."
 ```
 
 ---
@@ -231,12 +231,12 @@ Display:
 
 | Task Type | Skill | Args |
 |-----------|-------|------|
-| bug-fix | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
-| new-feature | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE]` |
-| enhancement | `ai-sdlc:development-orchestrator` | `--resume [path] [--from=PHASE]` |
-| performance | `ai-sdlc:performance-orchestrator` | `--resume [path] [--from=PHASE]` |
-| migration | `ai-sdlc:migration-orchestrator` | `--resume [path] [--from=PHASE]` |
-| research | `ai-sdlc:research-orchestrator` | `--resume [path] [--from=PHASE]` |
+| bug-fix | `maister:development-orchestrator` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
+| new-feature | `maister:development-orchestrator` | `--resume [path] [--from=PHASE]` |
+| enhancement | `maister:development-orchestrator` | `--resume [path] [--from=PHASE]` |
+| performance | `maister:performance-orchestrator` | `--resume [path] [--from=PHASE]` |
+| migration | `maister:migration-orchestrator` | `--resume [path] [--from=PHASE]` |
+| research | `maister:research-orchestrator` | `--resume [path] [--from=PHASE]` |
 
 ---
 
@@ -260,8 +260,8 @@ After classification/detection, this command routes to the appropriate orchestra
 ### With Project Documentation
 
 Uses project documentation for context:
-- `.ai-sdlc/docs/INDEX.md` - Project overview and standards
-- `.ai-sdlc/tasks/` - Existing task directories
+- `.maister/docs/INDEX.md` - Project overview and standards
+- `.maister/tasks/` - Existing task directories
 
 ---
 
