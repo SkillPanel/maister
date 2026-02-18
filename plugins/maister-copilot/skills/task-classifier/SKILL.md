@@ -1,6 +1,7 @@
 ---
 name: task-classifier
 description: Classifies task descriptions to determine task type and routes to appropriate workflow. Delegates classification logic to task-classifier subagent for context isolation.
+user-invocable: false
 ---
 
 # Task Classifier Skill

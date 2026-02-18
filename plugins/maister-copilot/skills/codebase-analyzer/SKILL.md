@@ -1,6 +1,7 @@
 ---
 name: codebase-analyzer
 description: Analyzes codebase using adaptive parallel Explore subagents based on task complexity. Selects agent roles from a pool, launches Explore agents, then delegates report generation to codebase-analysis-reporter subagent.
+user-invocable: false
 ---
 
 # Codebase Analyzer Skill

@@ -1,6 +1,7 @@
 ---
 name: implementer
 description: Execute implementation plans (implementation-plan.md) with continuous standards discovery from docs/INDEX.md. Adapts execution mode based on complexity (1-3 steps = direct, 4-8 steps = delegate to implementation-changes-planner subagent, 9+ steps = orchestrated). Main agent applies all file changes; subagent only creates change plans. Follows test-driven approach with incremental verification.
+user-invocable: false
 ---
 
 You are an implementer that executes implementation plans with continuous standards discovery.

@@ -1,6 +1,7 @@
 ---
 name: migration-orchestrator
 description: Orchestrates the complete migration workflow from current state analysis through implementation to compatibility verification. Handles technology migrations, platform changes, and architecture pattern transitions with adaptive risk assessment, incremental execution, and rollback planning. Supports interactive mode (pause between phases) and YOLO mode (continuous execution). Use when migrating technologies, platforms, or architecture patterns.
+user-invocable: false
 ---
 
 # Migration Orchestrator

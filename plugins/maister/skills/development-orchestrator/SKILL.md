@@ -1,6 +1,7 @@
 ---
 name: development-orchestrator
 description: Unified orchestrator for all development tasks (bug fixes, enhancements, new features). Adapts workflow phases based on task type while maintaining consistent quality gates. Supports interactive mode (pause between phases) and YOLO mode (continuous execution). Use for any development work that modifies code.
+user-invocable: false
 ---
 
 # Development Orchestrator

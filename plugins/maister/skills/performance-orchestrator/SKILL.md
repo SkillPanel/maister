@@ -1,6 +1,7 @@
 ---
 name: performance-orchestrator
 description: Orchestrates performance optimization workflows using static code analysis to identify bottlenecks (N+1 queries, missing indexes, O(n^2) algorithms, blocking I/O, memory leaks). Accepts optional user-provided profiling data. Reuses standard specification, planning, implementation, and verification phases.
+user-invocable: false
 ---
 
 # Performance Orchestrator
