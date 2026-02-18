@@ -111,7 +111,7 @@ Task tool call (if NOT skip_test_suite):
 
 ### Step 3b: Run all other verifications (parallel)
 
-**INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 Task tool calls):
+**INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 parallel Task tool calls):
 
 Task tool call (always):
 - subagent_type: `ai-sdlc:implementation-completeness-checker`
