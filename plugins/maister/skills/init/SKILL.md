@@ -20,7 +20,8 @@ Initialize `.maister/docs/` with intelligent project analysis and meaningful doc
 | 4 | Select standards to initialize | Selecting standards |
 | 5 | Initialize documentation structure | Initializing documentation |
 | 6 | Generate project documentation | Generating project documentation |
-| 7 | Finalize & validate | Finalizing initialization |
+| 7 | Validate | Validating initialization |
+| 8 | Discover coding standards | Discovering coding standards |
 
 **Task Tracking**: Before Phase 1, use `TaskCreate` for all phases (pending), then set sequential dependencies with `TaskUpdate addBlockedBy`. At each phase: `TaskUpdate` to `in_progress` → execute → `TaskUpdate` to `completed`. If skipped (e.g., user selects "Update existing"), mark skipped phases as `completed` with `metadata: {skipped: true}`.
 
@@ -122,7 +123,7 @@ Write each file to `.maister/docs/project/`.
 
 ---
 
-## PHASE 7: Finalize & Validate
+## PHASE 7: Validate
 
 **Step 1**: Invoke docs-manager skill via Skill tool:
 
@@ -143,9 +144,20 @@ Write each file to `.maister/docs/project/`.
 - Next steps:
   1. Review generated documentation
   2. Customize for your team
-  3. Run `/maister:standards-discover` to discover existing coding standards
-  4. Start development with `/work`
-  5. Keep documentation current
+  3. Start development with `/maister:work`
+  4. Keep documentation current
+
+---
+
+## PHASE 8: Discover Coding Standards
+
+Invoke the `standards-discover` skill via Skill tool with `--scope=full` to automatically discover coding standards from the project's config files, source code patterns, documentation, and external sources.
+
+> "Run standards discovery with --scope=full. This is being invoked as part of project initialization."
+
+The standards-discover skill handles its own user interaction (presenting findings by confidence tier, asking for approval). Let it run its full workflow.
+
+After completion, display a brief summary of how many standards were discovered and applied.
 
 ---
 
