@@ -4,16 +4,16 @@
 
 **Structured, standards-aware development workflows for Claude Code**
 
-Describe what you want to build, and the plugin handles the rest — from specification through implementation to verification — while enforcing your project's coding standards at every step.
+Describe what you want to build, and the plugin handles the rest - from specification through implementation to verification - while enforcing your project's coding standards at every step.
 
 </div>
 
 ## What You Get
 
 - **Guided workflows** for features, bug fixes, enhancements, performance, migrations, and research
-- **Auto-discovered standards** from your codebase — config files, source patterns, and documentation are analyzed and enforced throughout every workflow
+- **Auto-discovered standards** from your codebase - config files, source patterns, and documentation are analyzed and enforced throughout every workflow
 - **Test-driven implementation** with automated planning, incremental verification, and full test suite runs before completion
-- **Pause and resume** any workflow — state is preserved across sessions
+- **Pause and resume** any workflow - state is preserved across sessions
 - **Production readiness checks** including code review, reality assessment, and pragmatic over-engineering detection
 
 ## Getting Started
@@ -29,7 +29,7 @@ Describe what you want to build, and the plugin handles the rest — from specif
 /plugin install maister@maister-plugins
 ```
 
-### Setup
+### Initial project setup
 
 Initialize your project to auto-detect coding standards and generate project documentation:
 
@@ -51,11 +51,11 @@ Or just discuss your task with Claude and then run:
 /maister:development-new
 ```
 
-The plugin picks up context from your conversation — no arguments needed.
+The plugin picks up context from your conversation - no arguments needed.
 
 ## How It Works
 
-1. You describe a task — either as an argument or just in conversation
+1. You describe a task - either as an argument or just in conversation
 2. The plugin classifies it (feature, bug, enhancement, etc.) and proposes a workflow
 3. You confirm, and it guides you through phases: **requirements → spec → plan → implement → verify**
 4. At each phase, it asks for your input and decisions (or pass `--yolo` for continuous execution)
@@ -78,14 +78,14 @@ You: /maister:standards-update
 → Scans conversation for patterns like "we always use..." or "prefer X over Y"
 ```
 
-You can always be explicit when you prefer — arguments and flags simply override the auto-detection.
+You can always be explicit when you prefer - arguments and flags simply override the auto-detection.
 
 ## Supported Workflows
 
 | Command | Use When |
 |---------|----------|
-| `/maister:development-new` | Features, bug fixes, enhancements — auto-detects type from context |
-| `/maister:research-new` | Investigating questions or gathering requirements |
+| `/maister:development-new` | Features, bug fixes, enhancements - auto-detects type from context |
+| `/maister:research-new` | Evidence-based research with solution brainstorming and high-level design documents |
 | `/maister:performance-new` | Optimizing speed or resource usage |
 | `/maister:migration-new` | Changing technologies or patterns |
 
@@ -98,14 +98,14 @@ For smaller tasks that don't need a full workflow:
 | Command | Use When |
 |---------|----------|
 | `/maister:quick-plan` | You want a plan with standards awareness before coding |
-| `/maister:quick-dev` | You know what to do — just implement with standards applied |
+| `/maister:quick-dev` | You know what to do - just implement with standards applied |
 
 ## Standards-Aware Development
 
-This is the key differentiator. Maister doesn't just run workflows — it learns your project's conventions and enforces them:
+This is the key differentiator. Maister doesn't just run workflows - it learns your project's conventions and enforces them:
 
 - **`/maister:init`** scans config files, source code, and documentation to auto-detect your coding standards
-- **Continuous checking** — standards are consulted before specification, during planning, and while coding (not just at the start)
+- **Continuous checking** - standards are consulted before specification, during planning, and while coding (not just at the start)
 - **`/maister:standards-discover`** refreshes standards from your evolving codebase
 - **`/maister:standards-update`** lets you add or refine standards manually
 
@@ -118,5 +118,5 @@ Standards live in `.maister/docs/standards/` and are indexed in `.maister/docs/I
 
 ## Learn More
 
-- [Workflow Details](docs/workflows.md) — phases, examples, and task structure for each workflow type
-- [Full Command Reference](docs/commands.md) — all workflow, review, utility, and quick commands
+- [Workflow Details](docs/workflows.md) - phases, examples, and task structure for each workflow type
+- [Full Command Reference](docs/commands.md) - all workflow, review, utility, and quick commands
