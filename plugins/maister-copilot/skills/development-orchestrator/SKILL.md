@@ -1,12 +1,12 @@
 ---
 name: development-orchestrator
-description: Unified orchestrator for all development tasks (bug fixes, enhancements, new features). Adapts workflow phases based on task type while maintaining consistent quality gates. Supports interactive mode (pause between phases) and YOLO mode (continuous execution). Use for any development work that modifies code.
+description: Unified orchestrator for all development tasks. Phases adapt based on detected task characteristics rather than predetermined types. Supports interactive mode (pause between phases) and YOLO mode (continuous execution). Use for any development work that modifies code.
 user-invocable: false
 ---
 
 # Development Orchestrator
 
-Unified workflow for bug fixes, enhancements, and new features with task-type-specific adaptations.
+Unified workflow for all development tasks — bug fixes, enhancements, and new features. Phases activate based on context and analysis findings, not predetermined task types.
 
 ## Initialization
 
@@ -38,7 +38,7 @@ Unified workflow for bug fixes, enhancements, and new features with task-type-sp
 ### Step 3: Initialize Workflow
 
 1. **Create Task Items**: Use `TaskCreate` for all phases (see Phase Configuration), then set dependencies with `TaskUpdate addBlockedBy`
-2. **Create Task Directory**: `.maister/tasks/[type]/YYYY-MM-DD-task-name/`
+2. **Create Task Directory**: `.maister/tasks/development/YYYY-MM-DD-task-name/`
 3. **Initialize State**: Create `orchestrator-state.yml` with mode, task info, and research reference
 
 **Output**:
@@ -46,7 +46,6 @@ Unified workflow for bug fixes, enhancements, and new features with task-type-sp
 🚀 Development Orchestrator Started
 
 Task: [description]
-Type: [Bug Fix / Enhancement / Feature]
 Mode: [Interactive/YOLO]
 Directory: [task-path]
 
@@ -57,45 +56,30 @@ Starting Phase 1: Codebase Analysis...
 
 ## When to Use
 
-Use for **all development tasks**:
-- **Bug fixes**: Fix defects, errors, crashes
-- **Enhancements**: Improve existing features
-- **New features**: Add completely new functionality
+Use for **all development tasks**: bug fixes, enhancements, new features, and any work that modifies code.
 
 **DO NOT use for**: Performance optimization, security remediation, migrations, documentation-only, pure refactoring (use specialized orchestrators).
 
 ---
 
-## Task Type Detection
-
-| Type | Keywords | Directory |
-|------|----------|-----------|
-| **Bug** | fix, bug, broken, error, crash | `.maister/tasks/bug-fixes/` |
-| **Enhancement** | improve, enhance, better, update | `.maister/tasks/enhancements/` |
-| **Feature** | add, new, create, build, implement | `.maister/tasks/new-features/` |
-
-**Override**: Use `--type=bug|enhancement|feature` flag
-
----
-
 ## Phase Configuration
 
-| Phase | content | activeForm | Task Types |
+| Phase | content | activeForm | Activation |
 |-------|---------|------------|------------|
-| 1 | "Analyze codebase & clarify requirements" | "Analyzing codebase & clarifying" | All |
-| 2 | "Analyze gaps & clarify scope" | "Analyzing gaps & clarifying scope" | All |
-| 3 | "Write failing test (TDD Red)" | "Writing failing test" | Bug only |
-| 4 | "Generate UI mockups" | "Generating UI mockups" | Enhancement, Feature (if ui_heavy) |
-| 5 | "Gather requirements & create specification" | "Gathering requirements & creating specification" | All |
-| 6 | "Audit specification" | "Auditing specification" | All (conditional) |
-| 7 | "Plan implementation" | "Planning implementation" | All |
-| 8 | "Execute implementation" | "Executing implementation" | All |
-| 9 | "Verify test passes (TDD Green)" | "Verifying test passes" | Bug only |
-| 10 | "Prompt verification options" | "Prompting verification options" | All |
-| 11 | "Verify implementation & resolve issues" | "Verifying implementation" | All |
-| 12 | "Run E2E tests" | "Running E2E tests" | Optional |
-| 13 | "Generate user documentation" | "Generating user documentation" | Optional |
-| 14 | "Finalize workflow" | "Finalizing workflow" | All |
+| 1 | "Analyze codebase & clarify requirements" | "Analyzing codebase & clarifying" | Always |
+| 2 | "Analyze gaps & clarify scope" | "Analyzing gaps & clarifying scope" | Always |
+| 3 | "Write failing test (TDD Red)" | "Writing failing test" | When `has_reproducible_defect` |
+| 4 | "Generate UI mockups" | "Generating UI mockups" | When `ui_heavy` |
+| 5 | "Gather requirements & create specification" | "Gathering requirements & creating specification" | Always |
+| 6 | "Audit specification" | "Auditing specification" | Always (conditional) |
+| 7 | "Plan implementation" | "Planning implementation" | Always |
+| 8 | "Execute implementation" | "Executing implementation" | Always |
+| 9 | "Verify test passes (TDD Green)" | "Verifying test passes" | When Phase 3 was executed |
+| 10 | "Prompt verification options" | "Prompting verification options" | Always |
+| 11 | "Verify implementation & resolve issues" | "Verifying implementation" | Always |
+| 12 | "Run E2E tests" | "Running E2E tests" | When `e2e_enabled` |
+| 13 | "Generate user documentation" | "Generating user documentation" | When `user_docs_enabled` |
+| 14 | "Finalize workflow" | "Finalizing workflow" | Always |
 
 ---
 
@@ -105,7 +89,7 @@ Use for **all development tasks**:
 
 **Purpose**: Comprehensive codebase exploration followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `maister-copilot/codebase-analyzer`
+1. Skill tool - `maister-codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use AskUserQuestion for max 5 critical clarifying questions
 4. Save clarifications to `analysis/clarifications.md`
@@ -120,10 +104,11 @@ Use for **all development tasks**:
 
 ### Phase 2: Gap Analysis & Scope Clarification
 
-**Purpose**: Compare current vs desired state, then resolve scope/approach decisions
+**Purpose**: Compare current vs desired state, detect task characteristics, then resolve scope/approach decisions
 **Execute**:
-1. Task tool - `maister-copilot/gap-analyzer` subagent
+1. Task tool - `maister-gap-analyzer` subagent
 2. Update state with gap analysis results
+3. **Store `task_characteristics`** from gap-analyzer output into `orchestrator-state.yml`
 
 **⛔ DECISION GATE** (mandatory — do NOT skip):
 - Parse `decisions_needed` from gap-analyzer output
@@ -137,30 +122,30 @@ Use for **all development tasks**:
 3. Save scope clarifications to `analysis/scope-clarifications.md`
 
 **Output**: `analysis/gap-analysis.md`, `analysis/scope-clarifications.md` (conditional)
-**State**: Update `task_context.ui_heavy`, `task_context.scope_expanded`, `options.e2e_enabled`
+**State**: Update `task_context.task_characteristics`, `task_context.scope_expanded`, `options.e2e_enabled`
 
 **Context to pass**: Risk level, codebase summary, key files, clarifications
 
 → Pause (when decisions exist), otherwise Conditional
 
-**Interactive** (decisions exist): AskUserQuestion - "Scope decisions resolved. Continue to Phase 3/4?"
-**Interactive** (no decisions): AskUserQuestion - "Gap analysis complete, no decisions needed. Continue to Phase 3/4?"
+**Interactive** (decisions exist): AskUserQuestion - "Scope decisions resolved. Continue?"
+**Interactive** (no decisions): AskUserQuestion - "Gap analysis complete, no decisions needed. Continue?"
 **YOLO**: "→ Continuing..."
 
-→ Conditional: if task_type=bug then continue to Phase 3, else skip to Phase 4
+→ Conditional: check `task_characteristics.has_reproducible_defect` → Phase 3, else check `task_characteristics.ui_heavy` → Phase 4, else skip to Phase 5
 
 ---
 
-### Phase 3: TDD Red Gate (Bug Only)
+### Phase 3: TDD Red Gate (Conditional)
 
-**Purpose**: Write a failing test that reproduces the bug
+**Purpose**: Write a failing test that reproduces the defect
 **Execute**: Direct - write test, verify it FAILS
 **Output**: `implementation/tdd-red-gate.md`, failing test file
 **State**: Update `tdd_red_passed: true`
 
-**Skip if**: task_type != "bug"
+**Skip if**: `task_characteristics.has_reproducible_defect` is false (not set by gap-analyzer)
 
-**Critical**: Test MUST fail before implementation (proves bug exists)
+**Critical**: Test MUST fail before implementation (proves defect exists)
 
 → Pause
 
@@ -172,11 +157,11 @@ Use for **all development tasks**:
 ### Phase 4: UI Mockup Generation (Conditional)
 
 **Purpose**: Generate ASCII mockups showing UI integration
-**Execute**: Task tool - `maister-copilot/ui-mockup-generator` subagent
+**Execute**: Task tool - `maister-ui-mockup-generator` subagent
 **Output**: `analysis/ui-mockups.md`
 **State**: Update `phase_summaries.ui_mockups`
 
-**Skip if**: Bug fix OR `ui_heavy = false`
+**Skip if**: `task_characteristics.ui_heavy` is false
 
 **Context to pass**: Gap analysis, scope decisions, component choices
 
@@ -194,7 +179,7 @@ Use for **all development tasks**:
 
 **Part A — Technical & Architecture Clarification (inline, conditional)**:
 1. If complex task with multiple approaches: Direct - use AskUserQuestion for 3-5 technical questions
-2. If multiple valid architectural approaches exist (feature/enhancement): Present 2-3 approaches via AskUserQuestion. The chosen approach is passed to specification-creator so the spec is written with the decided architecture.
+2. If multiple valid architectural approaches exist: Present 2-3 approaches via AskUserQuestion. The chosen approach is passed to specification-creator so the spec is written with the decided architecture.
 3. Save to `analysis/technical-clarifications.md` (conditional)
 
 **Skip technical clarification if**: Simple task, risk_level = low, no multiple approaches detected
@@ -224,11 +209,11 @@ Use for **all development tasks**:
 
 **INVOKE NOW** — Task tool call:
 
-6. Task tool - `maister-copilot/specification-creator` subagent
+6. Task tool - `maister-specification-creator` subagent
 
-**Context to pass to subagent**: task_path, task_type, task_description, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md, vision.md, roadmap.md, tech-stack.md), risk_level, ui_heavy, scope_expanded, phase_summaries (codebase_analysis, gap_analysis, clarifications, scope_clarifications, ui_mockups), research_context (if any)
+**Context to pass to subagent**: task_path, task_description, task_characteristics, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md, vision.md, roadmap.md, tech-stack.md), risk_level, phase_summaries (codebase_analysis, gap_analysis, clarifications, scope_clarifications, ui_mockups), research_context (if any)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot/specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 **Output**: `analysis/technical-clarifications.md` (conditional), `analysis/requirements.md`, `implementation/spec.md`
 **State**: Update `task_context.tech_clarified`, `task_context.architecture_decision`, `phase_summaries.specification`
@@ -245,7 +230,7 @@ Use for **all development tasks**:
 ### Phase 6: Specification Audit (Recommended)
 
 **Purpose**: Independent review of specification before implementation
-**Execute**: Task tool - `maister-copilot/spec-auditor` subagent
+**Execute**: Task tool - `maister-spec-auditor` subagent
 **Output**: `verification/spec-audit.md`
 **State**: Update `options.spec_audit_enabled`
 
@@ -272,13 +257,13 @@ Use for **all development tasks**:
 
 **INVOKE NOW** — Task tool call:
 
-**Execute**: Task tool - `maister-copilot/implementation-planner` subagent
+**Execute**: Task tool - `maister-implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md`
 **State**: Update task groups and dependencies
 
-**Context to pass to subagent**: task_path, task_type, task_description, phase_summaries (specification, gap_analysis, codebase_analysis), research_context (if any)
+**Context to pass to subagent**: task_path, task_description, task_characteristics, phase_summaries (specification, gap_analysis, codebase_analysis), research_context (if any)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot/implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 → Pause
 
@@ -290,24 +275,41 @@ Use for **all development tasks**:
 ### Phase 8: Implementation
 
 **Purpose**: Execute the implementation plan
-**Execute**: Skill tool - `maister-copilot/implementation-plan-executor`
-**Output**: Implemented code, `implementation/work-log.md`
-**State**: Update implementation progress
 
-→ Conditional: if task_type=bug then continue to Phase 9, else skip to Phase 10
+**ANTI-PATTERN — DO NOT DO THIS:**
+- ❌ "Let me implement this directly..." — STOP. Delegate to implementation-plan-executor.
+- ❌ "This is simple enough to code inline..." — STOP. Simplicity is NOT a reason to skip delegation.
+
+**INVOKE NOW** — Skill tool call:
+
+**Execute**: Skill tool - `maister-implementation-plan-executor`
+**Output**: Implemented code, `implementation/work-log.md`
+**State**: Update implementation progress, extract phase_summaries.implementation
+
+**SELF-CHECK**: Did you just invoke the Skill tool with `maister-implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
+
+**⚠️ POST-IMPLEMENTATION CONTINUATION** — After the skill completes and returns control:
+1. Read `orchestrator-state.yml` to confirm you are the orchestrator
+2. Update state: add Phase 8 to `completed_phases`
+3. Evaluate conditional: if `task_characteristics.has_reproducible_defect` AND Phase 3 in `completed_phases` → Phase 9, else → Phase 10
+
+→ Pause
+
+**Interactive**: AskUserQuestion - "Implementation complete. Continue to Phase [9 or 10]?"
+**YOLO**: "→ Continuing to Phase [9 or 10]..."
 
 ---
 
-### Phase 9: TDD Green Gate (Bug Only)
+### Phase 9: TDD Green Gate (Conditional)
 
 **Purpose**: Verify the failing test now passes
 **Execute**: Direct - run the test written in Phase 3
 **Output**: `implementation/tdd-green-gate.md`
 **State**: Update `tdd_green_passed: true`
 
-**Skip if**: task_type != "bug" OR Phase 3 was skipped
+**Skip if**: Phase 3 was not executed
 
-**Critical**: Test MUST pass (proves bug is fixed)
+**Critical**: Test MUST pass (proves defect is fixed)
 
 → Pause
 
@@ -337,7 +339,7 @@ Use for **all development tasks**:
 
 **Purpose**: Comprehensive implementation verification with fix-then-reverify cycles
 **Execute**:
-1. Skill tool - `maister-copilot/implementation-verifier`
+1. Skill tool - `maister-implementation-verifier`
 2. If issues found: Fix trivial issues directly, AskUserQuestion for non-trivial
 3. Before re-verification: set `skip_test_suite: false` (code changed, tests must re-run)
 4. Re-verify after fixes (max 3 fix-then-reverify cycles)
@@ -354,11 +356,11 @@ Use for **all development tasks**:
 ### Phase 12: E2E Testing (Optional)
 
 **Purpose**: End-to-end browser testing with screenshots
-**Execute**: Task tool - `maister-copilot/e2e-test-verifier` subagent
+**Execute**: Task tool - `maister-e2e-test-verifier` subagent
 **Output**: `verification/e2e-verification-report.md`, screenshots
 **State**: Update E2E results
 
-**Skip if**: `options.e2e_enabled = false` OR bug fix
+**Skip if**: `options.e2e_enabled = false`
 
 → Pause
 
@@ -370,11 +372,11 @@ Use for **all development tasks**:
 ### Phase 13: User Documentation (Optional)
 
 **Purpose**: Generate user-facing documentation with screenshots
-**Execute**: Task tool - `maister-copilot/user-docs-generator` subagent
+**Execute**: Task tool - `maister-user-docs-generator` subagent
 **Output**: `documentation/user-guide.md`, screenshots
 **State**: Update docs generation status
 
-**Skip if**: `options.user_docs_enabled = false` OR bug fix
+**Skip if**: `options.user_docs_enabled = false`
 
 → Pause
 
@@ -406,7 +408,6 @@ Development-specific fields in `orchestrator-state.yml`:
 
 ```yaml
 orchestrator:
-  task_type: bug | enhancement | feature
   options:
     spec_audit_enabled: true
     skip_test_suite: true
@@ -416,14 +417,16 @@ orchestrator:
     pragmatic_review_enabled: true
     reality_check_enabled: true
   task_context:
-    type: bug | enhancement | feature
     risk_level: null
-    ui_heavy: null
     clarifications_resolved: null
     scope_expanded: null
     architecture_decision: null
-    tdd_applicable: true  # Bug only
-    reproduction_data: null  # Bug only
+    task_characteristics:
+      has_reproducible_defect: false
+      modifies_existing_code: false
+      creates_new_entities: false
+      involves_data_operations: false
+      ui_heavy: false
     research_reference:
       path: null
       research_question: null
@@ -445,7 +448,7 @@ orchestrator:
 ## Task Structure
 
 ```
-.maister/tasks/[type]/YYYY-MM-DD-task-name/
+.maister/tasks/development/YYYY-MM-DD-task-name/
 ├── orchestrator-state.yml
 ├── analysis/
 │   ├── research-context/          # If --research provided
@@ -454,14 +457,14 @@ orchestrator:
 │   ├── gap-analysis.md            # Phase 2
 │   ├── scope-clarifications.md    # Phase 2 (conditional)
 │   ├── technical-clarifications.md # Phase 5 (conditional)
-│   └── ui-mockups.md              # Phase 4 (optional)
+│   └── ui-mockups.md              # Phase 4 (conditional)
 ├── implementation/
 │   ├── spec.md                    # Phase 5
 │   ├── requirements.md            # Phase 5
 │   ├── implementation-plan.md     # Phase 7
 │   ├── work-log.md                # Phase 8
-│   ├── tdd-red-gate.md            # Phase 3 (bug only)
-│   └── tdd-green-gate.md          # Phase 9 (bug only)
+│   ├── tdd-red-gate.md            # Phase 3 (conditional)
+│   └── tdd-green-gate.md          # Phase 9 (conditional)
 ├── verification/
 │   ├── spec-audit.md              # Phase 6 (recommended)
 │   ├── implementation-verification.md  # Phase 11
@@ -491,7 +494,6 @@ orchestrator:
 
 | Flag | Effect |
 |------|--------|
-| `--type=bug\|enhancement\|feature` | Override task type detection |
 | `--yolo` | Continuous execution (TDD gates still enforced) |
 | `--from=PHASE` | Start from specific phase |
 | `--research=PATH` | Link to completed research task |
@@ -509,7 +511,7 @@ When starting development from a completed research task, the orchestrator loads
 
 **Method 1: Research folder as sole argument** (recommended)
 ```
-/maister-copilot/development-new .maister/tasks/research/2026-01-12-oauth-research
+/maister-development-new .maister/tasks/research/2026-01-12-oauth-research
 ```
 The orchestrator auto-detects this is a research folder and:
 - Extracts task description from `research_context.research_question`
@@ -518,7 +520,7 @@ The orchestrator auto-detects this is a research folder and:
 
 **Method 2: Explicit --research flag**
 ```
-/maister-copilot/development-new "Implement OAuth" --research=.maister/tasks/research/2026-01-12-oauth-research
+/maister-development-new "Implement OAuth" --research=.maister/tasks/research/2026-01-12-oauth-research
 ```
 
 ### Research Artifacts (Standard List)
@@ -549,13 +551,13 @@ When research context is detected, read these files from the research folder:
 ## Command Integration
 
 Invoked via:
-- `/maister-copilot/development-new [description] [--type=TYPE] [--yolo]`
-- `/maister-copilot/development-resume [task-path] [--from=PHASE]`
+- `/maister-development-new [description] [--yolo]`
+- `/maister-development-resume [task-path] [--from=PHASE]`
 
 ---
 
-## TDD Gate Rules (Bug Fixes)
+## TDD Gate Rules
 
-**Phase 3 (Red Gate)**: Test MUST FAIL before implementation
-**Phase 9 (Green Gate)**: Test MUST PASS after implementation
+**Phase 3 (Red Gate)**: Test MUST FAIL before implementation (activated when gap-analyzer detects reproducible defect)
+**Phase 9 (Green Gate)**: Test MUST PASS after implementation (activated when Phase 3 was executed)
 **YOLO Mode**: TDD gates still enforced (cannot be bypassed)
