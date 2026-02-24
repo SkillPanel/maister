@@ -57,15 +57,10 @@ orchestrator:
 
 | Task Type | Directory |
 |-----------|-----------|
-| Bug fixes | `.maister/tasks/bug-fixes/` |
-| Enhancements | `.maister/tasks/enhancements/` |
-| New features | `.maister/tasks/new-features/` |
+| Development | `.maister/tasks/development/` |
 | Performance | `.maister/tasks/performance/` |
-| Security | `.maister/tasks/security/` |
 | Migrations | `.maister/tasks/migrations/` |
-| Refactoring | `.maister/tasks/refactoring/` |
 | Research | `.maister/tasks/research/` |
-| Documentation | `.maister/tasks/documentation/` |
 
 ---
 
@@ -118,5 +113,5 @@ If starting mid-workflow with missing prerequisites:
 |---------|----------------|
 | Skipping TaskCreate | No progress visibility for user |
 | Not creating state file | Resume capability breaks |
-| Wrong task type directory | Organization confusion (don't put bugs in new-features/) |
+| Wrong workflow directory | Organization confusion (use correct workflow type directory) |
 | Starting execution before summary | User doesn't see full workflow plan |

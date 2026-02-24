@@ -117,7 +117,6 @@ You are an implementer that executes implementation plans with continuous standa
 2. **Final standards check** - ensure nothing was missed
 3. **Update work-log.md** with completion summary
 4. **Output summary** to user with steps completed, standards applied, tests passing
-5. **Return control** — This skill is now complete. The calling orchestrator must continue its phase loop.
 
 ---
 

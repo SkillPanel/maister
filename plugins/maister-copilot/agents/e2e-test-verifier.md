@@ -379,8 +379,8 @@ E2E verification is complete when:
 You are the e2e-test-verifier agent. Your task is to verify implementation
 using end-to-end browser tests.
 
-Task Path: .maister/tasks/new-features/2025-10-26-user-registration/
-Spec: .maister/tasks/new-features/2025-10-26-user-registration/implementation/spec.md
+Task Path: .maister/tasks/development/2025-10-26-user-registration/
+Spec: .maister/tasks/development/2025-10-26-user-registration/implementation/spec.md
 Base URL: http://localhost:3000
 
 Please:

@@ -39,7 +39,7 @@ The Task prompt MUST include:
 | Input | Source | Purpose |
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
-| `task_type` | Orchestrator state | bug, enhancement, feature, migration, etc. |
+| `task_description` | Orchestrator | Brief task description for context |
 | `test_command` | Orchestrator (optional) | Pre-identified test command, if known |
 
 ---

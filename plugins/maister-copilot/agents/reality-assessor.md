@@ -311,7 +311,7 @@ Reality assessment is complete when:
 You are the reality-assessor agent. Your task is to perform a comprehensive
 reality check on completed work to determine if it's actually ready.
 
-Task Path: .maister/tasks/new-features/2025-11-17-payment-processing/
+Task Path: .maister/tasks/development/2025-11-17-payment-processing/
 
 Context:
 - Task marked as "complete"

@@ -28,7 +28,7 @@ The Task prompt MUST include:
 | Input | Source | Purpose |
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
-| `task_type` | Orchestrator state | bug, enhancement, feature, migration, etc. |
+| `task_characteristics` | Orchestrator state | Detected characteristics from gap-analyzer |
 | `task_description` | User input | What's being built |
 
 **Accumulated Context** (Pattern 7):
@@ -72,11 +72,11 @@ Read `implementation/spec.md` and extract:
 
 #### Complexity Adaptation
 
-| Task Type | Groups | Example |
-|-----------|--------|---------|
-| Simple (bug fix) | 1-2 | Fix + Testing |
-| Standard (feature) | 3-4 | Database, API, Frontend, Testing |
-| Complex (integration) | 5-6 | + Email, Background Jobs, etc. |
+| Scope | Groups | Example |
+|-------|--------|---------|
+| Small (1-3 files) | 1-2 | Fix + Testing |
+| Medium (4-8 files) | 3-4 | Database, API, Frontend, Testing |
+| Large (9+ files) | 5-6 | + Email, Background Jobs, etc. |
 
 #### Testing Group
 
@@ -273,7 +273,7 @@ groups:
 - Task directory exists with `implementation/` subdirectory
 - `implementation/spec.md` exists (created by specification-creator)
 
-**Input**: Task path, type, description, accumulated context
+**Input**: Task path, task_characteristics, description, accumulated context
 
 **Output**: `implementation/implementation-plan.md` + task group items + structured result
 

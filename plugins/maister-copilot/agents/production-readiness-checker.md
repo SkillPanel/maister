@@ -250,7 +250,7 @@ issue_counts:
 
 ## Integration
 
-**Invoked by**: implementation-verifier (Phase 3), performance-orchestrator (Phase 4), standalone via `/maister-copilot/reviews-production-readiness` command
+**Invoked by**: implementation-verifier (Phase 3), performance-orchestrator (Phase 4), standalone via `/maister-reviews-production-readiness` command
 
 **Prerequisites**:
 - Code exists at the specified path

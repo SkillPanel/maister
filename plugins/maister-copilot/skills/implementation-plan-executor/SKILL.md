@@ -73,7 +73,7 @@ Execute each task group yourself, following these steps:
 
 For each task group:
 
-0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "maister-copilot/implementer"`
+0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "maister-implementer"`
 
 1. **Load standards for THIS group**:
    - Check "Standards Compliance" in implementation-plan.md — identify which listed standards apply to this group
@@ -106,7 +106,7 @@ For each task group:
 
 For each task group:
 
-0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "maister-copilot/task-group-implementer"`
+0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "maister-task-group-implementer"`
 
 1. **Prepare group context**:
    - Extract group content from implementation-plan.md
@@ -115,7 +115,7 @@ For each task group:
    - Get relevant spec sections
 
 2. **Invoke task-group-implementer subagent via Task tool**:
-   - subagent_type: `maister-copilot/task-group-implementer`
+   - subagent_type: `maister-task-group-implementer`
    - prompt: Include group content, initial standards, INDEX.md path, spec excerpt
    - See "Subagent Invocation" section for full prompt template
 

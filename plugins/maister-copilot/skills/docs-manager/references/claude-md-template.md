@@ -43,8 +43,8 @@ When in doubt, this is the priority order:
 ## AI SDLC Workflows
 
 This project uses the maister plugin for structured development. Available orchestrators:
-- `/maister-copilot/development-new` - Development workflow for features, enhancements, and bug fixes
-- `/maister-copilot/migration-new` - Technology/platform migrations (with rollback planning)
+- `/maister-development-new` - Development workflow for features, enhancements, and bug fixes
+- `/maister-migration-new` - Technology/platform migrations (with rollback planning)
 
 All orchestrators read @.maister/docs/INDEX.md continuously to apply project standards.
 Use interactive mode (default) or `--yolo` for continuous execution.

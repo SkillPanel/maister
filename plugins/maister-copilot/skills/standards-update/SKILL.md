@@ -1,5 +1,5 @@
 ---
-name: maister-copilot/standards-update
+name: maister-standards-update
 description: Update or create project standards from conversation context or explicit description
 argument-hint: "[description of standard/convention]"
 ---
@@ -11,8 +11,8 @@ Update or create standards in `.maister/docs/standards/` based on conversation c
 ## Usage
 
 ```bash
-/maister-copilot/standards-update                                    # Detect from conversation
-/maister-copilot/standards-update "always use React.memo for lists"  # From description
+/maister-standards-update                                    # Detect from conversation
+/maister-standards-update "always use React.memo for lists"  # From description
 ```
 
 ---
@@ -95,4 +95,4 @@ Wait for completion.
 
 ## Prerequisites
 
-If `.maister/docs/` doesn't exist, offer to run `/maister-copilot/init` first.
+If `.maister/docs/` doesn't exist, offer to run `/maister-init` first.

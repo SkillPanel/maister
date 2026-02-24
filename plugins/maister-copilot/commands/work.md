@@ -3,7 +3,7 @@ name: maister-work
 description: Unified entry point - auto-classifies tasks and routes to appropriate workflow
 ---
 
-**NOTE**: This is a multi-step workflow that invokes the task-classifier skill and orchestrator skills at specific steps. The `<command-name>` tag refers to THIS command only — you MUST still use the Skill tool to invoke those other skills when instructed below. Follow ALL steps in order.
+**NOTE**: This is a multi-step workflow that invokes the task-classifier subagent and orchestrator skills at specific steps. The `<command-name>` tag refers to THIS command only — you MUST still use the Skill tool to invoke those other skills when instructed below. Follow ALL steps in order.
 
 # Unified Work Entry Point
 
@@ -19,18 +19,19 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 
 | Input Type | Example |
 |------------|---------|
-| Task folder path | `.maister/tasks/bug-fixes/2025-10-23-login-timeout` |
+| Task folder path | `.maister/tasks/development/2025-10-23-login-timeout` |
 | Folder name only | `2025-10-26-user-auth` (searches all task types) |
 | Task description | `"Fix login timeout error on mobile"` |
 | GitHub issue | `#456`, `GH-456`, `https://github.com/owner/repo/issues/456` |
 | Jira ticket | `PROJ-456`, `https://company.atlassian.net/browse/PROJ-456` |
+| Azure DevOps | `AB#123`, `https://dev.azure.com/org/project/_workitems/edit/123` |
 | No argument | Prompts for input |
 
 ## Examples
 
 ```bash
 # Resume existing task
-/work ".maister/tasks/bug-fixes/2025-10-23-login-timeout"
+/work ".maister/tasks/development/2025-10-23-login-timeout"
 /work "2025-10-26-user-auth"
 
 # New task (auto-classifies)
@@ -41,24 +42,23 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 # From issue tracker
 /work "#456"
 /work "PROJ-123"
+/work "AB#789"
 ```
 
 ## How It Works
 
 1. **Detect existing task** - If input is a task folder path, route to resume
-2. **Classify new task** - Invoke task-classifier skill to determine type
+2. **Classify new task** - Invoke task-classifier subagent to determine workflow type
 3. **Route to workflow** - Use Skill tool to invoke appropriate orchestrator skill
 
-## Task Type Routing
+## Workflow Type Routing
 
 | Classification | Routes To (Skill) |
 |----------------|-------------------|
-| bug-fix | `maister-copilot/development-orchestrator` (task_type=bug) |
-| new-feature | `maister-copilot/development-orchestrator` (task_type=feature) |
-| enhancement | `maister-copilot/development-orchestrator` (task_type=enhancement) |
-| performance | `maister-copilot/performance-orchestrator` |
-| migration | `maister-copilot/migration-orchestrator` |
-| research | `maister-copilot/research-orchestrator` |
+| development | `maister-development-orchestrator` |
+| performance | `maister-performance-orchestrator` |
+| migration | `maister-migration-orchestrator` |
+| research | `maister-research-orchestrator` |
 
 ---
 
@@ -87,20 +87,14 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 **When existing task detected:**
 
 1. Read `orchestrator-state.yml` from task folder
-2. Determine task type from folder path:
+2. Determine workflow type from folder path:
 
-| Folder | Task Type |
-|--------|-----------|
-| `bug-fixes/` | bug-fix |
-| `new-features/` | new-feature |
-| `enhancements/` | enhancement |
-
+| Folder | Workflow Type |
+|--------|--------------|
+| `development/` | development |
 | `performance/` | performance |
-
 | `migrations/` | migration |
-
 | `research/` | research |
-
 
 3. Extract status from state file:
    - `completed`: null = in-progress, timestamp = finished
@@ -121,7 +115,7 @@ Options:
 ```
 Options:
 1. View task details
-2. Create enhancement to this feature
+2. Create follow-up development task
 3. Re-run verification phase
 4. Cancel
 ```
@@ -139,26 +133,29 @@ Options:
 
 ```
 Use Skill tool:
-  skill: "maister-copilot/[orchestrator-name]"
+  skill: "maister-[orchestrator-name]"
   args: "--resume [task_path] [flags]"
 ```
 
 Examples:
-- Resume bug-fix: `skill: "maister-copilot/development-orchestrator"` with `args: "--resume .maister/tasks/bug-fixes/2025-10-23-fix"`
-- Restart feature: `skill: "maister-copilot/development-orchestrator"` with `args: "--resume .maister/tasks/new-features/2025-10-26-auth --from=verify"`
-- Fresh attempts: `skill: "maister-copilot/migration-orchestrator"` with `args: "--resume .maister/tasks/migrations/2025-10-20-redux --reset-attempts"`
+- Resume development: `skill: "maister-development-orchestrator"` with `args: "--resume .maister/tasks/development/2025-10-23-fix"`
+- Restart from phase: `skill: "maister-development-orchestrator"` with `args: "--resume .maister/tasks/development/2025-10-26-auth --from=verify"`
+- Fresh attempts: `skill: "maister-migration-orchestrator"` with `args: "--resume .maister/tasks/migrations/2025-10-20-redux --reset-attempts"`
 
 ### Step 3: Classify & Route New Task
 
 **For new task descriptions:**
 
-1. **Invoke task-classifier skill** to determine task type:
+1. **Invoke task-classifier subagent** to determine workflow type:
 
 ```
-Use Skill tool:
-  skill: "maister-copilot/task-classifier"
+Use Task tool:
+  subagent_type: "maister-task-classifier"
+  description: "Classify task type"
+  prompt: "Classify this task into a workflow type: [task description].
+           Return structured YAML classification result."
 
-The skill will:
+The subagent will:
 - Detect issue identifiers (GitHub, Jira)
 - Fetch issue details if available
 - Analyze codebase context
@@ -170,7 +167,7 @@ The skill will:
 2. **Parse classification result:**
 ```yaml
 classification:
-  task_type: [bug-fix|enhancement|new-feature|performance|migration|research]
+  task_type: [development|performance|migration|research]
   confidence: [percentage]
   reasoning: [explanation]
 ```
@@ -183,15 +180,14 @@ Display:
   Routing to [task_type] workflow...
 
 Use Skill tool:
-  skill: "maister-copilot/[orchestrator-name]"
+  skill: "maister-[orchestrator-name]"
   args: "[description]"
 ```
 
 **Routing examples:**
-- bug-fix (92%): `skill: "maister-copilot/development-orchestrator"` with `args: "--type=bug Fix login timeout error"`
-- enhancement (88%): `skill: "maister-copilot/development-orchestrator"` with `args: "--type=enhancement Add filtering to user table"`
-- new-feature (85%): `skill: "maister-copilot/development-orchestrator"` with `args: "--type=feature Add user authentication"`
-- performance (95%): `skill: "maister-copilot/performance-orchestrator"` with `args: "Optimize slow dashboard queries"`
+- development (92%): `skill: "maister-development-orchestrator"` with `args: "Fix login timeout error"`
+- development (88%): `skill: "maister-development-orchestrator"` with `args: "Add filtering to user table"`
+- performance (95%): `skill: "maister-performance-orchestrator"` with `args: "Optimize slow dashboard queries"`
 
 ---
 
@@ -205,12 +201,10 @@ Display:
 "Unable to automatically classify this task. Please select manually:"
 
 Use AskUserQuestion with options:
-1. Bug Fix - Fix defects or errors
-2. Enhancement - Improve existing features
-3. New Feature - Add completely new capability
-4. Performance - Optimize speed/efficiency
-5. Migration - Move to new tech/pattern
-6. Research - Investigate and document findings
+1. Development - Fix bugs, improve features, or add new capabilities
+2. Performance - Optimize speed/efficiency
+3. Migration - Move to new tech/pattern
+4. Research - Investigate and document findings
 
 Then route to selected workflow using Skill tool.
 ```
@@ -222,21 +216,19 @@ Display:
 "Task cancelled. You can:
 - Run /work again when ready
 - Use specific workflow commands directly:
-  /maister-copilot/development-new, /maister-copilot/performance-new, etc."
+  /maister-development-new, /maister-performance-new, etc."
 ```
 
 ---
 
 ## Resume Skill Reference
 
-| Task Type | Skill | Args |
-|-----------|-------|------|
-| bug-fix | `maister-copilot/development-orchestrator` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
-| new-feature | `maister-copilot/development-orchestrator` | `--resume [path] [--from=PHASE]` |
-| enhancement | `maister-copilot/development-orchestrator` | `--resume [path] [--from=PHASE]` |
-| performance | `maister-copilot/performance-orchestrator` | `--resume [path] [--from=PHASE]` |
-| migration | `maister-copilot/migration-orchestrator` | `--resume [path] [--from=PHASE]` |
-| research | `maister-copilot/research-orchestrator` | `--resume [path] [--from=PHASE]` |
+| Workflow Type | Skill | Args |
+|---------------|-------|------|
+| development | `maister-development-orchestrator` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
+| performance | `maister-performance-orchestrator` | `--resume [path] [--from=PHASE]` |
+| migration | `maister-migration-orchestrator` | `--resume [path] [--from=PHASE]` |
+| research | `maister-research-orchestrator` | `--resume [path] [--from=PHASE]` |
 
 ---
 
@@ -244,8 +236,8 @@ Display:
 
 ### With Task Classifier
 
-The `/work` command delegates classification to the task-classifier skill, which:
-- Fetches issue details from GitHub/Jira when available
+The `/work` command delegates classification to the task-classifier subagent via Task tool, which:
+- Fetches issue details from GitHub/Jira/Azure DevOps (via MCP, CLI tools, or WebFetch)
 - Analyzes codebase context for better classification
 - Uses confidence-based user confirmation
 - Returns structured classification result
@@ -267,9 +259,9 @@ Uses project documentation for context:
 
 ## Key Behaviors
 
-1. **Single entry point** - One command for all task types
+1. **Single entry point** - One command for all workflow types
 2. **Auto-classification** - Intelligent routing based on task description
 3. **Resume support** - Detects and resumes existing tasks
-4. **Issue integration** - Fetches details from GitHub/Jira
+4. **Issue integration** - Fetches details from GitHub/Jira/Azure DevOps
 5. **Direct skill invocation** - Uses Skill tool for immediate orchestrator loading
 6. **Graceful fallback** - Manual selection if classification fails

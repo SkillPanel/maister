@@ -17,10 +17,10 @@ When a phase requires a skill or subagent:
 
 | Anti-Pattern | Why It's Wrong | Correct Approach |
 |--------------|----------------|------------------|
-| "I'll analyze the codebase..." | Bypasses codebase-analyzer skill | Use `Skill` tool with `maister-copilot/codebase-analyzer` |
-| "Let me create the specification..." | Bypasses specification-creator | Use `Task` tool with `maister-copilot/specification-creator` subagent |
-| "Looking at the gaps between..." | Bypasses gap-analyzer subagent | Use `Task` tool with `maister-copilot/gap-analyzer` |
-| "I'll implement this by..." | Bypasses implementer skill | Use `Skill` tool with `maister-copilot/implementer` |
+| "I'll analyze the codebase..." | Bypasses codebase-analyzer skill | Use `Skill` tool with `maister-codebase-analyzer` |
+| "Let me create the specification..." | Bypasses specification-creator | Use `Task` tool with `maister-specification-creator` subagent |
+| "Looking at the gaps between..." | Bypasses gap-analyzer subagent | Use `Task` tool with `maister-gap-analyzer` |
+| "I'll implement this by..." | Bypasses implementer skill | Use `Skill` tool with `maister-implementer` |
 | Reading a SKILL.md then doing the work | Skill files are instructions FOR skills | Use Skill tool to invoke |
 | Spawning Explore agents in orchestrator | Codebase-analyzer manages its own agents | Invoke skill, let IT spawn agents |
 
@@ -39,13 +39,13 @@ These do NOT require delegation:
 For all analysis, planning, implementation, and verification phases: **ALWAYS DELEGATE**.
 
 **Never acceptable inline** (regardless of perceived task simplicity):
-- Specification creation → always delegate to `maister-copilot/specification-creator` subagent
-- Implementation planning → always delegate to `maister-copilot/implementation-planner` subagent
-- Gap analysis → always delegate to `maister-copilot/gap-analyzer` subagent
-- Codebase analysis → always delegate to `maister-copilot/codebase-analyzer` skill
-- Code review → always delegate to `maister-copilot/code-reviewer` subagent
-- Test execution → always delegate to `maister-copilot/test-suite-runner` subagent
-- Implementation completeness → always delegate to `maister-copilot/implementation-completeness-checker` subagent
+- Specification creation → always delegate to `maister-specification-creator` subagent
+- Implementation planning → always delegate to `maister-implementation-planner` subagent
+- Gap analysis → always delegate to `maister-gap-analyzer` subagent
+- Codebase analysis → always delegate to `maister-codebase-analyzer` skill
+- Code review → always delegate to `maister-code-reviewer` subagent
+- Test execution → always delegate to `maister-test-suite-runner` subagent
+- Implementation completeness → always delegate to `maister-implementation-completeness-checker` subagent
 
 "The task is simple" is NOT a valid reason to skip delegation. Subagents provide context isolation regardless of complexity.
 
@@ -56,7 +56,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 ```
 Tool: Skill
 Parameters:
-  skill: "maister-copilot/[skill-name]"
+  skill: "maister-[skill-name]"
 ```
 
 Wait for skill completion before continuing.
@@ -68,7 +68,7 @@ Wait for skill completion before continuing.
 ```
 Tool: Task
 Parameters:
-  subagent_type: "maister-copilot/[agent-name]"
+  subagent_type: "maister-[agent-name]"
   description: "[brief description]"
   prompt: |
     [Context and instructions]

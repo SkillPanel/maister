@@ -1,6 +1,6 @@
 # Brainstorming Techniques
 
-These techniques guide Phase 2 (Solution Brainstorming) of the research workflow. They provide patterns for expanding the solution space, evaluating alternatives, guiding user dialogue, and managing scope.
+These techniques guide Phase 3 (Solution Brainstorming) of the research workflow. They provide patterns for expanding the solution space, evaluating alternatives, and managing scope.
 
 ---
 
@@ -56,30 +56,6 @@ These techniques guide Phase 2 (Solution Brainstorming) of the research workflow
 - Weight evidence quality when comparing alternatives
 - High-confidence findings override low-confidence opinions
 - Note assumptions that, if wrong, would change the recommendation
-
----
-
-### Interactive Exploration Patterns
-
-**Purpose**: Guide orchestrator's Socratic dialogue with users during brainstorming.
-
-**Socratic Questioning Strategy**:
-- Start broad, narrow progressively (funnel pattern)
-- Build each question on the previous answer
-- 4-6 questions per topic area (enough to explore, not so many as to fatigue)
-- Mix question types: constraints, preferences, priorities, trade-offs
-
-**Question Types**:
-- **Constraint elicitation**: "Are there any non-negotiable requirements?"
-- **Preference discovery**: "Which quality matters more: speed or flexibility?"
-- **Priority ordering**: "If you had to choose between X and Y, which would you pick?"
-- **Assumption testing**: "We're assuming Z is true. Does that match your understanding?"
-- **Trade-off acceptance**: "This approach sacrifices A for B. Is that acceptable?"
-
-**Preference vs Requirement Distinction**:
-- Requirements are binary (must have / must not have)
-- Preferences are gradient (prefer more of X, tolerate less of Y)
-- Always clarify which category a user statement falls into
 
 ---
 

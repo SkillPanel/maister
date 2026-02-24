@@ -20,7 +20,7 @@ Orchestrates parallel codebase analysis using built-in Explore subagents. Adapti
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `task_type` | Yes | One of: `bug`, `enhancement`, `feature` |
+| `task_description` | Yes | Description of the development task |
 | `description` | Yes | Task description from user |
 | `task_path` | Yes | Path to task directory |
 | `artifact_name` | No | Override output filename (default: `codebase-analysis.md`) |
@@ -33,11 +33,13 @@ Orchestrates parallel codebase analysis using built-in Explore subagents. Adapti
 
 Extract keywords, component names, file hints, domain, and technology hints from the description.
 
-| Task Type | Primary Focus | Key Questions |
-|-----------|---------------|---------------|
-| `bug` | Find buggy code path | Where does the bug occur? What's the execution flow? |
-| `enhancement` | Find existing feature | What files implement this feature? How does it work? |
-| `feature` | Find patterns/integration points | What similar patterns exist? Where should this integrate? |
+Determine primary focus from the task description:
+
+| Signal in Description | Primary Focus | Key Questions |
+|----------------------|---------------|---------------|
+| Error/crash/broken language | Find buggy code path | Where does the issue occur? What's the execution flow? |
+| Improve/enhance/existing | Find existing feature | What files implement this feature? How does it work? |
+| Add/new/create | Find patterns/integration points | What similar patterns exist? Where should this integrate? |
 
 ### Step 2: Select Agent Roles
 
@@ -102,13 +104,12 @@ After all Explore agents complete, delegate to `codebase-analysis-reporter` suba
 
 ```
 Task tool:
-  subagent_type: "maister-copilot/codebase-analysis-reporter"
+  subagent_type: "maister-codebase-analysis-reporter"
   description: "Merge findings into analysis report"
   prompt: |
     You are the codebase-analysis-reporter. Merge these raw findings into a structured analysis report.
 
-    Task type: [task_type]
-    Description: [description]
+    Task description: [description]
     Agent roles used: [list of roles]
     Agent count: [N]
     Output path: [task_path]/analysis/[artifact_name]

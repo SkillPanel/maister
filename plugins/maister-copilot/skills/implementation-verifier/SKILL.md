@@ -102,9 +102,9 @@ If prerequisites missing, report and stop.
 **Why sequential**: Test-suite-runner and reality-assessor both run tests. Running them in parallel causes conflicts. Test-suite-runner runs first and writes results to a file that reality-assessor reads.
 
 Task tool call (if NOT skip_test_suite):
-- subagent_type: `maister-copilot/test-suite-runner`
+- subagent_type: `maister-test-suite-runner`
 - description: `Run full test suite`
-- prompt: Include task_path, task_type, test_command (if known). The subagent runs ALL tests, analyzes results, and writes results to `verification/test-suite-results.md`.
+- prompt: Include task_path, task_description, test_command (if known). The subagent runs ALL tests, analyzes results, and writes results to `verification/test-suite-results.md`.
 
 **Wait for test-suite-runner to complete** before proceeding to Step 3b. Mark the test suite task as `completed` with results.
 
@@ -115,27 +115,27 @@ Task tool call (if NOT skip_test_suite):
 **INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 parallel Task tool calls):
 
 Task tool call (always):
-- subagent_type: `maister-copilot/implementation-completeness-checker`
+- subagent_type: `maister-implementation-completeness-checker`
 - description: `Check implementation completeness`
-- prompt: Include task_path, task_type. The subagent checks plan completion, standards compliance, and documentation completeness.
+- prompt: Include task_path. The subagent checks plan completion, standards compliance, and documentation completeness.
 
 Task tool call (if code_review_enabled):
-- subagent_type: `maister-copilot/code-reviewer`
+- subagent_type: `maister-code-reviewer`
 - description: `Code quality review`
 - prompt: Include task_path, scope (from code_review_scope or "all"), report_path (`[task_path]/verification/code-review-report.md`)
 
 Task tool call (if pragmatic_review_enabled):
-- subagent_type: `maister-copilot/code-quality-pragmatist`
+- subagent_type: `maister-code-quality-pragmatist`
 - description: `Pragmatic code review`
 - prompt: Include task_path, report_path (`[task_path]/verification/pragmatic-review.md`)
 
 Task tool call (if production_check_enabled):
-- subagent_type: `maister-copilot/production-readiness-checker`
+- subagent_type: `maister-production-readiness-checker`
 - description: `Production readiness check`
 - prompt: Include task_path, target (production), report_path (`[task_path]/verification/production-readiness-report.md`)
 
 Task tool call (if reality_check_enabled):
-- subagent_type: `maister-copilot/reality-assessor`
+- subagent_type: `maister-reality-assessor`
 - description: `Reality assessment`
 - prompt: Include task_path, report_path (`[task_path]/verification/reality-check.md`).
   - **If test-suite-runner ran (Step 3a)**: Include `skip_test_execution: true` and path to `verification/test-suite-results.md`. Reality-assessor should read test results from that file instead of running tests.
@@ -269,11 +269,11 @@ issue_counts:
 
 ### Anti-Patterns to AVOID
 
-- ❌ Running Bash commands to execute tests → Use Task tool with `maister-copilot/test-suite-runner`
-- ❌ Reading implementation-plan.md to check completion → Use Task tool with `maister-copilot/implementation-completeness-checker`
-- ❌ Reading INDEX.md to check standards compliance → Use Task tool with `maister-copilot/implementation-completeness-checker`
-- ❌ Reading source code for quality/security analysis → Use Task tool with `maister-copilot/code-reviewer`
-- ❌ Checking config/monitoring/resilience directly → Use Task tool with `maister-copilot/production-readiness-checker`
+- ❌ Running Bash commands to execute tests → Use Task tool with `maister-test-suite-runner`
+- ❌ Reading implementation-plan.md to check completion → Use Task tool with `maister-implementation-completeness-checker`
+- ❌ Reading INDEX.md to check standards compliance → Use Task tool with `maister-implementation-completeness-checker`
+- ❌ Reading source code for quality/security analysis → Use Task tool with `maister-code-reviewer`
+- ❌ Checking config/monitoring/resilience directly → Use Task tool with `maister-production-readiness-checker`
 - ❌ Performing ANY verification work inline → ALL verification is delegated to subagents
 
 ### Clear Communication

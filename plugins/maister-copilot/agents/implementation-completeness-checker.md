@@ -42,7 +42,6 @@ The Task prompt MUST include:
 | Input | Source | Purpose |
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
-| `task_type` | Orchestrator state | bug, enhancement, feature, migration, etc. |
 
 **Required Files** (must exist on disk):
 - `{task_path}/implementation/implementation-plan.md`

@@ -46,7 +46,7 @@ The Task prompt MUST include:
 | Input | Source | Purpose |
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
-| `task_type` | Orchestrator state | bug, enhancement, feature, migration, etc. |
+| `task_characteristics` | Gap-analyzer output | Detected characteristics (has_reproducible_defect, modifies_existing_code, creates_new_entities, etc.) |
 | `task_description` | User input | What needs to be built |
 | `requirements_path` | Orchestrator | Path to `analysis/requirements.md` |
 | `project_context_paths` | Orchestrator | Paths to INDEX.md, vision.md, roadmap.md, tech-stack.md |
@@ -204,28 +204,32 @@ Verify the specification before returning. Adapt verification depth:
 
 ---
 
-## Task Type Adaptations
+## Characteristic-Based Adaptations
 
-### Bug Fix Specifications
+Adapt specification depth and focus based on `task_characteristics` from the gap-analyzer:
+
+### When `has_reproducible_defect` is true
 - Focus on: exact behavior change, regression prevention
 - Shorter spec: Goal + Core Requirements + Technical Approach + Success Criteria
 - Skip: User Stories, Visual Design, Reusable Components (unless relevant)
 - Testing emphasis: reproduction test + regression tests
 
-### Enhancement Specifications
+### When `modifies_existing_code` is true
 - Focus on: user journey integration, backward compatibility
 - Include: all sections, emphasize Reusable Components
 - Testing emphasis: existing behavior preserved + new behavior works
 
-### Feature Specifications
-- Focus on: complete feature description, integration points
+### When `creates_new_entities` is true
+- Focus on: complete capability description, integration points
 - Include: all sections with full detail
 - Testing emphasis: feature works end-to-end
 
-### Migration Specifications
+### When invoked by migration-orchestrator
 - Focus on: migration strategy, rollback procedures, compatibility
 - Additional sections: Rollback Plan, Dual-Run Configuration (if applicable)
 - Testing emphasis: compatibility verification, data integrity
+
+**Note**: Multiple characteristics can be true simultaneously. Combine relevant adaptations.
 
 ---
 
@@ -284,7 +288,7 @@ warnings: ["any non-critical observations"]
 - `analysis/codebase-analysis.md` exists (Phase 1 output)
 - `analysis/gap-analysis.md` exists (Phase 2 output)
 
-**Input**: Task path, type, description, requirements path, accumulated context
+**Input**: Task path, task_characteristics, description, requirements path, accumulated context
 
 **Output**: `implementation/spec.md` + structured result
 

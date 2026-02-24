@@ -20,7 +20,7 @@ Merge, deduplicate, and analyze raw exploration findings. Produce a comprehensiv
 ## Input
 
 You receive:
-- **task_type**: `bug`, `enhancement`, or `feature`
+- **task_description**: The original task description (used to tailor recommendations)
 - **description**: The original task description
 - **agent_roles**: Which roles were used (e.g., "File Discovery, Code Analysis, Context Discovery")
 - **agent_count**: How many Explore agents ran
@@ -71,11 +71,11 @@ You receive:
 
 ### 5. Generate Recommendations
 
-Tailor recommendations to task type:
+Tailor recommendations based on what the analysis reveals:
 
-**Bug**: Root cause hypothesis, fix approach, testing strategy, verification steps
-**Enhancement**: Implementation strategy, backward compatibility, testing requirements
-**Feature**: Recommended architecture, integration approach, patterns to follow
+**If defect signals found** (error paths, failure points): Root cause hypothesis, fix approach, testing strategy, verification steps
+**If modifying existing code** (existing implementations found): Implementation strategy, backward compatibility, testing requirements
+**If creating new capability** (no existing implementation): Recommended architecture, integration approach, patterns to follow
 
 ### 6. Write Report
 
@@ -89,7 +89,7 @@ Create the report at `{task_path}/analysis/{artifact_name}`.
 # Codebase Analysis Report
 
 **Date**: [timestamp]
-**Task Type**: [bug/enhancement/feature]
+**Task**: [task description summary]
 **Description**: [task description]
 **Analyzer**: codebase-analyzer skill ([N] Explore agents: [role1, role2, ...])
 
@@ -97,7 +97,7 @@ Create the report at `{task_path}/analysis/{artifact_name}`.
 
 ## Summary
 
-[2-3 sentence overview. For bugs: where the issue likely is. For enhancements: what exists today. For features: recommended integration approach.]
+[2-3 sentence overview of what was found and key insights for the task.]
 
 ---
 
@@ -118,9 +118,7 @@ Create the report at `{task_path}/analysis/{artifact_name}`.
 
 ## Current Functionality
 
-[For bugs: code path and failure point]
-[For enhancements: what the feature currently does]
-[For features: similar patterns found]
+[What the relevant code currently does, failure points if any, similar patterns found]
 
 ### Key Components/Functions
 

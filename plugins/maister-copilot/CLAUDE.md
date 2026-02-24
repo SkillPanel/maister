@@ -40,24 +40,24 @@ All workflows in this plugin follow this pattern when failures occur:
 
 **Rationale**: Automatic rollback discards potentially valid work, hides root causes, and frustrates users. Many failures are simple configuration issues with easy 1-line fixes.
 
-## Task Types Supported
+## Workflow Types Supported
 
-This plugin supports 5 comprehensive task types, each with adaptive workflows tailored to their specific needs:
+This plugin supports 4 workflow types that route to specialized orchestrators:
 
-| Task Type | Purpose | Workflow Stages | Classification Keywords |
-|-----------|---------|----------------|------------------------|
-| **New Feature** | Add completely new capability | 6-7 stages | "add", "new feature", "create", "build" |
-| **Bug Fix** | Fix defects and errors | 4 stages | "fix", "bug", "broken", "error", "crash" |
-| **Enhancement** | Improve existing features | 6 stages | "improve", "enhance", "better", "upgrade existing" |
-| **Performance** | Optimize speed/efficiency | 5 stages | "slow", "optimize", "speed up", "faster" |
-| **Migration** | Move tech/patterns | 6 stages | "migrate", "move from X to Y", "upgrade" |
+| Workflow Type | Purpose | Orchestrator | Classification Keywords |
+|---------------|---------|-------------|------------------------|
+| **Development** | Bug fixes, enhancements, new features | development-orchestrator | "fix", "bug", "add", "new", "improve", "enhance", "create" |
+| **Performance** | Optimize speed/efficiency | performance-orchestrator | "slow", "optimize", "speed up", "faster" |
+| **Migration** | Move tech/patterns | migration-orchestrator | "migrate", "move from X to Y", "upgrade" |
+| **Research** | Investigate and document findings | research-orchestrator | "research", "investigate", "explore options" |
 
 ### Design Principles
 
-- **Adaptive Workflows**: Different task types have different natural progressions (4-7 stages)
+- **Adaptive Phases**: The development orchestrator's phases activate based on detected task characteristics, not predetermined types
+- **Characteristic Detection**: The gap-analyzer detects whether a task involves reproducible defects, existing code modifications, new capabilities, data operations, or UI changes
 - **Flexible Granularity**: Complex steps can have substeps when needed
-- **Consistent Core**: All types share planning, specification, implementation, and verification phases
-- **Conditional Stages**: Some stages activate based on task characteristics (e.g., security review for auth features)
+- **Consistent Core**: All workflows share planning, specification, implementation, and verification phases
+- **Conditional Stages**: Phases activate based on context (e.g., TDD gates when defects detected, UI mockups when UI-heavy)
 
 ## Terminology
 
@@ -66,7 +66,7 @@ To avoid confusion, this plugin uses specific terminology:
 **Development Task** (or simply "Task")
 - The high-level work item: a bug fix, new feature, enhancement, refactoring, etc.
 - Represents the overall piece of work from start to finish
-- Located in: `.maister/tasks/[type]/YYYY-MM-DD-task-name/`
+- Located in: `.maister/tasks/[workflow-type]/YYYY-MM-DD-task-name/`
 - Contains: specification, requirements, implementation plan, and verification results
 
 **Implementation Step** (or "Implementation Task")
@@ -83,13 +83,13 @@ This plugin prioritizes usability and user experience throughout development:
 
 ### User Journey Analysis
 
-**During Requirements Gathering** (New Features):
+**During Requirements Gathering** (when creating new capabilities):
 - Asks how users will discover the feature
 - Identifies target personas (admin, regular user, power user, etc.)
 - Maps feature into existing workflows
 - Documents access patterns and navigation paths
 
-**During Gap Analysis** (Enhancements):
+**During Gap Analysis** (when modifying existing features):
 Comprehensive analysis ensuring complete, usable features:
 
 **User Journey Impact Assessment**:
@@ -145,9 +145,9 @@ For UI-heavy features/enhancements, the plugin can generate ASCII mockups:
 - Ensures consistency with existing app patterns
 
 **When Used**:
-- Optional phase in feature/enhancement workflows
-- Auto-triggered for UI-heavy work (based on keyword detection)
-- Invoked automatically by development-orchestrator (for enhancements and features)
+- Optional phase in development workflow
+- Auto-triggered when `task_characteristics.ui_heavy` is true
+- Invoked automatically by development-orchestrator
 
 **Output**: `analysis/ui-mockups.md` with ASCII diagrams
 
@@ -211,11 +211,10 @@ The maister plugin uses this structure:
 │       ├── backend/            # Backend-specific standards
 │       └── testing/            # Testing standards
 └── tasks/                        # Development tasks (active, growing)
-    ├── new-features/
-    ├── bug-fixes/
-    ├── enhancements/
+    ├── development/
     ├── performance/
-    └── migrations/
+    ├── migrations/
+    └── research/
 ```
 
 **Core Principle**:
@@ -225,27 +224,23 @@ The maister plugin uses this structure:
 
 ### Development Task Organization
 
-Development tasks are organized by type in `.maister/tasks/` using type-based folders:
+Development tasks are organized by workflow type in `.maister/tasks/`:
 
 ```
 .maister/tasks/
-├── new-features/
-│   └── YYYY-MM-DD-task-name/
-├── bug-fixes/
-│   └── YYYY-MM-DD-task-name/
-├── enhancements/
+├── development/
 │   └── YYYY-MM-DD-task-name/
 ├── performance/
 │   └── YYYY-MM-DD-task-name/
-└── migrations/
+├── migrations/
+│   └── YYYY-MM-DD-task-name/
+└── research/
     └── YYYY-MM-DD-task-name/
 ```
 
-**Benefits of type-based organization:**
-- Instant filtering by task type
-- Clear categorization in IDE
-- Easy analytics (count tasks by type)
-- Better team organization
+**Benefits of workflow-based organization:**
+- Clear routing to orchestrator
+- Date-prefixed naming provides chronological sorting
 - Scales well to 100s of tasks
 
 ### Base Task Structure
@@ -275,10 +270,8 @@ Task types can add specialized subdirectories as needed (e.g., `analysis/bug-ana
 
 ### Naming Conventions
 
-**Task Type Directories:**
-- Use plural form: `bug-fixes/`, not `bug-fix/`
-- Use kebab-case: `new-features/`, not `new_features/`
-- Use full words: `performance/`, not `perf/`
+**Workflow Type Directories:**
+- Use workflow names: `development/`, `performance/`, `migrations/`, `research/`
 
 **Task Directories:**
 - Format: `YYYY-MM-DD-task-name`
@@ -286,12 +279,11 @@ Task types can add specialized subdirectories as needed (e.g., `analysis/bug-ana
 - Example: `2025-10-23-fix-login-timeout`
 - Date prefix enables chronological sorting
 - Concise but descriptive name (3-5 words)
-- No task type in name (it's in parent directory)
 
 ### Integration
 
 - **Documentation Discovery**: Always read `.maister/docs/INDEX.md` before starting work to understand project context
-- **Task Discovery**: Browse `.maister/tasks/[type]/` to find development tasks by type
+- **Task Discovery**: Browse `.maister/tasks/` to find development tasks by workflow type
 - **Standards Compliance**: Follow standards from `.maister/docs/standards/` during implementation
 - **Task Tracking**: Task status, priority, tags, and time tracking are in the `task:` section of `orchestrator-state.yml`
 - **Activity Logging**: Record work in `implementation/work-log.md` for transparency
@@ -450,7 +442,7 @@ When creating new workflow orchestrators, ensure ALL of these elements are inclu
 
 1. **State File Creation**
    - MUST create `orchestrator-state.yml` in initialization (explicit STEP)
-   - Include: task_type, mode, current_phase, completed_phases, failed_phases, auto_fix_attempts, options
+   - Include: mode, current_phase, completed_phases, failed_phases, auto_fix_attempts, options, task_characteristics
    - State file is source of truth for resume logic
 
 2. **Phase Execution Loop**
@@ -597,9 +589,10 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 | `implementer` | Executes plans with **mandatory** standards reading (INDEX.md + implementation-plan.md Standards Compliance section + keyword-triggered) and **test step enforcement** (requires user approval to skip N.1 tests) | `skills/implementer/SKILL.md` |
 | `implementation-verifier` | Read-only QA orchestrator: delegates completeness checks, test execution, code review, and production readiness to specialized subagents; compiles results into verification report | `skills/implementation-verifier/SKILL.md` |
 | `standards-discover` | Parallel multi-source standards discovery (config, code, docs, PRs/CI) with confidence scoring | `skills/standards-discover/SKILL.md` |
-| `docs-manager` | Internal engine for doc file operations, INDEX.md generation, CLAUDE.md integration. Not user-invocable — called by maister-copilot/init, standards-update, standards-discover | `skills/docs-manager/skill.md` |
-| `maister-copilot/init` | Initialize `.maister/docs/` with project analysis, documentation generation, and baseline standards | `skills/init/SKILL.md` |
+| `docs-manager` | Internal engine for doc file operations, INDEX.md generation, CLAUDE.md integration. Not user-invocable — called by maister-init, standards-update, standards-discover | `skills/docs-manager/skill.md` |
+| `maister-init` | Initialize `.maister/docs/` with project analysis, documentation generation, and baseline standards | `skills/init/SKILL.md` |
 | `standards-update` | Update or create standards from conversation context or explicit input | `skills/standards-update/SKILL.md` |
+| `quick-bugfix` | Quick TDD-driven bug fix with complexity escalation to full development workflow | `skills/quick-bugfix/SKILL.md` |
 
 ### Orchestrator Framework
 
@@ -644,7 +637,7 @@ Orchestrators manage complete workflows with state management, auto-recovery, an
 
 | Skill | Purpose | Details |
 |-------|---------|---------|
-| `development-orchestrator` | **Unified workflow** (14 phases: 1-14) for bug fixes, enhancements, and new features. Architecture decisions are part of specification phase (5). Includes TDD gates for bugs (3, 9), gap analysis for all. | `skills/development-orchestrator/SKILL.md` |
+| `development-orchestrator` | **Unified workflow** (14 phases: 1-14) for all development tasks. Phases activate based on detected task characteristics (not predetermined types). TDD gates activate when defects detected, UI mockups when UI-heavy. | `skills/development-orchestrator/SKILL.md` |
 | `performance-orchestrator` | Static code analysis for bottleneck detection, reuses standard spec/plan/implement/verify pipeline | `skills/performance-orchestrator/SKILL.md` |
 | `migration-orchestrator` | Code/data/architecture migrations with rollback plans | `skills/migration-orchestrator/skill.md` |
 | `research-orchestrator` | Multi-source research with synthesis, solution brainstorming, high-level design, and citations | `skills/research-orchestrator/skill.md` |
@@ -657,30 +650,30 @@ Commands invoke orchestrators and utilities. All orchestrators support `--yolo` 
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `/maister-copilot/init` | `/maister-copilot/init` | Initialize framework with project analysis and smart defaults for docs/standards |
-| `/maister-copilot/standards-update` | `/maister-copilot/standards-update [path]` | Update/create standards from conversation context |
-| `/maister-copilot/standards-discover` | `/maister-copilot/standards-discover [--scope=SCOPE]` | Discover standards from config files and code patterns |
+| `/maister-init` | `/maister-init` | Initialize framework with project analysis and smart defaults for docs/standards |
+| `/maister-standards-update` | `/maister-standards-update [path]` | Update/create standards from conversation context |
+| `/maister-standards-discover` | `/maister-standards-discover [--scope=SCOPE]` | Discover standards from config files and code patterns |
 
-> **Note**: These are all skills (not commands). `/maister-copilot/init`, `/maister-copilot/standards-update`, and `/maister-copilot/standards-discover` invoke their respective skills which delegate file operations to the internal `docs-manager` skill.
+> **Note**: These are all skills (not commands). `/maister-init`, `/maister-standards-update`, and `/maister-standards-discover` invoke their respective skills which delegate file operations to the internal `docs-manager` skill.
 
 ### Workflow Commands
 
-#### Unified Development Command (Recommended)
+#### Development Command
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `/maister-copilot/development-new` | `[desc] [--type=TYPE] [--yolo] [--e2e] [--user-docs] [--research=PATH]` | Start bug fix, enhancement, or new feature (auto-detected or `--type=bug\|enhancement\|feature`) |
-| `/maister-copilot/development-resume` | `[path] [--from=PHASE] [--reset-attempts]` | Resume interrupted development workflow |
+| `/maister-development-new` | `[desc] [--yolo] [--e2e] [--user-docs] [--research=PATH]` | Start any development task (bug fix, enhancement, or new feature) |
+| `/maister-development-resume` | `[path] [--from=PHASE] [--reset-attempts]` | Resume interrupted development workflow |
 
-**Task directories by type**: `.maister/tasks/bug-fixes/`, `.maister/tasks/enhancements/`, `.maister/tasks/new-features/`
+**Task directory**: `.maister/tasks/development/`
 
 **Research-Based Development**: Start development informed by a completed research workflow:
 ```bash
 # Auto-detect research folder (recommended)
-/maister-copilot/development-new .maister/tasks/research/2026-01-12-oauth-research
+/maister-development-new .maister/tasks/research/2026-01-12-oauth-research
 
 # Explicit --research flag
-/maister-copilot/development-new "Implement OAuth" --research=.maister/tasks/research/2026-01-12-oauth-research
+/maister-development-new "Implement OAuth" --research=.maister/tasks/research/2026-01-12-oauth-research
 ```
 Research context flows through ALL phases without skipping any. Research artifacts are copied to `analysis/research-context/` and summaries pass to every subagent via Pattern 7.
 
@@ -688,29 +681,30 @@ Research context flows through ALL phases without skipping any. Research artifac
 
 | Command | Usage | Task Directory |
 |---------|-------|----------------|
-| `/maister-copilot/performance-new` | `[desc] [--yolo]` | `.maister/tasks/performance/` |
-| `/maister-copilot/performance-resume` | `[path] [--from=phase]` | |
-| `/maister-copilot/migration-new` | `[desc] [--yolo] [--type=TYPE]` | `.maister/tasks/migrations/` |
-| `/maister-copilot/migration-resume` | `[path] [--from=phase]` | |
-| `/maister-copilot/research-new` | `[question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]` | `.maister/tasks/research/` |
-| `/maister-copilot/research-resume` | `[path] [--from=phase]` | |
+| `/maister-performance-new` | `[desc] [--yolo]` | `.maister/tasks/performance/`  |
+| `/maister-performance-resume` | `[path] [--from=phase]` | |
+| `/maister-migration-new` | `[desc] [--yolo] [--type=TYPE]` | `.maister/tasks/migrations/` |
+| `/maister-migration-resume` | `[path] [--from=phase]` | |
+| `/maister-research-new` | `[question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm] [--design] [--no-design]` | `.maister/tasks/research/` |
+| `/maister-research-resume` | `[path] [--from=phase]` | |
 
 ### Review & Audit Commands
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `/maister-copilot/reviews-code` | `[path] [--scope=SCOPE]` | Automated code quality, security, performance analysis |
-| `/maister-copilot/reviews-pragmatic` | `[path]` | Detect over-engineering, ensure code matches project scale |
-| `/maister-copilot/reviews-spec-audit` | `[spec-path]` | Independent spec audit for completeness and clarity |
-| `/maister-copilot/reviews-reality-check` | `[task-path]` | Validate work actually solves the problem |
-| `/maister-copilot/reviews-production-readiness` | `[path] [--target=ENV]` | Pre-deployment verification with GO/NO-GO recommendation |
+| `/maister-reviews-code` | `[path] [--scope=SCOPE]` | Automated code quality, security, performance analysis |
+| `/maister-reviews-pragmatic` | `[path]` | Detect over-engineering, ensure code matches project scale |
+| `/maister-reviews-spec-audit` | `[spec-path]` | Independent spec audit for completeness and clarity |
+| `/maister-reviews-reality-check` | `[task-path]` | Validate work actually solves the problem |
+| `/maister-reviews-production-readiness` | `[path] [--target=ENV]` | Pre-deployment verification with GO/NO-GO recommendation |
 
 ### Quick Commands
 
 | Command | Usage | Purpose |
 |---------|-------|---------|
-| `/maister-copilot/quick-plan` | `[task description]` | Enter planning mode with standards awareness from INDEX.md |
-| `/maister-copilot/quick-dev` | `[task description]` | Implement directly with standards awareness (no planning) |
+| `/maister-quick-plan` | `[task description]` | Enter planning mode with standards awareness from INDEX.md |
+| `/maister-quick-dev` | `[task description]` | Implement directly with standards awareness (no planning) |
+| `/maister-quick-bugfix` | `[bug description]` | Quick bug fix with TDD red/green gates and complexity escalation |
 
 **See**: Individual `commands/*/` and `skills/*/skill.md` files for detailed documentation.
 
@@ -722,9 +716,9 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 
 | Agent | Purpose | Invoked By | Details |
 |-------|---------|------------|---------|
-| `project-analyzer` | Deep codebase analysis for tech stack, architecture, conventions | `/maister-copilot/init` | `agents/project-analyzer.md` |
-| `task-classifier` | Classifies task descriptions into 6 types with confidence scoring | `/work` command | `agents/task-classifier.md` |
-| `gap-analyzer` | Compares current vs desired state with task-type support (bug/enhancement/feature) | development-orchestrator | `agents/gap-analyzer.md` |
+| `project-analyzer` | Deep codebase analysis for tech stack, architecture, conventions | `/maister-init` | `agents/project-analyzer.md` |
+| `task-classifier` | Classifies task descriptions into workflow types with confidence scoring | `/work` command | `agents/task-classifier.md` |
+| `gap-analyzer` | Compares current vs desired state with characteristic-detection-based analysis modules | development-orchestrator | `agents/gap-analyzer.md` |
 | `specification-creator` | Creates specs from gathered requirements with reusability search and self-verification | development-orchestrator, migration-orchestrator | `agents/specification-creator.md` |
 | `implementation-planner` | Breaks specs into task groups with test-driven steps and dependency chains | development-orchestrator, migration-orchestrator | `agents/implementation-planner.md` |
 | `codebase-analysis-reporter` | Merges raw Explore agent findings into structured analysis report with deduplication, cross-referencing, and risk assessment | codebase-analyzer skill | `agents/codebase-analysis-reporter.md` |

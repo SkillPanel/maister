@@ -131,7 +131,7 @@ This phase executes 4 sequential steps. On resume, check existing artifacts to s
 
 **Read `references/research-methodologies.md` NOW using the Read tool** — research type classification, methodology selection, gathering strategies
 
-**INVOKE NOW**: Use Task tool with `subagent_type: maister-copilot/research-planner`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister-research-planner`
 
 **Context to pass**: task_path, research_brief_path, research_type, research_question, scope
 
@@ -162,7 +162,7 @@ For each category in strategy:
 **Artifacts**: `analysis/synthesis.md`, `outputs/research-report.md`
 **Resume check**: If `analysis/synthesis.md` AND `outputs/research-report.md` exist, skip (Phase 1 complete)
 
-**INVOKE NOW**: Use Task tool with `subagent_type: maister-copilot/research-synthesizer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister-research-synthesizer`
 
 **Context to pass**: task_path, findings_directory_path, research_question, research_type, methodology
 
@@ -183,85 +183,90 @@ Update state: `research_context.confidence_level`
 
 ---
 
-### Phase 2: Brainstorming Decision
+### Phase 2: Optional Phases Decision
 
-**Purpose**: Evaluate whether brainstorming/design phases would be valuable and present recommendation to user
+**Purpose**: Evaluate whether brainstorming and/or design phases would be valuable (independently)
 **Execute**: Direct
 **Output**: Updated `orchestrator-state.yml`
 **State**: Set `options.brainstorming_enabled`, `options.design_enabled`
 
-**Auto-resolve if**: `--brainstorm` flag (force enable) or `--no-brainstorm` flag (force skip)
+**Auto-resolve if**: `--brainstorm`/`--no-brainstorm` flags (brainstorming only), `--design`/`--no-design` flags (design only)
 
 **Process**:
 1. Read `analysis/synthesis.md` summary and `research_type` from state
 2. Evaluate brainstorming value based on:
-   - Research type (requirements/literature/mixed → likely valuable; technical → depends on synthesis findings)
    - Number of viable approaches identified in synthesis (multiple → valuable)
    - Problem novelty (new domain → valuable; well-understood → less so)
    - Whether synthesis identified competing trade-offs (yes → valuable)
-3. Formulate recommendation with brief explanation (2-3 sentences)
-4. AskUserQuestion:
-   - "[Recommendation explanation]. Would you like to run brainstorming and design phases?"
-   - Options: "Yes, explore solutions" / "No, skip to outputs"
-5. Update state: set `brainstorming_enabled` and `design_enabled` based on user choice
+3. Evaluate design value based on:
+   - Whether research suggests architectural decisions (yes → valuable)
+   - Research type (requirements/mixed → likely valuable; technical → depends)
+   - Whether design artifacts would feed into development workflow
+4. If `brainstorming_enabled` not already set by flag, AskUserQuestion:
+   - "[Brainstorming recommendation]. Would you like to explore solution alternatives?"
+   - Options: "Yes, explore alternatives" / "No, skip brainstorming"
+5. If `design_enabled` not already set by flag, AskUserQuestion:
+   - "[Design recommendation]. Would you like to generate a high-level design?"
+   - Options: "Yes, generate design" / "No, skip design"
+6. Update state: set `brainstorming_enabled` and `design_enabled`
 
-**YOLO**: Auto-enable brainstorming (brainstorming is valuable by default; YOLO trusts the process)
+**YOLO**: Auto-enable both brainstorming and design.
 
 → If brainstorming enabled: continue to Phase 3
-→ If brainstorming disabled: skip to Phase 5
+→ If brainstorming disabled AND design enabled: skip to Phase 4
+→ If both disabled: skip to Phase 5
 
 ---
 
 ### Phase 3: Solution Brainstorming
 
-**Purpose**: Explore solution alternatives through interactive dialogue and structured brainstorming
+**Purpose**: Explore solution alternatives from research evidence, then let user converge on chosen approaches
 **Execute**: Orchestrator-Direct Hybrid
-**Output**: `analysis/brainstorm-dialogue.md`, `outputs/solution-exploration.md`
+**Output**: `outputs/solution-exploration.md`
 **State**: Update `phase_summaries.phase-2`
 
 **Skip if**: `brainstorming_enabled = false` (user chose to skip in Phase 2, or `--no-brainstorm` flag)
 
-**Read `references/brainstorming-techniques.md` NOW using the Read tool** — divergent/convergent thinking techniques, scope guardrails, interactive exploration patterns
+**Read `references/brainstorming-techniques.md` NOW using the Read tool** — divergent/convergent thinking techniques, scope guardrails
 
-**Part A — HMW Generation (Direct)**:
-1. Read `analysis/synthesis.md` + `outputs/research-report.md`
-2. Generate 3-5 "How Might We" questions from research findings
-3. Present to user via AskUserQuestion for validation and prioritization
-4. Save validated HMW questions
+**Part A — Solution Generation (Subagent)**:
 
-**Part B — User Preferences (Direct)**:
-5. AskUserQuestion for constraints, priorities, and preferences (4-6 questions, one at a time)
-6. Questions build on previous answers (not canned sequences)
-7. Save dialogue summary to `analysis/brainstorm-dialogue.md`
-
-**Part C — Solution Generation (Subagent)**:
+Generate alternatives purely from research evidence, without user preference bias.
 
 > **ANTI-PATTERN**: Do NOT generate solution alternatives inline. The solution-brainstormer agent has specialized multi-perspective analysis capabilities.
 
-**INVOKE NOW**: Use Task tool with `subagent_type: maister-copilot/solution-brainstormer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister-solution-brainstormer`
 
 **Context to pass** (Pattern 7):
 - `task_path`, `synthesis_path`, `research_report_path`
-- `validated_hmw_questions` (from Part A)
-- `user_preferences` (from Part B dialogue)
-- `brainstorm_dialogue_path` (path to `analysis/brainstorm-dialogue.md`)
 - Accumulated context: `research_type`, `research_question`, `confidence_level`, `phase_summaries` (Phase 1)
 
 > **SELF-CHECK**: After Task tool returns, verify `outputs/solution-exploration.md` exists and contains alternatives. If missing, this is a CRITICAL failure.
 
-**Part D — Summary & Convergence (Direct)**:
-8. Read `outputs/solution-exploration.md`
-9. Present executive summary to user before asking for decisions:
-   - Number of alternatives generated
-   - Name and 1-sentence description of each alternative
-   - Key trade-offs identified
-   - Recommended approach and why
-   - Any deferred ideas or open questions
-10. Present recommended approach to user via AskUserQuestion
-11. Options: "Proceed with recommended approach" / "Choose different alternative" / "Explore further"
-12. If user chooses different: update state with chosen approach
+**Part B — Present & Converge (Direct)**:
 
-**YOLO mode**: Skip Parts A+B+D. Subagent runs autonomously using research recommendations as defaults. Auto-accept recommended approach.
+> **ANTI-PATTERN**: Do NOT present all decision areas in a single summary table and ask one combined "do you agree?" question. Each area MUST get its own detailed presentation and its own AskUserQuestion call.
+>
+> **ANTI-PATTERN**: Do NOT show full alternatives/pros/cons for the first area and then shortcut remaining areas to just a recommendation line + question. EVERY area gets the SAME level of detail — all alternatives with descriptions, pros, and cons. No exceptions.
+
+1. Read `outputs/solution-exploration.md`
+2. For each decision area sequentially, output ALL of the following (steps a-d) BEFORE calling AskUserQuestion:
+   a. **Area header**: area name and why this decision matters (1-2 sentences of context)
+   b. **Alternatives detail**: For EVERY alternative in this area, show:
+      - Name and description (2-3 sentences)
+      - Pros (bullet list)
+      - Cons (bullet list)
+   c. **Recommendation**: which alternative is recommended and why (1 sentence)
+   d. **AskUserQuestion**: this area's alternatives as options (mark recommended with "(Recommended)") + "Need more info" option
+   e. If user picks → record choice, move to next area
+   f. If "Need more info" → present the detailed trade-off analysis for the requested alternative, then re-ask
+
+> **SELF-CHECK before each AskUserQuestion**: Did you output the alternatives with pros/cons for THIS area? If you only showed a recommendation line without listing all alternatives and their pros/cons, STOP and output the full detail before asking.
+
+3. After all areas resolved, present a brief summary of the chosen combination
+4. Update state with chosen approaches per decision area
+
+**YOLO mode**: Subagent runs autonomously. Auto-accept recommended approach for all decision areas. Skip Part B convergence.
 
 → Pause
 
@@ -277,25 +282,27 @@ Update state: `research_context.confidence_level`
 **Output**: `outputs/high-level-design.md`, `outputs/decision-log.md`
 **State**: Update `phase_summaries.phase-3`
 
-**Skip if**: Phase 3 was skipped (brainstorming_enabled = false)
+**Skip if**: `design_enabled = false`
 
 **Read `references/design-techniques.md` NOW using the Read tool** — MADR format, ADR guidance, decision documentation patterns
 
 **Part A — Design Direction (Direct)**:
-1. Confirm selected approach from Phase 3
-2. AskUserQuestion for any design preferences or constraints (e.g., "Any architectural constraints or preferences?")
+1. If Phase 3 ran: confirm selected approaches from brainstorming convergence
+2. If Phase 3 was skipped: use research report recommendations as design input
+3. AskUserQuestion for any design preferences or constraints (e.g., "Any architectural constraints or preferences?")
 
 **Part B — Design Generation (Subagent)**:
 
 > **ANTI-PATTERN**: Do NOT generate C4 architecture diagrams or ADRs inline. The solution-designer agent has specialized architecture and MADR documentation capabilities.
 
-**INVOKE NOW**: Use Task tool with `subagent_type: maister-copilot/solution-designer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister-solution-designer`
 
 **Context to pass** (Pattern 7):
-- `task_path`, `solution_exploration_path`, `synthesis_path`, `research_report_path`
-- `selected_approach` (from Phase 3 Part D convergence)
+- `task_path`, `synthesis_path`, `research_report_path`
+- `solution_exploration_path` (only if Phase 3 ran)
+- `selected_approach` (from Phase 3 convergence if ran, or from research report recommendations)
 - `design_preferences` (from Part A)
-- Accumulated context: `research_type`, `research_question`, `confidence_level`, `phase_summaries` (Phase 1-3 including brainstorming summary and chosen approach)
+- Accumulated context: `research_type`, `research_question`, `confidence_level`, `phase_summaries`
 
 > **SELF-CHECK**: After Task tool returns, verify both `outputs/high-level-design.md` and `outputs/decision-log.md` exist. If missing, this is a CRITICAL failure.
 
@@ -390,7 +397,7 @@ AskUserQuestion:
 ```
 
 If user chooses "Start development":
-- Invoke Skill: `maister-copilot/development-new [current-research-task-path]`
+- Invoke Skill: `maister-development-new [current-research-task-path]`
 
 → End of workflow
 
@@ -421,8 +428,7 @@ research_context:
       steps_completed: []  # track which steps completed for resume
     phase-3:
       summary: "..."
-      alternatives_count: 0
-      chosen_approach: null
+      decision_areas: []        # list of {area, alternatives_count, chosen_approach}
       deferred_ideas: []
     phase-4:
       summary: "..."
@@ -431,7 +437,7 @@ research_context:
 
 options:
   brainstorming_enabled: null  # null=not yet decided, set by Phase 2 or --brainstorm/--no-brainstorm flag
-  design_enabled: null          # follows brainstorming_enabled
+  design_enabled: null          # independent, set by Phase 2 or --design/--no-design flag
   verification_enabled: null    # null=auto-detect
   integration_enabled: null
 ```
@@ -454,8 +460,7 @@ options:
 │   │   ├── config-*.md             # Phase 1, Step 3
 │   │   ├── external-*.md           # Phase 1, Step 3
 │   │   └── [custom-category]-*.md  # Phase 1, Step 3 (dynamic categories)
-│   ├── synthesis.md                # Phase 1, Step 4 (reasoning log)
-│   └── brainstorm-dialogue.md      # Phase 3 (interactive mode)
+│   └── synthesis.md                # Phase 1, Step 4 (reasoning log)
 ├── outputs/
 │   ├── research-report.md          # Phase 1, Step 4 (main deliverable)
 │   ├── solution-exploration.md     # Phase 3 (conditional)
@@ -489,7 +494,7 @@ options:
 
 ### As Standalone Research
 
-**Command**: `/maister-copilot/research-new [research-question]`
+**Command**: `/maister-research-new [research-question]`
 **Flow**: Complete all phases, save outputs in task directory
 
 ### As Embedded Research Phase
@@ -517,12 +522,17 @@ research_outputs:
 ## Command Integration
 
 Invoked via:
-- `/maister-copilot/research-new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm]`
-- `/maister-copilot/research-resume [task-path] [--from=PHASE]`
+- `/maister-research-new [question] [--yolo] [--type=TYPE] [--brainstorm] [--no-brainstorm] [--design] [--no-design]`
+- `/maister-research-resume [task-path] [--from=PHASE]`
 
 **Brainstorming flags**:
-- `--brainstorm`: Force brainstorming/design phases (auto-resolves Phase 2 to "enable")
-- `--no-brainstorm`: Skip brainstorming/design phases (auto-resolves Phase 2 to "skip")
+- `--brainstorm`: Force brainstorming phase (auto-resolves Phase 2 brainstorming decision to "enable")
+- `--no-brainstorm`: Skip brainstorming phase
+- Neither: Phase 2 presents recommendation and asks user
+
+**Design flags**:
+- `--design`: Force high-level design phase (auto-resolves Phase 2 design decision to "enable")
+- `--no-design`: Skip high-level design phase
 - Neither: Phase 2 presents recommendation and asks user
 
 Task directory: `.maister/tasks/research/YYYY-MM-DD-task-name/`

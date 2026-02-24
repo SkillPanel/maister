@@ -10,28 +10,28 @@ Implement a task directly without entering planning mode, while still applying p
 ## Usage
 
 ```bash
-/maister-copilot/quick-dev [task description]
+/maister-quick-dev [task description]
 ```
 
 ## Examples
 
 ```bash
-/maister-copilot/quick-dev "Add a logout button to the navbar"
-/maister-copilot/quick-dev "Fix the typo in the error message"
-/maister-copilot/quick-dev "Update the API endpoint to accept JSON"
+/maister-quick-dev "Add a logout button to the navbar"
+/maister-quick-dev "Fix the typo in the error message"
+/maister-quick-dev "Update the API endpoint to accept JSON"
 ```
 
 ---
 
 ## When to Use
 
-**Use `/maister-copilot/quick-dev` when:**
+**Use `/maister-quick-dev` when:**
 - Task is clear and well-defined
 - You know what needs to be done
 - No architectural decisions needed
 - Quick fixes, small features, or straightforward changes
 
-**Use `/maister-copilot/quick-plan` instead when:**
+**Use `/maister-quick-plan` instead when:**
 - Task scope is uncertain
 - Multiple implementation approaches possible
 - Architectural decisions required
@@ -65,7 +65,7 @@ Implement a task directly without entering planning mode, while still applying p
 
 **If not exists:**
 - Note that no standards are available
-- Suggest running `/maister-copilot/init` in completion message
+- Suggest running `/maister-init` in completion message
 
 ### Standards Reading Enforcement (MANDATORY)
 
@@ -129,6 +129,6 @@ Implement a task directly without entering planning mode, while still applying p
 Proceed with implementation normally, then note:
 
 ```
-"No AI SDLC standards found. Consider running `/maister-copilot/init` to initialize
+"No AI SDLC standards found. Consider running `/maister-init` to initialize
 project documentation and coding standards for better consistency."
 ```

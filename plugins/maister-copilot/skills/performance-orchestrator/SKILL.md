@@ -89,7 +89,7 @@ Use for:
 
 **Purpose**: Comprehensive codebase exploration for performance context, followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `maister-copilot/codebase-analyzer`
+1. Skill tool - `maister-codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use AskUserQuestion for max 5 critical clarifying questions about performance concerns, hotspots, and optimization goals
 4. Save clarifications to `analysis/clarifications.md`
@@ -107,7 +107,7 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 ### Phase 2: Static Performance Analysis
 
 **Purpose**: Identify bottlenecks through static code analysis + optional user profiling data
-**Execute**: Task tool - `maister-copilot/bottleneck-analyzer` subagent
+**Execute**: Task tool - `maister-bottleneck-analyzer` subagent
 **Output**: `analysis/performance-analysis.md`
 **State**: Update `performance_context.bottlenecks_identified`, `performance_context.user_data_available`, `performance_context.bottleneck_priorities`
 
@@ -124,11 +124,11 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 
 **INVOKE NOW** — Task tool call:
 
-4. Task tool - `maister-copilot/bottleneck-analyzer` subagent
+4. Task tool - `maister-bottleneck-analyzer` subagent
 
 **Context to pass**: task_path, description, codebase analysis summary from Phase 1, user data paths (if any)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot/bottleneck-analyzer`? Or did you start analyzing code yourself? If the latter, STOP and invoke the Task tool.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-bottleneck-analyzer`? Or did you start analyzing code yourself? If the latter, STOP and invoke the Task tool.
 
 → Pause
 
@@ -164,11 +164,11 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 
 **INVOKE NOW** — Task tool call:
 
-4. Task tool - `maister-copilot/specification-creator` subagent
+4. Task tool - `maister-specification-creator` subagent
 
 **Context to pass**: task_path, task_type="performance", task_description, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md, vision.md, roadmap.md, tech-stack.md), phase_summaries (codebase_analysis, bottleneck_analysis)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot/specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP and invoke the Task tool.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP and invoke the Task tool.
 
 → Pause
 
@@ -180,7 +180,7 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 ### Phase 4: Specification Audit (Conditional)
 
 **Purpose**: Independent review of optimization specification
-**Execute**: Task tool - `maister-copilot/spec-auditor` subagent
+**Execute**: Task tool - `maister-spec-auditor` subagent
 **Output**: `verification/spec-audit.md`
 **State**: Update `options.spec_audit_enabled`
 
@@ -209,13 +209,13 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 
 **INVOKE NOW** — Task tool call:
 
-**Execute**: Task tool - `maister-copilot/implementation-planner` subagent
+**Execute**: Task tool - `maister-implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md`
 **State**: Update task groups and dependencies
 
 **Context to pass**: task_path, task_type="performance", task_description, phase_summaries (specification, bottleneck_analysis, codebase_analysis)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot/implementation-planner`? Or did you start writing the plan yourself? If the latter, STOP and invoke the Task tool.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-implementation-planner`? Or did you start writing the plan yourself? If the latter, STOP and invoke the Task tool.
 
 → Pause
 
@@ -230,7 +230,7 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 
 📋 **Standards Discovery**: Implementation reads `.maister/docs/INDEX.md` continuously.
 
-**Execute**: Skill tool - `maister-copilot/implementation-plan-executor`
+**Execute**: Skill tool - `maister-implementation-plan-executor`
 **Output**: Implemented optimizations, `implementation/work-log.md`
 **State**: Update implementation progress
 
@@ -264,7 +264,7 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 
 **Purpose**: Comprehensive implementation verification with fix-then-reverify cycles
 **Execute**:
-1. Skill tool - `maister-copilot/implementation-verifier`
+1. Skill tool - `maister-implementation-verifier`
 2. If issues found: Fix trivial issues directly, AskUserQuestion for non-trivial
 3. Before re-verification: set `skip_test_suite: false` (code changed, tests must re-run)
 4. Re-verify after fixes (max 3 fix-then-reverify cycles)
@@ -372,7 +372,7 @@ options:
 ## Command Integration
 
 Invoked via:
-- `/maister-copilot/performance-new [description] [--yolo]`
-- `/maister-copilot/performance-resume [task-path]`
+- `/maister-performance-new [description] [--yolo]`
+- `/maister-performance-resume [task-path]`
 
 Task directory: `.maister/tasks/performance/YYYY-MM-DD-task-name/`

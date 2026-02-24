@@ -31,7 +31,7 @@ You are performing automated code analysis to identify quality, security, and pe
 
 ```
 Use Task tool:
-  subagent_type: "maister-copilot/code-reviewer"
+  subagent_type: "maister-code-reviewer"
   description: "Code quality review"
   prompt: |
     Analyze code at: [path from user or from AskUserQuestion]
@@ -52,17 +52,17 @@ The code-reviewer subagent will:
 
 **Example 1**: Review specific task
 ```
-User: /maister-copilot/reviews-code .maister/tasks/new-features/2025-10-24-auth/
+User: /maister-reviews-code .maister/tasks/development/2025-10-24-auth/
 ```
 
 **Example 2**: Review with specific scope
 ```
-User: /maister-copilot/reviews-code src/api/ --scope=security
+User: /maister-reviews-code src/api/ --scope=security
 ```
 
 **Example 3**: Review entire project
 ```
-User: /maister-copilot/reviews-code src/
+User: /maister-reviews-code src/
 ```
 
 ## What to Expect

@@ -36,10 +36,10 @@ find "$OUT/commands" -name "*.md" | while read f; do
   sedi 's/^name: maister:/name: maister-/' "$f"
 done
 
-# 4. Replace maister: prefix with maister-copilot/ for subagent/skill refs
+# 4. Replace maister: prefix with maister- for subagent/skill refs
 # Run AFTER command name transform (#3) so name: lines are already clean
 find "$OUT" -name "*.md" | while read f; do
-  sedi 's/maister:/maister-copilot\//g' "$f"
+  sedi 's/maister:/maister-/g' "$f"
 done
 
 # 5. Transform multi-select patterns to sequential

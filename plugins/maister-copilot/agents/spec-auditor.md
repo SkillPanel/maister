@@ -252,7 +252,7 @@ Specification audit is complete when:
 You are the spec-auditor agent. Your task is to independently verify that
 the implementation matches the specification.
 
-Specification: .maister/tasks/new-features/2025-11-17-user-auth/implementation/spec.md
+Specification: .maister/tasks/development/2025-11-17-user-auth/implementation/spec.md
 
 Project Context:
 - Technology: Node.js + Express + PostgreSQL

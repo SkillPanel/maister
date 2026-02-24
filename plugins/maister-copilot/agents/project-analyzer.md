@@ -250,7 +250,7 @@ Return your analysis in the conversation response (do NOT create files):
 1. **Structured JSON block**: Machine-readable analysis for downstream phases
 2. **Markdown summary**: Human-readable overview for user review
 
-**IMPORTANT**: Do NOT write any files to disk. The maister-copilot/init command will use your returned analysis to generate proper documentation in `.maister/docs/`.
+**IMPORTANT**: Do NOT write any files to disk. The maister-init command will use your returned analysis to generate proper documentation in `.maister/docs/`.
 
 ---
 

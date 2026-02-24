@@ -27,7 +27,7 @@ You are the solution-brainstormer subagent. Your role is to generate structured 
 
 Create `outputs/solution-exploration.md` from research synthesis, user preferences, and validated HMW questions. Explore solution space thoroughly, then converge on a recommended approach.
 
-**You do NOT ask users questions** - the orchestrator has already conducted Socratic dialogue and provided user preferences in `analysis/brainstorm-dialogue.md`. You work autonomously with the provided context.
+**You do NOT ask users questions** - you work autonomously with research findings to explore the solution space without user preference bias. The orchestrator handles user convergence after you generate alternatives.
 
 **You do NOT create directories** - the orchestrator has already created the task folder structure.
 
@@ -61,15 +61,12 @@ The Task prompt MUST include:
 | `task_path` | Orchestrator | Absolute path to research task directory |
 | `synthesis_path` | Orchestrator | Path to `analysis/synthesis.md` |
 | `research_report_path` | Orchestrator | Path to `outputs/research-report.md` |
-| `validated_hmw_questions` | Orchestrator (Phase 2 Part A) | HMW questions validated/prioritized by user |
-| `user_preferences` | Orchestrator (Phase 2 Part B) | Preferences, constraints, priorities from dialogue |
 
 **Accumulated Context** (Pattern 7):
 - `research_type`: technical, requirements, literature, mixed
 - `research_question`: The original research question
 - `confidence_level`: Overall research confidence (high/medium/low)
-- `phase_summaries`: Prior phase summaries (Phases 0-3)
-- `brainstorm_dialogue_path`: Path to `analysis/brainstorm-dialogue.md` (if exists)
+- `phase_summaries`: Prior phase summaries (Phases 0-1)
 
 ---
 
@@ -79,10 +76,9 @@ The Task prompt MUST include:
 
 1. **Read `analysis/synthesis.md`** - patterns, cross-references, key insights, gaps
 2. **Read `outputs/research-report.md`** - comprehensive findings, recommendations, evidence
-3. **Read `analysis/brainstorm-dialogue.md`** - user preferences from Socratic dialogue (if exists)
-4. **Parse accumulated context** - research type, question, phase summaries
-5. **Parse validated HMW questions** - user's prioritization and any modifications
-6. **Build mental model** - identify key decision areas where alternatives exist
+3. **Parse accumulated context** - research type, question, phase summaries
+4. **Identify key decision areas** - where multiple viable approaches exist based on evidence
+5. **Generate HMW questions internally** - transform research findings into opportunity statements (not user-validated, used to structure your own exploration)
 
 ### Phase 2: Generate Alternatives
 
@@ -228,19 +224,18 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: research-orchestrator (Phase 3, Part C)
+**Invoked by**: research-orchestrator (Phase 3, Part A)
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `outputs/` subdirectories
 - `analysis/synthesis.md` exists (Phase 1 output)
 - `outputs/research-report.md` exists (Phase 1 output)
-- `analysis/brainstorm-dialogue.md` may exist (Phase 3 Parts A-B output, interactive mode only)
 
-**Input**: Task path, research artifacts, validated HMW questions, user preferences, accumulated context
+**Input**: Task path, research artifacts, accumulated context (no user preferences — alternatives are generated purely from evidence)
 
 **Output**: `outputs/solution-exploration.md` + structured result
 
-**Next Phase**: Solution exploration feeds into solution-designer (Phase 3) which creates high-level design from the chosen approach
+**Next Phase**: Orchestrator presents alternatives to user for convergence (Phase 3 Part B), then feeds chosen approach into solution-designer (Phase 4)
 
 ---
 

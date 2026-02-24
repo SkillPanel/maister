@@ -69,7 +69,7 @@ Use at phase boundaries where user review is valuable:
 Use when different paths are needed based on state:
 
 ```markdown
-→ Conditional: if task_type=bug AND tdd_enabled then continue to Phase 3, else skip to Phase 4
+→ Conditional: if task_characteristics.has_reproducible_defect then continue to Phase 3, else skip to Phase 4
 
 **Evaluation**:
 1. Read `orchestrator-state.yml` for condition values
@@ -98,7 +98,7 @@ For each phase:
 | Phase starting | `status: "in_progress"`, `activeForm` from Phase Configuration |
 | Phase completed | `status: "completed"`, `metadata: {completed_at, artifact_paths}` |
 | Phase skipped | `status: "completed"`, `metadata: {skipped: true, reason: "..."}` |
-| Phase delegated | `owner: "maister-copilot/[skill-or-agent-name]"` |
+| Phase delegated | `owner: "maister-[skill-or-agent-name]"` |
 | Phase failed | Keep as `in_progress` (state file tracks failure details) |
 
 ---
@@ -129,7 +129,7 @@ Use the `Skill` tool:
 
 ```
 Use Skill tool:
-  skill: "maister-copilot/[skill-name]"
+  skill: "maister-[skill-name]"
 ```
 
 **Skills**: `implementer`, `implementation-verifier`, `codebase-analyzer`, `docs-manager`
@@ -140,7 +140,7 @@ Use the `Task` tool with `subagent_type`:
 
 ```
 Use Task tool:
-  subagent_type: "maister-copilot/[agent-name]"
+  subagent_type: "maister-[agent-name]"
   description: "[brief description]"
   prompt: "[detailed prompt]"
 ```
@@ -165,7 +165,7 @@ Before specification, planning, implementation, and verification phases, check `
 Reading .maister/docs/INDEX.md to check applicable standards...
 
 [If found] Applying: [list relevant standards]
-[If not found] No INDEX.md found. Consider running /maister-copilot/init.
+[If not found] No INDEX.md found. Consider running /maister-init.
 ```
 
 ---

@@ -435,8 +435,8 @@ Documentation is complete when:
 You are the user-docs-generator agent. Your task is to create end-user
 documentation with screenshots for a newly implemented feature.
 
-Task Path: .maister/tasks/new-features/2025-10-23-task-management
-Spec: .maister/tasks/new-features/2025-10-23-task-management/implementation/spec.md
+Task Path: .maister/tasks/development/2025-10-23-task-management
+Spec: .maister/tasks/development/2025-10-23-task-management/implementation/spec.md
 Base URL: http://localhost:3000
 Feature: Task Management
 

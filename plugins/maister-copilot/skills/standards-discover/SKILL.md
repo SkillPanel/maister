@@ -1,5 +1,5 @@
 ---
-name: maister-copilot/standards-discover
+name: maister-standards-discover
 description: Discover coding standards from project configuration files, code patterns, documentation, and external sources (PRs, CI/CD)
 ---
 
@@ -66,7 +66,7 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 ### Phase 1: Planning & Initialization
 
 1. **Parse options** from command arguments
-2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, offer to run `/maister-copilot/init` first
+2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, offer to run `/maister-init` first
 3. **Read existing standards** from `.maister/docs/INDEX.md` to identify updates vs creates and avoid duplicates
 4. **Display discovery plan** showing scope, sources, and estimated time
 5. **Get user confirmation** via AskUserQuestion before proceeding
@@ -189,7 +189,7 @@ Display final results:
 
 | Situation | Strategy |
 |-----------|----------|
-| `.maister/docs/` missing | Offer `/maister-copilot/init`, abort if declined |
+| `.maister/docs/` missing | Offer `/maister-init`, abort if declined |
 | gh CLI unavailable | Skip PR analysis, continue with other sources |
 | GitHub API rate limit | Skip PR analysis, note in report |
 | Config file parse error | Skip that file, log warning, continue |
@@ -213,17 +213,17 @@ Display final results:
 
 ```bash
 # Full discovery (default)
-/maister-copilot/standards-discover
+/maister-standards-discover
 
 # Quick scan (config files only, ~30-60s)
-/maister-copilot/standards-discover --scope=quick
+/maister-standards-discover --scope=quick
 
 # Frontend standards only
-/maister-copilot/standards-discover --scope=frontend
+/maister-standards-discover --scope=frontend
 
 # High confidence, auto-apply
-/maister-copilot/standards-discover --confidence=80 --auto-apply
+/maister-standards-discover --confidence=80 --auto-apply
 
 # Skip external analysis (offline/no GitHub)
-/maister-copilot/standards-discover --skip-external
+/maister-standards-discover --skip-external
 ```

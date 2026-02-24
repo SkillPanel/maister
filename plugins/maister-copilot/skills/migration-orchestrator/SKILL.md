@@ -95,7 +95,7 @@ Use for:
 
 **Purpose**: Comprehensive analysis of current system before migration, followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `maister-copilot/codebase-analyzer`
+1. Skill tool - `maister-codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use AskUserQuestion for max 5 critical clarifying questions about migration scope, target system, and constraints
 4. Save clarifications to `analysis/clarifications.md`
@@ -111,7 +111,7 @@ Use for:
 ### Phase 2: Target State Planning & Gap Analysis
 
 **Purpose**: Define target system and identify migration gaps
-**Execute**: Task tool - `maister-copilot/gap-analyzer` subagent
+**Execute**: Task tool - `maister-gap-analyzer` subagent
 **Output**: `analysis/target-state-plan.md`
 **State**: Update `migration_context.migration_type`, `target_system`, `risk_level`, `breaking_changes`
 
@@ -145,7 +145,7 @@ Use for:
 2. Save gathered requirements to `analysis/requirements.md`
 
 **Part B — Specification Creation (subagent)**:
-3. Task tool - `maister-copilot/specification-creator` subagent
+3. Task tool - `maister-specification-creator` subagent
 
 **Context to pass to subagent**: task_path, task_type (migration), task_description, requirements_path (analysis/requirements.md), project_context_paths, migration_type, current_system, target_system, risk_level, breaking_changes, phase_summaries (current_state_analysis, gap_analysis)
 
@@ -164,7 +164,7 @@ Use for:
 ### Phase 4: Implementation Planning
 
 **Purpose**: Break migration into task groups with rollback steps
-**Execute**: Task tool - `maister-copilot/implementation-planner` subagent
+**Execute**: Task tool - `maister-implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md` with rollback procedures
 **State**: Update task groups and dependencies
 
@@ -180,7 +180,7 @@ Use for:
 ### Phase 5: Migration Execution
 
 **Purpose**: Execute migration steps with incremental verification
-**Execute**: Skill tool - `maister-copilot/implementer`
+**Execute**: Skill tool - `maister-implementer`
 **Output**: Implemented migration changes, `implementation/work-log.md`
 **State**: Update implementation progress
 
@@ -196,7 +196,7 @@ Use for:
 ### Phase 6: Verification + Compatibility Testing
 
 **Purpose**: Verify migration success with compatibility and rollback testing
-**Execute**: Skill tool - `maister-copilot/implementation-verifier`
+**Execute**: Skill tool - `maister-implementation-verifier`
 **Output**: `verification/implementation-verification.md`, `verification/compatibility-test-results.md`
 **State**: Update verification results
 
@@ -242,7 +242,7 @@ Use for:
 ### Phase 8: Documentation (Optional)
 
 **Purpose**: Create migration guide for end users
-**Execute**: Task tool - `maister-copilot/user-docs-generator` subagent
+**Execute**: Task tool - `maister-user-docs-generator` subagent
 **Output**: `documentation/migration-guide.md`
 **State**: Set documentation complete
 
@@ -340,7 +340,7 @@ options:
 ## Command Integration
 
 Invoked via:
-- `/maister-copilot/migration-new [description] [--yolo] [--type=TYPE]`
-- `/maister-copilot/migration-resume [task-path] [--from=PHASE]`
+- `/maister-migration-new [description] [--yolo] [--type=TYPE]`
+- `/maister-migration-resume [task-path] [--from=PHASE]`
 
 Task directory: `.maister/tasks/migrations/YYYY-MM-DD-task-name/`
