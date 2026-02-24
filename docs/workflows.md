@@ -174,9 +174,7 @@ All workflows create structured directories in `.maister/tasks/`:
 
 ```
 .maister/tasks/
-├── new-features/          # Feature development
-├── bug-fixes/             # Bug fixes
-├── enhancements/          # Enhancements
+├── development/           # All development tasks (features, bugs, enhancements)
 ├── performance/           # Performance optimization
 ├── migrations/            # Migrations
 └── research/              # Research

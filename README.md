@@ -101,6 +101,7 @@ For smaller tasks that don't need a full workflow:
 |---------|----------|
 | `/maister:quick-plan` | You want a plan with standards awareness before coding |
 | `/maister:quick-dev` | You know what to do - just implement with standards applied |
+| `/maister:quick-bugfix` | Quick TDD-driven bug fix — write failing test, fix, verify |
 
 ## Standards-Aware Development
 

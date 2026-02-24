@@ -31,7 +31,7 @@ Starts the unified development workflow (14 adaptive phases). All arguments are 
 | `--research=PATH` | Start development informed by a completed research task |
 | `--from=PHASE` | Start from a specific phase |
 
-**Task directory**: `.maister/tasks/new-features/`, `bug-fixes/`, or `enhancements/` (based on type)
+**Task directory**: `.maister/tasks/development/`
 
 ### `/maister:development-resume [task-path]`
 
@@ -217,3 +217,11 @@ Implement a task directly with standards awareness. Reads INDEX.md, loads applic
 Enter Claude Code's planning mode with standards awareness. Discovers and reads applicable standards *before* entering plan mode, so your plan is informed by project conventions.
 
 Standards compliance checklist is required in the plan file before exiting plan mode.
+
+### `/maister:quick-bugfix [bug description]`
+
+Lightweight TDD-driven bug fix without a full orchestrator workflow. Analyzes the bug, writes a failing test, implements the fix, and verifies the test passes.
+
+**When to use**: Simple, isolated bugs where you can quickly identify the root cause. If the bug is too complex (multiple files, unclear root cause, architectural impact), the skill suggests escalating to `/maister:development-new`.
+
+No task directory created — works directly in your codebase.
