@@ -275,11 +275,28 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 ### Phase 8: Implementation
 
 **Purpose**: Execute the implementation plan
+
+**ANTI-PATTERN — DO NOT DO THIS:**
+- ❌ "Let me implement this directly..." — STOP. Delegate to implementation-plan-executor.
+- ❌ "This is simple enough to code inline..." — STOP. Simplicity is NOT a reason to skip delegation.
+
+**INVOKE NOW** — Skill tool call:
+
 **Execute**: Skill tool - `maister-implementation-plan-executor`
 **Output**: Implemented code, `implementation/work-log.md`
-**State**: Update implementation progress
+**State**: Update implementation progress, extract phase_summaries.implementation
 
-→ Conditional: if `task_characteristics.has_reproducible_defect` AND Phase 3 was executed, continue to Phase 9, else skip to Phase 10
+**SELF-CHECK**: Did you just invoke the Skill tool with `maister-implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
+
+**⚠️ POST-IMPLEMENTATION CONTINUATION** — After the skill completes and returns control:
+1. Read `orchestrator-state.yml` to confirm you are the orchestrator
+2. Update state: add Phase 8 to `completed_phases`
+3. Evaluate conditional: if `task_characteristics.has_reproducible_defect` AND Phase 3 in `completed_phases` → Phase 9, else → Phase 10
+
+→ Pause
+
+**Interactive**: AskUserQuestion - "Implementation complete. Continue to Phase [9 or 10]?"
+**YOLO**: "→ Continuing to Phase [9 or 10]..."
 
 ---
 

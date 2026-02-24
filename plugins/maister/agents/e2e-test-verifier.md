@@ -208,10 +208,12 @@ Categorized by severity (Critical/Major/Minor/Cosmetic):
 - Read generated report from `[task-path]/verification/e2e-verification-report.md`
 - Extract image references: `!\[.*?\]\(screenshots/(.*?\.png)\)`
 - For each referenced screenshot:
-  - Find in `.playwright-mcp/` directory
+  - Look ONLY in `.playwright-mcp/` directory (relative to project root)
   - Copy to `verification/screenshots/`: `cp .playwright-mcp/FILENAME verification/screenshots/`
   - Verify copied: `test -f verification/screenshots/FILENAME`
-- Error if any referenced screenshot missing
+  - If not found in `.playwright-mcp/`, mark as missing in report — do NOT search elsewhere
+- **NEVER** use broad glob patterns (e.g., `**/*.png`) from root, home, or parent directories — this can scan the entire filesystem
+- Only search within `.playwright-mcp/` and the task's own `verification/screenshots/` directory
 
 **Output**: All referenced screenshots in `verification/screenshots/`, validated
 

@@ -76,6 +76,10 @@ Store selections for Phase 6.
 
 ## PHASE 4: Select Standards to Initialize
 
+Before presenting options, explain to the user:
+- **What standards are**: Coding standards are documented conventions and best practices (naming, error handling, testing patterns, etc.) that guide consistent development across the project.
+- **Built-in starting point**: The plugin includes generic built-in standards for common categories. These serve as a starting point and can be fully customized or extended later as the project evolves.
+
 Calculate smart defaults from baseline categories based on analysis:
 - **Global**: Always recommended
 - **Frontend**: If frontend framework detected or projectArchitectureType includes frontend
