@@ -1,5 +1,5 @@
 ---
-name: maister-copilot/init
+name: maister-init
 description: Initialize AI SDLC framework with intelligent project analysis and documentation generation
 argument-hint: (no arguments)
 ---
@@ -76,6 +76,10 @@ Store selections for Phase 6.
 
 ## PHASE 4: Select Standards to Initialize
 
+Before presenting options, explain to the user:
+- **What standards are**: Coding standards are documented conventions and best practices (naming, error handling, testing patterns, etc.) that guide consistent development across the project.
+- **Built-in starting point**: The plugin includes generic built-in standards for common categories. These serve as a starting point and can be fully customized or extended later as the project evolves.
+
 Calculate smart defaults from baseline categories based on analysis:
 - **Global**: Always recommended
 - **Frontend**: If frontend framework detected or projectArchitectureType includes frontend
@@ -144,7 +148,7 @@ Write each file to `.maister/docs/project/`.
 - Next steps:
   1. Review generated documentation
   2. Customize for your team
-  3. Start development with `/maister-copilot/work`
+  3. Start development with `/maister-work`
   4. Keep documentation current
 
 ---
