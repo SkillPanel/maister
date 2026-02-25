@@ -8,7 +8,7 @@ argument-hint: [--standards-from=PATH]
 
 Initialize `.maister/docs/` with intelligent project analysis and meaningful documentation generation based on actual codebase inspection.
 
-**NOTE**: This skill invokes other skills and subagents at specific phases. Use the Skill tool for docs-manager and Task tool for project-analyzer. **CRITICAL: After each Skill tool invocation completes, immediately continue with the next step in this workflow. Skill invocations are intermediate steps, NOT endpoints — do not stop after they return.**
+**NOTE**: This skill invokes other skills and subagents at specific phases. Use the **Task tool with `docs-operator` subagent** (subagent_type: `maister:docs-operator`) for all docs-manager operations, and **Task tool** for project-analyzer. Use the **Skill tool** only for standards-discover (Phase 8, last phase). The Task tool returns control to this skill after completion; the Skill tool does not.
 
 ## Phase Configuration
 
@@ -109,11 +109,11 @@ Store selection for Phase 5.
 
 ## PHASE 5: Initialize Documentation Structure
 
-**Invoke docs-manager skill** via Skill tool with context:
+**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`) with prompt:
 
 > "Initialize documentation structure. Standards selection: [array from Phase 4]. [If --standards-from was provided: Standards source path: [resolved path]/.maister/docs/standards/. Copy standards from this external path instead of built-in defaults.] Only copy selected standard categories. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Create placeholder sections in INDEX.md for skipped categories."
 
-Wait for docs-manager to complete. **⚠️ CONTINUATION**: Immediately proceed to Phase 6. This Skill invocation is a step within Phase 5 — do NOT treat its completion as the end of the workflow.
+Wait for docs-operator to complete, then immediately proceed to Phase 6.
 
 ---
 
@@ -138,11 +138,11 @@ Write each file to `.maister/docs/project/`.
 
 ## PHASE 7: Validate
 
-**Step 1**: Invoke docs-manager skill via Skill tool:
+**Step 1**: Invoke `docs-operator` subagent via Task tool (subagent_type: `maister:docs-operator`) with prompt:
 
 > "Regenerate INDEX.md to include all newly created project documentation. Then verify CLAUDE.md is properly integrated with .maister/docs/ documentation."
 
-**⚠️ CONTINUATION**: After docs-manager completes, immediately continue with Step 2 below. This Skill invocation is Step 1 of 3 — do NOT treat its completion as the end of Phase 7 or the workflow.
+Wait for docs-operator to complete, then immediately continue with Step 2.
 
 **Step 2**: Run validation checks:
 - Verify INDEX.md exists
@@ -170,9 +170,7 @@ Invoke the `standards-discover` skill via Skill tool with `--scope=full` to auto
 
 > "Run standards discovery with --scope=full. This is being invoked as part of project initialization."
 
-The standards-discover skill handles its own user interaction (presenting findings by confidence tier, asking for approval). Let it run its full workflow.
-
-**⚠️ CONTINUATION**: After standards-discover completes, immediately display the summary below. This Skill invocation is a step within Phase 8 — do NOT treat its completion as the end of the workflow.
+The standards-discover skill handles its own user interaction (presenting findings by confidence tier, asking for approval). Let it run its full workflow — this is the last phase of init, so context handoff is fine here.
 
 After completion, display a brief summary of how many standards were discovered and applied.
 

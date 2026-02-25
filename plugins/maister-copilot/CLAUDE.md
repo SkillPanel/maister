@@ -589,7 +589,7 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 | `implementer` | Executes plans with **mandatory** standards reading (INDEX.md + implementation-plan.md Standards Compliance section + keyword-triggered) and **test step enforcement** (requires user approval to skip N.1 tests) | `skills/implementer/SKILL.md` |
 | `implementation-verifier` | Read-only QA orchestrator: delegates completeness checks, test execution, code review, and production readiness to specialized subagents; compiles results into verification report | `skills/implementation-verifier/SKILL.md` |
 | `standards-discover` | Parallel multi-source standards discovery (config, code, docs, PRs/CI) with confidence scoring | `skills/standards-discover/SKILL.md` |
-| `docs-manager` | Internal engine for doc file operations, INDEX.md generation, CLAUDE.md integration. Not user-invocable — called by maister-init, standards-update, standards-discover | `skills/docs-manager/skill.md` |
+| `docs-manager` | Internal engine for doc file operations, INDEX.md generation, CLAUDE.md integration. Not user-invocable — accessed via `docs-operator` agent (Task tool) by init, standards-update, standards-discover | `skills/docs-manager/skill.md` |
 | `maister-init` | Initialize `.maister/docs/` with project analysis, documentation generation, and baseline standards | `skills/init/SKILL.md` |
 | `standards-update` | Update or create standards from conversation context or explicit input | `skills/standards-update/SKILL.md` |
 | `quick-bugfix` | Quick TDD-driven bug fix with complexity escalation to full development workflow | `skills/quick-bugfix/SKILL.md` |
@@ -717,6 +717,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | Agent | Purpose | Invoked By | Details |
 |-------|---------|------------|---------|
 | `project-analyzer` | Deep codebase analysis for tech stack, architecture, conventions | `/maister-init` | `agents/project-analyzer.md` |
+| `docs-operator` | Internal service agent: executes docs-manager operations mid-workflow and returns control to the caller. Has docs-manager skill preloaded. | init, standards-update, standards-discover | `agents/docs-operator.md` |
 | `task-classifier` | Classifies task descriptions into workflow types with confidence scoring | `/work` command | `agents/task-classifier.md` |
 | `gap-analyzer` | Compares current vs desired state with characteristic-detection-based analysis modules | development-orchestrator | `agents/gap-analyzer.md` |
 | `specification-creator` | Creates specs from gathered requirements with reusability search and self-verification | development-orchestrator, migration-orchestrator | `agents/specification-creator.md` |

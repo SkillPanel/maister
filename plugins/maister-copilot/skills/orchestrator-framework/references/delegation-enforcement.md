@@ -7,9 +7,11 @@ Orchestrators must delegate work to skills and subagents instead of executing in
 **Always use Skill/Task tools to delegate. Never execute delegated work inline.**
 
 When a phase requires a skill or subagent:
-1. Use the `Skill` tool for skills
-2. Use the `Task` tool for subagents
+1. Use the `Skill` tool for skills **that are the last step in a phase/workflow** (Skill tool does not return control to the caller)
+2. Use the `Task` tool for subagents **and for mid-workflow skill operations** (Task tool returns control after completion)
 3. Wait for completion before continuing
+
+**Important**: The Skill tool replaces the active execution context. Use it only when nothing needs to execute after it in the same workflow. For internal service skills that are invoked mid-workflow (like `docs-manager`), create a companion agent that preloads the skill via the `skills` frontmatter field and invoke it via Task tool instead.
 
 ---
 

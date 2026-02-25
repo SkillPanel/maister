@@ -159,17 +159,17 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 
 ### Phase 8: Application
 
-> **DELEGATION REQUIRED**: Do NOT write standard files directly using Write/Edit tools. ALL file operations MUST go through the `docs-manager` skill.
+> **DELEGATION REQUIRED**: Do NOT write standard files directly using Write/Edit tools. ALL file operations MUST go through the `docs-operator` subagent (Task tool).
 >
-> **SELF-CHECK before each file operation**: "Am I about to write a file directly? STOP — invoke docs-manager instead."
+> **SELF-CHECK before each file operation**: "Am I about to write a file directly? STOP — invoke docs-operator via Task tool instead."
 
 For each approved standard:
 
 1. **Prepare content** — Standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each standard as a `###` heading with 1-10 lines description (excluding code snippets). Group related standards into the same topic file. Add brief code examples only when they clarify the practice.
 2. **Check if file exists** — Determine create vs update action
-3. **Invoke `docs-manager` skill** — Pass prepared content. For creates: new file. For updates: merge new findings with existing. The docs-manager handles file writing, path conventions, and format consistency. **⚠️ CONTINUATION**: After docs-manager returns, immediately continue with the next standard — do NOT stop.
-4. **After all standards applied, invoke `docs-manager` skill** to regenerate INDEX.md. **⚠️ CONTINUATION**: After docs-manager returns, immediately continue with step 5.
-5. **Invoke `docs-manager` skill** to verify CLAUDE.md integration — ensure standards directory is referenced. **⚠️ CONTINUATION**: After docs-manager returns, immediately display the application summary below.
+3. **Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`) — Pass prepared content. For creates: new file. For updates: merge new findings with existing. Wait for completion, then continue with the next standard.
+4. **After all standards applied, invoke `docs-operator` subagent** via Task tool to regenerate INDEX.md. Wait for completion, then continue with step 5.
+5. **Invoke `docs-operator` subagent** via Task tool to verify CLAUDE.md integration — ensure standards directory is referenced. Wait for completion, then display the application summary.
 
 Display application summary: created count, updated count, total active.
 
