@@ -7,10 +7,10 @@ All orchestrators follow this initialization sequence before executing any workf
 ## Initialization Steps
 
 1. **Parse Command Arguments**: Extract description, mode (`--yolo`), type, entry point (`--from`), optional flags
-2. **Determine Starting Phase**: New task starts Phase 1; resume reads state and finds first incomplete phase
-3. **Create Task Directory**: Standard structure with analysis/, implementation/, verification/, documentation/
-4. **Create State File**: `orchestrator-state.yml` (see state-management.md for schema)
-5. **Create Task Items**: Use `TaskCreate` for all phases as pending tasks for progress visibility, then set dependencies with `TaskUpdate addBlockedBy`
+2. **Determine Starting Phase**: New task starts Phase 1; resume reads state and finds first incomplete phase (first phase not in `completed_phases`)
+3. **Create Task Directory**: Standard structure with analysis/, implementation/, verification/, documentation/ *(skip on resume — already exists)*
+4. **Create State File**: `orchestrator-state.yml` (see state-management.md for schema) *(skip on resume — already exists)*
+5. **Create Task Items**: Use `TaskCreate` for all phases as pending tasks for progress visibility, then set dependencies with `TaskUpdate addBlockedBy`. On resume, also restore completed phase statuses (see "Task Restoration on Resume" below).
 6. **Output Summary**: Show task info, mode, phases, and starting message
 
 ---
@@ -40,6 +40,19 @@ orchestrator:
     phase-3: "3"
     # ... one entry per phase
 ```
+
+---
+
+## Task Restoration on Resume
+
+Task system IDs are ephemeral to a session. On resume, re-create all phase tasks to restore progress visibility:
+
+1. **Create all phase tasks** — same `TaskCreate` loop as new task (all start as `pending`)
+2. **Set dependencies** — same `TaskUpdate addBlockedBy` setup as new task
+3. **Mark completed phases** — for each phase in `completed_phases`, `TaskUpdate` to `completed` with `metadata: {restored: true}`
+4. **Update state** — write new task IDs to `orchestrator-state.yml` under `orchestrator.task_ids` (replaces stale IDs from previous session)
+
+The result: the task list shows completed phases as done, pending phases as blocked or available, and the resumed phase ready to start — matching the actual workflow state.
 
 ---
 

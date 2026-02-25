@@ -180,6 +180,7 @@ When resuming:
 2. **Validate artifacts** - Check expected files for `completed_phases`. If missing, remove from list.
 3. **Find resume point** - First phase not in `completed_phases`
 4. **Check prerequisites** - Verify required artifacts exist before starting
+5. **Restore task items** - Re-create phase tasks and mark completed ones (see initialization-pattern.md "Task Restoration on Resume")
 
 | Starting From | Required Prerequisites |
 |---------------|----------------------|
@@ -211,11 +212,11 @@ When resuming mid-workflow:
 | Aspect | Source of Truth | Task System Role |
 |--------|----------------|------------------|
 | Phase completion | `completed_phases[]` | Mirrors as `completed` status |
-| Resume logic | `orchestrator-state.yml` | Complementary overview via `TaskList` |
+| Resume logic | `orchestrator-state.yml` | Tasks re-created on resume; `task_ids` refreshed with new session IDs |
 | Error tracking | `auto_fix_attempts`, `failed_phases` | Not tracked in tasks |
 | Phase dependencies | Workflow sequence in SKILL.md | Expressed via `addBlockedBy` |
 | Delegation tracking | Phase definitions | `owner` field on tasks |
 | Phase timing | Not tracked | `metadata: {started_at, completed_at}` |
 | Phase artifacts | Phase outputs in task directory | `metadata: {artifact_paths}` |
 
-On resume, `TaskList` can complement state file reading by providing a quick visual overview of completed vs pending phases before resuming execution.
+On resume, task items are fully restored (see Resume Logic step 5), so `TaskList` accurately reflects workflow state in the new session.
