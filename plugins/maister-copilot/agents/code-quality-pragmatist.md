@@ -41,6 +41,8 @@ The Task prompt MUST include:
 | `task_path` | Orchestrator or command | Path to task directory or code to review |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/pragmatic-review.md` relative to task_path) |
 
+**CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
 ---
 
 ## Workflow

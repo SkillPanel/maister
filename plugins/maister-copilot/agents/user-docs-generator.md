@@ -49,6 +49,18 @@ The user documentation generator transforms technical specifications into user-f
 - ❌ Assume prior technical knowledge
 - ❌ Modify application code
 
+## Input Parameters
+
+| Parameter | Source | Description |
+|-----------|--------|-------------|
+| `task_path` | Orchestrator | **Absolute path** to task directory. ALL outputs MUST be written under this path. |
+| `spec_path` | Orchestrator | Path to spec.md |
+| `base_url` | Orchestrator | Application base URL for Playwright |
+
+**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save user guide to `{task_path}/documentation/user-guide.md`, screenshots to `{task_path}/documentation/screenshots/`. NEVER write to project-level directories.
+
+---
+
 ## Workflow
 
 ### 1. Understand Feature and Target Users

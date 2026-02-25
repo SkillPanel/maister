@@ -29,6 +29,18 @@ This agent focuses on **evidence-based runtime verification**, not test file gen
 5. **Spec Alignment Analysis**: Compare actual behavior against specification requirements
 6. **Comprehensive Reporting**: Document findings with evidence and severity categorization
 
+## Input Parameters
+
+| Parameter | Source | Description |
+|-----------|--------|-------------|
+| `task_path` | Orchestrator | **Absolute path** to task directory. ALL outputs MUST be written under this path. |
+| `spec_path` | Orchestrator | Path to spec.md |
+| `base_url` | Orchestrator | Application base URL for Playwright |
+
+**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save report to `{task_path}/verification/e2e-verification-report.md`, screenshots to `{task_path}/verification/screenshots/`. NEVER write to project-level directories.
+
+---
+
 ## Workflow
 
 ### 1. Extract Requirements from Specification

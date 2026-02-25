@@ -42,6 +42,8 @@ The Task prompt MUST include:
 | `task_description` | Orchestrator | Brief task description for context |
 | `test_command` | Orchestrator (optional) | Pre-identified test command, if known |
 
+**CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
 ---
 
 ## Workflow

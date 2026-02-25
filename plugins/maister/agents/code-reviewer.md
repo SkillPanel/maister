@@ -42,6 +42,8 @@ The Task prompt MUST include:
 | `scope` | Orchestrator or command | `all` (default), `quality`, `security`, or `performance` |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/code-review-report.md` relative to task_path) |
 
+**CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
 ---
 
 ## Workflow

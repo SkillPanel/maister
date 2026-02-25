@@ -42,6 +42,8 @@ The Task prompt MUST include:
 | `target` | Orchestrator or command | `production` (default, full rigor) or `staging` (relaxed) |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/production-readiness-report.md` relative to task_path) |
 
+**CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
 ---
 
 ## Workflow

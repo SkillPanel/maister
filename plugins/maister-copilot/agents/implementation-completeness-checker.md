@@ -43,6 +43,8 @@ The Task prompt MUST include:
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
 
+**CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
 **Required Files** (must exist on disk):
 - `{task_path}/implementation/implementation-plan.md`
 - `{task_path}/implementation/spec.md`

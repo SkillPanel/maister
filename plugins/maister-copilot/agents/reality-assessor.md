@@ -42,6 +42,8 @@ The Task prompt MUST include:
 | `skip_test_execution` | Orchestrator (optional) | When `true`, read test results from file instead of running tests |
 | `test_results_path` | Orchestrator (optional) | Path to test results file (when `skip_test_execution: true`) |
 
+**CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
 ---
 
 ## Workflow

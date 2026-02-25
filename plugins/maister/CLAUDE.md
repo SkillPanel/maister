@@ -779,6 +779,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 5. **Continuous Standards Discovery**: Check standards throughout, not just at start
 6. **Incremental Verification**: Run only new tests after each group, not entire suite
 7. **Comprehensive Verification Before Commit**: Run full test suite and create verification report before code review
+8. **Task Directory Artifact Anchoring**: ALL workflow artifacts (reports, documentation, screenshots) MUST be saved under the task directory (`.maister/tasks/[type]/[task-name]/`). NEVER save task artifacts to project directories like `docs/`, `src/`, or project root.
 
 **For detailed workflow documentation, see**: individual skill `SKILL.md` files
 
