@@ -356,4 +356,5 @@ Claude: [Executes Manage INDEX.md - scans .maister/docs/, regenerates comprehens
 - **INDEX.md must stay current** — regenerate after any documentation change
 - **.github/copilot-instructions.md integration is mandatory** — ensures AI reads documentation at task start
 - **This skill is an internal engine** — called by maister-init, standards-update, and standards-discover. Not directly user-invocable.
+- **CRITICAL: Return control after completion** — This is an internal sub-skill. After completing the requested operation, return control to the calling workflow. Do NOT treat completion of this skill as the end of the conversation turn — the parent skill has more steps to execute.
 

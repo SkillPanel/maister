@@ -167,9 +167,9 @@ For each approved standard:
 
 1. **Prepare content** — Standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each standard as a `###` heading with 1-10 lines description (excluding code snippets). Group related standards into the same topic file. Add brief code examples only when they clarify the practice.
 2. **Check if file exists** — Determine create vs update action
-3. **Invoke `docs-manager` skill** — Pass prepared content. For creates: new file. For updates: merge new findings with existing. The docs-manager handles file writing, path conventions, and format consistency.
-4. **After all standards applied, invoke `docs-manager` skill** to regenerate INDEX.md
-5. **Invoke `docs-manager` skill** to verify CLAUDE.md integration — ensure standards directory is referenced
+3. **Invoke `docs-manager` skill** — Pass prepared content. For creates: new file. For updates: merge new findings with existing. The docs-manager handles file writing, path conventions, and format consistency. **⚠️ CONTINUATION**: After docs-manager returns, immediately continue with the next standard — do NOT stop.
+4. **After all standards applied, invoke `docs-manager` skill** to regenerate INDEX.md. **⚠️ CONTINUATION**: After docs-manager returns, immediately continue with step 5.
+5. **Invoke `docs-manager` skill** to verify CLAUDE.md integration — ensure standards directory is referenced. **⚠️ CONTINUATION**: After docs-manager returns, immediately display the application summary below.
 
 Display application summary: created count, updated count, total active.
 

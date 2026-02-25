@@ -56,6 +56,8 @@ For each selected standard:
 Invoke docs-manager skill via Skill tool:
 > "Regenerate INDEX.md to include all newly added/updated standards. Verify CLAUDE.md integration."
 
+**⚠️ CONTINUATION**: After docs-manager completes, immediately proceed to SYNC STEP 5. This Skill invocation is SYNC STEP 4 of 5 — do NOT treat its completion as the end of the workflow.
+
 ### SYNC STEP 5: Summarize
 
 Display: standards added, standards updated, standards skipped, and total count. Suggest reviewing the imported standards and committing.
@@ -131,7 +133,7 @@ For **updates**:
 For **creates**:
 > "Create documentation file: standards/[category]/[name].md. Category: [category]. Content: [conventions]. Create with proper markdown, organized sections, code examples. Add to INDEX.md with practice-specific description. Verify CLAUDE.md integration."
 
-Wait for completion.
+Wait for completion. **⚠️ CONTINUATION**: After docs-manager completes, immediately proceed to Phase 5. This Skill invocation is a step within Phase 4 — do NOT treat its completion as the end of the workflow.
 
 ---
 
