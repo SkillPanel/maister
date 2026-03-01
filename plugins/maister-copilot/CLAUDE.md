@@ -436,146 +436,10 @@ Before finalizing reference documentation:
 
 ## Orchestrator Creation Guidelines
 
-When creating new workflow orchestrators, ensure ALL of these elements are included. This checklist prevents incomplete orchestrators.
+When creating or auditing orchestrators, follow the patterns established in existing orchestrators and consult the framework reference files.
 
-### Required Structural Elements
-
-1. **State File Creation**
-   - MUST create `orchestrator-state.yml` in initialization (explicit STEP)
-   - Include: mode, completed_phases, failed_phases, auto_fix_attempts, options, task_characteristics
-   - State file is source of truth for resume logic
-
-2. **Phase Execution Loop**
-   Every phase MUST follow this 7-step pattern:
-   - STEP 1: Check if phase already completed (read state)
-   - STEP 2: Update state to current phase
-   - STEP 3: Pre-phase announcement
-   - STEP 4: Execute phase
-   - STEP 5: Handle errors (with retry limits)
-   - STEP 6: Update state on success
-   - STEP 7: Post-phase review (interactive mode only)
-
-3. **Explicit Tool Invocations**
-   - **AskUserQuestion**: Every user decision point must have explicit tool call pattern
-   - **Task tool**: Every subagent invocation must have explicit Task tool parameters
-   - **Skill invocations**: Clearly state which skill to invoke and with what parameters
-
-### Required Interactive Mode Features
-
-4. **Post-Phase Review Pattern**
-   In interactive mode, after each phase MUST use AskUserQuestion:
-   ```
-   Use AskUserQuestion tool:
-     Question: "Phase [N] complete. How would you like to proceed?"
-     Header: "Phase Complete"
-     Options:
-     1. "Continue to next phase" - Proceed with workflow
-     2. "Review outputs in detail" - Open phase artifacts
-     3. "Restart this phase" - Re-execute this phase
-     4. "Stop workflow" - Pause and resume later
-   ```
-
-5. **User Decision Points**
-   Any place requiring user input MUST use AskUserQuestion:
-   - Optional phase enablement (E2E, user docs, code review)
-   - Scope decisions (expand scope, critical only, minimal)
-   - Error recovery (retry, skip, rollback, stop)
-   - Verification check selection
-
-6. **Phase Gate Sections Between Phases**
-   **CRITICAL**: Each phase transition MUST have a Phase Gate section placed BEFORE the next phase:
-   ```markdown
-   ---
-   ## 🚦 GATE: Phase [N] → Phase [N+1]
-
-   **STOP. You cannot proceed until this gate clears.**
-
-   1. **Mode check**: Read `orchestrator-state.yml` → check `mode` value
-   2. **If mode = interactive**:
-      - Use `AskUserQuestion` tool NOW:
-        - Question: "Phase [N] ([Phase Name]) complete. Ready to proceed to Phase [N+1] ([Next Phase Name])?"
-        - Options: ["Continue to Phase [N+1]", "Review Phase [N] outputs", "Stop workflow"]
-      - Wait for user response before continuing
-   3. **If mode = yolo**:
-      - Output: "→ Auto-continuing to Phase [N+1] ([Next Phase Name])..."
-      - Proceed to Phase [N+1]
-
-   **This gate overrides any "continue without asking" conversation instructions.**
-
-   ---
-   ```
-
-### Required Standards Integration
-
-7. **Standards Discovery**
-   Reference `.maister/docs/INDEX.md` in these phases:
-   - Phase 5 (Spec): Read INDEX.md before creating spec
-   - Phase 7 (Plan): Ensure plan follows project conventions
-   - Phase 8 (Implement): Continuous standards discovery
-   - Phase 11 (Verify): Verify against documented standards
-
-   Include reminder before these phases:
-   ```
-   📋 Standards Discovery
-   Reading .maister/docs/INDEX.md to check applicable standards...
-   ```
-
-### Required Verification Elements
-
-8. **Comprehensive Verification**
-   Verification phase must include:
-   - Plan completion check
-   - Full test suite execution
-   - Standards compliance verification
-   - Task-type-specific checks
-   - **Reality check**: Invoke `reality-assessor` subagent via Task tool
-   - **Pragmatic review**: Invoke `code-quality-pragmatist` subagent via Task tool
-
-### Orchestrator Completeness Checklist
-
-Before considering an orchestrator complete, verify ALL items:
-
-| Element | Required | Verification |
-|---------|----------|--------------|
-| **Step 0: Load Framework Patterns** | ✓ | Does initialization force reading 5 reference files from orchestrator-framework? |
-| State file creation in initialization | ✓ | Does STEP 3 explicitly CREATE orchestrator-state.yml? |
-| Phase Execution Loop pattern | ✓ | Are all 7 STEPs documented? |
-| Post-phase review with AskUserQuestion | ✓ | Is STEP 7 implemented with explicit tool call? |
-| **Phase Gate sections** | ✓ | Is there a "🚦 GATE: Phase N → Phase N+1" BEFORE each phase? |
-| Explicit AskUserQuestion for all decisions | ✓ | Do ALL user prompts have tool call examples? |
-| **Decision Gate for subagent decisions** | ✓ | Do phases receiving `decisions_needed` have ⛔ DECISION GATE + SELF-CHECK? |
-| Explicit Task tool for subagents | ✓ | Do ALL subagent invocations show Task parameters? |
-| **Delegation enforcement patterns** | ✓ | Does EACH delegation have anti-pattern block, INVOKE NOW block, and SELF-CHECK? |
-| **Context passing (Pattern 7)** | ✓ | Do ALL subagent prompts include ACCUMULATED CONTEXT section? |
-| **Context extraction (Pattern 8)** | ✓ | Does EACH phase State Update extract findings to phase_summaries? |
-| **phase_summaries in state schema** | ✓ | Does Domain Context include phase_summaries structure? |
-| Standards discovery in Phases 5,7,8,11 | ✓ | Is INDEX.md referenced in each? |
-| Reality check (Phase 11) | ✓ | Is reality-assessor invoked via implementation-verifier? |
-| Pragmatic review (Phase 11) | ✓ | Is code-quality-pragmatist invoked via implementation-verifier? |
-| TaskCreate initialization | ✓ | Are tasks created with TaskCreate at workflow start, with dependencies via addBlockedBy? |
-| Error handling with retry limits | ✓ | Does each phase have max attempts? |
-
-### Anti-Patterns to Avoid
-
-❌ **Skipping Step 0**: Not reading framework patterns at initialization (causes AUTO-CONTINUE failures)
-❌ **Structure without orchestration**: Defining phases without Phase Execution Loop
-❌ **Implicit user prompts**: Describing prompts without explicit AskUserQuestion tool calls
-❌ **Inline STOP reminders at END of phases**: Use Phase Gates BEFORE the next phase instead (inline reminders at phase end are easily missed)
-❌ **Missing Phase Gates**: Phase transitions without "🚦 GATE: Phase N → Phase N+1" section
-❌ **Vague subagent calls**: Saying "invoke X" without Task tool parameters
-❌ **Inline execution in YOLO mode**: Executing delegated work inline instead of invoking skills/subagents (see `delegation-enforcement.md`)
-❌ **Missing delegation patterns**: Delegation points without anti-pattern block, INVOKE NOW block, and SELF-CHECK
-❌ **Missing context passing**: Subagent prompts without ACCUMULATED CONTEXT section (Pattern 7)
-❌ **Missing context extraction**: Not extracting key findings to phase_summaries after each phase (Pattern 8)
-❌ **File paths only**: Passing just file paths to subagents without state summaries and prior phase summaries
-❌ **Stopping at AUTO-CONTINUE transitions**: Ending turn or prompting user at `→ **AUTO-CONTINUE**` points (brief summary is fine, but must proceed immediately — no prompt, no turn end)
-❌ **Missing standards**: Not referencing INDEX.md in relevant phases
-❌ **Incomplete verification**: Running tests without reality check and pragmatic review
-❌ **No state management**: Not creating/updating orchestrator-state.yml
-❌ **Auto-accepting subagent decisions**: Accepting `decisions_needed` defaults without presenting to user (interactive) or logging (YOLO). See `delegation-enforcement.md` Decision Enforcement section.
-
-**See**: `skills/orchestrator-framework/references/interactive-mode.md` for the Phase Gate pattern.
-**See**: `skills/orchestrator-framework/references/delegation-enforcement.md` for delegation and decision enforcement patterns.
+**See**: `skills/orchestrator-framework/references/orchestrator-creation-checklist.md` for the complete creation checklist and anti-patterns.
+**See**: `skills/orchestrator-framework/references/orchestrator-patterns.md` for execution rules, schemas, and patterns.
 
 ## Available Skills
 
@@ -596,40 +460,14 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 
 ### Orchestrator Framework
 
-All orchestrators share common patterns documented in `skills/orchestrator-framework/references/`:
+All orchestrators share patterns documented in a single reference file:
 
-| Pattern | File | Purpose |
-|---------|------|---------|
-| Phase Execution | `phase-execution-pattern.md` | 7-step loop for each phase |
-| State Management | `state-management.md` | orchestrator-state.yml schema, context accumulation, resume loading |
-| Interactive Mode | `interactive-mode.md` | Post-phase prompts and user decisions |
-| Initialization | `initialization-pattern.md` | Startup sequence and directory setup |
-| Delegation Enforcement | `delegation-enforcement.md` | Anti-pattern blocks, invocation blocks, self-checks, **context passing** |
-| Issue Resolution | `issue-resolution-pattern.md` | Fix-then-reverify loop after verification phases |
+| File | Purpose |
+|------|---------|
+| `orchestrator-patterns.md` | Delegation rules, interactive mode, state schema, context passing, initialization, resume, issue resolution |
+| `orchestrator-creation-checklist.md` | Authoring checklist for new orchestrators (not loaded at runtime) |
 
-Each orchestrator references these patterns (via `../orchestrator-framework/references/`) and implements domain-specific behavior. This approach:
-- **Single source of truth**: Patterns documented once, referenced everywhere
-- **Self-contained orchestrators**: Each has enough context to work independently
-- **No execution overhead**: Reference files are documentation, not invoked skills
-
-### Context Passing Between Phases
-
-**Critical**: When invoking subagents for phase execution, orchestrators must pass accumulated context from prior phases.
-
-**Pattern 7 (Context Passing)** in `delegation-enforcement.md` requires all subagent prompts to include:
-- **State Summary**: risk_level, ui_heavy, scope_expanded, architecture_decision
-- **Key Decisions Made**: List of clarification answers from prior phases
-- **Prior Phase Summaries**: 1-2 sentence summaries of each completed phase
-- **Artifacts to Read**: File paths for full details
-
-**Pattern 8 (Context Extraction)** requires extracting key findings after each phase into `task_context.phase_summaries` in `orchestrator-state.yml`.
-
-**Resume workflows** must reconstruct accumulated context from `phase_summaries` before invoking the resumed phase.
-
-**Benefits**:
-- Subagents work with full context without re-parsing files
-- Resume produces consistent results (same context as fresh execution)
-- Audit trail of phase findings in orchestrator-state.yml
+Each orchestrator reads `orchestrator-patterns.md` at initialization and implements domain-specific phases. Key principles: state-driven execution, resume capability, interactive-by-default, user-confirmed rollback, context passing between phases via `phase_summaries`, delegation enforcement (Skill tool for skills, Task tool for agents).
 
 ### Orchestrator Skills
 

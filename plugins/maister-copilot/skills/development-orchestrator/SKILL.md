@@ -14,14 +14,9 @@ Unified workflow for all development tasks — bug fixes, enhancements, and new 
 
 ### Step 1: Load Framework Patterns
 
-**Read ALL framework reference files NOW using the Read tool:**
+**Read the framework reference file NOW using the Read tool:**
 
-1. `../orchestrator-framework/references/phase-execution-pattern.md` - Phase execution and transitions
-2. `../orchestrator-framework/references/interactive-mode.md` - Mode-aware pause behavior
-3. `../orchestrator-framework/references/delegation-enforcement.md` - Delegation patterns
-4. `../orchestrator-framework/references/state-management.md` - State file and context
-5. `../orchestrator-framework/references/initialization-pattern.md` - Directory structure
-6. `../orchestrator-framework/references/issue-resolution-pattern.md` - Fix-then-reverify cycles
+1. `../orchestrator-framework/references/orchestrator-patterns.md` - Delegation rules, interactive mode, state schema, initialization, context passing, issue resolution
 
 ### Step 2: Detect Research Context
 
@@ -120,9 +115,13 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 **SELF-CHECK** before continuing: "Did the gap-analyzer return `decisions_needed` items? If yes, did I invoke `AskUserQuestion` (interactive) or log decisions (YOLO)? If I skipped this, STOP and go back."
 
 3. Save scope clarifications to `analysis/scope-clarifications.md`
+4. **Set optional phase defaults** based on detected characteristics:
+   - If `task_characteristics.ui_heavy: true` → set `options.e2e_enabled: true`, `options.user_docs_enabled: true`
+   - If `task_characteristics.creates_new_entities: true` → set `options.user_docs_enabled: true`
+   - Command flags (`--e2e`, `--no-e2e`, `--user-docs`, `--no-user-docs`) override these defaults
 
 **Output**: `analysis/gap-analysis.md`, `analysis/scope-clarifications.md` (conditional)
-**State**: Update `task_context.task_characteristics`, `task_context.scope_expanded`, `options.e2e_enabled`
+**State**: Update `task_context.task_characteristics`, `task_context.scope_expanded`, `options.e2e_enabled`, `options.user_docs_enabled`, `phase_summaries.gap_analysis`
 
 **Context to pass**: Risk level, codebase summary, key files, clarifications
 
@@ -321,17 +320,26 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 ### Phase 10: Verification Options Prompt
 
 **Purpose**: Determine which verification checks to run
-**Execute**: Direct - analyze implementation, use AskUserQuestion for options
+**Execute**: Direct - confirm/override defaults set by Phase 2, use AskUserQuestion for each concern
 **Output**: Updated state with verification options
 **State**: Set `options.code_review_enabled`, `options.e2e_enabled`, `options.user_docs_enabled`
 
 **Always enabled**: Reality check, pragmatic review
 **Auto-set**: `skip_test_suite: true` (full test suite already passed during implementation phase; cleared before re-verification if fixes are applied)
 
-→ Pause
+**Interactive mode** — ask separate questions for each concern:
 
-**Interactive**: AskUserQuestion - "Options selected. Continue to Phase 11?"
-**YOLO**: "→ Continuing to Phase 11..."
+1. **Code review**: AskUserQuestion — "Enable code review?" Options: "Yes (Recommended)", "No, skip". Always recommended.
+2. **E2E testing**: AskUserQuestion — "Enable E2E browser verification?" Options: "Yes (Recommended)" (if `options.e2e_enabled: true` from Phase 2), "Yes", "No, skip". Recommended when `task_characteristics.ui_heavy: true`.
+3. **User documentation**: AskUserQuestion — "Generate user documentation?" Options: "Yes (Recommended)" (if `options.user_docs_enabled: true` from Phase 2), "Yes", "No, skip". Recommended when `task_characteristics.ui_heavy: true` or `creates_new_entities: true`.
+
+**YOLO mode** — confirm Phase 2 defaults without user interaction:
+- Code review: always enabled
+- E2E testing: enabled if `options.e2e_enabled: true` (set by Phase 2 based on `ui_heavy`)
+- User documentation: enabled if `options.user_docs_enabled: true` (set by Phase 2 based on `ui_heavy` or `creates_new_entities`)
+- Output: "→ Verification options: code review ✓, e2e [✓/✗], user docs [✓/✗]. Continuing to Phase 11..."
+
+→ Pause (interactive only; YOLO auto-continues)
 
 ---
 

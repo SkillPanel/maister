@@ -31,7 +31,7 @@ Analyze the task description + codebase analysis to detect which characteristics
 | **modifies_existing_code** | Codebase analysis found existing implementations that need changes | Existing feature analysis module |
 | **creates_new_entities** | No existing implementation found for requested capability | New capability analysis module |
 | **involves_data_operations** | Task involves CREATE/READ/UPDATE/DELETE on data entities | Data lifecycle module |
-| **ui_heavy** | UI components, pages, forms, visual changes mentioned or detected | UI impact module |
+| **ui_heavy** | UI changes detected: task mentions components/pages/forms/views/templates; codebase analysis found template/view/component/stylesheet files in scope; task modifies routes serving pages, form fields, buttons, navigation, or CSS/styling | UI impact module |
 
 ### Analysis Modules
 

@@ -14,14 +14,9 @@ Systematic migration workflow from current state analysis to verified migration 
 
 ### Step 1: Load Framework Patterns
 
-**Read ALL framework reference files NOW using the Read tool:**
+**Read the framework reference file NOW using the Read tool:**
 
-1. `../orchestrator-framework/references/phase-execution-pattern.md`
-2. `../orchestrator-framework/references/interactive-mode.md`
-3. `../orchestrator-framework/references/delegation-enforcement.md`
-4. `../orchestrator-framework/references/state-management.md`
-5. `../orchestrator-framework/references/initialization-pattern.md`
-6. `../orchestrator-framework/references/issue-resolution-pattern.md`
+1. `../orchestrator-framework/references/orchestrator-patterns.md` - Delegation rules, interactive mode, state schema, initialization, context passing, issue resolution
 
 ### Step 2: Initialize Workflow
 

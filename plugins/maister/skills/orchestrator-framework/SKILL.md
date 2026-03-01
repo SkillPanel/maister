@@ -19,28 +19,22 @@ Reduce duplication across orchestrators by documenting common patterns once:
 
 ## How Orchestrators Use This
 
-Each orchestrator includes a "Framework Patterns" section that references these files:
+Each orchestrator reads the framework reference file at initialization (Step 1):
 
 ```markdown
-## Framework Patterns
+### Step 1: Load Framework Patterns
 
-This orchestrator follows shared patterns. See:
+**Read the framework reference file NOW using the Read tool:**
 
-- **Phase Execution**: `../orchestrator-framework/references/phase-execution-pattern.md`
-- **State Management**: `../orchestrator-framework/references/state-management.md`
-- **Interactive Mode**: `../orchestrator-framework/references/interactive-mode.md`
-- **Initialization**: `../orchestrator-framework/references/initialization-pattern.md`
+1. `../orchestrator-framework/references/orchestrator-patterns.md`
 ```
 
 ## Reference Files
 
 | File | Purpose |
 |------|---------|
-| `references/phase-execution-pattern.md` | Phase Block structure and transitions |
-| `references/state-management.md` | State file schema and operations |
-| `references/interactive-mode.md` | Pause behavior and user prompts |
-| `references/initialization-pattern.md` | Startup sequence and task creation |
-| `references/delegation-enforcement.md` | Skill/agent invocation patterns |
+| `references/orchestrator-patterns.md` | Delegation rules, interactive mode, state schema, initialization, context passing, issue resolution |
+| `references/orchestrator-creation-checklist.md` | Authoring checklist for creating new orchestrators (not loaded at runtime) |
 
 ## Key Principles
 
