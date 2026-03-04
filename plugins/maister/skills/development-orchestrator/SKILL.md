@@ -102,8 +102,12 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 **Purpose**: Compare current vs desired state, detect task characteristics, then resolve scope/approach decisions
 **Execute**:
 1. Task tool - `maister:gap-analyzer` subagent
-2. Update state with gap analysis results
-3. **Store `task_characteristics`** from gap-analyzer output into `orchestrator-state.yml`
+2. **Extract and store structured data from gap-analyzer result**:
+   a. Read `task_characteristics` from gap-analyzer output — 5 fields: `has_reproducible_defect`, `modifies_existing_code`, `creates_new_entities`, `involves_data_operations`, `ui_heavy`
+   b. Write all 5 fields to `orchestrator-state.yml` at `task_context.task_characteristics`
+   c. Read `risk_level` from output and write to `task_context.risk_level`
+   d. Extract phase summary (1-2 sentences) and write to `phase_summaries.gap_analysis`
+   e. **SELF-CHECK**: "Did I read the 5 task_characteristics from the gap-analyzer output and write them to state? Let me re-read `orchestrator-state.yml` to verify the values match the gap-analyzer output."
 
 **⛔ DECISION GATE** (mandatory — do NOT skip):
 - Parse `decisions_needed` from gap-analyzer output

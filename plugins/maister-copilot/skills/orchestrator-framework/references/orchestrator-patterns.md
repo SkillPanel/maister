@@ -119,6 +119,8 @@ After each phase, extract key findings into `[domain]_context.phase_summaries`:
 
 This enables context passing to downstream phases and supports resume.
 
+**Critical**: Some subagent outputs contain structured fields that control downstream phase logic (e.g., `task_characteristics` from gap-analyzer gates Phase 4 and Phase 10 defaults). These MUST be extracted and written to state immediately — not just summarized. Re-read state after writing to verify the values were stored correctly.
+
 ### Decision Enforcement
 
 When a subagent returns `decisions_needed` items, the orchestrator MUST present them to the user (interactive) or log them (YOLO). Decisions are never silently skipped.
