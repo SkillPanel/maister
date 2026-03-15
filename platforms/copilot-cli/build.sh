@@ -28,13 +28,18 @@ find "$OUT/commands" -name "*.md" | while read f; do
   sedi 's/^name: maister:/name: /' "$f"
 done
 
-# 3. Replace maister: prefix with maister- for subagent/skill refs
+# 3. Strip plugin prefix from skill names: "maister:foo" → "foo"
+find "$OUT/skills" -name "*.md" | while read f; do
+  sedi 's/^name: maister:/name: /' "$f"
+done
+
+# 4. Replace maister: prefix with maister- for subagent/skill refs
 # Run AFTER command name transform so name: lines are already clean
 find "$OUT" -name "*.md" | while read f; do
   sedi 's/maister:/maister-/g' "$f"
 done
 
-# 4. Transform multi-select patterns to sequential
+# 5. Transform multi-select patterns to sequential
 find "$OUT/skills" -name "*.md" | while read f; do
   sedi \
     -e 's/multi-select question/sequential single-select questions (one per option)/g' \
@@ -44,12 +49,12 @@ find "$OUT/skills" -name "*.md" | while read f; do
     "$f"
 done
 
-# 5. Replace CLAUDE.md references with copilot equivalents in skills
+# 6. Replace CLAUDE.md references with copilot equivalents in skills
 find "$OUT/skills" -name "*.md" | while read f; do
   sedi 's/CLAUDE\.md/.github\/copilot-instructions.md/g' "$f"
 done
 
-# 6. Add platform note to plugin's CLAUDE.md
+# 7. Add platform note to plugin's CLAUDE.md
 cat >> "$OUT/CLAUDE.md" << 'EOF'
 
 ## Platform: Copilot CLI
