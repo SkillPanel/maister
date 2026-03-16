@@ -3,6 +3,8 @@
 Primarily for features, usable for enhancements. Replace `[description]` with the actual task description.
 
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Find similar implementations and reusable patterns for: "[description]"
 
 Focus on:

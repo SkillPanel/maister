@@ -96,6 +96,9 @@ If combining roles into one agent, also read `references/combined.md` for mergin
 
 **3c. Launch agents** — Use the Task tool with `subagent_type="Explore"` — one call per selected role, all in ONE message.
 
+**IMPORTANT**: Every Explore agent prompt MUST include this instruction:
+> IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 **SELF-CHECK**: Did you read the template files with the Read tool? If not, go back to 3a. Do not proceed.
 
 ### Step 4: Delegate Report Generation

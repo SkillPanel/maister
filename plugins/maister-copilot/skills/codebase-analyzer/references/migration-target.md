@@ -3,6 +3,8 @@
 Primarily for migrations. Replace `[description]` with the actual task description.
 
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Analyze the target state for migration: "[description]"
 
 Focus on:

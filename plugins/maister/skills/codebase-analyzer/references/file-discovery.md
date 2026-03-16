@@ -4,6 +4,8 @@ Replace `[description]` with the actual task description.
 
 ## Bug
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Explore the codebase to find files related to: "[description]"
 
 Focus on:
@@ -18,6 +20,8 @@ Be thorough - check multiple naming conventions (PascalCase, kebab-case, snake_c
 
 ## Enhancement
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Explore the codebase to find files that implement: "[description]"
 
 Focus on:
@@ -32,6 +36,8 @@ Include file paths, approximate line counts, and why each file is relevant.
 
 ## Feature
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Explore the codebase to find patterns and integration points for: "[description]"
 
 Focus on:

@@ -5,6 +5,8 @@ When merging multiple roles into a single agent, integrate concerns logically ra
 ## Example: File Discovery + Code Analysis (Bug)
 
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Explore and analyze the codebase for: "[description]"
 
 1. Find files where the bug likely occurs (search for error keywords, related functionality)
@@ -26,3 +28,4 @@ Output:
 - Combine the output sections — avoid duplicate asks
 - Keep the total prompt concise (aim for 8-12 focus items max)
 - The merged prompt should read as one coherent task, not two tasks stitched together
+- Always include the no-write constraint: "IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only."

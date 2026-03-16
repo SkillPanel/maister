@@ -4,6 +4,8 @@ Replace `[description]` with the actual task description.
 
 ## Bug
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Find testing and context information for: "[description]"
 
 Focus on:
@@ -22,6 +24,8 @@ Output:
 
 ## Enhancement
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Find dependencies and consumers for: "[description]"
 
 Focus on:
@@ -40,6 +44,8 @@ Output:
 
 ## Feature
 ```
+IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
+
 Find integration requirements for: "[description]"
 
 Focus on:
