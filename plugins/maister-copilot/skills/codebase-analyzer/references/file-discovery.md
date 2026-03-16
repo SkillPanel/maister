@@ -46,6 +46,6 @@ Focus on:
 3. Look for shared utilities, hooks, or base classes to extend
 4. Find entry points where this feature needs to integrate (routes, menus, etc.)
 
-Output files that serve as good examples or integration points.
+List the files that serve as good examples or integration points.
 Include reasoning for why each pattern/location is appropriate.
 ```
