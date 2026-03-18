@@ -1,7 +1,7 @@
 {
   "name": "maister",
-  "version": "2.0.6",
-  "description": "Structured, standards-aware development workflows for Claude Code",
+  "version": "2.1.0-beta.1",
+  "description": "Beta: Structured, standards-aware development workflows for Claude Code",
   "author": {
     "name": "Skillpanel",
     "email": "marek@skillpanel.com"
