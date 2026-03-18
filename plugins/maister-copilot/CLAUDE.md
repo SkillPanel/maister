@@ -50,6 +50,7 @@ This plugin supports 4 workflow types that route to specialized orchestrators:
 | **Performance** | Optimize speed/efficiency | performance | "slow", "optimize", "speed up", "faster" |
 | **Migration** | Move tech/patterns | migration | "migrate", "move from X to Y", "upgrade" |
 | **Research** | Investigate and document findings | research | "research", "investigate", "explore options" |
+| **Product Design** | Design features/products before building | product-design | "design", "product design", "feature design", "wireframe", "prototype" |
 
 ### Design Principles
 
@@ -214,7 +215,8 @@ The maister plugin uses this structure:
     ├── development/
     ├── performance/
     ├── migrations/
-    └── research/
+    ├── research/
+    └── product-design/
 ```
 
 **Core Principle**:
@@ -234,7 +236,9 @@ Development tasks are organized by workflow type in `.maister/tasks/`:
 │   └── YYYY-MM-DD-task-name/
 ├── migrations/
 │   └── YYYY-MM-DD-task-name/
-└── research/
+├── research/
+│   └── YYYY-MM-DD-task-name/
+└── product-design/
     └── YYYY-MM-DD-task-name/
 ```
 
@@ -271,7 +275,7 @@ Task types can add specialized subdirectories as needed (e.g., `analysis/bug-ana
 ### Naming Conventions
 
 **Workflow Type Directories:**
-- Use workflow names: `development/`, `performance/`, `migrations/`, `research/`
+- Use workflow names: `development/`, `performance/`, `migrations/`, `research/`, `product-design/`
 
 **Task Directories:**
 - Format: `YYYY-MM-DD-task-name`
@@ -479,6 +483,7 @@ Orchestrators manage complete workflows with state management, auto-recovery, an
 | `performance` | Static code analysis for bottleneck detection, reuses standard spec/plan/implement/verify pipeline | `skills/performance/SKILL.md` |
 | `migration` | Code/data/architecture migrations with rollback plans | `skills/migration/SKILL.md` |
 | `research` | Multi-source research with synthesis, solution brainstorming, high-level design, and citations | `skills/research/SKILL.md` |
+| `product-design` | **Interactive product/feature design** (9 phases: 0-8) with adaptive scope (feature-level default, product-level when detected), mixed interaction pattern (questioning for exploration, propose-and-refine for convergence), iterative refinement loops, browser-based visual companion, and layered product brief output. | `skills/product-design/SKILL.md` |
 
 ## Available Commands
 
@@ -504,6 +509,7 @@ Each workflow skill handles both new tasks and resuming existing ones. Pass a ta
 | `/maister-performance` | `[desc]` (new) / `[task-path] [--from=PHASE]` (resume) | `.maister/tasks/performance/` |
 | `/maister-migration` | `[desc] [--type=TYPE]` (new) / `[task-path] [--from=PHASE]` (resume) | `.maister/tasks/migrations/` |
 | `/maister-research` | `[question] [--type=TYPE] [--brainstorm] [--no-brainstorm] [--design] [--no-design]` (new) / `[task-path] [--from=PHASE]` (resume) | `.maister/tasks/research/` |
+| `/maister-product-design` | `[desc] [--research=PATH] [--no-visual]` (new) / `[task-path] [--from=PHASE]` (resume) | `.maister/tasks/product-design/` |
 
 **Research-Based Development**: Start development informed by a completed research workflow:
 ```bash
@@ -558,7 +564,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 
 | Agent | Purpose | Invoked By | Details |
 |-------|---------|------------|---------|
-| `ui-mockup-generator` | ASCII mockups showing UI integration with existing layouts | development orchestrator (feature/enhancement) | `agents/ui-mockup-generator.md` |
+| `ui-mockup-generator` | ASCII mockups showing UI integration with existing layouts | development orchestrator (feature/enhancement), product-design orchestrator (Phase 7 ASCII fallback) | `agents/ui-mockup-generator.md` |
 | `e2e-test-verifier` | Runtime browser verification via Playwright MCP tools (not test file generation) | development orchestrator (optional) | `agents/e2e-test-verifier.md` |
 | `user-docs-generator` | User documentation with Playwright screenshots | development orchestrator (optional) | `agents/user-docs-generator.md` |
 
@@ -573,9 +579,9 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | Agent | Purpose | Invoked By | Details |
 |-------|---------|------------|---------|
 | `research-planner` | Creates methodology and identifies sources | research orchestrator | `agents/research-planner.md` |
-| `information-gatherer` | Multi-source data collection with citations | research orchestrator | `agents/information-gatherer.md` |
+| `information-gatherer` | Multi-source data collection with citations | research orchestrator, product-design orchestrator (Phase 1 mini-research) | `agents/information-gatherer.md` |
 | `research-synthesizer` | Pattern identification, insights generation | research orchestrator | `agents/research-synthesizer.md` |
-| `solution-brainstormer` | Solution alternatives with multi-perspective trade-off analysis | research orchestrator | `agents/solution-brainstormer.md` |
+| `solution-brainstormer` | Solution alternatives with multi-perspective trade-off analysis | research orchestrator, product-design orchestrator | `agents/solution-brainstormer.md` |
 | `solution-designer` | High-level C4 architecture design and ADR documentation | research orchestrator | `agents/solution-designer.md` |
 
 ### Verification Agents
