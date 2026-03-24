@@ -120,7 +120,7 @@ This is the key differentiator. Maister doesn't just run workflows - it learns y
 
 Standards live in `.maister/docs/standards/` and are indexed in `.maister/docs/INDEX.md`.
 
-**Important**: Run workflows with **auto-accept edits** enabled. Do not use Claude Code's plan mode -- the orchestrators handle their own planning phases internally, and plan mode will interfere with execution.
+**Important**: Run workflows with **auto-accept edits** enabled. Do not use Claude Code's plan mode with workflows (see [Best Practices](#best-practices) below).
 
 ## Beta Channel
 
@@ -148,6 +148,32 @@ To switch back to stable:
 ```
 
 Beta versions may contain features that are not yet fully tested. Use at your own discretion.
+
+## Best Practices
+
+**Don't use plan mode when starting a workflow.** Planning is a built-in part of every workflow — the orchestrator creates specs, plans, and other files as it goes. Claude Code's plan mode restricts file creation, which conflicts with this. Let the workflow handle planning on its own.
+
+**Start workflows in a fresh session.** This is especially useful when chaining workflows (e.g., research → development). Research and product-design artifacts already contain all the context needed, so a clean session avoids noise from prior conversation.
+
+**Chain workflows by passing a task folder.** If you've completed a research or product-design workflow and want to build on those results, pass the task folder directly:
+
+```bash
+/maister:development .maister/tasks/research/2026-01-12-oauth-research
+```
+
+You can also append additional instructions to narrow scope or guide the workflow:
+
+```bash
+/maister:development .maister/tasks/product-design/2026-03-10-dashboard-redesign Implement only phase 1
+```
+
+## Known Issues
+
+**Orchestrator may stall after long phases.** After context compaction (which typically happens after lengthy phases like implementation), the main agent may stop progressing automatically. If you notice it's idle, just type something like "continue" or "proceed" — it will pick up where it left off. You can also re-invoke the workflow in resume mode to reload the orchestrator state:
+
+```bash
+/maister:development .maister/tasks/development/2026-03-24-my-feature
+```
 
 ## Learn More
 
