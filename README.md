@@ -10,7 +10,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 ## What You Get
 
-- **Guided workflows** for features, bug fixes, enhancements, performance, migrations, and research
+- **Guided workflows** for features, bug fixes, enhancements, performance, migrations, research, and product design
 - **Auto-discovered standards** from your codebase - config files, source patterns, and documentation are analyzed and enforced throughout every workflow
 - **Test-driven implementation** with automated planning, incremental verification, and full test suite runs before completion
 - **Pause and resume** any workflow - state is preserved across sessions
@@ -96,6 +96,7 @@ You can always be explicit when you prefer - arguments and flags simply override
 | `/maister:research` | Evidence-based research with solution brainstorming and high-level design documents |
 | `/maister:performance` | Optimizing speed or resource usage |
 | `/maister:migration` | Changing technologies or patterns |
+| `/maister:product-design` | Designing features or products before building them |
 
 Task type (feature/bug/enhancement) is auto-detected from context. Override with `--type=feature|bug|enhancement` if needed. Or use `/maister:work` as a single entry point that routes to the right workflow.
 

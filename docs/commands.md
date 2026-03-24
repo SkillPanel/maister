@@ -92,6 +92,26 @@ Research output can feed into development: `/maister:development --research=.mai
 
 ---
 
+## Product Design
+
+### `/maister:product-design [description | task-path]`
+
+Starts the interactive product/feature design workflow (9 adaptive phases) or resumes an existing one. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Can be run without arguments — the plugin extracts the design brief from your conversation.
+
+| Flag | Description |
+|------|-------------|
+| `--research=PATH` | Start design informed by a completed research task |
+| `--no-visual` | Skip browser-based visual companion (use ASCII mockups only) |
+| `--from=PHASE` | Start from or resume at a specific phase |
+| `--reset-attempts` | Reset failed attempt counters (resume) |
+
+Design output can feed directly into development: `/maister:development .maister/tasks/product-design/...`
+
+**Task directory**: `.maister/tasks/product-design/`
+**Resume phases**: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `convergence`, `specification`, `prototyping`, `handoff`
+
+---
+
 ## Reviews & Audits
 
 Standalone review commands that can be run anytime, independent of workflows.

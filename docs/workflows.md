@@ -1,6 +1,6 @@
 # Workflow Details
 
-Maister provides six workflow types, each with phases tailored to its needs. All workflows pause between phases for your review and input.
+Maister provides five workflow types, each with phases tailored to its needs. All workflows pause between phases for your review and input.
 
 ## Development Workflow
 
@@ -168,6 +168,52 @@ Resume phases: `foundation`, `brainstorming-decision`, `brainstorming`, `design`
 
 ---
 
+## Product Design
+
+Interactive workflow for designing features and products before building them. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Phases adapt based on design characteristics (greenfield vs enhancement, simple vs complex, UI-focused vs backend).
+
+```
+/maister:product-design
+/maister:product-design "Design a dashboard for monitoring API usage"
+/maister:product-design --research=.maister/tasks/research/2026-01-12-auth-research
+```
+
+When run without arguments, the plugin extracts the design brief from your conversation.
+
+**Flags**: `--research=PATH`, `--no-visual`, `--from=PHASE`
+
+### Phases
+
+| # | Phase | Activation |
+|---|-------|------------|
+| 0 | Initialize, gather context & detect characteristics | Always |
+| 1 | Context synthesis (codebase analysis or mini-research) | Always (scope adapts) |
+| 2 | Problem space exploration (interactive, iterative) | Always (depth adapts) |
+| 3 | User & persona exploration | Greenfield or complex designs |
+| 4 | Design alternatives generation (agent-driven, unbiased) | Always |
+| 5 | Converge on design direction (interactive) | Always |
+| 6 | Feature specification, section-by-section (interactive) | Always (depth adapts) |
+| 7 | Visual prototyping (browser-based companion with ASCII fallback) | UI-focused designs |
+| 8 | Review & hand off product brief | Always |
+
+Phases 2, 5, and 6 include iterative refinement loops — you can request revisions before moving on. Phase 4 uses an agent to generate alternatives without anchoring bias.
+
+The output is a structured product brief that can be passed directly to the development workflow:
+
+```
+/maister:development .maister/tasks/product-design/2026-03-10-api-dashboard
+```
+
+### Resume
+
+```
+/maister:product-design [task-path] [--from=PHASE] [--reset-attempts]
+```
+
+Resume phases: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `convergence`, `specification`, `prototyping`, `handoff`
+
+---
+
 ## Task Directory Structure
 
 All workflows create structured directories in `.maister/tasks/`:
@@ -177,7 +223,8 @@ All workflows create structured directories in `.maister/tasks/`:
 ├── development/           # All development tasks (features, bugs, enhancements)
 ├── performance/           # Performance optimization
 ├── migrations/            # Migrations
-└── research/              # Research
+├── research/              # Research
+└── product-design/        # Product design
 ```
 
 Each task folder follows the pattern `YYYY-MM-DD-task-name/`:
