@@ -59,6 +59,7 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 | performance | `maister:performance` |
 | migration | `maister:migration` |
 | research | `maister:research` |
+| product-design | `maister:product-design` |
 
 ---
 
@@ -95,6 +96,7 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 | `performance/` | performance |
 | `migrations/` | migration |
 | `research/` | research |
+| `product-design/` | product-design |
 
 3. Extract status from state file:
    - `completed`: null = in-progress, timestamp = finished
@@ -167,7 +169,7 @@ The subagent will:
 2. **Parse classification result:**
 ```yaml
 classification:
-  task_type: [development|performance|migration|research]
+  task_type: [development|performance|migration|research|product-design]
   confidence: [percentage]
   reasoning: [explanation]
 ```
@@ -205,6 +207,7 @@ Use AskUserQuestion with options:
 2. Performance - Optimize speed/efficiency
 3. Migration - Move to new tech/pattern
 4. Research - Investigate and document findings
+5. Product Design - Design features or products before building them
 
 Then route to selected workflow using Skill tool.
 ```
@@ -229,6 +232,7 @@ Display:
 | performance | `maister:performance` | `--resume [path] [--from=PHASE]` |
 | migration | `maister:migration` | `--resume [path] [--from=PHASE]` |
 | research | `maister:research` | `--resume [path] [--from=PHASE]` |
+| product-design | `maister:product-design` | `--resume [path] [--from=PHASE]` |
 
 ---
 
