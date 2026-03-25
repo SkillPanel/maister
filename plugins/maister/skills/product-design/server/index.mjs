@@ -9,6 +9,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const taskPathArg = process.argv.find(a => a.startsWith('--task-path='));
 const taskPath = taskPathArg ? taskPathArg.split('=')[1] : null;
 
+if (!taskPath) {
+  console.warn('[visual-companion] No --task-path provided. Mockups will NOT be saved to disk.');
+}
+
 // In-memory state: array of all mockups (screens)
 const mockups = [];
 let latestId = null;
@@ -23,15 +27,19 @@ function slugify(title) {
     || 'untitled';
 }
 
-// Save a rendered standalone HTML file to disk
+// Save a rendered standalone HTML file to disk. Returns true if saved, false if skipped.
 function saveToDisk(mockup) {
-  if (!taskPath) return;
+  if (!taskPath) {
+    console.warn(`[visual-companion] Skipping disk save for "${mockup.id}" — no task path configured.`);
+    return false;
+  }
   const dir = path.join(taskPath, 'analysis', 'mockups');
   fs.mkdirSync(dir, { recursive: true });
 
   const html = renderScreen(mockup);
   const filePath = path.join(dir, `${mockup.id}.html`);
   fs.writeFileSync(filePath, html, 'utf-8');
+  return true;
 }
 
 // Render a single screen page with navigation
@@ -139,7 +147,7 @@ async function handler(req, res) {
   try {
     // GET /status
     if (req.method === 'GET' && url.pathname === '/status') {
-      jsonResponse(res, 200, { status: 'ok', version: '1.0.0', port: activePort, screens: mockups.length, taskPath: taskPath || null });
+      jsonResponse(res, 200, { status: 'ok', version: '1.0.0', port: activePort, screens: mockups.length, taskPath: taskPath || null, persistence: !!taskPath });
       return;
     }
 
@@ -191,9 +199,9 @@ async function handler(req, res) {
 
       latestId = id;
       version++;
-      saveToDisk(mockup);
+      const saved = saveToDisk(mockup);
       notifyClients();
-      jsonResponse(res, 200, { status: 'updated', version, id, screens: mockups.length });
+      jsonResponse(res, 200, { status: 'updated', version, id, screens: mockups.length, saved });
       return;
     }
 
