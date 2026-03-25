@@ -116,7 +116,7 @@ Use for:
 
 → Pause
 
-AskUserQuestion - "Gap analysis complete. Continue to migration strategy?"
+AskUserQuestion - Display executive summary before asking. Extract from gap analysis: current system overview, target system, migration type classified, number of gaps identified, recommended strategy, risk level. Format as brief overview then "Continue to migration strategy?"
 
 ---
 
@@ -147,7 +147,7 @@ AskUserQuestion - "Gap analysis complete. Continue to migration strategy?"
 
 → Pause
 
-AskUserQuestion - "Migration specification complete. Continue to implementation planning?"
+AskUserQuestion - Display executive summary before asking. Read `implementation/spec.md` and extract: migration strategy chosen, scope boundaries, rollback approach, breaking changes identified, key constraints. Format as brief overview then "Continue to implementation planning?"
 
 ---
 
@@ -164,7 +164,7 @@ AskUserQuestion - "Migration specification complete. Continue to implementation 
 
 → Pause
 
-AskUserQuestion - "Implementation plan ready. Continue to execute migration?"
+AskUserQuestion - Display executive summary before asking. Read `implementation/implementation-plan.md` and extract: number of task groups, total steps, rollback steps included, key dependencies, execution sequence. Format as brief overview then "Continue to execute migration?"
 
 ---
 
@@ -195,7 +195,7 @@ AskUserQuestion - "Implementation plan ready. Continue to execute migration?"
 
 → Pause
 
-AskUserQuestion - "Migration execution complete. Continue to verification?"
+AskUserQuestion - Display executive summary before asking. Extract from `phase_summaries.implementation` and `implementation/work-log.md`: migration steps completed, files changed, test results, rollback readiness status. Format as brief overview then "Continue to verification?"
 
 ---
 
@@ -221,7 +221,7 @@ AskUserQuestion - "Migration execution complete. Continue to verification?"
 
 → Pause
 
-AskUserQuestion - "Verification complete. [verdict summary]. Continue to Phase [7 or 8]?"
+AskUserQuestion - Display executive summary before asking. Extract from verification results: overall verdict, issue counts by severity, compatibility test results, data integrity status, rollback test results. Format as detailed overview then "Continue to Phase [7 or 8]?"
 
 ---
 
@@ -237,21 +237,24 @@ AskUserQuestion - "Verification complete. [verdict summary]. Continue to Phase [
 **Skip if**: verdict = PASS
 
 **Process**:
-1. Parse issues (categorize: auto-fixable, needs decision, not fixable)
-2. Apply auto-fixes (test fixes, config adjustments, deprecation warnings)
-3. For user decisions: AskUserQuestion with rollback option
-4. Re-verify after fixes (max 3 iterations)
+1. Display detailed issue breakdown grouped by category and severity, listing location, description, and fixability
+2. Present all critical + warning issues as a numbered list
+3. AskUserQuestion — "Which issues should I fix?" with options: "Fix all fixable issues" / "Let me choose specific issues" / "Skip fixes, proceed as-is"
+4. Fix selected issues
+5. AskUserQuestion — "Re-run verification to check fixes?" with options: "Yes, re-run verification" / "No, proceed to next phase"
+6. If re-run → re-invoke `maister:implementation-verifier` → return to Step 1
+7. Max 3 iterations
 
-**Data Safety Critical**: HALT on any data integrity issue - never auto-fix data problems.
+**Data Safety Critical**: HALT on any data integrity issue - never auto-fix data problems. Always present data issues to user with rollback option.
 
 **Exit Conditions**:
-- ✅ New verdict = PASS → Proceed to Phase 8
+- ✅ No critical issues remain → Proceed to Phase 8
 - ⚠️ Max iterations (3) reached → Ask user: proceed with warnings or rollback
 - ❌ Data integrity issues → HALT immediately, recommend rollback
 
 → Pause
 
-AskUserQuestion - "Issues resolved. Continue to documentation?"
+AskUserQuestion - Display executive summary: total issues found, issues fixed, issues remaining by severity. Then "Continue to documentation?"
 
 ---
 

@@ -163,7 +163,7 @@ AskUserQuestion - "Performance analysis complete. [N] bottlenecks identified ([P
 
 → Pause
 
-AskUserQuestion - "Specification created. Continue to Phase 4?"
+AskUserQuestion - Display executive summary before asking. Read `implementation/spec.md` and extract: optimization targets, approach chosen, number of changes planned, expected impact. Format as brief overview then "Continue to specification audit?"
 
 ---
 
@@ -183,7 +183,7 @@ AskUserQuestion to decide - "Run specification audit?"
 
 → Pause
 
-AskUserQuestion - "Audit complete. Continue to Phase 5?"
+AskUserQuestion - Display executive summary before asking. Read `verification/spec-audit.md` and extract: overall verdict, issue counts by severity, top findings. Format as brief overview then "Continue to implementation planning?"
 
 ---
 
@@ -211,7 +211,7 @@ AskUserQuestion - "Audit complete. Continue to Phase 5?"
 
 → Pause
 
-AskUserQuestion - "Implementation plan created. Continue to Phase 6?"
+AskUserQuestion - Display executive summary before asking. Read `implementation/implementation-plan.md` and extract: number of task groups, total steps, key dependencies, optimization sequence. Format as brief overview then "Continue to implementation?"
 
 ---
 
@@ -242,7 +242,7 @@ AskUserQuestion - "Implementation plan created. Continue to Phase 6?"
 
 → Pause
 
-AskUserQuestion - "Implementation complete. Continue to Phase 7?"
+AskUserQuestion - Display executive summary before asking. Extract from `phase_summaries.implementation` and `implementation/work-log.md`: optimizations applied, files changed, test results, any known issues. Format as brief overview then "Continue to verification?"
 
 ---
 
@@ -272,18 +272,31 @@ AskUserQuestion - "Options selected. Continue to Phase 8?"
 
 > **Phase gate**: Requires `AskUserQuestion` confirmation from Phase 7 before executing.
 
-**Purpose**: Comprehensive implementation verification with fix-then-reverify cycles
-**Execute**:
-1. Skill tool - `maister:implementation-verifier`
-2. If issues found: Fix trivial issues directly, AskUserQuestion for non-trivial
-3. Before re-verification: set `skip_test_suite: false` (code changed, tests must re-run)
-4. Re-verify after fixes (max 3 fix-then-reverify cycles)
+**Purpose**: Comprehensive implementation verification with user-driven fix cycles
 **Output**: `verification/implementation-verification.md`, optional review reports
 **State**: Update `verification_context`
 
+**Execute**:
+
+**Step 1**: Invoke Skill tool - `maister:implementation-verifier`
+
+**Step 2**: Display detailed issue breakdown grouped by category and severity (critical/warning/info), listing location, description, and fixability for each.
+
+**Step 3**: Gate on verification status:
+- `status: passed` → skip to Pause
+- `status: passed_with_issues` or `failed` → enter user-driven fix loop (Step 4)
+
+**Step 4**: User-driven fix loop (max 3 iterations):
+1. Present all critical + warning issues as a numbered list
+2. AskUserQuestion — "Which issues should I fix?" with options: "Fix all fixable issues" / "Let me choose specific issues" / "Skip fixes, proceed as-is"
+3. Fix selected issues
+4. After fixes: set `skip_test_suite: false` (code changed, tests must re-run)
+5. AskUserQuestion — "Re-run verification to check fixes?" with options: "Yes, re-run verification" / "No, proceed to next phase"
+6. If re-run → re-invoke `maister:implementation-verifier` → return to Step 2
+
 → Pause
 
-AskUserQuestion - "Verification complete. Continue to finalization?"
+AskUserQuestion - Display executive summary: total issues found, issues fixed, issues remaining by severity. Then "Continue to finalization?"
 
 ---
 

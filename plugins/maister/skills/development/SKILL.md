@@ -127,7 +127,7 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 
 → Pause (when decisions exist), otherwise Conditional
 
-AskUserQuestion - "Scope decisions resolved. Continue?" (or "Gap analysis complete, no decisions needed. Continue?")
+AskUserQuestion - Display executive summary before asking. Read `analysis/gap-analysis.md` and extract: task type detected, risk level, key characteristics enabled (TDD gates, UI mockups, E2E, user docs), scope decisions made (if any). Format as brief overview then "Continue to specification?"
 
 → Conditional: check `task_characteristics.has_reproducible_defect` → Phase 3, else check `task_characteristics.ui_heavy` → Phase 4, else skip to Phase 5
 
@@ -221,7 +221,7 @@ AskUserQuestion - "UI mockups complete. Continue to Phase 5?"
 
 → Pause
 
-AskUserQuestion - "Specification created. Continue to Phase 6?"
+AskUserQuestion - Display executive summary before asking. Read `implementation/spec.md` and extract: spec title, scope boundaries (what's included and excluded), number of key requirements, architecture approach chosen (if any), assumptions made. Format as brief overview then "Continue to specification audit?"
 
 ---
 
@@ -240,7 +240,7 @@ AskUserQuestion - "Run specification audit? (Recommended)" with "Yes, run audit 
 
 → Pause
 
-AskUserQuestion - "Audit complete. Continue to Phase 7?"
+AskUserQuestion - Display executive summary before asking. Read `verification/spec-audit.md` and extract: overall verdict (pass/pass-with-concerns/fail), issue counts by severity, top 1-2 critical findings if any. Format as brief overview then "Continue to implementation planning?"
 
 ---
 
@@ -267,7 +267,7 @@ AskUserQuestion - "Audit complete. Continue to Phase 7?"
 
 → Pause
 
-AskUserQuestion - "Plan created. Continue to Phase 8?"
+AskUserQuestion - Display executive summary before asking. Read `implementation/implementation-plan.md` and extract: number of task groups, total implementation steps, key dependencies between groups, estimated complexity. Format as brief overview then "Continue to implementation?"
 
 ---
 
@@ -296,7 +296,7 @@ AskUserQuestion - "Plan created. Continue to Phase 8?"
 
 → Pause
 
-AskUserQuestion - "Implementation complete. Continue to Phase [9 or 10]?"
+AskUserQuestion - Display executive summary before asking. Extract from `phase_summaries.implementation` and `implementation/work-log.md`: task groups completed, files changed, test results from incremental runs, any known issues or deferred items. Format as brief overview then "Continue to verification?"
 
 ---
 
@@ -372,22 +372,39 @@ Options: "Code review (Recommended)", "Pragmatic review (Recommended)", "Reality
 
 **Step 1**: Invoke Skill tool - `maister:implementation-verifier`
 
-**Step 2**: Display issue summary — show counts by severity (critical/warning/info) and list all critical + warning issues with their location, description, and fixability.
+**Step 2**: Display detailed issue breakdown grouped by category and severity:
+```
+Verification Results:
+  Critical ([N]):
+    - [category]: [description] — [file:line] [fixable/manual]
+    ...
+  Warning ([N]):
+    - [category]: [description] — [file:line] [fixable/manual]
+    ...
+  Info ([N]):
+    - [description] (listed for awareness, not actionable)
+```
 
 **Step 3**: Gate on verification status:
 - `status: passed` → skip to Post-Verification Continuation
-- `status: passed_with_issues` or `failed` → enter fix-then-reverify loop (Step 4)
+- `status: passed_with_issues` or `failed` → enter user-driven fix loop (Step 4)
 
-**Step 4**: Fix-then-reverify loop (max 3 iterations):
-1. **Auto-fix** issues with `fixable: true` and severity `critical` or `warning` — apply the fix using the `suggestion` field, log each fix to `verification_context.fixes_applied`
-2. **Ask user** about `fixable: false` critical issues — AskUserQuestion: "Try to fix anyway" / "Accept and proceed" / "Let me investigate"
-3. **Log** warning-level `fixable: false` issues and proceed (no user prompt needed)
-4. If fixes were applied: set `skip_test_suite: false` (code changed, tests must re-run) → re-invoke `maister:implementation-verifier` → return to Step 2
-5. Update `verification_context.reverify_count`
+**Step 4**: User-driven fix loop (max 3 iterations):
+1. Present all critical + warning issues as a numbered list
+2. AskUserQuestion — "Which issues should I fix?" with options:
+   - "Fix all fixable issues" (convenience default)
+   - "Let me choose specific issues" (user picks by number)
+   - "Skip fixes, proceed as-is"
+3. Fix selected issues, log each to `verification_context.fixes_applied`
+4. After fixes applied: set `skip_test_suite: false` (code changed, tests must re-run)
+5. AskUserQuestion — "Re-run verification to check fixes?" with options:
+   - "Yes, re-run verification" → re-invoke `maister:implementation-verifier` → return to Step 2
+   - "No, proceed to next phase"
+6. Update `verification_context.reverify_count`
 
 **Exit conditions**:
 - No critical issues remain → proceed
-- User explicitly approves "Accept and proceed" for remaining critical issues → proceed with warning logged
+- User explicitly chooses "Skip fixes, proceed as-is" or "No, proceed to next phase" → proceed with issues logged
 - Max 3 iterations reached → AskUserQuestion: "Proceed with known issues?" / "Stop workflow"
 - **MUST NOT proceed with unresolved critical issues unless user explicitly approves**
 
@@ -398,7 +415,7 @@ Options: "Code review (Recommended)", "Pragmatic review (Recommended)", "Reality
 
 → Pause
 
-AskUserQuestion - "Verification: [N] critical, [N] warnings [resolved/remaining]. Continue to Phase 12?"
+AskUserQuestion - Display executive summary: total issues found, issues fixed, issues remaining by severity. Then "Continue to Phase 12?"
 
 ---
 
