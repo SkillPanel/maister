@@ -455,6 +455,7 @@ Skills are automatically invoked by Claude when appropriate. Details live in eac
 |-------|---------|---------|
 | `codebase-analyzer` | Thin dispatcher: selects agent roles adaptively, launches parallel Explore subagents, delegates report synthesis to `codebase-analysis-reporter` subagent | `skills/codebase-analyzer/SKILL.md` |
 | `implementer` | Executes plans with **mandatory** standards reading (INDEX.md + implementation-plan.md Standards Compliance section + keyword-triggered) and **test step enforcement** (requires user approval to skip N.1 tests) | `skills/implementer/SKILL.md` |
+| `implementation-plan-executor` | Executes implementation plans with two-mode adaptive execution. Mode A (≤5 steps): direct. Mode B (6+ steps): delegates to `task-group-implementer` subagent with **model escalation** (sonnet → opus on BLOCKED) | `skills/implementation-plan-executor/SKILL.md` |
 | `implementation-verifier` | Read-only QA orchestrator: delegates completeness checks, test execution, code review, and production readiness to specialized subagents; compiles results into verification report | `skills/implementation-verifier/SKILL.md` |
 | `standards-discover` | Parallel multi-source standards discovery (config, code, docs, PRs/CI) with confidence scoring | `skills/standards-discover/SKILL.md` |
 | `docs-manager` | Internal engine for doc file operations, INDEX.md generation, CLAUDE.md integration. Not user-invocable — accessed via `docs-operator` agent (Task tool) by init, standards-update, standards-discover | `skills/docs-manager/skill.md` |
@@ -601,6 +602,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | `spec-auditor` | Independent spec audit with senior auditor perspective | orchestrators | `agents/spec-auditor.md` |
 | `reality-assessor` | Validates work actually solves the problem | implementation-verifier | `agents/reality-assessor.md` |
 | `implementation-changes-planner` | Creates detailed change plans (no file modifications) | implementer | `agents/implementation-changes-planner.md` |
+| `task-group-implementer` | Executes a single task group: writes code, runs tests, reports status. Supports model escalation (sonnet → opus on BLOCKED). | implementation-plan-executor | `agents/task-group-implementer.md` |
 
 **See**: Individual `agents/*.md` files for detailed workflows and philosophies.
 
@@ -614,6 +616,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 6. **Incremental Verification**: Run only new tests after each group, not entire suite
 7. **Comprehensive Verification Before Commit**: Run full test suite and create verification report before code review
 8. **Task Directory Artifact Anchoring**: ALL workflow artifacts (reports, documentation, screenshots) MUST be saved under the task directory (`.maister/tasks/[type]/[task-name]/`). NEVER save task artifacts to project directories like `docs/`, `src/`, or project root.
+9. **Model Escalation**: Subagents start on sonnet; if BLOCKED, automatically retry with opus before asking the user
 
 **For detailed workflow documentation, see**: individual skill `SKILL.md` files
 
