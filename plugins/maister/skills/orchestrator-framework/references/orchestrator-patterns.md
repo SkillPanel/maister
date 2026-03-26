@@ -324,3 +324,60 @@ If prerequisites missing, use AskUserQuestion: "Start from Phase 1", "Specify di
 | User chooses "Proceed with known issues" | Proceed with warning logged |
 | Max iterations (3) reached | Ask user how to proceed |
 | Critical issues remain unresolved | **MUST NOT proceed** — require user approval first |
+
+---
+
+## 7. Model Escalation Pattern
+
+When a subagent reports BLOCKED status, the coordinator can re-dispatch with a more capable model. This is an automatic escalation — no user confirmation needed for the first tier.
+
+### Escalation Chain
+
+````
+sonnet (default) → BLOCKED → opus → BLOCKED → AskUserQuestion
+````
+
+### Status-to-Action Mapping
+
+| Subagent Status | Action | Model Change |
+|----------------|--------|--------------|
+| SUCCESS / SUCCESS_WITH_CONCERNS | Proceed | None |
+| PARTIAL | Investigate, fix if obvious, ask user if unclear | None |
+| NEEDS_CONTEXT | Provide requested context, re-dispatch | Same model |
+| BLOCKED | Re-dispatch with more capable model | sonnet → opus |
+
+### Key Rules
+
+1. **Never retry same model without changes** — if BLOCKED, something must change (model, context, or task scope)
+2. **NEEDS_CONTEXT ≠ BLOCKED** — missing data → same model; reasoning limit → higher model
+3. **End of chain → user** — when the most capable model is BLOCKED, always AskUserQuestion
+4. **Log escalations** — record in work-log for visibility and cost tracking
+5. **No automatic rollback** — BLOCKED does not mean "undo what was done"
+
+### When to Apply
+
+This pattern applies to any agent that:
+- Has `model: sonnet` in frontmatter (not `inherit` or `opus`)
+- Implements the enriched status protocol (SUCCESS/SUCCESS_WITH_CONCERNS/PARTIAL/NEEDS_CONTEXT/BLOCKED)
+- Is dispatched by a coordinator skill that processes the output
+
+Currently applies to:
+- `task-group-implementer` (dispatched by `implementation-plan-executor`)
+
+### Re-dispatch Prompt Structure
+
+When escalating, the coordinator includes:
+- Original task prompt (unchanged)
+- Previous attempt's BLOCKED explanation
+- Any additional context gathered
+- Note that this is an escalated dispatch with a more capable model
+
+### Anti-Patterns
+
+| Anti-Pattern | Why It's Wrong |
+|--------------|----------------|
+| Retrying same model on BLOCKED | Wastes tokens, same result |
+| Escalating on NEEDS_CONTEXT | Problem is data, not reasoning — provide context first |
+| Escalating on PARTIAL | Subagent made progress — investigate the specific failure |
+| Skipping user when opus is BLOCKED | End of chain, user must decide next step |
+| Auto-rollback on BLOCKED | BLOCKED means "stuck", not "failed" — work may be partially valid |

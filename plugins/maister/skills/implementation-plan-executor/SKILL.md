@@ -131,11 +131,41 @@ For each task group:
 
 5. Use `TaskUpdate` to set the group task to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied}`
 
-6. **If subagent reports failure**:
-   - Do NOT auto-rollback (see Critical Principle in CLAUDE.md)
-   - Assess: config issue? test setup? logic error?
-   - Use AskUserQuestion for recovery path
+6. **Process subagent status**:
+
+   **SUCCESS / SUCCESS_WITH_CONCERNS**: Proceed normally. If concerns flagged, log them in work-log.
+
+   **PARTIAL**: Subagent made progress but couldn't finish. Assess root cause:
+   - Test failures → analyze, apply fix if obvious, re-run
+   - If unclear → AskUserQuestion with recovery options
    - Keep group task as `in_progress` with `metadata: {failed_at, failure_reason}`
+
+   **NEEDS_CONTEXT**: Subagent needs specific information. Read what they're asking for, provide it, and re-dispatch with the **same model** (sonnet):
+   - Extract the specific ask from subagent output
+   - Gather the requested context (read files, check standards, etc.)
+   - Re-dispatch task-group-implementer with original prompt + additional context section
+   - No model change — the problem is missing data, not reasoning
+
+   **BLOCKED**: Subagent is stuck on complexity/reasoning. **Escalate model**:
+   - Re-dispatch task-group-implementer with `model: opus` parameter
+   - Include the original prompt + subagent's BLOCKED explanation as additional context
+   - If opus also returns BLOCKED → stop and use AskUserQuestion:
+     ```
+     Question: "Task group [N] blocked even with escalated model. [Brief reason from subagent]. How to proceed?"
+     Header: "Model Escalation Failed"
+     Options:
+     - "Break into smaller pieces" - Split this group and retry
+     - "Provide more context" - I'll give additional information
+     - "Skip this group" - Mark as skipped, continue
+     - "Stop implementation" - Pause for investigation
+     ```
+   - Log escalation in work-log: "Group N: escalated sonnet → opus. Reason: [from BLOCKED status]"
+
+   **Key rules:**
+   - Never retry the same model without changes
+   - NEEDS_CONTEXT → same model (missing data)
+   - BLOCKED → opus (reasoning/complexity)
+   - Opus BLOCKED → always ask user
 
 ## Continuous Standards Discovery
 
@@ -237,6 +267,34 @@ You have access to `.maister/docs/INDEX.md` for continuous standards discovery.
 [See Subagent Output Format section]
 ```
 
+### Re-dispatch on BLOCKED (Model Escalation)
+
+When re-dispatching with opus after BLOCKED:
+
+````markdown
+## Task: Execute Task Group [N] (Escalated)
+
+**Previous attempt status**: BLOCKED
+**Previous attempt explanation**: [paste BLOCKED explanation from subagent]
+**Model**: opus (escalated from sonnet)
+
+### Task Group Content
+[Same as original dispatch]
+
+### Specification Excerpt
+[Same as original dispatch]
+
+### Standards
+[Same as original dispatch]
+
+### Additional Context
+[Any context gathered based on the BLOCKED explanation]
+
+### Requirements
+[Same as original dispatch, plus:]
+5. You are running on a more capable model because the previous attempt was blocked. Use your additional reasoning capability to work through the complexity described above.
+````
+
 ## Subagent Output Format
 
 The task-group-implementer returns structured output:
@@ -244,7 +302,7 @@ The task-group-implementer returns structured output:
 ```markdown
 ## Group [N] Execution Report
 
-### Status: [SUCCESS/PARTIAL/FAILED]
+### Status: [SUCCESS/SUCCESS_WITH_CONCERNS/PARTIAL/NEEDS_CONTEXT/BLOCKED]
 
 ### Steps Completed
 - [x] N.1 - [description]
@@ -355,22 +413,14 @@ After each task group:
 
 ### Subagent Failure (Mode B)
 
-If task-group-implementer reports failure:
+Subagent status handling is defined in Mode B step 6 above. Additional rules:
 
 1. **Do NOT auto-rollback** - User-confirmed rollback only
-2. **Analyze root cause** from subagent output
-3. **Check for easy fixes**: config issues, missing dependencies, test setup
-4. **Use AskUserQuestion**:
-   ```
-   Question: "Group [N] implementation failed: [brief reason]. How to proceed?"
-   Header: "Failure"
-   Options:
-   - "Try suggested fix" - [if easy fix identified]
-   - "Retry group" - Re-invoke subagent
-   - "Complete manually" - Switch to direct execution for this group
-   - "Rollback changes" - Revert this group's changes
-   - "Stop" - Pause for investigation
-   ```
+2. **Model escalation is automatic** - BLOCKED → opus happens without asking user
+3. **User involvement triggers**:
+   - Opus returns BLOCKED (end of escalation chain)
+   - PARTIAL status with unclear root cause
+   - Max 1 NEEDS_CONTEXT re-dispatch per group (if still NEEDS_CONTEXT after providing context → AskUserQuestion)
 
 ### Test Failure
 
