@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "maister-plugins",
-  "version": "2.1.4",
-  "description": "Structured, standards-aware development workflows for Claude Code",
+  "name": "maister-plugins-beta",
+  "version": "2.1.5-beta.1",
+  "description": "Beta channel: Structured, standards-aware development workflows for Claude Code",
   "owner": {
     "name": "Skillpanel",
     "email": "marek@skillpanel.com"
@@ -10,13 +10,13 @@
   "plugins": [
     {
       "name": "maister",
-      "description": "Structured, standards-aware development workflows for Claude Code",
+      "description": "Beta: Structured, standards-aware development workflows for Claude Code",
       "source": "./plugins/maister",
       "category": "development"
     },
     {
       "name": "maister-copilot",
-      "description": "Structured, standards-aware development workflows for GitHub Copilot CLI",
+      "description": "Beta: Structured, standards-aware development workflows for GitHub Copilot CLI",
       "source": "./plugins/maister-copilot",
       "category": "development"
     }
