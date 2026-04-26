@@ -36,6 +36,8 @@ rm -rf "$OUT/.claude-plugin"
 rm -rf "$OUT/hooks"
 rm -rf "$OUT/skills"
 rm -f  "$OUT/.mcp.json"
+rm -rf "$OUT/agents"
+mkdir -p "$OUT/agents"
 
 # ─────────────────────────────────────────────────────────────
 # Phase 3: Transform commands
@@ -120,7 +122,7 @@ for src_agent in "$CORE/agents/"*.md; do
   filename="$(basename "$src_agent")"
   agent_slug="${filename%.md}"
   agent_id="maister-${agent_slug}"
-  dest="$OUT/agents/${filename}"
+  dest="$OUT/agents/maister-${filename}"
 
   # Parse YAML frontmatter fields
   name_val="$(awk '/^---/{f++; next} f==1{print}' "$src_agent" | grep '^name:' | sed 's/^name:[[:space:]]*//')"
@@ -146,7 +148,7 @@ slug = sys.argv[5]
 entry = {
     'description': desc,
     'mode': 'subagent',
-    'prompt': '{file:.opencode/agents/' + slug + '.md}',
+    'prompt': '{file:.opencode/agents/maister-' + slug + '.md}',
     'color': color
 }
 
