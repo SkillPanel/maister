@@ -362,7 +362,12 @@ options:
 ## Command Integration
 
 Invoked via:
-- `/maister:migration [description] [--type=TYPE]` (new)
-- `/maister:migration [task-path] [--from=PHASE]` (resume)
+- `/maister:migration [description] [--type=TYPE] [--sequential]` (new)
+- `/maister:migration [task-path] [--from=PHASE] [--sequential]` (resume)
+
+Flags:
+- `--type=TYPE`: Migration category (e.g. database, api, framework)
+- `--from=PHASE`: Resume from specific phase
+- `--sequential`: Disable parallel wave dispatch in `implementation-plan-executor`; run one task group at a time. Persisted as `orchestrator.options.sequential: true` in `orchestrator-state.yml`. Defaults to off (parallel waves).
 
 Task directory: `.maister/tasks/migrations/YYYY-MM-DD-task-name/`

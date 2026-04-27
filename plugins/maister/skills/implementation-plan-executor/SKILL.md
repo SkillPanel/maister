@@ -49,42 +49,66 @@ You are an implementation plan executor that delegates task groups to subagents 
 
 **Do NOT read all standards upfront.** Standards are loaded lazily per task group.
 
-## Phase 2: Execute
+## Phase 2: Execute (wave-based, parallel by default)
 
-**FIRST action per group = Task tool invocation.** Then process results.
+**Dispatch unit is the wave**, not the individual group. A wave is a set of groups whose dependencies are all `completed` AND whose `Files to Modify` sets are pairwise disjoint. All groups in a wave fire in parallel from a single message; the next wave is computed once every member returns.
 
-For each task group:
+### Phase 2 Validation (before computing waves)
 
-0. Use `TaskUpdate` to set the group task to `status: "in_progress"` with `owner: "maister:task-group-implementer"`
+Read each group from `implementation-plan.md` and verify both `**Dependencies:**` and `**Files to Modify:**` are present. If any group is missing `Files to Modify`:
 
-1. **Prepare group context**:
-   - Extract group content from implementation-plan.md
+- Treat the entire run as `--sequential` (see opt-out below).
+- Append a warning to `work-log.md`: `Plan missing 'Files to Modify' on Group N — falling back to sequential execution.`
+
+Never assume missing `Files to Modify` means "None" — silent disjoint assumptions are how parallel implementers collide on the same file.
+
+### Wave Computation
+
+1. Parse `Dependencies:` (list of group numbers) and `Files to Modify:` (list of paths or `"None"`) for every group.
+2. Build the directed dependency graph from `Dependencies:`.
+3. The **ready set** = groups whose dependencies are all `completed` AND that have not yet been dispatched.
+4. Greedily build the next wave from the ready set in plan order: a group joins the wave iff its `Files to Modify` does not overlap any group already in the wave. Conflicting groups stay in the ready set for the next wave.
+5. Treat `"None"` as the empty set — review-only groups never conflict on files.
+6. Glob entries (e.g. `src/migrations/*.sql`) match by glob expansion against other groups' declared paths.
+
+### Wave Dispatch
+
+For each wave:
+
+0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister:task-group-implementer"`.
+
+1. **Prepare group context** (per group, unchanged from prior version):
+   - Extract group content from `implementation-plan.md`
    - Check "Standards Compliance" section — identify standards relevant to this group
    - Check INDEX.md for additional standards matching group topic
    - Get relevant spec sections
 
-2. **Invoke task-group-implementer subagent via Task tool**:
+2. **Fan out**: emit a single message containing one `Task` tool call per group in the wave.
    - subagent_type: `maister:task-group-implementer`
-   - prompt: Include group content, initial standards, INDEX.md path, spec excerpt
-   - See "Subagent Invocation" section for full prompt template
+   - prompt: per-group content + initial standards + INDEX.md path + spec excerpt + sibling-wave note (see "Subagent Invocation")
 
-3. **Process subagent output**:
-   - Parse completed steps
-   - Parse standards applied (initial + discovered)
-   - Parse test results
+3. **Wait for all wave members to return**, then for each result:
+   - Parse completed steps, standards applied, test results.
+   - Mark all group checkboxes in `implementation-plan.md`.
+   - Add a group entry to `work-log.md` with standards trail.
+   - Verify test results are acceptable.
+   - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
 
-4. **Update artifacts** (main agent responsibility):
-   - Mark all group checkboxes in implementation-plan.md
-   - Add group entry to work-log.md with standards trail
-   - Verify test results are acceptable
+4. **Partial-wave failure handling**:
+   - Do NOT cancel sibling subagents in the same wave — they may produce valid work even when one peer fails.
+   - After every wave member has returned, run the existing failure recovery flow (see "Error Handling" → "Subagent Failure") for each failed group individually.
+   - Mark successful groups in the wave as `completed` normally. Keep failed groups `in_progress` with `metadata: {failed_at, failure_reason, wave: N}` until the AskUserQuestion recovery path resolves them.
+   - The next wave is NOT computed until every failed group's recovery decision is made.
 
-5. Use `TaskUpdate` to set the group task to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied}`
+5. After the wave fully resolves (all members `completed` or recovered), recompute the ready set and proceed to the next wave.
 
-6. **If subagent reports failure**:
-   - Do NOT auto-rollback (see Critical Principle in CLAUDE.md)
-   - Assess: config issue? test setup? logic error?
-   - Use AskUserQuestion for recovery path
-   - Keep group task as `in_progress` with `metadata: {failed_at, failure_reason}`
+### `--sequential` Opt-Out
+
+Read `orchestrator.options.sequential` from `orchestrator-state.yml` at Phase 2 entry. When true (or when the validation fallback above triggered):
+
+- Treat every wave as size 1: dispatch groups one at a time in plan order, ignoring file-overlap analysis.
+- Functionally equivalent to the legacy serial loop.
+- Use cases: debugging a flaky group, constrained dev environments (single port, single DB schema), users who explicitly want serial execution.
 
 ## Continuous Standards Discovery
 
@@ -175,6 +199,9 @@ You have access to `.maister/docs/INDEX.md` for continuous standards discovery.
 - Check INDEX.md for additional standards matching this group's topic
 - During implementation, discover more standards as step context reveals needs
 - Do not limit discovery to explicit keyword matches - use judgment
+
+### Sibling Wave
+[None] OR [Group K (Files to Modify: ...) is running in parallel in the same wave. File sets are disjoint per the executor's wave-computation invariant; do not edit paths outside your declared `Files to Modify`.]
 
 ### Requirements
 1. Execute in test-driven order: tests (N.1) → implementation (N.2+) → verify (N.n)

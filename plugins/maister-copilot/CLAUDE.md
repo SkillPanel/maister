@@ -504,9 +504,9 @@ Each workflow skill handles both new tasks and resuming existing ones. Pass a ta
 
 | Command | Usage | Task Directory |
 |---------|-------|----------------|
-| `/maister-development` | `[desc] [--e2e] [--user-docs] [--research=PATH]` (new) / `[task-path] [--from=PHASE] [--reset-attempts]` (resume) | `.maister/tasks/development/` |
-| `/maister-performance` | `[desc]` (new) / `[task-path] [--from=PHASE]` (resume) | `.maister/tasks/performance/` |
-| `/maister-migration` | `[desc] [--type=TYPE]` (new) / `[task-path] [--from=PHASE]` (resume) | `.maister/tasks/migrations/` |
+| `/maister-development` | `[desc] [--e2e] [--user-docs] [--research=PATH] [--sequential]` (new) / `[task-path] [--from=PHASE] [--reset-attempts] [--sequential]` (resume) | `.maister/tasks/development/` |
+| `/maister-performance` | `[desc] [--sequential]` (new) / `[task-path] [--from=PHASE] [--sequential]` (resume) | `.maister/tasks/performance/` |
+| `/maister-migration` | `[desc] [--type=TYPE] [--sequential]` (new) / `[task-path] [--from=PHASE] [--sequential]` (resume) | `.maister/tasks/migrations/` |
 | `/maister-research` | `[question] [--type=TYPE] [--brainstorm] [--no-brainstorm] [--design] [--no-design]` (new) / `[task-path] [--from=PHASE]` (resume) | `.maister/tasks/research/` |
 | `/maister-product-design` | `[desc] [--research=PATH] [--no-visual]` (new) / `[task-path] [--from=PHASE]` (resume) | `.maister/tasks/product-design/` |
 
@@ -629,10 +629,11 @@ All orchestrators use `TaskCreate`/`TaskUpdate` for real-time progress visibilit
 
 ### Implementation Task Group Tracking
 
-- At planning: `TaskCreate` for each task group with dependencies mirroring the plan
-- During execution: `TaskUpdate` to `in_progress` with `owner` → execute → `TaskUpdate` to `completed` with metadata
+- At planning: `TaskCreate` for each task group with `Dependencies` AND `Files to Modify` declared in `implementation-plan.md`
+- During execution: executor computes parallel waves from dependencies + file overlap, then dispatches all groups in a wave concurrently via parallel `Task` tool calls. The `--sequential` flag (read from `orchestrator-state.yml` as `orchestrator.options.sequential`) forces the legacy one-at-a-time loop
+- `TaskUpdate` to `in_progress` on wave dispatch → execute → `TaskUpdate` to `completed` on each group's return
 - Markdown checkboxes in `implementation-plan.md` remain the step-level source of truth
-- Task system provides group-level visibility with dependencies, timing, and ownership
+- Task system provides group-level visibility with dependencies, timing, ownership, and wave membership
 
 See individual orchestrator `skill.md` files for phase-specific task tables.
 
@@ -658,7 +659,9 @@ This hook fires after context compaction and injects a reminder into Claude's co
 
 Blocks destructive shell commands (`git stash`, `git reset --hard`, `git checkout .`, `git clean`, `git push --force`, `rm -rf`) from subagents that should not perform such operations. Uses a whitelist approach — only explicitly trusted execution agents bypass the check:
 
-**Unprotected agents** (full Bash access): `task-group-implementer`, `test-suite-runner`, `e2e-test-verifier`, `user-docs-generator`, `docs-operator`
+**Unprotected agents** (full Bash access): `test-suite-runner`, `e2e-test-verifier`, `user-docs-generator`, `docs-operator`
+
+`task-group-implementer` is **not** whitelisted. It runs implementation code under the same destructive-command guard as ordinary agents to prevent rogue `git stash` / `reset --hard` from clobbering sibling implementers in a parallel wave (see "Implementation Task Group Tracking" above).
 
 All other agents and the main agent pass through normally. When adding a new agent that needs full Bash access, add it to the `case` statement in the hook script.
 

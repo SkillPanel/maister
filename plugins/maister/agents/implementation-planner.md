@@ -99,6 +99,7 @@ Common patterns:
 ```markdown
 ### Task Group N: [Layer Name]
 **Dependencies:** [group numbers or "None"]
+**Files to Modify:** [comma-separated paths from repo root, or "None" for review-only groups]
 **Estimated Steps:** [count]
 
 - [ ] N.0 Complete [layer] layer
@@ -119,11 +120,21 @@ Common patterns:
 - [Specific completion markers]
 ```
 
+#### Files to Modify Field
+
+Every group declares the files it will create or edit. The executor uses this to schedule independent groups concurrently while serializing groups that touch the same paths.
+
+- List every file the group will create or modify, including the test files written in N.1.
+- Prefer exact paths; use globs (e.g. `src/migrations/*.sql`) only when the group genuinely operates on a directory tree.
+- If two layer groups both touch a shared file (route registry, barrel index, schema), declare it in BOTH groups so the executor serializes them.
+- Use `"None"` only for pure review or analysis groups that produce no file changes.
+
 #### Testing Group (When >= 3 Groups)
 
 ```markdown
 ### Task Group N: Test Review & Gap Analysis
 **Dependencies:** All previous groups
+**Files to Modify:** [test directories or files this group will append to, e.g. `tests/**/*.test.ts`]
 
 - [ ] N.0 Review and fill critical gaps
   - [ ] N.1 Review tests from previous groups (6-24 existing tests)
@@ -225,6 +236,7 @@ Before completing, verify:
 - All groups end with test verification (X.n)
 - Test limits specified (2-8 per group)
 - Dependencies marked correctly
+- Files to Modify declared for every group (use `"None"` only for pure-review groups)
 - Reusable components referenced
 - Standards section included
 
@@ -260,6 +272,7 @@ groups:
     steps: [count]
     tests: [count]
     dependencies: [group numbers or "None"]
+    files_modified: [list of paths or "None"]
   - ...
 ```
 

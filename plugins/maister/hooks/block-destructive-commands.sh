@@ -16,8 +16,11 @@ if [ -z "$AGENT_TYPE" ]; then
 fi
 
 # Allow agents that legitimately need full Bash access (implementation, test execution)
+# Note: task-group-implementer is NOT whitelisted — destructive commands are blocked
+# to prevent rogue git stash/reset --hard from clobbering sibling implementers
+# running in parallel waves.
 case "$AGENT_TYPE" in
-  task-group-implementer|test-suite-runner|e2e-test-verifier|user-docs-generator|docs-operator)
+  test-suite-runner|e2e-test-verifier|user-docs-generator|docs-operator)
     exit 0
     ;;
 esac

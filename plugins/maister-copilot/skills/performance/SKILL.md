@@ -397,7 +397,11 @@ options:
 ## Command Integration
 
 Invoked via:
-- `/maister-performance [description]` (new)
-- `/maister-performance [task-path] [--from=PHASE]` (resume)
+- `/maister-performance [description] [--sequential]` (new)
+- `/maister-performance [task-path] [--from=PHASE] [--sequential]` (resume)
+
+Flags:
+- `--from=PHASE`: Resume from specific phase
+- `--sequential`: Disable parallel wave dispatch in `implementation-plan-executor`; run one task group at a time. Persisted as `orchestrator.options.sequential: true` in `orchestrator-state.yml`. Defaults to off (parallel waves).
 
 Task directory: `.maister/tasks/performance/YYYY-MM-DD-task-name/`

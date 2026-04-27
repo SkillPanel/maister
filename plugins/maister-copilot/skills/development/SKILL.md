@@ -580,6 +580,7 @@ orchestrator:
 | `--audit` / `--no-audit` | Force/skip specification audit |
 | `--e2e` / `--no-e2e` | Force/skip E2E testing |
 | `--user-docs` / `--no-user-docs` | Force/skip user documentation |
+| `--sequential` | Disable parallel wave dispatch in the executor; run one task group at a time. Persisted as `orchestrator.options.sequential: true` in `orchestrator-state.yml` and read by `implementation-plan-executor` Phase 2. Defaults to off (parallel waves). |
 
 ---
 

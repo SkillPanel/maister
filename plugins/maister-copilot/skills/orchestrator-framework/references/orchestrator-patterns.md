@@ -177,6 +177,7 @@ orchestrator:
     e2e_enabled: true | false | null
     user_docs_enabled: true | false | null
     code_review_enabled: true | false | null
+    sequential: true | false | null  # Set by --sequential. Read by implementation-plan-executor Phase 2 to disable parallel wave dispatch.
 
   # Timestamps
   created: [ISO 8601 timestamp]
