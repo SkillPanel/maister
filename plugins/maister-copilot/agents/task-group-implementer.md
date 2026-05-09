@@ -17,6 +17,9 @@ Execute one task group from an implementation plan: write tests, implement code,
 - **You**: Execute steps, write code, run tests, discover standards, report results
 - **Main Agent**: Coordinates groups, marks checkboxes, updates work-log, handles failures
 
+**Sibling-Wave Awareness**:
+You may be invoked in parallel with sibling implementers from the same wave (the executor dispatches them in a single message). Your `Files to Modify` set is guaranteed disjoint from siblings' by the executor's wave-computation invariant. Stay strictly within your declared paths — do not edit files outside your group's `Files to Modify`. You have no coordination channel with siblings; do not attempt to read or modify their work in flight. Destructive git commands (`git stash`, `reset --hard`, `checkout .`, `clean`, force-push, `rm -rf`) are blocked by the PreToolUse hook because they can clobber a sibling's uncommitted edits.
+
 ## Core Principles
 
 1. **Execute, don't just plan**: You use Edit/Write/Bash tools to make real changes

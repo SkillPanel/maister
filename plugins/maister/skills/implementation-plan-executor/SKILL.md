@@ -83,9 +83,19 @@ For each wave:
    - Check INDEX.md for additional standards matching group topic
    - Get relevant spec sections
 
-2. **Fan out**: emit a single message containing one `Task` tool call per group in the wave.
+2. **Fan out — CRITICAL: parallel dispatch in a single message**:
+
+   All groups in the wave MUST be dispatched in **one assistant turn** containing **one `Task` tool call per group**. This is not a loop. This is one message with N tool calls.
+
+   ❌ Wrong: Send `Task(G2)`, await result, send `Task(G3)`, await result, send `Task(G4)`. → That is serial execution wearing wave-shaped clothing. Wave duration becomes `sum(G2, G3, G4)` instead of `max(G2, G3, G4)` and defeats the entire wave optimization. The "comfortable" pattern of one-Task-per-turn is the exact anti-pattern this skill exists to prevent.
+
+   ✅ Right: One assistant message with N `Task` tool-use blocks emitted before any of them returns. The runtime returns all N results before the next assistant turn.
+
+   Per-call parameters:
    - subagent_type: `maister:task-group-implementer`
    - prompt: per-group content + initial standards + INDEX.md path + spec excerpt + sibling-wave note (see "Subagent Invocation")
+
+   **SELF-CHECK before sending the message**: Are you about to emit a message with one `Task` call when the current wave has more than one group? If yes, STOP. Compose every wave member's prompt first, then emit them all in the same message. Awaiting one before composing the next violates this skill's contract. If the wave has exactly one group, a single `Task` call is correct.
 
 3. **Wait for all wave members to return**, then for each result:
    - Parse completed steps, standards applied, test results.
