@@ -37,6 +37,26 @@ Unified workflow for all development tasks — bug fixes, enhancements, and new 
 3. **Initialize State**: Create `orchestrator-state.yml` with task info and research reference
 4. **Discover project documentation**: Read `.maister/docs/INDEX.md` (if exists), extract ALL file paths from the "Project Documentation" section. This includes predefined docs (vision, roadmap, tech-stack, architecture) AND any user-added project docs (e.g., deployment.md, api-strategy.md). Store complete list as `project_context.project_doc_paths` in state.
 
+### Step 4: Ingest Design Context
+
+Mockups and design artifacts become **binding inputs** to implementation when present. Auto-detect from three sources and unify under `analysis/design-context/`. Skip silently when no sources exist — non-UI tasks see no change.
+
+**Source 1 — Product-design task path**: If the argument resolves to a `.maister/tasks/product-design/*` directory (presence of `outputs/product-brief.md` or `analysis/mockups/`):
+- Copy `outputs/product-brief.md` → `analysis/design-context/brief.md`
+- Copy `analysis/mockups/*` → `analysis/design-context/mockups/`
+
+**Source 2 — Inline mockup references in task description**: Scan the task description for absolute or relative paths ending in `.html`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.pdf`, plus design-tool URLs (Figma, Sketch Cloud, Zeplin):
+- For each resolvable local file: copy into `analysis/design-context/mockups/`
+- For URLs: append the link to `analysis/design-context/external-links.md` (do not fetch — leave to user)
+
+**Source 3 — Legacy locations** (resumed tasks, mid-flight migrations): If `analysis/visuals/` or `analysis/ui-mockups.md` is populated and `analysis/design-context/` does not yet exist, migrate the legacy contents into `design-context/` (visuals → `mockups/`, `ui-mockups.md` → `ascii/ui-mockups.md`).
+
+**After ingestion** (when `design-context/` was populated):
+- Generate `analysis/design-context/INDEX.md` enumerating every screen/component with stable IDs (e.g., `screen:login`, `component:user-card`) inferred from filenames and content. One row per screen/component with: id, source mockup, brief description.
+- Set `task_context.design_reference` and `phase_summaries.design` (one-paragraph summary + path to INDEX.md).
+
+**Skip if no sources detected** — proceed to phase execution without `design-context/`.
+
 **Output**:
 ```
 🚀 Development Orchestrator Started
@@ -164,12 +184,14 @@ AskUserQuestion - "TDD red gate complete. Continue to Phase 4?"
 
 **Purpose**: Generate ASCII mockups showing UI integration
 **Execute**: Task tool - `maister:ui-mockup-generator` subagent
-**Output**: `analysis/ui-mockups.md`
-**State**: Update `phase_summaries.ui_mockups`
+**Output**: `analysis/design-context/ascii/ui-mockups.md` + appended entries in `analysis/design-context/INDEX.md`
+**State**: Update `phase_summaries.ui_mockups`, `phase_summaries.design`
 
-**Skip if**: `task_characteristics.ui_heavy` is false
+**Skip if**:
+- `task_characteristics.ui_heavy` is false, OR
+- `analysis/design-context/mockups/` is already populated (Step 4 ingested external mockups — no need to regenerate ASCII)
 
-**Context to pass**: Gap analysis, scope decisions, component choices
+**Context to pass**: Gap analysis, scope decisions, component choices, `analysis/design-context/INDEX.md` path (if exists from Step 4)
 
 → Pause
 
@@ -203,9 +225,10 @@ AskUserQuestion - "UI mockups complete. Continue to Phase 5?"
    - REQUIRED questions (always include):
      1. **User Journey**: How will users discover/access this? Which personas? How fits existing workflows?
      2. **Existing Code Reuse**: Similar features, UI components, backend patterns to reference?
-     3. **Visual Assets**: Any mockups, wireframes, screenshots? Place in `analysis/visuals/`
-4. Check for visual assets in `analysis/visuals/` (even if user says none)
-   - If found: note for subagent context
+     3. **Visual Assets**: Any mockups, wireframes, screenshots? Place in `analysis/design-context/mockups/` (or reference paths inline — Step 4 auto-ingests them)
+4. Check for visual assets in `analysis/design-context/` (single source of truth — populated by Step 4 ingestion and/or Phase 4 ASCII generation):
+   - If `design-context/INDEX.md` exists: note for subagent context (mockup files become binding inputs)
+   - If user provides new mockups during this phase: place them in `analysis/design-context/mockups/`, regenerate `INDEX.md`
    - If not found and non-UI task: skip visual asset processing
 5. Save gathered requirements to `analysis/requirements.md` with: initial description, Q&A from all rounds, similar features identified, visual assets and insights, functional requirements summary, reusability opportunities, scope boundaries, technical considerations
 
@@ -220,7 +243,7 @@ AskUserQuestion - "UI mockups complete. Continue to Phase 5?"
 
 6. Task tool - `maister:specification-creator` subagent
 
-**Context to pass to subagent**: task_path, task_description, task_characteristics, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md + project_doc_paths from state — all discovered project docs), risk_level, phase_summaries (codebase_analysis, gap_analysis, clarifications, scope_clarifications, ui_mockups), research_context (if any)
+**Context to pass to subagent**: task_path, task_description, task_characteristics, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md + project_doc_paths from state — all discovered project docs), risk_level, phase_summaries (codebase_analysis, gap_analysis, clarifications, scope_clarifications, ui_mockups, design), research_context (if any), design_reference (if any — points spec-creator to `analysis/design-context/` for mockups and brief)
 
 **SELF-CHECK**: Did you just invoke the Task tool with `maister:specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
@@ -269,7 +292,7 @@ AskUserQuestion - Display executive summary before asking. Read `verification/sp
 **Output**: `implementation/implementation-plan.md`
 **State**: Update task groups and dependencies
 
-**Context to pass to subagent**: task_path, task_description, task_characteristics, phase_summaries (specification, gap_analysis, codebase_analysis), research_context (if any)
+**Context to pass to subagent**: task_path, task_description, task_characteristics, phase_summaries (specification, gap_analysis, codebase_analysis, design), research_context (if any), design_reference (if any — when `analysis/design-context/INDEX.md` exists, planner MUST enumerate every screen/component, map task groups to them via the required `Visual References` field, and produce `implementation/visual-coverage.md` proving every screen is covered by ≥1 group)
 
 **SELF-CHECK**: Did you just invoke the Task tool with `maister:implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
@@ -433,8 +456,8 @@ AskUserQuestion - Display executive summary: total issues found, issues fixed, i
 
 **Purpose**: Runtime browser verification with screenshots (via Playwright MCP tools, not test file generation)
 **Execute**: Task tool - `maister:e2e-test-verifier` subagent
-**Prompt must include**: task_path (absolute), spec_path, base_url. Report saves to `{task_path}/verification/e2e-verification-report.md`.
-**Output**: `verification/e2e-verification-report.md`, screenshots
+**Prompt must include**: task_path (absolute), spec_path, base_url. If `analysis/design-context/mockups/` exists, also include `design_context_path` so the verifier performs an LLM-judged structural visual-fidelity comparison and writes `verification/visual-fidelity.md`. Report saves to `{task_path}/verification/e2e-verification-report.md`.
+**Output**: `verification/e2e-verification-report.md`, screenshots, `verification/visual-fidelity.md` (when mockups present — report-only, never gates completion)
 **State**: Update E2E results
 
 **Skip if**: `options.e2e_enabled = false`
@@ -513,8 +536,15 @@ orchestrator:
       research_question: null
       research_type: null
       confidence_level: null
+    design_reference:
+      source: null  # "product-design" | "inline-prompt" | "legacy-migration" | null
+      product_design_path: null  # set when Source 1 detected
+      mockup_count: 0
+      has_brief: false
+      index_path: null  # path to analysis/design-context/INDEX.md
     phase_summaries:
       research: {summary: null, key_findings: [], recommended_approach: null}
+      design: {summary: null, screen_count: 0, component_count: 0, index_path: null}
       codebase_analysis: {key_files: [], primary_language: null, summary: null}
       clarifications: []
       gap_analysis: {integration_points: [], summary: null}
@@ -533,23 +563,30 @@ orchestrator:
 ├── orchestrator-state.yml
 ├── analysis/
 │   ├── research-context/          # If --research provided
+│   ├── design-context/            # If mockups detected (Step 4 ingestion or Phase 4 generation)
+│   │   ├── mockups/               # HTML/PNG/screenshots (from product-design or inline prompt)
+│   │   ├── ascii/                 # ASCII mockups from Phase 4 ui-mockup-generator
+│   │   ├── brief.md               # Product brief (when ingested from product-design task)
+│   │   ├── external-links.md      # Figma/Sketch/Zeplin URLs (no fetch — for reference)
+│   │   └── INDEX.md               # Screen/component inventory with stable IDs
 │   ├── codebase-analysis.md       # Phase 1
 │   ├── clarifications.md          # Phase 1
 │   ├── gap-analysis.md            # Phase 2
 │   ├── scope-clarifications.md    # Phase 2 (conditional)
-│   ├── technical-clarifications.md # Phase 5 (conditional)
-│   └── ui-mockups.md              # Phase 4 (conditional)
+│   └── technical-clarifications.md # Phase 5 (conditional)
 ├── implementation/
 │   ├── spec.md                    # Phase 5
 │   ├── requirements.md            # Phase 5
 │   ├── implementation-plan.md     # Phase 7
+│   ├── visual-coverage.md         # Phase 7 (when design-context exists)
 │   ├── work-log.md                # Phase 8
 │   ├── tdd-red-gate.md            # Phase 3 (conditional)
 │   └── tdd-green-gate.md          # Phase 9 (conditional)
 ├── verification/
 │   ├── spec-audit.md              # Phase 6 (recommended)
 │   ├── implementation-verification.md  # Phase 11
-│   └── e2e-verification-report.md      # Phase 12 (optional)
+│   ├── e2e-verification-report.md      # Phase 12 (optional)
+│   └── visual-fidelity.md              # Phase 12 (when design-context exists, report-only)
 └── documentation/
     └── user-guide.md              # Phase 13 (optional)
 ```
@@ -626,6 +663,50 @@ When research context is detected, read these files from the research folder:
 | Phase 2 | Gap analyzer uses research recommendations for comparison |
 | Phase 5 | Specification creator uses high-level-design.md as INPUT (still creates full spec). Architecture decisions use research report AND decision-log.md (lighter when ADRs comprehensive) |
 | Phase 7 | Implementation planner references research approach for task grouping |
+
+---
+
+## Design-Informed Development
+
+When mockups or design artifacts are present, they become **binding inputs** to implementation — not optional references. The `analysis/design-context/` directory unifies all visual sources (product-design output, inline prompt references, Phase 4 ASCII generation) and propagates through every downstream phase.
+
+### Auto-Detection Sources (Step 4 of Initialization)
+
+**Source 1 — Product-design task path** (recommended handoff):
+```
+/maister:development .maister/tasks/product-design/2026-05-09-user-dashboard/
+```
+Auto-detected when the argument resolves to a `.maister/tasks/product-design/*` directory. Brief and mockups are copied into `design-context/`.
+
+**Source 2 — Inline mockup paths in task description**:
+```
+/maister:development "Implement the dashboard from /tmp/dashboard-mockup.html"
+```
+Auto-detected file paths (`.html`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.pdf`) are copied into `design-context/mockups/`. Design-tool URLs (Figma, Sketch Cloud, Zeplin) are recorded in `design-context/external-links.md`.
+
+**Source 3 — Phase 4 ASCII generation**: When no external mockups exist and `task_characteristics.ui_heavy` is true, `ui-mockup-generator` produces ASCII mockups in `design-context/ascii/`.
+
+### How Design Context Informs Each Phase
+
+**Design INFORMS phases, never SKIPS them.** Design context passes via `task_context.phase_summaries.design` and `task_context.design_reference`.
+
+| Phase | How Design Context is Used |
+|-------|------------------------------|
+| Phase 4 | Skipped if `design-context/mockups/` already populated; otherwise outputs to `design-context/ascii/` |
+| Phase 5 | `specification-creator` reads from `design-context/` (single source); produces "Visual Design" section in spec.md |
+| Phase 7 | `implementation-planner` enumerates screens from `design-context/INDEX.md`, attaches required `Visual References` to UI task groups, produces `implementation/visual-coverage.md` proving every screen is covered by ≥1 group |
+| Phase 8 | `task-group-implementer` reads each referenced mockup before coding; layout, copy, field order, and explicit states are binding |
+| Phase 12 | `e2e-test-verifier` performs LLM-judged structural visual-fidelity comparison after capturing screenshots; writes `verification/visual-fidelity.md` (report-only, never gates completion) |
+
+### Graceful Degradation
+
+When no mockups are detected at any source, the entire design-context machinery is skipped:
+- No `design-context/` directory
+- No `design_reference` in state (remains null)
+- No `Visual References` field in task groups (planner omits the section entirely)
+- No `visual-coverage.md` or `visual-fidelity.md`
+
+Non-UI tasks see zero behavior change.
 
 ---
 

@@ -77,11 +77,12 @@ For each wave:
 
 0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister-task-group-implementer"`.
 
-1. **Prepare group context** (per group, unchanged from prior version):
-   - Extract group content from `implementation-plan.md`
+1. **Prepare group context** (per group):
+   - Extract group content from `implementation-plan.md` (including `Visual References` section, if present)
    - Check "Standards Compliance" section — identify standards relevant to this group
    - Check INDEX.md for additional standards matching group topic
    - Get relevant spec sections
+   - **Design context** (when `analysis/design-context/` exists): include `design-context/brief.md` excerpt (Layer 0 + the relevant screen sections from Layer 3) when relevant to this group. Do NOT inline HTML/binary mockups — pass paths only and rely on the implementer to Read them. ASCII mockup excerpts (small, text) MAY be inlined when directly relevant. The planner-supplied `locator` field already tells the implementer which region to focus on within large mockups.
 
 2. **Fan out — CRITICAL: parallel dispatch in a single message**:
 
@@ -193,7 +194,7 @@ When delegating a task group, use this prompt structure:
 ## Task: Execute Task Group [N]
 
 ### Task Group Content
-[Paste the task group section from implementation-plan.md]
+[Paste the task group section from implementation-plan.md, including the `Visual References` block if present]
 
 ### Specification Excerpt
 [Relevant sections from spec.md for this group]
@@ -210,14 +211,24 @@ You have access to `.maister/docs/INDEX.md` for continuous standards discovery.
 - During implementation, discover more standards as step context reveals needs
 - Do not limit discovery to explicit keyword matches - use judgment
 
+### Design Context
+[OMIT this section entirely when no `Visual References` are present in the task group AND no `analysis/design-context/` exists.]
+[OTHERWISE include:]
+- Design context root: `analysis/design-context/`
+- Brief excerpt (when present): [Layer 0 from `design-context/brief.md` + relevant screen sections]
+- Mockup files referenced by this group: [list paths from `Visual References`]
+- Inline ASCII excerpt (when ASCII mockup is small and directly relevant): [paste here]
+- Binding rule: each mockup in `Visual References` MUST be read before implementing; layout, copy, field order, and explicit states are binding; self-check each `acceptance` criterion before declaring done.
+
 ### Sibling Wave
 [None] OR [Group K (Files to Modify: ...) is running in parallel in the same wave. File sets are disjoint per the executor's wave-computation invariant; do not edit paths outside your declared `Files to Modify`.]
 
 ### Requirements
 1. Execute in test-driven order: tests (N.1) → implementation (N.2+) → verify (N.n)
 2. Log all standards applied (from plan, from INDEX.md, discovered during execution)
-3. Report any failures with root cause analysis
-4. Do NOT mark checkboxes - main agent handles that
+3. When `Visual References` present: read each mockup before implementing, log per-reference compliance in your report
+4. Report any failures with root cause analysis
+5. Do NOT mark checkboxes - main agent handles that
 
 ### Expected Output Format
 [See Subagent Output Format section]
@@ -246,6 +257,12 @@ The task-group-implementer returns structured output:
 
 **Discovered During Execution**:
 - .maister/docs/standards/global/error-handling.md (step N.2, error handling logic)
+
+### Visual Compliance
+[OMIT this section entirely when the group had no `Visual References`.]
+[OTHERWISE: one line per reference]
+- ✓ analysis/design-context/mockups/login.html — screen:login — field order, error states, "Forgot password?" link match
+- ⚠ analysis/design-context/mockups/dashboard.html — screen:dashboard — 3-column layout matched, but icon set differs (used Heroicons; mockup shows custom icons — flagged for review)
 
 ### Test Results
 **Command**: [test command run]

@@ -57,6 +57,8 @@ The Task prompt MUST include:
 - `verification/pragmatic-review.md` (if exists from code-quality-pragmatist)
 - `verification/code-review-report.md` (if exists from code-reviewer)
 - `verification/spec-audit.md` (if exists from spec-auditor)
+- `verification/visual-fidelity.md` (if exists from e2e-test-verifier — cross-reference, do NOT re-run the comparison)
+- `implementation/visual-coverage.md` (if exists from implementation-planner)
 - `implementation/implementation-plan.md` (check completion markers)
 
 **What to Extract**:
@@ -88,6 +90,7 @@ The Task prompt MUST include:
 - Does it handle errors gracefully?
 - Does it work with real data volumes and edge cases?
 - Is it ready for production or just technically complete?
+- **When `analysis/design-context/` exists**: do rendered screens match mockup intent? Cross-reference `verification/visual-fidelity.md` and `implementation/visual-coverage.md` rather than re-running the structural comparison. Substantive drift (✗ entries) is a reality gap; minor deviations (⚠) are noted but rarely block.
 
 **Output**: Claimed completion state vs reality assessment
 
@@ -143,6 +146,7 @@ When `skip_test_execution` is `false` or not set (standalone invocation, or when
 - Implementation doesn't match requirements
 - Missing error handling
 - Poor user experience
+- **Visual drift** (when design-context exists): `visual-fidelity.md` reports substantive deviations from mockups, or `visual-coverage.md` shows uncovered screens with no justification
 
 **Production Readiness Gaps**:
 - Works locally but deployment not verified

@@ -32,12 +32,16 @@ The Task prompt MUST include:
 | `task_description` | User input | What's being built |
 
 **Accumulated Context** (Pattern 7):
-- `phase_summaries`: Prior phase summaries (specification, gap analysis, codebase analysis)
+- `phase_summaries`: Prior phase summaries (specification, gap analysis, codebase analysis, design)
 - `research_context`: Research findings path (if research-informed development)
+- `design_reference`: Design context pointer (if mockups present) — `analysis/design-context/INDEX.md` enumerates screens/components with stable IDs; `design-context/brief.md` holds product-design intent (when handed off from product-design task)
 - Migration-specific: `migration_type`, `current_system`, `target_system` (if migration)
 
 **Required File** (must exist on disk):
 - `{task_path}/implementation/spec.md` — the specification to plan from
+
+**Conditional File** (read when present):
+- `{task_path}/analysis/design-context/INDEX.md` — when present, mockups are binding; produce coverage matrix and attach `Visual References` to UI task groups (see Phase 2.5 below)
 
 ---
 
@@ -51,6 +55,19 @@ Read `implementation/spec.md` and extract:
 - Reusable components from spec
 - New components required
 - Complexity indicators
+
+---
+
+### Phase 1.5: Read Design Context (Conditional)
+
+If `{task_path}/analysis/design-context/INDEX.md` exists:
+
+1. **Read the INDEX**: enumerate every screen/component (stable IDs like `screen:login`, `component:user-card`).
+2. **Read mockups it references** (skim — full reading happens at implementation time): note which screens/components each mockup covers.
+3. **Read `design-context/brief.md`** if present — this is the product-design intent (Layer 0 + Layer 3 of the brief).
+4. **Track the design surface** — every screen/component in INDEX.md MUST be covered by ≥1 task group in the plan you produce.
+
+If no `design-context/` exists, skip this phase and the visual-references and coverage-matrix steps below — non-UI tasks remain unchanged.
 
 ---
 
@@ -100,6 +117,11 @@ Common patterns:
 ### Task Group N: [Layer Name]
 **Dependencies:** [group numbers or "None"]
 **Files to Modify:** [comma-separated paths from repo root, or "None" for review-only groups]
+**Visual References:** [REQUIRED when design-context exists AND group touches UI; OMIT entire section otherwise]
+- mockup: analysis/design-context/mockups/[file]
+  element: [screen-id or component-id from INDEX.md, e.g. screen:login]
+  locator: [region of the mockup this group implements, e.g. "main form, lines 40-120"]
+  acceptance: [layout/copy/field-order/states this group is responsible for matching]
 **Estimated Steps:** [count]
 
 - [ ] N.0 Complete [layer] layer
@@ -110,7 +132,6 @@ Common patterns:
     - Detail with specifics
     - Reuse: [existing component] (if in spec)
   - [ ] N.3 [Another step]
-    - Reference mockup: `analysis/visuals/[file]` (if applicable)
   - [ ] N.n Ensure [layer] tests pass
     - Run ONLY the 2-8 tests written in N.1
     - Do NOT run entire test suite
@@ -118,7 +139,19 @@ Common patterns:
 **Acceptance Criteria:**
 - The 2-8 tests pass
 - [Specific completion markers]
+- (when Visual References present) Implementation matches each `acceptance` criterion declared above
 ```
+
+#### Visual References Field (Conditional)
+
+When `analysis/design-context/INDEX.md` exists, every task group that touches UI MUST declare `Visual References`. Each entry has four sub-fields:
+
+- **mockup**: relative path under `analysis/design-context/mockups/` (or `analysis/design-context/ascii/` for ASCII)
+- **element**: a stable screen/component ID from `design-context/INDEX.md` (e.g. `screen:login`, `component:user-card`)
+- **locator**: which region of the mockup this group implements — line ranges for HTML, "top-left card" for screenshots, section headings for ASCII. Lets the implementer focus on the relevant area without reading a 600-line HTML file end to end.
+- **acceptance**: the layout/copy/field-order/state guarantees this group is responsible for matching
+
+Non-UI groups (database migrations, backend services without UI surface) MUST omit the entire `Visual References` section. Non-empty `Visual References` becomes a binding contract — task-group-implementer reads each mockup and self-checks each acceptance criterion before declaring done.
 
 #### Files to Modify Field
 
@@ -207,6 +240,35 @@ After writing the implementation plan file, create structured task items for gro
 
 ---
 
+### Phase 4.6: Visual Coverage Matrix (Conditional)
+
+**Skip this phase entirely** if `analysis/design-context/INDEX.md` does not exist.
+
+When design-context is present, write `implementation/visual-coverage.md` proving every screen/component in INDEX.md is covered by ≥1 task group:
+
+```markdown
+# Visual Coverage Matrix
+
+Source: `analysis/design-context/INDEX.md`
+
+| Screen/Component ID | Covered By Task Group(s) | Status |
+|---------------------|--------------------------|--------|
+| screen:login        | Group 3 (Login Form)     | ✅     |
+| screen:dashboard    | Group 4 (Dashboard Layout), Group 5 (Stats Widget) | ✅ |
+| component:user-card | Group 5 (Stats Widget)   | ✅     |
+| screen:settings     | —                        | ❌ UNCOVERED |
+
+## Uncovered Items
+
+[List any screens/components with no covering task group, OR state "All screens covered" if 100%.]
+```
+
+**Coverage rule**: every row in INDEX.md MUST appear in this matrix with at least one covering task group. If the planner cannot achieve 100% coverage (e.g., a screen is genuinely out of scope per the spec), document it explicitly under "Uncovered Items" with justification — silent omission is a planner error.
+
+**Cross-cutting allowed**: a single task group may cover multiple screens (e.g., "Form Components" covers `screen:login` and `screen:signup`), and a single screen may be split across groups (e.g., "Dashboard Layout" + "Stats Widget" both cover `screen:dashboard`). Group however the work organizes best — the matrix proves coverage independently of grouping structure.
+
+---
+
 ## Test Limits (Strict)
 
 | Scope | Tests |
@@ -223,8 +285,8 @@ After writing the implementation plan file, create structured task items for gro
 
 - Specific and verifiable
 - Include technical details (fields, validations, endpoints)
-- Reference visual mockups by filename
 - Note reusable components from spec
+- When `Visual References` is present, the `acceptance` sub-field must be specific and self-checkable (e.g., "field order: email, password, submit" — not "matches mockup")
 
 ---
 
@@ -239,6 +301,8 @@ Before completing, verify:
 - Files to Modify declared for every group (use `"None"` only for pure-review groups)
 - Reusable components referenced
 - Standards section included
+- **When design-context exists**: every UI task group has `Visual References` with all four sub-fields populated; `implementation/visual-coverage.md` covers 100% of INDEX.md (or documents uncovered items with justification)
+- **When design-context does NOT exist**: no `Visual References` sections, no `visual-coverage.md` (graceful degradation)
 
 ---
 
@@ -249,6 +313,7 @@ Before completing, verify:
 | File | Content |
 |------|---------|
 | `implementation/implementation-plan.md` | Complete implementation plan |
+| `implementation/visual-coverage.md` | Coverage matrix (only when `analysis/design-context/INDEX.md` exists) |
 
 ### Task Items Created
 
@@ -266,6 +331,7 @@ summary:
   total_steps: [count]
   expected_tests: [range, e.g., "16-34"]
   has_testing_group: true | false
+  has_visual_coverage: true | false  # true when design-context/INDEX.md was present
 
 groups:
   - name: "[Layer Name]"
@@ -273,7 +339,14 @@ groups:
     tests: [count]
     dependencies: [group numbers or "None"]
     files_modified: [list of paths or "None"]
+    visual_references: [list of {mockup, element} pairs or empty]
   - ...
+
+visual_coverage:  # present only when design-context/INDEX.md existed
+  total_screens: [count]
+  covered_screens: [count]
+  uncovered_screens: [list of IDs with reasons, or empty]
+  matrix_path: "implementation/visual-coverage.md"
 ```
 
 ---

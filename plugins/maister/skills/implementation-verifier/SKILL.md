@@ -27,6 +27,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 | `verification/pragmatic-review.md` | If pragmatic_review_enabled |
 | `verification/production-readiness-report.md` | If production_check_enabled |
 | `verification/reality-check.md` | If reality_check_enabled |
+| `verification/visual-fidelity.md` | Surfaced (not produced here) when e2e-test-verifier wrote one |
 
 ---
 
@@ -185,6 +186,7 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Standards compliance (from completeness checker)
    - Documentation completeness (from completeness checker)
    - Optional review results (if performed)
+   - **Visual fidelity** (when `verification/visual-fidelity.md` exists — written by e2e-test-verifier in development workflow Phase 12): surface its summary table prominently. Include count of ✓/⚠/✗ comparisons and list every ✗ (substantive drift) with screen ID and one-line description. Cross-reference `implementation/visual-coverage.md` if present. This section is REPORT-ONLY — never gates overall verdict (per design decision: report-only, surfaced prominently).
    - Overall assessment with breakdown table
    - Issues requiring attention
    - Recommendations
@@ -222,6 +224,9 @@ Code Review: [status]
 Pragmatic Review: [status]
 Production Readiness: [status]
 Reality Check: [status]
+
+[If verification/visual-fidelity.md exists]
+Visual Fidelity: [N] match / [M] minor / [K] drift — see verification/visual-fidelity.md (report-only)
 
 Verification Report: verification/implementation-verification.md
 

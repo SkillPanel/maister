@@ -799,13 +799,19 @@ Task directory: `.maister/tasks/product-design/YYYY-MM-DD-task-name/`
 
 ### Development Handoff
 
-The product brief is consumed by the development orchestrator:
+The product brief and mockups are consumed by the development orchestrator. Pass the product-design task path directly:
 
 ```
 /maister-development .maister/tasks/product-design/YYYY-MM-DD-task-name/
 ```
 
-The development orchestrator auto-detects the product-design task type and copies the product brief to `analysis/design-context/product-brief.md`, then flows design context through all development phases. The product brief's Layer 0 maps to requirements, design characteristics map to task characteristics, and mockup references feed into UI implementation phases.
+The development orchestrator auto-detects the product-design task path during initialization (Step 4: Ingest Design Context) and copies:
+- `outputs/product-brief.md` → `analysis/design-context/brief.md`
+- `analysis/mockups/*` → `analysis/design-context/mockups/`
+
+It then generates `analysis/design-context/INDEX.md` (screen/component inventory with stable IDs) and propagates design context through all subsequent phases via `task_context.phase_summaries.design`. The product brief's Layer 0 maps to requirements, design characteristics map to task characteristics, and mockup references become **binding inputs** to implementation: the implementation-planner attaches `Visual References` to UI task groups, task-group-implementer reads each mockup before coding, and Phase 12 produces a visual-fidelity report comparing rendered screens against source mockups.
+
+**See**: `skills/development/SKILL.md` § "Design-Informed Development" for full propagation semantics.
 
 ### Research Input
 

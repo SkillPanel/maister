@@ -36,8 +36,9 @@ This agent focuses on **evidence-based runtime verification**, not test file gen
 | `task_path` | Orchestrator | **Absolute path** to task directory. ALL outputs MUST be written under this path. |
 | `spec_path` | Orchestrator | Path to spec.md |
 | `base_url` | Orchestrator | Application base URL for Playwright |
+| `design_context_path` | Orchestrator (optional) | Path to `analysis/design-context/` when mockups are present. Triggers visual-fidelity comparison (Step 7) and writes `verification/visual-fidelity.md`. |
 
-**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save report to `{task_path}/verification/e2e-verification-report.md`, screenshots to `{task_path}/verification/screenshots/`. NEVER write to project-level directories.
+**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save report to `{task_path}/verification/e2e-verification-report.md`, screenshots to `{task_path}/verification/screenshots/`, visual fidelity report to `{task_path}/verification/visual-fidelity.md` (when design_context_path provided). NEVER write to project-level directories.
 
 ---
 
@@ -231,6 +232,77 @@ Categorized by severity (Critical/Major/Minor/Cosmetic):
 
 ---
 
+### 7. Visual Fidelity Comparison (Conditional)
+
+**Skip this step entirely** when `design_context_path` was not provided.
+
+**Purpose**: Report (not gate) structural drift between the implemented UI and the source mockups.
+
+**Inputs**:
+- `analysis/design-context/INDEX.md` — list of screens/components with stable IDs
+- `analysis/design-context/mockups/` — source mockup files (HTML, screenshots, ASCII)
+- `verification/screenshots/` — screenshots captured during Steps 3-6
+
+**Comparison approach** (LLM-judged structural match — NOT pixel diff):
+
+For each screen ID in INDEX.md:
+1. Read the source mockup (Read tool renders binary screenshots; HTML and ASCII as text)
+2. Find the corresponding captured screenshot (match by screen ID, page name, or step description)
+3. Compare structurally:
+   - **Layout regions**: header/sidebar/main split, column counts, panel placement
+   - **Field order**: form fields, table columns, list items in the same order as the mockup
+   - **Primary actions**: buttons present, labels match, placement matches
+   - **State coverage**: empty/loading/error/success states from the mockup are reachable in the implementation
+   - **Copy text**: headings, labels, button text match (or follow project copy-tone standards if a deviation is justified)
+4. Mark each comparison ✓ (structural match), ⚠ (minor deviation, noted), or ✗ (substantive drift)
+
+**Output**: `verification/visual-fidelity.md` with this structure:
+
+```markdown
+# Visual Fidelity Report
+
+**Mode**: Report-only (does NOT gate completion)
+**Comparison**: LLM-judged structural match (not pixel-perfect)
+**Source**: analysis/design-context/INDEX.md
+**Captured**: verification/screenshots/
+
+## Summary
+- Total screens compared: [N]
+- Match (✓): [count]
+- Minor deviation (⚠): [count]
+- Substantive drift (✗): [count]
+
+## Per-Screen Comparison
+
+### screen:login (✓ Match)
+- Mockup: analysis/design-context/mockups/login.html
+- Screenshot: verification/screenshots/03-login-page.png
+- Layout: 2-column split matches
+- Field order: email → password → submit ✓
+- Primary action: "Sign In" button matches mockup label and placement
+- States covered: default, error (invalid credentials)
+
+### screen:dashboard (⚠ Minor Deviation)
+- Mockup: analysis/design-context/mockups/dashboard.html
+- Screenshot: verification/screenshots/05-dashboard.png
+- Layout: 3-column matches
+- Deviation: icon library differs (implementation uses Heroicons; mockup shows custom icons)
+- Impact: visual texture differs but information hierarchy preserved
+- Recommendation: confirm icon choice with design team
+
+### screen:settings (✗ Substantive Drift)
+- Mockup: analysis/design-context/mockups/settings.html
+- Screenshot: verification/screenshots/08-settings.png
+- Drift: implementation uses tab navigation; mockup specifies accordion
+- Impact: information density and discoverability differ
+- Implementer's justification (from work-log): standards conflict — `frontend/navigation.md` requires tabs for ≤5 sections
+- Recommendation: design + standards owners reconcile
+```
+
+**Critical**: this report does NOT block workflow completion. The development orchestrator surfaces deviations prominently in the verifier summary (per "report-only, surfaced prominently" decision). Users decide whether to act on findings.
+
+---
+
 ## Verification Execution Patterns
 
 ### Form Submission Pattern
@@ -368,6 +440,7 @@ Before completing verification, ensure:
 ✓ Recommendations provided
 ✓ Report saved to verification/e2e-verification-report.md
 ✓ Deployment decision made (GO/NO-GO)
+✓ When `design_context_path` was provided: `verification/visual-fidelity.md` written with per-screen comparison (✓/⚠/✗)
 
 ---
 

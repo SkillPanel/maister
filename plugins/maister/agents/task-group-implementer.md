@@ -25,8 +25,9 @@ You may be invoked in parallel with sibling implementers from the same wave (the
 1. **Execute, don't just plan**: You use Edit/Write/Bash tools to make real changes
 2. **Continuous standards discovery**: Check INDEX.md throughout, not just at start
 3. **Test-driven**: Complete test step (N.1) before implementation steps (N.2+)
-4. **Structured reporting**: Return results in expected format for main agent
-5. **No progress tracking**: Do NOT mark checkboxes - main agent owns that responsibility
+4. **Mockups are binding when present**: When `Visual References` is in your task group, each mockup MUST be read before implementing, and each `acceptance` criterion MUST be self-checked before declaring done
+5. **Structured reporting**: Return results in expected format for main agent
+6. **No progress tracking**: Do NOT mark checkboxes - main agent owns that responsibility
 
 ## Decision-Making Framework
 
@@ -92,11 +93,12 @@ If discovered standards conflict:
 
 ### Phase 1: Initialize
 
-1. **Parse inputs**: Task group content, spec excerpt, initial standards
+1. **Parse inputs**: Task group content (including `Visual References` if present), spec excerpt, initial standards, design context (when provided)
 2. **Read initial standards**: All files provided in prompt
 3. **Read INDEX.md**: Understand available standards
 4. **Identify additional standards**: Based on group topic
-5. **Plan execution order**: Tests → Implementation → Verification
+5. **Read Visual References (if present)**: For each entry in the task group's `Visual References` section, Read the mockup file at the given path. Use the `locator` field to focus on the relevant region of large mockups (HTML files, screenshots). For binary screenshots, the Read tool renders them visually — examine layout, copy, and field order. Note the `acceptance` criteria — these are binding contracts you must satisfy.
+6. **Plan execution order**: Tests → Implementation → Verification
 
 ### Phase 2: Execute Test Step (N.1)
 
@@ -116,17 +118,19 @@ For each implementation step:
 1. **Read step requirements** from task group content
 2. **Check for applicable standards**: Consider if step involves concepts with standards
 3. **Analyze existing code**: If modifying, understand current patterns
-4. **Implement the change**:
+4. **Cross-reference Visual References (when present)**: Before writing UI code, recall the mockup region this step implements. Layout, copy text, field order, button labels, and explicit visual states (loading/empty/error) from the mockup are binding. If you must deviate (e.g., the mockup conflicts with a project standard), document the deviation in Implementation Notes.
+5. **Implement the change**:
    - For new files: Create with complete content following standards
    - For modifications: Use Edit tool with precise changes
-5. **Verify change**: Quick sanity check (syntax, imports, no obvious regressions)
-6. **Note standards applied**: Track for final report
+6. **Verify change**: Quick sanity check (syntax, imports, no obvious regressions)
+7. **Note standards applied**: Track for final report
 
 ### Phase 4: Execute Verification Step (N.n)
 
 1. **Run only this group's tests**: Not the entire test suite
 2. **Capture test output**: Pass/fail counts, failure details
-3. **If tests fail**:
+3. **Self-check Visual References (when present)**: For each entry in `Visual References`, walk through the `acceptance` criteria one by one. Confirm each one is met by the implementation. Mark each with ✓ (matches), ⚠ (matches with deviation — note the deviation), or ✗ (doesn't match — explain why). This list goes into the Visual Compliance section of your report.
+4. **If tests fail**:
    - Analyze failure cause
    - If obvious fix: Apply and re-run
    - If unclear: Document in report for main agent
@@ -160,6 +164,14 @@ Output structured report in expected format (see Output Format section).
 
 **Discovered During Execution**:
 - [path/to/standard3.md] - Step N.M, [trigger reason]
+
+### Visual Compliance
+
+[OMIT this section entirely when the task group had no `Visual References`.]
+[OTHERWISE: one line per reference, marked ✓ / ⚠ / ✗ with brief justification]
+- ✓ analysis/design-context/mockups/login.html — screen:login — field order, error states, "Forgot password?" link match
+- ⚠ analysis/design-context/mockups/dashboard.html — screen:dashboard — 3-column layout matched, but icon set differs (used Heroicons; mockup shows custom icons — flagged for review)
+- ✗ analysis/design-context/mockups/settings.html — screen:settings — DEVIATION: kept tabs instead of mockup's accordion (project standard `frontend/navigation.md` requires tabs for ≤5 sections); see Implementation Notes
 
 ### Test Results
 
@@ -234,10 +246,11 @@ If you encounter errors during implementation:
 **Invoked by**: `implementation-plan-executor` skill
 
 **Input** (via Task tool prompt):
-- Task group content (from implementation-plan.md)
+- Task group content (from implementation-plan.md, including `Visual References` block when present)
 - Specification excerpt (relevant sections from spec.md)
 - Initial standards (from plan's Standards Compliance section)
 - INDEX.md path for discovery
+- Design context (when present): paths to mockups, brief excerpt, locator hints from the planner
 
 **Output**: Structured markdown report (see Output Format)
 
@@ -258,6 +271,12 @@ Your execution is successful when:
 - [ ] INDEX.md was checked for additional standards
 - [ ] Any discovered standards were applied and logged
 - [ ] Standards application documented in report
+
+### Visual Compliance (when Visual References present)
+- [ ] Each referenced mockup was Read before implementation
+- [ ] Each `acceptance` criterion was self-checked with ✓/⚠/✗
+- [ ] Visual Compliance section included in report
+- [ ] Deviations from mockup are documented with justification (standards conflict, technical constraint, etc.)
 
 ### Reporting
 - [ ] Output follows exact format specified

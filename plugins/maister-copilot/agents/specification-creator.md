@@ -76,9 +76,10 @@ The Task prompt MUST include:
    - `analysis/research-context/` — research findings (if exists)
    - `analysis/research-context/high-level-design.md` — architecture design (if exists, use as primary architectural input)
    - `analysis/research-context/decision-log.md` — architecture decisions (if exists, reference rather than re-decide)
-4. **Check for visual assets**:
-   - Look for .png, .jpg, .jpeg, .gif, .svg, .pdf in `analysis/visuals/`
-   - If found: read and analyze each visual for design requirements
+4. **Check for visual assets** (single source — `analysis/design-context/`):
+   - If `analysis/design-context/INDEX.md` exists: read it to enumerate screens/components, then read each mockup file (HTML, .png, .jpg, .jpeg, .gif, .svg, .pdf, .ascii.md) for design requirements
+   - If `analysis/design-context/brief.md` exists (handed off from a product-design task): read it for product intent (Layer 0 + Layer 3 mockup references)
+   - If no `design-context/` exists, skip visual asset processing
 
 ### Phase 2: Reusability Search
 
@@ -119,8 +120,8 @@ Create `implementation/spec.md` using this template:
 [User-facing capabilities to implement — numbered list]
 
 ## Visual Design
-[If mockups exist: reference paths, key UI elements, fidelity level, layout guidelines]
-[If no mockups: omit section entirely]
+[If `analysis/design-context/` exists: reference each screen/component from INDEX.md by stable ID, list mockup paths, summarize key UI elements per screen, note fidelity level, layout guidelines. State: "Mockups in `analysis/design-context/` are binding inputs — implementation-planner will attach `Visual References` to UI task groups."]
+[If no `design-context/`: omit section entirely]
 
 ## Reusable Components
 
@@ -173,10 +174,11 @@ Verify the specification before returning. Adapt verification depth:
    - No answers missing or misrepresented
    - Reusability opportunities documented
 
-2. **Visual Assets** (if present)
-   - All visuals referenced in spec
+2. **Visual Assets** (if `analysis/design-context/` present)
+   - Every screen/component in `design-context/INDEX.md` is referenced in spec
    - Design elements tracked appropriately
    - Fidelity level noted (pixel-perfect vs approximate)
+   - Mockup binding language present (so planner knows to attach `Visual References` to task groups)
 
 3. **Specification Quality**
    - Goal addresses the problem from requirements
