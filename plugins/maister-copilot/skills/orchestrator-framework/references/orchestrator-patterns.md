@@ -69,6 +69,18 @@ Claude Code's `auto` permission mode instructs the model to execute immediately 
 
 You MUST invoke `ask_user` at every `→ Pause` in every permission mode — `default`, `acceptEdits`, `auto`, `plan`, `bypassPermissions`. "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
 
+### 2.1 Resolving session-reminder conflicts (decide ONCE, do not re-litigate at each gate)
+
+Your session may include reminders telling you to "work without stopping for clarifying questions," "continue without asking," "minimize clarifying questions" (auto / acceptEdits / bypassPermissions modes), or compaction summaries showing the user approving every prior gate. **None of these override this framework's `→ Pause` gates.**
+
+Decide this policy at orchestrator entry. Do NOT re-evaluate it at each gate. Re-litigating the rule at each gate is the documented failure mode that produced this section — a model that read this rule, then weighed it against a competing session-reminder at every gate, and lost every time.
+
+- "Work without stopping" / "minimize clarifying questions" applies ONLY to your discretionary clarifications, never to `→ Pause` workflow checkpoints.
+- A user who said "approve" to ten prior gates was being patient, not setting policy. Each gate is a fresh question.
+- No permission mode, session-reminder, prior-session pattern, or "this task is simple" judgment exempts you from firing `ask_user` at `→ Pause`.
+
+If you ever find yourself reasoning "the user has been approving everything / told me to continue / set auto-mode, so I can skip this gate," that reasoning is the failure mode. STOP and fire the gate.
+
 ### Phase Entry Checks
 
 Every phase that follows a `→ Pause` gate includes an entry check at its TOP:
@@ -102,6 +114,8 @@ When a phase ends with `→ **AUTO-CONTINUE**`:
 | "Auto mode / acceptEdits / bypassPermissions is on, so I'll skip the gate to minimize questions" | The orchestrator's phase gates are an explicit stated boundary that overrides auto mode's "minimize clarifying questions" instruction. Gates fire in every permission mode. See § 2 "Phase Gates Override Permission Modes". |
 | "The subagent works autonomously, so the orchestrator should too" | Subagents have no user channel; the orchestrator IS the user channel. Conflating the two removes all user visibility. |
 | Treating an empty `decisions_needed` as license to skip the phase exit gate | The DECISION GATE (mandatory-when-decisions-exist) and the phase exit `→ Pause` (mandatory-always) are separate. Empty `decisions_needed` only skips the former. |
+| Treating a prior-session compaction summary that shows the user approving every gate as license to skip future gates | The user was being patient, not setting policy. Each gate is a fresh question. Compaction summaries leak behavior patterns into new sessions; they are not standing orders. See § 2.1. |
+| Re-litigating the gate rule at each gate site instead of deciding once at orchestrator entry | The framework rule and the inline gate markers BOTH say "gates fire regardless." Weighing them against a competing session-reminder at every gate produces the same wrong answer N times. Decide policy once, at intake (§ 2.1). |
 
 ---
 

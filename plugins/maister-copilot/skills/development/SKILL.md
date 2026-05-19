@@ -12,6 +12,16 @@ Unified workflow for all development tasks — bug fixes, enhancements, and new 
 
 **BEFORE executing any phase, you MUST complete these steps:**
 
+### Step 0: Session-reminder conflict resolution (decide ONCE)
+
+Before doing anything else, settle this policy now and do not re-litigate it at any gate:
+
+**`→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications.
+
+If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
+
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+
 ### Step 1: Load Framework Patterns
 
 **Read the framework reference file NOW using the Read tool:**
@@ -146,7 +156,7 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 
 **Context to pass**: Risk level, codebase summary, key files, clarifications, project_doc_paths (from state)
 
-→ Pause (always — applies in every permission mode, including auto mode)
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 The Phase 2 exit gate **always** invokes `ask_user`. The branching is over *which questions get asked*, not whether to ask:
 1. If `decisions_needed.critical` or `.important` is non-empty → present the DECISION GATE questions first (see DECISION GATE block above)
@@ -167,7 +177,7 @@ ask_user - Display executive summary before asking. Read `analysis/gap-analysis.
 
 ### Phase 3: TDD Red Gate (Conditional)
 
-> **Phase gate**: Requires `ask_user` confirmation from Phase 2 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 2 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Write a failing test that reproduces the defect
 **Execute**: Direct - write test, verify it FAILS
@@ -178,7 +188,7 @@ ask_user - Display executive summary before asking. Read `analysis/gap-analysis.
 
 **Critical**: Test MUST fail before implementation (proves defect exists)
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "TDD red gate complete. Continue to Phase 4?"
 
@@ -186,7 +196,7 @@ ask_user - "TDD red gate complete. Continue to Phase 4?"
 
 ### Phase 4: UI Mockup Generation (Conditional)
 
-> **Phase gate**: Requires `ask_user` confirmation from the preceding phase before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Generate ASCII mockups showing UI integration
 **Execute**: Task tool - `maister-ui-mockup-generator` subagent
@@ -199,7 +209,7 @@ ask_user - "TDD red gate complete. Continue to Phase 4?"
 
 **Context to pass**: Gap analysis, scope decisions, component choices, `analysis/design-context/INDEX.md` path (if exists from Step 4)
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "UI mockups complete. Continue to Phase 5?"
 
@@ -207,7 +217,7 @@ ask_user - "UI mockups complete. Continue to Phase 5?"
 
 ### Phase 5: Technical Approach, Requirements & Specification
 
-> **Phase gate**: Requires `ask_user` confirmation from the preceding phase before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **⛔ ROUTING GUARD**: Read `task_context.task_characteristics` from `orchestrator-state.yml`. If `has_reproducible_defect` is true and Phase 3 is NOT in `completed_phases` → STOP, execute Phase 3 first. If `ui_heavy` is true and Phase 4 is NOT in `completed_phases` → STOP, execute Phase 4 first.
 
@@ -256,7 +266,7 @@ ask_user - "UI mockups complete. Continue to Phase 5?"
 **Output**: `analysis/technical-clarifications.md` (conditional), `analysis/requirements.md`, `implementation/spec.md`
 **State**: Update `task_context.tech_clarified`, `task_context.architecture_decision`, `phase_summaries.specification`
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - Display executive summary before asking. Read `implementation/spec.md` and extract: spec title, scope boundaries (what's included and excluded), number of key requirements, architecture approach chosen (if any), assumptions made. Format as brief overview then "Continue to specification audit?"
 
@@ -264,7 +274,7 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 
 ### Phase 6: Specification Audit (Recommended)
 
-> **Phase gate**: Requires `ask_user` confirmation from Phase 5 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 5 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Independent review of specification before implementation
 **Execute**: Task tool - `maister-spec-auditor` subagent
@@ -275,7 +285,7 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 
 ask_user - "Run specification audit? (Recommended)" with "Yes, run audit (Recommended)" as first option
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - Display executive summary before asking. Read `verification/spec-audit.md` and extract: overall verdict (pass/pass-with-concerns/fail), issue counts by severity, top 1-2 critical findings if any. Format as brief overview then "Continue to implementation planning?"
 
@@ -283,7 +293,7 @@ ask_user - Display executive summary before asking. Read `verification/spec-audi
 
 ### Phase 7: Implementation Planning
 
-> **Phase gate**: Requires `ask_user` confirmation from Phase 6 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 6 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Break specification into implementation steps
 
@@ -302,7 +312,7 @@ ask_user - Display executive summary before asking. Read `verification/spec-audi
 
 **SELF-CHECK**: Did you just invoke the Task tool with `maister-implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - Display executive summary before asking. Read `implementation/implementation-plan.md` and extract: number of task groups, total implementation steps, key dependencies between groups, estimated complexity. Format as brief overview then "Continue to implementation?"
 
@@ -310,7 +320,7 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 
 ### Phase 8: Implementation
 
-> **Phase gate**: Requires `ask_user` confirmation from Phase 7 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 7 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Execute the implementation plan
 
@@ -331,7 +341,7 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 2. Update state: add Phase 8 to `completed_phases`
 3. Evaluate conditional: if `task_characteristics.has_reproducible_defect` AND Phase 3 in `completed_phases` → Phase 9, else → Phase 10
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - Display executive summary before asking. Extract from `phase_summaries.implementation` and `implementation/work-log.md`: task groups completed, files changed, test results from incremental runs, any known issues or deferred items. Format as brief overview then "Continue to verification?"
 
@@ -339,7 +349,7 @@ ask_user - Display executive summary before asking. Extract from `phase_summarie
 
 ### Phase 9: TDD Green Gate (Conditional)
 
-> **Phase gate**: Requires `ask_user` confirmation from Phase 8 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 8 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Verify the failing test now passes
 **Execute**: Direct - run the test written in Phase 3
@@ -350,7 +360,7 @@ ask_user - Display executive summary before asking. Extract from `phase_summarie
 
 **Critical**: Test MUST pass (proves defect is fixed)
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "TDD gate passed. Continue to Phase 10?"
 
@@ -358,7 +368,7 @@ ask_user - "TDD gate passed. Continue to Phase 10?"
 
 ### Phase 10: Verification Options Prompt
 
-> **Phase gate**: Requires `ask_user` confirmation from the preceding phase before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Determine which verification checks to run using tiered decision matrix
 **Execute**: Direct - display plan, confirm/adjust via ask_user
@@ -393,13 +403,13 @@ Options: "Code review (Recommended)", "Pragmatic review (Recommended)", "Reality
 
 **Q3** (SKIP if `options.user_docs_enabled: false` and no `--user-docs` flag): ask_user — "Generate user documentation?" Options: "Yes (Recommended)", "No, skip".
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ---
 
 ### Phase 11: Verification & Issue Resolution
 
-> **Phase gate**: Requires `ask_user` confirmation from Phase 10 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 10 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Comprehensive implementation verification with fix-then-reverify cycles
 **Output**: `verification/implementation-verification.md`, optional code-review/pragmatic/reality reports, updated `implementation/work-log.md`
@@ -450,7 +460,7 @@ Verification Results:
 2. Update state: add Phase 11 to `completed_phases`
 3. Proceed to Phase 12
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - Display executive summary: total issues found, issues fixed, issues remaining by severity. Then "Continue to Phase 12?"
 
@@ -458,9 +468,9 @@ ask_user - Display executive summary: total issues found, issues fixed, issues r
 
 ### Phase 12: E2E Testing (Optional)
 
-> **Phase gate**: Requires `ask_user` confirmation from Phase 11 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 11 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
-> **⚠ Serialization rule**: Phases 12 and 13 share the Playwright MCP browser instance. They MUST run strictly sequentially. Do NOT dispatch the Phase 12 Task call and the Phase 13 Task call in the same assistant message, even when both are enabled. Wait for Phase 12 to return, honor the `→ Pause` / `ask_user` gate below, then start Phase 13. Concurrent dispatch will corrupt both browser sessions.
+> **⚠ Serialization rule**: Phases 12 and 13 share the Playwright MCP browser instance. They MUST run strictly sequentially. Do NOT dispatch the Phase 12 Task call and the Phase 13 Task call in the same assistant message, even when both are enabled. Wait for Phase 12 to return, honor the `→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `ask_user` gate below, then start Phase 13. Concurrent dispatch will corrupt both browser sessions.
 
 **Purpose**: Runtime browser verification with screenshots (via Playwright MCP tools, not test file generation)
 **Execute**: Task tool - `maister-e2e-test-verifier` subagent
@@ -470,7 +480,7 @@ ask_user - Display executive summary: total issues found, issues fixed, issues r
 
 **Skip if**: `options.e2e_enabled = false`
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "E2E complete. Continue to Phase 13?"
 
@@ -478,7 +488,7 @@ ask_user - "E2E complete. Continue to Phase 13?"
 
 ### Phase 13: User Documentation (Optional)
 
-> **Phase gate**: Requires `ask_user` confirmation from the preceding phase before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 > **⚠ Serialization rule**: Phases 12 and 13 share the Playwright MCP browser instance — see the same rule on Phase 12. Phase 13 MUST NOT be dispatched in the same assistant message as Phase 12, regardless of how the user answered the gate.
 
@@ -492,7 +502,7 @@ ask_user - "E2E complete. Continue to Phase 13?"
 
 **Skip if**: `options.user_docs_enabled = false`
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "Documentation complete. Continue to Phase 14?"
 
@@ -500,7 +510,7 @@ ask_user - "Documentation complete. Continue to Phase 14?"
 
 ### Phase 14: Finalization
 
-> **Phase gate**: Requires `ask_user` confirmation from the preceding phase before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Complete workflow and provide next steps
 **Execute**: Direct - create summary, update state, guide commit

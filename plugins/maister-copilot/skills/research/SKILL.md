@@ -12,6 +12,16 @@ Systematic research workflow from question definition to evidence-based document
 
 **BEFORE executing any phase, you MUST complete these steps:**
 
+### Step 0: Session-reminder conflict resolution (decide ONCE)
+
+Before doing anything else, settle this policy now and do not re-litigate it at any gate:
+
+**`→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications.
+
+If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
+
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+
 ### Step 1: Load Framework Patterns
 
 **Read the framework reference file NOW using the Read tool:**
@@ -169,7 +179,7 @@ Update state: `research_context.confidence_level`
 
 ---
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "Research foundation complete (initialized, planned, gathered, synthesized). Continue to brainstorming evaluation?"
 
@@ -177,7 +187,7 @@ ask_user - "Research foundation complete (initialized, planned, gathered, synthe
 
 ### Phase 2: Optional Phases Decision
 
-> **Phase gate**: Requires `ask_user` confirmation from Phase 1 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 1 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Evaluate whether brainstorming and/or design phases would be valuable (independently)
 **Execute**: Direct
@@ -270,7 +280,7 @@ ask_user - "Research foundation complete (initialized, planned, gathered, synthe
 
 > **GATE CHECK**: Verify that ask_user was called for EACH decision area. If any decision area was skipped for any reason (e.g., output file missing, read failure), STOP and resolve before continuing. Do NOT mark Phase 4 complete without user convergence on all decision areas.
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "Brainstorming complete. Continue to high-level design?"
 
@@ -278,7 +288,7 @@ ask_user - "Brainstorming complete. Continue to high-level design?"
 
 ### Phase 5: High-Level Design
 
-> **Phase gate**: Requires `ask_user` confirmation from the preceding phase before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Create architecture design from selected solution approach
 **Execute**: Orchestrator-Direct Hybrid
@@ -318,7 +328,7 @@ ask_user - "Brainstorming complete. Continue to high-level design?"
    - Key decision highlights (1 line each)
    - Integration points with existing system (if applicable)
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "Design complete. Continue to output generation?"
 
@@ -326,7 +336,7 @@ ask_user - "Design complete. Continue to output generation?"
 
 ### Phase 6: Completion
 
-> **Phase gate**: Requires `ask_user` confirmation from the preceding phase before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Summarize research results and suggest next steps
 **Execute**: Direct

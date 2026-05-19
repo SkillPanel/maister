@@ -12,6 +12,16 @@ Systematic migration workflow from current state analysis to verified migration 
 
 **BEFORE executing any phase, you MUST complete these steps:**
 
+### Step 0: Session-reminder conflict resolution (decide ONCE)
+
+Before doing anything else, settle this policy now and do not re-litigate it at any gate:
+
+**`→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `AskUserQuestion` at a gate. They apply only to your discretionary clarifications.
+
+If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
+
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+
 ### Step 1: Load Framework Patterns
 
 **Read the framework reference file NOW using the Read tool:**
@@ -115,7 +125,7 @@ Use for:
 4. Recommend migration strategy (incremental/big-bang/dual-run/phased)
 5. External research via WebSearch for version upgrades
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 AskUserQuestion - Display executive summary before asking. Extract from gap analysis: current system overview, target system, migration type classified, number of gaps identified, recommended strategy, risk level. Format as brief overview then "Continue to migration strategy?"
 
@@ -123,7 +133,7 @@ AskUserQuestion - Display executive summary before asking. Extract from gap anal
 
 ### Phase 3: Migration Requirements & Strategy Specification
 
-> **Phase gate**: Requires `AskUserQuestion` confirmation from Phase 2 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `AskUserQuestion` tool call from Phase 2 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `AskUserQuestion` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Gather migration requirements, then create detailed migration specification with rollback procedures
 **Execute**:
@@ -146,7 +156,7 @@ AskUserQuestion - Display executive summary before asking. Extract from gap anal
 **Output**: `analysis/requirements.md`, `implementation/spec.md`, `analysis/rollback-plan.md`, optionally `analysis/dual-run-plan.md`
 **State**: Update `rollback_plan_created`, `dual_run_configured`
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 AskUserQuestion - Display executive summary before asking. Read `implementation/spec.md` and extract: migration strategy chosen, scope boundaries, rollback approach, breaking changes identified, key constraints. Format as brief overview then "Continue to implementation planning?"
 
@@ -154,7 +164,7 @@ AskUserQuestion - Display executive summary before asking. Read `implementation/
 
 ### Phase 4: Implementation Planning
 
-> **Phase gate**: Requires `AskUserQuestion` confirmation from Phase 3 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `AskUserQuestion` tool call from Phase 3 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `AskUserQuestion` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Break migration into task groups with rollback steps
 **Execute**: Task tool - `maister:implementation-planner` subagent
@@ -163,7 +173,7 @@ AskUserQuestion - Display executive summary before asking. Read `implementation/
 
 **Context to pass to subagent**: task_path, task_type (migration), migration_type, task_description, phase_summaries (current_state_analysis, gap_analysis, specification)
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 AskUserQuestion - Display executive summary before asking. Read `implementation/implementation-plan.md` and extract: number of task groups, total steps, rollback steps included, key dependencies, execution sequence. Format as brief overview then "Continue to execute migration?"
 
@@ -171,7 +181,7 @@ AskUserQuestion - Display executive summary before asking. Read `implementation/
 
 ### Phase 5: Migration Execution
 
-> **Phase gate**: Requires `AskUserQuestion` confirmation from Phase 4 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `AskUserQuestion` tool call from Phase 4 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `AskUserQuestion` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Execute migration steps with incremental verification
 
@@ -194,7 +204,7 @@ AskUserQuestion - Display executive summary before asking. Read `implementation/
 2. Update state: add Phase 5 to `completed_phases`
 3. Proceed to Phase 6
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 AskUserQuestion - Display executive summary before asking. Extract from `phase_summaries.implementation` and `implementation/work-log.md`: migration steps completed, files changed, test results, rollback readiness status. Format as brief overview then "Continue to verification?"
 
@@ -202,7 +212,7 @@ AskUserQuestion - Display executive summary before asking. Extract from `phase_s
 
 ### Phase 6: Verification + Compatibility Testing
 
-> **Phase gate**: Requires `AskUserQuestion` confirmation from Phase 5 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `AskUserQuestion` tool call from Phase 5 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `AskUserQuestion` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Verify migration success with compatibility and rollback testing
 **Execute**: Skill tool - `maister:implementation-verifier`
@@ -220,7 +230,7 @@ AskUserQuestion - Display executive summary before asking. Extract from `phase_s
 2. Update state: add Phase 6 to `completed_phases`
 3. Evaluate verdict: if PASS → Phase 8, if fixable issues → Phase 7, otherwise stop workflow
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 AskUserQuestion - Display executive summary before asking. Extract from verification results: overall verdict, issue counts by severity, compatibility test results, data integrity status, rollback test results. Format as detailed overview then "Continue to Phase [7 or 8]?"
 
@@ -228,7 +238,7 @@ AskUserQuestion - Display executive summary before asking. Extract from verifica
 
 ### Phase 7: Migration Issue Resolution (Conditional)
 
-> **Phase gate**: Requires `AskUserQuestion` confirmation from Phase 6 before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `AskUserQuestion` tool call from Phase 6 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `AskUserQuestion` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Fix verification issues through direct editing and re-verification
 **Execute**: Direct - apply fixes, re-verify
@@ -253,7 +263,7 @@ AskUserQuestion - Display executive summary before asking. Extract from verifica
 - ⚠️ Max iterations (3) reached → Ask user: proceed with warnings or rollback
 - ❌ Data integrity issues → HALT immediately, recommend rollback
 
-→ Pause
+→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 AskUserQuestion - Display executive summary: total issues found, issues fixed, issues remaining by severity. Then "Continue to documentation?"
 
@@ -261,7 +271,7 @@ AskUserQuestion - Display executive summary: total issues found, issues fixed, i
 
 ### Phase 8: Documentation (Optional)
 
-> **Phase gate**: Requires `AskUserQuestion` confirmation from the preceding phase before executing.
+> **Phase entry self-check**: Before executing this phase, locate the `AskUserQuestion` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `AskUserQuestion` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Create migration guide for end users
 **Execute**: Task tool - `maister:user-docs-generator` subagent
