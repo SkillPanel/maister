@@ -1,0 +1,15 @@
+{
+  "name": "maister-opencode-plugin",
+  "version": "1.0.0",
+  "description": "Maister plugin for OpenCode — destructive command guard and post-compaction reminder",
+  "main": "index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "latest"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
