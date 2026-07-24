@@ -206,10 +206,11 @@ test("inspection accepts every executable runtime file shipped in the release", 
   const bytes = archive([
     tarEntry("plugins/maister/bin/maister-agent-gate.mjs", Buffer.from("gate\n"), { mode: 0o755 }),
     tarEntry("plugins/maister/skills/init/bin/reconcile-gate-config.sh", Buffer.from("#!/bin/sh\n"), { mode: 0o755 }),
+    tarEntry("plugins/maister/overlays/cursor/assets/skills/maister-init/bin/reconcile-gate-config.sh", Buffer.from("#!/bin/sh\n"), { mode: 0o755 }),
   ]);
   await withArchive(bytes, async ({ source }) => {
     const plan = await inspectArchiveFile(source);
-    assert.equal(plan.counters.regularFiles, 2);
+    assert.equal(plan.counters.regularFiles, 3);
     assert.equal(plan.entries.every((entry) => entry.mode === 0o755), true);
   });
 });

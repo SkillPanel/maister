@@ -89,7 +89,11 @@ function run(executable, args, environment, label, { machineReadable = true } = 
     timeout: 240_000,
   });
   assert.equal(result.error, undefined, `${label}: child process could not start`);
-  assert.equal(result.status, 0, `${label}: child process failed (status=${result.status ?? "unknown"}, signal=${result.signal ?? "none"})`);
+  const diagnostic = [result.stderr, result.stdout]
+    .filter((value) => typeof value === "string" && value.trim() !== "")
+    .map((value) => value.trim().slice(-4_096))
+    .join("\n");
+  assert.equal(result.status, 0, `${label}: child process failed (status=${result.status ?? "unknown"}, signal=${result.signal ?? "none"})${diagnostic ? `\n${diagnostic}` : ""}`);
   if (!machineReadable) return Object.freeze({ exit_code: result.status });
   const jsonLines = result.stdout.split(/\r?\n/u).filter(Boolean).flatMap((line) => {
     try { return [JSON.parse(line)]; } catch { return []; }
