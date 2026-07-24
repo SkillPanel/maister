@@ -59,7 +59,7 @@ test("package metadata is exact and stable", () => {
   const metadata = readPackageMetadata();
   assert.deepEqual(metadata, {
     name: "@mateuszrapacz/maister",
-    version: "2.2.22",
+    version: "2.2.23",
     root: path.resolve("."),
     resolvedCommit: metadata.resolvedCommit,
   });

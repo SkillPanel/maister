@@ -268,7 +268,7 @@ function validateSettings(settings, { paths } = {}) {
     if (paths) {
       const targetPath = path.resolve(paths.home, ...settingPath.split("/"));
       contained(paths.home, targetPath, `${location}.path`);
-      const expectedBackup = path.join("settings", String(index));
+      const expectedBackup = path.posix.join("settings", String(index));
       if (setting.backup_ref !== expectedBackup) invalid(`${location}.backup_ref does not match its setting index`, { location });
     }
   }
