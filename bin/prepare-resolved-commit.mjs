@@ -127,10 +127,14 @@ function validateManifest(manifest, packageVersion) {
 }
 
 export function resolvedCommitFromNpmEnvironment(environment = process.env) {
-  const resolved = typeof environment.npm_package_resolved === "string"
-    ? environment.npm_package_resolved
-    : "";
-  return NPM_RESOLVED_COMMIT.exec(resolved)?.[1] ?? null;
+  for (const value of [environment.npm_package_resolved, environment._PACOTE_NO_PREPARE_]) {
+    if (typeof value !== "string") continue;
+    for (const line of value.split(/\r?\n/u)) {
+      const match = NPM_RESOLVED_COMMIT.exec(line.trim());
+      if (match) return match[1];
+    }
+  }
+  return null;
 }
 
 function cleanupStaleProducerTemporaries(packageRoot) {

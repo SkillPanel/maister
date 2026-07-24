@@ -142,6 +142,12 @@ test("prepare accepts npm's immutable GitHub resolution when npm materializes a 
   );
   assert.equal(
     resolvedCommitFromNpmEnvironment({
+      _PACOTE_NO_PREPARE_: "git+ssh://git@github.com/" + PACKAGE_REPOSITORY + ".git#" + COMMIT,
+    }),
+    COMMIT,
+  );
+  assert.equal(
+    resolvedCommitFromNpmEnvironment({
       npm_package_resolved: "git+https://github.com/" + PACKAGE_REPOSITORY + ".git#v2.2.2",
     }),
     null,

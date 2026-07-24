@@ -84,6 +84,7 @@ function run(executable, args, environment, label, { machineReadable = true } = 
     env: environment,
     encoding: "utf8",
     windowsHide: true,
+    shell: process.platform === "win32",
     timeout: 240_000,
   });
   assert.equal(result.error, undefined, `${label}: child process could not start`);
@@ -107,6 +108,7 @@ const observedNpmVersion = spawnSync(npmExecutable(), ["--version"], {
   env: cleanEnvironment,
   encoding: "utf8",
   windowsHide: true,
+  shell: process.platform === "win32",
 });
 assert.equal(observedNpmVersion.error, undefined, "npm client version probe could not start");
 assert.equal(observedNpmVersion.status, 0, "npm client version probe failed");
