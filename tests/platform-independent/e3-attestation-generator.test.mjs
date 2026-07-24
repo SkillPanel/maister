@@ -57,6 +57,23 @@ test("generates deterministic, strictly bound portable-core E3 evidence", () => 
   assert.equal(first.digest, e3AttestationDigest(first.attestation));
 });
 
+test("portable-core hashes are independent of filesystem permission bits", () => {
+  const root = tempDirectory("maister-e3-portable-mode-");
+  const common = path.join(root, "common");
+  const nested = path.join(common, "nested");
+  fs.mkdirSync(nested, { recursive: true });
+  const file = path.join(nested, "core.txt");
+  fs.writeFileSync(file, "portable core\n");
+
+  const baseline = portableCoreTreeHash(root);
+  if (process.platform !== "win32") {
+    fs.chmodSync(common, 0o700);
+    fs.chmodSync(nested, 0o711);
+    fs.chmodSync(file, 0o755);
+  }
+  assert.equal(portableCoreTreeHash(root), baseline);
+});
+
 test("requires an explicit result and bounds the attestation lifetime", () => {
   const root = tempDirectory("maister-e3-generator-invalid-");
   assert.throws(

@@ -39,6 +39,12 @@ const MAX_ATTESTATION_BYTES = 256 * 1024;
 const MAX_COMMAND_LENGTH = 4096;
 const MAX_TEXT_LENGTH = 256;
 
+function portableCoreModeFor(_relative, stat) {
+  if (stat.isDirectory()) return 0o755;
+  if (stat.isSymbolicLink()) return 0o777;
+  return 0o644;
+}
+
 function fail(code, message, details = {}, options = {}) {
   throwDistributionError(`E_EVIDENCE_ATTESTATION_${code}`, message, details, options);
 }
@@ -205,7 +211,7 @@ export function portableCoreTreeHash(root) {
   if (!candidate) {
     fail("BINDING", "source does not contain a recognized portable-core tree", { root, expected: PORTABLE_CORE_ROOTS });
   }
-  return hashTree(candidate).contentHash;
+  return hashTree(candidate, { modeFor: portableCoreModeFor }).contentHash;
 }
 
 export function requireE3Attestation(value, options = {}) {
