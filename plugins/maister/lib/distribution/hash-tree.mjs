@@ -27,7 +27,7 @@ export function hashFile(filePath) {
 
 export function hashTree(
   root,
-  { ignore = () => false, allowMissingSymlinks = false } = {},
+  { ignore = () => false, allowMissingSymlinks = false, modeFor = null } = {},
 ) {
   let rootStat;
   try {
@@ -52,7 +52,7 @@ export function hashTree(
       const childRelative = relative ? `${relative}/${directoryEntry.name}` : directoryEntry.name;
       if (shouldIgnore(childRelative, directoryEntry)) continue;
       const stat = fs.lstatSync(child);
-      const mode = (stat.mode & 0o7777).toString(8).padStart(4, "0");
+      const mode = (modeFor?.(childRelative, stat) ?? (stat.mode & 0o7777)).toString(8).padStart(4, "0");
       if (stat.isDirectory()) {
         entries.push({ path: childRelative, type: "directory", mode });
         visit(child, childRelative);

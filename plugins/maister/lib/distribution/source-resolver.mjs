@@ -18,6 +18,18 @@ const DEFAULT_GIT_TIMEOUT_MS = 30_000;
 const MAX_GIT_OUTPUT_BYTES = 4 * 1024 * 1024;
 const ARCHIVE_MANIFEST = ".maister-source.json";
 
+function archiveModeFor(relative, stat) {
+	if (process.platform !== "win32") return null;
+	if (stat.isDirectory()) return 0o755;
+	if (
+		/^plugins\/maister\/bin\/(?:maister-agent-gate|maister-install|materialize)\.mjs$/u.test(relative)
+		|| /^plugins\/maister\/overlays\/(?:codex|cursor|kiro-cli|pi)\/assets\/hooks\/[^/]+\.sh$/u.test(relative)
+		|| relative === "plugins/maister/skills/init/bin/reconcile-gate-config.sh"
+		|| relative === "plugins/maister/overlays/cursor/assets/skills/maister-init/bin/reconcile-gate-config.sh"
+	) return 0o755;
+	return 0o644;
+}
+
 function timeoutMs(options = {}) {
 	const value =
 		options.gitTimeoutMs ??
@@ -461,6 +473,7 @@ function resolveArchive(root, requestedRef, options) {
 	}
 	const actualHash = hashTree(root, {
 		ignore: (relative) => relative === manifest.relative,
+		modeFor: archiveModeFor,
 	}).contentHash;
 	if (actualHash !== contentHash) {
 		throwDistributionError(
