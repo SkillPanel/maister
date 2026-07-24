@@ -26,7 +26,7 @@ function flushDirectory(directory) {
     descriptor = fs.openSync(directory, fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY ?? 0) | (fs.constants.O_NOFOLLOW ?? 0));
     fs.fsyncSync(descriptor);
   } catch (error) {
-    if (!['EINVAL', 'ENOTSUP', 'EISDIR'].includes(error.code)) throw error;
+    if (!['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR'].includes(error.code)) throw error;
   } finally {
     if (descriptor !== undefined) fs.closeSync(descriptor);
   }
@@ -92,7 +92,7 @@ function secureRemove(target, options = {}) {
     fs.rmSync(absolute, { recursive: true, force: true });
     if (boundary.parentDescriptor !== null) {
       try { fs.fsyncSync(boundary.parentDescriptor); } catch (error) {
-        if (!['EINVAL', 'ENOTSUP', 'EISDIR'].includes(error.code)) throw error;
+        if (!['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR'].includes(error.code)) throw error;
       }
     } else flushDirectory(path.dirname(absolute));
   });
@@ -289,7 +289,7 @@ function durableJson(filePath, value, mode = 0o600) {
     fs.renameSync(temporary, filePath);
     if (boundary.parentDescriptor !== null) {
       try { fs.fsyncSync(boundary.parentDescriptor); } catch (error) {
-        if (!['EINVAL', 'ENOTSUP', 'EISDIR'].includes(error.code)) throw error;
+        if (!['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR'].includes(error.code)) throw error;
       }
     } else flushDirectory(parent);
   });

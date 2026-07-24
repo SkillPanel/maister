@@ -1092,7 +1092,7 @@ export function atomicWriteSetting(
 					try {
 						fs.fsyncSync(boundary.parentDescriptor);
 					} catch (error) {
-						if (!["EINVAL", "ENOTSUP", "EISDIR"].includes(error.code))
+						if (!["EINVAL", "ENOTSUP", "EPERM", "EISDIR"].includes(error.code))
 							throw error;
 					}
 				}

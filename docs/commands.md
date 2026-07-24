@@ -3,7 +3,7 @@
 ## Git-package launcher
 
 ```sh
-npm exec --yes --package='github:mateuszrapacz/maister#v2.2.15' -- maister install --target codex
+npm exec --yes --package='github:mateuszrapacz/maister#v2.2.16' -- maister install --target codex
 npm exec --yes --package='github:mateuszrapacz/maister#0123456789abcdef0123456789abcdef01234567' -- maister verify --target cursor --json
 ```
 

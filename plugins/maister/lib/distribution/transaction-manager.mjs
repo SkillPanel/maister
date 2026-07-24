@@ -635,7 +635,7 @@ function flushDirectory(directory) {
 		descriptor = fs.openSync(directory, fs.constants.O_RDONLY);
 		fs.fsyncSync(descriptor);
 	} catch (error) {
-		if (!["EINVAL", "ENOTSUP", "EISDIR"].includes(error.code)) throw error;
+		if (!["EINVAL", "ENOTSUP", "EPERM", "EISDIR"].includes(error.code)) throw error;
 	} finally {
 		if (descriptor !== undefined) fs.closeSync(descriptor);
 	}
