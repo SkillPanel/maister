@@ -36,6 +36,12 @@ function sha256(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
+function observedModeMatches(expected, observed) {
+  // Windows does not preserve POSIX permission bits. Content and entry type
+  // remain authoritative, but the observed numeric mode cannot be compared.
+  return process.platform === "win32" || expected === observed;
+}
+
 function textOutput({ outputPath, kind, mode, ownership, roleId = null, supportId = null, content }) {
   const normalizedContent = content.replaceAll("\r\n", "\n").replace(/\n*$/u, "\n");
   const bytes = Buffer.from(normalizedContent, "utf8");
@@ -459,7 +465,7 @@ function preflightOutput(stagingRoot, output) {
     }
     const existingMode = (existing.mode & 0o7777).toString(8).padStart(4, "0");
     const existingContent = fs.readFileSync(destination, "utf8");
-    if (existingMode !== output.mode || existingContent !== output.content) {
+    if (!observedModeMatches(output.mode, existingMode) || existingContent !== output.content) {
       failAgentProjection("E_AGENT_PROJECTION_DRIFT", `projection destination was hand edited: ${output.path}`, {
         path: output.path,
       });

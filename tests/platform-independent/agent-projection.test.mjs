@@ -390,6 +390,25 @@ test("hand-edited candidate outputs fail without overwriting any staged bytes", 
   assert.deepEqual(snapshotFiles(stagingRoot), before);
 });
 
+test("Windows accepts canonical projection bytes with non-authoritative mode bits", { skip: process.platform !== "win32" }, () => {
+  const context = loadContext();
+  const projection = createProjection("cursor", context);
+  const output = outputByPath(projection, "agents/maister-advisor.md");
+  const stagingRoot = fs.mkdtempSync(path.join(os.tmpdir(), "maister-projection-windows-mode-"));
+  const destination = path.join(stagingRoot, output.path);
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, output.content, { mode: 0o666 });
+  fs.chmodSync(destination, 0o666);
+
+  assert.doesNotThrow(() => projectAgents({
+    agentIr: context.agentIr,
+    manifest: context.manifest,
+    target: "cursor",
+    stagingRoot,
+    supportAssets: supportAssetsFor(context.manifest, "cursor"),
+  }));
+});
+
 test("projection writes only beneath its isolated staging root", () => {
   const context = loadContext();
   const sourceBefore = snapshotFiles(path.join(PLUGIN_ROOT, "agents"));
