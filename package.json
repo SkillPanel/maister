@@ -1,6 +1,6 @@
 {
   "name": "@mateuszrapacz/maister",
-  "version": "2.2.4",
+  "version": "2.2.5",
   "description": "Thin verified npx launcher for Maister GitHub Release distributions",
   "author": "Mateusz Rapacz",
   "private": true,
@@ -14,6 +14,7 @@
   "files": [
     ".maister-resolved-commit.json",
     "bin/maister.mjs",
+    "bin/prepare-resolved-commit.mjs",
     "lib/launcher/**",
     "plugins/maister/lib/distribution/cli-contract.mjs",
     "plugins/maister/lib/distribution/e3-attestation.mjs",
@@ -39,6 +40,7 @@
   "license": "MIT",
   "scripts": {
     "prepare": "node bin/prepare-resolved-commit.mjs",
+    "postinstall": "node bin/prepare-resolved-commit.mjs",
     "validate": "node lib/launcher/verify-package-boundary.mjs",
     "test:launcher": "node --test tests/platform-independent/launcher-*.test.mjs"
   }

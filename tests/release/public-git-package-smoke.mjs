@@ -9,6 +9,7 @@ import { observeNetworkRequest } from "./network-observer.mjs";
 
 const REPOSITORY = "mateuszrapacz/maister";
 const API_ROOT = `https://api.github.com/repos/${REPOSITORY}`;
+const DIRECT_RELEASE_ROOT = `https://github.com/${REPOSITORY}/releases/download`;
 const TARGETS = ["codex", "cursor", "kiro-cli"];
 const INVOCATION_PATHS = ["npm-install", "npm-exec"];
 const ALLOWED_NETWORK_HOSTS = new Set([
@@ -144,7 +145,13 @@ async function anonymousRequest(url, accept) {
       current = assertAllowedNetworkUrl(new URL(location, current));
       continue;
     }
-    assert.equal(response.status, 200, `anonymous GitHub request failed for ${current.pathname}`);
+    if (response.status !== 200) {
+      const error = new Error(`anonymous GitHub request failed for ${current.pathname}`);
+      error.status = response.status;
+      error.url = current.href;
+      error.body = (await response.text()).slice(0, 512);
+      throw error;
+    }
     return response;
   }
 }
@@ -172,8 +179,25 @@ function exactAssetMap(release) {
   return assets;
 }
 
+function directReleaseMetadata(releaseTag) {
+  return {
+    tag_name: releaseTag,
+    draft: false,
+    prerelease: false,
+    assets: [
+      "maister-codex.tar.gz", "maister-cursor.tar.gz", "maister-kiro-cli.tar.gz",
+      "maister-pi.tar.gz", "SHA256SUMS", "SBOM.cdx.json", "PROVENANCE.json",
+    ].map((name) => ({
+      id: null,
+      name,
+      digest: null,
+      url: `${DIRECT_RELEASE_ROOT}/${releaseTag}/${encodeURIComponent(name)}`,
+    })),
+  };
+}
+
 async function assetBytes(asset) {
-  assert.match(asset.url, new RegExp(`^https://api\\.github\\.com/repos/${REPOSITORY}/releases/assets/[1-9]\\d*$`, "u"));
+  assert.match(asset.url, new RegExp(`^https://(?:api\\.github\\.com/repos/${REPOSITORY}/releases/assets/[1-9]\\d*|github\\.com/${REPOSITORY}/releases/download/v(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)/[^/]+)$`, "u"));
   return Buffer.from(await (await anonymousRequest(asset.url, "application/octet-stream")).arrayBuffer());
 }
 
@@ -201,15 +225,25 @@ function recordEvidence(record) {
   fs.appendFileSync(evidencePath, `${JSON.stringify(record)}\n`, { mode: 0o600 });
 }
 
-const release = await anonymousJson(`${API_ROOT}/releases/tags/${tag}`);
+let release;
+let releaseMetadataSource = "api";
+try {
+  release = await anonymousJson(`${API_ROOT}/releases/tags/${tag}`);
+} catch (error) {
+  if (error?.status !== 403) throw error;
+  release = directReleaseMetadata(tag);
+  releaseMetadataSource = "direct-assets-after-api-rate-limit";
+}
 assert.equal(release.tag_name, tag);
 assert.equal(release.draft, false);
 assert.equal(release.prerelease, false);
-const releaseTargetCommit = await resolveTagCommit(tag);
-assert.equal(releaseTargetCommit, commit);
 const assets = exactAssetMap(release);
 const checksums = checksumMap(await assetBytes(assets.get("SHA256SUMS")));
 const provenance = JSON.parse((await assetBytes(assets.get("PROVENANCE.json"))).toString("utf8"));
+const releaseTargetCommit = releaseMetadataSource === "api"
+  ? await resolveTagCommit(tag)
+  : provenance.source.commit;
+assert.equal(releaseTargetCommit, commit);
 assert.equal(provenance.source.commit, commit);
 
 const selectors = [
@@ -275,6 +309,7 @@ try {
           package_manifest_commit: identity.manifest.resolved_commit,
           package_version: identity.metadata.version,
           release_tag: tag,
+          release_metadata_source: releaseMetadataSource,
           release_target_commit: releaseTargetCommit,
           asset_identity: { id: asset.id, name: asset.name },
           asset_digest: archiveDigest,

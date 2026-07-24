@@ -137,6 +137,17 @@ export function resolvedCommitFromNpmEnvironment(environment = process.env) {
   return null;
 }
 
+function shouldDeferNpmPrepare(environment, checkoutPath) {
+  if (environment.npm_lifecycle_event !== "prepare" || typeof environment.npm_package_resolved !== "string") {
+    return false;
+  }
+  try {
+    return fs.realpathSync.native(environment.npm_package_resolved) === checkoutPath;
+  } catch {
+    return false;
+  }
+}
+
 function cleanupStaleProducerTemporaries(packageRoot) {
   for (const name of fs.readdirSync(packageRoot)) {
     if (!name.startsWith(TEMP_PREFIX) || !TEMP_PATTERN.test(name)) continue;
@@ -234,10 +245,12 @@ export async function prepareResolvedCommit({
   cleanupStaleProducerTemporaries(checkout.path);
 
   let priorManifestStat = null;
+  let priorManifestValue = null;
   if (fs.existsSync(manifestPath)) {
     const priorManifest = readRegularJson(manifestPath, "resolved commit manifest");
     validateManifest(priorManifest.value, packageVersion);
     priorManifestStat = priorManifest.stat;
+    priorManifestValue = priorManifest.value;
   }
 
   const result = await runCommand({
@@ -258,6 +271,8 @@ export async function prepareResolvedCommit({
     ? gitResolvedCommit
     : resolvedCommitFromNpmEnvironment(environment);
   if (!resolvedCommit) {
+    if (priorManifestValue !== null) return priorManifestValue;
+    if (shouldDeferNpmPrepare(environment, checkout.path)) return null;
     throw packageIdentityError("Git did not resolve one lowercase full commit");
   }
 

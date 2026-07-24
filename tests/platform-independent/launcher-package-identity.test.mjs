@@ -66,9 +66,10 @@ test("root Git package is private, exact, and carries only its runtime closure",
   assert.equal(packageLock.packages["node_modules/tar"].integrity, TAR_INTEGRITY);
 
   assert.equal(packageJson.scripts.prepare, "node bin/prepare-resolved-commit.mjs");
+  assert.equal(packageJson.scripts.postinstall, "node bin/prepare-resolved-commit.mjs");
   for (const lifecycle of [
     "prepublish", "prepublishOnly", "prepack", "postpack", "publish", "postpublish",
-    "preinstall", "install", "postinstall",
+    "preinstall", "install",
   ]) {
     assert.equal(Object.hasOwn(packageJson.scripts, lifecycle), false, `${lifecycle} must be absent`);
   }
@@ -76,6 +77,7 @@ test("root Git package is private, exact, and carries only its runtime closure",
   assert.deepEqual(packageJson.files, [
     MANIFEST_NAME,
     "bin/maister.mjs",
+    "bin/prepare-resolved-commit.mjs",
     "lib/launcher/**",
     "plugins/maister/lib/distribution/cli-contract.mjs",
     "plugins/maister/lib/distribution/e3-attestation.mjs",
@@ -91,7 +93,7 @@ test("root Git package is private, exact, and carries only its runtime closure",
     assert.doesNotMatch(entry, /(?:^|\/)(?:\.git|\.maister\/tasks|tests|fixtures|dist|settings|secrets)(?:\/|$)/u);
     assert.equal(entry.includes(TEMP_PREFIX), false);
   }
-  assert.equal(packageJson.files.includes("bin/prepare-resolved-commit.mjs"), false);
+  assert.equal(packageJson.files.includes("bin/prepare-resolved-commit.mjs"), true);
 });
 
 test("prepare records the actual checkout commit with the fixed bounded Git request", async (t) => {
@@ -173,6 +175,32 @@ test("prepare accepts npm's immutable GitHub resolution when npm materializes a 
 
   assert.deepEqual(manifest, validManifest());
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(packageRoot, MANIFEST_NAME), "utf8")), validManifest());
+});
+
+test("GitHub tarball prepare can defer identity until npm's final postinstall", async (t) => {
+  const packageRoot = createPackageRoot(t);
+
+  const result = await prepareResolvedCommit({
+    packageRoot,
+    environment: {
+      npm_lifecycle_event: "prepare",
+      npm_package_resolved: packageRoot,
+    },
+    async runCommand() {
+      return {
+        code: 128,
+        signal: null,
+        stdout: Buffer.alloc(0),
+        stderr: Buffer.from("fatal: not a git repository\n"),
+        timedOut: false,
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      };
+    },
+  });
+
+  assert.equal(result, null);
+  assert.equal(fs.existsSync(path.join(packageRoot, MANIFEST_NAME)), false);
 });
 
 test("failed atomic replacement preserves a prior manifest and cleans only the owned temporary", async (t) => {
