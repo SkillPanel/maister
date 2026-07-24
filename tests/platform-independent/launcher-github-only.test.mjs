@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { runLauncher } from "../../lib/launcher/orchestrator.mjs";
-import { REQUIRED_ASSETS } from "../../lib/launcher/release-contract.mjs";
+import { directReleaseAssetUrl, REQUIRED_ASSETS } from "../../lib/launcher/release-contract.mjs";
 
 const PACKAGE_METADATA = Object.freeze({
   name: "@mateuszrapacz/maister",
@@ -101,6 +101,36 @@ test("GH_TOKEN takes precedence over GITHUB_TOKEN for GitHub API requests", asyn
     assert.equal(requests[0].url, "https://api.github.com/repos/mateuszrapacz/maister/releases/tags/v2.2.1");
     assert.equal(requests[0].headers.authorization, undefined);
     assert.equal(requests[1].headers.authorization, "Bearer gh-token");
+  });
+});
+
+test("anonymous HTTP 429 from GitHub metadata falls back before downloading direct assets", async () => {
+  await withGitHubEnvironment({ GH_TOKEN: undefined, GITHUB_TOKEN: undefined }, async () => {
+    const requests = [];
+    const expected = Object.assign(new Error("stop after first direct asset request"), { kind: "E_TEST_STOP" });
+    const rateLimit = Object.assign(new Error("GitHub API rate limit"), {
+      kind: "E_LAUNCHER_TRANSPORT_HTTP",
+      details: { status: 429 },
+    });
+
+    await assert.rejects(runLauncher(installOptions(), PACKAGE_METADATA, {
+      tempFactory: tempFactory(),
+      archivePort: {},
+      resolveCredential: async () => ({ kind: "anonymous", source: "none" }),
+      transport: {
+        async request(descriptor) {
+          requests.push(descriptor);
+          if (requests.length === 1) throw rateLimit;
+          throw expected;
+        },
+      },
+    }), expected);
+
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].url, "https://api.github.com/repos/mateuszrapacz/maister/releases/tags/v2.2.1");
+    assert.equal(requests[1].url, directReleaseAssetUrl("2.2.1", "SHA256SUMS"));
+    assert.equal(requests[1].headers.authorization, undefined);
+    assert.equal(requests[1].headers.accept, "application/octet-stream");
   });
 });
 

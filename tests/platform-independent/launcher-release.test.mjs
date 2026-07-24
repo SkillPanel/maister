@@ -140,6 +140,25 @@ test("anonymous GitHub API rate limiting falls back to exact direct release asse
   assert.equal(result.sidecars.provenance.url, directReleaseAssetUrl("2.2.1", "PROVENANCE.json"));
 });
 
+test("anonymous GitHub HTTP 429 rate limiting also falls back to exact direct release assets", async () => {
+  const result = await resolveReleaseMetadata({
+    version: "2.2.1",
+    target: "codex",
+    async requestMetadata() {
+      return { status: 429, value: null };
+    },
+    async resolveCredential() {
+      return { kind: "anonymous", source: "none" };
+    },
+  });
+
+  assert.equal(result.accessMode, "anonymous-direct");
+  assert.equal(result.releaseTargetCommit, null);
+  assert.equal(result.selected.id, null);
+  assert.equal(result.selected.direct, true);
+  assert.equal(result.selected.url, directReleaseAssetUrl("2.2.1", "maister-codex.tar.gz"));
+});
+
 test("exact annotated release tag is independently peeled to one full commit", async () => {
   const tagObject = "a".repeat(40);
   const releaseCommit = "b".repeat(40);
@@ -172,8 +191,8 @@ test("exact annotated release tag is independently peeled to one full commit", a
   assert.ok(requests.every(({ credential, attempt }) => credential === null && attempt === "anonymous"));
 });
 
-test("only anonymous 401, 403, or privacy-preserving 404 permits one authenticated retry", async () => {
-  for (const deniedStatus of [401, 403, 404]) {
+test("only anonymous access-denial or rate-limit statuses permit one authenticated retry", async () => {
+  for (const deniedStatus of [401, 403, 404, 429]) {
     const requests = [];
     const result = await resolveReleaseMetadata({
       version: "2.2.1",
@@ -228,7 +247,7 @@ test("tag resolution failures redact credentials and reject malformed or mismatc
 });
 
 test("ineligible denial and anonymous credential fallback never retry metadata", async () => {
-  for (const deniedStatus of [400, 408, 429, 500]) {
+  for (const deniedStatus of [400, 408, 500]) {
     let requests = 0;
     let credentialCalls = 0;
     await assert.rejects(resolveReleaseMetadata({
