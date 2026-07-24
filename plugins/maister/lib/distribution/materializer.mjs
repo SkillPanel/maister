@@ -676,6 +676,13 @@ function matches(pattern, value) {
 	return globRegex(pattern).test(value);
 }
 
+function observedModeMatches(expected, observed) {
+	// Windows does not preserve POSIX permission bits when extracting or
+	// copying release files. Archive headers, content hashes, and inventory
+	// contracts remain authoritative there; filesystem mode is not.
+	return process.platform === "win32" || expected === observed;
+}
+
 function stagingEntries(stagingRoot) {
 	const tree = hashTree(stagingRoot);
 	return {
@@ -946,7 +953,7 @@ function validateModes(
 	for (const pattern of executablePaths) {
 		const selected = files.filter((entry) => matches(pattern, entry.path));
 		for (const entry of selected) {
-			if ((Number.parseInt(entry.mode, 8) & 0o111) === 0) {
+			if (process.platform !== "win32" && (Number.parseInt(entry.mode, 8) & 0o111) === 0) {
 				throwDistributionError(
 					"E_MATERIALIZE_MODE",
 					`executable inventory entry is not executable: ${entry.path}`,
@@ -959,7 +966,7 @@ function validateModes(
 	for (const output of projectedOutputs) {
 		const entry = entriesByPath.get(output.path);
 		if (!entry) continue;
-		if (entry.mode !== output.mode) {
+		if (!observedModeMatches(output.mode, entry.mode)) {
 			throwDistributionError(
 				"E_MATERIALIZE_MODE",
 				`projected inventory mode differs from its manifest: ${output.path}`,
@@ -1418,7 +1425,7 @@ function validateNativeAssets(
 			);
 		}
 		const sourceMode = (sourceStat.mode & 0o7777).toString(8).padStart(4, "0");
-		if (sourceMode !== nativeAsset.mode) {
+		if (!observedModeMatches(nativeAsset.mode, sourceMode)) {
 			throwDistributionError(
 				"E_MATERIALIZE_MODE",
 				`native asset source mode does not match declaration: ${nativeAsset.source}`,
@@ -1481,7 +1488,7 @@ function validateNativeAssets(
 		const destinationMode = (destinationStat.mode & 0o7777)
 			.toString(8)
 			.padStart(4, "0");
-		if (destinationMode !== nativeAsset.mode) {
+		if (!observedModeMatches(nativeAsset.mode, destinationMode)) {
 			throwDistributionError(
 				"E_MATERIALIZE_MODE",
 				`native asset mode does not match declaration: ${nativeAsset.destination}`,
