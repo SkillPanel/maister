@@ -282,6 +282,19 @@ try {
         assert.match(receipt.source.content_hash ?? "", /^[0-9a-f]{64}$/u);
         const receiptE3 = receipt.evidence.find((record) => record.capability === "E3");
         assert.equal(receiptE3?.result, "passed");
+        const hostEvidence = receipt.evidence
+          .filter((record) => ["E5", "E6"].includes(record.capability))
+          .map((record) => ({
+            capability: record.capability,
+            result: record.result,
+            reason: record.provenance?.reason ?? record.reason ?? null,
+          }));
+        if (target === "codex") {
+          assert.deepEqual(hostEvidence, [
+            { capability: "E5", result: "unavailable", reason: "runtime-or-scenario-unavailable" },
+            { capability: "E6", result: "unavailable", reason: "runtime-or-scenario-unavailable" },
+          ]);
+        }
         const lifecycle = Object.fromEntries(Object.entries(rawLifecycle).map(([command, result]) => [command, {
           command: result.command,
           exit_code: result.exit_code,
@@ -326,6 +339,7 @@ try {
             source_manifest_content_hash: receipt.source.content_hash,
           },
           e3_digest: e3Digest,
+          host_evidence: hostEvidence,
           target,
           lifecycle,
           terminal_lifecycle: "uninstalled",

@@ -327,7 +327,10 @@ test("selected archive digest and source identity must agree across all sidecars
   const names = Object.values(ASSET_BY_TARGET);
   const checksumsBytes = Buffer.from(names.map((name) => `${name === names[0] ? digest : "0".repeat(64)}  ${name}`).join("\n") + "\n");
   const attestation = { digest: "a".repeat(64), sha256: "b".repeat(64) };
-  const sbomBytes = Buffer.from(JSON.stringify({ metadata: { component: { version: "2.2.1" } }, components: names.map((name) => ({ name, version: "2.2.1", hashes: [{ alg: "SHA-256", content: name === names[0] ? digest : "0".repeat(64) }] })) }));
+  const sbomBytes = Buffer.from(JSON.stringify({ metadata: { component: { version: "2.2.1" } }, components: [
+    ...names.map((name) => ({ name, version: "2.2.1", hashes: [{ alg: "SHA-256", content: name === names[0] ? digest : "0".repeat(64) }] })),
+    { name: "pi-subagents", version: "0.1.0" },
+  ] }));
   const provenanceBytes = Buffer.from(JSON.stringify({
     source: { version: "2.2.1", commit: "c".repeat(40) },
     build: { artifacts: names.map((name) => ({ name, sha256: name === names[0] ? digest : "0".repeat(64), attestation })) },

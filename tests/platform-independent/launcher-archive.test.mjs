@@ -155,8 +155,8 @@ function candidateInput(root, fixture, overrides = {}) {
 
 test("streaming inspection produces exact digests and a deeply immutable plan before extraction", async () => {
   const bytes = archive([
-    tarEntry("plugins/maister", Buffer.alloc(0), { type: "5", mode: 0o755 }),
-    tarEntry("plugins/maister/bin", Buffer.alloc(0), { type: "5", mode: 0o755 }),
+    tarEntry("plugins/maister/", Buffer.alloc(0), { type: "5", mode: 0o755 }),
+    tarEntry("plugins/maister/bin/", Buffer.alloc(0), { type: "5", mode: 0o755 }),
     tarEntry("plugins/maister/bin/maister-install.mjs", Buffer.from("#!/usr/bin/env node\n"), { mode: 0o755 }),
   ]);
   await withArchive(bytes, async ({ scratch, source }) => {
@@ -200,6 +200,18 @@ test("inspection rejects traversal, links, ownership, modes, collisions, and ext
       assert.deepEqual(fs.readdirSync(scratch), ["archive.tar.gz"]);
     });
   }
+});
+
+test("inspection accepts every executable runtime file shipped in the release", async () => {
+  const bytes = archive([
+    tarEntry("plugins/maister/bin/maister-agent-gate.mjs", Buffer.from("gate\n"), { mode: 0o755 }),
+    tarEntry("plugins/maister/skills/init/bin/reconcile-gate-config.sh", Buffer.from("#!/bin/sh\n"), { mode: 0o755 }),
+  ]);
+  await withArchive(bytes, async ({ source }) => {
+    const plan = await inspectArchiveFile(source);
+    assert.equal(plan.counters.regularFiles, 2);
+    assert.equal(plan.entries.every((entry) => entry.mode === 0o755), true);
+  });
 });
 
 test("inspection rejects concatenated gzip members and every trailing byte", async () => {
