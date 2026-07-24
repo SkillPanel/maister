@@ -1929,7 +1929,7 @@ function settingsReceipt(settings, backupRoot) {
 		backup_ref: path.relative(
 			backupRoot,
 			path.join(backupRoot, "settings", String(index)),
-		),
+		).split(path.sep).join("/"),
 		mode: setting.mode,
 		before_mode: setting.beforeMode,
 		...(setting.managedArray ?? {}),

@@ -1,6 +1,6 @@
 {
   "name": "@mateuszrapacz/maister",
-  "version": "2.2.21",
+  "version": "2.2.22",
   "description": "Thin verified npx launcher for Maister GitHub Release distributions",
   "author": "Mateusz Rapacz",
   "private": true,
