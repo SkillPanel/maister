@@ -94,6 +94,14 @@ test("offline authority discovery accepts only the active receipt-bound closure"
   const authority = createAuthorityStore({ home, env: { XDG_STATE_HOME: state } }).readActiveReceipt("codex");
   assert.equal(authority.installerPath, installerPath);
   assert.equal(authority.treeHash, treeHash);
+  if (process.platform === "win32") {
+    // Windows does not preserve the POSIX modes used by the private receipt
+    // contract. The authority checks must still validate the complete bound
+    // closure without rejecting the platform's observed mode bits.
+    for (const filePath of [activeReceiptPath, receiptPath, installerPath]) fs.chmodSync(filePath, 0o666);
+    const windowsAuthority = createAuthorityStore({ home, env: { XDG_STATE_HOME: state } }).readActiveReceipt("codex");
+    assert.equal(windowsAuthority.installerPath, installerPath);
+  }
   fs.rmSync(root, { recursive: true, force: true });
 });
 

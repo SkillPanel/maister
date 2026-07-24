@@ -4,7 +4,7 @@ Maister is distributed from one common source through explicit Codex, Cursor, an
 
 ## GitHub-only package acquisition
 
-Maister itself is never published to a package registry. Run it from the public canonical repository using `npm exec --yes --package='github:mateuszrapacz/maister#v2.2.17' -- maister ...`, or replace the tag with a lowercase full 40-hex commit. Equivalent `npm install 'github:mateuszrapacz/maister#v2.2.17'` is supported. Moving selectors, arbitrary repositories, token-bearing URLs, and `--ignore-scripts` are unsupported. npmjs access is limited to read-only acquisition of the exact locked `tar@7.5.20` dependency.
+Maister itself is never published to a package registry. Run it from the public canonical repository using `npm exec --yes --package='github:mateuszrapacz/maister#v2.2.18' -- maister ...`, or replace the tag with a lowercase full 40-hex commit. Equivalent `npm install 'github:mateuszrapacz/maister#v2.2.18'` is supported. Moving selectors, arbitrary repositories, token-bearing URLs, and `--ignore-scripts` are unsupported. npmjs access is limited to read-only acquisition of the exact locked `tar@7.5.20` dependency.
 
 Public Release access is anonymous-first. Private Git credentials belong to Git/npm; optional Release API credentials use `GH_TOKEN`, then `GITHUB_TOKEN`, then bounded `gh auth token --hostname github.com`. State-only commands use the active receipt-bound control plane without launcher network or credential lookup.
 
