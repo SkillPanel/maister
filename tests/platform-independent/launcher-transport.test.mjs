@@ -94,6 +94,7 @@ test("authorizes exact GitHub API routes and fixed direct release asset routes",
 
   assert.equal(observations[0].headers.get("authorization"), "Bearer sentinel");
   assert.equal(observations[0].headers.get("accept"), "application/octet-stream");
+  assert.equal(observations[0].headers.get("accept-encoding"), "identity");
   assert.equal(observations[0].headers.get("x-github-api-version"), "2022-11-28");
 
   await transport.request({
