@@ -23,9 +23,9 @@ The old committed generated host trees, legacy marketplace projections, and lega
 Maister is not published to npmjs, GitHub Packages, or another package registry. npm is used only as a Git-package client and to acquire the exact locked third-party dependency `tar@7.5.20`. Use the canonical repository with a literal stable tag or lowercase full commit:
 
 ```sh
-npm exec --yes --package='github:mateuszrapacz/maister#v2.2.12' -- maister install --target codex
+npm exec --yes --package='github:mateuszrapacz/maister#v2.2.13' -- maister install --target codex
 npm exec --yes --package='github:mateuszrapacz/maister#0123456789abcdef0123456789abcdef01234567' -- maister update --target cursor
-npm install --save-exact 'github:mateuszrapacz/maister#v2.2.12'
+npm install --save-exact 'github:mateuszrapacz/maister#v2.2.13'
 ./node_modules/.bin/maister status --target kiro-cli --json
 ```
 
@@ -180,8 +180,8 @@ The package test's default mode builds each target twice with fixed inputs and v
 
 ```sh
 make test-core
-make generate-e3-attestation E3_OUTPUT=dist/e3-portable-core.json E3_RESULT=passed SOURCE_VERSION=2.2.12
-E3_ATTESTATION=dist/e3-portable-core.json make package TARGET=codex SOURCE_VERSION=2.2.12
+make generate-e3-attestation E3_OUTPUT=dist/e3-portable-core.json E3_RESULT=passed SOURCE_VERSION=2.2.13
+E3_ATTESTATION=dist/e3-portable-core.json make package TARGET=codex SOURCE_VERSION=2.2.13
 ```
 
 Release CI runs `make test-core`, generates one deterministic E3 record, embeds it in all three archives, and blocks publication unless the extracted archive smoke completes install, verify, and uninstall for every target. The E3 schema/digest binding remains owned by the portable-core evidence boundary; the release record is not a cryptographic signature.

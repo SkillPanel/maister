@@ -136,6 +136,40 @@ test("anonymous transient GitHub metadata errors fall back before downloading di
   }
 });
 
+test("GitHub API asset rate limits fall back to exact direct release assets", async () => {
+  await withGitHubEnvironment({ GH_TOKEN: undefined, GITHUB_TOKEN: undefined }, async () => {
+    const requests = [];
+    const expected = Object.assign(new Error("stop after direct sidecar fallback"), { kind: "E_TEST_STOP" });
+    const rateLimited = Object.assign(new Error("GitHub asset API rate limit"), {
+      kind: "E_LAUNCHER_TRANSPORT_HTTP",
+      details: { status: 403 },
+    });
+    await assert.rejects(runLauncher(installOptions(), PACKAGE_METADATA, {
+      tempFactory: tempFactory(),
+      archivePort: {},
+      resolveCredential: async () => ({ kind: "anonymous", source: "none" }),
+      transport: {
+        async request(descriptor) {
+          requests.push(descriptor);
+          if (requests.length === 1) return { status: 200, bytes: Buffer.from(JSON.stringify(releaseMetadata())) };
+          if (requests.length === 2) return { status: 200, bytes: Buffer.from(JSON.stringify({
+            ref: "refs/tags/v2.2.1",
+            object: { type: "commit", sha: "a".repeat(40) },
+          })) };
+          if (requests.length === 3) throw rateLimited;
+          throw expected;
+        },
+      },
+    }), expected);
+
+    assert.equal(requests.length, 4);
+    assert.match(requests[2].url, /api\.github\.com\/repos\/mateuszrapacz\/maister\/releases\/assets\/\d+$/u);
+    assert.equal(requests[3].url, directReleaseAssetUrl("2.2.1", "SHA256SUMS"));
+    assert.equal(requests[3].headers.authorization, undefined);
+    assert.equal(requests[3].headers.accept, "application/octet-stream");
+  });
+});
+
 test("authenticated release assets use GitHub API URLs and octet-stream negotiation", async () => {
   await withGitHubEnvironment({ GH_TOKEN: "private-token", GITHUB_TOKEN: undefined }, async () => {
     const requests = [];
