@@ -7,6 +7,7 @@ const METADATA_URL = "https://api.github.com/repos/mateuszrapacz/maister/release
 const TAG_REF_URL = "https://api.github.com/repos/mateuszrapacz/maister/git/ref/tags/v2.2.1";
 const TAG_OBJECT_URL = "https://api.github.com/repos/mateuszrapacz/maister/git/tags/1111111111111111111111111111111111111111";
 const ASSET_URL = "https://api.github.com/repos/mateuszrapacz/maister/releases/assets/42";
+const DIRECT_ASSET_URL = "https://github.com/mateuszrapacz/maister/releases/download/v2.2.1/maister-codex.tar.gz";
 
 function response(body, { status = 200, headers = {} } = {}) {
   return new Response(body, { status, headers });
@@ -75,7 +76,7 @@ async function settle() {
   await new Promise((resolve) => setImmediate(resolve));
 }
 
-test("authorizes only exact GitHub API metadata and numeric asset routes", async () => {
+test("authorizes exact GitHub API routes and fixed direct release asset routes", async () => {
   const observations = [];
   const transport = createReleaseTransport({
     fetchImpl: async (url, options) => {
@@ -95,11 +96,20 @@ test("authorizes only exact GitHub API metadata and numeric asset routes", async
   assert.equal(observations[0].headers.get("accept"), "application/octet-stream");
   assert.equal(observations[0].headers.get("x-github-api-version"), "2022-11-28");
 
+  await transport.request({
+    url: DIRECT_ASSET_URL,
+    acceptedContentTypes: ["application/octet-stream"],
+    sink: discardSink(),
+  }, requestLimits({ bytes: 2 }));
+  assert.equal(observations[1].url, DIRECT_ASSET_URL);
+  assert.equal(observations[1].headers.get("accept"), "application/octet-stream");
+
   for (const url of [
     "http://api.github.com/repos/mateuszrapacz/maister/releases/assets/42",
     "https://api.github.com/repos/other/maister/releases/assets/42",
     "https://api.github.com/repos/mateuszrapacz/maister/releases/assets/not-a-number",
-    "https://github.com/mateuszrapacz/maister/releases/download/v2.2.1/maister-codex.tar.gz",
+    "https://github.com/mateuszrapacz/maister/releases/download/v2.2.1/not-allowlisted.bin",
+    "https://github.com/mateuszrapacz/maister/releases/download/v2.2.1/maister-codex.tar.gz?token=secret",
   ]) {
     await assert.rejects(() => transport.request({
       url,
@@ -107,7 +117,7 @@ test("authorizes only exact GitHub API metadata and numeric asset routes", async
       acceptedContentTypes: ["application/octet-stream"],
     }, requestLimits()), { kind: /E_LAUNCHER_TRANSPORT_(?:URL|HOST|ROUTE)/u });
   }
-  assert.equal(observations.length, 1);
+  assert.equal(observations.length, 2);
 });
 
 test("authorizes only the exact stable tag ref and full annotated-tag object routes", async () => {

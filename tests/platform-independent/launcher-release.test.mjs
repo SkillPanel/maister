@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   ASSET_BY_TARGET,
   REQUIRED_ASSETS,
+  directReleaseAssetUrl,
   releaseMetadataUrl,
   resolveReleaseMetadata,
   validateReleaseMetadata,
@@ -117,6 +118,26 @@ test("anonymous metadata success bypasses credential resolution entirely", async
   assert.equal(credentialCalls, 0);
   assert.equal(result.accessMode, "anonymous");
   assert.equal(result.releaseTargetCommit, RELEASE_COMMIT);
+});
+
+test("anonymous GitHub API rate limiting falls back to exact direct release assets", async () => {
+  const result = await resolveReleaseMetadata({
+    version: "2.2.1",
+    target: "codex",
+    async requestMetadata() {
+      return { status: 403, value: null };
+    },
+    async resolveCredential() {
+      return { kind: "anonymous", source: "none" };
+    },
+  });
+
+  assert.equal(result.accessMode, "anonymous-direct");
+  assert.equal(result.releaseTargetCommit, null);
+  assert.equal(result.selected.id, null);
+  assert.equal(result.selected.direct, true);
+  assert.equal(result.selected.url, directReleaseAssetUrl("2.2.1", "maister-codex.tar.gz"));
+  assert.equal(result.sidecars.provenance.url, directReleaseAssetUrl("2.2.1", "PROVENANCE.json"));
 });
 
 test("exact annotated release tag is independently peeled to one full commit", async () => {
