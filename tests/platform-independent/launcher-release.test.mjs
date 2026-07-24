@@ -140,8 +140,8 @@ test("anonymous GitHub API rate limiting falls back to exact direct release asse
   assert.equal(result.sidecars.provenance.url, directReleaseAssetUrl("2.2.1", "PROVENANCE.json"));
 });
 
-test("anonymous transient GitHub metadata statuses fall back to exact direct release assets", async () => {
-  for (const status of [408, 429, 503]) {
+test("anonymous GitHub HTTP metadata statuses fall back to exact direct release assets", async () => {
+  for (const status of [400, 401, 403, 404, 408, 422, 429, 499, 500, 503, 599]) {
     const result = await resolveReleaseMetadata({
       version: "2.2.1",
       target: "codex",
@@ -193,8 +193,8 @@ test("exact annotated release tag is independently peeled to one full commit", a
   assert.ok(requests.every(({ credential, attempt }) => credential === null && attempt === "anonymous"));
 });
 
-test("only anonymous access-denial or transient statuses permit one authenticated retry", async () => {
-  for (const deniedStatus of [401, 403, 404, 408, 429, 500, 503]) {
+test("anonymous HTTP metadata statuses permit one authenticated retry", async () => {
+  for (const deniedStatus of [400, 401, 403, 404, 408, 422, 429, 499, 500, 503, 599]) {
     const requests = [];
     const result = await resolveReleaseMetadata({
       version: "2.2.1",
@@ -248,8 +248,8 @@ test("tag resolution failures redact credentials and reject malformed or mismatc
   assert.doesNotMatch(JSON.stringify({ message: thrown.message, details: thrown.details }), new RegExp(secret, "u"));
 });
 
-test("ineligible denial and anonymous credential fallback never retry metadata", async () => {
-  for (const deniedStatus of [400, 422, 499]) {
+test("non-HTTP metadata statuses fail closed without retrying", async () => {
+  for (const deniedStatus of [300, 399, 600]) {
     let requests = 0;
     let credentialCalls = 0;
     await assert.rejects(resolveReleaseMetadata({
@@ -268,19 +268,6 @@ test("ineligible denial and anonymous credential fallback never retry metadata",
     assert.equal(credentialCalls, 0);
   }
 
-  let anonymousRequests = 0;
-  await assert.rejects(resolveReleaseMetadata({
-    version: "2.2.1",
-    target: "codex",
-    async requestMetadata() {
-      anonymousRequests += 1;
-      return { status: 404, value: null };
-    },
-    async resolveCredential() {
-      return { kind: "anonymous", source: "none", commandStatus: "unavailable" };
-    },
-  }), { kind: "E_LAUNCHER_RELEASE_ACCESS" });
-  assert.equal(anonymousRequests, 1);
 });
 
 test("combined anonymous-first acquisition selects and streams the numeric API asset URL", async () => {

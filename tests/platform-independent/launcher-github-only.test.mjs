@@ -105,7 +105,7 @@ test("GH_TOKEN takes precedence over GITHUB_TOKEN for GitHub API requests", asyn
 });
 
 test("anonymous transient GitHub metadata errors fall back before downloading direct assets", async () => {
-  for (const status of [429, 503]) {
+  for (const status of [400, 429, 503]) {
     await withGitHubEnvironment({ GH_TOKEN: undefined, GITHUB_TOKEN: undefined }, async () => {
       const requests = [];
       const expected = Object.assign(new Error("stop after first direct asset request"), { kind: "E_TEST_STOP" });
