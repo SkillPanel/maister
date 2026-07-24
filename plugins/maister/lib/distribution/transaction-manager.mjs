@@ -129,6 +129,12 @@ const RELEASE_POLICIES = Object.freeze({
 	}),
 });
 
+function observedModeMatches(expected, observed) {
+	// Windows ACLs are not represented by the POSIX mode bits exposed by Node.
+	// Keep bytes, entry types, and path identities authoritative instead.
+	return process.platform === "win32" || expected === observed;
+}
+
 function codexNativeDeploymentEnabled(options, target) {
 	return (
 		target === "codex" &&
@@ -827,7 +833,7 @@ function removeStaleLock(lockPath, lockParent, existing, processKill) {
 	if (
 		!existing.isFile() ||
 		existing.isSymbolicLink() ||
-		(existing.mode & 0o777) !== 0o600 ||
+		(process.platform !== "win32" && (existing.mode & 0o777) !== 0o600) ||
 		existing.size > 8_192
 	)
 		return false;
@@ -1729,7 +1735,7 @@ function assertRootInventoryUnchanged(receipt, rootId, paths) {
 		const matches =
 			actual.exists &&
 			actual.type === entry.type &&
-			actual.mode === entry.mode &&
+			observedModeMatches(entry.mode, actual.mode) &&
 			(entry.type !== "file" || actual.sha256 === entry.sha256) &&
 			(entry.type !== "symlink" || actual.linkTarget === entry.link_target);
 		if (!matches)
@@ -1951,7 +1957,7 @@ function verifyReceipt(
 		if (
 			!actual.exists ||
 			actual.type !== entry.type ||
-			actual.mode !== entry.mode ||
+			!observedModeMatches(entry.mode, actual.mode) ||
 			(entry.type === "file" && actual.sha256 !== entry.sha256) ||
 			(entry.type === "symlink" && actual.linkTarget !== entry.link_target)
 		)
@@ -1973,7 +1979,7 @@ function verifyReceipt(
 			!stat.isFile() ||
 			(setting.ownership === "whole_file" &&
 				hashFile(targetPath) !== setting.after_sha256) ||
-			formatMode(stat.mode) !== setting.mode
+			!observedModeMatches(setting.mode, formatMode(stat.mode))
 		)
 			conflicts.push(setting.path);
 		if (setting.ownership === "managed_array_entries") {
