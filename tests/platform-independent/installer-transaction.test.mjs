@@ -44,7 +44,26 @@ const MULTI_ROOT_HOME = path.join(
 	"tests/fixtures/platform-independent/user-homes/multi-root",
 );
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
-const TARGETS = ["codex", "cursor", "kiro-cli"];
+const TARGETS = ["codex", "cursor", "kiro-cli", "pi"];
+const PI_GENERIC_INSTALLER_MATRIX_POSIX_ONLY =
+	"Pi generic installer matrix — POSIX-only";
+
+// ponytail: Pi matrix gate only; other targets always run
+function isPosixInstallerPlatform(platform = process.platform) {
+	return platform === "darwin" || platform === "linux";
+}
+
+function resolveGenericMatrixEntry(target, platform = process.platform) {
+	if (target === "pi" && !isPosixInstallerPlatform(platform)) {
+		return {
+			target,
+			runLifecycle: false,
+			constraint: PI_GENERIC_INSTALLER_MATRIX_POSIX_ONLY,
+		};
+	}
+	return { target, runLifecycle: true };
+}
+
 // The aggregate is intentionally exhaustive and can run close to eleven
 // minutes on a busy CI host. Keep the external watchdog bounded, but leave
 // enough margin for the same test when invoked through Make/CI supervision.
@@ -236,20 +255,39 @@ function sandbox() {
 	fs.chmodSync(state, 0o700);
 	fs.cpSync(SOURCE_ROOT, sourceRoot, { recursive: true });
 	fs.mkdirSync(path.join(sourceRoot, "plugins/maister"), { recursive: true });
+	// ponytail: basename denylist covers contract exclusions; add path-aware filter if nested names collide
+	const excludeNames = new Set([
+		".git",
+		"node_modules",
+		"credentials",
+		"sessions",
+		".pi",
+	]);
+	const copyOptions = {
+		recursive: true,
+		filter: (source) => !excludeNames.has(path.basename(source)),
+	};
 	fs.cpSync(
 		path.join(ROOT, "plugins/maister/overlays"),
 		path.join(sourceRoot, "plugins/maister/overlays"),
-		{ recursive: true },
+		copyOptions,
 	);
 	fs.cpSync(
 		path.join(ROOT, "plugins/maister/agent-projection-v1.json"),
 		path.join(sourceRoot, "plugins/maister/agent-projection-v1.json"),
 	);
-	for (const directory of ["agents", "skills", "bin", "lib"]) {
+	for (const directory of [
+		"agents",
+		"skills",
+		"bin",
+		"lib",
+		"common",
+		"commands",
+	]) {
 		fs.cpSync(
 			path.join(ROOT, "plugins/maister", directory),
 			path.join(sourceRoot, "plugins/maister", directory),
-			{ recursive: true },
+			copyOptions,
 		);
 	}
 	const git = {
@@ -281,6 +319,18 @@ function sandbox() {
 			2,
 		)}\n`,
 	);
+	const env = {
+		...process.env,
+		HOME: home,
+		XDG_STATE_HOME: state,
+		MAISTER_ENABLE_FAILURE_INJECTION: "1",
+		MAISTER_EVIDENCE_NOW: "2026-07-15T00:00:00.000Z",
+		MAISTER_CODEX_NATIVE_DEPLOYMENT: "0",
+	};
+	// ponytail: strip inherited Pi redirects; intentional overrides set per-test on box.env
+	delete env.PI_CODING_AGENT_DIR;
+	delete env.PI_CODING_AGENT_SESSION_DIR;
+	delete env.PI_PACKAGE_DIR;
 	const box = {
 		root,
 		home,
@@ -288,16 +338,64 @@ function sandbox() {
 		sourceRoot,
 		git,
 		attestationPath,
-		env: {
-			...process.env,
-			XDG_STATE_HOME: state,
-			MAISTER_ENABLE_FAILURE_INJECTION: "1",
-			MAISTER_EVIDENCE_NOW: "2026-07-15T00:00:00.000Z",
-			MAISTER_CODEX_NATIVE_DEPLOYMENT: "0",
-		},
+		env,
 	};
 	harnessSandboxes.add(box);
 	return box;
+}
+
+// ponytail: test-only containment vs box.root; upgrade if symlink escapes need realpath
+function resolveWithExistingAncestor(candidate) {
+	let current = path.resolve(candidate);
+	const missing = [];
+	while (!fs.existsSync(current)) {
+		const parent = path.dirname(current);
+		if (parent === current) break;
+		missing.unshift(path.basename(current));
+		current = parent;
+	}
+	return path.join(fs.realpathSync(current), ...missing);
+}
+
+function isContainedBySandbox(box, candidate) {
+	const relative = path.relative(
+		resolveWithExistingAncestor(box.root),
+		resolveWithExistingAncestor(candidate),
+	);
+	return (
+		relative === "" ||
+		(!relative.startsWith("..") && !path.isAbsolute(relative))
+	);
+}
+
+function assertContainedBySandbox(box, candidate, label = candidate) {
+	assert.equal(
+		isContainedBySandbox(box, candidate),
+		true,
+		`${label} must stay inside sandbox root (${candidate})`,
+	);
+}
+
+function assertTargetPathsContained(box, paths) {
+	for (const [key, value] of Object.entries(paths)) {
+		if (typeof value === "string" && path.isAbsolute(value)) {
+			assertContainedBySandbox(box, value, key);
+		} else if (Array.isArray(value)) {
+			for (const entry of value) {
+				if (
+					entry &&
+					typeof entry.path === "string" &&
+					path.isAbsolute(entry.path)
+				) {
+					assertContainedBySandbox(
+						box,
+						entry.path,
+						`${key}.${entry.rootId ?? "path"}`,
+					);
+				}
+			}
+		}
+	}
 }
 
 function args(command, target, box, extra = []) {
@@ -476,6 +574,270 @@ function clearJournals(box, target = "codex") {
 	for (const journal of fs.readdirSync(journalsRoot))
 		fs.rmSync(path.join(journalsRoot, journal));
 }
+
+const PI_FIXTURE_REQUIRED_PATHS = Object.freeze([
+	"common",
+	"commands",
+	"agents",
+	"lib",
+	"bin",
+	"skills/orchestrator-framework/bin",
+]);
+
+const PI_PACKAGE_FORBIDDEN_PREFIXES = Object.freeze([
+	"commands/",
+	".git/",
+	"node_modules/",
+	"credentials/",
+	"sessions/",
+	".pi/",
+]);
+
+function pluginFixturePath(box, relative) {
+	return path.join(box.sourceRoot, "plugins/maister", relative);
+}
+
+test("sandbox fixture includes repository-backed Pi package inputs", () => {
+	const box = sandbox();
+	const pluginRoot = path.join(box.sourceRoot, "plugins/maister");
+	for (const relative of PI_FIXTURE_REQUIRED_PATHS) {
+		const absolute = pluginFixturePath(box, relative);
+		assert.equal(
+			fs.lstatSync(absolute, { throwIfNoEntry: false })?.isDirectory(),
+			true,
+			relative,
+		);
+		assert.equal(
+			fs.realpathSync(absolute).startsWith(fs.realpathSync(pluginRoot)),
+			true,
+			`${relative} must stay under sandbox plugin root`,
+		);
+	}
+	assert.equal(
+		fs.existsSync(path.join(pluginRoot, "overlays")),
+		true,
+		"overlays",
+	);
+	assert.equal(
+		fs.existsSync(path.join(pluginRoot, "agent-projection-v1.json")),
+		true,
+		"agent-projection-v1.json",
+	);
+	const attestation = readAttestation(box);
+	assert.equal(
+		attestation.portable_core_tree_hash,
+		portableCoreTreeHash(box.sourceRoot),
+		"attestation must be calculated after fixture assembly",
+	);
+});
+
+test("sandbox fixture lets Pi materialization reach package planning without E_MATERIALIZE_SOURCE", async () => {
+	const box = sandbox();
+	const stagingRoot = path.join(box.root, "pi-stage");
+	let result;
+	try {
+		result = await materialize({
+			source: `local:${box.sourceRoot}`,
+			target: "pi",
+			overlayPath: path.join(
+				box.sourceRoot,
+				"plugins/maister/overlays/pi/overlay.yml",
+			),
+			inventoryPath: path.join(
+				box.sourceRoot,
+				"plugins/maister/overlays/pi/inventory.yml",
+			),
+			stagingRoot,
+			git: box.git,
+			sourceVersion: "1.2.3",
+			hostVersion: "1.0.0",
+		});
+	} catch (error) {
+		assert.notEqual(
+			error?.code ?? error?.kind,
+			"E_MATERIALIZE_SOURCE",
+			error?.message ?? String(error),
+		);
+		throw error;
+	}
+	assert.ok(result?.stagingRoot, "materialize must produce a package stage");
+	assert.equal(
+		fs.existsSync(path.join(result.stagingRoot, "package.json")),
+		true,
+	);
+	assert.ok(
+		result.commandProjection?.entries?.length > 0,
+		"command projection must resolve overlay origins",
+	);
+});
+
+test("sandbox fixture Pi package output keeps required inputs and excludes forbidden paths", async () => {
+	const box = sandbox();
+	const stagingRoot = path.join(box.root, "pi-stage");
+	const result = await materialize({
+		source: `local:${box.sourceRoot}`,
+		target: "pi",
+		overlayPath: path.join(
+			box.sourceRoot,
+			"plugins/maister/overlays/pi/overlay.yml",
+		),
+		inventoryPath: path.join(
+			box.sourceRoot,
+			"plugins/maister/overlays/pi/inventory.yml",
+		),
+		stagingRoot,
+		git: box.git,
+		sourceVersion: "1.2.3",
+		hostVersion: "1.0.0",
+	});
+	const treePaths = hashTree(result.stagingRoot).entries.map(
+		(entry) => entry.path,
+	);
+	for (const required of [
+		"package.json",
+		".maister-source.json",
+		"agent-projection-v1.json",
+		"pi-command-projection-v1.json",
+		"extensions/maister.ts",
+		"common",
+		"lib",
+		"bin",
+		"orchestrator-framework/bin",
+	]) {
+		assert.equal(
+			treePaths.some(
+				(treePath) =>
+					treePath === required || treePath.startsWith(`${required}/`),
+			),
+			true,
+			`missing required package path: ${required}`,
+		);
+	}
+	assert.equal(
+		treePaths.some((treePath) => treePath.startsWith("prompts/")),
+		true,
+		"prompts",
+	);
+	assert.equal(
+		treePaths.some((treePath) => /^agents\/maister-[^/]+\.md$/u.test(treePath)),
+		true,
+		"projected agents",
+	);
+	assert.equal(
+		treePaths.some((treePath) => /(?:^|\/)SKILL\.md$/u.test(treePath)),
+		true,
+		"skills",
+	);
+	for (const prefix of PI_PACKAGE_FORBIDDEN_PREFIXES) {
+		assert.equal(
+			treePaths.some(
+				(treePath) =>
+					treePath === prefix.slice(0, -1) || treePath.startsWith(prefix),
+			),
+			false,
+			`forbidden package path present: ${prefix}`,
+		);
+	}
+});
+
+test("sandbox HOME and XDG_STATE_HOME resolve below sandbox root", () => {
+	const box = sandbox();
+	assert.equal(path.resolve(box.env.HOME), path.resolve(box.home));
+	assert.equal(path.resolve(box.env.XDG_STATE_HOME), path.resolve(box.state));
+	assertContainedBySandbox(box, box.env.HOME, "HOME");
+	assertContainedBySandbox(box, box.env.XDG_STATE_HOME, "XDG_STATE_HOME");
+});
+
+test("sandbox removes inherited Pi path overrides by default", () => {
+	const keys = [
+		"PI_CODING_AGENT_DIR",
+		"PI_CODING_AGENT_SESSION_DIR",
+		"PI_PACKAGE_DIR",
+	];
+	const previous = Object.fromEntries(
+		keys.map((key) => [key, process.env[key]]),
+	);
+	try {
+		for (const key of keys) {
+			process.env[key] = path.join(os.tmpdir(), `host-${key}`);
+		}
+		const box = sandbox();
+		for (const key of keys) {
+			assert.equal(box.env[key], undefined, key);
+		}
+	} finally {
+		for (const key of keys) {
+			if (previous[key] === undefined) delete process.env[key];
+			else process.env[key] = previous[key];
+		}
+	}
+});
+
+test("sandbox getTargetPaths scalars stay inside sandbox root", () => {
+	const box = sandbox();
+	const stateRoots = new Set();
+	for (const target of TARGETS) {
+		const paths = getTargetPaths({
+			target,
+			home: box.home,
+			env: box.env,
+			platform: target === "pi" ? "linux" : process.platform,
+		});
+		assertTargetPathsContained(box, paths);
+		stateRoots.add(paths.stateRoot);
+	}
+	assert.equal(
+		stateRoots.size,
+		TARGETS.length,
+		"each target must keep a unique state root inside the sandbox",
+	);
+});
+
+test("sandbox containment rejects symlinked paths outside the root", () => {
+	const box = sandbox();
+	const outside = fs.mkdtempSync(path.join(os.tmpdir(), "maister-outside-"));
+	const link = path.join(box.root, "pi-agent-link");
+	fs.symlinkSync(outside, link, "dir");
+	try {
+		assert.equal(isContainedBySandbox(box, path.join(link, "nested")), false);
+	} finally {
+		fs.rmSync(outside, { recursive: true, force: true });
+	}
+});
+
+test("sandbox intentional Pi coding-agent overrides stay inside sandbox", () => {
+	const box = sandbox();
+	const agentOverride = path.join(box.root, "pi-agent-override");
+	const sessionOverride = path.join(box.root, "pi-session-override");
+	const hostEscape = path.join(os.tmpdir(), "maister-host-escape");
+	box.env.PI_CODING_AGENT_DIR = agentOverride;
+	box.env.PI_CODING_AGENT_SESSION_DIR = sessionOverride;
+
+	const piPaths = getTargetPaths({
+		target: "pi",
+		home: box.home,
+		env: box.env,
+		platform: "linux",
+	});
+	assertContainedBySandbox(box, piPaths.agentRoot, "agentRoot");
+	assertContainedBySandbox(box, piPaths.sessionRoot, "sessionRoot");
+	assertContainedBySandbox(box, piPaths.settingsPath, "settingsPath");
+	assertContainedBySandbox(box, piPaths.activeRoot, "activeRoot");
+	assert.equal(
+		isContainedBySandbox({ root: hostEscape }, piPaths.agentRoot),
+		false,
+		"Pi agent override must not resolve under a host escape root",
+	);
+
+	const other = getTargetPaths({
+		target: "codex",
+		home: box.home,
+		env: box.env,
+	});
+	assert.notEqual(piPaths.stateRoot, other.stateRoot);
+	assertContainedBySandbox(box, other.stateRoot, "codex.stateRoot");
+	// ponytail: PI_PACKAGE_DIR intentionally unasserted — production getTargetPaths ignores it
+});
 
 test("rejects a staging-parent swap after validation without writing outside the staging root", async () => {
 	const box = sandbox();
@@ -889,47 +1251,123 @@ test("rejects backup tampering of bytes, modes, symlink targets, types, existenc
 	}
 });
 
-test("clean lifecycle commands have durable receipts for every target seam", async () => {
+async function assertCleanLifecycleForTarget(target, box) {
+	const paths = getTargetPaths({ target, home: box.home, env: box.env });
+	assertTargetPathsContained(box, paths);
+	const installed = output(await invoke("install", target, box));
+	assert.equal(installed.ok, true, `${target}: ${JSON.stringify(installed)}`);
+	assert.equal(installed.code, 0, target);
+	const installedReceipt = JSON.parse(
+		fs.readFileSync(installed.receipt_path, "utf8"),
+	);
+	const installedControlPlane = path.join(
+		paths.stateRoot,
+		installedReceipt.control_plane.root_ref,
+	);
+	assert.equal(
+		fs.existsSync(installedControlPlane),
+		true,
+		`${target}: control plane missing`,
+	);
+	assert.equal(
+		hashTree(installedControlPlane).contentHash,
+		installedReceipt.control_plane.tree_hash,
+		`${target}: control plane hash`,
+	);
+	assert.equal(
+		installedReceipt.control_plane.source_commit,
+		installedReceipt.source.resolved_commit,
+		`${target}: control plane source binding`,
+	);
+	assert.equal(fs.existsSync(installed.receipt_path), true, target);
+	assert.equal(
+		fs.existsSync(installed.journal_path),
+		true,
+		`${target}: journal`,
+	);
+	assert.equal(
+		fs.existsSync(paths.lockPath),
+		false,
+		`${target}: lock released after success`,
+	);
+	assertContainedBySandbox(box, installed.receipt_path, `${target}: receipt`);
+	assertContainedBySandbox(box, installed.journal_path, `${target}: journal`);
+	assertContainedBySandbox(box, paths.stagingRoot, `${target}: stagingRoot`);
+	assertContainedBySandbox(
+		box,
+		installedControlPlane,
+		`${target}: controlPlane`,
+	);
+	assert.equal(fs.existsSync(activePath(box, target)), true, target);
+	const verified = output(await invoke("verify", target, box));
+	assert.equal(verified.code, 0, target);
+	const updated = output(await invoke("update", target, box));
+	assert.equal(updated.code, 0, target);
+	const rolledBack = output(await invoke("rollback", target, box));
+	assert.equal(rolledBack.code, 0, target);
+	const recovered = output(await invoke("recover", target, box));
+	assert.equal(recovered.code, 0, target);
+	const uninstalled = output(await invoke("uninstall", target, box));
+	assert.equal(uninstalled.code, 0, target);
+	assert.equal(fs.existsSync(activePath(box, target)), false, target);
+	assert.equal(fs.existsSync(installed.receipt_path), true, target);
+	assertTargetPathsContained(
+		box,
+		getTargetPaths({ target, home: box.home, env: box.env }),
+	);
+	return { installed, paths, installedReceipt, installedControlPlane };
+}
+
+test("generic matrix contains one Pi entry and routes it on POSIX", () => {
+	assert.deepEqual(
+		TARGETS.filter((target) => target === "pi"),
+		["pi"],
+	);
+	assert.deepEqual(resolveGenericMatrixEntry("pi", "linux"), {
+		target: "pi",
+		runLifecycle: true,
+	});
+});
+
+test("Windows Pi generic matrix emits exactly one POSIX-only constraint and skips Pi lifecycle", () => {
+	const emissions = [];
+	let piLifecycleInvocations = 0;
 	for (const target of TARGETS) {
-		const box = sandbox();
-		const installed = output(await invoke("install", target, box));
-		assert.equal(installed.ok, true, `${target}: ${JSON.stringify(installed)}`);
-		assert.equal(installed.code, 0, target);
-		const installedReceipt = JSON.parse(
-			fs.readFileSync(installed.receipt_path, "utf8"),
-		);
-		const installedControlPlane = path.join(
-			getTargetPaths({ target, home: box.home, env: box.env }).stateRoot,
-			installedReceipt.control_plane.root_ref,
-		);
-		assert.equal(
-			fs.existsSync(installedControlPlane),
-			true,
-			`${target}: control plane missing`,
-		);
-		assert.equal(
-			hashTree(installedControlPlane).contentHash,
-			installedReceipt.control_plane.tree_hash,
-			`${target}: control plane hash`,
-		);
-		assert.equal(
-			installedReceipt.control_plane.source_commit,
-			installedReceipt.source.resolved_commit,
-			`${target}: control plane source binding`,
-		);
-		assert.equal(fs.existsSync(activePath(box, target)), true, target);
-		const verified = output(await invoke("verify", target, box));
-		assert.equal(verified.code, 0, target);
-		const updated = output(await invoke("update", target, box));
-		assert.equal(updated.code, 0, target);
-		const rolledBack = output(await invoke("rollback", target, box));
-		assert.equal(rolledBack.code, 0, target);
-		const recovered = output(await invoke("recover", target, box));
-		assert.equal(recovered.code, 0, target);
-		const uninstalled = output(await invoke("uninstall", target, box));
-		assert.equal(uninstalled.code, 0, target);
-		assert.equal(fs.existsSync(activePath(box, target)), false, target);
-		assert.equal(fs.existsSync(installed.receipt_path), true, target);
+		const entry = resolveGenericMatrixEntry(target, "win32");
+		if (!entry.runLifecycle) {
+			emissions.push(entry.constraint);
+			continue;
+		}
+		if (target === "pi") piLifecycleInvocations += 1;
+	}
+	assert.deepEqual(emissions, [PI_GENERIC_INSTALLER_MATRIX_POSIX_ONLY]);
+	assert.equal(emissions.length, 1);
+	assert.equal(piLifecycleInvocations, 0);
+	assert.equal(
+		resolveGenericMatrixEntry("pi", "win32").constraint,
+		PI_GENERIC_INSTALLER_MATRIX_POSIX_ONLY,
+	);
+});
+
+test("clean lifecycle commands have durable receipts for every target seam", async () => {
+	let piConstraintEmissions = 0;
+	let piLifecycleRuns = 0;
+	for (const target of TARGETS) {
+		const entry = resolveGenericMatrixEntry(target);
+		if (!entry.runLifecycle) {
+			console.log(entry.constraint);
+			piConstraintEmissions += 1;
+			continue;
+		}
+		if (target === "pi") piLifecycleRuns += 1;
+		await assertCleanLifecycleForTarget(target, sandbox());
+	}
+	if (isPosixInstallerPlatform()) {
+		assert.equal(piLifecycleRuns, 1);
+		assert.equal(piConstraintEmissions, 0);
+	} else {
+		assert.equal(piLifecycleRuns, 0);
+		assert.equal(piConstraintEmissions, 1);
 	}
 });
 
