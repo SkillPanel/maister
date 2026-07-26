@@ -154,7 +154,7 @@ inventory:
       destination: prompts/work.md
       kind: prompt
       transform_id: pi-prompt-v1
-      sha256: 8f2f24557bd9138a8b6f7d763378bbe9a327172a9227f64ccb71ce3be2446084
+      sha256: d01ad99a2423daf498891f9534cbe6c6cdb348faf0ea70ddf51dd11b9675094e
   skill_origins:
     - source: skills/aggregate-designer
       destination: skills/aggregate-designer
@@ -202,6 +202,10 @@ inventory:
       transform_id: pi-skill-v1
     - source: skills/init
       destination: skills/init
+      kind: skill
+      transform_id: pi-skill-v1
+    - source: skills/issue
+      destination: skills/issue
       kind: skill
       transform_id: pi-skill-v1
     - source: skills/linguistic-boundary-verifier

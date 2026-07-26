@@ -64,6 +64,10 @@ Extract task description from invocation. Detect issue patterns:
 - Azure DevOps: `AB#123`, `dev.azure.com/.../_workitems/edit/123`
 - Generic URLs: Any issue tracker URL
 
+**Vocabulary note:** Those remote tracker IDs/URLs are routing inputs only —
+they are not files under `.maister/issues/`. Do not treat `.maister/issues/`
+paths as classifier inputs. Local Markdown issue capture uses `/maister-issue`.
+
 **Fetch Issue Details** (if identifier detected, try in order):
 1. **MCP tools**: Check for available MCP integrations (mcp__github, mcp__jira, etc.)
 2. **CLI tools**: Try CLI commands via Bash:

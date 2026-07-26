@@ -136,6 +136,28 @@ Research output can feed into development: `/maister:development --research=.mai
 
 ---
 
+## Issue
+
+### `/maister:issue [description]`
+
+Create-only skill: writes exactly one local Markdown issue under
+`.maister/issues/YYYY-MM-DD-kebab-slug.md` (UTC date prefix) and reports the
+path. Does not list, update, close, delete, or sync to GitHub/Jira/Azure
+DevOps. Remote tracker IDs remain `/maister:work` routing inputs — they are
+not files under `.maister/issues/`.
+
+Host invocations (same skill; not a seventh lifecycle FLOW command):
+
+| Host | Invocation |
+| --- | --- |
+| Cursor / Kiro CLI | `/maister-issue` |
+| Pi | `/maister-issue` → `/skill:maister-issue` |
+| Codex | `$maister:maister-issue` |
+
+**Issue directory**: `.maister/issues/`
+
+---
+
 ## Product Design
 
 ### `/maister:product-design [description | task-path]`

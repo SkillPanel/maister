@@ -27,6 +27,10 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 | Azure DevOps | `AB#123`, `https://dev.azure.com/org/project/_workitems/edit/123` |
 | No argument | Prompts for input |
 
+**Vocabulary note:** GitHub/Jira/Azure DevOps IDs and URLs are remote tracker
+routing inputs. They are not files under `.maister/issues/`. To capture a local
+Markdown issue, use `/maister-issue` (create-only).
+
 ## Examples
 
 ```bash

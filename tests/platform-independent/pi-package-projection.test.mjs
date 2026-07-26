@@ -230,7 +230,7 @@ test("materializes a deterministic Pi package with exact public inventory and ma
 			.map((entry) => entry.name);
 		const promptFiles = fs.readdirSync(path.join(first.stagingRoot, "prompts"));
 		const agentFiles = fs.readdirSync(path.join(first.stagingRoot, "agents"));
-		assert.equal(skillDirectories.length, 35);
+		assert.equal(skillDirectories.length, 36);
 		assert.equal(promptFiles.length, 14);
 		assert.equal(agentFiles.length, 28);
 		assert.ok(agentFiles.every((file) => /^maister-[^/]+\.md$/u.test(file)));
@@ -242,7 +242,7 @@ test("materializes a deterministic Pi package with exact public inventory and ma
 			);
 			return /^name:\s*(\S+)$/mu.exec(skill)?.[1];
 		});
-		assert.equal(new Set(skillNames).size, 35);
+		assert.equal(new Set(skillNames).size, 36);
 		assert.ok(
 			skillNames.every((name) =>
 				/^maister-[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(name),
@@ -250,6 +250,7 @@ test("materializes a deterministic Pi package with exact public inventory and ma
 		);
 		assert.equal(skillNames.includes("maister-development"), true);
 		assert.equal(skillNames.includes("maister-grill-me"), true);
+		assert.equal(skillNames.includes("maister-issue"), true);
 		assert.equal(
 			skillNames.some((name) => name.startsWith("maister-maister-")),
 			false,

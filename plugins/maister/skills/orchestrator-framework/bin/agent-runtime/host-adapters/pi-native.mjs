@@ -54,6 +54,7 @@ export const PI_ORCHESTRATION_COMMANDS = Object.freeze([
   Object.freeze({ name: "maister-dev", invocation: "/skill:maister-development", description: "Shortcut for Maister development workflow" }),
   Object.freeze({ name: "maister-development", invocation: "/skill:maister-development", description: "Run the Maister development workflow" }),
   Object.freeze({ name: "maister-init", invocation: "/skill:maister-init", description: "Initialize Maister project documentation and standards" }),
+  Object.freeze({ name: "maister-issue", invocation: "/skill:maister-issue", description: "Create a local Markdown issue under .maister/issues/" }),
   Object.freeze({ name: "maister-performance", invocation: "/skill:maister-performance", description: "Run the Maister performance workflow" }),
   Object.freeze({ name: "maister-migration", invocation: "/skill:maister-migration", description: "Run the Maister migration workflow" }),
   Object.freeze({ name: "maister-research", invocation: "/skill:maister-research", description: "Run the Maister research workflow" }),

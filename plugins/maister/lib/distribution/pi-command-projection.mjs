@@ -28,7 +28,7 @@ export const PI_COMMAND_ORIGINS = Object.freeze([
   ["reviews-reality-check", "1faaddf8d0b71c50f5eb4f21b4a6a977b94b944ba732731e0e59b3d89dba2254"],
   ["reviews-spec-audit", "e508aeb2b4c1ee36e3b30234fa3c7d06a5f495d9fa0e40a954a6bcf2d252c944"],
   ["reviews-test-strategy", "ad3d837b4b957b0c25de4e82ac27d41c2e9dc25e9b80dd372ed32d6896f1be56"],
-  ["work", "8f2f24557bd9138a8b6f7d763378bbe9a327172a9227f64ccb71ce3be2446084"],
+  ["work", "d01ad99a2423daf498891f9534cbe6c6cdb348faf0ea70ddf51dd11b9675094e"],
 ].map(([id, sha256]) => Object.freeze({
   source: `commands/${id}.md`,
   destination: `prompts/${id}.md`,

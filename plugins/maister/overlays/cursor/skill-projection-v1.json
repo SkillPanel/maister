@@ -71,6 +71,11 @@
       "source_fingerprint": "57aea1d5beb9cdaf3b3f5b2333e19e2503f9abefc9e356b321769de831707fee"
     },
     {
+      "source": "issue",
+      "target": "maister-issue",
+      "source_fingerprint": "a0231ae110c66eb1e87cbc3ee9f0fb5d87031ae4fd4ac8ae6289711008b35a6c"
+    },
+    {
       "source": "linguistic-boundary-verifier",
       "target": "maister-linguistic-boundary-verifier",
       "source_fingerprint": "dc2f7e5eababee736d7f2e057e8368f22a591cfa57ca18131a269a356a5ad76e"
@@ -178,7 +183,7 @@
     {
       "source": "work",
       "target": "maister-work",
-      "source_fingerprint": "bd935695e09a17192f117b82a0d81df9b11e04dec691044f9de11fadc58b5398"
+      "source_fingerprint": "04a28471b83d43bdb9c1700398825cde1e61d51f57d6a28d320e56bc16b1a61a"
     }
   ],
   "command_mappings": [

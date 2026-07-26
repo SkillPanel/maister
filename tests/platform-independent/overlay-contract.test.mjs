@@ -287,7 +287,7 @@ test("accepts the closed Pi target, ownership, compatibility, probes, bindings, 
 		"execution-event-writer",
 	);
 	assert.equal(overlay.inventory.command_origins.length, 14);
-	assert.equal(overlay.inventory.skill_origins.length, 35);
+	assert.equal(overlay.inventory.skill_origins.length, 36);
 	assert.equal(overlay.inventory.role_origins.length, 28);
 	assert.deepEqual(overlay.inventory.support_inventory, []);
 	assert.ok(overlay.validation.forbidden_topology.includes("commands/**"));

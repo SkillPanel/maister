@@ -135,6 +135,7 @@ const PI_SKILL_IDS = [
   "implementation-plan-executor",
   "implementation-verifier",
   "init",
+  "issue",
   "linguistic-boundary-verifier",
   "metaprogram-classifier",
   "migration",
