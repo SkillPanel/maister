@@ -1445,7 +1445,7 @@ test("the real repository topology and focused Make entry point use only registe
   assert.match(makefile, /\$\(origin SUPPORTED_TARGETS\)/u);
   assert.match(makefile, /SUPPORTED_TARGETS is not configurable/u);
   assert.match(makefile, /^test-platform-independent:$/mu);
-  assert.match(makefile, /node --test tests\/platform-independent\/\*\.test\.mjs/u);
+  assert.match(makefile, /node --test \$\(filter-out tests\/platform-independent\/installer-transaction\.test\.mjs,\$\(wildcard tests\/platform-independent\/\*\.test\.mjs\)\)/u);
   assert.match(makefile, /^validate: check-cursor-projection$/mu);
   assert.match(makefile, /release-interface\.mjs validate-overlays/u);
   assert.match(makefile, /^package: check-cursor-projection$/mu);

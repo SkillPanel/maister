@@ -9,6 +9,7 @@ on:
     paths:
       - "plugins/maister/**"
       - "tests/platform-independent/**"
+      - "tests/fixtures/installer-transaction-coverage-owners.json"
       - "tests/release/**"
       - "Makefile"
       - ".github/workflows/**"
@@ -21,6 +22,7 @@ on:
     paths:
       - "plugins/maister/**"
       - "tests/platform-independent/**"
+      - "tests/fixtures/installer-transaction-coverage-owners.json"
       - "tests/release/**"
       - "Makefile"
       - ".github/workflows/**"
@@ -32,6 +34,7 @@ on:
 jobs:
   core:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -47,6 +50,27 @@ jobs:
           make test-overlay TARGET=pi
       - name: Run portable runtime and distribution tests
         run: make test-core test-runtime test-pi test-evidence
+      - name: Verify fast and slow test ownership
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_REF: ${{ github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            COVERAGE_BASE_REF="$PR_BASE_REF"
+          elif [ -n "$PUSH_BEFORE_REF" ] &&
+            [ "$PUSH_BEFORE_REF" != "0000000000000000000000000000000000000000" ]; then
+            COVERAGE_BASE_REF="$PUSH_BEFORE_REF"
+          elif git rev-parse --verify "${GITHUB_SHA}^" \
+            >/dev/null 2>&1; then
+            COVERAGE_BASE_REF="${GITHUB_SHA}^"
+          else
+            echo "::error::Unable to determine a coverage base ref"
+            exit 1
+          fi
+          COVERAGE_BASE_REF="$COVERAGE_BASE_REF" \
+            node --test tests/platform-independent/make-interface.test.mjs
+      - name: Run slow installer transaction coverage
+        run: make test-slow
       - name: Enforce GitHub-only distribution and requirement drift gates
         run: |
           npm ci

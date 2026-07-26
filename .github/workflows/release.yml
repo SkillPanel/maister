@@ -29,7 +29,7 @@ jobs:
       - name: Pin release npm client
         run: |
           npm install --global "npm@${{ env.RELEASE_NPM_VERSION }}"
-          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const windows=process.platform === "win32"; const npmCommand=windows ? "npm.cmd" : "npm"; const prefix=cp.execFileSync(npmCommand,["prefix","--global"],{encoding:"utf8",shell:windows}).trim(); const bin=windows ? prefix : path.join(prefix,"bin"); fs.appendFileSync(process.env.GITHUB_PATH,bin+"\n");'
+          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const prefix=cp.execFileSync("npm",["prefix","--global"],{encoding:"utf8"}).trim(); fs.appendFileSync(process.env.GITHUB_PATH,path.join(prefix,"bin")+"\n");'
           test "$(npm --version)" = "${{ env.RELEASE_NPM_VERSION }}"
       - name: Install dependencies without package lifecycle side effects
         run: npm ci --ignore-scripts
@@ -93,7 +93,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -106,9 +106,9 @@ jobs:
       - name: Pin release npm client
         run: |
           npm install --global "npm@${{ env.RELEASE_NPM_VERSION }}"
-          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const windows=process.platform === "win32"; const npmCommand=windows ? "npm.cmd" : "npm"; const prefix=cp.execFileSync(npmCommand,["prefix","--global"],{encoding:"utf8",shell:windows}).trim(); const bin=windows ? prefix : path.join(prefix,"bin"); fs.appendFileSync(process.env.GITHUB_PATH,bin+"\n");'
-          node -e 'const expected=process.env.RELEASE_NPM_VERSION; const windows=process.platform === "win32"; const npmCommand=windows ? "npm.cmd" : "npm"; const actual=require("node:child_process").execFileSync(npmCommand,["--version"],{encoding:"utf8",shell:windows}).trim(); if(actual!==expected) throw new Error(`expected npm ${expected}, received ${actual}`)'
-      - name: Verify launcher, archive, transaction, and platform contracts
+          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const prefix=cp.execFileSync("npm",["prefix","--global"],{encoding:"utf8"}).trim(); fs.appendFileSync(process.env.GITHUB_PATH,path.join(prefix,"bin")+"\n");'
+          node -e 'const expected=process.env.RELEASE_NPM_VERSION; const actual=require("node:child_process").execFileSync("npm",["--version"],{encoding:"utf8"}).trim(); if(actual!==expected) throw new Error(`expected npm ${expected}, received ${actual}`)'
+      - name: Verify launcher, archive, recovery, and platform contracts
         run: |
           npm ci
           npm run validate
@@ -116,8 +116,9 @@ jobs:
           node --test tests/platform-independent/installer-multiple-journals.test.mjs
           node --test tests/platform-independent/installer-abrupt-crash.test.mjs
           node --test tests/platform-independent/launcher-cross-platform.test.mjs
-          node --test tests/platform-independent/installer-transaction.test.mjs
           npm pack --dry-run --json
+      - name: Run slow installer transaction coverage
+        run: make test-slow
 
   github-release:
     needs: [validate, launcher-matrix]
@@ -136,7 +137,7 @@ jobs:
       - name: Pin release npm client and install test dependencies
         run: |
           npm install --global "npm@${{ env.RELEASE_NPM_VERSION }}"
-          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const windows=process.platform === "win32"; const npmCommand=windows ? "npm.cmd" : "npm"; const prefix=cp.execFileSync(npmCommand,["prefix","--global"],{encoding:"utf8",shell:windows}).trim(); const bin=windows ? prefix : path.join(prefix,"bin"); fs.appendFileSync(process.env.GITHUB_PATH,bin+"\n");'
+          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const prefix=cp.execFileSync("npm",["prefix","--global"],{encoding:"utf8"}).trim(); fs.appendFileSync(process.env.GITHUB_PATH,path.join(prefix,"bin")+"\n");'
           test "$(npm --version)" = "${{ env.RELEASE_NPM_VERSION }}"
           npm ci --ignore-scripts
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -201,7 +202,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     env:
@@ -221,8 +222,8 @@ jobs:
       - name: Pin release npm client
         run: |
           npm install --global "npm@${{ env.RELEASE_NPM_VERSION }}"
-          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const windows=process.platform === "win32"; const npmCommand=windows ? "npm.cmd" : "npm"; const prefix=cp.execFileSync(npmCommand,["prefix","--global"],{encoding:"utf8",shell:windows}).trim(); const bin=windows ? prefix : path.join(prefix,"bin"); fs.appendFileSync(process.env.GITHUB_PATH,bin+"\n");'
-          node -e 'const expected=process.env.RELEASE_NPM_VERSION; const windows=process.platform === "win32"; const npmCommand=windows ? "npm.cmd" : "npm"; const actual=require("node:child_process").execFileSync(npmCommand,["--version"],{encoding:"utf8",shell:windows}).trim(); if(actual!==expected) throw new Error("expected npm " + expected + ", received " + actual)'
+          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const prefix=cp.execFileSync("npm",["prefix","--global"],{encoding:"utf8"}).trim(); fs.appendFileSync(process.env.GITHUB_PATH,path.join(prefix,"bin")+"\n");'
+          node -e 'const expected=process.env.RELEASE_NPM_VERSION; const actual=require("node:child_process").execFileSync("npm",["--version"],{encoding:"utf8"}).trim(); if(actual!==expected) throw new Error("expected npm " + expected + ", received " + actual)'
       - name: Real anonymous exact tag and commit smoke
         run: node tests/release/public-git-package-smoke.mjs --evidence .maister-public-smoke-evidence.ndjson
       - name: Upload public smoke evidence
@@ -252,7 +253,7 @@ jobs:
       - name: Pin release npm client and install test dependencies
         run: |
           npm install --global "npm@${{ env.RELEASE_NPM_VERSION }}"
-          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const windows=process.platform === "win32"; const npmCommand=windows ? "npm.cmd" : "npm"; const prefix=cp.execFileSync(npmCommand,["prefix","--global"],{encoding:"utf8",shell:windows}).trim(); const bin=windows ? prefix : path.join(prefix,"bin"); fs.appendFileSync(process.env.GITHUB_PATH,bin+"\n");'
+          node -e 'const fs=require("node:fs"); const path=require("node:path"); const cp=require("node:child_process"); const prefix=cp.execFileSync("npm",["prefix","--global"],{encoding:"utf8"}).trim(); fs.appendFileSync(process.env.GITHUB_PATH,path.join(prefix,"bin")+"\n");'
           test "$(npm --version)" = "${{ env.RELEASE_NPM_VERSION }}"
           npm ci --ignore-scripts
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -270,7 +271,7 @@ jobs:
           node <<'NODE'
           const fs = require("node:fs");
           const path = require("node:path");
-          for (const os of ["Linux", "macOS", "Windows"]) {
+          for (const os of ["Linux", "macOS"]) {
             const evidencePath = path.join("final-evidence", "public-smoke", `maister-public-smoke-${os}-${process.env.EVIDENCE_RUN_ID}`, ".maister-public-smoke-evidence.ndjson");
             const records = fs.readFileSync(evidencePath, "utf8").trim().split(/\r?\n/u).filter(Boolean).map(JSON.parse);
             if (records.length !== 12) throw new Error(`${os} public smoke produced ${records.length} records instead of 12`);

@@ -31,7 +31,7 @@ check-cursor-projection:
 	node plugins/maister/bin/generate-cursor-skills.mjs --check
 
 test-platform-independent:
-	node --test tests/platform-independent/*.test.mjs
+	node --test $(filter-out tests/platform-independent/installer-transaction.test.mjs,$(wildcard tests/platform-independent/*.test.mjs))
 
 test-core:
 	node --test tests/platform-independent/overlay-contract.test.mjs tests/platform-independent/source-materializer.test.mjs tests/platform-independent/flow-skill-projection.test.mjs
@@ -68,7 +68,6 @@ test-targets:
 	$(MAKE) --no-print-directory test-overlay TARGET=kiro-cli
 	$(MAKE) --no-print-directory test-overlay TARGET=pi
 	$(MAKE) --no-print-directory test-materializer
-	$(MAKE) --no-print-directory test-install
 
 test-evidence:
 	node --test tests/platform-independent/evidence-parity-topology.test.mjs tests/platform-independent/pi-evidence.test.mjs
@@ -79,7 +78,7 @@ test-current-target-admission:
 test-topology:
 	node plugins/maister/bin/release-interface.mjs topology
 
-test: test-core test-runtime test-pi test-evidence test-current-target-admission test-topology test-slow
+test: test-core test-runtime test-pi test-evidence test-current-target-admission test-topology
 
 validate: check-cursor-projection
 	node plugins/maister/bin/release-interface.mjs validate-overlays

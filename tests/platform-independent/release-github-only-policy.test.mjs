@@ -45,12 +45,13 @@ test("current all-target admission runs before the prepare-owned manifest can di
   assert.doesNotMatch(releaseWorkflow.slice(0, admission), /\.maister-resolved-commit\.json/u);
 });
 
-test("protected release jobs pin one npm version and post-Release smoke all three operating systems", () => {
+test("protected release jobs pin one npm version and post-Release smoke Linux and macOS", () => {
   assert.match(releaseWorkflow, /RELEASE_NPM_VERSION:\s*["']11\.4\.2["']/u);
   assert.match(releaseWorkflow, /npm install --global "npm@\$\{\{ env\.RELEASE_NPM_VERSION \}\}"/u);
   assert.match(releaseWorkflow, /npm --version/u);
   assert.match(releaseWorkflow, /public-smoke:[\s\S]*needs:\s*github-release/u);
-  assert.match(releaseWorkflow, /public-smoke:[\s\S]*os:\s*\[ubuntu-latest, macos-latest, windows-latest\]/u);
+  assert.match(releaseWorkflow, /public-smoke:[\s\S]*os:\s*\[ubuntu-latest, macos-latest\]/u);
+  assert.doesNotMatch(releaseWorkflow, /windows-latest|win32|runner\.os.*Windows/iu);
   assert.match(releaseWorkflow, /public-smoke:[\s\S]*public-git-package-smoke\.mjs/u);
   const publicSmokeJob = releaseWorkflow.slice(releaseWorkflow.indexOf("  public-smoke:"));
   assert.match(publicSmokeJob, /run: node tests\/release\/public-git-package-smoke\.mjs --evidence \.maister-public-smoke-evidence\.ndjson/u);

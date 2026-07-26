@@ -45,43 +45,89 @@ const MULTI_ROOT_HOME = path.join(
 );
 const COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const TARGETS = ["codex", "cursor", "kiro-cli", "pi"];
-const PI_GENERIC_INSTALLER_MATRIX_POSIX_ONLY =
-	"Pi generic installer matrix — POSIX-only";
-
-// ponytail: Pi matrix gate only; other targets always run
-function isPosixInstallerPlatform(platform = process.platform) {
-	return platform === "darwin" || platform === "linux";
-}
-
-function resolveGenericMatrixEntry(target, platform = process.platform) {
-	if (target === "pi" && !isPosixInstallerPlatform(platform)) {
-		return {
-			target,
-			runLifecycle: false,
-			constraint: PI_GENERIC_INSTALLER_MATRIX_POSIX_ONLY,
-		};
-	}
+function resolveGenericMatrixEntry(target) {
 	return { target, runLifecycle: true };
 }
 
 // The aggregate is intentionally exhaustive and can run close to eleven
 // minutes on a busy CI host. Keep the external watchdog bounded, but leave
 // enough margin for the same test when invoked through Make/CI supervision.
-const HARNESS_DEADLINE_MS = 15 * 60 * 1000;
-const HARNESS_HEARTBEAT_MS = 30 * 1000;
+const PROGRESS_FIXTURE_ENV = "MAISTER_INSTALLER_TRANSACTION_PROGRESS_FIXTURE";
+const progressFixture = process.env[PROGRESS_FIXTURE_ENV] ?? null;
+const HARNESS_DEADLINE_MS = progressFixture === "target-timeout" ? 300 : 15 * 60 * 1000;
+const HARNESS_HEARTBEAT_MS = progressFixture ? 10 : 30 * 1000;
 const HARNESS_CHILD_ENV = "MAISTER_INSTALLER_TRANSACTION_CHILD";
 const isHarnessChild = process.env[HARNESS_CHILD_ENV] === "1";
-const test = isHarnessChild ? nodeTest : () => {};
 const after = isHarnessChild ? nodeAfter : () => {};
 const harnessStartedAt = Date.now();
 const harnessSandboxes = new Set();
+let harnessInvocationCount = 0;
+let activeScenario = null;
+let activeScenarioStartedAt = null;
+let activeTarget = null;
+
+function emitProgress(event, target = activeTarget) {
+	if (!activeScenario) return;
+	process.stderr.write(
+		`${JSON.stringify({
+			kind: "maister.installer-transaction.heartbeat",
+			event,
+			scenario: activeScenario,
+			target,
+			elapsed_ms: Date.now() - harnessStartedAt,
+			scenario_elapsed_ms:
+				event === "scenario-finish"
+					? Date.now() - activeScenarioStartedAt
+					: null,
+			sandbox_count: harnessSandboxes.size,
+			invocation_count: harnessInvocationCount,
+		})}\n`,
+	);
+}
+
+async function runScenario(name, callback, context) {
+	activeScenario = name;
+	activeScenarioStartedAt = Date.now();
+	emitProgress("scenario-start", null);
+	try {
+		return await callback(context);
+	} finally {
+		activeTarget = null;
+		emitProgress("scenario-finish", null);
+		activeScenario = null;
+		activeScenarioStartedAt = null;
+	}
+}
+
+async function runTarget(target, callback) {
+	activeTarget = target;
+	emitProgress("target-start");
+	try {
+		return await callback();
+	} finally {
+		emitProgress("target-finish");
+		activeTarget = null;
+	}
+}
+
+function registerAggregateTest(name, options, callback) {
+	if (typeof options === "function") {
+		callback = options;
+		options = undefined;
+	}
+	return nodeTest(name, options, (context) => runScenario(name, callback, context));
+}
+
+const test = isHarnessChild && !progressFixture ? registerAggregateTest : () => {};
 
 if (!isHarnessChild) {
 	nodeTest(
 		"installer transaction aggregate has an external watchdog and terminal classification",
 		{ timeout: HARNESS_DEADLINE_MS + 60_000 },
 		async () => {
-			let finalTreeEvidence = [];
+			let finalTreeEvidence =
+				progressFixture === "pre-progress" ? [{ fixture: "pre-progress" }] : [];
+			let lastProgress = null;
 			const childEnvironment = { ...process.env, [HARNESS_CHILD_ENV]: "1" };
 			delete childEnvironment.NODE_TEST_CONTEXT;
 			const result = await runWithExternalWatchdog({
@@ -97,8 +143,22 @@ if (!isHarnessChild) {
 				onStdout: (chunk) => process.stderr.write(chunk),
 				onStderr: (chunk) => process.stderr.write(chunk),
 				onSupervisorHeartbeat: (record) =>
-					process.stderr.write(`${JSON.stringify(record)}\n`),
+					process.stderr.write(
+						`${JSON.stringify({ ...record, last_progress: lastProgress })}\n`,
+					),
 				onRecord: (record) => {
+					if (
+						record?.kind === "maister.installer-transaction.heartbeat" &&
+						[
+							"scenario-start",
+							"target-start",
+							"heartbeat",
+							"target-finish",
+							"scenario-finish",
+						].includes(record.event)
+					) {
+						lastProgress = record;
+					}
 					if (
 						record?.kind === "maister.installer-transaction.final-tree-evidence"
 					) {
@@ -115,6 +175,8 @@ if (!isHarnessChild) {
 					elapsed_ms: result.elapsedMs,
 					stdout_truncated: result.stdoutTruncated,
 					stderr_truncated: result.stderrTruncated,
+					lastRecord: result.lastRecord,
+					last_progress: lastProgress,
 					final_tree_evidence: finalTreeEvidence,
 				})}\n`,
 			);
@@ -216,20 +278,13 @@ function aggregateFinalTreeEvidence() {
 }
 
 const heartbeat = isHarnessChild
-	? setInterval(() => {
-			process.stderr.write(
-				`${JSON.stringify({
-					kind: "maister.installer-transaction.heartbeat",
-					elapsed_ms: Date.now() - harnessStartedAt,
-					sandboxes: harnessSandboxes.size,
-				})}\n`,
-			);
-		}, HARNESS_HEARTBEAT_MS)
+	? setInterval(() => emitProgress("heartbeat"), HARNESS_HEARTBEAT_MS)
 	: null;
 heartbeat?.unref();
 
 after(() => {
 	clearInterval(heartbeat);
+	if (progressFixture === "pre-progress") return;
 	process.stderr.write(
 		`${JSON.stringify({
 			kind: "maister.installer-transaction.final-tree-evidence",
@@ -416,7 +471,35 @@ async function invoke(command, target, box, extra = []) {
 	const cliArgs = args(command, target, box, extra);
 	if (command === "install" || command === "update")
 		cliArgs.push("--attestation", box.attestationPath);
+	harnessInvocationCount += 1;
 	return runCli(cliArgs, { env: box.env, git: box.git });
+}
+
+if (isHarnessChild && progressFixture) {
+	nodeTest("installer transaction progress contract fixture", async () => {
+		if (progressFixture === "pre-progress") {
+			await new Promise((resolve) => setTimeout(resolve, 35));
+			return;
+		}
+		if (progressFixture === "target-timeout") {
+			await runScenario("fixture target timeout", () =>
+				runTarget("cursor", () => new Promise(() => {})),
+			);
+			return;
+		}
+		await runScenario(`fixture ${progressFixture}`, async () => {
+			const box = sandbox();
+			if (progressFixture === "transitions") {
+				await runTarget("codex", async () => {
+					const failedAttempt = output(
+						await invoke("unsupported-fixture-command", "codex", box),
+					);
+					assert.notEqual(failedAttempt.code, 0);
+					emitProgress("heartbeat");
+				});
+			}
+		});
+	});
 }
 
 function output(result) {
@@ -1323,51 +1406,15 @@ test("generic matrix contains one Pi entry and routes it on POSIX", () => {
 		TARGETS.filter((target) => target === "pi"),
 		["pi"],
 	);
-	assert.deepEqual(resolveGenericMatrixEntry("pi", "linux"), {
+	assert.deepEqual(resolveGenericMatrixEntry("pi"), {
 		target: "pi",
 		runLifecycle: true,
 	});
 });
 
-test("Windows Pi generic matrix emits exactly one POSIX-only constraint and skips Pi lifecycle", () => {
-	const emissions = [];
-	let piLifecycleInvocations = 0;
-	for (const target of TARGETS) {
-		const entry = resolveGenericMatrixEntry(target, "win32");
-		if (!entry.runLifecycle) {
-			emissions.push(entry.constraint);
-			continue;
-		}
-		if (target === "pi") piLifecycleInvocations += 1;
-	}
-	assert.deepEqual(emissions, [PI_GENERIC_INSTALLER_MATRIX_POSIX_ONLY]);
-	assert.equal(emissions.length, 1);
-	assert.equal(piLifecycleInvocations, 0);
-	assert.equal(
-		resolveGenericMatrixEntry("pi", "win32").constraint,
-		PI_GENERIC_INSTALLER_MATRIX_POSIX_ONLY,
-	);
-});
-
 test("clean lifecycle commands have durable receipts for every target seam", async () => {
-	let piConstraintEmissions = 0;
-	let piLifecycleRuns = 0;
 	for (const target of TARGETS) {
-		const entry = resolveGenericMatrixEntry(target);
-		if (!entry.runLifecycle) {
-			console.log(entry.constraint);
-			piConstraintEmissions += 1;
-			continue;
-		}
-		if (target === "pi") piLifecycleRuns += 1;
-		await assertCleanLifecycleForTarget(target, sandbox());
-	}
-	if (isPosixInstallerPlatform()) {
-		assert.equal(piLifecycleRuns, 1);
-		assert.equal(piConstraintEmissions, 0);
-	} else {
-		assert.equal(piLifecycleRuns, 0);
-		assert.equal(piConstraintEmissions, 1);
+		await runTarget(target, () => assertCleanLifecycleForTarget(target, sandbox()));
 	}
 });
 
