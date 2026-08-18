@@ -1,0 +1,38 @@
+{
+  "name": "maister-codex",
+  "version": "2.2.3",
+  "description": "Structured, standards-aware development workflows for Codex",
+  "author": {
+    "name": "SkillPanel",
+    "email": "marek@skillpanel.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "development",
+    "standards",
+    "testing",
+    "workflow",
+    "migration",
+    "performance",
+    "research"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Maister Codex",
+    "shortDescription": "Standards-aware software delivery workflows.",
+    "longDescription": "Plan, implement, migrate, optimize, research, design, and verify software changes with project standards, explicit gates, resumable artifacts, browser checks, and focused Codex subagents.",
+    "developerName": "SkillPanel",
+    "category": "Development",
+    "capabilities": [
+      "Interactive",
+      "Write",
+      "Testing"
+    ],
+    "defaultPrompt": [
+      "Use Maister to plan and implement this feature.",
+      "Use Maister to migrate or optimize this system.",
+      "Initialize Maister standards for this repository."
+    ]
+  }
+}

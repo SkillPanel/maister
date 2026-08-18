@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Pragmatic Review"
+  short_description: "Detect over-engineering and needless complexity."
+  default_prompt: "Use $maister-codex:maister-reviews-pragmatic to check whether this implementation is appropriately simple."

@@ -1,0 +1,52 @@
+{
+  "description": "Maister workflow reminders, subagent safety guidance, and destructive-command protection. Commands are inlined (node -e) so no plugin-root path variable is required; the sibling .mjs files are the readable sources — keep them in sync.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e 'const f=require(\"fs\"),p=require(\"path\");let i=\"\";try{i=f.readFileSync(0,\"utf8\")}catch{}let e={};try{e=i.trim()?JSON.parse(i):{}}catch{}const w=p.resolve(typeof e.cwd===\"string\"&&e.cwd?e.cwd:process.cwd());if(f.existsSync(p.join(w,\".maister\",\"tasks\")))process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:\"SessionStart\",additionalContext:\"MAISTER RESUME CHECK: A .maister/tasks directory exists. If this chat was running a Maister orchestrator before compaction, read the active task orchestrator-state.yml and completed artifacts before continuing. Treat the state file, not recalled chat history, as the resume source of truth. Honor every remaining explicit phase approval gate.\"}})+\"\\n\")'",
+            "timeout": 10,
+            "additionalContextLimit": 1000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e 'process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:\"SessionStart\",additionalContext:\"MAISTER PLUGIN RULES: When the user explicitly invokes a $maister-codex:maister-* skill, read that skill completely and follow it before substituting another workflow. Skills compose natively: load each named supporting skill and follow its instructions. For a required phase gate, stop after presenting the review summary and request the specified user decision; do not mark the phase complete until the user responds. Never reset, discard, or roll back work without explicit user approval.\"}})+\"\\n\")'",
+            "timeout": 10,
+            "additionalContextLimit": 1200
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|shell|local_shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e 'const f=require(\"fs\");let i=\"\";try{i=f.readFileSync(0,\"utf8\")}catch{}let e={};try{e=i.trim()?JSON.parse(i):{}}catch{}const a=e.agent_type||e.agentType||e.subagent_type||e.agent||\"\";const t=e.tool_input||e.toolInput||{};const c=t.command||t.cmd||\"\";if(!a)process.exit(0);if([\"maister-test-suite-runner\",\"maister-e2e-test-verifier\",\"maister-user-docs-generator\",\"maister-docs-operator\"].includes(String(a)))process.exit(0);const d=/git\\s+stash|git\\s+reset\\s+--hard|git\\s+checkout\\s+--\\s+\\.|git\\s+checkout\\s+\\.\\s*$|git\\s+clean|git\\s+push\\s+(-f|--force)|rm\\s+-rf/i;if(typeof c===\"string\"&&d.test(c))process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"deny\",permissionDecisionReason:\"Destructive command blocked for agent \"+a+\": \"+String(c).slice(0,80)}})+\"\\n\")'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e 'process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:\"SubagentStart\",additionalContext:\"MAISTER SUBAGENT SAFETY: Stay within the assigned role, files, and output contract. Preserve unrelated work. Do not run git stash, git reset --hard, git clean, force-push, broad recursive deletion, or any rollback/discard operation. Return concrete evidence and unresolved blockers to the parent agent.\"}})+\"\\n\")'",
+            "timeout": 10,
+            "additionalContextLimit": 800
+          }
+        ]
+      }
+    ]
+  }
+}

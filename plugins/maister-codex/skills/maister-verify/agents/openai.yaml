@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Verify"
+  short_description: "Verify implementation quality without code edits."
+  default_prompt: "Use $maister-codex:maister-verify to verify this completed implementation."

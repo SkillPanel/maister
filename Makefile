@@ -1,4 +1,4 @@
-.PHONY: build validate clean watch
+.PHONY: build validate validate-codex clean watch
 
 build:
 	bash platforms/copilot-cli/build.sh
@@ -17,6 +17,24 @@ validate:
 	@echo "Checking no maister: prefixes in copilot variant..."
 	@! grep -r 'maister:' plugins/maister-copilot/ --include="*.md" 2>/dev/null || (echo "FAIL: maister: prefix found" && exit 1)
 	@echo "All checks passed"
+	@$(MAKE) validate-codex
+
+validate-codex:
+	@echo "Checking codex plugin manifest parses..."
+	@node -e "JSON.parse(require('fs').readFileSync('plugins/maister-codex/.codex-plugin/plugin.json','utf8'))" || (echo "FAIL: invalid plugin.json" && exit 1)
+	@echo "Checking codex hooks config parses..."
+	@node -e "JSON.parse(require('fs').readFileSync('plugins/maister-codex/hooks/hooks.json','utf8'))" || (echo "FAIL: invalid hooks.json" && exit 1)
+	@echo "Checking codex hook scripts..."
+	@for f in plugins/maister-codex/hooks/*.mjs; do node --check "$$f" || exit 1; done
+	@echo "Checking no Claude-only artifacts in codex skills..."
+	@! grep -rE 'AskUserQuestion|TaskCreate|TaskUpdate|SlashCommand|Skill tool|Task tool|CLAUDE_PLUGIN_ROOT|CLAUDE\.md|/maister:' plugins/maister-codex/skills/ 2>/dev/null || (echo "FAIL: Claude-only artifact found in codex skills" && exit 1)
+	@echo "Checking codex SKILL.md names match directories..."
+	@for d in plugins/maister-codex/skills/*/; do n=$$(basename $$d); grep -q "^name: $$n$$" "$$d/SKILL.md" || (echo "FAIL: $$d frontmatter name != $$n" && exit 1); done
+	@echo "Checking codex agent template names match filenames..."
+	@for f in plugins/maister-codex/skills/maister-init/assets/agents/*.toml; do b=$$(basename $$f .toml); grep -q "^name = \"$$b\"$$" "$$f" || (echo "FAIL: $$f name != $$b" && exit 1); done
+	@echo "Checking codex-native marketplace manifest parses..."
+	@node -e "const m=JSON.parse(require('fs').readFileSync('.agents/plugins/marketplace.json','utf8')); if(!m.plugins.some(p=>p.name==='maister-codex')) throw new Error('maister-codex missing')" || (echo "FAIL: invalid .agents/plugins/marketplace.json" && exit 1)
+	@echo "Codex checks passed"
 
 clean:
 	rm -rf plugins/maister-copilot/

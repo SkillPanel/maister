@@ -1,0 +1,19 @@
+{
+  "name": "maister-plugins",
+  "interface": {
+    "displayName": "Maister"
+  },
+  "plugins": [
+    {
+      "name": "maister-codex",
+      "source": {
+        "source": "local",
+        "path": "./plugins/maister-codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Development"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Orchestrator Framework"
+  short_description: "Share resumable workflow orchestration patterns."
+  default_prompt: "Use $maister-codex:maister-orchestrator-framework to apply Maister state, gate, recovery, and artifact conventions."
