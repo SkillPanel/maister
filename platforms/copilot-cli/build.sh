@@ -19,8 +19,9 @@ rm -rf "$OUT"
 cp -r "$CORE" "$OUT"
 rm -rf "$OUT/hooks"
 
-# 1. Update plugin.json name
+# 1. Update plugin.json name and description
 sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"
+sedi 's/for Claude Code/for GitHub Copilot CLI/' "$OUT/.claude-plugin/plugin.json"
 
 # 2. Strip plugin prefix from command names: "maister:foo" → "foo"
 #    Plugin system adds the plugin-id prefix automatically
@@ -54,19 +55,7 @@ find "$OUT/skills" -name "*.md" | while read f; do
   sedi 's/CLAUDE\.md/.github\/copilot-instructions.md/g' "$f"
 done
 
-# 7. Add platform note to plugin's CLAUDE.md
-cat >> "$OUT/CLAUDE.md" << 'EOF'
-
-## Platform: Copilot CLI
-
-This is the Copilot CLI variant. Key differences from Claude Code:
-- **No multi-select**: When asking users to select multiple options, ask sequential single-select questions instead
-- **Command names**: No plugin prefix in names (e.g., `development`); the plugin system adds the plugin-id prefix automatically
-- **Project instructions file**: Use `.github/copilot-instructions.md` instead of `CLAUDE.md`. If the project uses `AGENTS.md`, support that as well.
-- **User questions**: Use `ask_user` tool instead of `AskUserQuestion`
-EOF
-
-# 8. Replace AskUserQuestion with copilot's ask_user tool
+# 7. Replace AskUserQuestion with copilot's ask_user tool
 find "$OUT" -name "*.md" | while read f; do
   sedi 's/AskUserQuestion/ask_user/g' "$f"
 done

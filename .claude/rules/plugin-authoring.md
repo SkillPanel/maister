@@ -1,0 +1,57 @@
+---
+paths:
+  - "plugins/maister/**"
+---
+# Plugin authoring conventions
+
+Applies when editing skills, agents, commands, hooks, or references under `plugins/maister/`.
+
+## Philosophy
+
+**Trust Claude to reason.** Provide principles, patterns, and decision criteria — not prescriptive implementations. Explain WHAT to do, WHEN to do it, and WHY; leave HOW to the executing agent. Documentation is a map, not a manual.
+
+## Rules
+
+1. **No verbose pseudocode.** Show conceptual patterns and decision frameworks, never complete implementations.
+2. **No prescriptive templates.** Guide thinking; don't dictate exact prompts or scripts.
+3. **Single source of truth.** Orchestration logic lives in the skill's `SKILL.md`. Commands, agents, and other skills *reference* it — they never duplicate it.
+4. **Commands are thin wrappers.** User-facing guidance in the command; everything else in the skill it invokes.
+5. **References are conceptual.** Code examples ≤10 lines and only for: test patterns, config samples, API usage, decision pseudocode. No framework boilerplate, no production code.
+6. **Prefer user-invocable skills** over non-invocable library skills for reusable components; orchestrators invoke them via the Skill tool.
+
+## Length targets
+
+| Artifact | Target |
+|---|---|
+| Skill description (frontmatter / summaries) | 5–15 lines |
+| Command file | thin — invoke + usage notes |
+| Agent file | 300–450 lines: mission, decision frameworks, workflow principles |
+| Orchestrator phase reference | 600–800 lines (max 1,000) |
+| Algorithm / pattern reference | 400–600 lines (max 800) |
+| Strategy / decision reference | 300–500 lines (max 600) |
+| All references in one skill | < 3,000 lines total |
+| Individual standard (`###` section in a standards file) | 1–10 lines + optional snippet |
+
+## Adding things
+
+- **Skill**: `skills/<name>/SKILL.md` (uppercase) with `name` + `description` frontmatter — the description is what the Skill tool and users see. Optional `references/`, `assets/`. Orchestrators additionally follow `skills/orchestrator-framework/references/orchestrator-creation-checklist.md` and read `orchestrator-patterns.md` at init.
+- **Command**: `commands/<name>.md`, flat (no subdirectories) and no colons in `name` — the Copilot build requires both. Invoke a skill; don't embed logic.
+- **Agent**: `agents/<name>.md` with `name`, `description`, `tools` frontmatter. Read-only unless it must write. If it truly needs destructive Bash, add it to the `case` whitelist in `hooks/block-destructive-commands.sh` — default is *not* whitelisted.
+- **Hook**: register in `hooks/hooks.json` using `${CLAUDE_PLUGIN_ROOT}` paths; script alongside.
+
+## Delegation (skills that orchestrate)
+
+Skill tool for skills, Task tool for agents — never a skill via Task (`subagent_type` will fail). Skills that spawn subagents must run in the main agent. The companion-agent pattern (e.g. `docs-operator` preloading `docs-manager`) works only for skills that spawn **no** subagents. Canonical: `orchestrator-patterns.md` § 1.
+
+## Copilot build compatibility
+
+`platforms/copilot-cli/build.sh` transforms source into `plugins/maister-copilot/` and `make validate` enforces: flat commands, no colons in command names, no `multi-select`/`multiSelect` wording in skills, no `maister:` prefixes, no `CLAUDE.md` references in skills. Write source so the substitutions (`AskUserQuestion` → `ask_user`, multi-select → sequential single-select) still read correctly.
+
+## Review checklist
+
+- ✓ WHAT / WHEN / WHY, not step-by-step HOW
+- ✓ Code examples ≤10 lines and conceptual
+- ✓ Within length targets
+- ✓ Nothing duplicated from a `SKILL.md` — referenced instead
+- ✓ An experienced developer could implement from it
+- ✓ Tool/framework agnostic where possible

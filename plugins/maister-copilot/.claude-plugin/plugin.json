@@ -1,7 +1,7 @@
 {
   "name": "maister-copilot",
   "version": "2.2.3",
-  "description": "Structured, standards-aware development workflows for Claude Code",
+  "description": "Structured, standards-aware development workflows for GitHub Copilot CLI",
   "author": {
     "name": "Skillpanel",
     "email": "marek@skillpanel.com"
