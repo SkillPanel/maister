@@ -1,0 +1,98 @@
+# Tolerated shape (drift #9): project_context is nested under `task_context:`.
+# The writer form is core-optional top-level; readers accept this variant and warn.
+orchestrator:
+  type: development
+  started_phase: phase-14
+  completed_phases:
+    - phase-1
+    - phase-2
+    - phase-5
+    - phase-6
+    - phase-7
+    - phase-8
+    - phase-10
+    - phase-11
+    - phase-14
+  skipped_phases:
+    phase-3: has_reproducible_defect false - additive feature, no defect to reproduce
+    phase-4: ui_heavy false - backend-only, no UI surface in this repo
+    phase-9: phase-3 was not executed
+    phase-12: e2e_enabled false - no browser surface in this repo
+    phase-13: operator decision at Phase 10 - backend endpoint, nothing to screenshot
+  failed_phases: []
+  auto_fix_attempts:
+    phase-1: 0
+    phase-2: 0
+  options:
+    html_output: true
+    mockup_format: html
+    spec_audit_enabled: true
+    skip_test_suite: false
+    regen_required_after_verification: false
+    e2e_enabled: false
+    user_docs_enabled: false
+    code_review_enabled: true
+    pragmatic_review_enabled: true
+    reality_check_enabled: true
+    production_check_enabled: true
+    sequential: null
+  created: 2026-08-11T20:27:00Z
+  updated: 2026-08-12T19:59:24Z
+  task_path: .maister/tasks/development/2026-08-11-acme-1001-my-progress-backend
+  task_ids:
+    phase-1: "1"
+    phase-2: "2"
+    phase-5: "3"
+    phase-6: "4"
+    phase-7: "5"
+    phase-8: "6"
+    phase-10: "7"
+    phase-11: "8"
+    phase-13: "9"
+    phase-14: "10"
+task:
+  key: ACME-1001
+  title: "[INV] My progress: backend support for employee progress summary"
+  description: 'Investigation: can the backend serve the four "My progress" metrics for the current employee, all-time, in a single call? (1) Count of completed activities. (2) Count of achieved certificates - is a certificate a record in Catalog Hub awarded on activity completion, or a separate manually managed entity? (3) Total time spent on learning - is actual time-on-activity recorded anywhere? LEDGER reports progress and score; does it also report session time? For video / article / workshop types, is there anything beyond declared duration metadata? (4) Is all-time scope queryable without an N+1 per activity? Why it matters: "My progress" tile on the new employee dashboard (ACME-1002). Metric 3 is the risk - if only declared duration exists, we either ship "estimated time" or drop the metric. Expected deliverable: yes/no verdict per metric with endpoint names where they exist; shape of work required for gaps; follow-up tickets created for the gaps. Scope boundaries: NOT in scope - manager/team-level aggregate progress; building any of it. Context: Northwind (WIDGET) go-live 1 October 2026.'
+  status: completed
+  tags:
+    - investigation
+    - widget
+    - dashboard
+    - learning
+  priority: high
+task_context:
+  risk_level: medium
+  clarifications_resolved: true
+  architecture_decision: null
+  is_investigation: true
+  jira_key: ACME-1001
+  related_tickets:
+    - ACME-1002
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: true
+    involves_data_operations: true
+    ui_heavy: false
+  project_doc_paths:
+    - .maister/docs/INDEX.md
+    - .maister/docs/project/vision.md
+    - .maister/docs/project/roadmap.md
+    - .maister/docs/project/tech-stack.md
+  phase_summaries:
+    codebase_analysis:
+      summary: "Metrics 1 (completed activities) and 4 (all-time, no N+1) are servable today from widget_enrollment in one jOOQ query. Metric 2 (certificates) lives entirely outside the Java backend as plugin-owned custom objects. Metric 3 (actual time) exists for LEDGER only, as a monotonic MAX of a single session, with zero read sites. Verdict on the ticket's headline question - four metrics in a single call: NO."
+      decisions: []
+      risks: []
+      artifacts:
+        - path: analysis/codebase-analysis.md
+          label: Codebase analysis
+          html: null
+  project_context:
+    project_doc_paths:
+      - .maister/docs/INDEX.md
+      - .maister/docs/project/vision.md
+      - .maister/docs/project/roadmap.md
+      - .maister/docs/project/tech-stack.md
+    project_context_summary: Modular monolith; standards in .maister/docs/INDEX.md.

@@ -1,0 +1,55 @@
+task:
+  name: "Catalog Applications UI"
+  type: product-design
+  description: "Design the frontend for the catalog-applications module (employee request -> handler decision -> coordinator handoff), integrated with existing WIDGET UI from employee and manager perspectives."
+  status: completed
+  created: "2026-08-11T11:19:35Z"
+  updated: "2026-08-11T11:59:08Z"
+completed_phases: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+next_phase: null
+options:
+  html_output: true
+  mockup_format: html
+  visual_enabled: true
+  autonomous_mode: true   # user explicitly instructed: answer all gates myself, no interruptions
+design_context:
+  design_characteristics:
+    is_greenfield: false
+    is_enhancement: true
+    is_ui_focused: true
+    is_backend: false
+    is_complex: true
+    is_simple: false
+  complexity_level: "complex"
+  collected_urls: []
+  research_topics: []
+  user_files_list: []
+  project_doc_paths:
+    - ".maister/docs/INDEX.md"
+    - ".maister/docs/project/tech-stack.md"
+    - ".maister/docs/project/architecture.md"
+    - ".maister/docs/standards/frontend/*.md"
+    - ".maister/docs/standards/design-system/*.md"
+  external_context_paths:
+    - "~/Repos/repo-alpha/.worktrees/feature-widget/.maister/tasks/research/2026-08-10-applications-module-grounding"
+    - "~/Repos/repo-alpha/.worktrees/feature-widget/.maister/tasks/development/2026-08-11-applications-module-catalog"
+  refinement_iterations:
+    phase_2: 0
+    phase_3: 0
+    phase_5: 0
+    phase_6_sections: {}
+    phase_7: 0
+  visual_companion:
+    available: true
+    port: 3847
+    pid: null
+    fallback_to_ascii: false
+  phase_summaries:
+    context_synthesis: {summary: "BE module ~11/16 groups done; no REST/no acme-portal.d.ts types yet; FE owns every needed primitive - problem is placement+choreography", sources_count: 4, artifacts: [{path: analysis/design-context.md, label: Design Context}]}
+    problem_exploration: {summary: "Three actors, three homes; handler is NOT a manager; two async seams (form creation, edit=withdraw+replace); two weak evidentiary facts", artifacts: [{path: analysis/problem-statement.md, label: Problem Statement}]}
+    persona_exploration: {personas: [Ewa-requester, Tomasz-handler, Agata-coordinator], user_journeys: [raise, edit, decide, lost-race, handoff, complaint], artifacts: [{path: analysis/personas.md, label: Personas}]}
+    idea_generation: {alternatives_count: 44, summary: "12 decision areas x 3+ alternatives each", artifacts: [{path: analysis/alternatives.md, label: Alternatives, html: analysis/alternatives.html}]}
+    idea_convergence: {selected_approach: "One feature module, one detail route, three doors (hybrid placement)", key_decisions: [D1-D12], artifacts: [{path: analysis/design-decisions.md, label: Design Decisions, html: analysis/design-decisions.html}]}
+    feature_specification: {sections_count: 8, artifacts: [{path: analysis/feature-spec.md, label: Feature Spec, html: analysis/feature-spec.html}]}
+    visual_prototyping: {summary: "13 HTML mockups via visual companion (port 3847), design-resource discovery bound to Chakra v3 tokens + WIDGET conventions", mockup_references: [catalog-employee-tab-widget-shell, my-enrollments-catalog-cta-widget-integration, my-actions-catalog-decision-item-handler-inbox, new-request-eligible-trainings-picker, request-detail-preparing-your-form, request-detail-filling-the-form-embedded-survey, request-detail-handler-view-awaiting-decision, reject-with-reason-dialog, request-detail-approved-requester-view, admin-handoff-tab-multi-select-unrecorded-banner, admin-processes-tab-list, admin-process-editor-catalog, request-detail-notification-diagnostics-manage]}
+    review_handoff: {brief_layers: [core, personas, decisions, mockups], summary: "Layered brief assembled; BE ask list D12 is the first downstream action", artifacts: [{path: outputs/product-brief.md, label: Product Brief, html: outputs/product-brief.html}]}

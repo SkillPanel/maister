@@ -1,0 +1,6 @@
+# .maister/config.yml in a v3 workspace member: repo_id is the additive v3 key
+# the umbrella manifest and the dispatch envelope refer to this repository by.
+html_output: true
+mockup_format: ascii
+repo_id: repo-alpha
+notification_channel: none

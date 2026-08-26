@@ -1,0 +1,186 @@
+orchestrator:
+  started_phase: phase-6
+  completed_phases: [phase-1, phase-2, phase-3, phase-4, phase-5, phase-6]
+  failed_phases: []
+
+  auto_fix_attempts:
+    phase-1: 0
+    phase-2: 0
+    phase-3: 0
+    phase-4: 0
+    phase-5: 0
+    phase-6: 0
+
+  options:
+    html_output: true          # .maister/config.yml absent - default
+    brainstorming_enabled: true   # user chose at Phase 2 gate
+    design_enabled: true          # user chose at Phase 2 gate
+
+  created: "2026-08-12T20:38:06Z"
+  updated: "2026-08-25T11:45:31Z"
+  task_path: .maister/tasks/research/2026-08-12-maister-v3-directions
+
+  task_ids:
+    phase-1: "1"
+    phase-2: "2"
+    phase-3: "3"
+    phase-4: "4"
+    phase-5: "5"
+    phase-6: "6"
+
+task:
+  title: "Maister v3 direction research"
+  description: >
+    Research and evaluate six candidate directions for maister v3:
+    (1) skill-definition simplification for modern high-capability models
+    (2) declarative user-defined workflows (text graph combining built-in
+    phases/skills with custom skills/subagents)
+    (3) built-in multi-project / umbrella-project support (cross-project
+    research + triage dispatching, per-project standards/docs)
+    (4) deeper PR / issue-tracker integration for cross-project
+    communication (e.g. FE agent files BE change requests under an epic)
+    (5) a model for chaining workflows (research -> product design ->
+    development, multi-project development) with coordination
+    (6) maister designing and executing such complex cross-project
+    workflows adjusted to a particular task.
+  status: completed
+  tags: [v3, architecture, research]
+  priority: high
+
+research_context:
+  research_type: mixed
+  research_question: >
+    What should maister v3 look like: how should the six proposed
+    directions (skill simplification, declarative workflows,
+    multi-project support, PR/issue-tracker integration, workflow
+    chaining, and AI-assisted workflow design/execution) be evaluated,
+    shaped, and prioritized given the current codebase and modern model
+    capabilities?
+  scope:
+    included:
+      - current maister architecture (orchestrator framework, skills, agents, commands, state, hooks)
+      - token/verbosity audit of skill/agent/reference definitions
+      - modern model capability trade-offs (instruction density)
+      - external patterns (declarative DAG workflows, multi-repo orchestration, issue-tracker agent coordination, Claude Code primitives)
+      - umbrella-project usage patterns as requirements evidence
+      - interrelationships between the six directions
+    excluded:
+      - implementation of any direction
+      - detailed v2->v3 migration plan
+      - non-Claude-Code runtimes
+    constraints:
+      - v3 remains a Claude Code plugin (plugin/skill/agent/command/hook primitives)
+      - existing users have .maister layouts, in-flight tasks, per-project standards
+      - must radicalize (not contradict) existing "trust Claude to reason" doc principles
+  methodology:
+    - codebase analysis of plugins/maister (architecture mapping)
+    - quantitative verbosity audit (metrics + prescriptiveness rubric)
+    - requirements archaeology on ~/Repos/skillpanel-guru
+    - literature review (workflow formats, tracker coordination, Claude Code primitives)
+    - synthesis via per-direction scorecard + cross-direction overlap matrix
+  sources:
+    - plugins/maister/{skills,agents,commands,hooks,.claude-plugin}/
+    - ~/Repos/skillpanel-guru (verified readable - jira-analysis, projects/, .claude/skills, knowledge/)
+    - code.claude.com docs (plugins, skills, sub-agents, headless/SDK, hooks)
+    - workflow-format docs (GitHub Actions, Argo, Dagster, LangGraph, Temporal)
+    - gh CLI / GitHub Projects / sub-issues docs
+  confidence_level: high
+  gathering_strategy:
+    categories: [current-architecture, verbosity-audit, umbrella-usage, claude-code-platform, workflow-patterns, tracker-coordination]
+    count: 6
+    source: planner
+  project_doc_paths: []        # no .maister/docs/INDEX.md in this repo
+  phase_summaries:
+    phase-1:
+      summary: "All 4 steps complete: brief, plan, 21 findings files (6 parallel gatherers), synthesis + research report (confidence: high). Verdict: six directions are really three - cut surface ~50% (D1), one declarative workflow mechanism (D2/D5/D6), umbrella coordination (D3 + D4 as intake/close-out)."
+      steps_completed: [step-1-initialize, step-2-plan, step-3-gather, step-4-synthesize]
+      decisions:
+        - decision: "D2/D5/D6 are one mechanism - one declarative workflow file + one engine, at three ambition levels distinguished only by who writes the file"
+          rationale: "do not design them as three features"
+        - decision: "D3+D4 share a substrate (dispatch envelope + cross-project state) but D4 is descoped to intake/close-out"
+          rationale: "tracker-as-agent-channel has zero observed demand; files/PR-ordering fill that role today"
+        - decision: "D1 goes first - it shrinks and de-rots everything later layers touch"
+          rationale: "gate enforcement must move from ~15k tokens of repeated prose to deterministic hooks BEFORE the text is cut"
+        - decision: "Session, not subagent, is the cross-project dispatch unit"
+          rationale: "confirmed independently by platform docs (subagents are cwd-pinned) and the user's empirical agent-deck workaround"
+      risks:
+        - "Gate-compliance after the cut rests on hook-based enforcement (unproven; validate with skill-creator evals) - the codebase documents a model that read the rule and still skipped gates"
+        - "All demand evidence for D3/D4/D5 comes from one power user (skillpanel-guru); generalization confidence Medium"
+        - "Engine strategy (LLM-interpreted YAML vs compile-to-native platform workflows) unresolved - native workflows forbid mid-run user gates and cross-directory stages"
+        - "Dynamic fan-out (foreach: one node per member repo) has no static-YAML donor pattern; unattended dispatch is unsolved on every substrate"
+        - "resolved: D2/5/6 overlap - one mechanism (three evidence strands converge independently)"
+        - "resolved: skillpanel-guru readable - richer than expected"
+      artifacts:
+        - { path: outputs/research-report.md, label: "Research report (main deliverable)", html: outputs/research-report.html }
+    phase-3:
+      summary: "solution-brainstormer produced 6 decision areas / 21 alternatives. Recommended path: A1+B1+C4+D-1+E1+F2 (interpret / minimal YAML / staged hooks-first cut / engine-native umbrella / 5-primitive tracker adapter / incremental additive rollout). 9 deferred ideas."
+      decisions:
+        - decision: "Recommended combination A1+B1+C4+D-1+E1+F2"
+          rationale: "assembled per-area from 5-perspective matrices; pending user convergence in Phase 4"
+      risks:
+        - "Hook-based gate enforcement is the single riskiest assumption - if evals show hooks + one-statement prose cannot hold gate compliance, Area C cut depth and Area A engine trust model both need revisiting"
+        - "All demand evidence for Areas D/E is one power user; recommendations favor the smallest shapes that serve the evidence"
+        - "Engine-interpretation drift (A1) is unmeasured: build an engine-faithfulness eval alongside the grammar validator"
+      artifacts:
+        - { path: outputs/solution-exploration.md, label: "Solution exploration (6 areas, 21 alternatives)", html: outputs/solution-exploration.html }
+    phase-4:
+      summary: "All 6 decision areas converged. Chosen: A1 (LLM-interpreted) + B1 two-level YAML w/ overlay & eject + Mermaid view + C4 staged hooks-first cut + D-1+mirror hybrid umbrella (with umbrella<->child comms to design) + E1 5-primitive tracker adapter + F2 incremental additive rollout. User refinements beyond brainstormer recommendation: two-level grammar (built-ins as YAML, user-extensible with custom phases/analysis profiles), ledger tracker-mirror, child->parent/sibling follow-up communication model."
+      decision_areas:
+        - area: "A. Engine strategy"
+          alternatives_count: 4
+          chosen_approach: "A1 LLM-interpreted workflow files on the existing kernel (format decision deferred to Area B)"
+        - area: "B. Workflow grammar"
+          alternatives_count: 4
+          chosen_approach: "B1 two-level: minimal GHA-derived YAML canonical at both levels (user workflows AND shipped built-ins like development.yml), auto-rendered Mermaid view, user customization via overlay (extends/add/tune/disable + analysis profiles) and eject; node names frozen as compat contract; when: conditions limited to boolean refs on node outputs"
+        - area: "C. D1 execution strategy"
+          alternatives_count: 4
+          chosen_approach: "C4 staged hybrid: hooks + eval harness before any prose cut; incremental dedup of durable kernel; minimal touch on orchestrator bodies the engine replaces; contract-extraction only where it doubles as engine input (phase tables -> workflow YAML). Gate enforcement = hooks + rule-stated-once."
+        - area: "D. Umbrella architecture"
+          alternatives_count: 4
+          chosen_approach: "D-1 + mirror hybrid: engine-native dispatch (dir: nodes over native sessions), file-canonical structured ledger behind a pluggable schema contract, optional one-way tracker mirror reusing the Area E adapter; full tracker backing kept as designed v-next slot. USER-ADDED design requirement for Phase 5: model umbrella<->child communication - child sessions report follow-ups addressed to siblings or the parent (inputs: DISPATCH-RESULT close-out contract, ledger follow-up entries, platform cross-session messaging)."
+        - area: "E. Tracker integration"
+          alternatives_count: 3
+          chosen_approach: "E1: tracker-agnostic 5-primitive adapter {parent, typed-link, transition, comment, search} with gh + ACLI/MCP implementations, consumed by intake + close-out nodes and the Area D ledger mirror; reads may go CLI-direct, writes through the adapter; Atlassian MCP coverage spike before contract freeze."
+        - area: "F. Rollout/compat"
+          alternatives_count: 3
+          chosen_approach: "F2 incremental additive: successive releases on the v2 plugin/layout, Layer-0 schemas frozen as compat contract, old task dirs never migrate, commands as alias stubs, written parity checklist schedules prose-orchestrator deletion."
+      deferred_ideas:
+        - "Tracker as agent-to-agent channel (revisit: ledger race symptoms under concurrency)"
+        - "Compile-to-native workflow backend (revisit: measured fan-out bottleneck)"
+        - "foreach: runtime dynamic fan-out (revisit: members unknowable at plan time)"
+        - "Learning loop via memory frontmatter (revisit: after umbrella ships)"
+        - "Effort-tier routing in /maister:work (revisit: grammar freeze)"
+        - "Product-design as workflow file (revisit: grammar gains loop constructs)"
+        - "Cloud/scheduled dispatch (revisit: off-machine demand)"
+        - "Agent-teams task-list adoption (revisit: teams GA with per-teammate cwd)"
+        - "Tracker-backed ledger backing (revisit: same as agent-to-agent channel)"
+    phase-5:
+      summary: "High-level design complete: engine-interpreted layered architecture (4 layers over frozen kernel), 14 components, 12 MADR ADRs, 8-release F2 roadmap, 9 extension slots. New design: umbrella<->child comms via outbox files + SendMessage doorbell, parent-routed star (ADR-008)."
+      architecture_style: "engine-interpreted layered (4 layers over frozen kernel)"
+      decisions_count: 12
+      decisions:
+        - decision: "One generic engine interprets validated workflow YAML on the existing kernel (state, node_summaries bus, gates, resume) - ADR-001; grammar kept compile-friendly for a deferred native backend"
+          rationale: "gates + cross-directory dispatch are hard requirements only interpretation satisfies today"
+        - decision: "Two-level grammar: definition files + overlay files (extends: + add/tune/disable + profiles); eject = copy-and-own shadowing; built-in node names frozen as the public compat contract - ADR-002, ADR-003, ADR-005"
+          rationale: "one artifact for human authoring, chaining, and the AI planner; validate-before-run is the trust model"
+        - decision: "Gate enforcement moves to deterministic hooks + rule-stated-once BEFORE prose cuts; eval harness lands first - ADR-006"
+          rationale: "the repetition being cut was defending gate compliance"
+        - decision: "Umbrella<->child comms: per-dispatch outbox files (canonical) + SendMessage doorbell (nudge), parent-routed star; follow-ups become ledger entries and, at operator discretion, new dispatch units or messages into live siblings - ADR-008"
+          rationale: "children never talk to siblings directly - all cross-child coordination is parent-routed and operator-visible"
+        - decision: "Ledger is file-canonical behind a versioned 7-operation schema contract with pluggable backing; tracker writes go only through the 5-primitive adapter - ADR-009, ADR-010"
+          rationale: "smallest evidence-covered shape, versioned for cheap revision"
+      risks:
+        - "Hook observability of 'gate fired before state update' is the load-bearing assumption for the whole D1 cut depth - prototype in Release 1 before any prose is touched"
+        - "Engine-interpretation drift is unmeasured; the engine-faithfulness eval harness is a Release-1 deliverable, not an afterthought"
+        - "Atlassian MCP transition/link coverage must be spiked before the adapter contract freezes; fallback is ACLI-only for Jira"
+        - "Umbrella/comms shapes generalize from one power user (n=1); every Layer-3 schema is deliberately the smallest evidence-covered shape, versioned for cheap revision"
+        - "Child outbox writes require cross-directory write permission granted by the seed; fallback is greppable DISPATCH-FOLLOWUP transcript harvesting at lower fidelity"
+      artifacts:
+        - { path: outputs/high-level-design.md, label: "High-level design (C4, 4 layers, roadmap)", html: outputs/high-level-design.html }
+        - { path: outputs/decision-log.md, label: "Decision log (12 ADRs)", html: outputs/decision-log.html }
+        - { path: analysis/synthesis.md, label: "Synthesis (scorecards + overlap matrix)", html: null }
+        - { path: planning/research-brief.md, label: "Research brief", html: null }
+        - { path: planning/research-plan.md, label: "Research plan", html: null }
+        - { path: planning/sources.md, label: "Source inventory", html: null }
+        - { path: analysis/findings/, label: "Findings (21 files, 6 categories)", html: null }
+        - { path: analysis/findings/external-factory-ai.md, label: "Addendum: Factory.ai comparison (2026-08-25)", html: null }

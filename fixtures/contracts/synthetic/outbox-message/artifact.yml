@@ -1,0 +1,7 @@
+version: 1
+type: artifact
+dispatch_id: d-0142
+at: 2026-08-24T15:40:11Z
+path: implementation/visual-coverage.md
+role: coverage
+summary: "Every mockup state is covered except the empty-catalog case, which the design system owns."

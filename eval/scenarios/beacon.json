@@ -1,0 +1,17 @@
+{
+  "id": "beacon",
+  "title": "Every session start leaves a liveness marker outside the working tree",
+  "providers": "both",
+  "seed": "chain-template",
+  "engine_prompt": false,
+  "variants": ["copilot-user-hooks"],
+  "turns": [
+    {"prompt": "reply ok"}
+  ],
+  "pass": [
+    {"check": "beacon_present"},
+    {"check": "beacon_field", "field": "provider", "value": "{PROVIDER}"},
+    {"check": "beacon_field", "field": "node", "value": "^v\\d+\\."},
+    {"check": "no_writes_under_maister_beyond_seed"}
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/dashboard-data",
+  "title": "dashboard-data.js payload",
+  "description": "Contract A2. Validates the parsed object, not the file. The file itself is exactly one statement assigning strict JSON to the data global; readers additionally accept a bare-key JavaScript object literal on the right-hand side.",
+  "type": "object",
+  "required": ["generated", "task", "phases"],
+  "properties": {
+    "generated": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+    "task": {
+      "type": "object",
+      "required": ["title", "type", "status"],
+      "properties": {
+        "title": { "type": "string" },
+        "type": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/workflow_type" },
+        "status": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/task_status" },
+        "description": { "type": ["string", "null"] },
+        "path": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
+        "current_activity": { "type": ["string", "null"] }
+      }
+    },
+    "characteristics": {
+      "description": "Mirror of task_characteristics or design_characteristics, plus whatever else the run recorded. Open map.",
+      "type": "object"
+    },
+    "phases": { "type": "array", "items": { "$ref": "#/$defs/phase" } },
+    "verification": { "$ref": "#/$defs/verification" }
+  },
+  "$defs": {
+    "icon_hint": {
+      "description": "Presentation hint only; the viewer maps it to an icon.",
+      "enum": ["analysis", "spec", "plan", "code", "verify", "docs", "done"]
+    },
+    "severity": {
+      "description": "Writers emit critical, warning or info. Readers additionally tolerate the four legacy values.",
+      "enum": ["critical", "warning", "info", "high", "medium", "low", "resolved"]
+    },
+    "phase": {
+      "type": "object",
+      "required": ["id", "name", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "icon_hint": { "$ref": "#/$defs/icon_hint" },
+        "status": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/phase_status" },
+        "started": {
+          "anyOf": [{ "type": "null" }, { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" }]
+        },
+        "completed": {
+          "anyOf": [{ "type": "null" }, { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" }]
+        },
+        "skip_reason": { "type": ["string", "null"] },
+        "summary": { "type": ["string", "null"] },
+        "decisions": {
+          "type": "array",
+          "items": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/decision_item" }
+        },
+        "risks": {
+          "description": "Copied verbatim from the artifact. A resolved risk keeps its entry and gains a resolved prefix.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/artifact_ref" }
+        },
+        "gate": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "properties": {
+                "question": { "type": ["string", "null"] },
+                "answer": { "type": ["string", "null"] }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "verification": {
+      "description": "Mirror of verification_context, when the run has one.",
+      "type": "object",
+      "properties": {
+        "status": { "type": ["string", "null"] },
+        "issues": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
+        "fixes": {
+          "type": "array",
+          "items": { "type": ["string", "object"] }
+        },
+        "decisions": {
+          "type": "array",
+          "items": { "type": ["string", "object"] }
+        },
+        "reverify_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "properties": {
+        "severity": { "$ref": "#/$defs/severity" },
+        "category": { "type": ["string", "null"] },
+        "description": { "type": ["string", "null"] },
+        "fixable": { "type": ["boolean", "null"] },
+        "fixed": { "type": ["boolean", "null"] }
+      }
+    }
+  }
+}

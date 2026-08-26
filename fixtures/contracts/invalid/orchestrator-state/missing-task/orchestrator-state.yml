@@ -1,0 +1,12 @@
+# Invalid: the required top-level task block is absent. orchestrator alone is not a state.
+orchestrator:
+  type: development
+  started_phase: phase-1
+  completed_phases: []
+  failed_phases: []
+  created: 2026-08-20T09:00:00Z
+  updated: 2026-08-20T09:00:00Z
+  task_path: .maister/tasks/development/2026-08-20-widget-list
+
+task_context:
+  risk_level: low

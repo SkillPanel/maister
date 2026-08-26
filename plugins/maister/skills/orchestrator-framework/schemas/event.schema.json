@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/event",
+  "title": "Coordination event",
+  "description": "Contract C7. Event files are immutable and fold in timestamp order, ties broken by id. An illegal status transition is ignored and flagged, never applied.",
+  "type": "object",
+  "required": ["version", "id", "at", "type"],
+  "properties": {
+    "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+    "id": {
+      "description": "The file's identity.",
+      "$ref": "https://maister.dev/schemas/contracts/common#/$defs/uuid7"
+    },
+    "at": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "email": { "type": ["string", "null"] },
+        "machine": { "type": ["string", "null"] },
+        "via": { "enum": ["engine", "daemon", "cockpit"] }
+      }
+    },
+    "run_id": { "type": ["string", "null"] },
+    "dispatch_id": { "type": ["string", "null"] },
+    "type": { "$ref": "#/$defs/type" },
+    "data": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "type": "object", "required": ["type"], "properties": { "type": { "const": "status" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/status_data" } } }
+    },
+    {
+      "if": { "type": "object", "required": ["type"], "properties": { "type": { "const": "followup" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/followup_data" } } }
+    },
+    {
+      "if": { "type": "object", "required": ["type"], "properties": { "type": { "const": "closeout" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/closeout_data" } } }
+    },
+    {
+      "if": { "type": "object", "required": ["type"], "properties": { "type": { "const": "mirror" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/mirror_data" } } }
+    }
+  ],
+  "$defs": {
+    "type": {
+      "enum": ["create", "claim", "status", "constraint", "followup", "closeout", "dismiss", "archive", "mirror"]
+    },
+    "status_data": {
+      "type": "object",
+      "required": ["to"],
+      "properties": { "to": { "$ref": "https://maister.dev/schemas/contracts/ledger-entry#/$defs/status" } }
+    },
+    "followup_data": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "to": { "enum": ["parent", "sibling"] },
+        "addressee": { "type": "object" },
+        "summary": { "type": ["string", "null"] },
+        "artifacts": { "type": "array" }
+      }
+    },
+    "closeout_data": {
+      "type": "object",
+      "required": ["grade"],
+      "properties": {
+        "grade": { "$ref": "https://maister.dev/schemas/contracts/dispatch-envelope#/$defs/grade" },
+        "prs": { "type": "array" },
+        "summary": { "type": ["string", "null"] }
+      }
+    },
+    "mirror_data": {
+      "description": "Contract T1, the tracker mirror map. One key is stored per mirrored event, which is what makes mirroring idempotent: an event with no mirror child has not been mirrored yet.",
+      "type": "object",
+      "required": ["tracker", "event_ref", "key"],
+      "properties": {
+        "tracker": { "enum": ["jira", "github"] },
+        "event_ref": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/uuid7" },
+        "key": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

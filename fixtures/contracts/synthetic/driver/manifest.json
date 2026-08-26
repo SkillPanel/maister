@@ -1,0 +1,31 @@
+{
+  "id": "driver",
+  "contracts": [
+    "E1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "terminal.yml",
+      "schema": "driver.schema.json#"
+    },
+    {
+      "path": "cockpit-claude.yml",
+      "schema": "driver.schema.json#"
+    },
+    {
+      "path": "cockpit-copilot.yml",
+      "schema": "driver.schema.json#"
+    },
+    {
+      "path": "dispatch.yml",
+      "schema": "driver.schema.json#"
+    }
+  ],
+  "notes": "One document per driver kind. Each file is the value of orchestrator.driver, not a wrapper. terminal omits cwd and session (absent driver block is equivalent); the two cockpit files cover both providers, with model present on Claude and absent on Copilot; dispatch carries session.status lost."
+}

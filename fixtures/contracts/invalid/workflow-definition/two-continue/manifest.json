@@ -1,0 +1,23 @@
+{
+  "id": "two-continue",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "two-continue.yml",
+      "schema": "workflow-definition.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/nodes/approve/options",
+    "error_keyword": "gate-exactly-one-continue"
+  },
+  "notes": "The gate rule is expressed with if/then in the schema: type gate implies no uses, exactly one continue and at least one stop. Group 3 implemented this as a runner check rather than a schema constraint, so the expected keyword is the runner rule name, not an AJV keyword."
+}

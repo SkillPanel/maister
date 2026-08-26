@@ -1,0 +1,20 @@
+version: 1
+dispatch_id: d-0142
+chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-beta}
+target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/widget-0142}
+provider: copilot
+session: {name: "widget-rollout/0142/dev-beta", id: 019260a4-1a2b-7c3d-8e4f-506172839405, substrate: p, status: closed}
+status: closed
+grade: success
+created: 2026-08-24T11:15:41Z
+updated: 2026-08-24T16:02:58Z
+constraints:
+  - {kind: merge_after, ref: d-0139}
+followups:
+  - {id: fu-0142-01, to: parent, addressee: {member: repo-alpha}, summary: "Shared client package needs the widget owner field before the beta rollout can drop the shim.", artifacts: [], status: open}
+  - {id: fu-0142-02, to: sibling, addressee: {member: design-system}, summary: "Catalog row needs an owner column token.", artifacts: [{path: implementation/visual-coverage.md, role: evidence}], status: dismissed}
+closeout:
+  prs: [{repo: repo-beta, number: 481, url: "https://example.test/repo-beta/pull/481"}]
+  commits: [a1b2c3d4e5f60718293a4b5c6d7e8f9012345678]
+  summary: "Widget owner column shipped behind the existing feature flag; shim retained."
+  at: 2026-08-24T16:02:58Z

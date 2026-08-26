@@ -1,0 +1,7 @@
+{
+  "sessionId": "0e90ef0a-ca32-4e55-9b92-1662c3e4905e",
+  "timestamp": 1787676595472,
+  "cwd": "/home/dev/work/repo-alpha",
+  "toolName": "apply_patch",
+  "toolArgs": "*** Begin Patch\n*** Add File: marker.txt\n+done\n*** End Patch\n"
+}

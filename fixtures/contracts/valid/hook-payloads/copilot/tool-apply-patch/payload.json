@@ -1,0 +1,7 @@
+{
+  "sessionId": "beb9bdb8-e39b-4dfd-8217-89a96f67601b",
+  "timestamp": 1787675730368,
+  "cwd": "/home/dev/work/repo-alpha",
+  "toolName": "apply_patch",
+  "toolArgs": "*** Begin Patch\n*** Add File: hello.txt\n+hi\n*** End Patch\n"
+}

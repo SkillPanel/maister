@@ -1,0 +1,44 @@
+{
+  "id": "dev-complete-a",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A5",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-alpha/development/2026-08-11-a",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "artifacts/implementation-plan.md",
+      "schema": null,
+      "truncated": true
+    },
+    {
+      "path": "artifacts/implementation-verification.md",
+      "schema": null,
+      "truncated": true
+    },
+    {
+      "path": "artifacts/spec.md",
+      "schema": null,
+      "truncated": true
+    }
+  ],
+  "strict_a2": false,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "Completed development run. Exercises orchestrator.skipped_phases (#19), orchestrator.type (#20), task.key (#21) and the free-form orchestrator.options map (#22). dashboard-data.js is a bare-key JS object literal, so strict_a2 is false. phase_summaries.clarifications is the frozen decision_item[] array form."
+}

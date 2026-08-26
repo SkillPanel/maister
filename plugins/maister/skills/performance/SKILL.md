@@ -16,7 +16,7 @@ Static-analysis-first performance optimization workflow. Identifies bottlenecks 
 
 Before doing anything else, settle this policy now and do not re-litigate it at any gate:
 
-**`→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `AskUserQuestion` at a gate. They apply only to your discretionary clarifications.
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `AskUserQuestion` at a gate. They apply only to your discretionary clarifications. Invoke `AskUserQuestion` when `orchestrator.driver.kind` is absent or `terminal` — the only modes this orchestrator runs in until the engine makes it driver-aware; in `cockpit`/`dispatch` mode write the gate request file and end the turn instead (`compatibility-contracts.md § E2`).
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
@@ -57,7 +57,7 @@ Starting Phase 1: Codebase Analysis...
 
 Cross-cutting rules from `orchestrator-patterns.md` (same as the development orchestrator):
 
-1. **Artifact Summary Contract (§ 7)**: every artifact-writing subagent prompt MUST include the contract instruction (artifacts open with TL;DR / Key Decisions / Open Questions & Risks). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` — verbatim, never re-summarized.
+1. **Artifact Summary Contract (§ 7)**: every artifact-writing subagent prompt MUST include the contract instruction (artifacts open with TL;DR / Key Decisions / Open Questions / Risks — the writer heading is `## Open Questions / Risks`). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` — verbatim, never re-summarized.
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark `in_progress` before delegating), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks — the operator reviews them on the dashboard while answering; status stays `in_progress` until the gate passes), after every phase completion (including skipped phases, with reason), every gate decision, every verification cycle, and at finalization. Every rewrite starts with `date -u` (one call per turn). It is a terse projection of state — never duplicate artifact content into it.
 3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to specification-creator, implementation-planner, and implementation-verifier. Register returned `html_path` values in `phase_summaries.[phase].artifacts[].html` so the dashboard hero cards link HTML first.
 4. **icon_hint values** per phase: 1 `analysis`, 2 `analysis`, 3 `spec`, 4 `verify`, 5 `plan`, 6 `code`, 7 `verify`, 8 `verify`, 9 `done`.
@@ -378,19 +378,24 @@ verification_context:
   decisions_made: []
   reverify_count: 0
 
-options:
-  html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
-  spec_audit_enabled: null
-  skip_test_suite: true
-  code_review_enabled: true
-  pragmatic_review_enabled: true
-  reality_check_enabled: true
-  production_check_enabled: null
+# `options` lives under `orchestrator:`; `performance_context`, `verification_context`
+# are its top-level siblings (compatibility-contracts.md § A1)
+orchestrator:
+  options:
+    html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
+    spec_audit_enabled: null
+    skip_test_suite: true
+    code_review_enabled: true
+    pragmatic_review_enabled: true
+    reality_check_enabled: true
+    production_check_enabled: null
 ```
 
 ---
 
 ## Task Structure
+
+The normative layout and naming rules are `../orchestrator-framework/references/compatibility-contracts.md § A4`; the tree below is this workflow's instance of them.
 
 ```
 .maister/tasks/performance/YYYY-MM-DD-task-name/

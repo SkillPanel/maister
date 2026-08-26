@@ -1,0 +1,28 @@
+{
+  "id": "order-violation",
+  "contracts": [
+    "A1",
+    "A2"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/orchestrator/completed_phases/1",
+    "error_keyword": "phase-status-cross-check"
+  },
+  "notes": "Both documents validate against their own schemas; the runner cross-check is what fails. phase-2 is in completed_phases while dashboard-data reports it in_progress with completed null."
+}

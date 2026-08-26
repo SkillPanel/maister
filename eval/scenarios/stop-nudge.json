@@ -1,0 +1,34 @@
+{
+  "id": "stop-nudge",
+  "title": "A gate node running with no request file refuses the stop once",
+  "providers": "both",
+  "seed": "running-no-request",
+  "engine_prompt": true,
+  "turns": [
+    {
+      "prompt": "reply done"
+    }
+  ],
+  "pass": [
+    {
+      "check": "stop_nudge_resolved",
+      "node": "approve"
+    },
+    {
+      "check": "trace_block_count",
+      "op": "lte",
+      "value": 8
+    },
+    {
+      "check": "wall_lt",
+      "value": 120
+    },
+    {
+      "check": "trace_block_count",
+      "op": "gte",
+      "value": 1,
+      "advisory": true
+    }
+  ],
+  "notes": "The nudge exists so a gate node cannot be left running with no request file. A model that writes the request file on its own gives the hook nothing to block, and the spec counts that as a pass - so the hard predicate is 'the session did not stop with both missing', and the block count itself is advisory."
+}

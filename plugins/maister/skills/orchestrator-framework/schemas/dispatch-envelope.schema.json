@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/dispatch-envelope",
+  "title": "Dispatch envelope",
+  "description": "Contract C2. Written by the engine before a worker is spawned and copied into the worker's seed. Additive.",
+  "type": "object",
+  "required": ["version", "dispatch_id", "target", "provider", "autonomy"],
+  "properties": {
+    "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+    "dispatch_id": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/short_id" },
+    "chain": {
+      "type": "object",
+      "properties": {
+        "run_id": { "type": ["string", "null"] },
+        "node": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+        "umbrella_id": { "type": ["string", "null"] }
+      }
+    },
+    "target": {
+      "type": "object",
+      "required": ["member", "path"],
+      "properties": {
+        "member": { "type": "string", "minLength": 1 },
+        "path": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
+        "worktree": { "type": ["string", "null"] }
+      }
+    },
+    "provider": { "enum": ["claude", "copilot"] },
+    "session": {
+      "type": "object",
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "substrate": { "$ref": "#/$defs/substrate" }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "uses": { "type": "string" },
+        "with": { "type": "object" }
+      }
+    },
+    "inputs": {
+      "description": "Read-only references seeded into the worker.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string" },
+          "role": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "autonomy": { "$ref": "https://maister.dev/schemas/contracts/umbrella-manifest#/$defs/autonomy" },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "allow": { "type": "array", "items": { "type": "string" } },
+        "deny": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "outbox": {
+      "description": "Resolved to an absolute path at spawn. The only cross-directory write the worker is granted.",
+      "type": "string"
+    },
+    "branch": { "type": ["string", "null"] },
+    "ticket": { "type": ["string", "null"] },
+    "closeout_contract": {
+      "type": "object",
+      "properties": {
+        "pr_required": { "type": "boolean" },
+        "grade": { "type": "array", "items": { "$ref": "#/$defs/grade" } }
+      }
+    }
+  },
+  "$defs": {
+    "substrate": { "enum": ["p", "bg", "manual"] },
+    "grade": { "enum": ["success", "partial", "failed"] }
+  }
+}

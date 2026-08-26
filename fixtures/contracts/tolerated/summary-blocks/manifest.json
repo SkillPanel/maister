@@ -1,0 +1,25 @@
+{
+  "id": "amp-heading",
+  "contracts": [
+    "A5"
+  ],
+  "verdict": "tolerated",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-beta/development/2026-08-12-c",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "amp-heading.md",
+      "schema": null,
+      "truncated": true
+    }
+  ],
+  "expect": {
+    "warnings": [
+      "open-questions-amp-heading"
+    ]
+  },
+  "notes": "Drift #1/#25. Real artifact using \"## Open Questions & Risks\"; the writer form is \"## Open Questions / Risks\" and the `&` form is tolerated on read with a warning."
+}

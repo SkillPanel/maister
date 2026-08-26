@@ -1,0 +1,19 @@
+{
+  "id": "dispatch-envelope",
+  "contracts": [
+    "C2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "dev-beta.envelope.yml",
+      "schema": "dispatch-envelope.schema.json#"
+    }
+  ],
+  "notes": "The envelope the engine writes before spawning a dir: node worker. autonomy attended is the tier that denies push, merge and PR creation, which is what the permissions block renders. outbox is the only cross-directory write the worker is granted."
+}

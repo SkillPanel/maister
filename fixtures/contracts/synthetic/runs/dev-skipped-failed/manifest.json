@@ -1,0 +1,28 @@
+{
+  "id": "dev-skipped-failed",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "The failure/skip corner of A1 and A2 that no sampled run covers: orchestrator.skipped_phases with reasons, failed_phases [phase-9], auto_fix_attempts exhausted, task.status failed, and dashboard phases carrying status skipped (with skip_reason) and failed. Also carries the 3-value severity emit set (critical/warning/info) per drift #11."
+}

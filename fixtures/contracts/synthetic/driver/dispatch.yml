@@ -1,0 +1,10 @@
+# E1 dispatch driver: the run was started from an umbrella dispatch envelope.
+# session.status lost is what the daemon writes when the process is gone but the run is unfinished.
+kind: dispatch
+cwd: /home/dev/work/repo-alpha
+session:
+  id: 019260a1-6e40-7c5d-9e6f-708192ab3c4d
+  name: dispatch-0192-widget-rollout
+  provider: claude
+  model: claude-sonnet-4-6
+  status: lost

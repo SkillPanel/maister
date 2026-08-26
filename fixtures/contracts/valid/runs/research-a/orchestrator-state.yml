@@ -1,0 +1,180 @@
+orchestrator:
+  started_phase: phase-6
+  completed_phases: [phase-1, phase-2, phase-3, phase-4, phase-5, phase-6]
+  failed_phases: []
+  auto_fix_attempts: {}
+  options:
+    html_output: true
+    brainstorming_enabled: true
+    design_enabled: true
+  created: "2026-08-10T19:14:55Z"
+  updated: "2026-08-10T22:44:58Z"
+  task_path: .maister/tasks/research/2026-08-10-applications-module-grounding
+  task_ids: {}
+
+task:
+  title: "Applications module technical grounding (catalog requests)"
+  description: >
+    Depth-first technical grounding inside `repo-alpha` for a new `applications` module
+    (catalog requests / catalog requests for Northwind). Settled constraints:
+    new module owning the request aggregate; driven by the existing workflow engine;
+    forms via the existing survey module (extended); work list via the existing
+    action-item "My actions" surface; schema invariants (step-row state, many-to-one
+    asked/decided tables, candidate set resolved at step activation). Research areas
+    A-H: module conventions, survey extension, workflow engine as host, action-item
+    integration, permissions & tenancy, notifications, API/frontend contract, export.
+    Verify from code/DDL/migrations over docs; negative findings first-class; no
+    implementation plan - grounding only.
+  status: completed
+  tags: [research, technical, applications-module, northwind]
+  priority: high
+
+research_context:
+  research_type: technical
+  research_question: >
+    What are the actual mechanics inside `repo-alpha` (with path:line citations) that a new
+    `applications` module must build on - module conventions, survey extension blast
+    radius, workflow-engine hosting, action-item integration, permissions/tenancy,
+    notifications, API/frontend contract, and export - given the five settled
+    constraints for the catalog-requests use case?
+  scope:
+    included:
+      - "A. module shape and conventions (layout, boundaries, read/write split, checklists, testing)"
+      - "B. survey extension (withdrawn state, per-respondent uniqueness, entity-reference field, post-submission edit)"
+      - "C. workflow engine as host (authoring, provisioning, tenant scoping, human-blocking steps, failure/recovery, existing integrations)"
+      - "D. action-item integration (assignment model, claim semantics, new item type cost, frontend generic rendering)"
+      - "E. permissions and tenancy for a new module"
+      - "F. notifications end to end and incomplete-introduction failure mode"
+      - "G. API and frontend contract (acme-portal.d.ts, DTO, localisation)"
+      - "H. export mechanisms for an external party"
+    excluded:
+      - "build-vs-buy / which-engine comparison (settled by prior cross-repo research)"
+      - "implementation plan or design (this is grounding only)"
+      - "training-needs use case design (later, out of scope)"
+    constraints:
+      - "New module in repo-alpha owns the request aggregate"
+      - "Existing workflow engine drives the process; no new @WorkflowImpl / task queue"
+      - "Forms via existing survey module, extended where short"
+      - "Work list via existing action-item / My actions surface"
+      - "Schema invariants: step-row state (no live request status column), many-to-one asked/decided tables, candidate set resolved at step activation"
+      - "Code/DDL/migrations win over design docs; negative findings first-class"
+  methodology:
+    - "Parallel subsystem-scoped codebase analysis (Glob/Grep discovery -> targeted Read -> deep dive -> cross-source verification)"
+    - "Code/DDL/Liquibase wins over docs; doc-code disagreement is a finding"
+    - "Negative findings first-class with recorded searches; path:line citations mandatory"
+  sources:
+    - "src/main/java/com/acme/portal/ (workflow, survey, actionitem, widget, performancereview, organization, tenant, shared)"
+    - "db/changelog/{2023..2026}/ + baseline"
+    - "docs/*.md (claims to verify), docs/acme-portal.d.ts"
+    - ".maister/docs/standards/**"
+    - "pom.xml, application*.yml, scripts/"
+    - "repo-beta / repo-beta (area D only, secondary)"
+  confidence_level: high
+  gathering_strategy:
+    categories: [module-conventions, survey, workflow, actionitem, notif-export, api-contract, integrations]
+    count: 7
+    source: planner
+  project_doc_paths:
+    - .maister/docs/project/vision.md
+    - .maister/docs/project/roadmap.md
+    - .maister/docs/project/tech-stack.md
+  phase_summaries:
+    phase-1:
+      summary: "All 4 steps complete: brief, plan, 12 findings files from 7 gatherers, synthesis + research report (overall confidence: high, zero factual contradictions between gatherers)."
+      steps_completed: [step-1, step-2, step-3, step-4]
+      decisions:
+        - decision: "Uniqueness belongs on the request aggregate, not survey_response - a global unique would break performance review"
+          rationale: "WIDGET partial-unique-index precedent applies verbatim"
+        - decision: "Handler group = N person assignment rows resolved at activation, not a team row"
+          rationale: "team-pool assignees receive zero notifications (ActionItemNotificationHandler.java:146-151)"
+      risks:
+        - "C5 partial misfit: two open steps per subject impossible within one workflow instance (sequential engine); asked/decided tables must be module-owned (workflow_step_execution_assignee is dead)"
+        - "C2 sharp edges: any step failure terminally fails the workflow; retry machinery inert; timeouts unenforced; ACTION_ITEM step has no step_type_registry seed (validated authoring path rejects it)"
+        - "Post-submission survey editing is the one expensive extension; withdraw-and-edit pre-decision avoids nearly all cost"
+        - "Silent-drop notifications: no in-repo template validation, no sent log"
+        - "No handoff-evidence channel exists - must be module-owned state"
+        - "Cross-repo permission registration (auth repo) requires coordinated deploy"
+        - "Cross-schema FK behavior of tenant bridge tables referencing global workflow tables unexamined for dedicated-tenant edge cases"
+      artifacts:
+        - path: planning/research-brief.md
+          label: "Research brief"
+          html: null
+        - path: planning/research-plan.md
+          label: "Research plan"
+          html: null
+        - path: planning/sources.md
+          label: "Sources inventory"
+          html: null
+        - path: analysis/synthesis.md
+          label: "Synthesis (cross-reference log)"
+          html: null
+        - path: outputs/research-report.md
+          label: "Research report (main deliverable)"
+          html: outputs/research-report.html
+    phase-3:
+      summary: "Solution exploration written: 7 decision areas (hosting, state ownership, handler work item, edit/retract, subject binding, handoff, notifications), 20 alternatives, consolidated 'module-owns-the-facts' recommendation (1C/2B/3B/4.1A+4.2A/5B/6B)."
+      decisions:
+        - decision: "Recommend domain-primary state (2B) - engine's asked table dead, decided-by absent, no terminal event"
+          rationale: "owning rows cheaper than bridging to state the engine doesn't maintain"
+        - decision: "Recommend shipping ACTION_ITEM step_type_registry seed (1C)"
+          rationale: "one idempotent global changeset activates validation for all future consumers"
+        - decision: "Recommend decision-via-module-endpoint (3B)"
+          rationale: "structured payload + atomic decided row; canonical DomainActionCompletedEvent loop"
+      risks:
+        - "If operator picks 2A, cross-schema FK pattern must be verified on dedicated tenants (Northwind) before design"
+        - "Auth-repo coordinated deploy (new applications permission_domain) is alternative-independent - sequence in design phase"
+      artifacts:
+        - path: outputs/solution-exploration.md
+          label: "Solution exploration"
+          html: outputs/solution-exploration.html
+    phase-4:
+      summary: "All 7 decision areas converged interactively; user selected the recommended alternative in every area (full 'module-owns-the-facts' set). Mid-phase: branch rebased onto master (commit 151ccd6ec, subject-scoped survey sections) - impact assessed, no decision invalidated, addendum written."
+      decision_areas:
+        - { area: "1 Process hosting", alternatives_count: 3, chosen_approach: "1C generator + validated path + ACTION_ITEM seed" }
+        - { area: "2 Step/asked/decided state", alternatives_count: 3, chosen_approach: "2B domain-owned step rows, engine as driver" }
+        - { area: "3 Handler work item", alternatives_count: 3, chosen_approach: "3B Navigate + module decision endpoint" }
+        - { area: "4.1 Edit/retract", alternatives_count: 3, chosen_approach: "4.1A withdraw-to-terminal + prefilled fresh response" }
+        - { area: "4.2 Subject binding", alternatives_count: 3, chosen_approach: "4.2A workflow-id + subject on request + SurveyContextContributor" }
+        - { area: "5 Handoff + evidence", alternatives_count: 4, chosen_approach: "5B module CSV export + handoff attestation" }
+        - { area: "6 Notifications", alternatives_count: 4, chosen_approach: "6B lean templates + send-attempt log" }
+      deferred_ideas:
+        - "Claim/pool visibility buildout (3C machinery) if handler exclusivity becomes a product need"
+        - "Entity-reference question type (4.2C) if in-form subject selection appears"
+        - "Plugin-SDK pull endpoint for the provider (5C-pull) once integration capability verified"
+        - "jakarta-@Nullable fidelity fix on ActionItemListItemDto while touching the work-list surface"
+        - "Out-of-scope: post-submission editing framework; platform-wide sent log/template registry; engine terminal-event + cancel-cleanup; timeout/retry revival; generic export framework"
+      decisions:
+        - decision: "Chosen combination = full recommended set (1C/2B/3B/4.1A/4.2A/5B/6B)"
+          rationale: "user confirmed each area individually; Area 6 after expanded detail"
+      risks:
+        - "resolved: rebase onto 151ccd6ec assessed - survey_response_subject no longer display-only; 4.1A prefill must copy subject_key (noted for design)"
+      artifacts:
+        - path: analysis/findings/rebase-impact-151ccd6ec.md
+          label: "Rebase impact addendum (151ccd6ec)"
+          html: null
+    phase-5:
+      summary: "High-level design + decision log written: applications module owns request aggregate and all displayable facts; 2-step COMPANY workflow; 6 module tables, 11 components, 7 integration seams with live precedents; 9 accepted ADRs (7 ratify converged choices, ADR-008 module step codes with activation-time resolution, ADR-009 write-once terminal outcome column). Neutral posture toward training-needs."
+      architecture_style: "modular-monolith module; module-owns-the-facts; engine/survey/action-items as drivers"
+      decisions_count: 9
+      decisions:
+        - decision: "ADR-008: module-owned step codes APPLICATIONS_FORM/APPLICATIONS_DECISION"
+          rationale: "stock ACTION_ITEM step only takes static/bind-time assignees; activation-time N-person resolution needs custom handlers"
+        - decision: "ADR-009: write-once terminal outcome column (NULL while open)"
+          rationale: "reconciles 'no live status column' with the open-uniqueness partial-index predicate"
+        - decision: "ADR-004 extension: each edit cycle is a new workflow instance"
+          rationale: "sequential engine cannot rewind a completed step"
+        - decision: "ADR-008 amended (post-completion, operator prompt): 'extend stock ACTION_ITEM' considered & rejected; composition mandate (item creation via ActionItemFacade incl. createOrSkipIfOpen); FORM-step reuse check for the stock await-survey handler in specification"
+          rationale: "resolver hook = never-built AssigneeResolver platform feature for one consumer; module still needs activation-time code for asked/step rows"
+      risks:
+        - "Handler-group source of truth: v1 assumes company-configured team; product must confirm (no group scope in permission system)"
+        - "Exact subject entity behind 'training part' must be pinned in specification"
+        - "Decide-vs-withdraw race resolved by optimistic lock on DECISION step row - needs explicit concurrency test"
+        - "Notifier templates externally provisioned - launch gated on per-template stage smoke test"
+        - "Auth repo must ship applications permission_domain before repo-alpha grants work"
+      artifacts:
+        - path: outputs/high-level-design.md
+          label: "High-level design"
+          html: outputs/high-level-design.html
+        - path: outputs/decision-log.md
+          label: "Decision log (9 ADRs)"
+          html: outputs/decision-log.html

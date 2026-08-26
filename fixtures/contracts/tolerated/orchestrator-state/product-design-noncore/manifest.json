@@ -1,0 +1,25 @@
+{
+  "id": "product-design-noncore",
+  "contracts": [
+    "A1"
+  ],
+  "verdict": "tolerated",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-beta/product-design/2026-08-11-a",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "expect": {
+    "degraded": [
+      "no-orchestrator-block",
+      "inventory-with-title"
+    ]
+  },
+  "notes": "Drift #24. A real product-design run written without an `orchestrator:` block: completed_phases, next_phase and options sit at the top level and the phase ids are integers. The state parses and task.title exists, so the cockpit path it exercises is degraded, not broken -- the run renders as an inventory row with a title and cannot be resumed."
+}

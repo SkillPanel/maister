@@ -1,0 +1,7 @@
+{
+  "sessionId": "019260a6-3333-7a22-8b33-c4d5e6f70813",
+  "timestamp": 1787680000000,
+  "cwd": "/home/dev/work/repo-alpha",
+  "toolName": "apply_patch",
+  "toolArgs": "*** Begin Patch\n*** Delete File: /home/dev/work/repo-alpha/.maister/umbrella/runs/019260a2-1122-7c33-8d44-5e6677889900/gates/approve.request.yml\n*** End Patch\n"
+}

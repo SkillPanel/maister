@@ -1,0 +1,37 @@
+{
+  "id": "gate-pending",
+  "contracts": [
+    "A1",
+    "A2",
+    "B2",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "gates/approve.request.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    },
+    {
+      "path": "gates/index.yml",
+      "schema": "gate.schema.json#/$defs/index"
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "The pending state the gate hook must detect through both rules: gate_pending is a one-line flow map (rule a) and gates/approve.request.yml carries the line \"answer: null\" (rule b). This is the state_fixture the synthetic replay payloads point at. The multi-choice flag is spelled multi_select here and in gate.schema.json only - it must never reach the Copilot build."
+}

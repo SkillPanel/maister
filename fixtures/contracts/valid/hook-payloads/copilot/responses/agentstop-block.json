@@ -1,0 +1,4 @@
+{
+  "decision": "block",
+  "reason": "gate node 'approve' is running but <run>/gates/approve.request.yml does not exist: write the request file, set gate_pending, print GATE-PENDING: approve, then stop"
+}

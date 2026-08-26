@@ -1,0 +1,22 @@
+{
+  "id": "copilot-pre-silent-ok",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "1.0.80",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_pretooluse"
+    }
+  ],
+  "expect": {
+    "platform_outcome": "fail-open"
+  },
+  "notes": "Copilot CLI preToolUse payload captured live (Copilot CLI 1.0.80, headless -p with GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true). Baseline: empty stdout, exit 0, tool ran, ~150-180 ms overhead. platform_outcome documents what the harness did, not what the maister hook decides."
+}

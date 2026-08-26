@@ -1,0 +1,63 @@
+orchestrator:
+  type: performance
+  started_phase: phase-6
+  completed_phases: [phase-1, phase-2, phase-3, phase-4, phase-5, phase-6]
+  failed_phases: []
+  auto_fix_attempts: {}
+  options:
+    html_output: true
+    spec_audit_enabled: null
+    skip_test_suite: true
+    code_review_enabled: true
+    pragmatic_review_enabled: true
+    reality_check_enabled: true
+    production_check_enabled: null
+  created: 2026-08-20T09:12:04Z
+  updated: 2026-08-20T15:47:31Z
+  task_path: .maister/tasks/performance/2026-08-20-catalog-list-latency
+
+task:
+  title: Catalog list endpoint latency
+  status: completed
+  description: >-
+    The catalog list endpoint spends most of its wall time in per-row lookups.
+    Static analysis only; no operator profiling data was supplied.
+  tags: [performance, backend]
+  priority: high
+
+performance_context:
+  bottlenecks_identified: 4
+  user_data_available: false
+  bottleneck_priorities:
+    p0: 1
+    p1: 2
+    p2: 1
+    p3: 0
+  phase_summaries:
+    codebase_analysis:
+      key_files: [src/catalog/CatalogListQuery.java, src/catalog/CatalogRepository.java]
+      summary: Read model assembles the list row by row through the repository facade.
+      decisions: []
+      risks: []
+      artifacts: [{path: analysis/codebase-analysis.md, label: Codebase analysis, html: null}]
+    bottleneck_analysis:
+      bottlenecks: [n-plus-one-catalog-rows, missing-index-catalog-owner, unbounded-page-size]
+      summary: One P0 N+1 over catalog rows, two P1 index gaps, one P2 unbounded page size.
+      user_data_incorporated: false
+      decisions:
+        - decision: Fix the N+1 with a single joined projection rather than a per-row cache
+          rationale: The cache would need invalidation on every owner change; the join is one statement.
+      risks: [Index creation needs a maintenance window on the largest tenant]
+      artifacts: [{path: analysis/bottleneck-analysis.md, label: Bottleneck analysis, html: null}]
+    specification:
+      summary: Three ordered changes with a measured before/after assertion each.
+      decisions: []
+      risks: []
+      artifacts: [{path: implementation/spec.md, label: Specification, html: implementation/spec.html}]
+
+verification_context:
+  last_status: passed
+  issues_found: 0
+  fixes_applied: []
+  decisions_made: []
+  reverify_count: 0

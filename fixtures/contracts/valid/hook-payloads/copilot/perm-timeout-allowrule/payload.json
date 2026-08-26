@@ -1,0 +1,12 @@
+{
+  "hookName": "permissionRequest",
+  "sessionId": "afb3baa0-c60b-48c4-9dcd-32eb0616e592",
+  "timestamp": 1787676590875,
+  "cwd": "/home/dev/work/repo-alpha",
+  "toolName": "edit",
+  "toolInput": {
+    "file_path": "/home/dev/work/repo-alpha/marker.txt",
+    "diff": "\ndiff --git a/home/dev/work/repo-alpha/marker.txt b/home/dev/work/repo-alpha/marker.txt\ncreate file mode 100644\nindex 0000000..0000000\n--- a/dev/null\n+++ b/home/dev/work/repo-alpha/marker.txt\n@@ -1,0 +1,2 @@\n+done\n+\n\n"
+  },
+  "permissionSuggestions": []
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/workflow-overlay",
+  "title": "Workflow overlay (grammar level 2)",
+  "description": "Contract B1, overlay half. Resolution order is base, then disable, then tune, then add, then the selected profile. An overlay may not change the uses of a base node.",
+  "type": "object",
+  "required": ["extends"],
+  "properties": {
+    "extends": { "$ref": "#/$defs/base_ref" },
+    "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+    "add": { "$ref": "#/$defs/add" },
+    "tune": { "$ref": "#/$defs/tune" },
+    "disable": { "$ref": "#/$defs/disable" },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/ops" }
+    }
+  },
+  "$defs": {
+    "base_ref": {
+      "description": "A built-in workflow name or a path to a definition file.",
+      "anyOf": [
+        { "type": "string", "pattern": "^builtin:[a-z][a-z0-9-]*$" },
+        { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" }
+      ]
+    },
+    "add": {
+      "description": "New nodes. Each must attach to an existing node through needs.",
+      "type": "object",
+      "propertyNames": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+      "additionalProperties": { "$ref": "https://maister.dev/schemas/contracts/workflow-definition#/$defs/node" }
+    },
+    "tune": {
+      "description": "Shallow merge onto an existing node. Only with, optional and provider may be tuned.",
+      "type": "object",
+      "propertyNames": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "with": { "type": "object" },
+          "optional": { "type": "boolean" },
+          "provider": { "enum": ["claude", "copilot"] }
+        }
+      }
+    },
+    "disable": {
+      "description": "Node ids to remove. Dependents are re-wired to the removed node's needs.",
+      "type": "array",
+      "items": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" }
+    },
+    "ops": {
+      "description": "The same three operations, applied after the overlay body when the profile is selected.",
+      "type": "object",
+      "properties": {
+        "add": { "$ref": "#/$defs/add" },
+        "tune": { "$ref": "#/$defs/tune" },
+        "disable": { "$ref": "#/$defs/disable" }
+      }
+    }
+  }
+}

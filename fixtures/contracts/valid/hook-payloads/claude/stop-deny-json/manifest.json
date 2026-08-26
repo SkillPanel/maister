@@ -1,0 +1,22 @@
+{
+  "id": "claude-stop-deny-json",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "2.1.245",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.jsonl",
+      "schema": "hook-payloads.schema.json#/$defs/claude_stop"
+    }
+  ],
+  "expect": {
+    "platform_outcome": "fail-closed"
+  },
+  "notes": "Claude Code Stop payload captured live (Claude Code 2.1.245, headless -p). decision block on stdout: the stop was refused every time until --max-turns; stop_hook_active turned true from the second invocation. The class fired 6 times; every invocation is kept, one JSON object per line. platform_outcome documents what the harness did, not what the maister hook decides."
+}

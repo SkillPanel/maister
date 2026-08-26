@@ -1,0 +1,23 @@
+{
+  "id": "tldr-six-lines",
+  "contracts": [
+    "A5"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "tldr-six-lines.md",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "error_path": "/TL;DR",
+    "error_keyword": "a5-tldr-line-count"
+  },
+  "notes": "The TL;DR block holds six non-empty lines. A5 allows one to five: the block is the operator-visible summary and stops being one past five lines."
+}

@@ -1,0 +1,12 @@
+# Invalid: status must be one of dispatched | claimed | in_progress | blocked | closed.
+# "done" is the kind of value a hand-edit introduces; the fold would then reject every
+# later event for this entry.
+version: 1
+dispatch_id: d-0144
+chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-beta}
+target: {member: repo-beta, path: projects/repo-beta}
+provider: copilot
+status: done
+grade: success
+created: 2026-08-24T11:15:41Z
+updated: 2026-08-24T16:02:58Z

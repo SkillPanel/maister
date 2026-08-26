@@ -1,0 +1,18 @@
+{
+  "id": "duplicate",
+  "title": "The same answer delivered twice changes nothing the second time",
+  "providers": "both",
+  "seed": "chain-template",
+  "engine_prompt": true,
+  "soft": true,
+  "soft_reason": "best-effort: the daemon's single-flight is the real guard, so a model that keeps going is reported, not failed",
+  "turns": [
+    {"prompt": "RESUME run={RUN_ID}\n\nBegin the run: work the main loop from the current state."},
+    {"prompt": "GATE-ANSWER run={RUN_ID} node=approve option=proceed answered_by=operator at={NOW}"},
+    {"prompt": "GATE-ANSWER run={RUN_ID} node=approve option=proceed answered_by=operator at={NOW}"}
+  ],
+  "pass": [
+    {"check": "state_unchanged_between", "from": 2, "to": 3},
+    {"check": "last_line_matches", "value": "^GATE-ALREADY-ANSWERED$"}
+  ]
+}

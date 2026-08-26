@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/common",
+  "title": "Common contract definitions",
+  "description": "Shared $defs for the compatibility-contract schemas. Ids are opaque; nothing is fetched at validation time.",
+  "$defs": {
+    "timestamp": {
+      "description": "Contract A6: full UTC date+time. A separate runner lint rejects the midnight value, which a pattern cannot express cleanly.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "abs_path": {
+      "description": "Absolute filesystem path.",
+      "type": "string",
+      "pattern": "^/"
+    },
+    "rel_path": {
+      "description": "Path relative to the task root (artifacts) or the repository root (task_path).",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/]"
+    },
+    "short_id": {
+      "description": "Opaque identifier used for run, dispatch, session and umbrella ids.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "uuid7": {
+      "description": "UUID version 7, optionally carrying an `evt_` prefix in contract C7 event files.",
+      "type": "string",
+      "pattern": "^(evt_)?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "node_id": {
+      "description": "Workflow node id (grammar B1) and phase-summary key for chain runs.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$"
+    },
+    "task_dir_name": {
+      "description": "Task directory name: date prefix plus slug. The prefix is exempt from A6.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}-[a-z0-9-]+$"
+    },
+    "workflow_type": {
+      "description": "The five workflow types a task directory can belong to.",
+      "enum": ["development", "performance", "migration", "research", "product-design"]
+    },
+    "phase_status": {
+      "description": "Status of a phase row (A1 phase bookkeeping, A2 phases[]).",
+      "enum": ["pending", "in_progress", "completed", "skipped", "failed"]
+    },
+    "task_status": {
+      "description": "Status of the task as a whole (A1 task.status, A2 task.status).",
+      "enum": ["pending", "in_progress", "completed", "failed", "blocked", "stopped"]
+    },
+    "version1": {
+      "description": "Format version of the versioned contracts (B1, C1-C5, C7, E2). An unknown version degrades on read, it never throws.",
+      "const": 1
+    },
+    "artifact_ref": {
+      "description": "One produced artifact. Paths are relative to the task root.",
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "$ref": "#/$defs/rel_path" },
+        "label": { "type": ["string", "null"] },
+        "html": { "type": ["string", "null"] }
+      }
+    },
+    "decision_item": {
+      "description": "A recorded decision. Three frozen shapes: a bare string, the writer form carrying `decision` with an optional `rationale`, and the question/answer form the development workflow writes into its clarifications key.",
+      "anyOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["decision"],
+          "properties": {
+            "decision": { "type": ["string", "null"] },
+            "rationale": { "type": ["string", "null"] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["question", "answer"],
+          "properties": {
+            "question": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "phase_summary_entry": {
+      "description": "The shared base shape of a phase summary. Open by design: every workflow adds its own keys (key_findings, steps_completed, integration_points, ...). Absence of a key is equivalent to the empty value.",
+      "type": "object",
+      "properties": {
+        "summary": { "type": ["string", "null"] },
+        "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision_item" } },
+        "risks": { "type": "array", "items": { "type": "string" } },
+        "artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifact_ref" } }
+      }
+    },
+    "phase_summary_value": {
+      "description": "The value of one phase_summaries key. Either an entry or a bare list of decision items — the array form is what the development workflow writes for its clarifications key and is accepted unchanged.",
+      "anyOf": [
+        { "$ref": "#/$defs/phase_summary_entry" },
+        { "type": "array", "items": { "$ref": "#/$defs/decision_item" } }
+      ]
+    }
+  }
+}

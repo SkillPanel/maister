@@ -1,0 +1,23 @@
+{
+  "id": "copilot-responses",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "1.0.80",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "pretooluse-deny.json",
+      "schema": "hook-payloads.schema.json#/$defs/response_copilot_pretooluse_deny"
+    },
+    {
+      "path": "agentstop-block.json",
+      "schema": "hook-payloads.schema.json#/$defs/response_copilot_agentstop_block"
+    }
+  ],
+  "notes": "Response vocabularies the Copilot harness accepts, as emitted during the spike. preToolUse deny is {permissionDecision, permissionDecisionReason}; agentStop block is {decision, reason} and the reason is injected verbatim as the next user message."
+}

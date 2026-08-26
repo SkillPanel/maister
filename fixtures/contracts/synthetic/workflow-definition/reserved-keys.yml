@@ -1,0 +1,27 @@
+# Every reserved (R) key in one definition. The runner accepts the document and
+# emits one warning per reserved key; nothing is executed from them at v1.
+name: reserved-keys-probe
+version: 1
+inputs:
+  target: {type: string, required: true}
+nodes:
+  fan-out:
+    uses: skill:quick-dev
+    needs: []
+    foreach: "${inputs.target}"
+    assertions:
+      - files-changed
+  retry-loop:
+    uses: skill:quick-bugfix
+    needs: [fan-out]
+    loop: {until: green, max: 3}
+    validation: {schema: none}
+  remote:
+    uses: skill:quick-dev
+    needs: [retry-loop]
+    session: {substrate: cloud}
+mirror:
+  scope: followups
+backing: tracker
+routing:
+  tiers: {}

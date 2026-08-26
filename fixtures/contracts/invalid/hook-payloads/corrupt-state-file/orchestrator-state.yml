@@ -1,0 +1,33 @@
+# The state the gate hook fails closed on: gate_pending is introduced and then followed
+# by a block map, so the line scanner finds neither "null" nor a flow map on the line.
+# Referenced as state_fixture by synthetic/hook-payloads/{claude/corrupt-state-pending,
+# copilot/corrupt-state, */stop-corrupt-state}.
+orchestrator:
+  started_phase: null
+  completed_phases: []
+  failed_phases: []
+  options: {html_output: true}
+  created: "2026-08-24T09:00:00Z"
+  updated: "2026-08-24T10:41:05Z"
+  task_path: ".maister/umbrella/runs/019260a2-1122-7c33-8d44-5e6677889900"
+  driver: {kind: cockpit, cwd: /home/dev/work/repo-alpha}
+  gate_pending:
+    node: approve
+    request: gates/approve.request.yml
+    since: "2026-08-24T10:41:05Z"
+
+task:
+  title: "Widget rollout chain"
+  status: in_progress
+
+workflow:
+  source: builtin:richtext
+  overlays: []
+  profile: default
+  graph_hash: "sha256:3f1c9a77b25e04d8c6a1fb03e97d5428ba6c0f19d4e7a2358c9b0d61f4a82e07"
+  grammar_version: 1
+  nodes:
+    research:  {kind: task, status: completed, needs: []}
+    approve:   {kind: gate, status: running, needs: [research]}
+
+node_summaries: {}

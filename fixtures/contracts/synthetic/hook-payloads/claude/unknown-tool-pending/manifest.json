@@ -1,0 +1,31 @@
+{
+  "id": "claude-unknown-tool-pending",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/claude_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "claude",
+      "event": "PreToolUse",
+      "decision": "deny",
+      "exit": 0,
+      "stdout": "json",
+      "state_fixture": "synthetic/gate/pending",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "A tool name the mapping table does not know. Default-deny-unknown is a policy decision, not an internal error, so the expectation is a deny response at exit 0 on both providers - matching the Copilot twin (copilot/unknown-tool); the fail-closed exit codes are reserved for the runner being unable to decide at all (corrupt state, unreadable request). The T5 outcome row must name unknown tool names as a policy deny. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+}

@@ -1,0 +1,31 @@
+{
+  "id": "terminal-mode-request",
+  "contracts": [
+    "A1",
+    "B2",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "gates/approve.request.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    }
+  ],
+  "expect": {
+    "degraded": [
+      "terminal-mode-request-optional"
+    ]
+  },
+  "notes": "A terminal-mode run (driver.kind terminal) that still wrote a gate request file: the request steps happen in terminal mode too, only the exit-and-resume does not. gate_pending is null, so the hook must treat this run as pending only through rule (b) - the request file line \"answer: null\". From contracts-v1 the request file is optional in terminal mode, which is why this shape is documented rather than required."
+}

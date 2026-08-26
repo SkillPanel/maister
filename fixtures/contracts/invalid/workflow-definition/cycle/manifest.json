@@ -1,0 +1,23 @@
+{
+  "id": "cycle",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "cycle.yml",
+      "schema": "workflow-definition.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/nodes",
+    "error_keyword": "dag-cycle"
+  },
+  "notes": "Every node in the cycle is individually valid; only the reachability walk can see it. The runner reports the cycle members so the operator can break it."
+}

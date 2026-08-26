@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/markers",
+  "title": "Stdout markers, prompt lines and the derived outcome",
+  "description": "Contract C5. The engine prints markers, the daemon reads them. The process exit code is never a signal: both providers exit zero even for a failed run, a denied tool and a blocked stop. The outcome is derived from on-disk gate state first, the marker second, denials third.",
+  "$ref": "#/$defs/outcome",
+  "$defs": {
+    "marker_line": {
+      "description": "The last non-empty assistant line of a driver turn.",
+      "type": "string",
+      "pattern": "^(GATE-PENDING: [a-z][a-z0-9-]{1,40}|RUN-COMPLETE|RUN-FAILED: .+|WAITING-DISPATCH|GATE-ALREADY-ANSWERED( by .+)?|GATE-INVALID: .+|DISPATCH-(RESULT|FOLLOWUP): .+)$"
+    },
+    "prompt_line": {
+      "description": "The first line the daemon sends when it resumes a driver.",
+      "type": "string",
+      "pattern": "^(GATE-ANSWER run=\\S+ node=\\S+ option=\\S+ answered_by=\\S+ at=\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z|RE-DRIVE run=\\S+ reason=\\S+|STEER run=\\S+ text=\".*\"|RESUME run=\\S+)$"
+    },
+    "outcome": {
+      "description": "What the daemon records for one driver turn.",
+      "type": "object",
+      "required": ["provider", "classified"],
+      "properties": {
+        "provider": { "enum": ["claude", "copilot"] },
+        "last_line": { "type": ["string", "null"] },
+        "marker": {
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/marker_line" }]
+        },
+        "gate_pending_on_disk": { "type": "boolean" },
+        "denials": {
+          "description": "Denied tool calls harvested from the provider's own record. A non-empty list marks the turn incomplete whatever the model claimed.",
+          "type": "array"
+        },
+        "classified": {
+          "enum": ["gate-pending", "complete", "failed", "waiting", "already-answered", "invalid", "unknown"]
+        }
+      }
+    }
+  }
+}

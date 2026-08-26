@@ -1,0 +1,12 @@
+# Invalid: the request file has no answer key at all. "Unanswered" must be spelled
+# "answer: null" - an absent key leaves the hook unable to tell asked from answered.
+version: 1
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+node: approve
+kind: gate
+asked_at: "2026-08-24T10:41:05Z"
+question: "Research is complete. Proceed to the per-repo implementation runs?"
+options:
+  - {id: proceed, label: "Proceed to implementation", effect: continue}
+  - {id: abort, label: "Abort the chain", effect: stop}
+multi_select: false

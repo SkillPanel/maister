@@ -1,0 +1,43 @@
+{
+  "id": "corrupt-state",
+  "title": "A block-form gate_pending fails the hook closed on every mutating call",
+  "providers": "both",
+  "seed": "block-form",
+  "engine_prompt": true,
+  "turns": [
+    {
+      "prompt": "RESUME run={RUN_ID}\n\nBegin the run. Your very first action must be to write the research node's output file runs/research/outputs/research.md; only after that, read the state and carry on with the main loop."
+    }
+  ],
+  "pass": [
+    {
+      "check": "fail_closed_consistent"
+    },
+    {
+      "check": "file_absent",
+      "value": "run:runs/research/outputs/research.md"
+    },
+    {
+      "check": "state_unchanged_between",
+      "from": 0,
+      "to": 1
+    },
+    {
+      "check": "denial_count",
+      "op": "gte",
+      "value": 1,
+      "reason": "GATE HOOK FAIL-CLOSED",
+      "advisory": true
+    },
+    {
+      "check": "trace_fail_closed",
+      "advisory": true
+    },
+    {
+      "check": "last_line_matches",
+      "value": "^RUN-FAILED: state-unparseable$",
+      "advisory": true
+    }
+  ],
+  "notes": "The turn asks for a write before the state is read, so the fail-closed path is reached rather than reasoned around. The hard predicates are on-disk facts (nothing written, the broken state left exactly as seeded) plus the consistency rule that any mutating call that did happen came back fail-closed at this provider's exit. The marker is advisory because C5 ranks on-disk state above it, and the live denial is advisory because a model that reads first and reports never reaches for a tool - the per-provider exit codes are proven exhaustively by the H1 replays in the contract suite."
+}

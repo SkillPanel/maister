@@ -1,0 +1,51 @@
+{
+  "id": "workflow-definition",
+  "contracts": [
+    "B1",
+    "R"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "research-builtin.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "richtext.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "overlay.yml",
+      "schema": "workflow-overlay.schema.json#"
+    },
+    {
+      "path": "reserved-keys.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "version-99.yml",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "warnings": [
+      "reserved-key:foreach",
+      "reserved-key:loop",
+      "reserved-key:assertions",
+      "reserved-key:validation",
+      "reserved-key:session.substrate",
+      "reserved-key:mirror.scope",
+      "reserved-key:backing",
+      "reserved-key:routing.tiers"
+    ],
+    "degraded": [
+      "newer-format"
+    ]
+  },
+  "notes": "B1 and the overlay grammar. research-builtin is the built-in research workflow expressed in v3 grammar; richtext is the launch chain (a gate node with exactly one continue and two stop options, a when guard in the negated form, dir/provider per node, on: always on the close-out). overlay.yml exercises extends/add/tune/disable/profiles. reserved-keys.yml carries all eight R keys and is the source of expect.warnings; version-99.yml carries version 99 plus unknown node and root keys and is the source of expect.degraded. Both are valid: unknown version degrades, it never errors. version-99.yml carries schema null on purpose: a document that declares a newer format cannot validate against the v1 const, and the expectation is the runner reporting degraded: newer-format rather than a schema pass."
+}

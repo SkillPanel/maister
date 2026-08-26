@@ -1,0 +1,14 @@
+{
+  "session_id": "1ea64652-6b4f-4c28-ba88-b445e1135ec1",
+  "transcript_path": "/home/dev/.claude/projects/-home-dev-work-repo-alpha/1ea64652-6b4f-4c28-ba88-b445e1135ec1.jsonl",
+  "cwd": "/home/dev/work/repo-alpha",
+  "prompt_id": "1b27a445-eee7-4c08-8bc7-97fea2f4034d",
+  "permission_mode": "bypassPermissions",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/home/dev/work/repo-alpha/marker.txt",
+    "content": "done"
+  },
+  "tool_use_id": "toolu_01HkcJWmpNWJS9dWH7FJLesW"
+}

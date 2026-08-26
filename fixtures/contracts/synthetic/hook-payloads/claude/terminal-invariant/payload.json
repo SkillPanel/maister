@@ -1,0 +1,13 @@
+{
+  "session_id": "019260a6-1111-7a22-8b33-c4d5e6f70811",
+  "transcript_path": "/home/dev/.claude/projects/-home-dev-work-repo-alpha/019260a6-1111-7a22-8b33-c4d5e6f70811.jsonl",
+  "cwd": "/home/dev/work/repo-alpha",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/home/dev/work/repo-alpha/src/catalog/CatalogListQuery.java",
+    "content": "// edit"
+  },
+  "tool_use_id": "toolu_01SynTheticReplayFixture01"
+}

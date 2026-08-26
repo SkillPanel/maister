@@ -1,0 +1,12 @@
+{
+  "provider": "copilot",
+  "event": "preToolUse",
+  "variant": "default-timeout",
+  "hook_ran": true,
+  "payload_captured": false,
+  "capture_form": "plain-text probe, not JSON",
+  "harness_message": "HookTimeoutError ... 30 seconds",
+  "elapsed_ms": 32109,
+  "tool_ran": true,
+  "platform_outcome": "fail-open"
+}

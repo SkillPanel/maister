@@ -1,0 +1,25 @@
+{
+  "id": "umbrella-manifest",
+  "contracts": [
+    "C1",
+    "R"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "umbrella.yml",
+      "schema": "umbrella-manifest.schema.json#"
+    }
+  ],
+  "expect": {
+    "warnings": [
+      "reserved-key:routing.tiers"
+    ]
+  },
+  "notes": "A six-member umbrella manifest with every optional block present: branch convention, coordination branch, tracker mirror, git host, people mapping and defaults. routing.tiers is the reserved R key: accepted and ignored with a warning."
+}

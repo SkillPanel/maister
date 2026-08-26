@@ -1,0 +1,24 @@
+{
+  "id": "block-form-node",
+  "contracts": [
+    "B2",
+    "E2"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "block-form-node.yml",
+      "schema": "workflow-state.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/nodes/research",
+    "error_keyword": "b2-one-line-form"
+  },
+  "notes": "The value validates against workflow-state.schema.json; only the text-level one-line rule rejects it, which is why the rule lives in the runner and not in JSON Schema."
+}

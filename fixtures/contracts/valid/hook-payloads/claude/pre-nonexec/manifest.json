@@ -1,0 +1,22 @@
+{
+  "id": "claude-pre-nonexec",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "2.1.245",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "outcome.json",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "platform_outcome": "fail-open"
+  },
+  "notes": "Claude Code PreToolUse class with no captured payload: The hook script has no executable bit, so the harness never ran it and no payload was captured. /bin/sh reported \"Permission denied\" as a non-blocking error and the tool ran."
+}

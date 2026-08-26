@@ -1,0 +1,23 @@
+{
+  "id": "unknown-type",
+  "contracts": [
+    "C7"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "unknown-type.yml",
+      "schema": "event.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/type",
+    "error_keyword": "enum"
+  },
+  "notes": "Event files are immutable and the fold is deterministic, so an unknown type cannot be tolerated: two machines would have to agree on how to ignore it."
+}

@@ -1,0 +1,23 @@
+{
+  "id": "unknown-type",
+  "contracts": [
+    "C4"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "unknown-type.yml",
+      "schema": "outbox-message.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/type",
+    "error_keyword": "enum"
+  },
+  "notes": "Workers ask questions through the gate contract, never through the outbox; there is deliberately no question message type."
+}

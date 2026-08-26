@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/outbox-message",
+  "title": "Outbox message",
+  "description": "Contract C4. Worker to parent, one type per file, append-only, never edited. Additive.",
+  "type": "object",
+  "required": ["version", "type", "dispatch_id", "at"],
+  "properties": {
+    "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+    "type": { "$ref": "#/$defs/type" },
+    "dispatch_id": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/short_id" },
+    "at": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+    "phase": { "type": ["string", "null"] },
+    "note": { "type": ["string", "null"] },
+    "to": { "enum": ["parent", "sibling"] },
+    "addressee": { "type": "object" },
+    "summary": { "type": ["string", "null"] },
+    "detail": { "type": ["string", "null"] },
+    "path": { "type": ["string", "null"] },
+    "role": { "type": ["string", "null"] },
+    "reason": { "type": ["string", "null"] },
+    "needs": { "type": "array", "items": { "$ref": "#/$defs/need" } },
+    "grade": { "$ref": "https://maister.dev/schemas/contracts/dispatch-envelope#/$defs/grade" },
+    "prs": { "type": "array" },
+    "commits": { "type": "array" },
+    "artifacts": { "type": "array" }
+  },
+  "allOf": [
+    { "if": { "type": "object", "properties": { "type": { "const": "artifact" } }, "required": ["type"] }, "then": { "required": ["path"] } },
+    { "if": { "type": "object", "properties": { "type": { "const": "followup" } }, "required": ["type"] }, "then": { "required": ["summary"] } },
+    { "if": { "type": "object", "properties": { "type": { "const": "blocked" } }, "required": ["type"] }, "then": { "required": ["reason"] } },
+    { "if": { "type": "object", "properties": { "type": { "const": "closeout" } }, "required": ["type"] }, "then": { "required": ["grade"] } }
+  ],
+  "$defs": {
+    "type": { "enum": ["status", "followup", "artifact", "closeout", "blocked"] },
+    "need": { "enum": ["permission", "decision", "input"] }
+  }
+}

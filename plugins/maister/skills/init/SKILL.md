@@ -115,7 +115,7 @@ Store selection for Phase 5.
 
 Wait for docs-operator to complete, then immediately proceed to Phase 6.
 
-**Step 2 — Scaffold project config** (Write tool, directly — not via docs-operator): if `.maister/config.yml` does not already exist, create it with the documented default so users have a discoverable place to toggle output. Do not overwrite an existing config.
+**Step 2 — Scaffold project config** (Write tool, directly — not via docs-operator): if `.maister/config.yml` does not already exist, create it with the documented default so users have a discoverable place to toggle output. Do not overwrite an existing config. The keys, their types and their defaults are normative in `../orchestrator-framework/references/compatibility-contracts.md § A3` — the block below is the scaffold to write verbatim, not a second definition of them.
 
 ```yaml
 # Maister project configuration.

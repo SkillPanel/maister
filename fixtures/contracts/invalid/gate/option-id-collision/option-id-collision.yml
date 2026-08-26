@@ -1,0 +1,13 @@
+# Invalid: two options share the id "proceed". The answer records only the option id,
+# so a duplicate makes the recorded decision ambiguous.
+version: 1
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+node: approve
+kind: decision
+asked_at: "2026-08-24T12:03:44Z"
+question: "Which store backs the ledger for this rollout?"
+options:
+  - {id: proceed, label: "Keep the embedded store", effect: continue}
+  - {id: proceed, label: "Move to the shared cluster", effect: continue}
+multi_select: false
+answer: null

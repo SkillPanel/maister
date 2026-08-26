@@ -1,0 +1,7 @@
+# Invalid: type must be one of status | followup | artifact | closeout | blocked.
+# The daemon maps type to a ledger op, so an unknown type has nowhere to fold.
+version: 1
+type: question
+dispatch_id: d-0142
+at: 2026-08-24T14:10:02Z
+text: "Should the shim stay for the beta rollout?"

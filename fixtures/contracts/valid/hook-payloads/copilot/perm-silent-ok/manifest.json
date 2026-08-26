@@ -1,0 +1,22 @@
+{
+  "id": "copilot-perm-silent-ok",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "1.0.80",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.jsonl",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "platform_outcome": "fail-open"
+  },
+  "notes": "Copilot CLI permissionRequest payload captured live (Copilot CLI 1.0.80, headless -p with GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true). Empty stdout falls through to normal permission handling; with --allow-tool=write the tool ran. The class fired 3 times; every invocation is kept, one JSON object per line. platform_outcome documents what the harness did, not what the maister hook decides."
+}

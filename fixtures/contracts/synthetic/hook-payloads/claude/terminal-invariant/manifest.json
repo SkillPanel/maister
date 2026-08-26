@@ -1,0 +1,31 @@
+{
+  "id": "claude-terminal-invariant",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/claude_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "claude",
+      "event": "PreToolUse",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "empty",
+      "state_fixture": "valid/runs/dev-complete-a",
+      "cwd_layout": "task-dir"
+    }
+  },
+  "notes": "The terminal-user invariant: a v2-era task dir has no workflow: block, no gate_pending and no gates/ directory, so no rule can fire and an ordinary edit anywhere in the repo is allowed with empty stdout. This is also the latency case - nothing is read beyond the state files at the three fixed A4 depths. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+}

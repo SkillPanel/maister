@@ -1,0 +1,21 @@
+version: 1
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+node: approve
+kind: gate
+asked_at: "2026-08-24T10:41:05Z"
+question: "Research is complete. Proceed to the per-repo implementation runs?"
+context:
+  summary: "One rollout order is forced by the shared client package; the alternative needs a compatibility shim."
+  artifacts:
+    - outputs/research-report.md
+    - outputs/decision-log.md
+options:
+  - {id: proceed, label: "Proceed to implementation", effect: continue, description: "Run the per-repo development nodes in the researched order.", recommended: true}
+  - {id: revise, label: "Revise the rollout order first", effect: stop, description: "Stop the chain and re-run research with a different constraint."}
+  - {id: abort, label: "Abort the chain", effect: stop}
+multi_select: false
+answer:
+  option: proceed
+  answered_by: operator-1
+  at: "2026-08-24T11:15:40Z"
+  via: cockpit

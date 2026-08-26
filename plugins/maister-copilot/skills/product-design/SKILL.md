@@ -16,7 +16,7 @@ Interactive workflow for product and feature design -- from fuzzy idea to develo
 
 Before doing anything else, settle this policy now and do not re-litigate it at any gate:
 
-**`→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications.
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications. Invoke `ask_user` when `orchestrator.driver.kind` is absent or `terminal` — the only modes this orchestrator runs in until the engine makes it driver-aware; in `cockpit`/`dispatch` mode write the gate request file and end the turn instead (`compatibility-contracts.md § E2`).
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
@@ -69,7 +69,7 @@ Starting Phase 0: Initialize & Gather Context...
 
 Cross-cutting rules from `orchestrator-patterns.md` (same as the development and research orchestrators):
 
-1. **Artifact Summary Contract (§ 7)**: every artifact opens with TL;DR / Key Decisions / Open Questions & Risks. This applies to subagent prompts (solution-brainstormer, information-gatherer already comply) AND to the artifacts this orchestrator writes directly (`problem-statement.md`, `personas.md`, `design-decisions.md`, `feature-spec.md`, `outputs/product-brief.md`). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` — verbatim, never re-summarized.
+1. **Artifact Summary Contract (§ 7)**: every artifact opens with TL;DR / Key Decisions / Open Questions / Risks (the writer heading is `## Open Questions / Risks`). This applies to subagent prompts (solution-brainstormer, information-gatherer already comply) AND to the artifacts this orchestrator writes directly (`problem-statement.md`, `personas.md`, `design-decisions.md`, `feature-spec.md`, `outputs/product-brief.md`). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` — verbatim, never re-summarized.
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark `in_progress` before executing), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks — the operator reviews them on the dashboard while answering; status stays `in_progress` until the gate passes), after every phase completion (including skipped phases 3/7, with reason), every gate decision, after each refinement-loop iteration that changes an artifact, and at finalization. Every rewrite starts with `date -u` (one call per turn). Register Phase 7 mockups as artifacts (`analysis/mockups/{slug}.html` — they ARE html; set both `path` and `html` to the mockup path).
 3. **HTML companions (§ 9) — delegated, because this orchestrator writes its hero artifacts INLINE** (no producing subagent to attach a companion to). Right after each hero md is finalized, invoke the `maister-html-companion-writer` subagent (Task tool) to write its sibling `.html`: `analysis/design-decisions.md` (Phase 5), `analysis/feature-spec.md` (Phase 6), `outputs/product-brief.md` (Phase 8, after final approval). Pass `md_path`, `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`), `artifact_label`, and `report_suite` (the sibling reports that exist, hrefs relative to the md's directory, for the breadcrumb). Register the returned `html_path` in `phase_summaries.[phase].artifacts[].html` so the dashboard hero cards link HTML first. Companion generation never blocks — on `status: failed` keep the md and continue. (`analysis/alternatives.md` already gets a companion from the solution-brainstormer subagent in Phase 4; `problem-statement.md`/`personas.md` are secondary — companion them too if cheap, but the three hero artifacts are the priority.)
 4. **icon_hint values** per phase: 0 `analysis`, 1 `analysis`, 2 `analysis`, 3 `analysis`, 4 `plan`, 5 `plan`, 6 `spec`, 7 `code`, 8 `done`.
@@ -307,7 +307,7 @@ ask_user — "I detected these design characteristics. Please confirm or correct
 
 Read `analysis/design-context.md` for full context (not just state summary) — use it to inform context-aware questions.
 
-**Compute and persist Phase 2 routing**: Read `design_characteristics` from `orchestrator-state.yml`. If `is_greenfield OR is_complex` → write `next_phase: "Phase 3: User & Persona Exploration"` to state. Else → write `next_phase: "Phase 4: Idea Generation"` to state.
+**Compute and persist Phase 2 routing**: Read `design_characteristics` from `orchestrator-state.yml`. If `is_greenfield OR is_complex` → write `orchestrator.next_phase: "phase-3"` to state. Else → write `orchestrator.next_phase: "phase-4"`. The value is a phase id, never a sentence (`compatibility-contracts.md § A1`).
 
 **Mode: Exploration** (announce to user)
 
@@ -343,7 +343,7 @@ ask_user — with options:
 **Output**: `analysis/problem-statement.md`
 **State**: Update `phase_summaries.problem_exploration` with `problem_statement`, `constraints`, `success_criteria`
 
-ask_user — "Problem space explored." Read `next_phase` from `orchestrator-state.yml`. If next phase is Phase 4, prepend "Skipping persona exploration (enhancement scope). " Ask "Continue to [next_phase value]?"
+ask_user — "Problem space explored." Read `orchestrator.next_phase` from `orchestrator-state.yml` (a phase id). If it is `phase-4`, prepend "Skipping persona exploration (enhancement scope). " Ask "Continue to [title of that phase]?"
 
 ---
 
@@ -493,7 +493,7 @@ ask_user — "Design direction approved. Continue to Feature Specification?"
 
 Read `analysis/design-decisions.md` for selected approach details to inform specification drafts.
 
-**Compute and persist Phase 6 routing**: Read `design_characteristics.is_ui_focused` from `orchestrator-state.yml`. If `is_ui_focused` → write `next_phase: "Phase 7: Visual Prototyping"` to state. Else → write `next_phase: "Phase 8: Review & Handoff"` to state.
+**Compute and persist Phase 6 routing**: Read `design_characteristics.is_ui_focused` from `orchestrator-state.yml`. If `is_ui_focused` → write `orchestrator.next_phase: "phase-7"` to state. Else → write `orchestrator.next_phase: "phase-8"`. The value is a phase id, never a sentence (`compatibility-contracts.md § A1`).
 
 **Mode: Convergence** (section-by-section propose-and-refine)
 
@@ -552,7 +552,7 @@ If no gaps: proceed to Phase 7/8.
 **Output**: `analysis/feature-spec.md` (+ `.html` companion)
 **State**: Update `phase_summaries.feature_specification` with `spec_sections` (individually approved), `sections_count`
 
-ask_user — "Specification complete." Read `next_phase` from `orchestrator-state.yml`. If next phase is Phase 8, prepend "No UI prototyping needed (backend-focused design). " Ask "Continue to [next_phase value]?"
+ask_user — "Specification complete." Read `orchestrator.next_phase` from `orchestrator-state.yml` (a phase id). If it is `phase-8`, prepend "No UI prototyping needed (backend-focused design). " Ask "Continue to [title of that phase]?"
 
 ---
 
@@ -703,15 +703,20 @@ design_context:
     visual_prototyping: {mockup_references: [], summary: null}
     review_handoff: {brief_layers: [], summary: null}
 
-options:
-  html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
-  mockup_format: html  # Seeded from .maister/config.yml at init (default html). ascii ≡ --no-visual.
-  visual_enabled: null  # Derived at init: false when --no-visual OR mockup_format==ascii; else true. Phase 7 passes format=html when true, ascii when false, to mockup-studio.
+# `options` lives under `orchestrator:`; `design_context` is its top-level sibling
+# (compatibility-contracts.md § A1)
+orchestrator:
+  options:
+    html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
+    mockup_format: html  # Seeded from .maister/config.yml at init (default html). ascii ≡ --no-visual.
+    visual_enabled: null  # Derived at init: false when --no-visual OR mockup_format==ascii; else true. Phase 7 passes format=html when true, ascii when false, to mockup-studio.
 ```
 
 ---
 
 ## Task Structure
+
+The normative layout and naming rules are `../orchestrator-framework/references/compatibility-contracts.md § A4`; the tree below is this workflow's instance of them.
 
 ```
 .maister/tasks/product-design/YYYY-MM-DD-task-name/
@@ -732,7 +737,7 @@ options:
     feature-spec.md                # Phase 6: detailed feature specification
     feature-spec.html              # Phase 6: HTML companion (html-companion-writer)
     mockups/                       # Phase 7: visual prototypes
-      mockup-*.html                # Visual companion rendered HTML
+      *.html                       # Visual companion rendered HTML — any slug; INDEX.md binds names
       ascii-mockups.md             # ASCII fallback
   outputs/
     product-brief.md               # Phase 8: final layered product brief

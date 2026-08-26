@@ -1,0 +1,29 @@
+{
+  "id": "chain-template",
+  "contracts": [
+    "A1",
+    "A2",
+    "B2",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "Seed state of a chain run, adapted from the spike kit template (kit/state.template.yml). A chain-run state has none of the five per-workflow context keys. gate_pending is the one-line literal null, every workflow.nodes entry is one line, node_summaries is an empty map, and the E1 driver carries cwd and model. task.status is in_progress: the template wrote running, which is a B2 node status and not in the A1 task_status enum. Also the eval seed."
+}

@@ -1,0 +1,53 @@
+orchestrator:
+  type: development
+  started_phase: phase-9
+  completed_phases: [phase-1, phase-2, phase-5, phase-6, phase-7, phase-8]
+  skipped_phases:
+    phase-3: "has_reproducible_defect false - additive feature, no defect to reproduce"
+    phase-4: "ui_heavy false - no UI surface in this repo"
+  failed_phases: [phase-9]
+  auto_fix_attempts:
+    phase-9: 2
+  options:
+    html_output: true
+    mockup_format: html
+    sequential: false
+  created: 2026-08-22T10:00:00Z
+  updated: 2026-08-22T18:41:09Z
+  task_path: .maister/tasks/development/2026-08-22-widget-export-endpoint
+  next_phase: phase-9
+
+task:
+  title: Widget export endpoint
+  status: failed
+  description: Add a paginated export endpoint for widgets.
+  tags: [development, backend]
+  priority: medium
+
+task_context:
+  risk_level: medium
+  architecture_decision: null
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: true
+    involves_data_operations: true
+    ui_heavy: false
+  phase_summaries:
+    codebase_analysis:
+      summary: Export helpers already exist for the catalog module and are reusable here.
+      decisions: []
+      risks: []
+      artifacts: [{path: analysis/codebase-analysis.md, label: Codebase analysis, html: null}]
+    implementation:
+      summary: Groups 1-2 landed; group 3 left the suite red.
+      decisions: []
+      risks: [Streaming writer leaks a file handle on the error path]
+      artifacts: [{path: implementation/work-log.md, label: Work log, html: null}]
+
+verification_context:
+  last_status: failed
+  issues_found: 3
+  fixes_applied: []
+  decisions_made: []
+  reverify_count: 2

@@ -1,0 +1,34 @@
+{
+  "id": "research-b",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A5",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/research/2026-08-12-b",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "artifacts/research-report.md",
+      "schema": null,
+      "truncated": true
+    }
+  ],
+  "strict_a2": false,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "writer_version is null: the run carries no record of which plugin build wrote it, and no state comment or transcript evidences one at sampling time. The installed plugin has been 2.2.4-beta.1 since 2026-08-03 (gap analysis :16), and the beta delta is shape-neutral (#26), so the fixture is compatible either way."
+}

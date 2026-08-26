@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/hook-payloads",
+  "title": "Hook payload and response floors",
+  "description": "Contract H1. Per-provider payload shapes for the three hook events the gate enforcement uses, the response vocabularies that block a call, and the version floors below which the shapes were not yet stable. Payload objects stay open: providers add keys additively.",
+  "$defs": {
+    "claude_pretooluse": {
+      "description": "Fires before a mutating tool call. Registration is per spawn and per resume; nothing persists in the session.",
+      "type": "object",
+      "required": ["session_id", "cwd", "hook_event_name", "tool_name", "tool_input"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "transcript_path": { "type": "string" },
+        "cwd": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path" },
+        "permission_mode": { "type": "string" },
+        "hook_event_name": { "const": "PreToolUse" },
+        "tool_name": { "type": "string" },
+        "tool_input": { "type": "object" },
+        "tool_use_id": { "type": "string" },
+        "prompt_id": { "type": "string" },
+        "agent_id": { "type": "string" },
+        "agent_type": { "type": ["string", "null"] }
+      }
+    },
+    "claude_stop": {
+      "type": "object",
+      "required": ["session_id", "cwd", "hook_event_name", "stop_hook_active"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "transcript_path": { "type": "string" },
+        "cwd": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path" },
+        "hook_event_name": { "const": "Stop" },
+        "stop_hook_active": { "type": "boolean" },
+        "last_assistant_message": { "type": ["string", "null"] }
+      }
+    },
+    "claude_sessionstart": {
+      "type": "object",
+      "required": ["session_id", "cwd", "hook_event_name", "source"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "transcript_path": { "type": "string" },
+        "cwd": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path" },
+        "hook_event_name": { "const": "SessionStart" },
+        "source": { "type": "string" }
+      }
+    },
+    "copilot_pretooluse": {
+      "description": "Camel-cased, and the tool arguments arrive as a JSON string rather than an object. A multi-file patch arrives as the raw patch text.",
+      "type": "object",
+      "required": ["sessionId", "cwd", "toolName", "toolArgs"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "timestamp": { "description": "Epoch milliseconds in the captures; typed loosely so a later string form still validates.", "type": ["integer", "string"] },
+        "cwd": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path" },
+        "toolName": { "type": "string" },
+        "toolArgs": { "type": "string" }
+      }
+    },
+    "copilot_agentstop": {
+      "type": "object",
+      "required": ["sessionId", "cwd"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "timestamp": { "description": "Epoch milliseconds in the captures; typed loosely so a later string form still validates.", "type": ["integer", "string"] },
+        "cwd": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path" },
+        "transcriptPath": { "type": "string" },
+        "stopReason": { "type": ["string", "null"] },
+        "stop_hook_active": { "type": "boolean" }
+      }
+    },
+    "copilot_sessionstart": {
+      "type": "object",
+      "required": ["sessionId", "cwd", "source"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "timestamp": { "description": "Epoch milliseconds in the captures; typed loosely so a later string form still validates.", "type": ["integer", "string"] },
+        "cwd": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path" },
+        "source": { "enum": ["new", "resume"] },
+        "initialPrompt": { "type": ["string", "null"] }
+      }
+    },
+    "response_claude_pretooluse_deny": {
+      "description": "Emitted on stdout together with a non-zero exit, so a harness that ignores stdout still blocks.",
+      "type": "object",
+      "required": ["hookSpecificOutput"],
+      "properties": {
+        "hookSpecificOutput": {
+          "type": "object",
+          "required": ["hookEventName", "permissionDecision", "permissionDecisionReason"],
+          "properties": {
+            "hookEventName": { "const": "PreToolUse" },
+            "permissionDecision": { "const": "deny" },
+            "permissionDecisionReason": {
+              "description": "Written as an instruction to the model, not as an error message.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "response_claude_stop_block": {
+      "type": "object",
+      "required": ["decision", "reason"],
+      "properties": {
+        "decision": { "const": "block" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "response_copilot_pretooluse_deny": {
+      "description": "No nested envelope on this provider.",
+      "type": "object",
+      "required": ["permissionDecision"],
+      "properties": {
+        "permissionDecision": { "const": "deny" },
+        "permissionDecisionReason": { "type": "string" }
+      }
+    },
+    "response_copilot_agentstop_block": {
+      "description": "Advisory only: this provider cannot enforce a stop, and the reason is injected as a user message.",
+      "type": "object",
+      "required": ["decision"],
+      "properties": {
+        "decision": { "const": "block" },
+        "reason": { "type": "string" }
+      }
+    },
+    "floors": {
+      "description": "The provider versions the payload shapes above were captured from, the environment opt-in a repository hook needs before it fires in non-interactive mode, and the requirement that a liveness beacon be observed before a driver session is trusted.",
+      "const": {
+        "claude": "2.1.233",
+        "copilot": "1.0.80",
+        "copilot_env_opt_in": [
+          "GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true",
+          "COPILOT_ALLOW_ALL=true"
+        ],
+        "beacon_required": true
+      }
+    }
+  }
+}

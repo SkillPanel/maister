@@ -1,0 +1,31 @@
+{
+  "id": "copilot-unknown-tool",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "copilot",
+      "event": "preToolUse",
+      "decision": "deny",
+      "exit": 0,
+      "stdout": "json",
+      "state_fixture": "synthetic/gate/pending",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "An unrecognised toolName. The Copilot branch is default-deny for unknown names; because Copilot discards stdout and stderr on exit 2, the deny is emitted as JSON at exit 0, which is itself fail-closed on that provider. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+}

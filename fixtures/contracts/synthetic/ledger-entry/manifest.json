@@ -1,0 +1,27 @@
+{
+  "id": "ledger-entry",
+  "contracts": [
+    "C3"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "d-0142.yml",
+      "schema": "ledger-entry.schema.json#/$defs/entry"
+    },
+    {
+      "path": "ops.jsonl",
+      "schema": null
+    },
+    {
+      "path": "ledger.log",
+      "schema": "ledger-entry.schema.json#/$defs/log_line"
+    }
+  ],
+  "notes": "One closed ledger entry plus the full seven-operation transcript that produced it, one JSON object per line, and the matching ledger.log append lines (ts op dispatch_id actor). The op names are frozen: create-entry, claim, update-status, add-constraint, add-followup, close-out, query. ops.jsonl validates per line, ledger.log per line against the log_line regex. ops.jsonl carries schema null because ledger-entry.schema.json#/$defs/op is the frozen enum of op names, not a record shape: the runner checks each records op field against that enum and treats args as op-specific."
+}

@@ -1,0 +1,50 @@
+orchestrator:
+  type: migration
+  started_phase: phase-7
+  completed_phases: [phase-1, phase-2, phase-3, phase-4, phase-5, phase-6, phase-7]
+  failed_phases: []
+  auto_fix_attempts: {}
+  options:
+    html_output: true
+    docs_enabled: false
+  created: 2026-08-18T08:30:00Z
+  updated: 2026-08-19T17:05:42Z
+  task_path: .maister/tasks/migration/2026-08-18-ledger-store-swap
+
+task:
+  title: Move the ledger store from the embedded engine to the shared cluster
+  status: completed
+  description: Incremental dual-run migration of the ledger store, one shard at a time.
+  tags: [migration, data]
+  priority: high
+
+migration_context:
+  migration_type: data
+  current_system:
+    description: Embedded single-node store colocated with the application process.
+    technologies: [embedded-store, file-backed-wal]
+  target_system:
+    description: Shared managed cluster with per-tenant schemas.
+    technologies: [managed-cluster, logical-replication]
+  migration_strategy:
+    approach: dual-run
+    phases: [shadow-writes, read-cutover-per-shard, decommission]
+  risk_level: high
+  breaking_changes:
+    - Connection string moves from a local path to a cluster URL; every deployment target needs the new secret.
+  rollback_plan_created: true
+  dual_run_configured: true
+
+external_research:
+  performed: true
+  category: data-store
+  breaking_changes:
+    - Logical replication does not carry sequence state; sequences must be advanced manually after cutover.
+  migration_guide_url: https://example.test/docs/store-migration
+
+verification_context:
+  last_status: passed
+  issues_found: 0
+  fixes_applied: []
+  decisions_made: []
+  reverify_count: 0

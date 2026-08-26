@@ -1,0 +1,12 @@
+version: 1
+type: followup
+dispatch_id: d-0142
+at: 2026-08-24T15:11:30Z
+to: parent
+addressee: {member: repo-alpha}
+summary: "Shared client package needs the widget owner field before the beta rollout can drop the shim."
+detail: >-
+  The beta UI reads the owner from a locally derived map. Once the shared package
+  exposes owner on the widget DTO the shim can go; until then both paths must stay.
+artifacts:
+  - {path: implementation/host-changeset.md, role: evidence}

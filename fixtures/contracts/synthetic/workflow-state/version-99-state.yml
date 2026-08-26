@@ -1,0 +1,14 @@
+# The workflow: block of a state written by a newer engine. grammar_version 99
+# plus unknown node keys must degrade (newer-format), not fail.
+source: builtin:richtext
+overlays: [workflows/overlays/paranoid.yml]
+profile: paranoid
+graph_hash: "sha256:272a093dd2dbc3b44f0c11f8de2971aa29d8ec7c279c17074bf1fee343cce3c8"
+grammar_version: 99
+scheduler: {mode: fan-out, max_parallel: 3}
+nodes:
+  research:  {kind: task, status: completed, needs: [], started: "2026-08-24T09:00:12Z", completed: "2026-08-24T10:41:03Z", budget_used: 38210}
+  approve:   {kind: gate, status: completed, needs: [research], values: {choice: proceed}}
+  dev-alpha: {kind: task, status: running, needs: [approve], dir: repo-alpha, provider: claude, substrate: cloud}
+  dev-beta:  {kind: task, status: suspended, needs: [dev-alpha], dir: repo-beta, provider: copilot}
+  close-out: {kind: task, status: pending, needs: [dev-beta], on: always}

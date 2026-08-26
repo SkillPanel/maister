@@ -1,0 +1,23 @@
+{
+  "id": "bad-status",
+  "contracts": [
+    "A1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/task/status",
+    "error_keyword": "enum"
+  },
+  "notes": "The value running is a workflow node status, not a task status; it is exactly the mistake the spike kit template made and the reason the chain-template fixture writes in_progress."
+}

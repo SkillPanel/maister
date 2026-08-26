@@ -1,0 +1,16 @@
+# A definition from a newer format than this reader knows. The runner must report
+# degraded: newer-format and keep going - never error, never drop the unknown keys.
+name: from-the-future
+version: 99
+inputs:
+  target: {type: string, required: true}
+capabilities: [parallel-fan-out, remote-substrate]
+nodes:
+  plan:
+    uses: skill:quick-plan
+    needs: []
+    budget: {tokens: 40000}
+  build:
+    uses: skill:quick-dev
+    needs: [plan]
+    retry_policy: {attempts: 2, backoff: linear}

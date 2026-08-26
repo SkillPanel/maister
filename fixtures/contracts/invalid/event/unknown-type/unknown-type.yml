@@ -1,0 +1,10 @@
+# Invalid: type is outside the ten-value event enum
+# (create|claim|status|constraint|followup|closeout|dismiss|archive|mirror plus query).
+version: 1
+id: 019260a5-000a-7a11-8b22-c3d4e5f60721
+at: 2026-08-24T16:30:00Z
+actor: {email: dev1@example.test, machine: 3f9ab2c1, via: daemon}
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+dispatch_id: d-0142
+type: escalate
+data: {to: operator-2, reason: "Rollout is past its window."}

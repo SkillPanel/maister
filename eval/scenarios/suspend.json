@@ -1,0 +1,20 @@
+{
+  "id": "suspend",
+  "title": "Run from the template until the gate suspends the session",
+  "providers": "both",
+  "seed": "chain-template",
+  "engine_prompt": true,
+  "turns": [
+    {"prompt": "RESUME run={RUN_ID}\n\nBegin the run: work the main loop from the current state."}
+  ],
+  "pass": [
+    {"check": "last_line_matches", "value": "^GATE-PENDING: approve$"},
+    {"check": "file_exists", "value": "run:gates/approve.request.yml"},
+    {"check": "request_unanswered", "node": "approve"},
+    {"check": "state_gate_pending_node", "value": "approve"},
+    {"check": "state_gate_pending_one_line"},
+    {"check": "node_status", "node": "approve", "value": "suspended"},
+    {"check": "dashboard_rewritten"},
+    {"check": "denial_count", "op": "eq", "value": 0}
+  ]
+}

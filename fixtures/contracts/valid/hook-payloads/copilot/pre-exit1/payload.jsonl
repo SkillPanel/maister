@@ -1,0 +1,5 @@
+{"sessionId":"de43c1ba-2c33-4b43-b7e4-af8e3fb7526c","timestamp":1787676317924,"cwd":"/home/dev/work/repo-alpha","toolName":"apply_patch","toolArgs":"*** Begin Patch\n*** Add File: marker.txt\n+done\n*** End Patch\n"}
+{"sessionId":"de43c1ba-2c33-4b43-b7e4-af8e3fb7526c","timestamp":1787676320569,"cwd":"/home/dev/work/repo-alpha","toolName":"apply_patch","toolArgs":"*** Begin Patch\n*** Add File: marker.txt\n+done\n*** End Patch\n"}
+{"sessionId":"de43c1ba-2c33-4b43-b7e4-af8e3fb7526c","timestamp":1787676322336,"cwd":"/home/dev/work/repo-alpha","toolName":"bash","toolArgs":"{\"command\":\"printf 'done\\n' > marker.txt\",\"description\":\"Create marker.txt with done\"}"}
+{"sessionId":"de43c1ba-2c33-4b43-b7e4-af8e3fb7526c","timestamp":1787676324663,"cwd":"/home/dev/work/repo-alpha","toolName":"skill","toolArgs":"{\"skill\":\"quick-dev\"}"}
+{"sessionId":"de43c1ba-2c33-4b43-b7e4-af8e3fb7526c","timestamp":1787676328778,"cwd":"/home/dev/work/repo-alpha","toolName":"sql","toolArgs":"{\"description\":\"noop\",\"query\":\"SELECT 1;\"}"}

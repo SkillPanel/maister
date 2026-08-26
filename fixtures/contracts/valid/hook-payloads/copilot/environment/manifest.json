@@ -1,0 +1,19 @@
+{
+  "id": "copilot-environment",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "1.0.80",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "hook-env-vars.json",
+      "schema": null
+    }
+  ],
+  "notes": "The maister-relevant environment a Copilot hook actually sees: COPILOT_CLI_BINARY_VERSION (the version floor check), COPILOT_PROJECT_DIR (the git root the hook resolves .github/hooks from) and COPILOT_CLI. Repo hooks additionally require GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true or a trusted folder in headless -p mode."
+}

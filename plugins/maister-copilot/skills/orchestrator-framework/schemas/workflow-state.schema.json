@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/workflow-state",
+  "title": "Resolved workflow block in state",
+  "description": "Contract B2, the frozen resolved graph under the workflow key of a state file. The one-line serialization of each node entry is a text-level rule the runner checks; JSON Schema sees only the parsed shape.",
+  "type": "object",
+  "required": ["nodes"],
+  "properties": {
+    "name": { "type": ["string", "null"] },
+    "source": { "type": ["string", "null"] },
+    "overlays": { "type": "array", "items": { "type": "string" } },
+    "profile": { "type": ["string", "null"] },
+    "graph_hash": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
+    "grammar_version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+    "nodes": {
+      "type": "object",
+      "propertyNames": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+      "additionalProperties": { "$ref": "#/$defs/node_entry" }
+    }
+  },
+  "$defs": {
+    "node_status": {
+      "enum": ["pending", "running", "suspended", "completed", "failed", "skipped", "stopped"]
+    },
+    "node_entry": {
+      "description": "One resolved node. Open: gate nodes additionally carry their question and options.",
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "$ref": "#/$defs/node_status" },
+        "kind": { "type": ["string", "null"] },
+        "started": {
+          "anyOf": [{ "type": "null" }, { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" }]
+        },
+        "completed": {
+          "anyOf": [{ "type": "null" }, { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" }]
+        },
+        "dir": { "type": ["string", "null"] },
+        "provider": { "anyOf": [{ "type": "null" }, { "enum": ["claude", "copilot"] }] },
+        "session": { "type": ["object", "string", "null"] },
+        "values": {
+          "description": "Written by the node on completion, from its declared value outputs. A when clause is evaluated against these at ready-set time.",
+          "type": "object"
+        },
+        "needs": {
+          "type": "array",
+          "items": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" }
+        },
+        "on": { "enum": ["success", "failure", "always"] }
+      }
+    }
+  }
+}

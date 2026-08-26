@@ -31,7 +31,7 @@ Read one markdown artifact and write its sibling `.html` companion (same basenam
 3. **Derive the stat tiles** from the artifact's own content — pick 3-5 headline numbers that fit this artifact (e.g. brief → personas / key decisions / open risks; feature-spec → requirements / surfaces / out-of-scope; design-decisions → decisions / trade-offs accepted). If the artifact has no natural counts, use the most meaningful labels available; never fabricate numbers.
 4. **Write the companion** to the sibling path (`md_path` with `.html` instead of `.md`):
    - Breadcrumb bar from `report_suite` (current report as plain text, others linked; md twin link `target="_blank"`).
-   - Lead with the artifact's TL;DR / Key Decisions / Open Questions & Risks block (every contract-compliant md opens with it), then the stat-tile row, then the artifact's sections restructured as tables / cards / badges / collapsible `<details>` per the style guide.
+   - Lead with the artifact's TL;DR / Key Decisions / Open Questions / Risks block (every contract-compliant md opens with it — the writer heading is `## Open Questions / Risks`), then the stat-tile row, then the artifact's sections restructured as tables / cards / badges / collapsible `<details>` per the style guide.
    - Use the standard severity vocabulary and CSS classes from the guide. Keep ASCII diagrams as `<pre>` (don't redraw).
 5. **Same content as the md** — visualize only. Never introduce findings, decisions, or numbers absent from the source.
 

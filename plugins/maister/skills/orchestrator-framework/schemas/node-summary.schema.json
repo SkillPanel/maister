@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/node-summary",
+  "title": "node_summaries entry",
+  "description": "Contract B3. The value shape is identical to a phase_summaries value; the entry form additionally carries the node's status, so built-in workflows can keep writing phase summaries unchanged.",
+  "$ref": "#/$defs/map",
+  "$defs": {
+    "map": {
+      "type": "object",
+      "propertyNames": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+      "additionalProperties": { "$ref": "#/$defs/value" }
+    },
+    "entry": {
+      "allOf": [
+        { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/phase_summary_entry" },
+        {
+          "type": "object",
+          "properties": {
+            "status": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/phase_status" }
+          }
+        }
+      ]
+    },
+    "value": {
+      "anyOf": [
+        { "$ref": "#/$defs/entry" },
+        {
+          "type": "array",
+          "items": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/decision_item" }
+        }
+      ]
+    }
+  }
+}

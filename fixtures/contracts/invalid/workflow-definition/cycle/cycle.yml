@@ -1,0 +1,13 @@
+# Invalid: build needs verify and verify needs build. The DAG check is runner logic,
+# not schema - the document itself is well formed.
+name: cyclic
+version: 1
+inputs:
+  target: {type: string, required: true}
+nodes:
+  build:
+    uses: skill:quick-dev
+    needs: [verify]
+  verify:
+    uses: skill:implementation-verifier
+    needs: [build]

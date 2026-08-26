@@ -1,0 +1,23 @@
+{
+  "id": "illegal-status",
+  "contracts": [
+    "C3"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "illegal-status.yml",
+      "schema": "ledger-entry.schema.json#/$defs/entry"
+    }
+  ],
+  "expect": {
+    "error_path": "/status",
+    "error_keyword": "enum"
+  },
+  "notes": "closed is the terminal status and it is the one that carries grade; done has no transition table entry."
+}

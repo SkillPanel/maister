@@ -1,0 +1,39 @@
+{
+  "id": "research-a",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A5",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-alpha/research/2026-08-10-a",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "artifacts/decision-log.md",
+      "schema": null,
+      "truncated": true
+    },
+    {
+      "path": "artifacts/research-report.md",
+      "schema": null,
+      "truncated": true
+    }
+  ],
+  "strict_a2": false,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "Completed research run: research_context with phase_summaries in the entry form."
+}

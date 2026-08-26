@@ -1,0 +1,20 @@
+# Overlay over builtin:development - the eject-free customization path.
+extends: builtin:development
+version: 1
+add:
+  security-review:
+    uses: skill:reviews-code
+    needs: [implement]
+    on: success
+tune:
+  implement:
+    provider: copilot
+  verify:
+    optional: true
+disable: [generate-mockups, user-docs]
+profiles:
+  fast:
+    disable: [security-review, audit-spec]
+  paranoid:
+    tune:
+      verify: {optional: false}

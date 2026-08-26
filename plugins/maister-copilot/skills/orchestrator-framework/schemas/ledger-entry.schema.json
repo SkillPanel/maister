@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/ledger-entry",
+  "title": "Ledger entry, operation and log line",
+  "description": "Contract C3. One file per entry plus a regenerated index. Every mutation is read, mutate, atomic write, append one log line. The seven operation names are frozen; the entry body is additive.",
+  "$ref": "#/$defs/entry",
+  "$defs": {
+    "op": {
+      "description": "The complete write surface. Status transitions belong to the engine; everything derived from an ingested outbox belongs to the daemon.",
+      "enum": ["create-entry", "claim", "update-status", "add-constraint", "add-followup", "close-out", "query"]
+    },
+    "log_line": {
+      "description": "One appended line: timestamp, operation, dispatch id, actor.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z (create-entry|claim|update-status|add-constraint|add-followup|close-out|query) \\S+ \\S+$"
+    },
+    "status": { "enum": ["dispatched", "claimed", "in_progress", "blocked", "closed"] },
+    "grade": { "$ref": "https://maister.dev/schemas/contracts/dispatch-envelope#/$defs/grade" },
+    "entry": {
+      "type": "object",
+      "required": ["version", "dispatch_id", "status", "created", "updated"],
+      "properties": {
+        "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+        "dispatch_id": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/short_id" },
+        "chain": {
+          "type": "object",
+          "properties": {
+            "run_id": { "type": ["string", "null"] },
+            "node": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" }
+          }
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "member": { "type": ["string", "null"] },
+            "path": { "type": ["string", "null"] },
+            "worktree": { "type": ["string", "null"] }
+          }
+        },
+        "provider": { "enum": ["claude", "copilot"] },
+        "session": {
+          "type": "object",
+          "properties": {
+            "name": { "type": ["string", "null"] },
+            "id": { "type": ["string", "null"] },
+            "substrate": { "$ref": "https://maister.dev/schemas/contracts/dispatch-envelope#/$defs/substrate" },
+            "status": { "enum": ["spawned", "running", "paused", "lost", "closed"] }
+          }
+        },
+        "status": { "$ref": "#/$defs/status" },
+        "grade": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/grade" }] },
+        "created": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+        "updated": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+        "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
+        "followups": { "type": "array", "items": { "$ref": "#/$defs/followup" } },
+        "closeout": { "$ref": "#/$defs/closeout" }
+      }
+    },
+    "constraint": {
+      "description": "Ordering and deploy warnings between dispatches.",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "ref": { "type": ["string", "null"] }
+      }
+    },
+    "followup": {
+      "description": "Children never message siblings directly; a follow-up is addressed through the parent.",
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "to": { "enum": ["parent", "sibling"] },
+        "addressee": { "type": "object" },
+        "summary": { "type": ["string", "null"] },
+        "artifacts": { "type": "array" },
+        "status": { "enum": ["open", "dispatched", "dismissed"] }
+      }
+    },
+    "closeout": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "properties": {
+            "prs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "repo": { "type": ["string", "null"] },
+                  "number": { "type": ["integer", "string", "null"] },
+                  "url": { "type": ["string", "null"] }
+                }
+              }
+            },
+            "commits": { "type": "array" },
+            "summary": { "type": ["string", "null"] },
+            "at": {
+              "anyOf": [{ "type": "null" }, { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" }]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

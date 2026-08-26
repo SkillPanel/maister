@@ -1,0 +1,38 @@
+{
+  "id": "gate-answered",
+  "contracts": [
+    "A1",
+    "A2",
+    "B2",
+    "B3",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "gates/approve.request.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    },
+    {
+      "path": "gates/index.yml",
+      "schema": "gate.schema.json#/$defs/index"
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "The same run after the decision was recorded: the request file carries an answer block, gate_pending is back to the one-line null (written last, the commit point), the index entry is answered, and node_summaries.approve is the decision_item[] array form (B3) mixing the writer form {decision, rationale} with the Q&A form {question, answer}. Neither hook rule fires on this state."
+}

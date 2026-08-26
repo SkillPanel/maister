@@ -1,0 +1,378 @@
+orchestrator:
+  started_phase: phase-14
+  completed_phases: [phase-1, phase-2, phase-4, phase-5, phase-6, phase-7, phase-8, phase-10, phase-11, phase-13, phase-14]
+  failed_phases: []
+  auto_fix_attempts: {}
+  options:
+    html_output: true
+    mockup_format: html
+    spec_audit_enabled: true
+    skip_test_suite: true  # full suite passed at the end of phase 8
+    e2e_enabled: false
+    user_docs_enabled: false  # deferred: no live API, so no real screenshots
+    code_review_enabled: true
+    pragmatic_review_enabled: true
+    reality_check_enabled: true
+    production_check_enabled: true
+    sequential: false
+    implementer_model: sonnet
+  created: "2026-08-11T22:44:20Z"
+  updated: "2026-08-12T15:03:58Z"
+  task_path: .maister/tasks/development/2026-08-12-catalog-applications-ui
+  task_ids: {}
+
+task:
+  title: "Catalog Applications UI"
+  description: >-
+    Implement the frontend for the Catalog Applications feature per the approved
+    product-design package (2026-08-11-catalog-applications-ui): employee request
+    list + detail (embedded survey), handler decision surface, admin Processes CRUD and
+    Handoff export, plus WIDGET integration points (My enrollments CTA, My actions inbox item).
+    Backend reference worktree: ~/Repos/repo-alpha/.worktrees/feature-widget
+    (PR #2562, contract per documentation/fe-contract-handoff.md).
+  status: completed
+  tags: [frontend, applications, widget, chakra-v3]
+  priority: high
+
+task_context:
+  risk_level: high
+  clarifications_resolved: true
+  scope_expanded: false
+  architecture_decision: null
+  backend_reference:
+    worktree: /home/dev/Repos/repo-alpha/.worktrees/feature-widget
+    contract_doc: .maister/tasks/development/2026-08-11-applications-module-catalog/documentation/fe-contract-handoff.md
+    head_commit: 481610dc5
+    pr: 2562
+    note: >-
+      VERIFIED 2026-08-12: the BE worktree is CLEAN. The Delta-2 contract landed as
+      commit c53a15a25 (edition end date, grain-addressed resend, surfaced process
+      warnings). docs/acme-portal.d.ts there is stable; per the Phase 1 decision the FE
+      hand-adds only the applications types rather than copying the whole file.
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: true
+    involves_data_operations: true
+    ui_heavy: true
+  research_reference:
+    path: null
+    research_question: null
+    research_type: null
+    confidence_level: null
+  design_reference:
+    source: product-design
+    product_design_path: .maister/tasks/product-design/2026-08-11-catalog-applications-ui
+    mockup_count: 18
+    has_brief: true
+    index_path: analysis/design-context/INDEX.md
+  project_context:
+    project_doc_paths:
+      - .maister/docs/INDEX.md
+      - .maister/docs/project/tech-stack.md
+      - .maister/docs/project/architecture.md
+  phase_summaries:
+    codebase_analysis:
+      summary: >-
+        Fully greenfield feature module, but every required UI archetype has a recent
+        standards-compliant exemplar in-repo (adminCadence, myActions, widget approvals,
+        surveyResponding). Work is ~90% pattern assembly; the real risk is external
+        (unmerged BE branch) plus 5 unstructured edit sites in ActivityCatalogView.
+      primary_language: TypeScript
+      key_files:
+        - src/features/widget/views/ActivityCatalogView.tsx
+        - src/app/AppRouter.tsx
+        - src/config/paths.ts
+        - src/api/factory.ts
+        - src/features/myActions/utils/resolveActionTarget.ts
+        - src/features/surveyResponding/views/SurveyRespondentView.tsx
+      decisions: []
+      risks:
+        - "No CSV/blob precedent in src/api - a new src/lib/browser/downloadBlob.ts is required."
+        - "ActivityCatalogView.tsx has no tab registry; the 5 in-file edit sites are unstructured and untested."
+        - "scripts/i18n-extract.ts CONFIG.locales omits uk, so uk.json silently drifts on every extract run."
+      artifacts:
+        - path: analysis/codebase-analysis.md
+          label: "Codebase analysis (60+ files, complex, medium-high risk)"
+          html: null
+    clarifications:
+      summary: >-
+        Four scope-shaping decisions settled: surgical acme-portal.d.ts edit, WIDGET-shell tab per
+        spec, full scope in one pass, all 8 locales translated now.
+      decisions:
+        - decision: "Surgical acme-portal.d.ts hand-add rather than copying the BE worktree file"
+          rationale: "A full copy drags ~400 lines of unrelated master drift (removed dueDate/plannedStart, analytics union reshape, endpoint renames) into this PR."
+        - decision: "Employee list stays a WIDGET-shell tab per the approved design"
+          rationale: "Discoverability where requesters already are, accepting the shell's known fragility."
+        - decision: "Full scope in one pass (all 13 screens)"
+          rationale: "Matches the spec and the already-shipped backend."
+        - decision: "Translate all 8 core locales now"
+          rationale: "No raw keys in any language; uk.json needs explicit handling because the extractor omits it."
+      risks:
+        - "BE contract is still uncommitted on PR #2562; hand-added types must be re-verified against the merged file."
+        - "SurveyResponseStatus.WITHDRAWN sweep spans surveyResponding, performanceReviews and surveys; non-exhaustive if-chains will not fail compilation."
+      artifacts:
+        - path: analysis/clarifications.md
+          label: "Phase 1 clarifications"
+          html: null
+    gap_analysis:
+      summary: >-
+        Contract verification against the shipped BE found 17 divergences, 4 blocking.
+        Scope is correct; the CONTRACT needed expanding. Four consolidated BE asks filed
+        (applicant identity, handler-preview gate+by-sources, repeatable status param,
+        attestedByName). BE worktree verified CLEAN at 481610dc5.
+      integration_points:
+        - src/features/widget/views/ActivityCatalogView.tsx
+        - src/features/widget/components/EnrollmentTileCard (CatalogCta host, 6th edit site)
+        - src/features/myActions/utils/resolveActionTarget.ts
+        - src/app/AppRouter.tsx
+        - src/config/paths.ts
+        - src/api/factory.ts
+        - src/lib/dto/acme-portal.d.ts
+        - repo-beta Angular host (admin route + menu item)
+      decisions:
+        - decision: "isOwner gap resolved by a blocking BE ask, not a client-side workaround"
+          rationale: "ApplicationDetailDto has no applicant identity; the own-list-cache fallback fails on cold deep-links, which is exactly how handlers and coordinators arrive."
+        - decision: "BE ask to widen handler-preview's gate and accept unsaved sources[]"
+          rationale: "Endpoint is applications:request-gated and persisted-sources-only, so the specced live preview is unbuildable."
+        - decision: "BE ask for a repeatable status query param"
+          rationale: "Composite Open/Closed chips are not expressible against a single-value param; axios already serialises arrays with arrayFormat repeat."
+        - decision: "BE ask for attestedByName; omit the Batches column meanwhile"
+          rationale: "Rendering raw UUIDs is forbidden and a per-row person lookup is poor value."
+        - decision: "Verify the host /admin/* wildcard and ship a paired repo-beta menu-item change"
+          rationale: "An unverified wildcard is a launch blocker, not a discoverability nit."
+        - decision: "Promote SurveySelector to src/components/connected/surveySelect"
+          rationale: "A cross-feature deep import fails the CI Sheriff gate; the second consumer proves it belongs in shared."
+        - decision: "Parse ApplicationAnswerDto.value as a jsonb envelope and correct the test fixtures"
+          rationale: "Value is {type,value} JSON text, not a date string; spec-literal fixtures would pass against a shape production never sends."
+        - decision: "Handler picker follows the spec (TeamSelect + person multi-select); amend shared-audience-picker.md"
+          rationale: "BE contract is a flat sources[], not CriteriaUnion, and the preview decision removes the shared module's main draw."
+        - decision: "Generate mockups for ALL uncovered surfaces (Phase 4 runs)"
+          rationale: "Batches tab, AttestDialog, edit/withdraw modals, rejected-outcome card and race banner have no screen ID."
+        - decision: "Add all three safety-net specs (resolveActionTarget, ActivityCatalogView activeTab, exportHandoff)"
+          rationale: "Each can fail silently with no compile error and no existing test."
+        - decision: "Add 'uk' to scripts/i18n-extract.ts CONFIG.locales"
+          rationale: "The extractor silently skips Ukrainian on every run; a one-line fix disarms a recurring footgun."
+      risks:
+        - "BLOCKING: four BE asks must land before the capability model, process-editor preview, composite chips and the Batches attestedBy column can be implemented."
+        - "The repo-beta (Angular host) change lives in a second repository and is outside this task's verification gates."
+        - "Amending shared-audience-picker.md is a standards change requiring /maister:standards-update, not a silent edit."
+        - "ActivityCatalogView has 6 unstructured edit sites (one more than the spec counted) in a 468-line file with no tab registry."
+      artifacts:
+        - path: analysis/gap-analysis.md
+          label: "Gap analysis (17 divergences, 4 blocking)"
+          html: null
+        - path: analysis/scope-clarifications.md
+          label: "Phase 2 scope clarifications (15 decisions)"
+          html: null
+        - path: analysis/backend-asks.md
+          label: "Consolidated backend asks (4)"
+          html: null
+    ui_mockups:
+      summary: >-
+        Phase 4 mockup pass produced the 5 surfaces the product-design package left
+        without a screen ID (Batches tab, attest dialog incl. its conflict state,
+        edit/withdraw modals, rejected outcome, decision-race-lost banner). Rendered
+        HTML bound to the existing mockups' exact token palette and CSS idioms; 18
+        screens now indexed.
+      components_designed:
+        - "Batches list (no attestedBy column, no re-download)"
+        - "AttestDialog (normal + pruned-selection conflict)"
+        - "Edit / Withdraw ConfirmationModals"
+        - "Rejected outcome card with verbatim quoted reason"
+        - "Race-lost inline info banner (decision bar absent)"
+      format_used: html
+      decisions: []
+      risks:
+        - "Live gallery on :3847 shows only the 5 new screens - the 13 handoff screens were copied as files without the server's manifest, so they are reviewable on disk only."
+      artifacts:
+        - path: analysis/design-context/mockups/admin-batches-tab.html
+          label: "Admin Batches tab"
+          html: analysis/design-context/mockups/admin-batches-tab.html
+        - path: analysis/design-context/mockups/attest-confirm-handoff-dialog.html
+          label: "Confirm handoff dialog (+ conflict state)"
+          html: analysis/design-context/mockups/attest-confirm-handoff-dialog.html
+        - path: analysis/design-context/mockups/edit-and-withdraw-modals.html
+          label: "Edit / Withdraw modals"
+          html: analysis/design-context/mockups/edit-and-withdraw-modals.html
+        - path: analysis/design-context/mockups/request-detail-rejected-outcome.html
+          label: "Request detail - rejected outcome"
+          html: analysis/design-context/mockups/request-detail-rejected-outcome.html
+        - path: analysis/design-context/mockups/decision-race-lost-banner.html
+          label: "Decision race lost banner"
+          html: analysis/design-context/mockups/decision-race-lost-banner.html
+    specification:
+      summary: >-
+        spec.md (526 lines) + HTML companion. 28 requirements, 16 reusable components,
+        17 new, all 18 mockup screens referenced, 9 test groups. Every API signature
+        re-verified against the BE acme-portal.d.ts rather than inherited, surfacing two
+        further contract corrections (A15, A16) and an expanded host-routing blocker.
+      decisions:
+        - decision: "Picker maps subjectUuid = EligibleSubjectDto.editionId (A15)"
+          rationale: "EligibleSubjectDto has no subjectUuid/subjectType; built literally from the design spec the create call would send undefined."
+        - decision: "v1 omits edition dates and location from the detail meta line (A16)"
+          rationale: "ApplicationDetailDto carries neither; a second WIDGET fetch was rejected in favour of a logged BE follow-up."
+        - decision: "SurveySelector promotion adds optional label/id props"
+          rationale: "Keeps the performanceReviews consumer on its existing keys - zero translation churn across 8 locales."
+        - decision: "Host changeset specified, not executed (4 edits, exact anchors)"
+          rationale: "The host repo sits outside every verification gate this workflow runs."
+      risks:
+        - "HOST BLOCKER (verified): repo-beta enumerates micro-app slugs in BOTH EMPLOYEE_ROUTING and ADMIN_ROUTING; 'applications' is absent from both. /e/applications/:requestId 404s on a fresh load, which is exactly the handler's new-tab journey from the My-actions CTA - a functional blocker, not a refresh nicety."
+        - "ApplicationAnswerDto.value jsonb envelope is the highest-probability silent defect; fixtures must use the real BE shape."
+        - "SUBJECT_ROUTE_BUILDERS is string-keyed - a wrong literal 404s with no compile or test signal on the handler's only entry point."
+        - "SurveyRespondentView.tsx:60 isReadOnly is the load-bearing site in the WITHDRAWN sweep; omission renders a withdrawn response editable."
+        - "Live API unavailable until the auth repo ships the applications permission domain (every endpoint 403s) - gates E2E only."
+      artifacts:
+        - path: implementation/spec.md
+          label: "Implementation specification (28 requirements)"
+          html: implementation/spec.html
+    spec_audit:
+      summary: >-
+        Independent audit returned FAIL (7 critical / 26 major / 14 minor). Orchestrator
+        verification reclassified criticals 1-3 as FALSE POSITIVES - a global
+        FriendlyIdModule converts java.util.UUID to and from base62, so the identity
+        comparisons and payloads were always correct. Revised verdict:
+        PASS-WITH-CONCERNS (4 critical). All 4 real criticals plus all 40 major/minor
+        findings applied in spec revision 2 (697 lines).
+      decisions:
+        - decision: "Criticals 1-3 rejected as false positives, with the mechanism recorded in spec section T3a"
+          rationale: "FriendlyIdAutoConfiguration registers FriendlyIdModule globally; FriendlyIdSafe accepts either encoding. Verified at ParentContextConfiguration.java:76/:132 and FriendlyIdSafe.java:12-20, and confirmed by the project owner."
+        - decision: "Console renamed /admin/catalog to /admin/applications"
+          rationale: "The Angular host enumerates admin slugs, so a type-specific slug costs a cross-repo PR per future application type; the rest of the multi-type generalization is deliberate YAGNI."
+        - decision: "Requester process picker gated behind BE ask #5"
+          rationale: "GET /applications/processes is manage-only, so a requester 403s; interim behaviour is single-process resolution, time-boxed to one process per company."
+        - decision: "Amendment register rebuilt as CC1-CC22"
+          rationale: "The A-series had contradictory and undefined entries and collided with gap-analysis A1-A9 and problem-statement A1-A5."
+        - decision: "Two unused endpoints removed rather than documented (scope=company, GET handler-preview)"
+          rationale: "Zero v1 consumers; scope=company additionally needs both permissions because the coarse gate runs first."
+        - decision: "Standards deviation for the handler picker recorded without amending the standard"
+          rationale: "Owner declined the shared-audience-picker amendment, so the spec records the deviation and the standard stands as written."
+      risks:
+        - "HOST BLOCKER: microAppRoute('applications', ...) must be added to BOTH EMPLOYEE_ROUTING and ADMIN_ROUTING in repo-beta. The employee entry is a functional blocker for the handler journey (the inbox CTA opens a new tab = cold URL load), so that host PR must land WITH this work, not after."
+        - "Scope grew by two requirements (24 answers surface, 25 cancel) - machinery that existed with no requirement behind it; requirement 25 has no dedicated mockup."
+        - "BE ask #5 (requester-readable process list) is open; until it lands, multi-process companies get an error where the design promised a picker."
+        - "The FriendlyID mechanism was verified from configuration, not from a live payload; the first live-API smoke test should confirm it at the wire."
+      artifacts:
+        - path: verification/spec-audit.md
+          label: "Spec audit + orchestrator correction (verdict revised to pass-with-concerns)"
+          html: null
+        - path: implementation/spec.md
+          label: "Implementation specification, revision 2 (697 lines)"
+          html: implementation/spec.html
+    planning:
+      summary: >-
+        25 task groups (22 code, 1 test review, 2 non-code), 148 steps, 6 dispatch waves,
+        ~96 tests. Visual coverage 18/18 screens. Group 1 (surgical acme-portal.d.ts) runs alone
+        first; the WITHDRAWN sweep follows immediately; the BE-blocked process picker is
+        Group 24 (labelled, unstarted) and the host changeset is Group 25 (non-code).
+      decisions:
+        - decision: "acme-portal.d.ts surgical type add is Group 1, alone, first"
+          rationale: "Nothing typechecks until the 3 APPLICATIONS_* Permission members exist; the surgical add avoids ~400 lines of unrelated master drift."
+        - decision: "Group 6 creates all 7 views as stubs plus both barrels"
+          rationale: "Later view groups own exactly one file each, which is what makes Wave D parallel."
+        - decision: "Group 4 lands the full ~155-key i18n inventory in all 8 locales upfront"
+          rationale: "Removes the worst shared-file contention - 8 JSON files against 13 UI groups."
+        - decision: "All 7 external WIDGET edit sites in one group with the activeTab regression spec"
+          rationale: "A 468-line file with no tab registry gets one owner; a mistake there regresses existing WIDGET tabs."
+        - decision: "Type-only, scaffolding and translation groups declare no jest specs"
+          rationale: "test-writing.md forbids route-config, key-factory and pass-through specs; their gates are typecheck/sheriff/i18n validators."
+        - decision: "Blocked process picker is Group 24, labelled and unstarted"
+          rationale: "Deferral stays visible rather than silently dropped."
+      risks:
+        - "Feature test total (~96) exceeds the 16-34 single-feature guidance, though per-group limits (2-8, review <=10) are respected."
+        - "BE ask #5 OPEN - the v1 single-process create path is correct only while one enabled process exists per company."
+        - "repo-beta EMPLOYEE_ROUTING entry is a functional blocker for the handler journey; landing it is outside this task's gates."
+        - "Six files are touched by multiple groups (src/api/factory.ts, src/config/paths.ts, ApplicationDetailView.tsx, 3 query files) - declared per group so the executor serializes them."
+        - "Requirement 25 (cancel) has no dedicated mockup; planned inside Group 13 without inventing a screen ID."
+      artifacts:
+        - path: implementation/implementation-plan.md
+          label: "Implementation plan (25 groups, 148 steps, 6 waves)"
+          html: implementation/implementation-plan.html
+        - path: implementation/visual-coverage.md
+          label: "Visual coverage matrix (18/18 screens)"
+          html: null
+    implementation:
+      summary: >-
+        All 23 code groups delivered plus 3 unplanned remediations, across 6 dispatch
+        waves with up to 5 parallel implementers. Full suite 537/538 suites and
+        3436/3470 tests pass; the sole failure is the pre-existing healthCheck node-version
+        assertion (sandbox v20.18.0 vs .nvmrc v22.22.2), unrelated to this feature.
+        typecheck / lint:strict / sheriff all clean.
+      decisions:
+        - decision: "Removed the feature root barrel rather than adding four sub-barrels"
+          rationale: "widget and adminCadence prove the no-root-barrel shape; one deletion cleared all 18 sheriff violations and matched repo precedent."
+        - decision: "Ran the integration pass BEFORE the final wave, not after"
+          rationale: "Seven groups still had to write into those directories; fixing the structure first meant they inherited it instead of adding to an 18-violation pile across seven authors."
+        - decision: "Process editor is a full page, not a drawer"
+          rationale: "The mockup has its own breadcrumb, h1 and plain footer, and none of the adminCadence drawer chrome. Group 21 also found the registered child routes were dead - no Outlet existed."
+        - decision: "Accepted Group 14's justified breach of the no-new-i18n-keys rule"
+          rationale: "No Approve/Reject imperative existed in the 180-key inventory; hardcoded English would violate a CRITICAL i18n rule that outranks the instruction. Two keys added to all 8 locales."
+        - decision: "Conflict rows show a shared cause explanation rather than fabricated per-row reasons"
+          rationale: "The BE conflict carries only the first offending id and one errorType for the batch; inventing a timestamp would be incorrect data presented as fact."
+      risks:
+        - "Group 24 (>1-process requester picker) remains deliberately unimplemented pending BE ask #5; multi-process companies get an error where the design promised a picker."
+        - "The repo-beta host changeset is documented but NOT applied - /e/applications/:requestId 404s on a cold load until it lands, which is exactly the handler journey."
+        - "Live API unavailable until the auth repo ships the applications permission domain; every endpoint 403s, so E2E cannot run against a real backend."
+        - "OPEN PRODUCT QUESTION: process-editor Save blocks on known-zero resolution but not while the preview is in flight. Either behaviour is defensible; needs a one-line sign-off."
+        - "resetMocks:true means any spec with a module-level mockReturnValue not re-armed in beforeEach passes for the wrong reason - one instance found and fixed, worth a standards note."
+      artifacts:
+        - path: implementation/work-log.md
+          label: "Work log (23 groups + 3 remediations)"
+          html: null
+        - path: implementation/host-changeset.md
+          label: "repo-beta host changeset (ready to apply)"
+          html: null
+    design_resources:
+      ran: true
+      found_any: true
+      note: >-
+        Harvested from the product-design handoff artifact: Chakra v3 semantic tokens,
+        frontend + design-system standards, WIDGET status-to-color convention, local
+        src/components/ui library. Binding for all generated screens.
+    design:
+      summary: >-
+        Approved product-design package ingested: 13 HTML mockups, product brief, and the
+        implementation-ready feature spec (module layout, routes, API surface, per-screen
+        behaviour). Design decisions D1-D12 settled; all backend contract asks answered.
+      screen_count: 18
+      component_count: 0
+      index_path: analysis/design-context/INDEX.md
+      decisions:
+        - decision: "One feature module, one detail route, three doors"
+          rationale: "Handler may hold no WIDGET permission; requester, handler and coordinator each enter from their own home surface but share src/features/applications and one detail route."
+      risks: []
+      artifacts:
+        - path: analysis/design-context/INDEX.md
+          label: "Design context index (18 screens)"
+          html: null
+        - path: analysis/design-context/source/feature-spec.md
+          label: "Feature spec (primary implementation contract)"
+          html: null
+        - path: analysis/design-context/brief.md
+          label: "Product brief"
+          html: null
+
+verification_context:
+  last_status: passed
+  reverify_count: 1
+  commit: d348b0ba
+  issues_found:
+    - "CRITICAL: i18n:validate failed with 20 orphan keys, blocking pre-push and CI"
+    - "CRITICAL: 403 regression on the pre-existing My Enrollments view (CTA query fired before the permission check)"
+    - "CRITICAL: approve-race rendered an untranslated hardcoded error and stranded the modal, defeating Success Criterion 4"
+    - "HIGH: PROCESS_AMBIGUOUS computed, translated and tested but rendered by no component (found independently by 4 reviewers)"
+    - "HIGH: CTA opened the picker with no preselection, asking which training the user had just clicked"
+    - "HIGH: catalog route ungated - only the tab chip was conditional; the view's doc comment falsely claimed otherwise"
+    - "HIGH: the read-only answers section could render an editable, auto-saving survey and fire a server write"
+    - "HIGH: WITHDRAWN responses trapped the viewer on section 1 (validation ran against read-only inputs)"
+    - "HIGH: provisioning guard could never fire for >=2 processes; failure advice was actively wrong"
+    - "HIGH: list view had no isError branch - a 403 rendered the success empty state"
+    - "MEDIUM: attest pruning mislabelled rows under cursor pagination; survey labels resolved from page 1 only; 2 i18n anti-patterns; opacity on text; fg.subtle below AA on 6 sites; root form.watch; cancel race had no banner; withdrawn responses badged Submitted; withdrawn-only users saw empty buckets"
+  fixes_applied:
+    - "All 3 criticals, all 8 highs and the full medium set fixed across 3 delegated fix groups plus 1 flake fix"
+    - "18 orphan i18n keys deleted as superseded; 4 wired as genuine missing features (ambiguous-process, not-enabled, list.continue-form, timeline.batch-link)"
+    - "SurveysListView act() flake fixed - surfaced by our added test load, deterministic fix proven insufficient before falling back to the repo's precedented scoped suppression"
+  decisions_made:
+    - "Did NOT bulk-delete the orphan keys - triage found 4 that were missing features, not dead code"
+    - "H1 (console reachability) is not a defect in this repo: every admin surface is host-nav reached; ADMIN_REVIEW_CADENCE and ADMIN_PREDEFINED_DASHBOARDS have zero in-app references either"
+    - "Committed workflow artifacts alongside source, consistent with prior features (admin-cadence, widget)"

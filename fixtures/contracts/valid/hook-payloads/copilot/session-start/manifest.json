@@ -1,0 +1,28 @@
+{
+  "id": "copilot-session-start",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "1.0.80",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_sessionstart"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "copilot",
+      "event": "sessionStart",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "empty"
+    }
+  },
+  "notes": "Copilot CLI sessionStart payload captured live (Copilot CLI 1.0.80). sessionStart with source \"new\"; carries the initial prompt. The beacon hook is registered here."
+}

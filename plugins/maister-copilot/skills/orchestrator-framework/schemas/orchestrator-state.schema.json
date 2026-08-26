@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/orchestrator-state",
+  "title": "orchestrator-state.yml",
+  "description": "Contract A1, implicit format version 1 (absence of a version field means v1). Three layers: a strict core, open per-workflow context definitions, and the shared phase-summary value. Unknown keys are preserved everywhere; enums and required lists carry the strictness.",
+  "type": "object",
+  "required": ["orchestrator", "task"],
+  "properties": {
+    "orchestrator": { "$ref": "#/$defs/orchestrator" },
+    "task": { "$ref": "#/$defs/task" },
+    "project_context": { "$ref": "#/$defs/project_context" },
+    "related_tasks": {
+      "description": "Core-optional. Other task directories this run builds on.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
+          "relation": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "verification_context": { "$ref": "#/$defs/verification_context" },
+    "external_research": { "$ref": "#/$defs/external_research" },
+    "workflow": { "$ref": "https://maister.dev/schemas/contracts/workflow-state" },
+    "node_summaries": { "$ref": "https://maister.dev/schemas/contracts/node-summary#/$defs/map" },
+    "task_context": { "$ref": "#/$defs/task_context" },
+    "research_context": { "$ref": "#/$defs/research_context" },
+    "design_context": { "$ref": "#/$defs/design_context" },
+    "performance_context": { "$ref": "#/$defs/performance_context" },
+    "migration_context": { "$ref": "#/$defs/migration_context" }
+  },
+  "anyOf": [
+    {
+      "description": "Exactly one per-workflow context block.",
+      "oneOf": [
+        { "required": ["task_context"] },
+        { "required": ["research_context"] },
+        { "required": ["design_context"] },
+        { "required": ["performance_context"] },
+        { "required": ["migration_context"] }
+      ]
+    },
+    {
+      "description": "Or none at all — chain runs carry their per-node state under the workflow block instead.",
+      "allOf": [
+        { "not": { "required": ["task_context"] } },
+        { "not": { "required": ["research_context"] } },
+        { "not": { "required": ["design_context"] } },
+        { "not": { "required": ["performance_context"] } },
+        { "not": { "required": ["migration_context"] } }
+      ]
+    }
+  ],
+  "$defs": {
+    "orchestrator": {
+      "description": "Layer 1, core. Required keys are present in every file at or above the compatibility floor; the remaining typed keys are optional and unknown keys are preserved.",
+      "type": "object",
+      "required": ["started_phase", "completed_phases", "failed_phases", "created", "updated", "task_path"],
+      "properties": {
+        "started_phase": { "type": ["string", "null"] },
+        "completed_phases": { "type": "array", "items": { "type": "string" } },
+        "failed_phases": { "type": "array", "items": { "type": "string" } },
+        "created": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+        "updated": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+        "task_path": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
+        "auto_fix_attempts": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "options": {
+          "description": "Open map. The shared keys are html_output, mockup_format and sequential; every other key belongs to one workflow and is documented there.",
+          "type": "object"
+        },
+        "task_ids": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "integer", "null"] }
+        },
+        "next_phase": {
+          "description": "Phase id (phase-N) is the writer form; a sentence is tolerated on read.",
+          "type": ["string", "null"]
+        },
+        "type": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/workflow_type" },
+        "skipped_phases": {
+          "description": "Phase id to reason.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "driver": { "$ref": "https://maister.dev/schemas/contracts/driver" },
+        "gate_pending": { "$ref": "https://maister.dev/schemas/contracts/gate#/$defs/pending" }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": ["title", "status"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/task_status" },
+        "description": { "type": ["string", "null"] },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "priority": { "anyOf": [{ "type": "null" }, { "enum": ["low", "medium", "high"] }] },
+        "key": {
+          "description": "Tracker id when the run has one. The tracker mirror (T1) adopts it as the intake key.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "project_context": {
+      "description": "Core-optional, top level. The variant nested under task_context is tolerated on read.",
+      "type": "object",
+      "properties": {
+        "project_doc_paths": { "type": "array", "items": { "type": "string" } },
+        "project_context_summary": { "type": ["string", "null"] }
+      }
+    },
+    "verification_context": {
+      "type": "object",
+      "properties": {
+        "last_status": { "anyOf": [{ "type": "null" }, { "enum": ["passed", "passed_with_issues", "failed"] }] },
+        "issues_found": { "type": ["array", "integer", "null"] },
+        "fixes_applied": { "type": "array" },
+        "decisions_made": { "type": "array" },
+        "reverify_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "external_research": {
+      "type": "object",
+      "properties": {
+        "performed": { "type": ["boolean", "null"] },
+        "category": { "type": ["string", "null"] },
+        "breaking_changes": { "type": "array" },
+        "migration_guide_url": { "type": ["string", "null"] }
+      }
+    },
+    "phase_summaries": {
+      "description": "Layer 3. Every value is either a phase-summary entry or a bare list of decision items.",
+      "type": "object",
+      "additionalProperties": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/phase_summary_value" }
+    },
+    "research_reference": {
+      "description": "Pointer to the research task a run was seeded from. `path` and `research_question` are singular or plural.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "research_question": {
+          "anyOf": [
+            { "type": "null" },
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "research_type": { "type": ["string", "null"] },
+        "confidence_level": { "type": ["string", "null"] },
+        "local_copy": { "type": ["string", "null"] }
+      }
+    },
+    "task_context": {
+      "description": "Layer 2, development. Open: run-specific keys are added freely and preserved.",
+      "type": "object",
+      "properties": {
+        "risk_level": { "type": ["string", "null"] },
+        "architecture_decision": { "type": ["string", "null"] },
+        "clarifications_resolved": { "type": ["boolean", "null"] },
+        "scope_expanded": { "type": ["boolean", "null"] },
+        "tech_clarified": { "type": ["boolean", "null"] },
+        "change_type": { "type": ["string", "null"] },
+        "compatibility_requirements": { "type": ["string", "array", "null"] },
+        "effort_estimate": { "type": ["string", "null"] },
+        "program_inputs": { "type": "object" },
+        "task_characteristics": {
+          "description": "The closed characteristic vocabulary the conditional phases branch on.",
+          "type": "object",
+          "properties": {
+            "has_reproducible_defect": { "type": ["boolean", "null"] },
+            "modifies_existing_code": { "type": ["boolean", "null"] },
+            "creates_new_entities": { "type": ["boolean", "null"] },
+            "involves_data_operations": { "type": ["boolean", "null"] },
+            "ui_heavy": { "type": ["boolean", "null"] }
+          }
+        },
+        "research_reference": { "$ref": "#/$defs/research_reference" },
+        "design_reference": {
+          "type": "object",
+          "properties": {
+            "source": { "type": ["string", "null"] },
+            "product_design_path": { "type": ["string", "null"] },
+            "mockup_count": { "type": ["integer", "null"] },
+            "has_brief": { "type": ["boolean", "null"] },
+            "index_path": { "type": ["string", "null"] }
+          }
+        },
+        "phase_summaries": { "$ref": "#/$defs/phase_summaries" }
+      }
+    },
+    "research_context": {
+      "description": "Layer 2, research.",
+      "type": "object",
+      "properties": {
+        "research_type": { "anyOf": [{ "type": "null" }, { "enum": ["technical", "requirements", "literature", "mixed"] }] },
+        "research_question": { "type": ["string", "null"] },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "included": { "type": "array" },
+            "excluded": { "type": "array" },
+            "constraints": { "type": "array" }
+          }
+        },
+        "methodology": { "type": "array" },
+        "sources": { "type": "array" },
+        "confidence_level": { "type": ["string", "null"] },
+        "gathering_strategy": {
+          "type": "object",
+          "properties": {
+            "categories": { "type": "array", "items": { "type": "string" } },
+            "count": { "type": ["integer", "null"] },
+            "source": { "type": ["string", "null"] }
+          }
+        },
+        "project_doc_paths": { "type": "array", "items": { "type": "string" } },
+        "phase_summaries": { "$ref": "#/$defs/phase_summaries" }
+      }
+    },
+    "design_context": {
+      "description": "Layer 2, product design.",
+      "type": "object",
+      "properties": {
+        "design_characteristics": {
+          "type": "object",
+          "properties": {
+            "is_greenfield": { "type": ["boolean", "null"] },
+            "is_enhancement": { "type": ["boolean", "null"] },
+            "is_ui_focused": { "type": ["boolean", "null"] },
+            "is_backend": { "type": ["boolean", "null"] },
+            "is_complex": { "type": ["boolean", "null"] },
+            "is_simple": { "type": ["boolean", "null"] }
+          }
+        },
+        "complexity_level": { "anyOf": [{ "type": "null" }, { "enum": ["simple", "standard", "complex"] }] },
+        "collected_urls": { "type": "array" },
+        "research_topics": { "type": "array" },
+        "user_files_list": { "type": "array", "items": { "type": "string" } },
+        "project_doc_paths": { "type": "array", "items": { "type": "string" } },
+        "project_context_summary": { "type": ["string", "null"] },
+        "refinement_iterations": { "type": "object" },
+        "visual_companion": {
+          "type": "object",
+          "properties": {
+            "available": { "type": ["boolean", "null"] },
+            "port": { "type": ["integer", "null"] },
+            "pid": { "type": ["integer", "null"] },
+            "shut_down_at": {
+              "anyOf": [
+                { "type": "null" },
+                { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" }
+              ]
+            },
+            "fallback_to_ascii": { "type": ["boolean", "null"] }
+          }
+        },
+        "research_reference": { "$ref": "#/$defs/research_reference" },
+        "scope_decision": { "type": ["string", "null"] },
+        "phase7_scope_revision": { "type": "object" },
+        "design_resources": {
+          "type": "object",
+          "properties": {
+            "ran": { "type": ["boolean", "null"] },
+            "standards": { "type": "array" },
+            "design_system": { "type": "array" },
+            "skill_hints": { "type": "array" },
+            "found_any": { "type": ["boolean", "null"] }
+          }
+        },
+        "phase_summaries": { "$ref": "#/$defs/phase_summaries" }
+      }
+    },
+    "performance_context": {
+      "description": "Layer 2, performance. Synthetic fixtures only until the first real run is sampled.",
+      "type": "object",
+      "properties": {
+        "bottlenecks_identified": { "type": ["integer", "null"] },
+        "user_data_available": { "type": ["boolean", "null"] },
+        "bottleneck_priorities": {
+          "type": "object",
+          "properties": {
+            "p0": { "type": ["integer", "null"] },
+            "p1": { "type": ["integer", "null"] },
+            "p2": { "type": ["integer", "null"] },
+            "p3": { "type": ["integer", "null"] }
+          }
+        },
+        "phase_summaries": { "$ref": "#/$defs/phase_summaries" }
+      }
+    },
+    "migration_context": {
+      "description": "Layer 2, migration. The only context block that carries no phase_summaries — the migration workflow records them nowhere else either.",
+      "type": "object",
+      "properties": {
+        "migration_type": { "anyOf": [{ "type": "null" }, { "enum": ["code", "data", "architecture", "general"] }] },
+        "current_system": { "$ref": "#/$defs/system_description" },
+        "target_system": { "$ref": "#/$defs/system_description" },
+        "migration_strategy": {
+          "type": "object",
+          "properties": {
+            "approach": { "anyOf": [{ "type": "null" }, { "enum": ["incremental", "big-bang", "dual-run", "phased"] }] },
+            "phases": { "type": "array" }
+          }
+        },
+        "risk_level": { "type": ["string", "null"] },
+        "breaking_changes": { "type": "array" },
+        "rollback_plan_created": { "type": ["boolean", "null"] },
+        "dual_run_configured": { "type": ["boolean", "null"] }
+      }
+    },
+    "system_description": {
+      "type": "object",
+      "properties": {
+        "description": { "type": ["string", "null"] },
+        "technologies": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

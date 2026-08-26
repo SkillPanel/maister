@@ -32,12 +32,18 @@ Applies when editing skills, agents, commands, hooks, or references under `plugi
 | All references in one skill | < 3,000 lines total |
 | Individual standard (`###` section in a standards file) | 1–10 lines + optional snippet |
 
+**Carve-out.** Rules 1, 2 and 5 and the length targets above describe *prose* references. They do not apply to:
+
+- `hooks/*.mjs` and `hooks/*.sh` — executable code, written to be read as code.
+- `skills/orchestrator-framework/schemas/*.json` — JSON Schema documents, generated-shaped by nature.
+- `skills/orchestrator-framework/references/compatibility-contracts.md` — a **register**, not a guide: normative tables and frozen literals, max 600 lines, samples ≤ 10 lines each.
+
 ## Adding things
 
 - **Skill**: `skills/<name>/SKILL.md` (uppercase) with `name` + `description` frontmatter — the description is what the Skill tool and users see. Optional `references/`, `assets/`. Orchestrators additionally follow `skills/orchestrator-framework/references/orchestrator-creation-checklist.md` and read `orchestrator-patterns.md` at init.
 - **Command**: `commands/<name>.md`, flat (no subdirectories) and no colons in `name` — the Copilot build requires both. Invoke a skill; don't embed logic.
 - **Agent**: `agents/<name>.md` with `name`, `description`, `tools` frontmatter. Read-only unless it must write. If it truly needs destructive Bash, add it to the `case` whitelist in `hooks/block-destructive-commands.sh` — default is *not* whitelisted.
-- **Hook**: register in `hooks/hooks.json` using `${CLAUDE_PLUGIN_ROOT}` paths; script alongside.
+- **Hook**: script alongside `hooks/hooks.json`, registered there with a `${CLAUDE_PLUGIN_ROOT}`-anchored path. Node hooks (`*.mjs`) use the exec form — `command: node` with the script path in `args` — so nothing depends on a shebang or an executable bit. Shell hooks (`*.sh`) are invoked as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/<name>.sh"` for the same reason. The Copilot variant does not inherit `hooks.json`: its hook configs are authored under `platforms/copilot-cli/hooks/` and emitted by the build.
 
 ## Delegation (skills that orchestrate)
 
@@ -45,7 +51,7 @@ Skill tool for skills, Task tool for agents — never a skill via Task (`subagen
 
 ## Copilot build compatibility
 
-`platforms/copilot-cli/build.sh` transforms source into `plugins/maister-copilot/` and `make validate` enforces: flat commands, no colons in command names, no `multi-select`/`multiSelect` wording in skills, no `maister:` prefixes, no `CLAUDE.md` references in skills. Write source so the substitutions (`AskUserQuestion` → `ask_user`, multi-select → sequential single-select) still read correctly.
+`platforms/copilot-cli/build.sh` transforms source into `plugins/maister-copilot/` and `make validate` enforces: flat commands, no colons in command names, no `multi-select`/`multiSelect` wording in skills, no `maister:` prefixes, no `CLAUDE.md` references in skills. Write source so the substitutions (`AskUserQuestion` → `ask_user`, multi-select → sequential single-select) still read correctly. Two further source rules follow from those greps: **no bare `maister:` YAML key in any `*.md`** (write the plugin name in prose instead), and **the E2 multi-choice flag key is spelled only in schemas and fixtures** — prose calls it "the multi-choice flag (see `gate.schema.json`)".
 
 ## Review checklist
 

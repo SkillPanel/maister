@@ -1,0 +1,17 @@
+# Invalid: a gate node with two continue options and no stop option. A gate that
+# cannot stop the chain is not a gate.
+name: two-continue
+version: 1
+inputs:
+  target: {type: string, required: true}
+nodes:
+  research:
+    uses: workflow:research
+    needs: []
+  approve:
+    type: gate
+    needs: [research]
+    ask: "Proceed?"
+    options:
+      proceed-fast: continue
+      proceed-slow: continue

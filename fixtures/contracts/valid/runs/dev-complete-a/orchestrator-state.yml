@@ -1,0 +1,427 @@
+orchestrator:
+  type: development
+  started_phase: phase-14
+  completed_phases: [phase-1, phase-2, phase-5, phase-6, phase-7, phase-8, phase-10, phase-11, phase-14]
+  skipped_phases:
+    phase-3: "has_reproducible_defect false - additive feature, no defect to reproduce"
+    phase-4: "ui_heavy false - backend-only, no UI surface in this repo"
+    phase-9: "phase-3 was not executed"
+    phase-12: "e2e_enabled false - no browser surface in this repo"
+    phase-13: "operator decision at Phase 10 - backend endpoint, nothing to screenshot"
+  failed_phases: []
+
+  auto_fix_attempts:
+    phase-1: 0
+    phase-2: 0
+
+  options:
+    html_output: true
+    mockup_format: html
+    spec_audit_enabled: true
+    # Operator decision at the Phase 8 gate (2026-08-12T09:41:55Z): run the full suite.
+    # Ordering is load-bearing - Phase 11's test-suite-runner executes it, and the two-step
+    # acme-portal.d.ts regen MUST be re-run afterwards as the final action before commit
+    # (a full suite run silently re-emits the raw file, undoing Group 5).
+    skip_test_suite: false
+    regen_required_after_verification: false  # DONE 2026-08-12T19:59:24Z - clean +15/-0, aliases restored, C1 resolved
+    e2e_enabled: false      # backend-only task, ui_heavy false - no browser surface in this repo
+    user_docs_enabled: false # operator decision at Phase 10: backend endpoint, no UI to screenshot
+    code_review_enabled: true
+    pragmatic_review_enabled: true
+    reality_check_enabled: true
+    production_check_enabled: true
+    sequential: null
+
+  created: 2026-08-11T20:27:00Z
+  updated: 2026-08-12T19:59:24Z
+  task_path: .maister/tasks/development/2026-08-11-acme-1001-my-progress-backend
+
+  task_ids:
+    phase-1: "1"
+    phase-2: "2"
+    phase-5: "3"
+    phase-6: "4"
+    phase-7: "5"
+    phase-8: "6"
+    phase-10: "7"
+    phase-11: "8"
+    phase-13: "9"
+    phase-14: "10"
+
+task:
+  key: ACME-1001
+  title: '[INV] My progress: backend support for employee progress summary'
+  description: >-
+    Investigation: can the backend serve the four "My progress" metrics for the
+    current employee, all-time, in a single call?
+    (1) Count of completed activities.
+    (2) Count of achieved certificates - is a certificate a record in Catalog Hub awarded on
+    activity completion, or a separate manually managed entity?
+    (3) Total time spent on learning - is actual time-on-activity recorded anywhere? LEDGER reports
+    progress and score; does it also report session time? For video / article / workshop types, is
+    there anything beyond declared duration metadata?
+    (4) Is all-time scope queryable without an N+1 per activity?
+    Why it matters: "My progress" tile on the new employee dashboard (ACME-1002). Metric 3 is the
+    risk - if only declared duration exists, we either ship "estimated time" or drop the metric.
+    Expected deliverable: yes/no verdict per metric with endpoint names where they exist; shape of
+    work required for gaps; follow-up tickets created for the gaps.
+    Scope boundaries: NOT in scope - manager/team-level aggregate progress; building any of it.
+    Context: Northwind (WIDGET) go-live 1 October 2026.
+  status: completed
+  tags: [investigation, widget, dashboard, learning]
+  priority: high
+
+task_context:
+  risk_level: medium
+  clarifications_resolved: true
+  scope_overridden_by_user: true
+  scope_expanded: null
+  architecture_decision: null
+  is_investigation: true
+  jira_key: ACME-1001
+  related_tickets: [ACME-1002]
+
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: true
+    involves_data_operations: true
+    ui_heavy: false
+
+  research_reference:
+    path: null
+    research_question: null
+    research_type: null
+    confidence_level: null
+
+  design_reference:
+    source: null
+    product_design_path: null
+    mockup_count: 0
+    has_brief: false
+    index_path: null
+
+  project_doc_paths:
+    - .maister/docs/INDEX.md
+    - .maister/docs/project/vision.md
+    - .maister/docs/project/roadmap.md
+    - .maister/docs/project/tech-stack.md
+
+  phase_summaries:
+    research: {summary: null, key_findings: [], recommended_approach: null}
+    design: {summary: null, screen_count: 0, component_count: 0, index_path: null}
+    codebase_analysis:
+      summary: >-
+        Metrics 1 (completed activities) and 4 (all-time, no N+1) are servable today from
+        widget_enrollment in one jOOQ query. Metric 2 (certificates) lives entirely outside the Java
+        backend as plugin-owned custom objects. Metric 3 (actual time) exists for LEDGER only, as a
+        monotonic MAX of a single session, with zero read sites. Verdict on the ticket's headline
+        question - four metrics in a single call: NO.
+      primary_language: Java 25 (Spring Boot 4.1, JOOQ read models) + TypeScript (Next.js plugins)
+      key_files:
+        - src/main/java/com/acme/portal/widget/enrollment/domain/Enrollment.java
+        - src/main/java/com/acme/portal/widget/ledger/application/WidgetLedgerCommitService.java
+        - src/main/java/com/acme/portal/widget/dashboard/infrastructure/DbWidgetTeamDashboardQueryService.java
+        - src/main/java/com/acme/portal/widget/assignmentgroup/infrastructure/DbAssignmentGroupDetailQueryService.java
+        - src/main/java/com/acme/portal/widget/enrollment/infrastructure/WidgetEnrollmentController.java
+        - src/main/java/com/acme/portal/achievements/facade/AchievementSummaryDto.java
+        - db/changelog/2026/db.changelog.2026-widget-slice5-ledger.sql
+        - db/changelog/2026/db.changelog.2026-widget-slice9-duration-rework.sql
+        - ../../plugins/plugin-catalog-hub/plugin.json
+      decisions: []
+      risks:
+        - >-
+          Metric 2 sits outside the SQL boundary - personCertificate is a plugin custom object in
+          custom_resource* tables, so no join with widget_enrollment is possible and a single call
+          cannot cover all four metrics.
+        - >-
+          widget_enrollment.total_time_ms is a monotonic MAX of one LEDGER session, not a lifetime sum;
+          SUM() over it yields "best single session per activity". True lifetime time needs
+          SUM(widget_ledger_attempt.session_time_ms), a table in no jOOQ query today.
+        - >-
+          No "ACHIEVED" status exists on personCertificate - ACTIVE/EXPIRING_SOON/EXPIRED are
+          computed at read time. The definition of "achieved" is an unanswered product question.
+        - >-
+          Two competing LEDGER implementations: core Java WIDGET vs plugin-ledger-player (which ships an
+          i18n key ledger.activities.myProgress = "My progress"). Canonical one undecided.
+        - >-
+          Learning paths are themselves enrollments (path_enrollment_id parent/child) - a naive
+          COUNT of completed enrollments double-counts path steps plus the path itself.
+        - No composite (company_uuid, person_uuid, status) index on widget_enrollment.
+      artifacts:
+        - {path: analysis/codebase-analysis.md, label: "Codebase Analysis - verdict per metric", html: null}
+    clarifications:
+      - decision: "Deliverable = investigation report + implementation of servable metrics"
+        rationale: "User overrode the ticket's 'not in scope: building any of it' boundary; tile needed for 1 Oct Northwind go-live"
+      - decision: "Metric 2 (certificates) dropped from the tile"
+        rationale: "personCertificate rows are manually self-reported/imported, never awarded by learning completion - the count would misrepresent platform-earned achievement"
+      - decision: "Metric 3 = SUM(progress/100 * COALESCE(edition.duration_seconds, activity.duration_seconds)), labelled as an estimate"
+        rationale: "Uses the existing per-enrollment progress column so in-flight activities contribute partial credit; one query, no new tracking"
+      - decision: "Follow-up Jira tickets drafted in the report, not created via acli"
+        rationale: "User wants to review before anything is written to Jira"
+    gap_analysis:
+      summary: >-
+        Additive, low-complexity build - one JOOQ query service, one DTO record, one new method on
+        the existing WidgetEnrollmentController. No migration, no new table, no new permission (the
+        composite index already exists). But the Phase 1 metric-3 formula is broken as written:
+        Enrollment.complete() never sets progress=100, so 4 of 6 completion paths leave progress at
+        0 and every attendance-completed classroom TRAINING would contribute zero learning time.
+      integration_points:
+        - "NEW widget/enrollment/infrastructure/DbWidgetMyProgressQueryService.java (template: DbAssignmentGroupDetailQueryService.fetchSummary L211-247)"
+        - NEW widget/enrollment/infrastructure/dto/MyLearningProgressDto.java
+        - MODIFY WidgetEnrollmentController - add GET /widget/enrollments/my/summary
+        - MODIFY AbstractControllerTest - add @MockitoBean DbWidgetMyProgressQueryService
+        - REGENERATE docs/acme-portal.d.ts (pom.xml needs NO change - controller already registered ~L1369)
+        - 10s query timeout via deriveSettings, matching DbWidgetSwimlaneQueryService:107
+      decisions: []
+      risks:
+        - >-
+          BLOCKING: Enrollment.complete() (Enrollment.java:455-462) does not set progress=100. Only
+          the LEDGER (Enrollment.java:312) and learning-path (WidgetPathSignalBridge:191) paths do. The
+          other four - attendance PRESENT, generic /complete, task-group signoff, beacon - leave
+          progress at DEFAULT 0, so SUM(progress/100 * duration) reports ZERO time for every
+          classroom TRAINING ever attended. That is the dominant Northwind activity type and the one
+          with the most trustworthy declared duration.
+        - >-
+          Semantic/product risk: an estimate presented as a headline number, computed over an
+          optional, author-supplied, client-declared field, on a tile going live for a named
+          customer on 1 October.
+        - >-
+          duration_seconds is nullable on both development_activity and widget_training_edition - an
+          employee whose activities mostly lack a declared duration sees a plausible-looking but
+          badly undercounted number with no cue.
+        - >-
+          Dropping metric 2 takes the tile from four metrics to three - a design change that must go
+          back to the "Mockup - dashboard + Strefa Rozwoju" thread.
+        - >-
+          acme-portal.d.ts regen must be the LAST step before commit; a later ./mvnw test silently
+          re-emits the raw file and fails CI.
+      artifacts:
+        - {path: analysis/gap-analysis.md, label: "Gap Analysis - current vs desired, 9 open decisions", html: null}
+      corrections_to_phase_1:
+        - "Composite index idx_widget_enrollment_company_person_status ALREADY EXISTS (db.changelog.2026-widget-slice3-assignment-dashboard.sql:30) - no migration needed"
+        - "'progress forced to 100 on completion' was WRONG for 4 of 6 completion paths"
+        - "pom.xml <classes> registration NOT needed - WidgetEnrollmentController already listed ~L1369"
+    scope_clarifications:
+      scope_expanded: true
+      summary: >-
+        All nine gap-analysis decisions resolved. Build is a single additive endpoint
+        GET /widget/enrollments/my/summary returning three metrics. Broken progress formula fixed with
+        a query-side clamp; domain fix deferred to a follow-up ticket. Two decisions went against
+        the analyzer's recommendation: excluding DROPPED/FAILED from the time sum, and excluding
+        ARCHIVED activities from both metrics.
+      decisions:
+        - {decision: "D1 - real elapsed-time capture is OUT of this build", rationale: "Triples scope, changes a shipped contract, yields near-zero numbers for months; becomes follow-up ticket #1"}
+        - {decision: "D2 - query-side clamp now, domain fix as follow-up", rationale: "CASE WHEN status='COMPLETED' THEN 1.0 ELSE progress/100.0 END works on all historical rows with zero blast radius"}
+        - {decision: "D3 - exclude LEARNING_PATH containers, count the steps", rationale: "Correct under nesting; parent progress is already a derived aggregate of its children"}
+        - {decision: "D4 - return duration-coverage counters with the estimate", rationale: "Two extra filterWhere in the same statement; lets ACME-1002 caveat the number without a second backend round"}
+        - {decision: "D5 - exclude DROPPED and FAILED from the time sum", rationale: "User call, against the analyzer's recommendation to include them at progress weight"}
+        - {decision: "D6 - exclude ARCHIVED activities from both metrics", rationale: "User call, against the analyzer's recommendation to keep them"}
+        - {decision: "D7 - guard with repo-alpha:widget:enroll", rationale: "Consistent with every other method on WidgetEnrollmentController including the sibling dashboard tile"}
+        - {decision: "D8 - GET /widget/enrollments/my/summary", rationale: "/my convention; controller already registered in pom.xml so no <classes> change"}
+        - {decision: "D9 - seconds in the DTO", rationale: "Matches the duration_seconds source; formatting is the frontend's job"}
+      risks:
+        - >-
+          D6 consequence: excluding ARCHIVED means an employee's completed count and learning time
+          can DROP retroactively when an admin archives an old course. The tile is not monotonic.
+        - >-
+          D5 + D2 interaction: surviving contributors are COMPLETED (weight 1.0) and
+          IN_PROGRESS/NOT_STARTED/PENDING_APPROVAL (weight progress/100). PENDING_APPROVAL should
+          contribute 0 since progress is 0 - state it explicitly in the spec rather than leaving it
+          incidental.
+        - Tile now has three metrics, not four - design change must go back to the mockup thread before layouts freeze.
+      artifacts:
+        - {path: analysis/scope-clarifications.md, label: "Scope Clarifications - all 9 decisions resolved", html: null}
+      followup_tickets_to_draft:
+        - "Real elapsed-time capture for non-LEDGER activity types (from D1)"
+        - "Enrollment.complete() does not set progress=100 - domain fix + backfill (from D2)"
+        - "Certificates are never awarded by learning completion - decide if they should be earnable (from Phase 1)"
+        - "Two competing LEDGER implementations - pick a canonical one (from Phase 1)"
+        - "widget_enrollment.total_time_ms is write-only and semantically a max, not a sum (from Phase 1)"
+    ui_mockups: {components_designed: [], summary: null}
+    specification:
+      summary: >-
+        Spec for one new self-scoped endpoint GET /widget/enrollments/my/summary returning six fields
+        in a single statement. 15 requirements (FR1-FR10, NFR1-NFR5), 7 reusable components,
+        4 new components, 10 tests. No migration, no new permission, no pom.xml change.
+      requirements_count: 15
+      reusable_components: 7
+      new_components_needed: 4
+      test_groups_estimated: 2
+      decisions:
+        - {decision: "Six response fields, not the three the tile shows", rationale: "Extras are free in the same statement; widening later costs a acme-portal.d.ts regen plus a frontend round trip"}
+        - {decision: "Learning time is an estimate, labelled as one", rationale: "Nothing measures elapsed time for non-LEDGER types; real capture deferred (D1)"}
+        - {decision: "Query-side completion clamp instead of the domain fix (D2)", rationale: "Enrollment.complete() never sets progress=100, so 4 of 6 paths would contribute zero time; clamp is read-only with zero blast radius"}
+        - {decision: "Exclude LEARNING_PATH by activity type, not path_enrollment_id (D3)", rationale: "Container progress is a derived aggregate of steps; type-based filter stays correct under nesting"}
+        - {decision: "Exclude ARCHIVED (D6) and DROPPED/FAILED (D5) in the WHERE", rationale: "Uniform application to every field including the coverage denominator"}
+        - {decision: "Strictly self-scoped via SecurityHelper (FR8)", rationale: "A manager variant needs different authorization and belongs on its own ticket"}
+        - {decision: "Reuse WidgetEnrollmentController and repo-alpha:widget:enroll (D7, D8)", rationale: "Controller-local consistency; already in pom.xml <classes>, so no pom edit"}
+        - {decision: "Round the weighted BigDecimal sum to whole seconds", rationale: "sum() yields BigDecimal while estimatedLearningSeconds is a primitive long - derived decision flagged by the spec author"}
+      risks:
+        - "Tile is not monotonic - archiving a course retroactively lowers counts and learning time (D6)"
+        - "lastActivityAt is MAX over the filtered set, so archived/dropped/failed access yields an older timestamp than expected"
+        - "Estimate rests on client-declared progress and author-optional duration_seconds; coverage counters are the only mitigation"
+        - "Tile drops from four metrics to three - design change that must go back to the mockup email thread before layouts freeze"
+        - "No mockup in either repo; DTO shape inferred from the ticket's named metrics"
+        - "Running ./mvnw test after the acme-portal.d.ts regen silently re-emits the raw file and fails CI - regen must be last"
+      artifacts:
+        - {path: analysis/requirements.md, label: "Requirements - FR1-FR10, NFR1-NFR5", html: null}
+        - {path: implementation/spec.md, label: "Specification", html: implementation/spec.html}
+    spec_audit:
+      verdict: pass-with-concerns
+      issue_counts: {critical: 0, warning: 7, info: 10}
+      summary: >-
+        Every load-bearing factual claim inherited from earlier phases independently confirmed
+        against the generated jOOQ schema, migrations and domain code. 0 critical, 7 warning,
+        10 info. Nothing blocks implementation; W1-W3 changed what an implementer writes and were
+        resolved in a binding spec addendum rather than a spec rewrite.
+      decisions:
+        - {decision: "Zero criticals despite a long finding list", rationale: "No finding makes the endpoint wrong for the common case or leaks tenant data; W2/W3 are correctness risks on specific data shapes, not the happy path"}
+        - {decision: "W2 (recurring double-count) rated most consequential", rationale: "Only finding where spec and schema disagree about what a number on the tile means, and no named test would catch it"}
+        - {decision: "Distinct-activity semantics adopted (W2 resolution)", rationale: "A recurring course completed three times counts as one activity and its duration is summed once - 'completed activities' reads literally"}
+        - {decision: "lastActivityAt widens to GREATEST(MAX(last_access_at), MAX(completed_at), MAX(started_at))", rationale: "last_access_at alone is stamped only by /play and LEDGER commits, so classroom-only employees would get a non-null count beside a null timestamp"}
+        - {decision: "Audit findings folded into an addendum + the plan, not a spec rewrite", rationale: "No spec round trip; the planner carries W1/W3/W6 as binding constraints C1-C4"}
+      risks:
+        - >-
+          The distinct-activity dedup needs a rule for which row's duration wins when the same
+          activity was enrolled under editions of differing length. Rule chosen: highest-weight row,
+          ties broken by the largest resolved duration. A judgement call, not a derived fact.
+        - >-
+          activitiesCountedCount is now a count of distinct activities, so the coverage ratio reads
+          "activities with a known duration / distinct activities counted". The DTO javadoc must say
+          distinct or the frontend will misread the denominator.
+        - >-
+          Unanswered: does a RECURRING activity completed three times count as 3 or 1 on the tile?
+          The schema permits both readings; the addendum picks 1.
+        - >-
+          Unanswered: are DRAFT-status activities deliberately included? D6 excluded only ARCHIVED,
+          leaving DRAFT in by omission (I1).
+      artifacts:
+        - {path: verification/spec-audit.md, label: "Spec Audit - pass-with-concerns, 0/7/10", html: null}
+        - {path: implementation/spec-addendum.md, label: "Spec Addendum - audit resolutions (binding, overrides spec.md)", html: null}
+    implementation_plan:
+      summary: >-
+        Five task groups, 28 steps, 12-22 tests. Groups 1-2 build the two-level jOOQ query
+        (inner per-activity dedup, outer aggregate) test-first; Group 3 wires the controller and can
+        run parallel with Group 2 once Group 1 lands. Group 4 is the review + quality gate.
+        Group 5 is the acme-portal.d.ts regen, deliberately terminal. All four binding addendum
+        constraints C1-C4 map to a named step AND a named test assertion.
+      task_groups: 5
+      total_steps: 28
+      expected_tests: "12-22"
+      decisions:
+        - {decision: "Query split across two groups, not one", rationale: "Group 1 proves the aggregate shape and arithmetic (C2), Group 2 layers filters and distinct-activity dedup (C1); ten query tests in one group would breach the 2-8 limit"}
+        - {decision: "Controller group depends only on Group 1", rationale: "It needs the DTO and service signature, not final query semantics - lets Groups 2 and 3 run concurrently on disjoint files"}
+        - {decision: "acme-portal.d.ts regen is its own terminal group, after the testing group", rationale: "Inverts the usual 'testing last' convention on purpose - any subsequent Maven test run silently reverts the regen and fails CI"}
+        - {decision: "Follow-up ticket drafting folded into Group 4", rationale: "Success criterion #9 is a deliverable of the [INV] ticket, not a code change; belongs with the review pass"}
+        - {decision: "The D2 weight clamp is implemented in Group 1 but asserted in Group 2", rationale: "The clamp is arithmetic; the attendance-completed-TRAINING scenario is a filter/semantics fixture - cross-group dependency made explicit"}
+      risks:
+        - >-
+          Shared-file contention on AbstractControllerTest - a repo-wide test base. Group 3 is the
+          only group that touches it; a concurrent branch edit fails every controller test in the
+          repo on merge, not on build.
+        - >-
+          The GREATEST fold (R2) must be verified as SQL, not Java. jOOQ's DSL.greatest(...) over
+          three max(...) aggregates should render server-side; a Java-side fold silently changes
+          null handling. No test can distinguish the two - it is a code-review item.
+        - >-
+          The dedup tie-break rule (max(weight), ties -> max(resolved_duration)) is a judgement
+          call. If the number looks wrong in review, question this first.
+        - >-
+          activitiesCountedCount changed meaning under C1 - distinct activities, not enrollments.
+          If the DTO javadoc omits "distinct", ACME-1002 will misread the coverage denominator.
+        - >-
+          The endpoint ships with no consumer in this repo. docs/acme-portal.d.ts is the only handoff
+          artifact; a shape error surfaces in the frontend repo, not here.
+      artifacts:
+        - {path: implementation/implementation-plan.md, label: "Implementation Plan - 5 groups, 28 steps", html: implementation/implementation-plan.html}
+    architecture_decision: {decision: null, summary: null}
+    implementation:
+      summary: >-
+        All 5 task groups and 28 steps complete across 4 waves (Groups 2 and 3 ran in parallel).
+        23 feature tests green, compile and checkstyle clean, acme-portal.d.ts regenerated to a clean
+        +15/-0 diff. Endpoint GET /widget/enrollments/my/summary ships with 3 new files and 4 modified.
+        Full project suite deliberately NOT run - it would re-emit the raw acme-portal.d.ts.
+      groups_completed: 5
+      steps_completed: 28
+      tests_passed: 23
+      decisions:
+        - {decision: "Group 1 implemented the C1 dedup projections and R2 GREATEST ahead of plan", rationale: "The outer aggregate cannot compile without inner columns to aggregate; Group 2's 2.3/2.5 became verification + regression tests rather than construction"}
+        - {decision: "currently_in_progress computed at the OUTER level, not the inner", rationale: "The addendum's max(status = IN_PROGRESS and not ever_completed) cannot be expressed inside a single grouped select - ever_completed is itself an aggregate of the same group. Outer filterWhere(EVER_IN_PROGRESS.eq(1).and(EVER_COMPLETED.eq(0))) is semantically identical"}
+        - {decision: "Private asLong(Field<Integer>) helper casting to BIGINT", rationale: "jOOQ types count() as Field<Integer> while Postgres returns bigint; aliasing onto Field<Long> produced ClassCastException. Load-bearing, not incidental"}
+        - {decision: "Two strategic tests added in Group 4 (budget was 10)", rationale: "The max(resolved_duration) tie-break was documented but untested (the addendum's own flagged judgement call), and NOT_STARTED/PENDING_APPROVAL zero-weight-but-counted was untested"}
+        - {decision: "Single-statement query-log assertion NOT added", rationale: "Group 2's rendered SQL already proves the inner grouped select is a derived table; a statement-counting listener would couple the suite to implementation against test-writing.md"}
+        - {decision: "Full project test suite NOT run at finalization", rationale: "It would silently re-emit the raw acme-portal.d.ts and reintroduce the 38-line discriminator regression Group 5 just repaired. build-workflow.md, the plan's terminal-group design, and step 5.5 all forbid it. Deferred to the operator"}
+        - {decision: "AbstractControllerTest mock declared with an FQCN", rationale: "Every one of that file's @MockitoBean declarations uses FQCNs; importing would break the established local convention. Checkstyle passes"}
+      risks:
+        - >-
+          Full project test suite has NOT been run. If the operator wants it, the safe ordering is
+          run suite -> re-run the two-step regen -> commit. Never git checkout docs/acme-portal.d.ts as
+          the repair.
+        - >-
+          docs/acme-portal.d.ts must go into the SAME commit as the Java changes, and no Maven test
+          lifecycle may run between now and the commit.
+        - >-
+          resolved: the R2 GREATEST fold was a code-review item no test could settle - Group 2
+          captured the rendered SQL and confirmed a server-side greatest(...), no Java-side fold.
+        - >-
+          resolved: docs/acme-portal.d.ts was found as a RAW re-emit (20 ins / 38 del, discriminator
+          aliases stripped) from an earlier test run. Group 5's two-step regen repaired it to a
+          clean +15/-0.
+        - >-
+          Parallel waves share one Maven target/ directory - a sibling recompile caused a transient
+          NoClassDefFoundError during Spring context load. Re-run resolved it; no code defect.
+        - >-
+          fix-acme-portal-dts-discriminators.sh appends the permission-scope alias block unconditionally
+          with cat >>; running it twice against one generated file duplicates the block. Never run
+          it standalone against an already-fixed file.
+        - >-
+          check-acme-portal.d.ts.sh exits 1 until the file is committed - its second gate is an
+          uncommitted-changes check. The discriminator gates themselves pass.
+      artifacts:
+        - {path: implementation/work-log.md, label: "Work Log - 5 groups, 4 waves, standards trail", html: null}
+        - {path: implementation/follow-up-tickets.md, label: "Follow-Up Ticket Drafts - 5 tickets with evidence", html: null}
+
+verification_context:
+  last_status: passed_with_issues
+  reverify_count: 1
+  issue_counts_initial: {critical: 1, warning: 5, info: 9}
+  issue_counts_final: {critical: 1, warning: 0, info: 7}
+  issues_found:
+    - {id: C1, severity: critical, source: reality, description: "docs/acme-portal.d.ts is a RAW re-emit - discriminator aliases stripped; success criterion #7 unmet, CI gate 1 fails", fixable: true, status: "residual by design - scheduled terminal regen"}
+    - {id: W1, severity: warning, source: reality, description: "person_uuid scoping has no test that would fail if deleted - would leak company-wide totals to every employee", fixable: true, status: fixed}
+    - {id: W2, severity: warning, source: "completeness + code_review + pragmatic", description: "lastActivityAt has no non-null assertion; reverting the R2 widening would leave all tests green", fixable: true, status: fixed}
+    - {id: W3, severity: warning, source: "code_review + reality", description: "the 'and not ever_completed' guard is never the reason any assertion holds", fixable: true, status: fixed}
+    - {id: W4, severity: warning, source: "code_review + reality", description: "dedup took max(weight) and max(duration) as INDEPENDENT aggregates, overstating learning time on multi-edition recurring enrollments and contradicting its own javadoc", fixable: true, status: fixed}
+    - {id: W5, severity: warning, source: completeness, description: "DTO javadoc omits what lastActivityAt is composed of - the DTO is the frontend handoff artifact", fixable: true, status: fixed}
+    - {id: I1, severity: info, source: "reality + pragmatic", description: "activitiesCountedCount includes NOT_STARTED/PENDING_APPROVAL, so coverage reads best where the estimate is thinnest - spec-deliberate", fixable: false, status: accepted}
+    - {id: I2, severity: info, source: reality, description: "the estimate caveat does not cross the repo boundary - typescript-generator emits doc comments for controller methods only", fixable: false, status: accepted}
+    - {id: I3, severity: info, source: completeness, description: "spec.md never edited for R2/R4/R6 - a reader landing there alone gets three superseded statements", fixable: true, status: fixed}
+    - {id: I4, severity: info, source: production, description: "no QueryTimeoutException mapping - a timeout is a bare 500; failing loudly is arguably correct, fix belongs in frontend copy", fixable: true, status: accepted}
+    - {id: I5, severity: info, source: production, description: "http.server.requests disabled platform-wide by the metrics allow-list - no per-endpoint latency series for any endpoint. Pre-existing", fixable: false, status: "accepted - own ticket"}
+    - {id: I6, severity: info, source: production, description: "only ARCHIVED excluded, so a DRAFT activity with a live enrollment would count. Unreachable today", fixable: true, status: accepted}
+    - {id: I7, severity: info, source: pragmatic, description: "triple null defence - only the coalesce around sum can fire; ~8 redundant lines", fixable: true, status: accepted}
+    - {id: I8, severity: info, source: pragmatic, description: "test fixture stamped STARTED_AT unconditionally, modelling a state the domain cannot produce", fixable: true, status: fixed}
+    - {id: I9, severity: info, source: test_suite, description: "SpringBatchJobRepositorySchemaTest is structurally vulnerable to committed state; stale reused containers make it fail deterministically on this machine", fixable: false, status: "accepted - environmental, own ticket"}
+  fixes_applied:
+    - {issue: W4, fix: "winningRowDuration(...) helper rendering (array_agg(resolved_duration ORDER BY weight DESC NULLS LAST, resolved_duration DESC NULLS LAST))[1]; javadoc rewritten as a decided rule", verified_by: "new test shouldTakeDurationOfTheWinningRowNotTheLongestEdition asserts 3600 (was 86400)"}
+    - {issue: W1, fix: "new test shouldExcludeAnotherPersonsEnrollmentsInTheSameCompany", verified_by: "asserts caller sees only their own row across all four counters"}
+    - {issue: W2, fix: "exact-value assertion isEqualTo(COMPLETED_AT) added to the existing attendance test", verified_by: "fixture has last_access_at NULL and completed_at set, so both plausible narrowings fail"}
+    - {issue: W3, fix: "new test shouldCountActivityCompletedAndInProgressAgainAsCompletedOnly", verified_by: "asserts completedActivitiesCount=1 AND inProgressCount=0"}
+    - {issue: W5, fix: "DTO javadoc composition sentence added", verified_by: inspection}
+    - {issue: I8, fix: "insertEnrollment stamps STARTED_AT/COMPLETED_AT only for states the domain can produce, via a hasStarted(status) helper", verified_by: "prerequisite for W2; no existing test affected"}
+    - {issue: I3, fix: "one-line precedence blockquote under spec.md's H1", verified_by: inspection}
+  decisions_made:
+    - {decision: "Run the full test suite, then re-run the acme-portal.d.ts regen", rationale: "Operator decision at the Phase 8 gate; ordering is load-bearing because a suite run silently re-emits the raw file"}
+    - {decision: "Skip user documentation (Phase 13)", rationale: "Backend endpoint with no UI surface; the docs generator drives Playwright and would have nothing to screenshot"}
+    - {decision: "W4 resolved as WINNING-ROW semantics - the javadoc was right, the code was wrong", rationale: "Operator decision. spec-addendum.md contradicted itself (prose: winning-row; pseudocode: independent-max); independent-max overstated learning time on multi-edition recurring enrollments, always upward"}
+    - {decision: "Targeted re-verification (test suite only) rather than all five agents", rationale: "Four of the five had no findings against the changed lines; the W4 query change is what needed regression cover"}
+    - {decision: "Operator handles the design-thread conversation and Jira ticket creation directly", rationale: "Both are outside the code; the drafts were deliberately held back from Jira for review"}
+  reverification:
+    baseline: {total: 6665, passing: 6645, errors: 1, skipped: 19}
+    post_fix: {total: 6668, passing: 6648, errors: 1, skipped: 19}
+    delta: "+3 total / +3 passing - exactly the three added tests; nothing else moved"
+    regressions: 0
+    artifacts:
+      - verification/test-suite-results.md
+      - verification/test-suite-results-reverify.md

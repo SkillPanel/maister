@@ -1,0 +1,24 @@
+{
+  "id": "workflow-state",
+  "contracts": [
+    "B2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "version-99-state.yml",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "degraded": [
+      "newer-format"
+    ]
+  },
+  "notes": "The value of the top-level workflow: key, not a whole state file. grammar_version 99, an unknown root key (scheduler) and unknown node keys (budget_used, substrate) must degrade rather than error. Every nodes entry is still one line, which is the text-level E2 rule the runner checks separately, and the suspended node status is exercised here. version-99-state.yml carries schema null on purpose: a document that declares a newer format cannot validate against the v1 const, and the expectation is the runner reporting degraded: newer-format rather than a schema pass."
+}

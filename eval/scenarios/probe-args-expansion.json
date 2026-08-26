@@ -1,0 +1,16 @@
+{
+  "id": "probe-args-expansion",
+  "title": "Probe: does ${CLAUDE_PLUGIN_ROOT} expand inside a hook entry's args array?",
+  "providers": "claude",
+  "seed": "pending",
+  "engine_prompt": false,
+  "probe": true,
+  "spawn": {"settings": false, "plugin_dir": "plugins/maister"},
+  "turns": [
+    {"prompt": "Create a file notes.txt in the working directory whose only content is the word scratch."}
+  ],
+  "pass": [
+    {"check": "denial_count", "op": "gte", "value": 1, "reason": "GATE PENDING"}
+  ],
+  "report": ["beacon_present"]
+}

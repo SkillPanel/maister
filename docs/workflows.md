@@ -227,22 +227,26 @@ All workflows create structured directories in `.maister/tasks/`:
 └── product-design/        # Product design
 ```
 
-Each task folder follows the pattern `YYYY-MM-DD-task-name/`:
+Each task folder follows the pattern `YYYY-MM-DD-task-name/` and always starts with the same three files:
 
 ```
 2026-02-17-user-auth/
 ├── orchestrator-state.yml        # Workflow state (pause/resume, phase tracking)
-├── analysis/
-│   ├── requirements.md           # Gathered requirements
-│   ├── research-context/         # Research artifacts (if --research used)
-│   └── visuals/                  # UI mockups (if UI-heavy)
-├── implementation/
-│   ├── spec.md                   # Specification (WHAT to build)
-│   ├── implementation-plan.md    # Step breakdown (HOW to build it)
-│   └── work-log.md              # Chronological activity log
-├── verification/                  # Verification reports
-└── documentation/                 # User-facing docs (optional)
+├── dashboard.html                # Operator dashboard (copied plugin asset)
+└── dashboard-data.js             # Dashboard data, rewritten after each phase
 ```
+
+What sits beside them depends on the workflow:
+
+| Workflow | Subdirectories |
+|----------|----------------|
+| **development** | `analysis/` (codebase analysis, gap analysis, `research-context/`, `design-context/`), `implementation/` (spec, plan, work log), `verification/`, `documentation/` |
+| **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log) |
+| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, feature spec, `mockups/`), `outputs/` (product brief) |
+| **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
+| **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
+
+The normative layout and naming rules are `plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md § A4`.
 
 ## Internal Skills
 

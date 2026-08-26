@@ -1,0 +1,3 @@
+{"sessionId":"db7b115d-fdbc-4baa-89b8-a9243d32e5d8","timestamp":1787676317524,"cwd":"/home/dev/work/repo-alpha","toolName":"apply_patch","toolArgs":"*** Begin Patch\n*** Add File: marker.txt\n+done\n*** End Patch\n"}
+{"sessionId":"db7b115d-fdbc-4baa-89b8-a9243d32e5d8","timestamp":1787676321648,"cwd":"/home/dev/work/repo-alpha","toolName":"bash","toolArgs":"{\"command\":\"printf 'done\\n' > marker.txt\",\"description\":\"Create marker.txt with done\"}"}
+{"sessionId":"db7b115d-fdbc-4baa-89b8-a9243d32e5d8","timestamp":1787676325747,"cwd":"/home/dev/work/repo-alpha","toolName":"skill","toolArgs":"{\"skill\":\"quick-dev\"}"}

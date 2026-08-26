@@ -1,0 +1,30 @@
+version: 1
+umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607
+members:
+  repo-alpha:    {path: projects/repo-alpha,    kind: repo, default_provider: claude}
+  repo-beta:     {path: projects/repo-beta,     kind: repo, default_provider: copilot}
+  shared-types:  {path: projects/shared-types,  kind: repo}
+  docs-site:     {path: projects/docs-site,     kind: repo, default_provider: claude}
+  infra:         {path: projects/infra,         kind: repo}
+  design-system: {path: projects/design-system, kind: repo, default_provider: copilot}
+branch_convention: "feature/{run_id}-{node}"
+coordination:
+  branch: maister/coordination
+  worktree: .maister/umbrella/.coordination
+  retention: {days: 90}
+tracker:
+  kind: jira
+  project: ACME
+  mirror: {enabled: true, scope: runs}
+git_host:
+  kind: github
+  org: acme
+people:
+  - {id: operator-1, email: dev1@example.test, members: [repo-alpha, repo-beta]}
+  - {id: operator-2, email: dev2@example.test, members: [design-system]}
+routing:
+  tiers: {}
+knowledge: knowledge/
+defaults:
+  autonomy: attended
+  worktree: true

@@ -1,0 +1,11 @@
+# Invalid: the node id "Build_Step" breaks the node_id pattern ^[a-z][a-z0-9-]{1,40}$.
+# Node ids appear in file names (gates/<node>.request.yml) and in markers, so the
+# character set is closed.
+name: bad-ids
+version: 1
+inputs:
+  target: {type: string, required: true}
+nodes:
+  Build_Step:
+    uses: skill:quick-dev
+    needs: []

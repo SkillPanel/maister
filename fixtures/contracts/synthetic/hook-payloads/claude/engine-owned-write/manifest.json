@@ -1,0 +1,31 @@
+{
+  "id": "claude-engine-owned-write",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/claude_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "claude",
+      "event": "PreToolUse",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "empty",
+      "state_fixture": "synthetic/gate/pending",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "The run is pending and the target is the pending run's own orchestrator-state.yml, which is on the allow-list. Allow means exit 0 with empty stdout - never permissionDecision allow, which would bypass the terminal user's own permission prompt. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+}

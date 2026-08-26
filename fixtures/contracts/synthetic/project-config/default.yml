@@ -1,0 +1,3 @@
+# .maister/config.yml as init scaffolds it: every key at its default.
+html_output: true
+mockup_format: html

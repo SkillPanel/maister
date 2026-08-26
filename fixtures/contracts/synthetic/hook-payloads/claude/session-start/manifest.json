@@ -1,0 +1,28 @@
+{
+  "id": "claude-session-start",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/claude_sessionstart"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "claude",
+      "event": "SessionStart",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "empty"
+    }
+  },
+  "notes": "The Claude counterpart of the captured Copilot sessionStart payload - this provider's session-start class was never captured live, and the beacon needs one payload per vocabulary. The beacon hook answers with empty stdout and exit 0 and writes its liveness marker to MAISTER_BEACON_DIR, never under cwd: .maister/ is tracked in real consumer repositories, so a per-session file there would show up as an untracked file in every chain session. No state fixture: the beacon reads no run state."
+}

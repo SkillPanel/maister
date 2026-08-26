@@ -10,3 +10,11 @@
 # Maister task tracking (generated per-project, not part of plugin source)
 .maister/
 /.worktrees/
+
+# Node toolchain (contract suite, tarball staging, eval outputs)
+node_modules/
+dist/
+eval/results/
+
+# Playwright MCP session logs (written into the working directory by the MCP server)
+.playwright-mcp/

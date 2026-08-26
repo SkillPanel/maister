@@ -1,0 +1,4 @@
+# Invalid: mockup_format is a closed enum of html | ascii. A3 is otherwise an open map,
+# so an unknown key would be preserved - a known key with an unknown value is the error.
+html_output: true
+mockup_format: figma

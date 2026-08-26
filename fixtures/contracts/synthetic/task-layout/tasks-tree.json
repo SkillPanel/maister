@@ -1,0 +1,105 @@
+{
+  "root": ".maister/tasks",
+  "description": "Synthetic .maister/tasks listing for the A4 enumerator. Each task-dir entry carries only the facts the floor-detection rule reads: whether orchestrator-state.yml parses, its orchestrator.created value, and whether task.title exists.",
+  "entries": [
+    {
+      "path": "development/README.md",
+      "kind": "file"
+    },
+    {
+      "path": "development/2026-08-11-widget-progress-backend",
+      "kind": "task-dir",
+      "state": {
+        "present": true,
+        "parses": true,
+        "created": "2026-08-11T20:27:00Z",
+        "task_title": "Widget progress backend"
+      }
+    },
+    {
+      "path": "development/2026-08-22-widget-export-endpoint",
+      "kind": "task-dir",
+      "state": {
+        "present": true,
+        "parses": true,
+        "created": "2026-08-22T10:00:00Z",
+        "task_title": "Widget export endpoint"
+      }
+    },
+    {
+      "path": "development/2026-08-22-widget-export-endpoint/analysis/design-context/mockups/.mockups.json",
+      "kind": "file"
+    },
+    {
+      "path": "development/2026-07-04-pre-floor-run",
+      "kind": "task-dir",
+      "state": {
+        "present": true,
+        "parses": true,
+        "created": "2026-07-04T00:00:00Z",
+        "task_title": "Pre-floor run"
+      }
+    },
+    {
+      "path": "development/2026-06-30-unparseable-state",
+      "kind": "task-dir",
+      "state": {
+        "present": true,
+        "parses": false,
+        "created": null,
+        "task_title": null
+      }
+    },
+    {
+      "path": "development/notes.txt",
+      "kind": "file"
+    },
+    {
+      "path": "research/2026-08-10-catalog-grounding",
+      "kind": "task-dir",
+      "state": {
+        "present": true,
+        "parses": true,
+        "created": "2026-08-10T19:14:55Z",
+        "task_title": "Catalog grounding"
+      }
+    },
+    {
+      "path": "product-design/2026-08-11-catalog-applications-ui",
+      "kind": "task-dir",
+      "state": {
+        "present": true,
+        "parses": true,
+        "created": null,
+        "task_title": "Catalog applications UI"
+      }
+    },
+    {
+      "path": "bug-fixes/2026-05-02-legacy-fix",
+      "kind": "task-dir",
+      "legacy_type": true,
+      "state": {
+        "present": true,
+        "parses": true,
+        "created": "2026-05-02T09:00:00Z",
+        "task_title": "Legacy fix"
+      }
+    },
+    {
+      "path": "mockups/2026-04-18-legacy-mockups",
+      "kind": "task-dir",
+      "legacy_type": true,
+      "state": {
+        "present": false,
+        "parses": false,
+        "created": null,
+        "task_title": null
+      }
+    },
+    {
+      "path": ".archive",
+      "kind": "dir",
+      "dot_prefixed": true
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "migration-a",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "Synthesized from migration/SKILL.md:311-348: the 8-field migration_context (no phase_summaries, per drift #3) plus the top-level external_research block, which is core-optional typed. No real >= 2.2.3 migration run existed at freeze time."
+}

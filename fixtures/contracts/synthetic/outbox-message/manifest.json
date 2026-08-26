@@ -1,0 +1,35 @@
+{
+  "id": "outbox-message",
+  "contracts": [
+    "C4"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "status.yml",
+      "schema": "outbox-message.schema.json#"
+    },
+    {
+      "path": "followup.yml",
+      "schema": "outbox-message.schema.json#"
+    },
+    {
+      "path": "artifact.yml",
+      "schema": "outbox-message.schema.json#"
+    },
+    {
+      "path": "blocked.yml",
+      "schema": "outbox-message.schema.json#"
+    },
+    {
+      "path": "closeout.yml",
+      "schema": "outbox-message.schema.json#"
+    }
+  ],
+  "notes": "One document per outbox message type: status, followup, artifact, blocked, closeout. Files are append-only and never edited, one type per file; the worker writes them into outbox/<dispatch_id>/<seq>-<type>.yml and the daemon folds them into ledger ops."
+}

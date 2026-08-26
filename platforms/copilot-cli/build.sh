@@ -17,7 +17,14 @@ sedi() {
 
 rm -rf "$OUT"
 cp -r "$CORE" "$OUT"
+# Copilot resolves hooks from the consumer repository, not from --plugin-dir:
+# drop the Claude-shaped hooks directory and emit the Copilot registration plus
+# the scripts it names into .github/hooks/. No sed pass touches .mjs or .json.
 rm -rf "$OUT/hooks"
+mkdir -p "$OUT/.github/hooks"
+cp "$CORE/hooks/"{gate-lib,gate-enforce,gate-stop-nudge,gate-beacon}.mjs "$OUT/.github/hooks/"
+cp "$ROOT/platforms/copilot-cli/hooks/maister-gates.json" "$OUT/.github/hooks/"
+cp "$ROOT/platforms/copilot-cli/hooks/README.md" "$OUT/.github/hooks/"
 
 # 1. Update plugin.json name and description
 sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"

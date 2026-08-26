@@ -1,0 +1,190 @@
+orchestrator:
+  started_phase: "phase-8"
+  completed_phases: ["phase-0", "phase-1", "phase-2", "phase-3", "phase-4", "phase-5", "phase-6", "phase-7", "phase-8"]
+  failed_phases: []
+  auto_fix_attempts: {}
+  options:
+    html_output: true
+    mockup_format: html
+    visual_enabled: true
+  created: "2026-08-25T09:59:19Z"
+  updated: "2026-08-25T15:59:32Z"
+  task_path: ".maister/tasks/product-design/2026-08-25-maister-v3-platform-and-gui"
+  task_ids: {}   # TaskCreate/TaskUpdate tools unavailable in this session; state file is sole tracker
+  next_phase: null
+
+task:
+  title: "Maister v3 platform + GUI product design"
+  description: "Design the Maister v3 product shape based on two completed researches: 2026-08-12-maister-v3-directions (skill simplification, declarative workflow engine, umbrella/multi-project dispatch, tracker integration) and 2026-08-25-maister-gui-options (build-fresh local daemon + browser SPA observer over .maister files, provider abstraction, org-central evolution)."
+  status: "completed"
+  tags: ["v3", "platform", "gui", "workflow-engine"]
+  priority: "high"
+
+design_context:
+  design_characteristics:
+    is_greenfield: true
+    is_enhancement: false
+    is_ui_focused: true
+    is_backend: true
+    is_complex: true
+    is_simple: false
+  complexity_level: "complex"
+  collected_urls: []
+  research_topics: []
+  user_files_list:
+    - "context/research-context/2026-08-12-maister-v3-directions/findings/external-factory-ai.md"
+    - "context/research-context/2026-08-25-maister-gui-options/findings/external-factory-ai.md"
+  project_doc_paths: []
+  project_context_summary: "No .maister/docs/ present in this worktree; project context comes from CLAUDE.md (root + plugins/maister) and the two imported researches."
+  refinement_iterations:
+    phase_2: 1
+    phase_3: 0
+    phase_5: 1
+    phase_6_sections: {"1-product-surface": 1, "2-grammar": 2, "3-gate-suspend": 1, "4-umbrella-runtime": 1, "5-cockpit-daemon": 1, "6-cockpit-spa": 1, "7-layer0-freeze": 1, "8-roadmap": 1, "9-workspaces-git-coordination": 2}
+    phase_7: 6
+  visual_companion:
+    available: true
+    port: null
+    pid: null
+    shut_down_at: "2026-08-25T15:56:56Z"
+    fallback_to_ascii: false
+  research_reference:
+    path:
+      - ".maister/tasks/research/2026-08-12-maister-v3-directions"
+      - ".maister/tasks/research/2026-08-25-maister-gui-options"
+    research_question:
+      - "How should the six proposed directions for maister v3 be evaluated, shaped and prioritized?"
+      - "What GUI should maister have, built how and on what platform?"
+  scope_decision: "both-as-one-product"
+  phase7_scope_revision:
+    coordination_substrate: "git: orphan branch maister/coordination mounted as worktree at .maister/umbrella/, event-sourced ledger, answer files, driver-local resume"
+    tracker_at_launch: "read + one-way mirror (Jira + GitHub Issues; ADO v1.x): epic/child tickets for runs, tasks, follow-ups; transition/comment/PR links at close-out"
+    people: "derived identity + activity from git/tracker; no live presence"
+    workspace: "= registered umbrella repo clone"
+    no_central_db: true
+  design_resources:
+    ran: true
+    standards: []
+    design_system: [{kind: css-var, path: plugins/maister/skills/orchestrator-framework/assets/dashboard.html}, {kind: theme, path: plugins/maister/skills/orchestrator-framework/references/html-report-style.md}]
+    skill_hints: [{kind: skill, name: dataviz}]
+    found_any: true
+  phase_summaries:
+    context_synthesis:
+      summary: "Both researches synthesized; architecture settled (25 ADRs), product story open; three cross-layer seams identified."
+      sources_count: 4
+      decisions:
+        - {decision: "Do not re-litigate existing ADRs", rationale: "Both researches forbid re-opening; this design defines product shape, audience, journey, joint sequencing."}
+        - {decision: "Skip codebase-analyzer", rationale: "Research 1 carries a verified codebase strand against v2.2.3."}
+      risks:
+        - "Two roadmaps, no joint sequence (GUI fleet depth depends on engine R6)"
+        - "n=1 demand base for Layer-3 shapes and GUI backlog"
+        - "Open plugin vs closed licensed GUI under one name"
+        - "Two unproven hook mechanisms on the same platform surface"
+      artifacts:
+        - {path: "analysis/design-context.md", label: "Unified design context", html: null}
+    problem_exploration:
+      summary: "Free engine-driven plugin chaining across repos + licensed fleet cockpit required to run/monitor/unblock multi-repo workflows; launch = cockpit + one chained umbrella flow."
+      problem_statement: "No product lets one operator run, watch, and unblock a fleet of maister workflows across repos from one place; today that is manual glue on a bloated v2 foundation."
+      constraints:
+        - "C1 Plugin dispatches + writes ledger; daemon (licensed) required to monitor/ingest/unlock umbrella"
+        - "C2 Gates answerable from cockpit at launch (new engine contract)"
+        - "C3 Providers: Claude Code + Copilot CLI; Copilot spike before adapter freeze"
+        - "C4 Layer-0 frozen; old dirs render + resume"
+        - "C5 Solo, 3-6 months, vertical slice launch"
+        - "C6 Remaining 23 ADRs fixed"
+      success_criteria:
+        - "S1 richtext-class chain with zero manual glue, gates answered from cockpit"
+        - "S2 npx cockpit populated on clean machine over v2 dirs, <=2s latency"
+        - "S3 surface <=105k tokens, gates 100% hook-enforced"
+        - "S4 one paying umbrella user outside the author"
+      decisions:
+        - {decision: "First win = cockpit + cross-repo chaining together", rationale: "User priority; umbrella moves forward, D1 cut rides behind"}
+        - {decision: "Paid GUI; umbrella gated by GUI", rationale: "Plugin free for single-repo"}
+        - {decision: "Plugin dispatches, daemon monitors/unlocks", rationale: "Keeps ADR-007; revises GUI-ADR-001 with ledger-ops write path"}
+        - {decision: "Gates answerable from cockpit at launch", rationale: "Chained runs across N terminals are the daily pain"}
+        - {decision: "Claude Code + Copilot CLI at launch", rationale: "Both run maister workflows via dual plugin build"}
+      risks:
+        - "Copilot CLI control surface unverified"
+        - "Remote gate-answer contract is new scope in a tight window"
+        - "Daemon load-bearing for umbrella vs daemon-down invariant"
+        - "n=1 demand base"
+      artifacts:
+        - {path: "analysis/problem-statement.md", label: "Problem statement", html: null}
+    persona_exploration:
+      summary: "Four personas; P1 umbrella operator primary, P2 tech lead buyer, P3 single-repo do-no-harm, P4 org owner post-launch."
+      personas: ["P1 Umbrella Operator (primary)", "P2 Tech Lead adopting for a team (buyer)", "P3 Single-repo user (do-no-harm)", "P4 Org platform owner (post-launch)"]
+      user_journeys: ["dispatch/watch/unblock/close-out (P1)", "install/init/overlay/review/license (P2)", "upgrade with zero regression (P3)", "read-only fan-in (P4)"]
+      decisions:
+        - {decision: "Primary persona = umbrella operator", rationale: "Only validated journey"}
+        - {decision: "Tech lead = buyer persona", rationale: "S4 measured against them"}
+      risks: ["P2/P4 inferred, not observed"]
+      artifacts:
+        - {path: "analysis/personas.md", label: "Personas", html: null}
+    idea_generation:
+      summary: "23 alternatives across 6 product decision areas (gate channel, runtime split, roadmap, packaging, cockpit IA, Copilot); recommended combo 1C/2D/3D/4A/5D/6D."
+      alternatives_count: 23
+      decisions:
+        - {decision: "Gate channel modeled as suspend + resume (recommended)", rationale: "Headless, two-provider, no daemon write to state"}
+        - {decision: "No license check in plugin; daemon required structurally as chain driver (recommended)", rationale: "Evasion-proof, outage = pause not corruption"}
+        - {decision: "Launch on grammar subset, D1 cut behind (recommended)", rationale: "Fits 3-6 month solo slice"}
+      risks:
+        - "-p --resume re-entering a suspended engine run is unverified (month-1 spike)"
+        - "gate-request file is a new Layer-0 element; must be right first time"
+        - "Copilot headless surface unverified; fallback observe-only"
+        - "Surface stays heavy through first paying-user window"
+      artifacts:
+        - {path: "analysis/alternatives.md", label: "Design alternatives", html: "analysis/alternatives.html"}
+    idea_convergence:
+      summary: "maister (free plugin) + maister cockpit (Observer/Fleet); daemon = chain driver; gate-suspend contract; full Claude Code + Copilot CLI parity; contract-first roadmap."
+      selected_approach: "1C gate-suspend / 2D daemon chain driver / 3D contract-first parallel / 4A one brand two tiers / 5D Fleet home + Run leaf / 6A full Copilot parity"
+      trade_offs_accepted: ["Surface heavy at launch (S3 deferred)", "Grammar subset, hand-written chain files", "No cost metric at launch", "Solo alternating tracks", "Two adapter rows in month 1", "New Layer-0 element (gate-request file)"]
+      key_decisions: ["1C", "2D", "3D", "4A", "5D", "6A"]
+      decisions:
+        - {decision: "Gate channel = suspend + resume (1C)", rationale: "Provider-agnostic, no daemon writes to state, unlimited wait"}
+        - {decision: "Daemon is the chain driver (2D)", rationale: "Structural enforcement; outage = pause"}
+        - {decision: "Contract-first parallel roadmap (3D)", rationale: "Fixtures as integration currency; Observer month 3, integrate month 4"}
+        - {decision: "One brand, Observer/Fleet tiers (4A)", rationale: "Free/paid line = single repo vs fleet"}
+        - {decision: "Fleet home + Attention strip + Run leaf (5D)", rationale: "P1 journey 1:1; S2 on Observer"}
+        - {decision: "Full Copilot parity incl. chain driver (6A)", rationale: "1.0.80 spike: hooks, named resume, OTel, ACP verified"}
+      risks:
+        - "-p --resume re-entering suspended engine run unverified (both providers)"
+        - "maister-copilot engine build must exit cleanly at gates"
+        - "Copilot hook schema young; pin >=1.0.80 with fixtures"
+        - "Gate-request file must be right first time in the freeze"
+      artifacts:
+        - {path: "analysis/design-decisions.md", label: "Design decisions", html: "analysis/design-decisions.html"}
+    feature_specification:
+      summary: "8 implementation-ready sections + Appendix A state machines; full grammar at launch; gate-suspend; umbrella runtime; daemon; SPA; Layer-0 freeze; 6-7 month roadmap."
+      spec_sections: {1: "Product Surface & Tiers", 2: "Workflow Grammar & Chain Files", 3: "Gate-Suspend Contract", 4: "Umbrella Runtime", 5: "Cockpit Daemon", 6: "Cockpit SPA", 7: "Layer-0 Freeze & Compatibility", 8: "Roadmap & Acceptance", 9: "Workspaces, Git Coordination & Integrations (Phase 7 revision)", A: "State Machines"}
+      sections_count: 9
+      decisions:
+        - {decision: "Full grammar at launch (overrides trade-off #2)", rationale: "research + development YAML in the slice; 6-7 months"}
+        - {decision: "Gate-suspend for chain runs only", rationale: "P3 invariant"}
+        - {decision: "Daemon spawns only the driver; engine spawns workers", rationale: "ADR-007 + 2D hold"}
+        - {decision: "Autonomy tiers -> approval presets", rationale: "Factory.ai borrow"}
+        - {decision: "Full two-provider parity", rationale: "Copilot 1.0.80 verified"}
+      risks:
+        - "Month-1 spikes load-bearing (resume re-entry, copilot gate exit, hook matrix)"
+        - "development YAML parity by month 3 = critical path"
+        - "Approval shim go/no-go month 4"
+        - "Solo bandwidth"
+      artifacts:
+        - {path: "analysis/feature-spec.md", label: "Feature specification", html: "analysis/feature-spec.html"}
+    visual_prototyping:
+      summary: "Ten reference mockups (L1-L4 levels, G1/G2 in-task gates, S1 start work, S2 settings, S3 observer, S4 dark) on the hybrid Miller navigation; scope revised (no central DB, git coordination, tracker mirror, derived people) and folded into spec section 9."
+      mockup_references: ["analysis/mockups/l1-home-workspace-skillpanel-nothing-selected.html", "analysis/mockups/l2-home-run-home-collapses-to-a-list-column.html", "analysis/mockups/l3-home-run-task-home-collapses-to-a-rail-run-to-a-column.html", "analysis/mockups/l4-home-run-task-session-two-rails-task-column-session-pane.html", "analysis/mockups/g1-decision-gate-development-sub-run-asks-2-questions-after-gap-analysis.html", "analysis/mockups/g2-convergence-gate-research-brainstorming-one-area-at-a-time-with-alternatives.html", "analysis/mockups/s1-start-work-from-a-ticket-with-tracker-git-coordination-preview.html", "analysis/mockups/s2-workspace-settings-integrations-people-identity-coordination.html", "analysis/mockups/s3-home-observer-tier-free.html", "analysis/mockups/s4-home-run-in-the-dark-palette-contrast-check.html"]
+      decisions:
+        - {decision: "Hybrid Miller navigation (Home > Run > Task > Session), older levels collapse to rails", rationale: "User choice after V1/V2/V3 comparison"}
+        - {decision: "No central DB; git coordination branch; tracker mirror; derived people", rationale: "User constraints; folded into spec section 9"}
+      risks: ["Coordination branch growth", "Roadmap ~8 months"]
+      artifacts:
+        - {path: "analysis/mockups/", label: "Mockups (10 screens)", html: null}
+        - {path: "analysis/design-context/design-resources.md", label: "Design resources", html: null}
+    review_handoff:
+      summary: "Layered product brief approved; hand-off to /maister:development with this task path."
+      brief_layers: ["L0 core brief", "L1 personas", "L2 design decisions", "L3 mockup references", "references"]
+      decisions:
+        - {decision: "Product brief approved as assembled", rationale: "User final approval"}
+      risks: ["Spec section 9 amends sections 1-8 by reference (9.9)"]
+      artifacts:
+        - {path: "outputs/product-brief.md", label: "Product brief", html: "outputs/product-brief.html"}

@@ -1,0 +1,2 @@
+{"sessionId":"74649c55-fd22-44f1-aa48-546f60328917","timestamp":1787676318723,"cwd":"/home/dev/work/repo-alpha","toolName":"apply_patch","toolArgs":"*** Begin Patch\n*** Add File: marker.txt\n+done\n*** End Patch\n"}
+{"sessionId":"74649c55-fd22-44f1-aa48-546f60328917","timestamp":1787676321007,"cwd":"/home/dev/work/repo-alpha","toolName":"bash","toolArgs":"{\"command\":\"printf 'done\\n' > marker.txt\",\"description\":\"Create marker.txt with done\"}"}

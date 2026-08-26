@@ -1,0 +1,13 @@
+version: 1
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+node: pick-store
+kind: decision
+asked_at: "2026-08-24T12:03:44Z"
+question: "Which store backs the ledger for this rollout?"
+context:
+  summary: "Both options were costed in the research node; neither is reversible after the first shard cuts over."
+options:
+  - {id: embedded, label: "Keep the embedded store", effect: continue, description: "No new infrastructure; one node.", recommended: false}
+  - {id: cluster, label: "Move to the shared cluster", effect: continue, description: "Adds a managed dependency; survives a node loss.", recommended: true}
+multi_select: false
+answer: null

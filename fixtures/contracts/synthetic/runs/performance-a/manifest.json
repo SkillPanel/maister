@@ -1,0 +1,28 @@
+{
+  "id": "performance-a",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "Synthesized from performance/SKILL.md:354-388 (performance_context field set) plus the shared verification_context block. No real >= 2.2.3 performance run existed at freeze time: replace this fixture with the first one that does (program-log item)."
+}

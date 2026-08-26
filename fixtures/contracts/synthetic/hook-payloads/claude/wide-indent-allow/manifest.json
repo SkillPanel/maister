@@ -1,0 +1,31 @@
+{
+  "id": "claude-wide-indent-allow",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-26T09:20:00Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/claude_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "claude",
+      "event": "PreToolUse",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "empty",
+      "state_fixture": "synthetic/hook-payloads/claude/wide-indent-state",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "The pending node is only knowable from a gate_pending line the scanner recognises: gates/approve.request.yml is on the allow-list because the state names approve. Against a state indented four spaces per level, a scanner keyed on the exact column reads no gate_pending at all, the node set is empty and the engine's own request file is denied - which is why this fixture expects an allow."
+}

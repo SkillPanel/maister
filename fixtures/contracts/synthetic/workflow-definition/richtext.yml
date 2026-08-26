@@ -1,0 +1,43 @@
+# The launch chain: research in one repo, an operator gate, two ordered per-repo
+# development runs, then a close-out node that always runs.
+name: richtext
+version: 1
+inputs:
+  brief: {type: path, required: true}
+  ticket: {type: string, required: false}
+  skip_beta: {type: bool, required: false, default: false}
+nodes:
+  research:
+    uses: workflow:research
+    needs: []
+    dir: repo-alpha
+    provider: claude
+    with: {question: "${inputs.brief}"}
+    outputs:
+      artifacts: {report: outputs/research-report.md}
+      values: {order: string}
+  approve:
+    type: gate
+    needs: [research]
+    ask: "Research is complete. Proceed to the per-repo implementation runs?"
+    options:
+      proceed: continue
+      revise: stop
+      abort: stop
+  dev-alpha:
+    uses: workflow:development
+    needs: [approve]
+    dir: repo-alpha
+    provider: claude
+    with: {research: "${research.values.order}"}
+  dev-beta:
+    uses: workflow:development
+    needs: [dev-alpha]
+    dir: repo-beta
+    provider: copilot
+    when: "!${inputs.skip_beta}"
+    optional: true
+  close-out:
+    uses: skill:implementation-verifier
+    needs: [dev-beta]
+    on: always

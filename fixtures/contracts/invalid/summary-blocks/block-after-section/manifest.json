@@ -1,0 +1,23 @@
+{
+  "id": "block-after-section",
+  "contracts": [
+    "A5"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "block-after-section.md",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "error_path": "/TL;DR",
+    "error_keyword": "a5-block-position"
+  },
+  "notes": "The A5 block is positional: the first other \"## \" heading ends it. Here \"## Scope\" comes first, so by the time \"## TL;DR\" appears the block is already over and the artifact has no summary block at all."
+}

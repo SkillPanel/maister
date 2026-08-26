@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/project-config",
+  "title": "Project configuration",
+  "description": "Contract A3. Scaffolded at init and read once. An absent file is equivalent to the defaults; the map is open so later keys are additive.",
+  "type": "object",
+  "properties": {
+    "html_output": {
+      "description": "Gates the dashboard and the HTML companions. Default true.",
+      "type": "boolean",
+      "default": true
+    },
+    "mockup_format": {
+      "description": "Default mockup rendering. Falls back to ascii when no browser runtime is available.",
+      "enum": ["html", "ascii"],
+      "default": "html"
+    },
+    "repo_id": {
+      "description": "Stable identifier for this repository inside a workspace. Additive.",
+      "type": "string"
+    }
+  }
+}

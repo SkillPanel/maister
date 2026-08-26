@@ -1,0 +1,18 @@
+version: 1
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+node: converge-rollout
+kind: convergence
+asked_at: "2026-08-24T16:20:07Z"
+question: "Both per-repo runs finished. Which follow-ups carry into the close-out node?"
+context:
+  summary: "Four follow-ups were raised across the two repositories; the close-out node files whichever are selected."
+  artifacts:
+    - runs/repo-alpha/implementation/follow-up-tickets.md
+    - runs/repo-beta/implementation/follow-up-tickets.md
+options:
+  - {id: shim-removal, label: "Remove the compatibility shim", effect: continue}
+  - {id: index-backfill, label: "Backfill the widget owner index", effect: continue}
+  - {id: export-handle-leak, label: "Fix the export stream handle leak", effect: continue}
+  - {id: none, label: "Carry nothing forward", effect: stop}
+multi_select: true
+answer: null

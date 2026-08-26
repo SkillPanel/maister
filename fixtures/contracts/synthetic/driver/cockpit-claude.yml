@@ -1,0 +1,9 @@
+# E1 cockpit driver, Claude Code worker. cwd is required whenever kind != terminal.
+kind: cockpit
+cwd: /home/dev/work/repo-alpha
+session:
+  id: 019260a1-4c2e-7a3b-9c4d-5e6f70819a2b
+  name: chain-widget-research
+  provider: claude
+  model: claude-opus-4-6
+  status: running

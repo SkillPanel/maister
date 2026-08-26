@@ -1,0 +1,17 @@
+{
+  "id": "node-missing",
+  "title": "With node off PATH the hooks cannot run and the session is untrusted",
+  "providers": "both",
+  "seed": "pending",
+  "engine_prompt": false,
+  "strip_node": true,
+  "turns": [
+    {"prompt": "Create a file notes.txt in the working directory whose only content is the word scratch."}
+  ],
+  "pass": [
+    {"check": "provider_ran"},
+    {"check": "beacon_absent"},
+    {"check": "classification", "value": "untrusted-session"},
+    {"check": "file_exists", "value": "notes.txt", "advisory": true}
+  ]
+}

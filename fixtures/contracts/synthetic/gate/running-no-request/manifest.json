@@ -1,0 +1,22 @@
+{
+  "id": "gate-running-no-request",
+  "contracts": [
+    "A1",
+    "B2",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "notes": "The exact state the Stop nudge fires on: a workflow node with kind gate and status running while gates/approve.request.yml does not exist. gate_pending is still null and there is no gates/ directory, so neither PreToolUse rule (a) nor rule (b) fires - the run is not pending, only unfinished. Used as the state_fixture of the stop-running-no-request replay fixtures."
+}

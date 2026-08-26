@@ -1,0 +1,23 @@
+{
+  "id": "markers",
+  "contracts": [
+    "C5"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "outcomes.jsonl",
+      "schema": "markers.schema.json#/$defs/outcome"
+    },
+    {
+      "path": "prompts.txt",
+      "schema": "markers.schema.json#/$defs/prompt_line"
+    }
+  ],
+  "notes": "Outcome records classifying the marker lines observed in the spike, both providers, one JSON object per line. Two records carry no marker at all: the eighth is classified gate-pending from on-disk E2 alone (the model ended the turn without printing), and the ninth stays unknown because nothing on disk, no marker and only denials are available. The classification order is on-disk E2 first, marker second, denials third; the process exit code is never consulted. prompts.txt carries one line per prompt vocabulary the driver accepts."
+}

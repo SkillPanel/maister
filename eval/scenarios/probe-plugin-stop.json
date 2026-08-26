@@ -1,0 +1,13 @@
+{
+  "id": "probe-plugin-stop",
+  "title": "Probe: can a plugin hooks.json register Stop at all?",
+  "providers": "claude",
+  "seed": "chain-template",
+  "engine_prompt": false,
+  "probe": true,
+  "spawn": {"settings": false, "plugin_dir": "probe-stop-plugin"},
+  "turns": [
+    {"prompt": "reply ok"}
+  ],
+  "report": ["fires"]
+}

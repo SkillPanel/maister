@@ -1,0 +1,9 @@
+# E1 cockpit driver, Copilot CLI worker. Copilot resumes by name, so session.name
+# is the handle the daemon re-spawns with.
+kind: cockpit
+cwd: /home/dev/work/repo-beta
+session:
+  id: 019260a1-5d3f-7b4c-8d5e-6f708192ab3c
+  name: chain-widget-dev-beta
+  provider: copilot
+  status: paused

@@ -1,0 +1,39 @@
+{
+  "id": "dev-complete-c",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A5",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-beta/development/2026-08-12-c",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "artifacts/brief.md",
+      "schema": null,
+      "truncated": true
+    },
+    {
+      "path": "artifacts/spec.md",
+      "schema": null,
+      "truncated": true
+    }
+  ],
+  "strict_a2": false,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "Cross-repo development run: task_context references a second repository by absolute worktree path and a product-design task in that repo. artifacts/brief.md uses the tolerated \"## Open Questions & Risks\" heading (#1/#25) and is also copied to tolerated/summary-blocks/amp-heading.md."
+}

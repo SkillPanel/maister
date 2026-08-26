@@ -1,0 +1,14 @@
+# Invalid: task.status is not in the task_status enum
+# (pending|in_progress|completed|failed|blocked|stopped). "running" is a B2 node status.
+orchestrator:
+  type: development
+  started_phase: phase-1
+  completed_phases: []
+  failed_phases: []
+  created: 2026-08-20T09:00:00Z
+  updated: 2026-08-20T09:00:00Z
+  task_path: .maister/tasks/development/2026-08-20-widget-list
+
+task:
+  title: Widget list endpoint
+  status: running

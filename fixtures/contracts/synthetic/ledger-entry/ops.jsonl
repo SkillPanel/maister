@@ -1,0 +1,7 @@
+{"op":"create-entry","dispatch_id":"d-0142","actor":"engine","at":"2026-08-24T11:15:41Z","args":{"chain":{"run_id":"019260a2-1122-7c33-8d44-5e6677889900","node":"dev-beta"},"target":{"member":"repo-beta"}}}
+{"op":"claim","dispatch_id":"d-0142","actor":"engine","at":"2026-08-24T11:15:44Z","args":{"session":"widget-rollout/0142/dev-beta"}}
+{"op":"update-status","dispatch_id":"d-0142","actor":"engine","at":"2026-08-24T11:16:02Z","args":{"status":"in_progress"}}
+{"op":"add-constraint","dispatch_id":"d-0142","actor":"daemon","at":"2026-08-24T12:40:19Z","args":{"kind":"merge_after","ref":"d-0139"}}
+{"op":"add-followup","dispatch_id":"d-0142","actor":"daemon","at":"2026-08-24T15:11:30Z","args":{"id":"fu-0142-01","to":"parent","summary":"Shared client package needs the widget owner field."}}
+{"op":"close-out","dispatch_id":"d-0142","actor":"daemon","at":"2026-08-24T16:02:58Z","args":{"grade":"success","prs":[{"repo":"repo-beta","number":481}]}}
+{"op":"query","dispatch_id":"d-0142","actor":"cockpit","at":"2026-08-24T16:03:10Z","args":{"select":"entry"}}

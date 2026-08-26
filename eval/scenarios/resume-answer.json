@@ -1,0 +1,19 @@
+{
+  "id": "resume-answer",
+  "title": "Answer the pending gate and let the run finish",
+  "providers": "both",
+  "seed": "chain-template",
+  "engine_prompt": true,
+  "turns": [
+    {"prompt": "RESUME run={RUN_ID}\n\nBegin the run: work the main loop from the current state."},
+    {"prompt": "GATE-ANSWER run={RUN_ID} node=approve option=proceed answered_by=operator at={NOW}"}
+  ],
+  "pass": [
+    {"check": "first_mutating_allowed", "turn": 2},
+    {"check": "state_gate_pending_node", "value": null},
+    {"check": "node_decision_option", "node": "approve", "value": "proceed"},
+    {"check": "request_answered", "node": "approve"},
+    {"check": "last_line_matches", "value": "^RUN-COMPLETE$"},
+    {"check": "denial_count", "op": "eq", "value": 0}
+  ]
+}

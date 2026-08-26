@@ -1,0 +1,435 @@
+orchestrator:
+  started_phase: phase-11
+  completed_phases: [phase-1, phase-2, phase-4, phase-5, phase-6, phase-7, phase-8, phase-10]
+  skipped_phases:
+    phase-3: "No reproducible defect - pure create-new-capability. The missing ACTION_ITEM step_type_registry seed is a latent platform gap, not broken behaviour."
+  failed_phases: []
+  auto_fix_attempts: {}
+  options:
+    html_output: true
+    mockup_format: html
+    spec_audit_enabled: true
+    skip_test_suite: true
+    e2e_enabled: false
+    user_docs_enabled: false
+    code_review_enabled: true
+    pragmatic_review_enabled: true
+    reality_check_enabled: true
+    production_check_enabled: true
+    sequential: true
+    implementer_model: sonnet
+  created: "2026-08-10T22:50:05Z"
+  updated: "2026-08-11T15:07:21Z"
+  task_path: .maister/tasks/development/2026-08-11-applications-module-catalog
+  task_ids:
+    phase-1: "1"
+    phase-2: "2"
+    phase-3: "3"
+    phase-4: "4"
+    phase-5: "5"
+    phase-6: "6"
+    phase-7: "7"
+    phase-8: "8"
+    phase-9: "9"
+    phase-10: "10"
+    phase-11: "11"
+    phase-12: "12"
+    phase-13: "13"
+    phase-14: "14"
+
+task:
+  title: "Applications module - catalog requests (Northwind)"
+  description: >
+    Implement a new `applications` module in repo-alpha owning the catalog-request
+    (catalog requests) aggregate, driven by the existing workflow engine (2-step
+    COMPANY-scope definition: form -> decision), forms via the extended survey
+    module, handler work list via the action-item "My actions" surface. Module owns
+    step/asked/decided state (FK-less uuid correlation to engine rows), withdraw-to-
+    terminal requester editing, CSV export + handoff attestation, and requester-facing
+    Notifier notifications with a send-attempt log. Grounded by the 2026-08-10 research
+    task (research report, solution exploration, HLD, 9 ADRs).
+  status: in_progress
+  tags: [development, applications-module, northwind, workflow, survey, action-items]
+  priority: high
+
+task_context:
+  risk_level: high
+  clarifications_resolved: true
+  scope_expanded: true
+  architecture_decision: null
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: true
+    involves_data_operations: true
+    ui_heavy: true
+  research_reference:
+    path: .maister/tasks/research/2026-08-10-applications-module-grounding
+    research_question: >
+      What are the actual mechanics inside `repo-alpha` (with path:line citations) that a new
+      `applications` module must build on - module conventions, survey extension blast
+      radius, workflow-engine hosting, action-item integration, permissions/tenancy,
+      notifications, API/frontend contract, and export - given the five settled
+      constraints for the catalog-requests use case?
+    research_type: technical
+    confidence_level: high
+  design_reference:
+    source: "phase-4-generation"
+    product_design_path: null
+    mockup_count: 8
+    has_brief: false
+    index_path: analysis/design-context/INDEX.md
+  design_resources:
+    ran: true
+    found_any: true
+    standards:
+      - {path: "/home/dev/Repos/repo-beta/.maister/docs/standards/frontend/chakra.md", topic: "Chakra v3 component standards"}
+      - {path: "/home/dev/Repos/repo-beta/.maister/docs/standards/design-system/tokens.md", topic: "Semantic token architecture"}
+      - {path: "/home/dev/Repos/repo-beta/.maister/docs/standards/design-system/typography.md", topic: "Font size and weight scale"}
+      - {path: "/home/dev/Repos/repo-beta/.maister/docs/standards/design-system/spacing.md", topic: "4px base module spacing scale"}
+    design_system:
+      - {kind: component-lib, path: "@chakra-ui/react ^3.34.0", note: "App-wide via ThemeProvider in AppProviders.tsx"}
+      - {kind: theme, path: "@acmetech/ui-theme ^0.0.24", note: "Semantic tokens, purple primary family"}
+      - {kind: component-lib, path: "@acmetech/ui-components ^0.0.24", note: "ThemeProvider, ScrollableTabs"}
+      - {kind: component-lib, path: "repo-beta/src/features/myActions/components/", note: "The action-item surface the module rides"}
+      - {kind: component-lib, path: "repo-beta/src/components/ui/", note: "Local library: modals, pills, formControls, errors, loaders"}
+      - {kind: tailwind, path: "repo-beta/tailwind.config.ts", note: "Minimal - important:'repo-beta' scoping only"}
+    skill_hints:
+      - {kind: skill, name: chakra-ui-builder, why: "Host app is Chakra v3"}
+      - {kind: mcp-tool, name: "mcp__chakra-ui__*", why: "Live Chakra v3 component/theme reference"}
+  project_context:
+    project_doc_paths:
+      - .maister/docs/INDEX.md
+      - .maister/docs/project/vision.md
+      - .maister/docs/project/roadmap.md
+      - .maister/docs/project/tech-stack.md
+  phase_summaries:
+    research:
+      summary: >
+        Depth-first grounding across 8 areas confirmed all five settled constraints are
+        workable; the module must own every process fact (asked/decided/handed-off/
+        notification-attempted) because no host subsystem records them. HLD + 9 accepted
+        ADRs feed the specification phase.
+      key_findings:
+        - "Engine is strictly sequential per instance; two open steps per subject require two instances or domain-owned step rows"
+        - "workflow_step_execution_assignee has zero writers; decided-by has no engine representation"
+        - "Post-SUBMITTED survey editing collides with five one-shot submit side effects - withdraw-to-terminal instead"
+        - "No export audit trail / sent log / delivery confirmation exists on any channel - handoff evidence must be new module state"
+        - "Each new permission domain requires a coordinated deploy of the separate auth repo"
+        - "ACTION_ITEM has no step_type_registry seed - validated authoring path rejects it today"
+      recommended_approach: >
+        New `applications` module owning the request aggregate; module-owned workflow
+        definition generator through the validated facade path (+ ACTION_ITEM registry
+        seed); domain-owned step/asked/decided tables correlated by FK-less uuids;
+        evaluator-gated decision endpoint with DomainActionCompletedEvent closing the
+        action item; withdraw-to-terminal survey editing with fresh prefilled response
+        on a new workflow instance; write-once terminal `outcome` column carrying the
+        open-uniqueness partial index; CSV export + attestation rows; requester-facing
+        Notifier templates with a module-owned send-attempt log.
+      decisions:
+        - decision: "ADR-001 module-owned generator via validated path + ACTION_ITEM registry seed"
+          rationale: "One idempotent global seed converts the engine's only safety net from bypassed to active"
+        - decision: "ADR-002 domain-owned step/asked/decided state, FK-less uuid correlation"
+          rationale: "Engine assignee table is dead, decided-by has no engine representation, cross-schema FK hazard avoided"
+        - decision: "ADR-004 withdraw-to-terminal + fresh prefilled response for requester edits"
+          rationale: "SUBMITTED responses have five one-shot side effects and no answer history"
+        - decision: "ADR-009 write-once terminal `outcome` column, in-flight status derived from step rows"
+          rationale: "Gives the open-uniqueness partial index a predicate without a live status column"
+      risks:
+        - "Handler-group source of truth unconfirmed - v1 assumes a company-configured team resolved to persons at activation"
+        - "Exact subject entity ('training part') must be pinned in the specification"
+        - "Decide vs withdraw race on the open DECISION step needs a concurrency test"
+        - "Notifier templates are externally provisioned and unobservable; attempt log proves publish, never receipt"
+        - "Cross-repo auth permission deploy must precede any repo-alpha grant for the new `applications` domain"
+      artifacts:
+        - path: analysis/research-context/research-report.md
+          label: "Research report (8 areas, path:line citations)"
+          html: null
+        - path: analysis/research-context/solution-exploration.md
+          label: "Solution exploration (6 areas, 20 alternatives)"
+          html: null
+        - path: analysis/research-context/high-level-design.md
+          label: "High-level design (C4 + component mapping)"
+          html: null
+        - path: analysis/research-context/decision-log.md
+          label: "Decision log (9 accepted ADRs)"
+          html: null
+    design:
+      summary: >
+        Eight screens covering requester, handler, coordinator and ops, each carrying an
+        explicit API contract strip naming the endpoints it reads and the actions it calls.
+        Generated to pin the FE contract for the tracked follow-up; bound to repo-beta's
+        real Chakra v3 + @acmetech/ui-theme semantic tokens.
+      screen_count: 8
+      component_count: 8
+      index_path: analysis/design-context/INDEX.md
+      decisions:
+        - decision: "Every screen states its API contract inline"
+          rationale: "The mockups double as the FE-BE interface spec, so backend endpoints are specified against real screens rather than guessed"
+        - decision: "Edge and error states are first-class screens"
+          rationale: "The two 409 races, empty handler resolution and the missing-Notifier-template state are what a prose-only handoff loses"
+        - decision: "Reuse over invention - myActions entry point, existing survey renderer, EmptyState compound component"
+          rationale: "The module is meant to ride existing surfaces, not replace them"
+      risks:
+        - "Screens are HTML/CSS approximations, not Chakra code - the FE follow-up must rebuild them with the components named in the annotations"
+        - "All copy is placeholder English; a Polish-facing feature (catalog requests) needs a native pass on the pl bundle"
+        - "The handoff CSV column set is illustrative - real columns must be agreed with the external catalog provider"
+        - "The ops screen shows an applications:handed-off template, but settled scope names only submitted/approved/rejected - add the 4th template or drop it from the screen"
+      artifacts:
+        - path: analysis/design-context/INDEX.md
+          label: "Design context INDEX (8 screens, 8 components, stable IDs)"
+          html: null
+        - path: analysis/design-context/design-resources.md
+          label: "Design-resource discovery (3 tiers, binding rules)"
+          html: null
+        - path: analysis/design-context/mockups/
+          label: "8 rendered HTML mockups"
+          html: null
+    codebase_analysis:
+      primary_language: java
+      summary: >
+        Every mechanism the design needs has a verified live precedent (talentmetrics module
+        template, performancereview workflow generator, ActionItemStepHandler, WIDGET partial
+        unique index, ReminderDispatch claim-before-send). The highest-value output is eight
+        verified corrections to the grounding docs, four of which would misdirect the spec.
+      key_files:
+        - src/main/java/com/acme/portal/talentmetrics/TalentMetricsContextConfiguration.java
+        - src/main/java/com/acme/portal/performancereview/application/WorkflowDefinitionGeneratorService.java
+        - src/main/java/com/acme/portal/workflow/application/handler/StepHandler.java
+        - src/main/java/com/acme/portal/workflow/application/WorkflowDefinitionFacade.java
+        - src/main/java/com/acme/portal/actionitem/shared/ImperativeActionItemTemplate.java
+        - src/main/java/com/acme/portal/actionitem/integration/WidgetApprovalRequestActionItem.java
+        - src/main/java/com/acme/portal/survey/application/SurveyResponseService.java
+        - src/main/java/com/acme/portal/survey/domain/SurveyResponseStatus.java
+        - src/main/java/com/acme/portal/widget/notification/WidgetNotificationHandler.java
+        - src/main/java/com/acme/portal/performancereview/infrastructure/ReminderDispatchRepository.java
+        - src/main/java/com/acme/portal/organization/application/PersonCsvPrinter.java
+        - src/main/java/com/acme/portal/shared/Permission.java
+        - src/main/resources/application.yml
+        - src/test/java/com/acme/portal/AbstractControllerTest.java
+      decisions:
+        - decision: "Clone talentmetrics layout; borrow widget/approval for the decision aggregate"
+          rationale: "Cleanest complete module; widget/approval is the closest functional analogue for write-once decision columns"
+        - decision: "Repositories in infrastructure/, facade interface in shared/ + impl"
+          rationale: "Two newest modules use infrastructure/; interface-in-shared is the stronger cross-module convention"
+        - decision: "Resolve handler groups to N person rows, never a team-assigned action item"
+          rationale: "ActionItemNotificationHandler.personAssignees filters person_uuid only - team-assigned items send zero notifications"
+      risks:
+        - "GROUNDING-DOC CORRECTION: WorkflowFacade has no authoring methods; authoring is WorkflowDefinitionFacade, and createWorkflowDefinition does NOT validate - only addStepToWorkflow/updateFullWorkflowDefinition/createFullWorkflowDefinition do. The spec must name the exact method."
+        - "GROUNDING-DOC CORRECTION: ReconciliationPrefillService is not an answer-copy precedent - no code anywhere copies QuestionAnswer rows between responses. Prefill-assign is fully net-new."
+        - "GROUNDING-DOC CORRECTION: SurveyFacade is a concrete @Service exposing assignSurvey + reads only - withdraw, prefill-assign and status transition are new methods inside the shared survey module."
+        - "GROUNDING-DOC CORRECTION: PortalModulesConfig registration is optional (newest module `period` is absent from it) and is @Profile(NOT_TEST) - listing there changes test-context behaviour. Decide deliberately."
+        - "Team-pool zero-notification trap: an action item assigned to a team sends no created/nudged notifications."
+        - "ArchUnit freeze.refreeze = true silently absorbs new violations into src/test/resources/archunit_store/ - a green build does not prove compliance."
+        - "workflow_step_execution_assignee confirmed dead (zero writers repo-wide); TaskStepHandler is @Deprecated with fake success."
+        - "Blocking external work: auth repo needs a permission_domain insert for the new `applications` domain and must deploy first; Notifier templates are hand-provisioned with no in-repo artifact or CI check."
+      artifacts:
+        - path: analysis/codebase-analysis.md
+          label: "Codebase analysis (4 Explore agents, 90+ files, 8 grounding-doc corrections)"
+          html: null
+    clarifications:
+      - decision: "Scope: everything in the HLD, one run"
+        rationale: "Operator chose full module over vertical slicing"
+      - decision: "ADR-004 in full - WITHDRAWN status AND fresh prefilled response"
+        rationale: "Operator accepted the higher cost after being told prefill-assign is net-new"
+      - decision: "Handler group is dual-source: team reference and/or explicit person list"
+        rationale: "Operator: 'probably both team and explicit person list should be possible'; exact config model still to pin in the spec"
+      - decision: "Subject binds to a WIDGET training edition/activity uuid"
+        rationale: "Operator confirmed the concrete entity behind subject_type/subject_uuid"
+    gap_analysis:
+      summary: >
+        Pure create-new-capability with two declared modify-existing slices (survey, workflow
+        seeds) and a third undeclared one: the frontend. Every backend mechanism has a live
+        precedent, but the requester/handler/coordinator journeys have essentially no surface
+        in repo-beta, and application_handler_config had no writer at all in the HLD -
+        shipping the design as written would yield a correct backend reachable only by curl.
+      integration_points:
+        - "workflow: StepHandler SPI, WorkflowDefinitionFacade authoring, TemporalSignalEvent (consume) + step_type_registry seeds (modify)"
+        - "survey: SurveyFacade reads (consume) + WITHDRAWN status, CHECK widen, withdraw method, prefill-assign, 4th facade change for edition stamping (MODIFY - largest blast radius)"
+        - "actionitem: ActionItemFacade + ImperativeActionItemTemplate (consume) + i18n keys and pending_survey cancel handler (modify)"
+        - "organization: OrganizationFacade, NotificationsFacade (consume)"
+        - "widget: edition/activity uuid read for subject_edition_uuid stamping (narrow consume)"
+        - "shared: MapModule enum, Permission enum (modify)"
+        - "config: application.yml x2 (function definition + binding), pom.xml typescript-generator classes"
+        - "tests: AbstractControllerTest @MockitoBean, SecurityMocks ALL_AUTHORITIES"
+        - "EXTERNAL BLOCKING: auth repo permission_domain insert + PermissionDefinition mirror"
+        - "EXTERNAL: Notifier template provisioning (3 events x en+pl, no CI check)"
+        - "EXTERNAL DEFERRED: repo-beta + repo-beta Angular host (FE follow-up task)"
+      decisions:
+        - decision: "Backend-only scope with tracked FE follow-up"
+          rationale: "Module ships dormant-but-correct; every new screen is a three-repo change"
+        - decision: "ADR-003 upheld - dedicated evaluator-gated POST /applications/{id}/decide"
+          rationale: "Operator chose HLD fidelity and a module-owned transaction over the cheaper already-built inline action-item outcome path"
+        - decision: "Polymorphic application_handler_source (kind = TEAM | PERSON), unioned and de-duplicated at activation"
+          rationale: "A future third source kind is an enum value, not a schema change"
+        - decision: "One PR for everything, survey extension included"
+          rationale: "Reviewers see why each survey change exists; accepted larger diff and concentrated risk"
+        - decision: "createFullWorkflowDefinition + APPLICATIONS_FORM / APPLICATIONS_DECISION / ACTION_ITEM seeds"
+          rationale: "The only genuinely validating authoring method; ACTION_ITEM seed is platform repair"
+        - decision: "Module-specific FORM step handler"
+          rationale: "Answers ADR-008's open reuse check - stock handler has no prefill concept, enrollmentId-keyed edition stamping, and a performancereview-owned event"
+        - decision: "GET/PUT endpoints for application_handler_config"
+          rationale: "Closes the HLD gap where the table had no writer and no company could be configured"
+        - decision: "Untyped WIDGET uuid + stamp subject_edition_uuid"
+          rationale: "Training name renders for free via the live WidgetSurveyContextContributor; adds a 4th SurveyFacade change"
+        - decision: "Follow `period`: no PortalModulesConfig entry, ship ApplicationsConsumerRegistrationArchTest"
+          rationale: "PortalModulesConfig is @Profile(NOT_TEST); the yml registration has no compile-time check"
+        - decision: "All three safety behaviours in scope"
+          rationale: "Zero-handler double guard, symmetric first-commit-wins 409, ops read endpoint over the attempt log"
+      risks:
+        - "risk_level high: full scope in one run, no vertical slicing; the only modificative work sits inside shared `survey` (five one-shot submit side effects, two live answer readers, no answer history)"
+        - "Prefill-assign has zero repo precedent - net-new work inside a shared module"
+        - "One-PR choice concentrates risk: a survey regression blocks the entire module; full suite must run before push, not just feature tests"
+        - "auth repo deploy is BLOCKING - permission_domain insert for the new `applications` domain must land before or with repo-alpha"
+        - "Notifier templates (3 events x en+pl) are hand-provisioned externally with no in-repo artifact and no CI check - silent drop until done"
+        - "The FE follow-up task is a CONDITION of the backend-only decision, not an optional extra; every requester and coordinator journey is API-only until it ships"
+        - "Five silent-failure modes with no CI signal (yml registration, ArchUnit refreeze, typed-ID TS mapping, Notifier template absence, team-assigned action items)"
+      artifacts:
+        - path: analysis/gap-analysis.md
+          label: "Gap analysis (current vs desired, journeys, data lifecycle, 24 integration points)"
+          html: null
+        - path: analysis/scope-clarifications.md
+          label: "Scope clarifications (6 critical + 7 important decisions resolved)"
+          html: null
+    scope_clarifications:
+      scope_expanded: true
+      summary: >
+        Scope expanded beyond the HLD on three fronts (handler-config writer endpoints, ops
+        read endpoint over the notification attempt log, and three undesigned safety
+        behaviours) and contracted on one (frontend deferred to a tracked follow-up).
+    ui_mockups:
+      format_used: html
+      notes: "Visual companion server on http://localhost:3847; all 8 screens saved to analysis/design-context/mockups/"
+      components_designed: [derived-status-badge, asked-set-chips, progress-timeline, handler-source-row, resolution-preview, attestation-batch-row, notification-attempt-row, api-contract-strip]
+      summary: >
+        8 screens generated via the HTML visual companion and bound to the discovered Chakra v3
+        design system. Purpose is contract-pinning for the FE follow-up, not screens shipping in
+        this run.
+    specification:
+      summary: >
+        45 numbered requirements across 14 groups, 17 endpoints, 7 tables in 4 changesets,
+        5 typed IDs, 14 test classes. 40 verified reuse precedents vs 11 genuinely new
+        components. Architecture: greenfield module owning every fact the platform must
+        display, driven by the existing workflow engine, survey module and action-item surface.
+      requirement_count: 45
+      endpoint_count: 17
+      table_count: 7
+      test_class_count: 14
+      decisions:
+        - decision: "Withdraw creates a REPLACEMENT request row, not attempt++ in place"
+          rationale: "The mockups' {withdrawnId, replacementId} and derivedStatus WITHDRAWN conflict with the HLD's in-place model; resolved in favour of the mockups as the binding FE contract, with lineage preserved via attempt + supersedes_request_uuid"
+        - decision: "application_handler_config carries survey_uuid + workflow_definition_uuid"
+          rationale: "Enablement needs the survey binding and no other per-company record exists; adds a surveyId field to the config PUT body the mockup does not show"
+        - decision: "Open-uniqueness index + workflow_instance_uuid IS NULL service guard replaces the HLD's deterministic-Temporal-id duplicate-start guard"
+          rationale: "WorkflowFacade.startWorkflow has no workflow-id parameter, so REJECT_DUPLICATE is not expressible without a workflow-module change"
+        - decision: "Dropped ApplicationSurveyContextContributor and a generic AssigneeResolver SPI"
+          rationale: "Both judged unnecessary once the design was specified concretely"
+      risks:
+        - "Engine-level duplicate-start dedupe is NOT available: WorkflowFacade.startWorkflow (workflow/application/WorkflowFacade.java:43) takes no workflow id, so the HLD's deterministic Temporal id + REJECT_DUPLICATE guard cannot be expressed. Substituted a DB uniqueness index + service guard; true engine dedupe would need a workflow-module change."
+        - "CSV columns unconfirmed with the provider AND partly unsourceable: SurveyAssessmentContext supplies no training end date and no room data (editionLabel is location/city only) - 2 of the 13 provisional columns can only come from survey answers."
+        - "DbSurveyAssessmentContextQueryService lives in widget/training/infrastructure/, not shared/ - cross-module consumption has precedent but may trip the module-boundary ArchUnit rule; whether a shared/ surface is needed is an implementation-time discovery."
+        - "No repo precedent for write-once column discipline (ApprovalStep.decide has no such mapping) - enforced by a domain guard plus a test rather than a copied pattern."
+        - "step_type_registry.category = 'HUMAN_TASK' assumed for the three seeds - needs confirmation against the live table."
+        - "Input correction: SurveyStepOpenedEvent IS survey-owned, contrary to decision I2's third blocker. The module-specific FORM-handler decision still stands on the other two verified blockers."
+      artifacts:
+        - path: implementation/spec.md
+          label: "Specification (45 requirements, 17 endpoints, 7 tables, 14 test classes)"
+          html: implementation/spec.html
+    architecture_decision: {decision: null, summary: null}
+    spec_audit:
+      verdict: pass-with-concerns
+      issue_counts: {critical: 4, major: 9, minor: 8}
+      summary: >
+        Spec is unusually well-grounded - ~55 of ~60 code citations resolve exactly, all 13
+        binding decisions reflected, every mockup API-contract endpoint specified, 13 of 14 test
+        templates exist at cited paths. The four criticals are localized edits, not design
+        reversals. Verdict conditional on C1-C4 being fixed before planning.
+      risks:
+        - "C1 - withdraw+replacement deterministically violates its own partial unique index: BaseEntity uses GenerationType.IDENTITY (shared/data/BaseEntity.java:28-32) so save(replacement) INSERTs before the withdrawn row's UPDATE flushes; Hibernate's ActionQueue orders inserts before updates regardless. EVERY withdraw{startReplacement:true} fails. Fix: explicit flush or @Modifying native UPDATE between the two writes."
+        - "C2 - StepRequest's 6th component is Integer maxRetryAttempts, not step order (CreateFullWorkflowRequest.java:32-38). The spec's generator passes 0 there; it COMPILES, so no build signal - silently disables engine retries. Order is auto-assigned by WorkflowDefinition.addStep (:122-126). Component 3 is stepTypeCode, not stepCode."
+        - "C3 - ApplicationCreatedDto.surveyResponseId cannot be populated: the survey response is created by ApplicationsFormStepHandler on a Temporal worker, not in the HTTP request thread. The mockup FE contract chains directly off this field."
+        - "C4 - SurveyResponseStatus.WITHDRAWN silently re-scopes four `!= SUBMITTED` predicates the spec never enumerates: SurveyResponseContextService.java:174, ReconciliationPrefillService.java:95, DbSurveyAnalyticsQueryService completion-rate denominators, and the WHERE status != 'SUBMITTED' partial index. Success Criterion 2 and test #11 use the wrong frame for the run's highest-risk change."
+        - "M5 - withdraw in the FORM-completed/DECISION-not-yet-activated window has no open step row to lock, so the @Version first-commit-wins guard does not apply; the engine can activate a DECISION step (plus asked rows and an action item) onto an already-WITHDRAWN request, violating Success Criterion 5."
+        - "No repo-wide ArchUnit layering rule actually exists (spec asserts one at :679) - consuming widget/training/infrastructure from applications violates nothing."
+        - "step_type_registry.category is unconstrained TEXT - 'HUMAN_TASK' will silently succeed as an off-taxonomy value and the spec's own 'confirm if not valid' hedge can never fire."
+        - "TrainingEdition.java:43-49 DOES carry endDate/location - the CSV Known Limitation is overstated."
+      artifacts:
+        - path: verification/spec-audit.md
+          label: "Specification audit (pass-with-concerns; 4 critical, 9 major, 8 minor)"
+          html: null
+      remediation:
+        status: applied
+        applied: "all 4 critical + 9 major + 8 minor, plus 4 unnumbered missing-failure-modes"
+        spec_revised: "2026-08-11T06:05:21Z (spec.md 83K -> 101K, spec.html 53K -> 74K)"
+        resolutions:
+          - "C1 - explicit entityManager.flush() between closing the withdrawn row and inserting the replacement, promoted to numbered requirement R7/30 with a mandatory code comment and a test-#8 assertion. Chose flush over a native @Modifying UPDATE because @Version on application_step already supplies first-commit-wins, and mixing native UPDATE with dirty-checked writes adds persistence-context staleness."
+          - "C2 - StepRequest literal now passes null for timeoutDuration and maxRetryAttempts. Verified WorkflowDefinitionFacade:438-448 DOES pass maxRetryAttempts through, so the original 0 would genuinely have disabled engine retries; recorded as silent-failure #4. False 'order contiguous 0..n-1' invariant deleted, replaced with the WorkflowDefinition.addStep:123-127 mechanism."
+          - "C3 - ApplicationCreatedDto reduced to {requestId, workflowInstanceId}; FE polls GET /applications/{id}. Recorded as mockup deviation #1."
+          - "C4 - new dedicated section enumerating all 23 enum-read sites by polarity with a per-site decision; two sites change. Success Criterion 2 re-scoped; test #11 renamed SurveyWithdrawnStatusBlastRadiusTest with one assertion per site."
+          - "M1 CLAIMED added to the CHECK with full claim->update lifecycle | M2 application_handler_config is the single survey_uuid source (surveyUuid dropped from seed schema and generator step config) | M3 endpoint #7 backed by DbWidgetEnrollmentQueryService.findMyEnrollments:61 with the alreadyRequested predicate | M4 rewritten around DbWidgetEditionQueryService.findEditionDetail:302 (only room data genuinely absent) | M5 outcome precondition on both step handlers returning a non-parking success | M6 layering restated as convention, test #14 writes both rules concretely | M7 action_item_uuid declared advisory-only, all lifecycle calls template-mediated | M8 switched to applyComplete instead of hand-publishing a reconciled-template event | M9 two compensations (DECISION-handler self-heal + synthetic EXPECTED_MISSING rows)"
+          - "All 8 minors corrected in place (INTERACTION category, @Component, nested AssigneeSpec, ApprovalStep-not-a-BaseEntity warning, full 10-deviation table, resend retry->409, forward-only M4 rollback, precise startWorkflow phrasing, talentmetrics/domain/ test path)"
+          - "Beyond the findings: crash window between COMMIT and startWorkflow now has a resume branch (R3/8) plus a FOR UPDATE recommendation; concurrent double-withdraw has a defined 409; departing-handler assignment row has a stated treatment; guard-2 vs Success-Criterion-6 collision reconciled by classifying empty handler resolution as a technical failure"
+        auditor_refinement: >
+          The spec author re-verified the audit's own claims and refined C4: there are exactly TWO
+          negative-polarity Java predicates, not four. DbSurveyAnalyticsQueryService:179 is not a
+          `!= SUBMITTED` predicate at all - it is an unfiltered TOTAL_COUNT denominator that a grep
+          for ne(SUBMITTED) would miss entirely; the fourth is a schema index. The audit's effects
+          table was right but its framing would have sent an implementer looking for the wrong shape.
+        not_changed:
+          - "A synchronous first step for C3 - the engine offers no such guarantee, so polling is the only honest answer"
+          - "A widget/**/shared/ edition facade - recorded as a worthwhile follow-up but not funded; direct infrastructure consumption matches the live PendingSurveysEventHandler:47 precedent and violates no rule (M6)"
+          - "Attempt-log retention - still deferred until volume is observed"
+        new_risk: >
+          ONE, and it is the only change whose blast radius leaves the module: the C4-3 analytics
+          TOTAL_COUNT fix alters a live, tenant-visible completion-rate metric for EVERY survey in
+          EVERY company. Rates rise slightly wherever withdrawn responses exist. This is the intended
+          correction (a withdrawn response is not an incomplete one) but MUST be called out in the PR
+          description or reviewers will read the shift as a regression.
+
+    implementation_plan:
+      summary: >
+        16 task groups, 125 steps, 8 waves. Critical path G1->G3->G6->G9->G11->G14->G15->G16.
+        All five hard ordering constraints encoded structurally rather than as prose: JOOQ codegen
+        is step 1.8 inside the migration group; AbstractControllerTest/SecurityMocks are steps
+        14.2/14.3; G16 (acme-portal.d.ts regen) is terminal with a scheduling check as its first step.
+      group_count: 16
+      step_count: 125
+      wave_count: 8
+      critical_path: "G1 -> G3 -> G6 -> G9 -> G11 -> G14 -> G15 -> G16"
+      complexity: high
+      waves:
+        - {wave: 1, groups: "G1 Migrations+JOOQ codegen || G2 Typed IDs/enums/mappings", parallel: 2}
+        - {wave: 2, groups: "G3 Entities+repos || G4 Module wiring || G5 Survey extension", parallel: 3}
+        - {wave: 3, groups: "G6 Workflow gen+handler config || G8 Action-item producer || G10 Permission evaluator || G13 JOOQ read services", parallel: 4}
+        - {wave: 4, groups: "G7 Step handlers || G9 Domain services", parallel: 2}
+        - {wave: 5, groups: "G11 Notifications+attempt log || G12 Handoff CSV+attestation", parallel: 2}
+        - {wave: 6, groups: "G14 Controllers+DTOs+AbstractControllerTest+SecurityMocks", parallel: 1}
+        - {wave: 7, groups: "G15 ArchUnit+full suite", parallel: 1}
+        - {wave: 8, groups: "G16 acme-portal.d.ts regen+PR description (TERMINAL)", parallel: 1}
+      decisions:
+        - decision: "G5 (survey extension) scheduled early in wave 2 despite being off the critical path"
+          rationale: "It carries the widest blast radius - surfacing regressions early beats discovering them at the full-suite run"
+        - decision: "JOOQ codegen placed INSIDE the migration group as step 1.8"
+          rationale: "No scheduler can then break the DDL -> codegen -> read-service edge"
+        - decision: "G16 is terminal with a 'no further test run is planned' check as its first step"
+          rationale: "./mvnw test re-emits the RAW acme-portal.d.ts and fails CI's up-to-date gate"
+      risks:
+        - "Complexity is high not from algorithmic difficulty but from 11 silent-failure modes with no compile or CI signal, each mapped to a named guard in a specific group"
+        - "OPEN JUDGEMENT CALL: the SELECT ... FOR UPDATE on the request row in the workflow-start path (step 9.4) is the one concurrency control with NO dedicated test assertion. Test #8 covers the duplicate-create race, not the two-threads-both-see-NULL race that FOR UPDATE closes. Hardening it means a fifth assertion in G9.1."
+        - "Two spec items are implemented as INACTION with a documenting comment rather than code, which can read as an omission: R1/4 (no PortalModulesConfig entry, step 4.7) and blast-radius sites 2 and 4 (no change, step 5.7)"
+        - "Three requirements could not become actionable steps and are surfaced as external dependencies instead: the auth repo PR incl. R12/49's definedOnPerson confirmation (BLOCKING, no CI enforcement); R11/43's Notifier template provisioning (no in-repo artifact - the plan ships the DETECTION surface via G11.8's EXPECTED_MISSING derivation); and the FE follow-up task (scope enumerated in visual-coverage.md)"
+        - "Expected feature tests 74-110 across the spec's 14 test classes"
+      artifacts:
+        - path: implementation/implementation-plan.md
+          label: "Implementation plan (16 groups, 125 steps, 8 waves)"
+          html: implementation/implementation-plan.html
+        - path: implementation/visual-coverage.md
+          label: "Visual coverage (all 8 screens mapped; FE-only scope enumerated)"
+          html: null
+
+verification_context:
+  last_status: null
+  issues_found: []
+  fixes_applied: []
+  decisions_made: []
+  reverify_count: 0

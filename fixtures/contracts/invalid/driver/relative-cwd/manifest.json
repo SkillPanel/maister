@@ -1,0 +1,23 @@
+{
+  "id": "relative-cwd",
+  "contracts": [
+    "E1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "relative-cwd.yml",
+      "schema": "driver.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/cwd",
+    "error_keyword": "pattern"
+  },
+  "notes": "A relative cwd would resolve against whatever directory the daemon happened to be in, which is the one thing the gate predicate cannot tolerate: state discovery keys on cwd."
+}

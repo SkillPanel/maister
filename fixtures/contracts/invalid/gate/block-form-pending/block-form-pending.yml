@@ -1,0 +1,18 @@
+# Invalid: gate_pending is written as a block map. The frozen E2 form is exactly one
+# line - either "gate_pending: null" or a single-line flow map - because the hook scans
+# lines and never loads YAML.
+orchestrator:
+  started_phase: null
+  completed_phases: []
+  failed_phases: []
+  created: "2026-08-24T09:00:00Z"
+  updated: "2026-08-24T10:41:05Z"
+  task_path: ".maister/umbrella/runs/019260a2-1122-7c33-8d44-5e6677889900"
+  gate_pending:
+    node: approve
+    request: gates/approve.request.yml
+    since: "2026-08-24T10:41:05Z"
+
+task:
+  title: "Widget rollout chain"
+  status: in_progress

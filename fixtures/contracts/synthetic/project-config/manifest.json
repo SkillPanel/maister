@@ -1,0 +1,23 @@
+{
+  "id": "project-config",
+  "contracts": [
+    "A3"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "default.yml",
+      "schema": "project-config.schema.json#"
+    },
+    {
+      "path": "with-repo-id.yml",
+      "schema": "project-config.schema.json#"
+    }
+  ],
+  "notes": "A3 is an open map: default.yml is the init scaffold at its defaults, with-repo-id.yml adds the v3 repo_id key and an unknown key (notification_channel) that must be preserved rather than rejected."
+}

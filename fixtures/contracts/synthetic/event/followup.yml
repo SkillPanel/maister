@@ -1,0 +1,8 @@
+version: 1
+id: 019260a5-0005-7a11-8b22-c3d4e5f6071c
+at: 2026-08-24T15:11:30Z
+actor: {email: dev1@example.test, machine: 3f9ab2c1, via: daemon}
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+dispatch_id: d-0142
+type: followup
+data: {id: fu-0142-01, to: parent, addressee: {member: repo-alpha}, summary: "Shared client package needs the widget owner field.", artifacts: []}

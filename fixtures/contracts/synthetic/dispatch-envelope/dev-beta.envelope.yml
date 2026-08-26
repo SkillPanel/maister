@@ -1,0 +1,16 @@
+version: 1
+dispatch_id: d-0142
+chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-beta, umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607}
+target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/widget-0142}
+provider: copilot
+session: {name: "widget-rollout/0142/dev-beta", substrate: p}
+workflow: {uses: workflow:development, with: {research: "runs/research/outputs/research-report.md"}}
+inputs:
+  - {path: runs/research/outputs/research-report.md, role: research}
+  - {path: runs/research/outputs/decision-log.md, role: decisions}
+autonomy: attended
+permissions:
+  allow: ["shell(git:*)", "write", "url(https://example.test)"]
+  deny:  ["shell(git push)", "shell(gh pr merge)"]
+outbox: .maister/umbrella/outbox/d-0142/
+closeout_contract: {pr_required: true, grade: [success, partial, failed]}

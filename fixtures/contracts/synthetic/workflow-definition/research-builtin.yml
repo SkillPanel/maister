@@ -1,0 +1,44 @@
+# builtin:research expressed in the v3 grammar - the shape the engine ships as a built-in.
+name: research
+version: 1
+inputs:
+  question: {type: string, required: true}
+  depth: {type: string, required: false, default: standard}
+  html: {type: bool, required: false, default: true}
+nodes:
+  plan:
+    uses: skill:research-planner
+    needs: []
+    with: {question: "${inputs.question}", depth: "${inputs.depth}"}
+    outputs:
+      artifacts: {plan: planning/research-plan.md, sources: planning/sources.md}
+  gather:
+    uses: skill:information-gatherer
+    needs: [plan]
+    outputs:
+      artifacts: {findings: analysis/findings}
+  synthesize:
+    uses: skill:research-synthesizer
+    needs: [gather]
+    outputs:
+      artifacts: {synthesis: analysis/synthesis.md}
+      values: {confidence: string}
+  approve:
+    type: gate
+    needs: [synthesize]
+    ask: "Research foundation complete. Continue to brainstorming evaluation?"
+    options:
+      continue-to-brainstorm: continue
+      stop-here: stop
+  brainstorm:
+    uses: skill:solution-brainstormer
+    needs: [approve]
+    when: "${inputs.depth}"
+    outputs:
+      artifacts: {exploration: outputs/solution-exploration.md}
+  report:
+    uses: skill:research-synthesizer
+    needs: [synthesize]
+    on: always
+    outputs:
+      artifacts: {report: outputs/research-report.md, decisions: outputs/decision-log.md}

@@ -55,7 +55,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
    - `implementation/implementation-plan.md` (required)
    - `implementation/spec.md` (required)
    - `implementation/work-log.md` (required)
-3. **Read docs/INDEX.md** to understand available standards
+3. **Read `.maister/docs/INDEX.md`** to understand available standards (optional — skip standards loading when absent)
 4. **Determine invocation context** (orchestrator or standalone)
 5. **Create task items for verification tracking** using `TaskCreate` tool:
    - Subject: "Completeness check", activeForm: "Checking implementation completeness"
@@ -184,7 +184,7 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Update the TL;DR block to the final verdict and remaining (not original) issue counts
    - Add a **"Fix & Re-Verification History"** section: each issue → fix applied → re-check outcome (resolved / residual, with one-line evidence)
    - Subagent re-check outputs may save as side files (e.g. `code-review-reverify.md`) — fine as evidence, but they never substitute for refreshing the canonical report
-4. **Write HTML companion** to `verification/implementation-verification.html` — *skip this step entirely when `orchestrator.options.html_output` is false in `orchestrator-state.yml` (markdown-only mode; leave `html_path: null`)*:
+4. **Write HTML companion** to `verification/implementation-verification.html` — *skip this step entirely when `orchestrator.options.html_output` is false in `orchestrator-state.yml` (markdown-only mode; leave `html_path: null`)*. As a **skill**, this receives no `html_style_guide_path` parameter: it resolves the guide itself and gates on state (`orchestrator-patterns.md` § 9):
    - Follow the shared style guide at `../orchestrator-framework/references/html-report-style.md` (relative to this SKILL.md): self-contained single file, standard CSS block, no external resources
    - Lead with the verdict banner (✅ Passed / ⚠️ Passed with Issues / ❌ Failed) and issue counts; then findings table sorted critical→info with severity badges, per-check section status, fixes-applied list. Link to the md twin in the header
    - Same content as the md — restructure and visualize, never add findings

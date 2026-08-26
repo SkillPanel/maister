@@ -1,0 +1,7 @@
+version: 1
+type: blocked
+dispatch_id: d-0142
+at: 2026-08-24T13:22:07Z
+reason: "The shared cluster credential is not present in this worktree."
+needs: [permission]
+detail: "Read access to the ledger store is required to run the integration slice; tests are skipped until it is granted."

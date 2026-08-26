@@ -1,0 +1,4 @@
+{"sessionId":"235715f4-8553-4424-ac11-4de4c5c7747f","timestamp":1787676467283,"cwd":"/home/dev/work/repo-alpha","source":"resume","initialPrompt":"Create a file marker.txt containing the word done. Then reply with exactly one line: DONE."}
+{"sessionId":"235715f4-8553-4424-ac11-4de4c5c7747f","timestamp":1787676469767,"cwd":"/home/dev/work/repo-alpha","toolName":"apply_patch","toolArgs":"*** Begin Patch\n*** Add File: marker.txt\n+done\n*** End Patch\n"}
+{"sessionId":"235715f4-8553-4424-ac11-4de4c5c7747f","timestamp":1787676471265,"cwd":"/home/dev/work/repo-alpha","toolName":"bash","toolArgs":"{\"command\":\"printf 'done\\n' > marker.txt\",\"description\":\"Create marker.txt with done\"}"}
+{"sessionId":"235715f4-8553-4424-ac11-4de4c5c7747f","timestamp":1787676474964,"cwd":"/home/dev/work/repo-alpha","toolName":"skill","toolArgs":"{\"skill\":\"quick-dev\"}"}

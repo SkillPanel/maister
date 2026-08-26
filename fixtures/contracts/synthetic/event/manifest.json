@@ -1,0 +1,61 @@
+{
+  "id": "event",
+  "contracts": [
+    "C7",
+    "T1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "create.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "claim.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "status.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "constraint.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "followup.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "closeout.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "dismiss.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "archive.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "mirror.yml",
+      "schema": "event.schema.json#"
+    },
+    {
+      "path": "version-99.yml",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "degraded": [
+      "newer-format"
+    ]
+  },
+  "notes": "version-99.yml carries schema null on purpose: a document declaring a newer format cannot validate against the v1 const, and the expectation is the runner reporting degraded: newer-format rather than a schema pass. One immutable event file per type: the seven ledger ops plus dismiss, archive and mirror. Ids are UUIDv7 and are the file identity; events fold in at order, ties by id. archive is workspace-level and carries no dispatch_id. mirror.yml is also the T1 tracker-mirror fixture: its data is the mirror_data shape {tracker, event_ref, key} and its presence is what makes mirroring idempotent."
+}

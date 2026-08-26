@@ -1,0 +1,11 @@
+{"provider":"claude","last_line":"GATE-PENDING: approve","marker":"GATE-PENDING: approve","gate_pending_on_disk":true,"denials":[],"classified":"gate-pending"}
+{"provider":"copilot","last_line":"GATE-PENDING: approve","marker":"GATE-PENDING: approve","gate_pending_on_disk":true,"denials":["apply_patch"],"classified":"gate-pending"}
+{"provider":"claude","last_line":"RUN-COMPLETE","marker":"RUN-COMPLETE","gate_pending_on_disk":false,"denials":[],"classified":"complete"}
+{"provider":"copilot","last_line":"RUN-FAILED: state-unparseable","marker":"RUN-FAILED: state-unparseable","gate_pending_on_disk":false,"denials":[],"classified":"failed"}
+{"provider":"claude","last_line":"WAITING-DISPATCH","marker":"WAITING-DISPATCH","gate_pending_on_disk":false,"denials":[],"classified":"waiting"}
+{"provider":"copilot","last_line":"GATE-ALREADY-ANSWERED by operator-2","marker":"GATE-ALREADY-ANSWERED by operator-2","gate_pending_on_disk":false,"denials":[],"classified":"already-answered"}
+{"provider":"claude","last_line":"GATE-INVALID: option not in request","marker":"GATE-INVALID: option not in request","gate_pending_on_disk":true,"denials":[],"classified":"invalid"}
+{"provider":"claude","last_line":"I have recorded the decision and will stop here.","marker":null,"gate_pending_on_disk":true,"denials":["Write"],"classified":"gate-pending"}
+{"provider":"copilot","last_line":"Done.","marker":null,"gate_pending_on_disk":false,"denials":["apply_patch","bash"],"classified":"unknown"}
+{"provider":"claude","last_line":"DISPATCH-RESULT: d-0142 success","marker":"DISPATCH-RESULT: d-0142 success","gate_pending_on_disk":false,"denials":[],"classified":"complete"}
+{"provider":"copilot","last_line":"DISPATCH-FOLLOWUP: fu-0142-01 repo-alpha","marker":"DISPATCH-FOLLOWUP: fu-0142-01 repo-alpha","gate_pending_on_disk":false,"denials":[],"classified":"complete"}

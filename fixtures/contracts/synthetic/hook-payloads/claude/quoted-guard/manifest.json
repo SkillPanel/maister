@@ -1,0 +1,28 @@
+{
+  "id": "claude-quoted-guard",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/claude_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "claude",
+      "event": "PreToolUse",
+      "decision": "deny",
+      "exit": 0,
+      "stdout": "json"
+    }
+  },
+  "notes": "Replays through block-destructive-commands.sh, not the gate hook: a destructive recursive-delete command whose argument is double-quoted and contains a $ expansion. The guard only inspects commands from a non-whitelisted subagent, so the payload carries agent_type task-group-implementer - without it the guard exits silently and the deny below is unreachable. The deny reason must come back as well-formed JSON built with jq -n --arg, which is what the quoting fix at :30-38 guarantees; the pre-fix form produced invalid JSON for exactly this input. No gate state is involved. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+}

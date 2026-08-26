@@ -1,0 +1,8 @@
+version: 1
+id: 019260a5-0001-7a11-8b22-c3d4e5f60718
+at: 2026-08-24T11:15:41Z
+actor: {email: dev1@example.test, machine: 3f9ab2c1, via: engine}
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+dispatch_id: d-0142
+type: create
+data: {node: dev-beta, member: repo-beta, provider: copilot}

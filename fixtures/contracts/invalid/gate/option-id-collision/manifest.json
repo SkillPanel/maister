@@ -1,0 +1,23 @@
+{
+  "id": "option-id-collision",
+  "contracts": [
+    "E2"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "option-id-collision.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    }
+  ],
+  "expect": {
+    "error_path": "/options",
+    "error_keyword": "gate-option-id-unique"
+  },
+  "notes": "Option ids are the answer wire: gates/<node>.answer.<actor>.yml carries the id and nothing else, so ids must be unique within a request. Group 3 implemented this as a runner check rather than a schema constraint, so the expected keyword is the runner rule name, not an AJV keyword."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "task-context-nested",
+  "contracts": [
+    "A1"
+  ],
+  "verdict": "tolerated",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-alpha/development/2026-08-11-a",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#",
+      "truncated": true
+    }
+  ],
+  "expect": {
+    "warnings": [
+      "task-context-nested-under-orchestrator"
+    ]
+  },
+  "notes": "Drift #6, derived from the dev-complete-a sample: task_context is indented under `orchestrator:` (the shape development/SKILL.md:557-608 used to show). The writer form is top-level; readers accept this variant and warn. task_context is trimmed to the keys that carry the shape."
+}

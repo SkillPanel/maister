@@ -1,0 +1,24 @@
+{
+  "id": "block-form-pending",
+  "contracts": [
+    "E2",
+    "A1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "block-form-pending.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/orchestrator/gate_pending",
+    "error_keyword": "e2-one-line-form"
+  },
+  "notes": "The document is valid YAML and the value validates against gate#/$defs/pending, so only the text-level one-line rule can reject it. This is the shape the gate hook fails closed on."
+}

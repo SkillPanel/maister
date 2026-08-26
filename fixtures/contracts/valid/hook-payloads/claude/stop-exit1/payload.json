@@ -1,0 +1,12 @@
+{
+  "session_id": "2e163c0a-bee6-4aa4-8cfb-4becd494bab9",
+  "transcript_path": "/home/dev/.claude/projects/-home-dev-work-repo-alpha/2e163c0a-bee6-4aa4-8cfb-4becd494bab9.jsonl",
+  "cwd": "/home/dev/work/repo-alpha",
+  "prompt_id": "db2dc95d-3ff5-44d2-a760-9769c1070067",
+  "permission_mode": "bypassPermissions",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "FIRST.",
+  "background_tasks": [],
+  "session_crons": []
+}

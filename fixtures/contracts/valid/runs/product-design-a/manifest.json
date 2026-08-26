@@ -1,0 +1,39 @@
+{
+  "id": "product-design-a",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A5",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/product-design/2026-08-25-a",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "artifacts/feature-spec.md",
+      "schema": null,
+      "truncated": true
+    },
+    {
+      "path": "artifacts/product-brief.md",
+      "schema": null,
+      "truncated": true
+    }
+  ],
+  "strict_a2": false,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "Golden product-design run: design_context with visual_companion and design_resources. dashboard-data.js is a bare-key JS object literal with zero quoted keys, so strict_a2 is false (#23)."
+}

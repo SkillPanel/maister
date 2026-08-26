@@ -16,7 +16,7 @@ Unified workflow for all development tasks — bug fixes, enhancements, and new 
 
 Before doing anything else, settle this policy now and do not re-litigate it at any gate:
 
-**`→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications.
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications. Invoke `ask_user` when `orchestrator.driver.kind` is absent or `terminal` — the only modes this orchestrator runs in until the engine makes it driver-aware; in `cockpit`/`dispatch` mode write the gate request file and end the turn instead (`compatibility-contracts.md § E2`).
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
@@ -47,7 +47,7 @@ Full framework rule: `../orchestrator-framework/references/orchestrator-patterns
 3. **Create Task Directory**: `.maister/tasks/development/YYYY-MM-DD-task-name/`
 4. **Initialize State**: Create `orchestrator-state.yml` with task info and research reference
 5. **Set up Operator Dashboard** (orchestrator-patterns.md § 8) — first read `.maister/config.yml` and set `orchestrator.options.html_output` (default true if the file/key is absent) and `orchestrator.options.mockup_format` (default `html`; read by Phase 4). **When `html_output` is false, SKIP this entire step** — no `dashboard.html`, no `dashboard-data.js`, no browser auto-open — and proceed. Otherwise: copy `../orchestrator-framework/assets/dashboard.html` to the task root as `dashboard.html`, write the initial `dashboard-data.js` (all phases pending), then **auto-open it in the user's browser** (`open` / `xdg-open` / `start` per platform, passing the plain absolute filesystem path — NEVER a hand-built `file://` URL; on failure just print the path — never block). On resume: re-copy `dashboard.html` only if missing; regenerate `dashboard-data.js` from state; then auto-open it in the browser again (same opener as a new task — the OS focuses an already-open tab rather than duplicating).
-6. **Discover project documentation**: Read `.maister/docs/INDEX.md` (if exists), extract ALL file paths from the "Project Documentation" section. This includes predefined docs (vision, roadmap, tech-stack, architecture) AND any user-added project docs (e.g., deployment.md, api-strategy.md). Store complete list as `project_context.project_doc_paths` in state.
+6. **Discover project documentation**: Read `.maister/docs/INDEX.md` (if exists), extract ALL file paths from the "Project Documentation" section. This includes predefined docs (vision, roadmap, tech-stack, architecture) AND any user-added project docs (e.g., deployment.md, api-strategy.md). Store complete list as `project_doc_paths` under the **top-level** `project_context` block in state — `project_context` is a sibling of `orchestrator` and `task_context`, never nested inside either (`compatibility-contracts.md § A1`).
 
 ### Step 4: Ingest Design Context
 
@@ -88,9 +88,10 @@ Starting Phase 1: Codebase Analysis...
 
 Cross-cutting rules from `orchestrator-patterns.md` apply throughout this workflow:
 
-1. **Artifact Summary Contract (§ 7)**: every artifact-writing subagent prompt MUST include the contract instruction (artifacts open with TL;DR / Key Decisions / Open Questions & Risks). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` (shared entry shape, § 4).
+1. **Artifact Summary Contract (§ 7)**: every artifact-writing subagent prompt MUST include the contract instruction (artifacts open with TL;DR / Key Decisions / Open Questions / Risks — the writer heading is `## Open Questions / Risks`). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` (shared entry shape, § 4).
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark it `in_progress` before delegating), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks so the operator reviews them on the dashboard while answering — status stays `in_progress` until the gate passes), after every phase completion (including skips, with reason), every gate decision, every verification cycle, and at finalization. It is a terse projection of state — never duplicate artifact content into it.
-3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to specification-creator, implementation-planner, and e2e-test-verifier. Register returned `html_path` values in `phase_summaries.[phase].artifacts[].html`.
+3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to specification-creator, implementation-planner, and e2e-test-verifier — companion-writing **agents**. The `implementation-verifier` **skill** takes no such parameter: it resolves the guide itself and gates on `orchestrator.options.html_output` (§ 9). Register returned `html_path` values in `phase_summaries.[phase].artifacts[].html`.
+4. **Phase icons (§ 8)**: every phase row written to `dashboard-data.js` carries an `icon_hint` from the enum of seven — `analysis`, `spec`, `plan`, `code`, `verify`, `docs`, `done`. Never invent a value; pick the closest (`compatibility-contracts.md § A2`).
 
 ---
 
@@ -443,7 +444,7 @@ Options: "Code review (Recommended)", "Pragmatic review (Recommended)", "Reality
 
 **Execute**:
 
-**Step 1**: Invoke Skill tool - `maister-implementation-verifier`
+**Step 1**: Invoke Skill tool - `maister-implementation-verifier` — pass no `html_style_guide_path`: as a skill it resolves the style guide itself and gates its companion on `orchestrator.options.html_output` (orchestrator-patterns.md § 9).
 
 **Step 2**: Display detailed issue breakdown grouped by category and severity:
 ```
@@ -497,7 +498,7 @@ ask_user - Display executive summary: total issues found, issues fixed, issues r
 
 > **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 11 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
-> **⚠ Serialization rule**: Phases 12 and 13 share the Playwright MCP browser instance. They MUST run strictly sequentially. Do NOT dispatch the Phase 12 Task call and the Phase 13 Task call in the same assistant message, even when both are enabled. Wait for Phase 12 to return, honor the `→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `ask_user` gate below, then start Phase 13. Concurrent dispatch will corrupt both browser sessions.
+> **⚠ Serialization rule**: Phases 12 and 13 share the Playwright MCP browser instance. They MUST run strictly sequentially. Do NOT dispatch the Phase 12 Task call and the Phase 13 Task call in the same assistant message, even when both are enabled. Wait for Phase 12 to return, honor the `→ MANDATORY GATE` / `ask_user` gate below, then start Phase 13. Concurrent dispatch will corrupt both browser sessions.
 
 **Purpose**: Runtime browser verification with screenshots (via Playwright MCP tools, not test file generation)
 **Execute**: Task tool - `maister-e2e-test-verifier` subagent
@@ -571,45 +572,53 @@ orchestrator:
     pragmatic_review_enabled: true
     reality_check_enabled: true
     production_check_enabled: true
-  task_context:
-    risk_level: null
-    clarifications_resolved: null
-    scope_expanded: null
-    architecture_decision: null
-    task_characteristics:
-      has_reproducible_defect: false
-      modifies_existing_code: false
-      creates_new_entities: false
-      involves_data_operations: false
-      ui_heavy: false
-    research_reference:
-      path: null
-      research_question: null
-      research_type: null
-      confidence_level: null
-    design_reference:
-      source: null  # "product-design" | "inline-prompt" | "legacy-migration" | null
-      product_design_path: null  # set when Source 1 detected
-      mockup_count: 0
-      has_brief: false
-      index_path: null  # path to analysis/design-context/INDEX.md
-    phase_summaries:
-      # Every entry also carries the shared base shape (orchestrator-patterns.md § 4):
-      #   decisions: []   risks: []   artifacts: [{path, label, html}]
-      research: {summary: null, key_findings: [], recommended_approach: null}
-      design: {summary: null, screen_count: 0, component_count: 0, index_path: null}
-      codebase_analysis: {key_files: [], primary_language: null, summary: null}
-      clarifications: []
-      gap_analysis: {integration_points: [], summary: null}
-      scope_clarifications: {scope_expanded: null, summary: null}
-      ui_mockups: {components_designed: [], summary: null}
-      specification: {summary: null}
-      architecture_decision: {decision: null, summary: null}
+
+# Top-level siblings of `orchestrator:` — never nested inside it (compatibility-contracts.md § A1)
+project_context:
+  project_doc_paths: []
+  project_context_summary: null
+
+task_context:
+  risk_level: null
+  clarifications_resolved: null
+  scope_expanded: null
+  architecture_decision: null
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: false
+    creates_new_entities: false
+    involves_data_operations: false
+    ui_heavy: false
+  research_reference:
+    path: null
+    research_question: null
+    research_type: null
+    confidence_level: null
+  design_reference:
+    source: null  # "product-design" | "inline-prompt" | "legacy-migration" | null
+    product_design_path: null  # set when Source 1 detected
+    mockup_count: 0
+    has_brief: false
+    index_path: null  # path to analysis/design-context/INDEX.md
+  phase_summaries:
+    # Every entry also carries the shared base shape (orchestrator-patterns.md § 4):
+    #   decisions: []   risks: []   artifacts: [{path, label, html}]
+    research: {summary: null, key_findings: [], recommended_approach: null}
+    design: {summary: null, screen_count: 0, component_count: 0, index_path: null}
+    codebase_analysis: {key_files: [], primary_language: null, summary: null}
+    clarifications: []
+    gap_analysis: {integration_points: [], summary: null}
+    scope_clarifications: {scope_expanded: null, summary: null}
+    ui_mockups: {components_designed: [], summary: null}
+    specification: {summary: null}
+    architecture_decision: {decision: null, summary: null}
 ```
 
 ---
 
 ## Task Structure
+
+The normative layout and naming rules are `../orchestrator-framework/references/compatibility-contracts.md § A4`; the tree below is this workflow's instance of them.
 
 ```
 .maister/tasks/development/YYYY-MM-DD-task-name/

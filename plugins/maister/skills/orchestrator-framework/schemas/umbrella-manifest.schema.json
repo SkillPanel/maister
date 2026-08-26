@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/umbrella-manifest",
+  "title": "Umbrella manifest",
+  "description": "Contract C1. Created when a workspace is initialized as an umbrella; additive thereafter. Members keep their own task trees, so mixed-era layouts are allowed.",
+  "type": "object",
+  "required": ["version", "members"],
+  "properties": {
+    "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+    "umbrella_id": {
+      "description": "Stable across reinstall.",
+      "$ref": "https://maister.dev/schemas/contracts/common#/$defs/short_id"
+    },
+    "members": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/member" }
+    },
+    "routing": {
+      "description": "Data for the intake node. Reserved (contract R): parsed, warned about, inert.",
+      "type": "object",
+      "properties": { "tiers": { "type": "object" } }
+    },
+    "knowledge": {
+      "description": "Provenance-checked notes directory.",
+      "type": ["string", "null"]
+    },
+    "retention": {
+      "type": "object",
+      "properties": {
+        "days": { "type": ["integer", "null"] },
+        "lfs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "people": { "type": "array", "items": { "$ref": "#/$defs/person" } },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "autonomy": { "$ref": "#/$defs/autonomy" },
+        "worktree": { "type": "boolean" }
+      }
+    }
+  },
+  "$defs": {
+    "autonomy": {
+      "description": "Permission preset per dispatch. The attended tier always pauses on push, merge and pull-request creation.",
+      "enum": ["attended", "auto-low", "auto-medium", "auto-high"]
+    },
+    "member": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
+        "kind": { "type": "string" },
+        "default_provider": { "enum": ["claude", "copilot"] }
+      }
+    },
+    "person": {
+      "description": "Identity mapping. When absent, accounts are matched by e-mail.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": ["string", "null"] },
+        "github": { "type": ["string", "null"] },
+        "gitlab": { "type": ["string", "null"] },
+        "jira": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

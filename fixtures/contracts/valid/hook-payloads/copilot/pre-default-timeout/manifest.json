@@ -1,0 +1,22 @@
+{
+  "id": "copilot-pre-default-timeout",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "1.0.80",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "outcome.json",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "platform_outcome": "fail-open"
+  },
+  "notes": "Copilot CLI preToolUse class captured as a plain-text probe rather than a JSON payload, so no payload fixture exists. With no timeoutSec the default 30 s cap fired after 32.1 s and the tool ran anyway - the harness timeout is fail-open, which is why the maister hook owns its own deadline."
+}

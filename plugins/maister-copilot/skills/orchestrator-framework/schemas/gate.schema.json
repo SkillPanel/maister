@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/gate",
+  "title": "Gate request, pending pointer and index",
+  "description": "Contract E2. The engine writes the request file atomically before it sets the pending pointer, and clears the pointer last. The daemon never writes any of these three shapes. An unanswered request without a matching pointer is the second signal the gate hook denies on.",
+  "$ref": "#/$defs/request",
+  "$defs": {
+    "pending": {
+      "description": "The value of orchestrator.gate_pending. Serialized on exactly one line: either the null literal or a flow map with keys in any order.",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["node", "request", "since"],
+          "properties": {
+            "node": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+            "request": { "$ref": "#/$defs/request_path" },
+            "since": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" }
+          }
+        }
+      ]
+    },
+    "request_path": {
+      "description": "Task-root-relative path of the request file.",
+      "type": "string",
+      "pattern": "^gates/[a-z0-9-]+\\.request\\.yml$"
+    },
+    "request": {
+      "description": "One gate request file.",
+      "type": "object",
+      "required": ["version", "node", "kind", "asked_at", "question", "options", "answer"],
+      "properties": {
+        "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+        "run_id": { "type": ["string", "null"] },
+        "node": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+        "kind": {
+          "description": "gate renders as buttons, decision as questions with descriptions and a recommendation, convergence as one area with alternatives.",
+          "enum": ["gate", "decision", "convergence"]
+        },
+        "asked_at": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+        "question": { "type": "string", "minLength": 1 },
+        "context": {
+          "type": "object",
+          "properties": {
+            "summary": { "type": ["string", "null"] },
+            "artifacts": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/option" }
+        },
+        "multi_select": {
+          "description": "Whether the operator may pick more than one option. False for every gate kind.",
+          "type": "boolean"
+        },
+        "answer": { "$ref": "#/$defs/answer" }
+      }
+    },
+    "option": {
+      "description": "Option ids are unique within a request; the collision check is runner logic.",
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": ["string", "null"] },
+        "effect": { "anyOf": [{ "type": "null" }, { "enum": ["continue", "stop"] }] },
+        "description": { "type": ["string", "null"] },
+        "recommended": { "type": ["boolean", "null"] }
+      }
+    },
+    "answer": {
+      "description": "The null literal until answered. The line answer: null is what the hook reads as unanswered.",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["option", "answered_by", "at"],
+          "properties": {
+            "option": { "type": "string", "minLength": 1 },
+            "options": { "type": "array", "items": { "type": "string" } },
+            "answered_by": { "type": "string", "minLength": 1 },
+            "at": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+            "via": { "enum": ["cockpit", "terminal", "file"] }
+          }
+        }
+      ]
+    },
+    "index": {
+      "description": "One place per chain to watch: sub-run gates mirror a one-line pointer here.",
+      "type": "object",
+      "required": ["version", "entries"],
+      "properties": {
+        "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["node", "request", "status"],
+            "properties": {
+              "node": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+              "request": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
+              "sub_run": { "type": ["string", "null"] },
+              "kind": { "enum": ["gate", "decision", "convergence"] },
+              "asked_at": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+              "status": { "enum": ["pending", "answered"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

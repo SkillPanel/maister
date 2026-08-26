@@ -1,0 +1,20 @@
+{
+  "id": "claude-wide-indent-state",
+  "contracts": [
+    "E2",
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-26T09:20:00Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json"
+    }
+  ],
+  "notes": "The same pending run as synthetic/gate/pending, written by a YAML emitter that indents four spaces per level instead of two. The one-line E2 form is about the value being on one line, not about the column it starts in: gate_pending is recognised as a child of orchestrator: and the node entries as children of workflow: nodes: by structural position. This directory is a state fixture for replays; it declares no replay of its own."
+}

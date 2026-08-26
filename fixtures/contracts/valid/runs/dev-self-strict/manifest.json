@@ -1,0 +1,28 @@
+{
+  "id": "dev-self-strict",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-d",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "The only run-sampled fixture whose dashboard-data.js is strict JSON (window.MAISTER_DATA = <strict JSON>;) -- every other strict A2 fixture is synthetic. Also the top-level project_context sample (#9 writer form)."
+}

@@ -1,0 +1,24 @@
+{
+  "id": "midnight-generated",
+  "contracts": [
+    "A2",
+    "A6"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/generated",
+    "error_keyword": "not_midnight"
+  },
+  "notes": "T00:00:00Z is the signature of a date that was formatted rather than measured. The A6 regex cannot express \"not midnight\" cleanly, so the schema pattern passes and the separate runner lint is what must fail here."
+}

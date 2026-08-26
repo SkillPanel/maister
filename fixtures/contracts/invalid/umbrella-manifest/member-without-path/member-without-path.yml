@@ -1,0 +1,10 @@
+# Invalid: the member "shared-types" has no path. Every member must resolve to a
+# directory or the engine cannot dispatch into it.
+version: 1
+umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607
+members:
+  repo-alpha:   {path: projects/repo-alpha, kind: repo, default_provider: claude}
+  shared-types: {kind: repo}
+defaults:
+  autonomy: attended
+  worktree: true

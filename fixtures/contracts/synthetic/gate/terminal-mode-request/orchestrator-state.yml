@@ -1,0 +1,28 @@
+orchestrator:
+  started_phase: null
+  completed_phases: []
+  failed_phases: []
+  options: {html_output: true}
+  created: "2026-08-24T14:00:00Z"
+  updated: "2026-08-24T14:52:19Z"
+  task_path: ".maister/umbrella/runs/019260a2-1122-7c33-8d44-5e6677889900"
+  driver: {kind: terminal}
+  gate_pending: null
+
+task:
+  title: "Widget rollout chain (terminal mode)"
+  status: in_progress
+
+workflow:
+  source: builtin:richtext
+  overlays: []
+  profile: default
+  graph_hash: "sha256:3f1c9a77b25e04d8c6a1fb03e97d5428ba6c0f19d4e7a2358c9b0d61f4a82e07"
+  grammar_version: 1
+  nodes:
+    research:  {kind: task, status: completed, needs: [], started: "2026-08-24T14:00:11Z", completed: "2026-08-24T14:52:18Z"}
+    approve:   {kind: gate, status: running, needs: [research], started: "2026-08-24T14:52:18Z"}
+    dev:       {kind: task, status: pending, needs: [approve]}
+    close-out: {kind: task, status: pending, needs: [dev], on: always}
+
+node_summaries: {}

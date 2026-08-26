@@ -1,0 +1,8 @@
+# Invalid: cwd must be absolute whenever kind is not terminal. The daemon resolves
+# nothing on the worker's behalf - it spawns in exactly this directory.
+kind: cockpit
+cwd: projects/repo-alpha
+session:
+  id: 019260a1-4c2e-7a3b-9c4d-5e6f70819a2b
+  name: chain-widget
+  provider: claude

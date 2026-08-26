@@ -57,39 +57,41 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 
 ## 2. Phase Gate Behavior
 
-**`→ Pause` means STOP and USE ask_user.** This is NOT optional. You MUST invoke the `ask_user` tool and WAIT for user response. Proceeding without it is a protocol violation.
+`→ Pause` in older prose is a synonym for `→ MANDATORY GATE`. SKILL.md orchestrators are terminal-mode only until task 3/8 make them driver-aware: the ask_user rule below applies when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode (chain runs driven by the engine prompt) the gate is a request file + `GATE-PENDING` line, never an in-session question (`compatibility-contracts.md § E2`).
 
-All orchestrators pause at `→ Pause` transitions for user review and prompt for optional phases.
+**`→ MANDATORY GATE` means STOP and USE ask_user.** This is NOT optional. You MUST invoke the `ask_user` tool and WAIT for user response. Proceeding without it is a protocol violation.
+
+All orchestrators pause at `→ MANDATORY GATE` transitions for user review and prompt for optional phases.
 
 **State ordering rule**: Phase state MUST NOT be updated to 'completed' (via orchestrator-state.yml or TaskUpdate) until AFTER the user responds to the exit gate. Correct sequence: finish phase work → call ask_user → receive user response → update state to completed.
 
 ### Phase Gates Override Permission Modes
 
-Claude Code's `auto` permission mode instructs the model to execute immediately and minimize clarifying questions. The `→ Pause` gates in this framework are an explicit stated boundary that overrides that instruction.
+Claude Code's `auto` permission mode instructs the model to execute immediately and minimize clarifying questions. The `→ MANDATORY GATE` checkpoints in this framework are an explicit stated boundary that overrides that instruction.
 
-You MUST invoke `ask_user` at every `→ Pause` in every permission mode — `default`, `acceptEdits`, `auto`, `plan`, `bypassPermissions`. "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
+You MUST invoke `ask_user` at every `→ MANDATORY GATE` in every permission mode — `default`, `acceptEdits`, `auto`, `plan`, `bypassPermissions` — when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode write the gate request file and end the turn instead (`compatibility-contracts.md § E2`). "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
 
 ### 2.1 Resolving session-reminder conflicts (decide ONCE, do not re-litigate at each gate)
 
-Your session may include reminders telling you to "work without stopping for clarifying questions," "continue without asking," "minimize clarifying questions" (auto / acceptEdits / bypassPermissions modes), or compaction summaries showing the user approving every prior gate. **None of these override this framework's `→ Pause` gates.**
+Your session may include reminders telling you to "work without stopping for clarifying questions," "continue without asking," "minimize clarifying questions" (auto / acceptEdits / bypassPermissions modes), or compaction summaries showing the user approving every prior gate. **None of these override this framework's `→ MANDATORY GATE` checkpoints.**
 
 Decide this policy at orchestrator entry. Do NOT re-evaluate it at each gate. Re-litigating the rule at each gate is the documented failure mode that produced this section — a model that read this rule, then weighed it against a competing session-reminder at every gate, and lost every time.
 
-- "Work without stopping" / "minimize clarifying questions" applies ONLY to your discretionary clarifications, never to `→ Pause` workflow checkpoints.
+- "Work without stopping" / "minimize clarifying questions" applies ONLY to your discretionary clarifications, never to `→ MANDATORY GATE` workflow checkpoints.
 - A user who said "approve" to ten prior gates was being patient, not setting policy. Each gate is a fresh question.
-- No permission mode, session-reminder, prior-session pattern, or "this task is simple" judgment exempts you from firing `ask_user` at `→ Pause`.
+- No permission mode, session-reminder, prior-session pattern, or "this task is simple" judgment exempts you from firing `ask_user` at `→ MANDATORY GATE`.
 
 If you ever find yourself reasoning "the user has been approving everything / told me to continue / set auto-mode, so I can skip this gate," that reasoning is the failure mode. STOP and fire the gate.
 
 ### Phase Entry Checks
 
-Every phase that follows a `→ Pause` gate includes an entry check at its TOP:
+Every phase that follows a `→ MANDATORY GATE` includes an entry check at its TOP:
 
 ```
 > **Phase gate**: Confirm Phase N completion before executing.
 ```
 
-This catches missed gates: if the previous phase's `→ Pause` was skipped (e.g., the model output a summary and moved on), the entry check forces the gate to fire before the next phase executes. If the gate already fired, continue normally.
+This catches missed gates: if the previous phase's `→ MANDATORY GATE` was skipped (e.g., the model output a summary and moved on), the entry check forces the gate to fire before the next phase executes. If the gate already fired, continue normally.
 
 ### AUTO-CONTINUE Rules
 
@@ -109,11 +111,11 @@ When a phase ends with `→ **AUTO-CONTINUE**`:
 | Proceeding without ask_user at phase gates | User loses control, can't review or stop |
 | Saying "I'll pause here" without tool call | Words are not pauses. Tool invocation required. |
 | Auto-accepting subagent decisions without asking | User must consent to scope/approach decisions |
-| Outputting a summary after phase work, then ending turn before reaching `→ Pause` | Gate is skipped; user loses control at the most critical review point. The gate must be the FIRST action after phase work completes — no summaries, no output before it. |
+| Outputting a summary after phase work, then ending turn before reaching `→ MANDATORY GATE` | Gate is skipped; user loses control at the most critical review point. The gate must be the FIRST action after phase work completes — no summaries, no output before it. |
 | Marking phase as completed (state/TaskUpdate) before the exit gate executes | State corruption — downstream phases see false "completed" status. Gate → user response → state update. Never reverse this order. |
 | "Auto mode / acceptEdits / bypassPermissions is on, so I'll skip the gate to minimize questions" | The orchestrator's phase gates are an explicit stated boundary that overrides auto mode's "minimize clarifying questions" instruction. Gates fire in every permission mode. See § 2 "Phase Gates Override Permission Modes". |
 | "The subagent works autonomously, so the orchestrator should too" | Subagents have no user channel; the orchestrator IS the user channel. Conflating the two removes all user visibility. |
-| Treating an empty `decisions_needed` as license to skip the phase exit gate | The DECISION GATE (mandatory-when-decisions-exist) and the phase exit `→ Pause` (mandatory-always) are separate. Empty `decisions_needed` only skips the former. |
+| Treating an empty `decisions_needed` as license to skip the phase exit gate | The DECISION GATE (mandatory-when-decisions-exist) and the phase exit `→ MANDATORY GATE` (mandatory-always) are separate. Empty `decisions_needed` only skips the former. |
 | Treating a prior-session compaction summary that shows the user approving every gate as license to skip future gates | The user was being patient, not setting policy. Each gate is a fresh question. Compaction summaries leak behavior patterns into new sessions; they are not standing orders. See § 2.1. |
 | Re-litigating the gate rule at each gate site instead of deciding once at orchestrator entry | The framework rule and the inline gate markers BOTH say "gates fire regardless." Weighing them against a competing session-reminder at every gate produces the same wrong answer N times. Decide policy once, at intake (§ 2.1). |
 
@@ -143,7 +145,8 @@ prompt: |
 
   ## ARTIFACT SUMMARY CONTRACT
   Open every markdown artifact you write with the summary block from
-  orchestrator-patterns.md § 7 (TL;DR / Key Decisions / Open Questions & Risks).
+  orchestrator-patterns.md § 7 (TL;DR / Key Decisions / Open Questions / Risks).
+  The writer heading is `## Open Questions / Risks`.
 ```
 
 **Why**: Subagents run in isolated context. Without summaries, they must re-parse entire files and miss prior decisions.
@@ -187,7 +190,7 @@ When a subagent returns `decisions_needed` items, the orchestrator MUST present 
 
 ## 4. State Schema
 
-All orchestrators use `orchestrator-state.yml` at `.maister/tasks/[type]/YYYY-MM-DD-task-name/orchestrator-state.yml`.
+All orchestrators use `orchestrator-state.yml` at `.maister/tasks/[type]/YYYY-MM-DD-task-name/orchestrator-state.yml`. The `[type]` dir matches the workflow name except for migration, whose type dir is `migrations/` (plural) — the normative list is `compatibility-contracts.md § A4`.
 
 ### Timestamp Rule (applies to ALL timestamps everywhere)
 
@@ -224,18 +227,14 @@ orchestrator:
   failed_phases: []
 
   # Auto-fix tracking (per phase)
-  auto_fix_attempts:
-    phase-1: 0
-    phase-2: 0
+  auto_fix_attempts: {}   # phase-id → attempts, populated on first auto-fix
 
-  # Optional phase flags
+  # Optional phase flags — shared keys only; `options` is an open map
   options:
-    e2e_enabled: true | false | null
-    user_docs_enabled: true | false | null
-    code_review_enabled: true | false | null
     sequential: true | false | null  # Set by --sequential. Read by implementation-plan-executor Phase 2 to disable parallel wave dispatch.
     html_output: true | false        # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions — see "Project Configuration" below.
     mockup_format: html | ascii      # Seeded from .maister/config.yml at init (default html). Passed to mockup-studio (development Phase 4 / product-design Phase 7). See "Project Configuration" below.
+    # per-orchestrator keys (development's e2e_enabled, user_docs_enabled, code_review_enabled, …) live here too
 
   # Timestamps
   created: [ISO 8601 timestamp]
@@ -256,18 +255,21 @@ task:
   priority: null  # high | medium | low
 ```
 
+The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-orchestrator keys are listed in each SKILL.md "Domain Context" section (`compatibility-contracts.md § A1`).
+
 ### Extension Pattern
 
-Orchestrators add domain-specific fields using `[domain]_context`:
+Orchestrators add domain-specific fields using `[domain]_context`, at the **top level** of the state file — never nested under `orchestrator:` (`compatibility-contracts.md § A1`). The root carries exactly one of the five, or none (a chain run has none):
 
 | Domain | Context Field | Example Fields |
 |--------|---------------|----------------|
-| Development | `task_context` | risk_level, ui_heavy, architecture_decision |
-| Performance | `performance_context` | baseline_p95, target_p95, optimizations_completed |
-| Migration | `migration_context` | migration_type, steps_completed |
-| Research | `research_context` | research_type, research_question, confidence_level |
+| Development | `task_context` | risk_level, architecture_decision, task_characteristics (`ui_heavy` nests here), research_reference |
+| Performance | `performance_context` | bottlenecks_identified, user_data_available, bottleneck_priorities |
+| Migration | `migration_context` | migration_type, migration_strategy, breaking_changes, rollback_plan_created |
+| Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |
+| Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
-See each orchestrator's SKILL.md "Domain Context" section for full schema.
+Every context except `migration_context` carries `phase_summaries`. See each orchestrator's SKILL.md "Domain Context" section for the full schema.
 
 ### Shared: research_reference
 
@@ -330,10 +332,10 @@ phase_summaries:
 2. **Determine starting phase**: New task starts Phase 1; resume reads state for first incomplete phase
 3. **Capture the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash NOW — you do NOT know the time from context. Use the result for every timestamp written in this turn (`created`, `updated`, `generated`, `phases[].started`). This is a MANDATORY step, not optional: writing `created: 2026-06-12` or `T00:00:00Z` without having run `date` is the documented failure mode (§ 4 Timestamp Rule).
 4. **Read project config**: read `.maister/config.yml` if it exists; set `orchestrator.options.html_output` from its `html_output` key (default `true` when the file or key is absent — § 4 "Project Configuration"). This single read seeds the state; all dashboard/companion gates below read `options.html_output` from state.
-5. **Create task directory**: Standard structure with analysis/, implementation/, verification/, documentation/ *(skip on resume)*
+5. **Create task directory**: `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` plus the subdirectories this workflow owns — the per-workflow trees and the type-dir names are normative in `compatibility-contracts.md § A4`; there is no structure shared by all five workflows *(skip on resume)*
 6. **Create state file**: `orchestrator-state.yml` *(skip on resume)*
 7. **Set up operator dashboard** (§ 8) — *skip this entire step when `options.html_output` is false*: copy `../assets/dashboard.html` (sibling `assets/` directory of this references/ file) to the task root as `dashboard.html`, write the initial `dashboard-data.js`, then **auto-open it in the user's browser** with the platform opener — `open "[abs-task-path]/dashboard.html"` (macOS), `xdg-open` (Linux), `start ""` (Windows). Pass the **plain absolute filesystem path — NEVER construct a `file://` URL** (hand-built URLs get mangled, e.g. `file///` missing the colon; the opener resolves plain paths itself). If the command fails, just print the path hint — never block initialization. On resume: re-copy `dashboard.html` only if missing; regenerate `dashboard-data.js` from state; then auto-open it in the browser again (same opener as a new task — if the tab is already open the OS focuses it rather than duplicating).
-8. **Create task items**: `TaskCreate` for all phases, then `TaskUpdate addBlockedBy` for dependencies. On resume, also restore completed phase statuses.
+8. **Create task items**: `TaskCreate` for all phases, then `TaskUpdate addBlockedBy` for dependencies. On resume, also restore completed phase statuses. When `TaskCreate`/`TaskUpdate` are unavailable in the session, record `task_ids: {}` and treat `orchestrator-state.yml` as the sole phase tracker; every other step is unchanged.
 9. **Output summary**: Show task info, phases, starting message — include the dashboard path hint `Dashboard: open [task-path]/dashboard.html in a browser to monitor progress` *only when `options.html_output` is true*.
 
 ### Task Name Generation
@@ -433,12 +435,12 @@ Workflow artifacts accumulate deep detail for subagent context — but the human
 
 ## 8. Operator Dashboard
 
-> **Config gate**: when `options.html_output` is false (§ 4 Project Configuration), the dashboard is DISABLED — do not copy `dashboard.html`, do not write or rewrite `dashboard-data.js`, do not auto-open a browser, and skip every rewrite trigger below. The rest of this section applies only when `html_output` is true. (`phase_summaries` in state are still maintained either way — they feed context passing, not just the dashboard.)
+> **Config gate**: `options.html_output` false disables this section — see § 4 Project Configuration.
 
 Each task directory carries a self-contained HTML dashboard so the operator can monitor workflow progress at a glance and deep-dive only when needed.
 
 **Files** (both at task root):
-- `dashboard.html` — static viewer, copied verbatim from `[plugin]/skills/orchestrator-framework/assets/dashboard.html` at initialization (§ 5). NEVER generated or modified by the model — it is a maintained plugin asset.
+- `dashboard.html` — static viewer, copied verbatim from `[plugin]/skills/orchestrator-framework/assets/dashboard.html` at initialization (§ 5). NEVER generated or modified by the model — it is a maintained plugin asset. `dashboard.html` is a frozen asset: its MD5 is pinned in `compatibility-contracts.md § A4` and asserted by `make test`.
 - `dashboard-data.js` — data projection written by the orchestrator. The viewer reads it via `<script>` (`window.MAISTER_DATA = {...}`), so it works from `file://` with no server.
 
 **Every rewrite starts with the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash before writing (one call covers all timestamps in the same turn) — `generated`, `started`, `completed`, and state `updated` all take that value. Never guess the time, never reuse a value from an earlier turn (§ 4 Timestamp Rule).
@@ -452,7 +454,7 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 6. After verification cycles (issues/fixes update)
 7. At finalization
 
-**Schema**:
+**Schema** — the file is exactly one statement, `window.MAISTER_DATA = <strict JSON>;`, with double-quoted keys and nothing else; readers additionally accept an object literal and report it as degraded (`compatibility-contracts.md § A2`):
 
 ```js
 window.MAISTER_DATA = {
@@ -475,25 +477,26 @@ window.MAISTER_DATA = {
     completed: null,              // full ISO 8601 date+time, set when the phase completes
     skip_reason: null,            // when skipped
     summary: null,                // from phase_summaries
-    decisions: [],                // [{decision, rationale}]
-    risks: [],                    // [string]
+    decisions: [],                // [{decision, rationale}]; a bare string is read and reported (§ A2)
+    risks: [],                    // [string]; a resolved risk keeps its entry with a `resolved:` prefix (§ A2)
     artifacts: [],                // [{path, label, html}] — paths relative to task root
     gate: null                    // {question, answer} after the exit gate fires
   }],
   verification: {                 // mirror of verification_context, when it exists
     status: null,
     issues: [],                   // [{severity, category, description, fixable, fixed}]
-                                  // severity is ALWAYS one of critical|warning|info — never invent
-                                  // other values. When an issue gets fixed, KEEP its original
-                                  // severity and set fixed: true (the viewer dims it and shows ✓ fixed)
-    fixes: [], reverify_count: 0
+                                  // writers emit severity critical|warning|info; readers tolerate more
+                                  // (§ A2). When an issue gets fixed, KEEP its original severity and
+                                  // set fixed: true (the viewer dims it and shows ✓ fixed)
+    fixes: [],                    // [{description, …}] or [string]; both are read (§ A2)
+    reverify_count: 0
   }
 }
 ```
 
 **Cost discipline**: the data file repeats what the orchestrator already writes to state — keep summaries terse (1-2 sentences, no markdown). Do not duplicate artifact content into the data file; the dashboard links to artifacts instead.
 
-**Verbatim rule for decisions and risks**: `decisions` and `risks` entries are copied **verbatim** from the artifact's Key Decisions / Open Questions & Risks blocks (§ 7) — never re-summarized or shortened. The contract already caps their length at the source; compressing them again strips the meaning the operator needs.
+**Verbatim rule for decisions and risks**: `decisions` and `risks` entries are copied **verbatim** from the artifact's Key Decisions / Open Questions / Risks blocks (§ 7) — never re-summarized or shortened. The contract already caps their length at the source; compressing them again strips the meaning the operator needs.
 
 **Resolved risks**: when a previously recorded risk gets resolved in a later phase, keep the entry and prefix it with `resolved:` (e.g. `"resolved: transient warning — query lookup chosen"`). The viewer dims and strikes resolved entries, separating live risks from settled ones.
 
@@ -503,7 +506,7 @@ The viewer decides presentation (hero artifacts per workflow type, collapsed dra
 
 ## 9. HTML Companion Reports
 
-> **Config gate**: when `options.html_output` is false (§ 4 Project Configuration), HTML companions are DISABLED. Orchestrators MUST then **omit `html_style_guide_path`** from every companion-writing subagent prompt and skip any explicit `html-companion-writer` invocations. Companion-writing agents skip the `.html` when no `html_style_guide_path` is provided (writing only the `.md`). The markdown artifacts and their § 7 TL;DR blocks are produced regardless. **Not gated**: product-design Phase 7 visual mockups (`analysis/mockups/*.html`) are design deliverables, not report companions. The rest of this section applies only when `html_output` is true.
+> **Config gate**: `options.html_output` false disables this section — see § 4 Project Configuration. Not gated: product-design Phase 7 visual mockups are design deliverables, not report companions.
 
 Selected high-value artifacts get a rich HTML companion written by the **same subagent** that writes the markdown, at the same time (one context read, md and HTML never drift):
 
@@ -518,10 +521,14 @@ Selected high-value artifacts get a rich HTML companion written by the **same su
 | `outputs/solution-exploration.md` | `outputs/solution-exploration.html` | solution-brainstormer |
 | `outputs/high-level-design.md` | `outputs/high-level-design.html` | solution-designer |
 | `outputs/decision-log.md` | `outputs/decision-log.html` | solution-designer |
+| `analysis/alternatives.md` | `analysis/alternatives.html` | solution-brainstormer |
+| `analysis/design-decisions.md` | `analysis/design-decisions.html` | html-companion-writer |
+| `analysis/feature-spec.md` | `analysis/feature-spec.html` | html-companion-writer |
+| `outputs/product-brief.md` | `outputs/product-brief.html` | html-companion-writer |
 
 **Rules**:
 - The markdown remains the source of truth for subagent context passing — subagents read md, humans read HTML. The companion adds visual structure (severity badges, matrices, embedded screenshots), never unique content.
 - Companions follow the shared style guide: `references/html-report-style.md` (sibling of this file). Self-contained single file, no external resources, relative links/images only.
-- When `options.html_output` is true, orchestrators MUST pass the absolute path of that style guide to every companion-writing subagent as `html_style_guide_path` (you know it — it sits next to the patterns file you read at initialization). When false, omit it (the config gate above).
+- Orchestrators pass `html_style_guide_path` (the absolute path of that style guide — it sits next to the patterns file read at initialization) to every companion-writing **agent**, and omit it when `options.html_output` is false; an agent given no path writes only the `.md`. **Skills** that write companions (`implementation-verifier`) receive no such parameter: they resolve the guide themselves and gate on `orchestrator.options.html_output` in state.
 - Register companions in `phase_summaries.[phase].artifacts[].html` so the dashboard (§ 8) links HTML first with md fallback (`html: null` when companions are disabled).
 - Companion generation must never block the workflow: if it fails, keep the md, log the miss, continue.

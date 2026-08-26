@@ -1,0 +1,33 @@
+{
+  "id": "task-layout",
+  "contracts": [
+    "A4"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "tasks-tree.json",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "task_dirs": [
+      "development/2026-08-11-widget-progress-backend",
+      "development/2026-08-22-widget-export-endpoint",
+      "research/2026-08-10-catalog-grounding"
+    ],
+    "inventory_only": [
+      "development/2026-07-04-pre-floor-run",
+      "development/2026-06-30-unparseable-state",
+      "product-design/2026-08-11-catalog-applications-ui",
+      "bug-fixes/2026-05-02-legacy-fix",
+      "mockups/2026-04-18-legacy-mockups"
+    ]
+  },
+  "notes": "A4 has no JSON Schema; the enumerator in verify-contracts.mjs is the check, and this listing is its input. task_dirs are the entries at or above the floor (state parses, orchestrator.created is a full non-midnight timestamp, task.title present). inventory_only covers the pre-floor T00:00:00Z created value, an unparseable state, a state with no created field, and the two legacy type dirs (bug-fixes/, mockups/) which are inventory-only regardless of content. README.md and notes.txt under a type dir and the dot-prefixed .archive dir and .mockups.json file are non-task children and must be ignored by the enumerator - they appear in neither list."
+}

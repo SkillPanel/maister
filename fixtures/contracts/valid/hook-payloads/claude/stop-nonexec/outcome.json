@@ -1,0 +1,11 @@
+{
+  "provider": "claude",
+  "event": "Stop",
+  "variant": "non-executable-script",
+  "hook_ran": false,
+  "payload_captured": false,
+  "harness_message": null,
+  "attachment": null,
+  "stop_proceeded": true,
+  "platform_outcome": "fail-open"
+}

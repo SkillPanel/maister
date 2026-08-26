@@ -1,0 +1,10 @@
+# Invalid: autonomy must be one of attended | auto-low | auto-medium | auto-high.
+# The tier selects a permission preset, so an unknown tier has no preset to render.
+version: 1
+dispatch_id: d-0143
+chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-beta, umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607}
+target: {member: repo-beta, path: projects/repo-beta}
+provider: copilot
+workflow: {uses: workflow:development}
+autonomy: full-auto
+outbox: .maister/umbrella/outbox/d-0143/

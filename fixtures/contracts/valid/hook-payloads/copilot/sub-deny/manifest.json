@@ -1,0 +1,22 @@
+{
+  "id": "copilot-sub-deny",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "1.0.80",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.jsonl",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_pretooluse"
+    }
+  ],
+  "expect": {
+    "platform_outcome": "fail-closed"
+  },
+  "notes": "Copilot CLI preToolUse payload captured live (Copilot CLI 1.0.80, headless -p with GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true). E5: preToolUse fires for subagent tool calls with sessionId set to the task call id. Denying the task tool prevents the subagent spawning; the model then fell back to bash and apply_patch, also denied. The class fired 4 times; every invocation is kept, one JSON object per line. platform_outcome documents what the harness did, not what the maister hook decides."
+}

@@ -28,8 +28,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-destructive-commands.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/block-destructive-commands.sh\"",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/gate-enforce.mjs"],
+            "timeout": 10
           }
         ]
       }

@@ -1,0 +1,3 @@
+version: 1
+entries:
+  - {node: approve, request: gates/approve.request.yml, kind: gate, asked_at: "2026-08-24T10:41:05Z", status: pending}

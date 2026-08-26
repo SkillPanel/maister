@@ -1,0 +1,24 @@
+{
+  "id": "legacy-global",
+  "contracts": [
+    "A2"
+  ],
+  "verdict": "tolerated",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-beta/product-design/2026-08-11-a",
+  "writer_version": "2.2.4-beta.1",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    }
+  ],
+  "expect": {
+    "degraded": [
+      "window.DASHBOARD_DATA"
+    ]
+  },
+  "notes": "Drift #24. Assigns the parsed object to window.DASHBOARD_DATA instead of window.MAISTER_DATA, and its phases[] entries use integer ids and a `title` key instead of `name`. Not A2: the tolerated fixture documents the degraded read path."
+}

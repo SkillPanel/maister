@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/workflow-definition",
+  "title": "Workflow definition (grammar level 1)",
+  "description": "Contract B1. Additive: an unknown version degrades on read rather than failing. DAG shape, reference resolution and the exactly-one-continue gate rule are runner checks, not schema checks.",
+  "type": "object",
+  "required": ["name", "version", "nodes"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/input" }
+    },
+    "nodes": {
+      "type": "object",
+      "propertyNames": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" },
+      "additionalProperties": { "$ref": "#/$defs/node" }
+    }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["string", "bool", "path"] },
+        "required": { "type": "boolean" },
+        "default": true
+      }
+    },
+    "when_ref": {
+      "description": "Exactly one boolean reference, optionally negated. There is no expression language.",
+      "type": "string",
+      "pattern": "^!?\\$\\{(inputs|[a-z][a-z0-9-]*)\\.(values\\.)?[a-z_]+\\}$"
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "uses": {
+          "description": "The implementation this node runs: a workflow, skill or agent reference.",
+          "type": "string",
+          "minLength": 1
+        },
+        "type": { "enum": ["gate"] },
+        "needs": {
+          "type": "array",
+          "items": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/node_id" }
+        },
+        "with": { "type": "object" },
+        "outputs": {
+          "type": "object",
+          "properties": {
+            "artifacts": { "type": "object" },
+            "values": {
+              "description": "Declared outputs; only boolean ones are referenceable from a when clause.",
+              "type": "object"
+            }
+          }
+        },
+        "when": { "$ref": "#/$defs/when_ref" },
+        "dir": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
+        "provider": {
+          "description": "Dispatch nodes only, meaning nodes that carry a dir.",
+          "enum": ["claude", "copilot"]
+        },
+        "ask": { "type": "string" },
+        "options": {
+          "description": "Gate options: option id to effect.",
+          "type": "object",
+          "additionalProperties": { "enum": ["continue", "stop"] }
+        },
+        "on": { "enum": ["success", "failure", "always"] },
+        "optional": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "required": ["type"],
+            "properties": { "type": { "const": "gate" } }
+          },
+          "then": {
+            "description": "A gate runs nothing and must offer options. Exactly one continue and at least one stop are runner checks.",
+            "required": ["ask", "options"],
+            "not": { "required": ["uses"] },
+            "properties": { "options": { "type": "object", "minProperties": 2 } }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["provider"]
+          },
+          "then": {
+            "description": "A provider can only be chosen for a node that runs in its own directory.",
+            "required": ["dir"]
+          }
+        }
+      ]
+    },
+    "reserved": {
+      "description": "Contract R. Keys and key/value pairs that parse today, are accepted with a warning, and carry no behaviour until a later version claims them.",
+      "const": [
+        "foreach",
+        "loop",
+        "assertions",
+        "validation",
+        "session.substrate=cloud",
+        "mirror.scope=followups",
+        "backing=tracker",
+        "routing.tiers"
+      ]
+    }
+  }
+}

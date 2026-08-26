@@ -20,7 +20,9 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 ### Prerequisites
 
-- [Claude Code](https://claude.ai/code) CLI installed and configured
+- [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.80+ with the `maister-copilot` variant)
+- `jq` on `PATH` — used by the destructive-command guard
+- Node.js 20 or newer — the plugin registers its gate hook for every session, so Node is required wherever the plugin is installed, not only in chain mode; without it a terminal session prints a non-blocking hook error on each mutating tool call and loses nothing else (a terminal operator answers gates in-session, so there is nothing there to enforce), while chain-mode gate enforcement, `make test`, `make eval` and HTML mockups need it outright
 
 ### Installation
 
@@ -123,6 +125,39 @@ Standards live in `.maister/docs/standards/` and are indexed in `.maister/docs/I
 
 **Important**: Run workflows with **auto-accept edits** enabled. Do not use Claude Code's plan mode with workflows (see [Best Practices](#best-practices) below).
 
+## Gate hooks (chain mode)
+
+When a workflow pauses at a gate, the plugin's `PreToolUse` hook refuses every other write until the decision is recorded — so a paused run cannot quietly carry on. In ordinary terminal sessions this needs no setup: the hook ships with the plugin and allows instantly whenever nothing is pending.
+
+Chain mode — a run driven headlessly and resumed from outside the terminal — needs two more hooks (a stop nudge and a liveness beacon), and those are registered per session rather than by the plugin.
+
+**Claude Code.** Pass the settings template on every spawn *and* every resume; nothing about it persists inside a session. Replace `__PLUGIN_ROOT__` in `platforms/claude-code/gate-hooks.settings.json` with the installed plugin directory, then:
+
+```bash
+claude -p "<prompt>" --resume <session> --settings /path/to/gate-hooks.settings.json
+```
+
+**Copilot CLI.** Copilot resolves hooks from your own repository, never from `--plugin-dir`. Copy the generated variant's `.github/hooks/` into the git root Copilot runs in, or into `~/.copilot/hooks/` if the repository must stay untouched — the user-hooks copy needs its script directory rewritten, as its own `README.md` explains. Repository hooks are silently inert in headless `-p` mode unless the folder is trusted or the environment carries:
+
+```bash
+GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true copilot -p "<prompt>"
+```
+
+There is no flag for it — the variable has to be in the environment. Hooks under `~/.copilot/hooks/` always fire and need no opt-in.
+
+**Checking that they are live.** The beacon writes one marker per session to `$MAISTER_BEACON_DIR`, or to `~/.maister-cockpit/beacons/` when that is unset — never inside your project. No marker means the hooks are not running here: Node missing, files not installed, or the Copilot variable not passed through.
+
+**Environment variables.** Both are optional and read by the hooks at spawn time; neither has a flag.
+
+| Variable | Effect |
+|---|---|
+| `MAISTER_BEACON_DIR` | Where the liveness marker for the session is written. Default `~/.maister-cockpit/beacons/`, falling back to a temp directory when home is unwritable. Never the working directory — a per-session file in a tracked tree would show up in every `git status`. |
+| `MAISTER_GATE_TRACE` | Path to a file that gets one JSON line per hook decision (tool, decision, reason, exit, timing). Off by default; this is the first thing to turn on when a gate allows or denies something you did not expect. |
+
+### Compatibility floor
+
+The on-disk shapes are frozen for **task directories written by plugin 2.2.3 or newer**. Anything older is listed by directory name, date and type only — never parsed, rendered from its state, or resumed. There is no migration step and nothing to do: finished task directories are reference material, and a run that predates the floor was finished long before you upgraded. The normative register of every frozen shape, and the rules for changing one, is [`compatibility-contracts.md`](plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md).
+
 ## Beta Channel
 
 Want to try experimental features before they hit stable? Install from the beta channel:
@@ -180,3 +215,5 @@ You can also append additional instructions to narrow scope or guide the workflo
 
 - [Workflow Details](docs/workflows.md) - phases, examples, and task structure for each workflow type
 - [Full Command Reference](docs/commands.md) - all workflow, review, utility, and quick commands
+- [Decision Log](docs/decisions/README.md) - the ADRs behind the gate protocol, the coordination shapes, and the compatibility floor
+- [Compatibility Contracts](plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md) - the normative register of every on-disk shape, and the rules for changing one

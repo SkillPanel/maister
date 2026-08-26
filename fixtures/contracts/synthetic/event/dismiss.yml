@@ -1,0 +1,8 @@
+version: 1
+id: 019260a5-0007-7a11-8b22-c3d4e5f6071e
+at: 2026-08-24T16:20:44Z
+actor: {email: dev1@example.test, machine: 3f9ab2c1, via: cockpit}
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+dispatch_id: d-0142
+type: dismiss
+data: {followup: fu-0142-02, reason: "Owned by the design system backlog."}

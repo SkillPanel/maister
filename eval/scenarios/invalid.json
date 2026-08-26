@@ -1,0 +1,17 @@
+{
+  "id": "invalid",
+  "title": "An option id that is not on the request leaves the gate pending",
+  "providers": "both",
+  "seed": "chain-template",
+  "engine_prompt": true,
+  "turns": [
+    {"prompt": "RESUME run={RUN_ID}\n\nBegin the run: work the main loop from the current state."},
+    {"prompt": "GATE-ANSWER run={RUN_ID} node=approve option=bogus answered_by=operator at={NOW}"}
+  ],
+  "pass": [
+    {"check": "state_unchanged_between", "from": 1, "to": 2},
+    {"check": "request_unanswered", "node": "approve"},
+    {"check": "state_gate_pending_node", "value": "approve"},
+    {"check": "last_line_matches", "value": "^GATE-INVALID: bogus$"}
+  ]
+}

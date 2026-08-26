@@ -1,0 +1,10 @@
+# Invalid: the event id is a UUIDv4, not a UUIDv7. Ids are the file identity and the
+# tie-breaker when two events share an at value, which only works if they sort by time.
+version: 1
+id: 8f14e45f-ceea-4e2f-9f5a-2b3c4d5e6f70
+at: 2026-08-24T16:02:58Z
+actor: {email: dev1@example.test, machine: 3f9ab2c1, via: daemon}
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+dispatch_id: d-0142
+type: closeout
+data: {grade: success, prs: [], summary: "Shipped."}

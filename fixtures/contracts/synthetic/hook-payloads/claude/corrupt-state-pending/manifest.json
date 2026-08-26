@@ -1,0 +1,31 @@
+{
+  "id": "claude-corrupt-state-pending",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/claude_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "claude",
+      "event": "PreToolUse",
+      "decision": "deny",
+      "exit": 2,
+      "stdout": "json",
+      "state_fixture": "invalid/hook-payloads/corrupt-state-file",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "gate_pending is followed by a block map instead of the one-line flow map, so the line scanner cannot decide. That is fail-closed, not a policy deny: deny JSON on stdout AND Claude exit 2, with the full GATE HOOK FAIL-CLOSED reason as the single stderr line. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+}

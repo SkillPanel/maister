@@ -1,0 +1,11 @@
+{
+  "provider": "claude",
+  "event": "PreToolUse",
+  "variant": "missing-script",
+  "hook_ran": false,
+  "payload_captured": false,
+  "harness_message": "/bin/sh: <hook path>: No such file or directory",
+  "attachment": "hook_non_blocking_error",
+  "tool_ran": true,
+  "platform_outcome": "fail-open"
+}

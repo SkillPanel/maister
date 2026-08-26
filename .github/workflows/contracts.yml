@@ -1,0 +1,37 @@
+name: Contracts
+
+# Publishes the frozen contract archive. `release.yml` matches `v*` and never
+# fires on this tag; `build-copilot.yml` does not watch tags at all.
+on:
+  push:
+    tags: ['contracts-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the compatibility contracts suite
+        run: make test
+
+      - name: Build the contract archive
+        run: make tarball TAG=${{ github.ref_name }}
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/contracts-v*.tar.gz
+            dist/contracts-v*.tar.gz.sha256
+          generate_release_notes: true

@@ -1,0 +1,4 @@
+{
+  "permissionDecision": "deny",
+  "permissionDecisionReason": "gate pending (approve): record the GATE-ANSWER decision in orchestrator-state.yml before any other write (blocked: notes.txt)"
+}

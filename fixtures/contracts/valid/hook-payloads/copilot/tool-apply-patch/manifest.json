@@ -1,0 +1,19 @@
+{
+  "id": "copilot-tool-apply-patch",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-self/development/2026-08-25-spikes",
+  "writer_version": "1.0.80",
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_pretooluse"
+    }
+  ],
+  "notes": "Copilot CLI preToolUse payload captured live (Copilot CLI 1.0.80). apply_patch is the only tool whose toolArgs is NOT a JSON string: it is the raw patch text with *** Add File: / *** Update File: / *** Delete File: markers, which the gate hook parses for target paths."
+}

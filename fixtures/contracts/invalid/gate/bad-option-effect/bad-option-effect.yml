@@ -1,0 +1,14 @@
+# Invalid: an option effect outside the enum. effect is continue | stop | null;
+# "retry" is not a chain outcome the engine can execute.
+version: 1
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+node: approve
+kind: gate
+asked_at: "2026-08-24T10:41:05Z"
+question: "Research is complete. Proceed to the per-repo implementation runs?"
+options:
+  - {id: proceed, label: "Proceed to implementation", effect: continue}
+  - {id: retry-research, label: "Run research again", effect: retry}
+  - {id: abort, label: "Abort the chain", effect: stop}
+multi_select: false
+answer: null

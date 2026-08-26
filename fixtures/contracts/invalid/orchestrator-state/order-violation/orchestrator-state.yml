@@ -1,0 +1,14 @@
+# Invalid by cross-check: phase-2 is listed in completed_phases while the dashboard
+# reports it as in_progress. Neither file is wrong on its own; the pair cannot both be true.
+orchestrator:
+  type: development
+  started_phase: phase-2
+  completed_phases: [phase-1, phase-2]
+  failed_phases: []
+  created: 2026-08-20T09:00:00Z
+  updated: 2026-08-20T11:00:00Z
+  task_path: .maister/tasks/development/2026-08-20-widget-list
+
+task:
+  title: Widget list endpoint
+  status: in_progress

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/fixture-manifest",
+  "title": "Golden fixture manifest",
+  "description": "Describes one fixture class in the compatibility corpus. This is the only schema that closes an object: the expect block is written by the suite author, not by a model, and every key a test reads is declared here so a typo fails loudly instead of silently disabling an assertion.",
+  "type": "object",
+  "required": ["id", "contracts", "verdict", "synthetic", "source", "files"],
+  "properties": {
+    "id": {
+      "description": "Fixture id. Subject-named: contract ids never appear in file or directory names.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "contracts": {
+      "description": "Citation labels of the contracts this fixture exercises.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "verdict": {
+      "description": "valid passes its schema; invalid must fail it; tolerated must fail the schema and still be read by the tolerant reader.",
+      "enum": ["valid", "invalid", "tolerated"]
+    },
+    "synthetic": { "type": "boolean" },
+    "pseudonymized": { "type": "boolean" },
+    "source": {
+      "description": "Provenance alias, never an original absolute path: either the synthetic marker or repository alias, workflow type and dated directory name.",
+      "type": "string",
+      "pattern": "^synthetic$|^[a-z0-9-]+/[a-z-]+/\\d{4}-\\d{2}-\\d{2}(-[a-z0-9-]+)?$"
+    },
+    "writer_version": {
+      "description": "Plugin version that produced the sample, or null for synthetic fixtures.",
+      "type": ["string", "null"]
+    },
+    "sampled_at": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/file" }
+    },
+    "strict_a2": {
+      "description": "Whether the dashboard data file in this fixture is strict JSON on the right-hand side, not only a bare-key literal.",
+      "type": "boolean"
+    },
+    "dashboard_html_md5": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "expect": { "$ref": "#/$defs/expect" },
+    "notes": { "type": "string" }
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
+        "schema": {
+          "description": "Schema this file validates against: a schema file name, optionally with a definition pointer. Null when the file has no schema and is checked by a lint instead.",
+          "type": ["string", "null"]
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "expect": {
+      "description": "Closed on purpose so an unknown key is rejected rather than ignored.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "error_path": {
+          "description": "The failing instance location must start with this.",
+          "type": "string"
+        },
+        "error_keyword": {
+          "description": "The keyword the first error must come from.",
+          "type": "string"
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "degraded": {
+          "description": "Reasons the tolerant reader must report.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "task_dirs": { "type": "array", "items": { "type": "string" } },
+        "inventory_only": {
+          "description": "Directories below the compatibility floor: listed by name, never parsed, never resumed.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "platform_outcome": { "enum": ["fail-open", "fail-closed"] },
+        "replay": { "$ref": "#/$defs/replay" }
+      }
+    },
+    "replay": {
+      "description": "How a captured hook payload must behave when piped back through the hook script.",
+      "type": "object",
+      "properties": {
+        "provider": { "enum": ["claude", "copilot"] },
+        "event": { "type": "string" },
+        "decision": { "enum": ["allow", "deny", "block"] },
+        "exit": { "type": "integer", "minimum": 0 },
+        "stdout": { "enum": ["empty", "json"] },
+        "state_fixture": {
+          "description": "Fixture whose files populate the temporary working directory before the replay.",
+          "type": "string"
+        },
+        "cwd_layout": { "type": "string" }
+      }
+    }
+  }
+}

@@ -30,8 +30,8 @@ You are an implementation plan executor that delegates task groups to subagents 
 2. **Validate files exist**:
    - `implementation/implementation-plan.md` (required)
    - `implementation/spec.md` (recommended)
-   - `.maister/docs/INDEX.md` (required for standards)
-3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (fallback for plans created before task system migration).
+   - `.maister/docs/INDEX.md` (optional — skip standards loading when absent)
+3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (fallback when task tools are unavailable or the planner created none).
 4. **Initialize work-log.md**:
    ```markdown
    # Work Log

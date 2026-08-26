@@ -1,0 +1,36 @@
+{
+  "id": "gate-requests",
+  "contracts": [
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "request-gate.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    },
+    {
+      "path": "request-decision.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    },
+    {
+      "path": "request-convergence.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    },
+    {
+      "path": "version-99-request.yml",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "degraded": [
+      "newer-format"
+    ]
+  },
+  "notes": "One standalone request document per kind. gate stops the chain unless the operator continues; decision offers two continue options and no stop; convergence is the only multi-choice case (multi_select true, several continue options). The multi-choice flag key is spelled here and in gate.schema.json only. version-99-request.yml carries schema null on purpose: a document declaring a newer format cannot validate against the v1 const, and the expectation is the runner reporting degraded: newer-format rather than a schema pass."
+}

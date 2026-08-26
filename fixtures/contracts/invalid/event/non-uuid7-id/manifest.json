@@ -1,0 +1,23 @@
+{
+  "id": "non-uuid7-id",
+  "contracts": [
+    "C7"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "non-uuid7-id.yml",
+      "schema": "event.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/id",
+    "error_keyword": "pattern"
+  },
+  "notes": "The version nibble is 4 and the ordering guarantee is lost with it: ties on at would resolve arbitrarily and two machines could fold the same events into different states."
+}

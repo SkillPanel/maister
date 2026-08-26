@@ -1,0 +1,194 @@
+orchestrator:
+  started_phase: phase-6
+  completed_phases: [phase-1, phase-2, phase-3, phase-4, phase-5, phase-6]
+  failed_phases: []
+
+  auto_fix_attempts:
+    phase-1: 0
+    phase-2: 0
+    phase-3: 0
+    phase-4: 0
+    phase-5: 0
+    phase-6: 0
+
+  options:
+    html_output: true          # .maister/config.yml absent - default
+    brainstorming_enabled: true   # user chose at Phase 2 gate
+    design_enabled: true          # user chose at Phase 2 gate
+
+  created: "2026-08-25T08:18:19Z"
+  updated: "2026-08-25T11:45:31Z"
+  task_path: .maister/tasks/research/2026-08-25-maister-gui-options
+
+  task_ids:
+    phase-1: "7"
+    phase-2: "8"
+    phase-3: "9"
+    phase-4: "10"
+    phase-5: "11"
+    phase-6: "12"
+
+task:
+  title: "Maister GUI options research"
+  description: >
+    Evaluate options and approach for a graphical user interface for the new
+    maister version (separate, closed-source project): manage and monitor
+    tasks/workflow execution. V1 focuses on local session management; future
+    versions centralize management org-wide. Candidate inspirations/bases:
+    agent-deck (~/Repos/agent-deck), cezar (~/Repos/cezar), plus other
+    open-source session/agent managers. Future requirement: multi-provider
+    support (Claude Code, Codex, OpenCode, more).
+  status: completed
+  tags: [v3, gui, research]
+  priority: high
+
+research_context:
+  research_type: mixed
+  research_question: >
+    What options exist and which approach should be taken for a maister GUI
+    (task/workflow execution management and monitoring): build fresh vs
+    base on / take inspiration from agent-deck, cezar, or other open-source
+    session managers - given v1 = local sessions, future = org-wide
+    centralized management, and future multi-provider support (Claude Code,
+    Codex, OpenCode, ...)?
+  scope:
+    included:
+      - agent-deck + cezar source analysis (capabilities, architecture, CLI integration, storage, license)
+      - survey of other comparable OSS session-manager/orchestrator-UI tools
+      - maister v3 integration surface (state, dashboard-data, ledger, workflow YAML, outbox)
+      - provider programmatic surfaces (Claude Code, Codex, OpenCode)
+      - build-approach + UI-platform options; local-first -> org-wide evolution path
+    excluded:
+      - implementation and detailed UI/UX design
+      - re-opening settled v3 ADRs
+      - business/licensing strategy of the closed-source product itself
+    constraints:
+      - closed-source product: inbound OSS licenses must permit basing (GPL/AGPL = inspiration only)
+      - complement (not duplicate) the built-in per-task HTML dashboard
+      - v1 purely local; provider coupling isolated behind an abstraction from day one
+  methodology:
+    - deep source analysis of agent-deck and cezar (dedicated gatherers)
+    - v3 integration-surface enumeration (contracts only, ADRs fixed)
+    - live OSS-landscape survey with license/maturity triage
+    - provider observe/control capability tables (Claude Code, Codex, OpenCode)
+    - UI-platform + local->org-central pattern literature
+    - synthesis via per-candidate reuse scorecard + build-approach x platform matrix
+  sources:
+    - /home/dev/Repos/agent-deck (MIT verified)
+    - /home/dev/Repos/cezar (MIT verified, v0.10.0, AGENT_PROTOCOL.md)
+    - .maister/tasks/research/2026-08-12-maister-v3-directions/outputs/* (v3 contracts)
+    - plugins/maister/skills/orchestrator-framework/ (dashboard + patterns)
+    - live web: OSS landscape, provider docs (date-stamped)
+  confidence_level: high
+  gathering_strategy:
+    categories: [agent-deck, cezar, maister-integration, oss-landscape, provider-surfaces, platform-patterns]
+    count: 6
+    source: planner
+  project_doc_paths: []        # no .maister/docs/INDEX.md in this repo
+  phase_summaries:
+    phase-1:
+      summary: "All 4 steps complete: brief, plan, 19 findings files, synthesis + research report (confidence: high). Verdict: build fresh as local daemon + browser SPA; no base/fork candidate exists; vendor cezar's provider-normalization layer; re-implement agent-deck's fleet features over maister contracts; v1 read-only over .maister/** files."
+      steps_completed: [step-1-initialize, step-2-plan, step-3-gather, step-4-synthesize]
+      decisions:
+        - decision: "Build approach: build fresh + borrow - no candidate reached base/fork"
+          rationale: "rejections are architecture-fit and upstream-mortality driven, not license driven (all finalists are MIT/Apache-2.0)"
+        - decision: "Platform: local daemon + browser SPA (TypeScript, single-binary/npm distribution)"
+          rationale: "only platform that natively embeds the existing per-task dashboard.html (serve-and-iframe), avoids the desktop signing wall, and makes org-central an additive step; Tauri/Electron shell can wrap the same URL later (deferred, not rejected)"
+        - decision: "Provider abstraction: thread -> turn -> item + async pending-approval entity, in the daemon from day one"
+          rationale: "independently converged on by cezar's shipped protocol and the provider-surfaces capability analysis; seed by vendoring cezar's normalization layer"
+        - decision: "v1 is read-only over maister files"
+          rationale: "writes would violate single-writer discipline and hook-enforced gate ordering; future write paths go through the ledger's 7 operations only"
+        - decision: "Complement boundary enforced: the GUI never re-renders per-task or per-artifact views"
+          rationale: "it serves task dirs over its own origin and iframes/deep-links the built-in dashboard and HTML companions"
+      risks:
+        - "Main-session-id gap: no maister contract records the main workflow session id - session<->task correlation is heuristic until an additive engine contract closes it. Top design-phase item."
+        - "Gate answering: no legitimate external channel exists (hooks enforce decision-before-state); v1 observes gates and deep-links the human to the session - remote gate-answering is engine contract work, not a GUI hack"
+        - "Codex app-server volatility: richest control surface is experimental-flagged with per-version schemas - adapter needs capability probing and a version floor; codex exec --json is the stable floor"
+        - "Claude Agent SDK ToS/branding constraints if embedded in a closed-source product - v1 posture is spawning the user's own CLI + hook shims; counsel review before SDK embedding"
+        - "Cost telemetry is absent from every maister contract and inconsistent across providers - the GUI must own cost normalization"
+        - "resolved: license gate - all finalist candidates MIT/Apache-2.0, transitive scans clean"
+      artifacts:
+        - { path: outputs/research-report.md, label: "Research report (main deliverable)", html: outputs/research-report.html }
+        - { path: analysis/synthesis.md, label: "Synthesis (scorecards + option matrix)", html: null }
+        - { path: planning/research-brief.md, label: "Research brief", html: null }
+        - { path: planning/research-plan.md, label: "Research plan", html: null }
+        - { path: planning/sources.md, label: "Source inventory", html: null }
+        - { path: analysis/findings/, label: "Findings (19 files, 6 categories)", html: null }
+        - { path: analysis/findings/external-factory-ai.md, label: "Addendum: Factory.ai comparison (2026-08-25)", html: null }
+    phase-3:
+      summary: "solution-brainstormer produced 6 decision areas / 18 alternatives. Recommended composite: 1C+2B+3A+4A+5B+6C (observer+control+approval relay / on-demand daemon / React SPA iframe-leaf / npm-first / two engine contracts now / seven centralization choices + BYO tunnel). 13 deferred ideas."
+      decisions:
+        - decision: "Recommended composite 1C+2B+3A+4A+5B+6C"
+          rationale: "assembled per-area from 5-perspective matrices; pending user convergence in Phase 4"
+      risks:
+        - "DA1 recommendation rests on the unproven Claude blocking hook shim; 1B is a designated feature-flag fallback - main risk-appetite question for the user"
+        - "DA4 single-binary fast-follow gated on unverified Bun --compile + chokidar/fsevents spike (v1 npm path unaffected)"
+        - "Pre-contract task dirs never migrate (ADR-011), so DA5 heuristics remain load-bearing forever"
+      artifacts:
+        - { path: outputs/solution-exploration.md, label: "Solution exploration (6 areas, 18 alternatives)", html: outputs/solution-exploration.html }
+    phase-4:
+      summary: "All 6 decision areas converged, every recommendation accepted: 1C (observer + control + approval relay) + 2B (on-demand daemon) + 3A (React iframe-leaf SPA) + 4A (npm-first) + 5B (two engine contracts now) + 6C (seven centralization choices + BYO tunnel)."
+      decision_areas:
+        - area: "DA1. v1 scope"
+          alternatives_count: 3
+          chosen_approach: "1C: observer + session control + per-capability approval relay (Claude blocking hook shim w/ fail-open, OpenCode native endpoint, Codex policy-only until app-server floor); gate answering stays out; 1B reachable via feature flag"
+        - area: "DA2. Daemon architecture"
+          alternatives_count: 3
+          chosen_approach: "2B: single on-demand server + optional resident mode; persisted NDJSON append-only change log + checkpoints, SSE replay-then-live; adapters in-daemon behind hexagonal seam; hybrid explicit registry + opt-in discovery; fail-open hooks"
+        - area: "DA3. SPA stack & composition"
+          alternatives_count: 3
+          chosen_approach: "3A: React 19 + Vite + TanStack Query + Tailwind/Radix; hybrid iframe-leaf drill-down with open-in-tab escape hatch; companions sandboxed on separate origin; xterm.js read-only tail with composer-bar interjection; tokens matched to html-report-style"
+        - area: "DA4. Distribution & packaging"
+          alternatives_count: 3
+          chosen_approach: "4A: npm/npx first (proprietary-licensed bundled artifacts), single-binary v1.x fast-follow gated on Bun --compile spike; activation via offline-verifiable ed25519 signed license key behind a pluggable interface (later swappable to device flow)"
+        - area: "DA5. Engine-contract sequencing"
+          alternatives_count: 3
+          chosen_approach: "5B: propose main-session-id + explicit gate-pending now (one additive Layer-0-compatible field each); remote gate-answering deferred to v1 demand data; cost dropped (adapter-owned); GUI ships on heuristics as progressive enhancement"
+        - area: "DA6. Org-central evolution staging"
+          alternatives_count: 3
+          chosen_approach: "6C: all seven cheap-later centralization choices at v1 + BYO-tunnel-tolerant posture (configurable bind, bearer-token auth, no hosted broker); first central milestone = read-only fleet fan-in; mandatory security hardening pass before v1"
+      deferred_ideas:
+        - "Desktop shell wrap (Tauri/Electron over same URL)"
+        - "TUI companion"
+        - "Web-push notifications"
+        - "Hosted-broker remote (Stage 1 proper)"
+        - "Mobile companion"
+        - "Remote gate-answer engine channel (deliberately staged)"
+        - "Cost budgets + fleet sweeps"
+        - "Multi-machine drain->inbox aggregation"
+        - "In-GUI diff review to agent (VK pattern)"
+        - "Historic analytics over event log"
+        - "Nimbalyst extension probe"
+        - "Tracker-facing views (post-R8)"
+        - "Engine push-eventing (rejected: chokidar is the local push layer)"
+    phase-5:
+      summary: "High-level design complete: local-first observer daemon + browser SPA, hexagonal at the provider seam, event-log-centric core. 19 components (12 daemon + 7 SPA surfaces), 13 GUI-ADRs, 14 maister contracts mapped with heuristic fallbacks, 6-milestone build order with the approval shim as the M3 go/no-go gate, security hardening as a release gate."
+      architecture_style: "local-first observer daemon + browser SPA; hexagonal at the provider seam; event-log-centric core"
+      decisions_count: 13
+      decisions:
+        - decision: "v1 scope = observer + session control + per-capability approval relay; control-only (1B) stays reachable via one feature flag (GUI-ADR-001)"
+          rationale: "the actionable gate/approval queue is the differentiating value"
+        - decision: "Single on-demand user-level daemon, opt-in resident mode; persisted NDJSON event log + checkpoints, SSE replay-then-live as the one transport for both live UI and future fan-in (GUI-ADR-002/003)"
+          rationale: "residency is a deployment mode; the log doubles as the org fan-in payload"
+        - decision: "Adapters in-daemon behind a hexagonal AdapterSession seam, seeded by vendoring cezar's MIT normalization layer + golden-fixture parity doctrine; degrade per-capability, never per-backend (GUI-ADR-004)"
+          rationale: "proven multi-provider core, fully license-cleared"
+        - decision: "All hooks fail open - telemetry fire-and-forget, approval shim timeout -> terminal prompt; daemon down never degrades a session below stock CLI behavior (GUI-ADR-006)"
+          rationale: "testable invariant protecting users from the GUI itself"
+        - decision: "Two additive engine contracts proposed now (main-session-id, explicit gate-pending); heuristics ship regardless and remain the permanent fallback (GUI-ADR-011)"
+          rationale: "kills the two medium-confidence inferences; old task dirs never migrate"
+        - decision: "Seven centralization choices at v1 + BYO-tunnel tolerance, no hosted broker; first central milestone = read-only fleet fan-in; security hardening pass is a release gate (GUI-ADR-012/013)"
+          rationale: "Stage-1 value free; center never load-bearing"
+      risks:
+        - "Claude blocking approval shim is the least-proven mechanism - validated early (M3 go/no-go gate) with fail-open under timeout, daemon-down, race; fallback is the 1B flag, not a redesign"
+        - "Bun --compile x chokidar/fsevents unverified - gates only the single-binary fast-follow, never v1"
+        - "Engine-team acceptance of the two additive fields assumed, not confirmed; heuristics load-bearing forever regardless"
+        - "Security hardening checklist non-negotiable before v1 (BYO-tunnel posture invites remote-security expectations)"
+        - "Shim timeout budget must sit below the provider hook timeout - config-validation warning at shim install"
+        - "Approval payload redaction mandated so the event log never becomes a secrets archive"
+      artifacts:
+        - { path: outputs/high-level-design.md, label: "High-level design (C4, daemon+SPA, roadmap)", html: outputs/high-level-design.html }
+        - { path: outputs/decision-log.md, label: "Decision log (13 GUI-ADRs)", html: outputs/decision-log.html }
+
+related_tasks:
+  - path: .maister/tasks/research/2026-08-12-maister-v3-directions
+    relation: "v3 architecture research this GUI must integrate with (engine/ledger/dashboard/umbrella decisions)"

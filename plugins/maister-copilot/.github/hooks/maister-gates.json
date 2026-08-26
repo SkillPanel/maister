@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "node \"$COPILOT_PROJECT_DIR/.github/hooks/gate-enforce.mjs\"",
+        "powershell": "node \"$env:COPILOT_PROJECT_DIR/.github/hooks/gate-enforce.mjs\"",
+        "timeoutSec": 10
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "bash": "node \"$COPILOT_PROJECT_DIR/.github/hooks/gate-stop-nudge.mjs\"",
+        "powershell": "node \"$env:COPILOT_PROJECT_DIR/.github/hooks/gate-stop-nudge.mjs\"",
+        "timeoutSec": 10
+      }
+    ],
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "node \"$COPILOT_PROJECT_DIR/.github/hooks/gate-beacon.mjs\"",
+        "powershell": "node \"$env:COPILOT_PROJECT_DIR/.github/hooks/gate-beacon.mjs\"",
+        "timeoutSec": 10
+      }
+    ]
+  }
+}

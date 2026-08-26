@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/driver",
+  "title": "orchestrator.driver",
+  "description": "Contract E1. Written by the engine at init; the daemon rewrites the session block before any re-spawn and the engine never edits it back. An absent block is equivalent to a terminal driver.",
+  "type": "object",
+  "required": ["kind"],
+  "properties": {
+    "kind": { "enum": ["terminal", "cockpit", "dispatch"] },
+    "cwd": {
+      "description": "Absolute, because resume is directory-coupled on both providers. A moved or copied run directory is re-entered only by a new session.",
+      "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path"
+    },
+    "session": { "$ref": "#/$defs/session" }
+  },
+  "if": {
+    "type": "object",
+    "required": ["kind"],
+    "properties": { "kind": { "enum": ["cockpit", "dispatch"] } }
+  },
+  "then": { "required": ["cwd"] },
+  "$defs": {
+    "session": {
+      "description": "The provider-side resumable handle. Both providers resume by name; one of them additionally by id.",
+      "type": ["object", "null"],
+      "properties": {
+        "id": { "type": ["string", "null"] },
+        "name": { "type": ["string", "null"] },
+        "provider": { "enum": ["claude", "copilot"] },
+        "model": { "type": ["string", "null"] },
+        "status": { "enum": ["spawned", "running", "paused", "lost", "closed"] }
+      }
+    }
+  }
+}
