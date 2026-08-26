@@ -1,21 +1,33 @@
-# The shipped built-in research workflow, held here as a golden copy.
+# The research workflow, as a graph.
 #
-# The suite resolves this file and the shipped definition and asserts one
-# graph_hash for both. An edit to either that the other does not receive turns
-# the suite red, which is the whole reason the copy exists.
+# Six nodes named for what they do and three named for what they approve, in
+# one linear chain. The branching a reader might expect — brainstorming on or
+# off, design on or off — is carried entirely by the per-node `when` guards
+# plus the rule that a node whose guard is false is skipped and still satisfies
+# everything downstream. There is no routing construct here because the grammar
+# has none and none is needed.
 #
-# Node prose lives beside a definition, so the copy carries its own companion
-# (research-builtin.md) with one section per direct: node. The companion is a
-# stub: only the presence of the section is what makes the target resolve.
+# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
+# completed or a skipped predecessor but never by a stopped one, which is what
+# makes each gate's stop option actually end the run: nothing after it is ever
+# ready.
 #
-# The file warns about nothing. No key anywhere is named after a reserved path,
-# every target resolves, and every when clause names a declared bool - so the
-# expected warning set is empty and any new warning is a regression.
+# Target names are bare on purpose. Resolution is rooted at the plugin root and
+# the provider prefix is applied at invocation, so this one file is correct
+# under every generated variant without a rewrite.
+#
+# The node prose lives beside this file in `research.md`, one section per node
+# id. Every `direct:` node is executed from its section there, and the operator
+# questions asked inside those nodes appear only in that prose — a reader of
+# this file alone cannot see them, and neither can the generated diagram.
 name: research
 version: 1
 inputs:
   question: {type: string, required: true}
   research_type: {type: string, required: false}
+  # Tri-state, and a string rather than a bool for that reason: absent means
+  # ask the operator, `yes`/`no` means the flag was set. Never referenced from
+  # a `when` clause — the decision node turns it into a declared bool first.
   brainstorm: {type: string, required: false}
   design: {type: string, required: false}
   embedded: {type: bool, required: false, default: false}
@@ -80,6 +92,9 @@ nodes:
       exploration: "${solution-generation.artifacts.exploration}"
     outputs:
       values:
+        # A short identifier for the converged approach, not free text: the
+        # full converged detail travels to the design node in the accumulated
+        # phase summaries, exactly as it does in the prose workflow.
         selected_approach: id
 
   convergence-approval:

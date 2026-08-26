@@ -1,0 +1,24 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: research
+%% graph_hash: 8c806c4ddc046e9b35911e918f46e2b69acdbe5431efd9c3dcee8125918c8b61
+
+flowchart TD
+  n_research_foundation["research-foundation<br/>direct:research-foundation"]
+  n_foundation_approval{{"foundation-approval<br/>gate<br/>Research foundation complete (initialized, planned, gathered, synthesized). Continue to brainstorming evaluation?<br/>continue-to-evaluation: continue, stop-research: stop"}}
+  n_optional_phases_decision["optional-phases-decision<br/>direct:optional-phases-decision"]
+  n_solution_generation{"solution-generation<br/>agent:solution-brainstormer<br/>when: ${optional-phases-decision.values.brainstorming_enabled}"}
+  n_solution_convergence{"solution-convergence<br/>direct:solution-convergence<br/>when: ${optional-phases-decision.values.brainstorming_enabled}"}
+  n_convergence_approval{{"convergence-approval<br/>gate<br/>Brainstorming complete. Continue to high-level design?<br/>continue-to-design: continue, stop-research: stop<br/>when: ${optional-phases-decision.values.brainstorming_enabled}"}}
+  n_high_level_design{"high-level-design<br/>direct:high-level-design<br/>when: ${optional-phases-decision.values.design_enabled}"}
+  n_design_approval{{"design-approval<br/>gate<br/>Design complete. Continue to output generation?<br/>continue-to-completion: continue, stop-research: stop<br/>when: ${optional-phases-decision.values.design_enabled}"}}
+  n_completion{"completion<br/>direct:completion<br/>when: !${inputs.embedded}"}
+  n_research_foundation --> n_foundation_approval
+  n_foundation_approval --> n_optional_phases_decision
+  n_optional_phases_decision --> n_solution_generation
+  n_solution_generation --> n_solution_convergence
+  n_solution_convergence --> n_convergence_approval
+  n_convergence_approval --> n_high_level_design
+  n_high_level_design --> n_design_approval
+  n_design_approval --> n_completion
+  class n_foundation_approval,n_convergence_approval,n_design_approval gate
+  class n_solution_generation,n_solution_convergence,n_convergence_approval,n_high_level_design,n_design_approval,n_completion conditional

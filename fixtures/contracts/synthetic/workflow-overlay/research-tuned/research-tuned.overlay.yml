@@ -1,0 +1,28 @@
+# An overlay over the built-in research workflow, and the smallest one that
+# exercises every operation the graph admits.
+#
+# Two of the four operations are unavailable here, which is why they are absent
+# rather than forgotten:
+#
+#   tune: provider   is schema-illegal on this graph. A provider may only be
+#                    chosen for a node that carries dir, and no research node
+#                    does - the workflow has no dispatch nodes.
+#   disable: on the  leaves a dangling reference. Removing solution-generation
+#   conditional      rewires solution-convergence.needs to the removed node's
+#   nodes            own needs but leaves its with value pointing at an
+#                    exploration artifact no node declares any more, which the
+#                    reference check errors on, correctly.
+#
+# What remains is tune on the whitelist, add attached through needs, and a
+# profile that disables only the node it just added - the one node nothing
+# references.
+extends: builtin:research
+version: 1
+tune:
+  solution-generation: {optional: true}
+add:
+  deep-review:
+    uses: agent:research-synthesizer
+    needs: [completion]
+profiles:
+  lean: {disable: [deep-review]}

@@ -1,7 +1,15 @@
-.PHONY: build validate test eval tarball clean watch
+.PHONY: build diagram validate test eval tarball clean watch
 
 build:
 	bash platforms/copilot-cli/build.sh
+
+# Regenerate the shipped workflow diagram. The suite byte-compares it against the
+# definition, so run this after editing the definition and commit both together.
+ENGINE = plugins/maister/skills/workflow-engine
+diagram:
+	node $(ENGINE)/scripts/workflow.mjs diagram \
+	  --definition $(ENGINE)/workflows/research.yml \
+	  --out $(ENGINE)/workflows/research.mmd
 
 # Prerequisites: node (the contracts runner). Everything else here is grep.
 validate:
@@ -16,7 +24,7 @@ validate:
 	@echo "Checking no maister- prefix in copilot command names..."
 	@! grep -r '^name: maister-' plugins/maister-copilot/commands/ 2>/dev/null || (echo "FAIL: maister- prefix in command names" && exit 1)
 	@echo "Checking no maister: prefixes in copilot variant..."
-	@! grep -r 'maister:' plugins/maister-copilot/ --include="*.md" --include="*.json" --include="*.mjs" 2>/dev/null || (echo "FAIL: maister: prefix found" && exit 1)
+	@! grep -r 'maister:' plugins/maister-copilot/ --include="*.md" --include="*.json" --include="*.mjs" --include="*.yml" 2>/dev/null || (echo "FAIL: maister: prefix found" && exit 1)
 	@echo "Checking gate markers are not nested inside code spans..."
 	@! grep -rnF '`→ **MANDATORY GATE** — fires ' plugins/maister/skills/ 2>/dev/null || (echo "FAIL: gate marker nested inside a code span" && exit 1)
 	@! grep -nF '→ Pause' plugins/maister/skills/orchestrator-framework/references/orchestrator-creation-checklist.md 2>/dev/null || (echo "FAIL: superseded transition marker in the orchestrator checklist" && exit 1)

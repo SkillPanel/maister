@@ -35,6 +35,7 @@ Applies when editing skills, agents, commands, hooks, or references under `plugi
 **Carve-out.** Rules 1, 2 and 5 and the length targets above describe *prose* references. They do not apply to:
 
 - `hooks/*.mjs` and `hooks/*.sh` — executable code, written to be read as code.
+- `skills/*/scripts/*.mjs` and `skills/*/server/*.mjs` — executable code shipped with a skill, written to be read as code. A skill's script directory holds the tooling its prose invokes; its server directory holds a local companion process.
 - `skills/orchestrator-framework/schemas/*.json` — JSON Schema documents, generated-shaped by nature.
 - `skills/orchestrator-framework/references/compatibility-contracts.md` — a **register**, not a guide: normative tables and frozen literals, max 600 lines, samples ≤ 10 lines each.
 

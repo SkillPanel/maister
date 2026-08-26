@@ -1,17 +1,14 @@
-# The shipped built-in research workflow, held here as a golden copy.
+# The overlay beside this file, ejected: the ten-node graph the resolver must
+# arrive at from builtin:research with no profile selected, written out by hand.
 #
-# The suite resolves this file and the shipped definition and asserts one
-# graph_hash for both. An edit to either that the other does not receive turns
-# the suite red, which is the whole reason the copy exists.
+# Nothing generates this file. The suite resolves it and the overlay route and
+# asserts one graph_hash for both, so a resolver that rewires, tunes or attaches
+# differently than a reader of the overlay would expect turns the suite red
+# instead of quietly changing what an eject means.
 #
-# Node prose lives beside a definition, so the copy carries its own companion
-# (research-builtin.md) with one section per direct: node. The companion is a
-# stub: only the presence of the section is what makes the target resolve.
-#
-# The file warns about nothing. No key anywhere is named after a reserved path,
-# every target resolves, and every when clause names a declared bool - so the
-# expected warning set is empty and any new warning is a regression.
-name: research
+# Two differences from the built-in, and no others: solution-generation carries
+# optional: true, and deep-review is attached after completion.
+name: research-tuned
 version: 1
 inputs:
   question: {type: string, required: true}
@@ -61,6 +58,7 @@ nodes:
     uses: agent:solution-brainstormer
     needs: [optional-phases-decision]
     when: "${optional-phases-decision.values.brainstorming_enabled}"
+    optional: true
     with:
       synthesis: "${research-foundation.artifacts.synthesis}"
       research_report: "${research-foundation.artifacts.report}"
@@ -121,3 +119,7 @@ nodes:
     uses: direct:completion
     needs: [design-approval]
     when: "!${inputs.embedded}"
+
+  deep-review:
+    uses: agent:research-synthesizer
+    needs: [completion]

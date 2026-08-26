@@ -1,0 +1,22 @@
+# Invalid: verify interpolates "${plan.artifacts.spec}", and no node named plan
+# exists. Reference resolution is runner logic - the document itself is well
+# formed, every target resolves, and the schema has nothing to say about the
+# contents of a with value.
+#
+# The graph is deliberately acyclic and gate-free. The runner reaches the DAG
+# check and the gate-continue check before anything else for a definition, and
+# the suite reads the first error only, so a fixture that tripped either of
+# them would be reported for the wrong reason.
+name: unknown-reference
+version: 1
+inputs:
+  target: {type: string, required: true}
+nodes:
+  build:
+    uses: skill:quick-dev
+    needs: []
+    with: {target: "${inputs.target}"}
+  verify:
+    uses: skill:implementation-verifier
+    needs: [build]
+    with: {artifact: "${plan.artifacts.spec}"}

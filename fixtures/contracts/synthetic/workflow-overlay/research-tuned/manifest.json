@@ -1,0 +1,35 @@
+{
+  "id": "research-tuned",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-26T09:41:12Z",
+  "files": [
+    {
+      "path": "research-tuned.overlay.yml",
+      "schema": "workflow-overlay.schema.json#"
+    },
+    {
+      "path": "research-tuned.eject.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "research-tuned.eject.md",
+      "schema": null
+    },
+    {
+      "path": "research-tuned.lean.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "research-tuned.lean.md",
+      "schema": null
+    }
+  ],
+  "notes": "An overlay over the built-in research workflow and the graphs it resolves to, written out by hand. The overlay tunes solution-generation to optional, adds deep-review after completion, and carries a lean profile that disables the node it just added; the two operations it does not use are unavailable on this graph rather than omitted by choice, and the overlay says which and why. research-tuned.eject.yml is the ten-node no-profile resolution and research-tuned.lean.yml the nine-node resolution under --profile=lean: the lean case needs an eject of its own because a definition carries no profiles, the resolver reading them from overlays only. The hash equality between each eject and the corresponding overlay route is the assertion; it is possible at all because graph_hash covers the resolved node set and excludes source, overlays, profile and name. The two .md files are the prose companions the ejects' direct: nodes resolve against, carried here because a companion is looked for beside the file that declares the node; they are stubs and the real node prose ships beside the built-in. Expectations beyond the files live in the test source: the manifest expect object is closed and widening it would be a contract-bearing change."
+}

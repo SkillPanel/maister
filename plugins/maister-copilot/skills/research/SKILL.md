@@ -8,6 +8,33 @@ user-invocable: true
 
 Systematic research workflow from question definition to evidence-based documentation.
 
+## Entry Point
+
+This workflow exists twice: as the prose phases in this file, and as a workflow definition
+a graph engine runs. Both produce the same task directory; only the interpreter differs.
+
+**Settle this before Initialization, once per run:**
+
+- **`MAISTER_WORKFLOW_ENGINE` is set to a non-empty value in the environment** — hand the
+  run over. Invoke the `maister-workflow-engine` skill with the Skill tool, naming the
+  workflow `builtin:research` and passing the research question, the resume target and any
+  flags through unchanged. The engine owns the run from there: it resolves the definition,
+  freezes the resolved graph into state and executes it. Do not also run the phases below.
+- **Otherwise — the default** — run the prose phases below exactly as written, with nothing
+  else changed by the presence of this branch.
+
+Read the variable with a Bash call — `node -p "process.env.MAISTER_WORKFLOW_ENGINE ?? ''"`,
+which reads the same under zsh, bash, PowerShell and cmd.exe; no value, or an empty one,
+means the default.
+
+Two rules hold whichever way the branch points. **A task directory that carries no `workflow:` block is
+always resumed by the prose phases**, whatever the variable says — such a directory has no
+frozen graph, so there is nothing for the engine to resume. And the prose phases stay in
+this file after the default changes over: they remain the twin the definition is measured
+against.
+
+---
+
 ## Initialization
 
 **BEFORE executing any phase, you MUST complete these steps:**
@@ -390,6 +417,7 @@ research_context:
     included: []
     excluded: []
     constraints: []
+  project_doc_paths: []   # discovered from .maister/docs/INDEX.md in Phase 1 Step 1
   methodology: []
   sources: []
   confidence_level: "high" | "medium" | "low"

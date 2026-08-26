@@ -1,0 +1,351 @@
+---
+name: maister:workflow-engine
+description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as a terminal-mode orchestration. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator; not a workflow a user starts directly.
+user-invocable: true
+---
+
+# Workflow Engine
+
+The execution half of the workflow grammar. A definition file says which nodes exist,
+what each one needs, what guards it and what it declares; this skill turns that graph
+into a run — one ready set at a time, with state written by a script rather than by a
+model holding a file open.
+
+**This is machinery, not a feature.** A user reaches a workflow through that workflow's
+own command, and that command's orchestrator hands the run here with a workflow name.
+There is no engine command and no engine entry point of its own. Nothing in a user's
+mental model needs the word "engine" in it.
+
+**Terminal mode only.** The engine asks its gates in session and answers them in the same
+turn. It writes no driver block, and every rule below marked *mode-scoped* holds only
+while that is true.
+
+---
+
+## Initialization
+
+**BEFORE executing any node, you MUST complete these steps:**
+
+### Step 0: Session-reminder conflict resolution (decide ONCE)
+
+Before doing anything else, settle this policy now and do not re-litigate it at any gate:
+
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `AskUserQuestion` at a gate. They apply only to your discretionary clarifications. Invoke `AskUserQuestion` when `orchestrator.driver.kind` is absent or `terminal` — the only modes this orchestrator runs in until the engine makes it driver-aware; in `cockpit`/`dispatch` mode write the gate request file and end the turn instead (`compatibility-contracts.md § E2`).
+
+If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
+
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+
+### Step 1: Load framework patterns
+
+Read `../orchestrator-framework/references/orchestrator-patterns.md` now. Delegation
+rules, the state schema, initialization and resume, the artifact summary contract, the
+dashboard and the companion reports all live there. This skill adds graph execution on
+top of them and restates none of them.
+
+### Step 2: Probe the runtime, before writing anything
+
+Run `node --version` once. On failure, stop immediately: print `RUN-FAILED: node-unavailable`
+and hand the run to the workflow's prose orchestrator, which needs no script.
+
+**There is deliberately no editor-tool fallback for state writing.** Model-authored state
+is the corruption this engine exists to remove: a state file whose blocks drift out of
+canonical shape is read as empty by one reader and as a pending run by another, which
+denies every subsequent write in the session. Half a writer is worse than none.
+
+This is the one place the engine diverges from the mockup skill's precedent. That skill's
+fallback swaps one *rendering* for another and loses only fidelity; a fallback here would
+swap the *writer*, and that is not a degraded mode but a different failure surface.
+
+### Step 3: Resolve the workflow by name
+
+**The name may arrive prefixed.** A workflow's orchestrator hands the run over naming its
+workflow `builtin:<name>`, so the prefix is stripped before any filesystem lookup and
+both forms are accepted — `builtin:research` and `research` resolve to the same three
+candidates below. A prefix left on the name turns the lookup into a search for a file called
+`builtin:research.yml`, which exists nowhere.
+
+Search `.maister/workflows/` in the current project root, then the built-ins shipped
+beside this file:
+
+| Found | Meaning |
+|---|---|
+| `.maister/workflows/<name>.yml` | an **eject** — it shadows the built-in entirely |
+| `.maister/workflows/<name>.overlay.yml` | an **overlay** — merged over the built-in |
+| `workflows/<name>.yml` beside this skill | the shipped **built-in** |
+
+Resolution order is eject → overlay → built-in, and the first hit wins. Authoring an eject
+or an overlay, and running an arbitrary definition file, are not this skill's business.
+
+**Reading the opt-in switch, on every platform.** Until a workflow's own orchestrator hands
+runs here by default, `MAISTER_WORKFLOW_ENGINE` is what decides whether the engine is
+reached at all — so the way it is read has to work wherever the plugin runs. Read it as
+`node -p "process.env.MAISTER_WORKFLOW_ENGINE ?? ''"`: the same one line is correct under
+zsh, bash, PowerShell and cmd.exe, and `node` is already a hard prerequisite of the engine.
+`printenv` is not — it does not exist in cmd.exe or PowerShell, and a read that fails there
+looks exactly like a variable that was never set, so the branch silently falls through and
+the operator sees no engine and no error.
+
+### Step 4: Freeze the graph before executing anything
+
+Validate, then resolve, then write the resolved graph into `orchestrator-state.yml` as the
+`workflow:` block with one line per node — before any node runs. A run executes the frozen
+graph, never the file on disk, so an edit to a definition mid-run changes nothing until the
+next run.
+
+**The freeze patch must carry `workflow.name`** — the bare name, after the prefix strip. The
+writer derives the run's per-workflow context block from it, so a later write to `context` or
+`phase_summaries` with no name recorded is refused with `state-context-block-unknown` rather
+than landing in some default block. The name is already part of the frozen key order, so
+this costs nothing at freeze time and cannot be recovered later without re-installing the
+block.
+
+If `validate` rejects the definition, stop with `RUN-FAILED:` carrying the validator's first
+error. A definition that does not validate cannot be executed part-way.
+
+---
+
+## The invocation contract
+
+One script, four verbs, one exit-code table — `0` success, `1` the input was rejected
+(the report is still printed), `2` an internal failure where nothing ran.
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs <verb> [flags]
+```
+
+| Verb | Flags | Gives |
+|---|---|---|
+| `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[]}` on stdout |
+| `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph plus its `graph_hash` |
+| `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
+| `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
+
+The patch arrives on stdin so no quoting has to survive a shell — Windows without a POSIX
+shell is a supported target. An unknown version degrades **the same way in every verb** —
+`validate`, `resolve` and `diagram` alike short-circuit on it, render what they recognise,
+warn, and still exit `0` — so a newer definition in a mixed fleet is a diagnostic rather
+than a dead run, and never a document one verb accepts while another rejects it.
+
+---
+
+## Executing the graph
+
+### The ready set
+
+A node is ready when both hold:
+
+1. **Every `needs` entry is satisfied.** `completed` and `skipped` satisfy; `failed` and
+   `stopped` satisfy only for a node that declares `on: failure` or `on: always`.
+2. **Its `when` guard evaluates true** against the values declared by completed nodes.
+
+A node whose guard is false is marked `skipped`, and **a skip satisfies everything
+downstream** — that is how a definition expresses an optional phase without any routing
+construct.
+
+**No node in the shipped built-in carries `on:`**, and that is precisely what makes a stop
+option terminate a run: under the default, nothing downstream of a stopped node ever
+becomes ready.
+
+Execute ready nodes one at a time, in the order the frozen graph lists them. When nothing
+is pending, set the task status and print `RUN-COMPLETE`.
+
+### Delegation by scheme
+
+The node's `uses` names both the mechanism and the target:
+
+| Scheme | How it runs |
+|---|---|
+| `skill:<name>` | the Skill tool |
+| `agent:<name>` | the Task tool |
+| `direct:<name>` | inline, by this engine, following the node's section in the definition's prose companion |
+| `workflow:<name>` | **stops the run** with a clear message — sub-run execution is out of scope; the validator resolves the target, nothing executes it |
+
+**Target names in a definition are bare, and the provider prefix is applied at invocation.**
+Resolution is rooted at the plugin root, so one shipped definition is correct under every
+generated variant with no rewrite pass. A prefix written into a definition file breaks the
+other variant and is a defect, not a style choice.
+
+A `direct:` node's prose is the node's body: its steps, its fan-outs, its self-checks, the
+questions it asks inline, and how many times it may be re-driven. Read the section before
+executing the node, not after it fails.
+
+### Recording an outcome
+
+Every node's outcome maps onto a status deterministically, because a downstream `needs`
+treats `failed` and `skipped` differently. The mapping is the same for all three executable
+schemes:
+
+| Outcome | Status | Downstream |
+|---|---|---|
+| Completed, self-check passes | `completed` | satisfies `needs` |
+| Self-check failed, the re-drive succeeded | `completed` | satisfies `needs` |
+| Budget exhausted, the operator chose to retry, and it then succeeded | `completed` | satisfies `needs` |
+| Budget exhausted, the operator chose to skip | `skipped` | satisfies `needs`; declared boolean outputs default false, declared string outputs to null |
+| Hard failure with no operator path | `failed` | satisfies nothing by default; the run stops with `RUN-FAILED` |
+
+**A phase key is never a node id.** `node_summaries` is keyed by node id, and the workflow's
+own `phase_summaries` map is keyed by the workflow's phase keys. The node prose names the
+key each mirroring node writes under; a node whose prose names none writes a node summary
+and nothing else. Reading a phase key off the node id is the mirroring defect to watch for,
+because the write succeeds and the run keeps going with a key nothing else reads.
+
+A node's summary carries the shorter phase-status vocabulary, so the node status is mapped
+rather than copied: `running` becomes `in_progress`, and the other four map to themselves.
+`suspended` never occurs in terminal mode. `stopped` occurs only on nodes a stop option left
+unexecuted, and those carry no summary at all.
+
+**Retry budgets are prose, never `with:` data.** `with:` is an unconstrained free-form
+object handed to the node; a budget written there would read like a grammar feature while
+being inert data nothing consults. Budgets live in the node prose, and the engine follows
+them from there.
+
+---
+
+## Gates in terminal mode
+
+A gate node is a question with a closed set of options, exactly one of which continues the
+run. The engine:
+
+1. **Asks it in session** with `AskUserQuestion`, carrying the node's own question text and
+   its own options.
+2. **Records the answer** — the chosen option id, who answered and when — on the node's
+   summary, and marks the node `completed`.
+3. **Writes no `gate_pending` and no gate request file.** The pending marker is only ever
+   written as the one-line null form.
+
+**Why nothing is marked pending.** A pending gate is what the enforcement hook reads to
+deny writes while an answer is awaited, and it cannot see inside a shell invocation — so a
+pending marker would deny the engine's own call to its state writer and leave editor-tool
+writes as the only way forward. That is exactly the corruption path the writer exists to
+remove. Asking and answering inside one turn means nothing is ever awaited across turns,
+so nothing needs marking.
+
+**The cross-run deadlock: a pending gate in another run still stops this one.** Never
+marking pending solves the within-run case only. The enforcement hook cannot see inside a
+shell invocation, so it treats the engine's call to its own state writer as opaque and scans
+**every run under
+`.maister/` project-wide** before allowing it. One abandoned run holding a pending gate —
+in a different task directory, from a different workflow, possibly weeks old — therefore
+denies a healthy run's writes, and the refusal names the stale run rather than anything
+this run did wrong.
+
+The operator's recovery is to clear the stale gate, in one of two ways: **answer** it, by
+resuming that run and taking its gate to a decision, or **remove** it, by deleting the
+abandoned task directory — or its gate request file and the pending marker in its state —
+once it is genuinely dead. Do neither on the operator's behalf: another run's state is not
+this run's to edit, and a deleted directory is not recoverable. Report the offending path
+and let the operator choose.
+
+**This is mode-scoped, not a permanent rule.** It holds because the engine asks in session.
+A later driver-aware mode writes the request file, marks the gate pending and ends its turn;
+the reasoning above is the reason terminal mode does not, not a reason no mode ever should.
+
+### Choosing a stop option
+
+A stop option ends the run, and ends it completely:
+
+- `task.status` becomes `stopped`;
+- **every unexecuted node is recorded `stopped`**, the final node included;
+- no further node executes, and no completion or summary node gets a courtesy run.
+
+A stopped run is a legitimate outcome, not a failure. Do not print `RUN-FAILED` for one, and
+never re-ask a gate the operator has already answered.
+
+---
+
+## Writing state
+
+**Every state change goes through `write-state`. Never edit `orchestrator-state.yml` with an
+editor tool** — not to fix a stray line, not to record one small field, not when a write has
+just been refused. The writer owns the `workflow:` block and its one-line node entries, the
+per-node summaries and their mirrored phase summaries, and the scalars beside them; it emits
+at a fixed canonical indent, writes the whole file once per invocation, and self-checks the
+candidate through the enforcement hook's own reader before it publishes anything.
+
+The patch vocabulary is closed: `workflow`, `nodes`, `node_summaries`, `phase_summaries`,
+`context`, `orchestrator`, `task`. Anything else is an error rather than a silent no-op.
+
+### When a write is refused
+
+Exit `1` means **nothing was published** — no rename happened and the file on disk is
+byte-for-byte what it was. The first token on stderr is the refusal code. There are fifteen,
+and they fall into four responses. Exit `2` carries no code at all and is the table's last
+row:
+
+| Refusal | Response |
+|---|---|
+| `state-non-canonical` | The existing file cannot be re-indented safely. Stop with `RUN-FAILED: state-non-canonical` and hand the run to the prose orchestrator. |
+| `state-unreadable`, `state-unwritable`, `state-incomplete`, `state-candidate-unsound` | The directory is not one the engine can own — unreadable, unwritable, a candidate the reader would not accept, or a candidate carrying a duplicate top-level key or one that neither the pre-write file nor the patch introduced. Stop with `RUN-FAILED: <code>` and hand the run to the prose orchestrator. **Never re-send the same patch**: the candidate is unsound for a reason the patch cannot change. |
+| `value-not-flow-safe` | A declared output cannot go on a one-line entry. Record the node `failed` with that reason and stop with `RUN-FAILED: value-not-flow-safe`. |
+| `state-entry-unserializable` | A node entry **already in the file** cannot be re-serialised. The patch is fine; the file needs repair. Stop with `RUN-FAILED: state-entry-unserializable` and report the message verbatim. This is **not** the `value-not-flow-safe` recovery — shortening the value the patch carries changes nothing here, and trying it loops. |
+| `state-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. Nothing was written. **Do not delete anything**: wait a minute and issue the same write again. A temp older than a minute is a crashed writer's leftover, and the next write reclaims it itself. |
+| `state-patch-invalid`, `state-patch-unknown-key`, `state-gate-pending-form`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
+| exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |
+
+Exit `2` is the one row that is not a refusal at all, which is why it is easy to mishandle:
+there is no code to look up and no patch to correct, so the tempting next step is to record
+the state change with an editor tool instead. **Do not.** A writer that could not start is
+exactly the case the no-fallback rule in Step 2 was written for; an editor-tool write here
+produces the drifted state file that denies every later write in the session.
+
+`state-patch-invalid` is the broadest of the caller-defect codes, and it now also refuses a
+block-path map key that is not a plain identifier rather than emitting it — the shape that
+corrupted state files before the guard existed. A key that arrives from a name rather than
+from a literal is the one to watch.
+
+The last group is a defect in the caller, so it is worth naming what a defect looks like: a
+`workflow:` block sent without its nodes, a pending marker sent as a block map, a node
+summary sent as an inline collection, a patch key outside the closed vocabulary, a context
+write sent before the workflow has a name. Fix the patch and re-run; **re-sending the same
+patch, or reaching for an editor tool because the script said no, is the failure mode this
+whole design removes.** A refusal is a correct answer, not an obstacle.
+
+---
+
+## Resume
+
+Read `orchestrator-state.yml`, take the frozen graph from its `workflow:` block, recompute
+the ready set from the recorded node statuses, and continue. Resume never re-resolves the
+definition: the graph that ran is the graph that resumes.
+
+**A task directory with no `workflow:` block is not engine-resumable.** It carries no frozen
+graph, so hand it to the workflow's prose orchestrator — which is exactly why that
+orchestrator is kept rather than deleted. Step-level resume *inside* a node is that node's
+prose, not the engine's business.
+
+**The prose twin is transitional.** A workflow that exists both as a definition and as a
+prose orchestrator keeps the prose copy only while the engine is proving itself: it is the
+escape hatch during rollout, and it is retired once the engine is proven, at which point a
+working script runtime becomes a hard requirement. Build nothing that assumes a permanent
+second implementation. The reasoning is recorded in the repository's decision log.
+
+---
+
+## Operator visibility
+
+The engine honours the framework's contracts; it does not restate them. Follow
+`../orchestrator-framework/references/orchestrator-patterns.md` for:
+
+- the **artifact summary contract** (§ 7) in every prompt that asks a delegate to write an
+  artifact, with the returned summary lifted into state verbatim rather than re-summarized;
+- the **operator dashboard** (§ 8) — the config gate that turns it off, the copied asset,
+  and the rewrite points: node start, before every gate, node completion including a skip,
+  every gate decision, and finalization;
+- the **HTML companions** (§ 9) and the style guide path passed to artifact-writing
+  delegates, following `html-report-style.md`.
+
+The run's last line is a marker, read by tooling: `RUN-COMPLETE`, or `RUN-FAILED: <reason>`.
+The vocabulary and the rule that on-disk state outranks a marker live in
+`../orchestrator-framework/references/compatibility-contracts.md` § 13.
+
+---
+
+## When to use
+
+**Use** when a workflow ships a definition and its orchestrator hands the run over.
+
+**Do not use** to run an arbitrary definition file on request, to author an eject or an
+overlay, to execute a `workflow:` sub-run node, or as a workflow a user starts directly.
+Each of those is either another skill's job or out of scope, and none of them is reachable
+by improvising here.

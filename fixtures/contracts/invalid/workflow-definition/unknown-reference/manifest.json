@@ -1,0 +1,23 @@
+{
+  "id": "unknown-reference",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-26T09:41:12Z",
+  "files": [
+    {
+      "path": "unknown-reference.yml",
+      "schema": "workflow-definition.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/nodes",
+    "error_keyword": "reference-unknown-node"
+  },
+  "notes": "A with value interpolates a node no document declares. The schema treats with as an open object and reference resolution is a runner check, so the expected keyword is the runner rule name rather than an AJV keyword. The located error is nodes.verify.with.artifact; error_path stays at /nodes so the assertion holds whichever depth the lint reports. The graph carries no cycle and no gate node on purpose: the DAG lint and the gate-continue lint run ahead of every other lint for a definition, and only the first error is read."
+}

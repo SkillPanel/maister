@@ -25,6 +25,11 @@ mkdir -p "$OUT/.github/hooks"
 cp "$CORE/hooks/"{gate-lib,gate-enforce,gate-stop-nudge,gate-beacon}.mjs "$OUT/.github/hooks/"
 cp "$ROOT/platforms/copilot-cli/hooks/maister-gates.json" "$OUT/.github/hooks/"
 cp "$ROOT/platforms/copilot-cli/hooks/README.md" "$OUT/.github/hooks/"
+# The shared state reader is a library, not a hook registration: the engine's
+# state writer imports it as its self-check oracle. Keep it at the path the
+# shipped source imports, so no .mjs has to be rewritten to resolve.
+mkdir -p "$OUT/hooks"
+cp "$CORE/hooks/gate-lib.mjs" "$OUT/hooks/"
 
 # 1. Update plugin.json name and description
 sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"

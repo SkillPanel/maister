@@ -153,7 +153,13 @@ function subdirs(dir) {
  * one buried below its block's own child level — is a deny, never a shrug.
  */
 export function scanState(text) {
-  const out = { gatePending: null, hasWorkflow: false, hasNodes: false, hasTask: false, nodes: {} };
+  // The node map is prototype-free. It is keyed by ids read out of a file the
+  // hook does not own, and a plain object turns an entry named `__proto__` into
+  // a prototype swap: the node vanishes from `Object.keys` — the map every
+  // caller counts — while the write that put it there reported success.
+  const out = {
+    gatePending: null, hasWorkflow: false, hasNodes: false, hasTask: false, nodes: Object.create(null),
+  };
   let section = null;
   // The column the current block's direct children sit at, set by the first of
   // them; and the same for the entries under `nodes:`.
@@ -228,7 +234,9 @@ function parseFlowMap(text, where) {
   if (!value.startsWith('{') || !value.endsWith('}')) {
     throw new Error(`${where} must be on one line: a flow map {…}, not a block map`);
   }
-  const map = {};
+  // Prototype-free for the same reason the node map is: the keys come out of
+  // the file, and `{__proto__: …}` is a flow map anything may write.
+  const map = Object.create(null);
   for (const part of splitFlow(value.slice(1, -1), ',')) {
     if (part.trim() === '') continue;
     const pieces = splitFlow(part, ':');

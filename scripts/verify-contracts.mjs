@@ -514,6 +514,33 @@ function lintGateContinue(doc) {
   return errors;
 }
 
+/**
+ * B1: every `${…}` reference inside a `with` value names a declared node or
+ * `inputs`. Reference resolution is runner logic, so the schema — which treats
+ * `with` as an open object — has nothing to say about it.
+ */
+function lintUnknownReference(doc) {
+  if (!isObject(doc) || !isObject(doc.nodes)) return [];
+  const declared = new Set([...Object.keys(doc.nodes), 'inputs']);
+  const errors = [];
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    if (!isObject(node) || !isObject(node.with)) continue;
+    for (const [key, value] of Object.entries(node.with)) {
+      if (typeof value !== 'string') continue;
+      for (const [, dotted] of value.matchAll(/\$\{([^}]*)\}/g)) {
+        const head = dotted.split('.')[0];
+        if (declared.has(head)) continue;
+        errors.push({
+          instancePath: `/nodes/${id}/with/${key}`,
+          keyword: 'reference-unknown-node',
+          message: `"${dotted}" names "${head}", which no node declares`,
+        });
+      }
+    }
+  }
+  return errors;
+}
+
 /** E2: the answer records only an option id, so ids must be unique. */
 function lintGateOptionIds(doc) {
   if (!isObject(doc) || !Array.isArray(doc.options)) return [];
@@ -663,7 +690,7 @@ function runnerLints(fx, { a5 = false, crossCheck = false } = {}) {
       errors.push(...lintB2OneLine(fs.readFileSync(file, 'utf8'), 'root'));
     } else if (base === 'workflow-definition.schema.json') {
       const doc = parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS);
-      errors.push(...lintDag(doc), ...lintGateContinue(doc));
+      errors.push(...lintDag(doc), ...lintGateContinue(doc), ...lintUnknownReference(doc));
     } else if (base === 'gate.schema.json' && ref.includes('request')) {
       errors.push(...lintGateOptionIds(parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS)));
     } else if (ext === '.js') {
@@ -1532,7 +1559,7 @@ function t03(ctx) {
 const RUNNER_KEYWORDS = new Set([
   'phase-status-cross-check', 'not_midnight', 'e2-one-line-form', 'b2-one-line-form',
   'a5-tldr-line-count', 'a5-block-position', 'dag-cycle', 'gate-option-id-unique',
-  'gate-exactly-one-continue',
+  'gate-exactly-one-continue', 'reference-unknown-node',
 ]);
 
 function t04(ctx) {
@@ -2981,7 +3008,9 @@ function t22(ctx) {
 // T23 — gate-marker lint (D1)
 // ---------------------------------------------------------------------------
 
-const ORCHESTRATORS = ['development', 'research', 'product-design', 'performance', 'migration'];
+const ORCHESTRATORS = [
+  'development', 'research', 'product-design', 'performance', 'migration', 'workflow-engine',
+];
 const CHECKLIST = 'skills/orchestrator-framework/references/orchestrator-creation-checklist.md';
 // A gate marker nested inside a code span: the corruption this lint guards.
 const NESTED_MARKER = '`→ **MANDATORY GATE** — fires ';
@@ -3484,6 +3513,7 @@ const TARBALL_ENTRIES = [
 // ships must report exactly these as `skip` — never as `FAIL`.
 const TREE_DEPENDENT_TESTS = [
   'T11', 'T14', 'T15', 'T16', 'T17', 'T18', 'T19', 'T20', 'T21', 'T22', 'T23', 'T24', 'T27', 'T28',
+  'T29', 'T30', 'T31', 'T32',
 ];
 
 /** Every step of every job in a workflow document, flattened. */
@@ -3786,6 +3816,1801 @@ function t28(ctx) {
   return { checks, failures, notes };
 }
 
+// ---------------------------------------------------------------------------
+// T29 — workflow grammar runner
+// ---------------------------------------------------------------------------
+
+const ENGINE = 'skills/workflow-engine';
+
+/**
+ * The three graph hashes this suite pins. The first is the drift detector
+ * between the shipped built-in and its synthetic twin: an edit to either file
+ * that the other does not receive reddens this test.
+ */
+const BUILTIN_GRAPH_HASH = '8c806c4ddc046e9b35911e918f46e2b69acdbe5431efd9c3dcee8125918c8b61';
+const TUNED_GRAPH_HASH = '47f78ff9e971ee66d0cc932870ff890727030b255f11cd5d3af8d01c432e2c5c';
+const TUNED_LEAN_GRAPH_HASH = 'fe8336c0bb1a99fd9730d9fa9a31bb839392a82ee10fbae63a6d647eac6681d8';
+
+/**
+ * `richtext.yml`'s pinned warning set. `workflow:research` is absent from it on
+ * purpose: it resolves through the shipped built-in, so its silence here is a
+ * positive check that the built-in is discoverable through the resolution
+ * order rather than merely present on disk.
+ */
+const RICHTEXT_WARNINGS = [
+  'undecidable-value-type:nodes.research.outputs.values.order',
+  'unresolved-reference:dev-alpha:workflow:development',
+  'unresolved-reference:dev-beta:workflow:development',
+];
+
+/** `reserved-keys.yml` warns once per occurrence, and never errors. */
+const RESERVED_KEY_WARNINGS = [
+  'reserved-key:assertions', 'reserved-key:backing', 'reserved-key:foreach', 'reserved-key:loop',
+  'reserved-key:mirror.scope', 'reserved-key:routing.tiers', 'reserved-key:session.substrate',
+  'reserved-key:validation',
+];
+
+/** The nine node ids of the shipped built-in, in canonical order. */
+const BUILTIN_NODE_IDS = [
+  'research-foundation', 'foundation-approval', 'optional-phases-decision', 'solution-generation',
+  'solution-convergence', 'convergence-approval', 'high-level-design', 'design-approval', 'completion',
+];
+
+/** The root and node key sets each synthetic definition must read back as. */
+const DEFINITION_KEYS = {
+  'richtext.yml': {
+    root: ['name', 'version', 'inputs', 'nodes'],
+    nodes: ['research', 'approve', 'dev-alpha', 'dev-beta', 'close-out'],
+  },
+  'overlay.yml': { root: ['extends', 'version', 'add', 'tune', 'disable', 'profiles'], nodes: null },
+  'reserved-keys.yml': {
+    root: ['name', 'version', 'inputs', 'nodes', 'mirror', 'backing', 'routing'],
+    nodes: ['fan-out', 'retry-loop', 'remote'],
+  },
+  'version-99.yml': { root: ['name', 'version', 'inputs', 'capabilities', 'nodes'], nodes: ['plan', 'build'] },
+};
+
+/** Out-of-subset YAML: each one is a located error, never a silent misread. */
+const OUT_OF_SUBSET = {
+  anchor: ['    with: &shared {a: 1}'],
+  alias: ['    with: *shared'],
+  'multi-document stream': ['---', 'name: second'],
+  'block scalar': ['    ask: |', '      a folded question'],
+  tag: ['    with: !!map {a: 1}'],
+};
+
+/** No shipped engine file may carry a literal the generated-variant greps hunt. */
+const FORBIDDEN_LITERALS = [/maister:/, /multi-select/i, /multiselect/i, /claude\.md/i];
+
+async function t29(ctx) {
+  const failures = [];
+  const notes = [];
+  let checks = 0;
+
+  const engine = path.join(ctx.pluginRoot, ENGINE);
+  const entry = path.join(engine, 'scripts', 'workflow.mjs');
+  checks++;
+  if (!isFile(entry)) return { checks, failures: [`${ENGINE}/scripts/workflow.mjs is absent`] };
+
+  const lib = name => pathToFileURL(path.join(engine, 'scripts', 'lib', `${name}.mjs`)).href;
+  const { readDefinition, parseDefinition } = await import(lib('definition'));
+  const { resolve: resolveGraph } = await import(lib('graph'));
+  const { render } = await import(lib('diagram'));
+
+  const synthetic = path.join(ctx.fixtures, 'synthetic', 'workflow-definition');
+  const tuned = path.join(ctx.fixtures, 'synthetic', 'workflow-overlay', 'research-tuned');
+  const rejected = path.join(ctx.fixtures, 'invalid', 'workflow-definition');
+  const builtin = path.join(engine, 'workflows', 'research.yml');
+
+  /** One verb invocation, with its JSON report parsed where there is one. */
+  const run = (...args) => {
+    const proc = runBounded(process.execPath, [entry, ...args], { encoding: 'utf8', input: '' });
+    let report = null;
+    try { report = JSON.parse(proc.stdout); } catch { /* the caller reports the absence */ }
+    return { status: proc.status, stdout: proc.stdout ?? '', stderr: proc.stderr ?? '', report };
+  };
+
+  /** `validate`, reduced to the pair every positive assertion here reads. */
+  const validated = (label, ...args) => {
+    const out = run('validate', ...args);
+    if (out.report === null) {
+      failures.push(`${label}: validate printed no JSON report (${out.stderr.trim().split('\n')[0] ?? ''})`);
+      return null;
+    }
+    if (out.status !== 0 || out.report.ok !== true) {
+      failures.push(`${label}: validate rejected it — ${JSON.stringify(out.report.errors ?? [])}`);
+      return null;
+    }
+    return out.report;
+  };
+
+  const pinned = (label, got, want) => {
+    checks++;
+    const sorted = [...(got ?? [])].sort();
+    if (JSON.stringify(sorted) !== JSON.stringify([...want].sort())) {
+      failures.push(`${label}: the warning set drifted — ${JSON.stringify(sorted)}`);
+    }
+  };
+
+  // -- the reader: the accepted subset round-trips, and nothing else does ----
+  for (const [name, want] of Object.entries(DEFINITION_KEYS)) {
+    checks++;
+    const read = readDefinition(path.join(synthetic, name));
+    if (read.errors.length) { failures.push(`${name}: ${JSON.stringify(read.errors[0])}`); continue; }
+    if (JSON.stringify(Object.keys(read.doc)) !== JSON.stringify(want.root)) {
+      failures.push(`${name}: root keys are ${Object.keys(read.doc).join(', ')}`);
+    }
+    if (!want.nodes) continue;
+    checks++;
+    if (JSON.stringify(Object.keys(read.doc.nodes)) !== JSON.stringify(want.nodes)) {
+      failures.push(`${name}: node ids are ${Object.keys(read.doc.nodes).join(', ')}`);
+    }
+  }
+
+  const richtextDoc = readDefinition(path.join(synthetic, 'richtext.yml')).doc;
+  const roundTrips = [
+    ['a flow map', richtextDoc?.inputs?.brief, { type: 'path', required: true }],
+    ['a bare bool', richtextDoc?.inputs?.skip_beta, { type: 'bool', required: false, default: false }],
+    ['an empty flow sequence', richtextDoc?.nodes?.research?.needs, []],
+    ['a populated flow sequence', richtextDoc?.nodes?.approve?.needs, ['research']],
+    ['a nested block map', richtextDoc?.nodes?.approve?.options, { proceed: 'continue', revise: 'stop', abort: 'stop' }],
+    ['a quoted scalar', richtextDoc?.nodes?.approve?.ask, 'Research is complete. Proceed to the per-repo implementation runs?'],
+    ['a negated reference', richtextDoc?.nodes?.['dev-beta']?.when, '!${inputs.skip_beta}'],
+    ['a bare scalar carrying a colon', richtextDoc?.nodes?.['close-out']?.uses, 'skill:implementation-verifier'],
+  ];
+  for (const [label, got, want] of roundTrips) {
+    checks++;
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      failures.push(`richtext.yml: ${label} read back as ${JSON.stringify(got)}`);
+    }
+  }
+
+  // Both comment forms, and a `#` inside quotes that is not one.
+  checks++;
+  const commented = parseDefinition([
+    '# a full-line comment',
+    'name: comments   # an inline comment',
+    'version: 1',
+    'nodes:',
+    '  plan:   # another inline comment',
+    '    uses: skill:quick-plan',
+    '    needs: []',
+    "    with: {note: 'a # inside quotes is not a comment'}",
+    '',
+  ].join('\n'), 'inline.yml');
+  if (commented.errors.length || commented.doc?.nodes?.plan?.with?.note !== 'a # inside quotes is not a comment') {
+    failures.push(`inline.yml: comment handling drifted — ${JSON.stringify(commented.errors)}`);
+  }
+
+  const head = ['name: probe', 'version: 1', 'nodes:', '  plan:', '    uses: skill:quick-plan'];
+  for (const [label, tail] of Object.entries(OUT_OF_SUBSET)) {
+    checks++;
+    const read = parseDefinition([...head, ...tail].join('\n'), `${label}.yml`);
+    const [error] = read.errors;
+    if (read.doc !== null || read.errors.length !== 1) {
+      failures.push(`${label}: expected exactly one located error, got ${read.errors.length}`);
+      continue;
+    }
+    if (!['file', 'node', 'path', 'message'].every(key => key in error) || error.file !== `${label}.yml`
+      || !/line \d+/.test(error.message)) {
+      failures.push(`${label}: the error is not located — ${JSON.stringify(error)}`);
+    }
+  }
+
+  // A CRLF document parses identically to its LF twin, and smuggles nothing.
+  checks++;
+  const lf = fs.readFileSync(path.join(synthetic, 'richtext.yml'), 'utf8');
+  const fromCrlf = parseDefinition(lf.split('\n').join('\r\n'), 'richtext.yml');
+  if (fromCrlf.errors.length || JSON.stringify(fromCrlf.doc) !== JSON.stringify(richtextDoc)
+    || JSON.stringify(fromCrlf.doc).includes('\\r')) {
+    failures.push('richtext.yml: the CRLF twin does not parse identically to its LF original');
+  }
+
+  // -- the verbs: every one reachable, an unknown one a loud failure ---------
+  for (const args of [['validate', `--definition=${path.join(synthetic, 'richtext.yml')}`],
+    ['resolve', `--definition=${path.join(synthetic, 'richtext.yml')}`],
+    ['diagram', `--definition=${path.join(synthetic, 'richtext.yml')}`],
+    ['write-state', '--state=nowhere/orchestrator-state.yml']]) {
+    checks++;
+    const out = run(...args);
+    if (out.status === null || out.status === 127) failures.push(`${args[0]}: the verb is unreachable`);
+    else if (out.status === 2 && out.stderr.trim() === '') failures.push(`${args[0]}: exit 2 with a silent stderr`);
+  }
+  for (const [label, args] of [['an unknown verb', ['sculpt']], ['no verb at all', []]]) {
+    checks++;
+    const out = run(...args);
+    if (out.status !== 2 || out.stderr.trim() === '') failures.push(`${label}: expected a loud exit 2`);
+  }
+
+  // -- the pinned positive cases --------------------------------------------
+  const richtext = validated('richtext.yml', `--definition=${path.join(synthetic, 'richtext.yml')}`);
+  checks++;
+  if (richtext) pinned('richtext.yml', richtext.warnings, RICHTEXT_WARNINGS);
+
+  const reserved = validated('reserved-keys.yml', `--definition=${path.join(synthetic, 'reserved-keys.yml')}`);
+  checks++;
+  if (reserved) pinned('reserved-keys.yml', reserved.warnings, RESERVED_KEY_WARNINGS);
+
+  const standalone = validated('overlay.yml standalone', `--overlay=${path.join(synthetic, 'overlay.yml')}`);
+  checks++;
+  if (standalone) pinned('overlay.yml standalone', standalone.warnings, []);
+
+  for (const [label, file] of [['research-builtin.yml', path.join(synthetic, 'research-builtin.yml')],
+    ['the shipped built-in', builtin]]) {
+    const report = validated(label, `--definition=${file}`);
+    checks++;
+    if (report) pinned(label, report.warnings, []);
+  }
+
+  // An unknown version degrades at exit 0 rather than failing the document.
+  checks++;
+  const future = validated('version-99.yml', `--definition=${path.join(synthetic, 'version-99.yml')}`);
+  if (future && !(future.warnings.includes('newer-format') && future.degraded.includes('newer-format'))) {
+    failures.push(`version-99.yml: expected a newer-format warning, got ${JSON.stringify(future.warnings)}`);
+  }
+
+  // -- the negative cases: located, with the keyword the manifest names ------
+  for (const id of fs.readdirSync(rejected).filter(d => isDir(path.join(rejected, d)))) {
+    const dir = path.join(rejected, id);
+    const manifest = readJson(path.join(dir, 'manifest.json'));
+    const file = path.join(dir, manifest.files[0].path);
+    checks++;
+    const out = run('validate', `--definition=${file}`);
+    if (out.status !== 1 || out.report === null || out.report.ok !== false || !out.report.errors.length) {
+      failures.push(`invalid/${id}: the runner did not reject it (exit ${out.status})`);
+      continue;
+    }
+    checks++;
+    const bad = out.report.errors.find(e => !['file', 'node', 'path', 'message'].every(key => key in e));
+    if (bad) failures.push(`invalid/${id}: an error is not located — ${JSON.stringify(bad)}`);
+    checks++;
+    const pointer = `/${String(out.report.errors[0].path).split('.').join('/')}`;
+    if (!pointer.startsWith(manifest.expect.error_path)) {
+      failures.push(`invalid/${id}: first error at ${pointer}, expected under ${manifest.expect.error_path}`);
+    }
+  }
+
+  // -- resolve: the golden canonical graph, and one hash by two routes -------
+  const resolved = (label, ...args) => {
+    const out = run('resolve', ...args);
+    checks++;
+    if (out.status !== 0 || out.report === null || out.report.ok !== true) {
+      failures.push(`${label}: resolve failed — ${JSON.stringify(out.report?.errors ?? out.stderr.trim())}`);
+      return null;
+    }
+    return out.report;
+  };
+
+  const shipped = resolved('the shipped built-in', `--definition=${builtin}`);
+  if (shipped) {
+    checks++;
+    if (JSON.stringify(shipped.nodes.map(n => n.id)) !== JSON.stringify(BUILTIN_NODE_IDS)) {
+      failures.push(`the shipped built-in resolves to ${shipped.nodes.map(n => n.id).join(', ')}`);
+    }
+    checks++;
+    if (shipped.graph_hash !== BUILTIN_GRAPH_HASH) {
+      failures.push(`the shipped built-in hashes to ${shipped.graph_hash}, not the pinned graph`);
+    }
+  }
+  const twin = resolved('research-builtin.yml', `--definition=${path.join(synthetic, 'research-builtin.yml')}`);
+  checks++;
+  if (twin && shipped && twin.graph_hash !== shipped.graph_hash) {
+    failures.push('research-builtin.yml has drifted from the shipped built-in');
+  }
+
+  // A definition carries no profile map — profiles live on overlays — so the
+  // lean route is compared against an eject of its own rather than against the
+  // ten-node twin under a flag that twin cannot honour.
+  for (const [label, flags, eject, count, hash] of [
+    ['no profile', [], 'research-tuned.eject.yml', 10, TUNED_GRAPH_HASH],
+    ['--profile=lean', ['--profile=lean'], 'research-tuned.lean.yml', 9, TUNED_LEAN_GRAPH_HASH],
+  ]) {
+    const overlaid = resolved(`${label}: the overlay route`,
+      `--definition=${builtin}`, `--overlay=${path.join(tuned, 'research-tuned.overlay.yml')}`, ...flags);
+    const ejected = resolved(`${label}: the eject route`, `--definition=${path.join(tuned, eject)}`);
+    if (!overlaid || !ejected) continue;
+    checks++;
+    if (overlaid.nodes.length !== count || ejected.nodes.length !== count) {
+      failures.push(`${label}: ${overlaid.nodes.length} and ${ejected.nodes.length} nodes, expected ${count}`);
+    }
+    checks++;
+    if (overlaid.graph_hash !== ejected.graph_hash) {
+      failures.push(`${label}: the hand-written eject has drifted from the overlay`);
+    }
+    checks++;
+    if (overlaid.graph_hash !== hash) failures.push(`${label}: hashes to ${overlaid.graph_hash}, not the pinned graph`);
+  }
+
+  // A gate's question and its option ids are part of what the hash covers: a
+  // run frozen against one graph must not silently accept a definition that
+  // asks a different question or answers it with different option ids.
+  if (shipped) {
+    const original = fs.readFileSync(builtin, 'utf8');
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-contracts-graph-'));
+    try {
+      // `direct:` nodes resolve against the prose companion beside the file, so
+      // the copy carries it too: the only difference under test is the edit.
+      fs.copyFileSync(path.join(engine, 'workflows', 'research.md'), path.join(scratch, 'research.md'));
+      for (const [label, edited] of [
+        ['an edited gate question', original.replace(
+          'ask: "Research foundation complete', 'ask: "Research foundation done')],
+        ['a renamed continue option', original.replace(
+          'continue-to-evaluation: continue', 'proceed-to-evaluation: continue')],
+      ]) {
+        checks++;
+        if (edited === original) { failures.push(`${label}: the edit matched nothing in the built-in`); continue; }
+        const copy = path.join(scratch, 'research.yml');
+        fs.writeFileSync(copy, edited, 'utf8');
+        const out = resolved(label, `--definition=${copy}`);
+        checks++;
+        if (out && out.graph_hash === shipped.graph_hash) {
+          failures.push(`${label} does not move graph_hash — the canonical form does not cover it`);
+        }
+      }
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  }
+
+  // The newer-format document degrades rather than being trimmed: the two keys
+  // this reader knows nothing about survive into the canonical graph.
+  const futureGraph = resolved('version-99.yml', `--definition=${path.join(synthetic, 'version-99.yml')}`);
+  if (futureGraph) {
+    checks++;
+    if (!futureGraph.degraded.includes('newer-format')) {
+      failures.push('version-99.yml: resolve did not mark the graph newer-format');
+    }
+    for (const [id, key] of [['plan', 'budget'], ['build', 'retry_policy']]) {
+      checks++;
+      const node = futureGraph.nodes.find(n => n.id === id);
+      if (!isObject(node?.[key])) {
+        failures.push(`version-99.yml: resolve dropped the unknown \`${key}\` key from ${id}`);
+      }
+    }
+  }
+
+  // -- diagram: a pure function of the canonical graph, byte-for-byte --------
+  const golden = path.join(engine, 'workflows', 'research.mmd');
+  checks++;
+  const drawn = run('diagram', `--definition=${builtin}`);
+  if (drawn.status !== 0) failures.push(`diagram: exit ${drawn.status} — ${drawn.stderr.trim().split('\n')[0] ?? ''}`);
+  else if (!isFile(golden)) failures.push('workflows/research.mmd: the golden diagram is absent');
+  else if (drawn.stdout !== fs.readFileSync(golden, 'utf8')) {
+    failures.push('workflows/research.mmd: the shipped diagram is not what the verb renders');
+  }
+
+  const rich = resolveGraph({ definition: readDefinition(path.join(synthetic, 'richtext.yml')), overlays: [], profile: null, degraded: [] });
+  const expected = render(rich);
+  checks++;
+  const again = run('diagram', `--definition=${path.join(synthetic, 'richtext.yml')}`);
+  if (again.stdout !== expected) failures.push('diagram: the verb and the module render different bytes');
+
+  // The renderer fixes its own key order: scrambling the canonical form's key
+  // insertion order must move no byte, or it is iterating something upstream.
+  const reverseKeys = value => {
+    const out = {};
+    for (const key of Object.keys(value).reverse()) out[key] = value[key];
+    return out;
+  };
+  const scrambled = reverseKeys(rich);
+  scrambled.nodes = rich.nodes.map(reverseKeys);
+  checks++;
+  if (render(scrambled) !== expected) failures.push('diagram: the rendering depends on upstream key order');
+  checks++;
+  if (render(rich) !== expected) failures.push('diagram: rendering the same object twice disagreed');
+
+  // A gate, a conditional node and a plain task must be tellable apart.
+  const lineFor = id => expected.split('\n').find(l => l.includes(`"${id}`)) ?? '';
+  const shape = line => line.trim().replace(/"[^"]*"/g, '"…"');
+  checks++;
+  const [task, gate, conditional] = ['research', 'approve', 'dev-beta'].map(lineFor);
+  if (new Set([shape(task), shape(gate), shape(conditional)]).size !== 3) {
+    failures.push('diagram: a gate, a conditional node and a plain task do not render distinguishably');
+  }
+  checks++;
+  if (!conditional.includes('!${inputs.skip_beta}')) failures.push('diagram: the when expression is not rendered');
+  checks++;
+  if (!/^\s*class .*\bgate\b/m.test(expected) || !/^\s*class .*\bconditional\b/m.test(expected)) {
+    failures.push('diagram: gate and conditional nodes carry no class statement');
+  }
+
+  // -- the built-in's shape, and the literals no shipped file may carry ------
+  const doc = readDefinition(builtin).doc ?? {};
+  checks++;
+  const carriesOn = Object.entries(doc.nodes ?? {}).filter(([, node]) => node?.on !== undefined).map(([id]) => id);
+  const writesOn = fs.readFileSync(builtin, 'utf8').split('\n').filter(l => /^\s+on:\s/.test(l));
+  if (carriesOn.length || writesOn.length) failures.push(`the built-in carries an on: clause (${[...carriesOn, ...writesOn].join(' | ')})`);
+
+  checks++;
+  const reservedNames = [];
+  (function walkNames(value, prefix) {
+    if (Array.isArray(value)) return value.forEach((v, i) => walkNames(v, prefix ? `${prefix}.${i}` : String(i)));
+    if (!isObject(value)) return;
+    for (const [key, child] of Object.entries(value)) {
+      const dotted = prefix ? `${prefix}.${key}` : key;
+      const hit = ['foreach', 'loop', 'assertions', 'validation', 'routing.tiers']
+        .some(each => dotted === each || dotted.endsWith(`.${each}`));
+      if (hit) reservedNames.push(dotted);
+      walkNames(child, dotted);
+    }
+  })(doc, '');
+  if (reservedNames.length) failures.push(`the built-in names reserved paths: ${reservedNames.join(', ')}`);
+
+  for (const file of ['scripts/workflow.mjs', 'scripts/lib/definition.mjs', 'scripts/lib/graph.mjs',
+    'scripts/lib/diagram.mjs', 'scripts/lib/state.mjs']) {
+    checks++;
+    const text = fs.readFileSync(path.join(engine, file), 'utf8');
+    const hit = FORBIDDEN_LITERALS.find(pattern => pattern.test(text));
+    if (hit) failures.push(`${ENGINE}/${file}: carries ${hit}`);
+  }
+
+  // -- one quoting rule, both halves of it ----------------------------------
+  //
+  // A key is unquoted by the same function that unquotes a value. They used to
+  // differ: the key half stripped the outer pair and stopped while the value
+  // half decoded the closed escape list and undid `''` doubling, so one file
+  // could spell one string two ways and get two different keys out.
+  for (const [label, text, want] of [
+    ['a doubled single quote in a key', "name: q\nversion: 1\n'it''s': yes\n", "it's"],
+    ['an escape in a key', 'name: q\nversion: 1\n"a\\tb": yes\n', 'a\tb'],
+  ]) {
+    checks++;
+    const parsed = parseDefinition(text, 'quoting.yml');
+    if (parsed.errors.length) {
+      failures.push(`${label}: the reader rejected it — ${JSON.stringify(parsed.errors[0])}`);
+      continue;
+    }
+    checks++;
+    if (!Object.prototype.hasOwnProperty.call(parsed.doc, want)) {
+      failures.push(`${label}: the key came back as ${JSON.stringify(Object.keys(parsed.doc))}`);
+    }
+  }
+
+  // -- the degraded branch: one code path, and no error collected then dropped -
+  //
+  // A document declaring a format this build does not know skips the v1 checks
+  // and nothing else. The structural pass still runs, still finds a nodes: that
+  // is not a mapping and an overlay operation naming a node the base does not
+  // declare, and every verb has to give the same answer about it — the branch
+  // used to return ok from validate without loading the graph module at all.
+  const degradedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-contracts-degraded-'));
+  try {
+    const write = (name, text) => {
+      const file = path.join(degradedDir, name);
+      fs.writeFileSync(file, text, 'utf8');
+      return file;
+    };
+
+    const broken = write('broken.yml', 'name: newer\nversion: 99\nnodes: "this is not a mapping"\n');
+    const verbs = ['validate', 'resolve', 'diagram'].map(verb => [verb, run(verb, `--definition=${broken}`)]);
+    checks++;
+    const statuses = verbs.map(([, out]) => out.status);
+    if (new Set(statuses).size !== 1 || statuses[0] === 0) {
+      failures.push(`degraded: the verbs disagree on a malformed newer-format definition — ${verbs.map(([v, o]) => `${v}=${o.status}`).join(' ')}`);
+    }
+    checks++;
+    const brokenReport = verbs[0][1].report;
+    if (!brokenReport || brokenReport.ok !== false || !(brokenReport.errors ?? []).length) {
+      failures.push('degraded: validate reported no errors for a definition resolve rejects');
+    }
+    checks++;
+    if (!(brokenReport?.degraded ?? []).length) failures.push('degraded: validate dropped the degraded marker');
+
+    const base = write('base.yml', 'name: base\nversion: 99\nnodes:\n  alpha:\n    uses: direct:alpha\n    needs: []\n');
+    const overlay = write('over.overlay.yml', `extends: ${base}\nversion: 99\ndisable: [nosuchnode]\n`);
+    const disabled = ['validate', 'resolve'].map(verb => [verb, run(verb, `--definition=${base}`, `--overlay=${overlay}`)]);
+    checks++;
+    if (disabled.some(([, out]) => out.status === 0)) {
+      failures.push('degraded: a disable naming a node the base does not declare was silently ignored');
+    }
+    checks++;
+    if (!JSON.stringify(disabled[1][1].report?.errors ?? []).includes('nosuchnode')) {
+      failures.push('degraded: resolve collected the disable error and then dropped it');
+    }
+    checks++;
+    if (disabled[0][1].status !== disabled[1][1].status) {
+      failures.push(`degraded: validate=${disabled[0][1].status} resolve=${disabled[1][1].status} on one overlay`);
+    }
+
+    // The accept half of the same branch: a newer document this build can fold
+    // is still accepted, degraded, by all three verbs. The fix must not have
+    // turned degradation into rejection.
+    const sound = write('sound.yml', 'name: sound\nversion: 99\nnodes:\n  alpha:\n    uses: direct:alpha\n    needs: []\n');
+    checks++;
+    const soundOut = run('validate', `--definition=${sound}`);
+    if (soundOut.status !== 0 || soundOut.report?.ok !== true || !(soundOut.report?.degraded ?? []).length) {
+      failures.push(`degraded: a foldable newer-format definition is no longer accepted — ${JSON.stringify(soundOut.report)}`);
+    }
+
+    // -- a decoded escape may not manufacture a value the writer refuses ------
+    //
+    // The reader decodes \\n, \\t and \\r, which is right for the reader and hands
+    // the run a value the one-line state writer is required to refuse. Caught
+    // at validate time, the run fails before it starts; caught at run time, it
+    // fails mid-graph with nodes already recorded as completed.
+    for (const [label, escaped] of [['a tab', 'a\\tb'], ['a return', 'docs\\reports']]) {
+      const file = write(`escape-${label.split(' ')[1]}.yml`,
+        `name: esc\nversion: 1\ninputs: {}\nnodes:\n  alpha:\n    uses: agent:research-synthesizer\n    needs: []\n    with:\n      dir: "${escaped}"\n`);
+      const out = run('validate', `--definition=${file}`);
+      checks++;
+      if (out.status === 0) {
+        failures.push(`${label}: validate accepted a value the state writer must refuse`);
+        continue;
+      }
+      checks++;
+      if (!(out.report?.errors ?? []).some(e => /newline|return|tab/i.test(e.message ?? ''))) {
+        failures.push(`${label}: the rejection does not name the character — ${JSON.stringify(out.report?.errors)}`);
+      }
+    }
+  } finally {
+    fs.rmSync(degradedDir, { recursive: true, force: true });
+  }
+
+  notes.push(`the built-in, its synthetic twin and the two overlay routes hash to ${BUILTIN_GRAPH_HASH.slice(0, 8)}…, ${TUNED_GRAPH_HASH.slice(0, 8)}… and ${TUNED_LEAN_GRAPH_HASH.slice(0, 8)}…`);
+  return { checks, failures, notes };
+}
+
+// ---------------------------------------------------------------------------
+// T30 — workflow state writer
+// ---------------------------------------------------------------------------
+
+const CHAIN_TEMPLATE_STATE = path.join('synthetic', 'gate', 'chain-template', 'orchestrator-state.yml');
+const WIDE_INDENT_STATE_FILE = path.join(WIDE_INDENT_STATE, 'orchestrator-state.yml');
+
+/** A flow-map position tolerates none of these, and the writer must say so. */
+const NOT_FLOW_SAFE = ['a "quoted" word', 'two\nlines', 'a\rreturn'];
+
+/**
+ * The smallest state file the writer accepts, hand-written rather than copied
+ * from a fixture: the refusal cases below mutate one line of it each, and a
+ * fixture that grew a field would silently change what they are testing.
+ */
+const BASE_STATE = `orchestrator:
+  created: 2026-08-26T00:00:00Z
+  updated: 2026-08-26T00:00:00Z
+  task_path: .maister/tasks/research/x
+  gate_pending: null
+
+task:
+  title: T
+  status: in_progress
+
+workflow:
+  source: research.yml
+  name: research
+  nodes:
+    alpha: {kind: phase, status: pending}
+`;
+
+async function t30(ctx) {
+  const failures = [];
+  const notes = [];
+  let checks = 0;
+
+  const engine = path.join(ctx.pluginRoot, ENGINE);
+  const entry = path.join(engine, 'scripts', 'workflow.mjs');
+  checks++;
+  if (!isFile(entry)) return { checks, failures: [`${ENGINE}/scripts/workflow.mjs is absent`] };
+
+  // `gate-lib.mjs` is the acceptance oracle: the writer is the inverse of the
+  // reader a consumer's hook actually runs, so the reader judges the writer.
+  const { writeState } = await import(pathToFileURL(path.join(engine, 'scripts', 'lib', 'state.mjs')).href);
+  const { scanState } = await import(pathToFileURL(path.join(ctx.pluginRoot, GATE_LIB)).href);
+
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-contracts-state-'));
+  let counter = 0;
+  /** A copy of a frozen fixture, under a scratch root. Never the original. */
+  const subject = fixture => {
+    const dir = path.join(scratch, `state-${counter++}`);
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'orchestrator-state.yml');
+    fs.copyFileSync(path.join(ctx.fixtures, fixture), file);
+    return file;
+  };
+  const canonical = () => subject(CHAIN_TEMPLATE_STATE);
+
+  /** Every text this test emitted, so the two-reader check can judge them all. */
+  const emitted = [];
+  const write = (file, patch) => {
+    const result = writeState({ state: file, patch });
+    if (result.ok) emitted.push({ file, text: fs.readFileSync(file, 'utf8') });
+    return result;
+  };
+
+  const now = Date.now();
+  const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+
+  try {
+    // -- preservation: keys, values, ordering, comments and untouched bytes --
+    const kept = canonical();
+    fs.writeFileSync(kept, fs.readFileSync(kept, 'utf8').replace(
+      'task:\n', '# a hand-written note above task:\ntask:\n  reviewer: someone   # kept verbatim\n'), 'utf8');
+    const before = fs.readFileSync(kept, 'utf8').split('\n');
+    checks++;
+    const surgical = write(kept, { nodes: { research: { status: 'running' } } });
+    if (!surgical.ok) {
+      failures.push(`the surgical write was refused: ${JSON.stringify(surgical.errors)}`);
+    } else {
+      const after = fs.readFileSync(kept, 'utf8').split('\n');
+      const touched = before.map((line, i) => (line === after[i] ? -1 : i)).filter(i => i >= 0);
+      checks++;
+      if (after.length !== before.length || touched.length !== 2) {
+        failures.push(`a surgical write moved ${touched.length} lines, expected exactly two`);
+      } else if (!after[touched[0]].trimStart().startsWith('updated:')
+        || !after[touched[1]].trimStart().startsWith('research:')) {
+        failures.push('the two changed lines are not orchestrator.updated and the node entry');
+      }
+      checks++;
+      if (!after.includes('# a hand-written note above task:') || !after.includes('  reviewer: someone   # kept verbatim')) {
+        failures.push('a whole-line comment or an unknown key did not survive the write');
+      }
+      checks++;
+      const order = after.filter(l => /^[A-Za-z_]/.test(l)).map(l => l.split(':')[0]);
+      if (JSON.stringify(order) !== JSON.stringify(['orchestrator', 'task', 'workflow', 'node_summaries'])) {
+        failures.push(`the section order came back as ${order.join(', ')}`);
+      }
+    }
+
+    // -- atomicity: the two refusals that leave the file alone ---------------
+    const nodeless = canonical();
+    const nodelessBefore = fs.readFileSync(nodeless, 'utf8');
+    checks++;
+    const noNodes = writeState({ state: nodeless, patch: { workflow: { source: 'builtin:research', grammar_version: 1 } } });
+    if (noNodes.ok || !/nodes/.test(noNodes.errors[0]?.message ?? '')
+      || fs.readFileSync(nodeless, 'utf8') !== nodelessBefore) {
+      failures.push('a workflow block with no nodes was not refused cleanly');
+    }
+
+    const taskless = canonical();
+    fs.writeFileSync(taskless, 'orchestrator:\n  gate_pending: null\n', 'utf8');
+    checks++;
+    const noTask = writeState({
+      state: taskless,
+      patch: { workflow: { source: 'builtin:research', nodes: { alpha: { kind: 'task', status: 'pending' } } } },
+    });
+    if (noTask.ok || !/task/.test(noTask.errors[0]?.message ?? '')
+      || fs.readFileSync(taskless, 'utf8') !== 'orchestrator:\n  gate_pending: null\n') {
+      failures.push('installing a workflow block into a state with no task block was not refused cleanly');
+    }
+
+    // -- flow-safety: a quote, a newline or a carriage return is a refusal ---
+    for (const bad of NOT_FLOW_SAFE) {
+      const file = canonical();
+      const text = fs.readFileSync(file, 'utf8');
+      checks++;
+      const result = writeState({ state: file, patch: { nodes: { research: { values: { note: bad } } } } });
+      if (result.ok || !/value-not-flow-safe/.test(result.errors[0]?.message ?? '')) {
+        failures.push(`${JSON.stringify(bad)}: expected a value-not-flow-safe refusal`);
+      }
+      checks++;
+      if (fs.readFileSync(file, 'utf8') !== text
+        || isFile(path.join(path.dirname(file), 'orchestrator-state.yml.tmp'))) {
+        failures.push(`${JSON.stringify(bad)}: a refused write did not leave the directory alone`);
+      }
+    }
+    checks++;
+    const spawned = runBounded(process.execPath, [entry, 'write-state', `--state=${canonical()}`], {
+      encoding: 'utf8',
+      input: JSON.stringify({ nodes: { research: { values: { note: 'a "quoted" word' } } } }),
+    });
+    if (spawned.status !== 1) failures.push(`write-state exited ${spawned.status} on a refusal, expected 1`);
+
+    // -- canonical indents: 0 / 2 / 4, and +2 per level ----------------------
+    const indented = canonical();
+    checks++;
+    const installed = write(indented, {
+      workflow: {
+        source: 'builtin:research',
+        overlays: [],
+        profile: 'default',
+        graph_hash: `sha256:${'a'.repeat(64)}`,
+        grammar_version: 1,
+        name: 'research',
+        nodes: {
+          'research-foundation': { kind: 'task', status: 'pending', needs: [] },
+          'foundation-approval': { kind: 'gate', status: 'pending', needs: ['research-foundation'] },
+        },
+      },
+      node_summaries: { 'research-foundation': { summary: 'a prose line', artifacts: { report: 'a/b.md' } } },
+      phase_summaries: { 'phase-1': { summary: 'a prose line', decision_areas: [{ area: 'x', chosen: 'y' }] } },
+      context: { question: 'what shape should the engine take' },
+      task: { status: 'in_progress' },
+    });
+    if (!installed.ok) {
+      failures.push(`installing a workflow block was refused: ${JSON.stringify(installed.errors)}`);
+    } else {
+      const lines = fs.readFileSync(indented, 'utf8').split('\n').filter(l => l.trim() !== '');
+      checks++;
+      const odd = lines.find(l => (l.length - l.trimStart().length) % 2 !== 0);
+      if (odd) failures.push(`an odd indent was emitted: "${odd}"`);
+      checks++;
+      const wrongDepth = lines.filter(l => /^\s+(research-foundation|foundation-approval): \{/.test(l))
+        .find(l => l.length - l.trimStart().length !== 4);
+      if (!lines.includes('workflow:') || !lines.includes('  nodes:') || wrongDepth) {
+        failures.push('the canonical 0 / 2 / 4 indents were not emitted exactly');
+      }
+      checks++;
+      if (!lines.includes('  phase_summaries:') || !lines.some(l => /^ {4}phase-1:$/.test(l))
+        || !lines.some(l => /^ {6}summary: /.test(l))) {
+        failures.push('a nested block did not gain two spaces per level');
+      }
+    }
+
+    // -- timestamps: full UTC date and time, from the clock, never midnight --
+    const stamped = canonical();
+    checks++;
+    const timed = write(stamped, { nodes: { research: { status: 'running' }, approve: { status: 'completed' } } });
+    if (!timed.ok) {
+      failures.push(`the timestamped write was refused: ${JSON.stringify(timed.errors)}`);
+    } else {
+      const text = fs.readFileSync(stamped, 'utf8');
+      const nodes = scanState(text).nodes;
+      const midnightNow = new Date(now).toISOString().slice(11, 19) < '00:02:00';
+      for (const stamp of [nodes.research?.started, nodes.approve?.completed, /^ {2}updated: "([^"]+)"/m.exec(text)?.[1]]) {
+        checks++;
+        if (!stamp || !TIMESTAMP.test(stamp)) failures.push(`${stamp}: not a full UTC date and time`);
+        else if (Math.abs(Date.parse(stamp) - now) >= 120_000) failures.push(`${stamp}: not from the system clock`);
+        else if (!midnightNow && stamp.endsWith('T00:00:00Z')) failures.push(`${stamp}: midnight`);
+      }
+      checks++;
+      if (nodes.approve?.started !== undefined) failures.push('a completed node with no start was invented one');
+    }
+
+    // -- no consulted line carries a trailing comment ------------------------
+    checks++;
+    if (emitted.length < 3) failures.push(`only ${emitted.length} files were emitted; the writes above did not run`);
+    for (const { file, text } of emitted) {
+      let section = null;
+      let inNodes = false;
+      for (const line of text.split('\n')) {
+        if (line.trim() === '') continue;
+        if (/^[A-Za-z_]/.test(line)) { section = line.split(':')[0]; inNodes = false; continue; }
+        if (section === 'workflow' && /^ {2}[A-Za-z_]/.test(line)) { inNodes = line.startsWith('  nodes:'); continue; }
+        const consulted = (section === 'orchestrator' && line.startsWith('  gate_pending:')) || (inNodes && /^ {4}\S/.test(line));
+        if (!consulted) continue;
+        checks++;
+        if (/#/.test(line)) failures.push(`${rel(file)}: a consulted line carries a comment: "${line}"`);
+        else if (inNodes && !line.trimEnd().endsWith('}')) failures.push(`${rel(file)}: a node entry runs past its flow map: "${line}"`);
+        else if (!inNodes && line.trimEnd() !== '  gate_pending: null') {
+          failures.push(`${rel(file)}: gate_pending is not the literal null: "${line}"`);
+        }
+      }
+    }
+
+    // -- the wide-indent copy: normalized whole, or refused, never mixed -----
+    const widened = subject(WIDE_INDENT_STATE_FILE);
+    const wideBefore = fs.readFileSync(widened, 'utf8');
+    checks++;
+    const normalized = write(widened, { nodes: { dev: { status: 'running' } } });
+    if (!normalized.ok) {
+      checks++;
+      if (!/state-non-canonical/.test(normalized.errors[0]?.message ?? '')
+        || fs.readFileSync(widened, 'utf8') !== wideBefore) {
+        failures.push('the wide-indent refusal is not a clean state-non-canonical that writes nothing');
+      }
+      notes.push('the writer refuses the wide-indent state with state-non-canonical rather than normalizing it');
+    } else {
+      const text = fs.readFileSync(widened, 'utf8');
+      checks++;
+      const stray = text.split('\n').filter(l => l.trim() !== '')
+        .find(l => (l.length - l.trimStart().length) % 2 !== 0);
+      if (stray) failures.push(`a stray indent survived normalization: "${stray}"`);
+      checks++;
+      const shape = t => t.split('\n').filter(l => l.trim() !== '' && !l.trimStart().startsWith('#'))
+        .map(l => l.trimStart().split(':')[0]);
+      if (JSON.stringify(shape(text)) !== JSON.stringify(shape(wideBefore))) {
+        failures.push('normalization changed more than leading whitespace');
+      }
+      checks++;
+      let inNodes = false;
+      for (const line of text.split('\n')) {
+        if (/^[A-Za-z_]/.test(line)) { inNodes = false; continue; }
+        if (/^ {2}[A-Za-z_]/.test(line)) { inNodes = line.startsWith('  nodes:'); continue; }
+        if (inNodes && line.trimStart().startsWith('#')) failures.push(`a comment survived inside nodes: "${line}"`);
+      }
+      notes.push('the writer normalizes the wide-indent state whole rather than refusing it');
+    }
+
+    // -- both readers agree on every emitted file, with a non-empty node map --
+    checks++;
+    if (emitted.length < 3) failures.push('too few emitted files to judge the two readers against each other');
+    for (const { file, text } of emitted) {
+      checks++;
+      let hook = null;
+      let suite = null;
+      try { hook = scanState(text); } catch (err) { failures.push(`${rel(file)}: the hook reader threw ${err.message}`); }
+      try { suite = scanStateText(text); } catch (err) { failures.push(`${rel(file)}: the suite reader threw ${err.message}`); }
+      if (!hook || !suite) continue;
+      checks++;
+      if (hook.hasWorkflow !== suite.hasWorkflow || hook.hasNodes !== suite.hasNodes || hook.hasTask !== suite.hasTask
+        || JSON.stringify(hook.gatePending) !== JSON.stringify(suite.gatePending)
+        || JSON.stringify(hook.nodes) !== JSON.stringify(suite.nodes)) {
+        failures.push(`${rel(file)}: the two readers disagree`);
+      }
+      checks++;
+      if (Object.keys(hook.nodes).length === 0) failures.push(`${rel(file)}: the node map is empty — a blocked session`);
+      checks++;
+      if (!(hook.hasWorkflow && hook.hasNodes && hook.hasTask)) failures.push(`${rel(file)}: an incomplete state file`);
+      // Both readers above are line-oriented, and both ignore whole blocks —
+      // `node_summaries` among them — so a duplicated top-level key or an
+      // injected second `workflow:` passes them both while a real parser
+      // rejects the file. The suite may use the `yaml` devDependency where the
+      // shipped code may not, so it is the third reader here.
+      checks++;
+      let parsed = null;
+      try { parsed = parseYaml(text, YAML_OPTS); } catch (err) {
+        failures.push(`${rel(file)}: a real YAML parser rejects the emitted file — ${err.message.split('\n')[0]}`);
+      }
+      if (parsed === null) continue;
+      checks++;
+      if (!isObject(parsed)) failures.push(`${rel(file)}: the emitted file is not a mapping`);
+      else if (!isObject(parsed.workflow?.nodes) || !isObject(parsed.orchestrator) || !isObject(parsed.task)) {
+        failures.push(`${rel(file)}: the parsed document is missing workflow.nodes, orchestrator or task`);
+      }
+    }
+
+    // -- the refusal paths: one reproduced critical and four warnings --------
+    // Every case below is a path where the writer once reported success (or
+    // exited 2) while leaving a file no real reader accepts. What is asserted
+    // is not "the write failed" but "the write refused, in the documented
+    // vocabulary, with the file on disk byte-for-byte unchanged".
+    const expect = (label, fn) => {
+      checks++;
+      try { fn(); } catch (err) { failures.push(`${label}: ${err.message}`); }
+    };
+    const assert = (condition, message) => { if (!condition) throw new Error(message); };
+    const stateSrc = path.join(engine, 'scripts', 'lib', 'state.mjs');
+    const read = f => fs.readFileSync(f, 'utf8');
+    const refusal = result => (result.errors[0] ?? {}).code;
+    let handWritten = 0;
+    /** A run directory holding `text`, under the scratch root. */
+    const state = (text = BASE_STATE) => {
+      const dir = path.join(scratch, `hand-${handWritten++}`);
+      fs.mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, 'orchestrator-state.yml');
+      fs.writeFileSync(file, text, 'utf8');
+      return file;
+    };
+
+    // A block-path map key carrying a newline once injected whole lines into
+    // the file while the write reported success — a second top-level
+    // `workflow:` block that both line readers accept and no parser does.
+    const INJECT = 'a: evil\nworkflow:\n  nodes: {}\nbogus';
+
+    expect('a top-level block key carrying a newline is emitted rather than refused', () => {
+      const file = state();
+      const before = read(file);
+      const res = writeState({ state: file, patch: { node_summaries: { [INJECT]: { note: 'x' } } } });
+      assert(res.ok === false, 'the write reported success on an injecting key');
+      assert(refusal(res) === 'state-patch-invalid', `expected state-patch-invalid, got ${refusal(res)}`);
+      assert(res.errors[0].message.includes('evil'), 'the refusal does not name the offending key');
+      assert(res.changed.length === 0, 'a refusal reported changed paths');
+      assert(read(file) === before, 'the file on disk changed despite the refusal');
+    });
+
+    expect('a nested block key carrying a newline is not refused', () => {
+      const file = state();
+      const before = read(file);
+      const nested = 'outcome: x\nworkflow: {}';
+      const res = writeState({ state: file, patch: { node_summaries: { a: { [nested]: 'y' } } } });
+      assert(res.ok === false, 'the write reported success on a nested injecting key');
+      assert(refusal(res) === 'state-patch-invalid', `expected state-patch-invalid, got ${refusal(res)}`);
+      assert(read(file) === before, 'the file on disk changed despite the refusal');
+    });
+
+    expect('the key guard does not cover the context and phase_summaries paths', () => {
+      for (const key of ['context', 'phase_summaries']) {
+        const file = state();
+        const patch = key === 'context'
+          ? { context: { [INJECT]: 'x' } }
+          : { phase_summaries: { [INJECT]: { summary: 'x' } } };
+        const res = writeState({ state: file, patch });
+        assert(res.ok === false && refusal(res) === 'state-patch-invalid',
+          `${key}: expected state-patch-invalid, got ${res.ok ? 'ok' : refusal(res)}`);
+      }
+    });
+
+    expect('a prose-looking key carrying a colon corrupts the file silently', () => {
+      const file = state();
+      const res = writeState({ state: file, patch: { node_summaries: { 'design: draft': { note: 'x' } } } });
+      assert(res.ok === false, 'a key containing ": " was accepted');
+      assert(refusal(res) === 'state-patch-invalid', `expected state-patch-invalid, got ${refusal(res)}`);
+    });
+
+    expect('the guard also blocks ordinary block keys', () => {
+      const file = state();
+      const res = writeState({
+        state: file,
+        patch: { node_summaries: { a: { summary: 'done', decisions: ['x'] } }, context: { 'doc-paths': ['a/b.md'] } },
+      });
+      assert(res.ok === true, `an ordinary patch was refused: ${JSON.stringify(res.errors)}`);
+      const text = read(file);
+      assert(/^node_summaries:$/m.test(text), 'node_summaries was not written');
+      assert(/^ {4}summary: done$/m.test(text), 'the summary entry was not written at the canonical indent');
+      assert(/doc-paths:/.test(text), 'the context key was not written');
+    });
+
+    // White-box: the key guard is the fix and the pre-publish self-check is the
+    // net under it. Neutering the guard in a copy of the module proves the two
+    // defences independently rather than as one.
+    const noGuard = await (async () => {
+      const copy = path.join(scratch, 'state-noguard.mjs');
+      const src = fs.readFileSync(stateSrc, 'utf8')
+        .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/hooks\/gate-lib\.mjs'/,
+          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, GATE_LIB)).href));
+      const patched = src.replace(/^const BLOCK_KEY = .*$/m, 'const BLOCK_KEY = /[\\s\\S]*/;');
+      if (patched === src) return null;
+      fs.writeFileSync(copy, patched, 'utf8');
+      return import(pathToFileURL(copy));
+    })();
+
+    expect('with the key guard neutered the injection publishes', () => {
+      assert(noGuard, 'no BLOCK_KEY guard constant found to neuter — the guard must be a named regex');
+      const file = state();
+      const before = read(file);
+      const res = noGuard.writeState({ state: file, patch: { node_summaries: { [INJECT]: { note: 'x' } } } });
+      assert(res.ok === false, 'with the guard neutered the injection published — the self-check does not catch it');
+      assert(refusal(res) === 'state-candidate-unsound', `expected state-candidate-unsound, got ${refusal(res)}`);
+      assert(read(file) === before, 'the file changed despite the self-check refusal');
+    });
+
+    expect('a malformed existing node line throws instead of refusing', () => {
+      const file = state(BASE_STATE.replace('    alpha: {kind: phase, status: pending}', '    alpha: not-a-flow-map'));
+      const before = read(file);
+      let res;
+      try {
+        res = writeState({ state: file, patch: { nodes: { alpha: { status: 'running' } } } });
+      } catch (err) {
+        throw new Error(`the writer threw instead of refusing: ${err.message}`);
+      }
+      assert(res.ok === false, 'a malformed existing node line was accepted');
+      assert(refusal(res) === 'state-unreadable', `expected state-unreadable, got ${refusal(res)}`);
+      assert(read(file) === before, 'the file changed despite the refusal');
+    });
+
+    expect('an unserializable existing entry reports the patch code', () => {
+      const bad = '    alpha: {kind: phase, status: pending, note: "he said ""hi"""}';
+      const file = state(BASE_STATE.replace('    alpha: {kind: phase, status: pending}', bad));
+      const res = writeState({ state: file, patch: { nodes: { alpha: { status: 'running' } } } });
+      assert(res.ok === false, 'an unserialisable existing entry was accepted');
+      assert(refusal(res) !== 'value-not-flow-safe',
+        'the existing-entry fault still reports value-not-flow-safe, whose documented recovery loops');
+      assert(refusal(res) === 'state-entry-unserializable', `expected state-entry-unserializable, got ${refusal(res)}`);
+    });
+
+    expect('a genuinely unsafe patch value no longer reports value-not-flow-safe', () => {
+      const file = state();
+      const res = writeState({ state: file, patch: { nodes: { alpha: { status: 'running', note: 'has "quote"' } } } });
+      assert(res.ok === false && refusal(res) === 'value-not-flow-safe',
+        `expected value-not-flow-safe, got ${res.ok ? 'ok' : refusal(res)}`);
+    });
+
+    expect('the context block is hardcoded to research_context', () => {
+      const file = state(BASE_STATE.replace('  name: research', '  name: product-design'));
+      const res = writeState({
+        state: file,
+        patch: { context: { scope_decision: 'narrow' }, phase_summaries: { 'phase-1': { summary: 'x' } } },
+      });
+      assert(res.ok === true, `refused: ${JSON.stringify(res.errors)}`);
+      const text = read(file);
+      assert(/^design_context:$/m.test(text), 'the summaries did not land under design_context');
+      assert(!/research_context/.test(text), 'research_context was written for a design workflow');
+      assert(res.changed.some(p => p.startsWith('design_context.')),
+        `changed paths still name the wrong block: ${res.changed.join(', ')}`);
+    });
+
+    expect('the research workflow no longer writes research_context', () => {
+      const file = state();
+      const res = writeState({ state: file, patch: { phase_summaries: { 'phase-1': { summary: 'x' } } } });
+      assert(res.ok === true, `refused: ${JSON.stringify(res.errors)}`);
+      const text = read(file);
+      assert(/^research_context:$/m.test(text), 'research_context regressed');
+      assert(/^ {2}phase_summaries:$/m.test(text), 'phase_summaries is not a direct child of the context block');
+      assert(/^ {6}summary: x$/m.test(text), 'the phase summary is not at the canonical indent');
+    });
+
+    expect('an undeterminable context block defaults instead of refusing', () => {
+      const file = state(BASE_STATE.replace('  name: research\n', ''));
+      const before = read(file);
+      const res = writeState({ state: file, patch: { context: { k: 'v' } } });
+      assert(res.ok === false, 'the writer defaulted to a block instead of refusing');
+      assert(refusal(res) === 'state-context-block-unknown', `expected state-context-block-unknown, got ${refusal(res)}`);
+      assert(read(file) === before, 'the file changed despite the refusal');
+    });
+
+    expect('an existing context block is ignored when the name gives none', () => {
+      const file = state(`${BASE_STATE.replace('  name: research\n', '')}\nmigration_context:\n  phase_summaries: {}\n`);
+      const res = writeState({ state: file, patch: { phase_summaries: { 'phase-1': { summary: 'x' } } } });
+      assert(res.ok === true, `refused: ${JSON.stringify(res.errors)}`);
+      assert(/^migration_context:$/m.test(read(file)), 'the existing block was not adopted');
+      assert(!/research_context/.test(read(file)), 'research_context was written beside an existing block');
+    });
+
+    expect('a pre-existing temp file is clobbered', () => {
+      const file = state();
+      const tmp = path.join(path.dirname(file), 'orchestrator-state.yml.tmp');
+      fs.writeFileSync(tmp, 'other writer bytes\n', 'utf8');
+      const before = read(file);
+      const res = writeState({ state: file, patch: { task: { status: 'completed' } } });
+      assert(res.ok === false, "the write clobbered a concurrent writer's temp file");
+      assert(refusal(res) === 'state-temp-exists', `expected state-temp-exists, got ${refusal(res)}`);
+      assert(read(tmp) === 'other writer bytes\n', "the other writer's temp bytes were destroyed");
+      assert(read(file) === before, 'the state file changed despite the refusal');
+    });
+
+    expect('the temp name drifted or the write does not fsync before renaming', () => {
+      const src = fs.readFileSync(stateSrc, 'utf8');
+      assert(/const TMP_NAME = 'orchestrator-state\.yml\.tmp';/.test(src), 'the frozen temp name changed');
+      assert(/openSync\(\s*tmp,\s*'wx'\s*\)/.test(src), 'the temp file is not opened exclusively');
+      assert(/fsyncSync\(/.test(src), 'the temp file is not fsynced before the rename');
+    });
+
+    expect('a normal write leaves its temp file behind', () => {
+      const file = state();
+      const res = writeState({ state: file, patch: { task: { status: 'completed' } } });
+      assert(res.ok === true, `refused: ${JSON.stringify(res.errors)}`);
+      assert(!fs.existsSync(path.join(path.dirname(file), 'orchestrator-state.yml.tmp')), 'the temp file survived');
+      assert(/^ {2}status: completed$/m.test(read(file)), 'the write did not land');
+    });
+
+    // -- the same injection class, one column in ------------------------------
+    //
+    // The guard was added to the two block emitters and not to the workflow
+    // block's own key loops, which emit at column 2. A key carrying a newline
+    // there does not produce a bad-looking file: it produces a second nodes:
+    // child that no YAML parser accepts, and under it a node no graph ever
+    // declared, recorded completed — read back by the ready set and by
+    // continue-from-stop, through the success path.
+    const FORGED = 'junk: 1\n  nodes:\n    ghost';
+    const forgedPatch = () => ({
+      workflow: { nodes: { alpha: { status: 'pending' } }, [FORGED]: '{status: completed}' },
+    });
+
+    expect('a workflow-block key carrying a newline forges a node', () => {
+      const file = state();
+      const before = read(file);
+      const res = writeState({ state: file, patch: forgedPatch() });
+      assert(res.ok === false, 'the write reported success on an injecting workflow key');
+      assert(refusal(res) === 'state-patch-invalid', `expected state-patch-invalid, got ${refusal(res)}`);
+      assert(res.changed.length === 0, 'a refusal reported changed paths');
+      assert(read(file) === before, 'the file on disk changed despite the refusal');
+      const scanned = scanState(read(file));
+      assert(!Object.prototype.hasOwnProperty.call(scanned.nodes, 'ghost'),
+        'a node no graph declares is readable in the state file');
+    });
+
+    expect('the structural check does not look past column 0', () => {
+      assert(noGuard, 'no BLOCK_KEY guard constant found to neuter');
+      const file = state();
+      const before = read(file);
+      const res = noGuard.writeState({ state: file, patch: forgedPatch() });
+      assert(res.ok === false, 'with the guard neutered the forged node published');
+      assert(refusal(res) === 'state-candidate-unsound', `expected state-candidate-unsound, got ${refusal(res)}`);
+      assert(read(file) === before, 'the file changed despite the self-check refusal');
+    });
+
+    expect('a duplicate key below column 0 is accepted', () => {
+      assert(noGuard, 'no BLOCK_KEY guard constant found to neuter');
+      const file = state();
+      const before = read(file);
+      // Emitted at column 4, inside one summary entry: summary: one, then the
+      // injected lines, then summary: two. Two siblings of one name, four
+      // columns in, which the column-0 walk never looked at.
+      const res = noGuard.writeState({
+        state: file,
+        patch: { node_summaries: { alpha: { summary: 'one', ['x: 1\n    summary']: 'two' } } },
+      });
+      assert(res.ok === false, 'a duplicate key four columns in published');
+      assert(refusal(res) === 'state-candidate-unsound', `expected state-candidate-unsound, got ${refusal(res)}`);
+      assert(read(file) === before, 'the file changed despite the self-check refusal');
+    });
+
+    expect('a node entry field name is emitted raw and unguarded', () => {
+      const file = state();
+      const before = read(file);
+      const patch = JSON.parse('{"nodes":{"alpha":{"status":"running","x}, forged: {y":"z"}}}');
+      const res = writeState({ state: file, patch });
+      assert(res.ok === false, 'a field name that closes the flow map was accepted');
+      assert(refusal(res) === 'value-not-flow-safe', `expected value-not-flow-safe, got ${refusal(res)}`);
+      assert(read(file) === before, 'the file changed despite the refusal');
+    });
+
+    // -- the two node-id patterns, and the map the hook builds from them ------
+
+    expect('the writer and the graph disagree about what a node id is', () => {
+      const writer = /^const NODE_ID = (.*);$/m.exec(fs.readFileSync(stateSrc, 'utf8'));
+      const graphSrc = /^const NODE_ID = (.*);$/m.exec(
+        fs.readFileSync(path.join(engine, 'scripts', 'lib', 'graph.mjs'), 'utf8'));
+      assert(writer && graphSrc, 'one of the two NODE_ID constants is gone');
+      assert(writer[1] === graphSrc[1],
+        `the writer accepts ${writer[1]} while the graph accepts ${graphSrc[1]}; the looser one takes stdin`);
+    });
+
+    expect('a __proto__ node id reaches the file', () => {
+      const file = state();
+      const before = read(file);
+      // Parsed rather than written as a literal: in an object literal
+      // `__proto__` sets the prototype, while the CLI's own JSON.parse of stdin
+      // makes it the own key the writer actually receives.
+      const patch = JSON.parse('{"nodes":{"__proto__":{"status":"running"}}}');
+      const res = writeState({ state: file, patch });
+      assert(res.ok === false, 'the writer accepted a __proto__ node id');
+      assert(refusal(res) === 'state-patch-invalid', `expected state-patch-invalid, got ${refusal(res)}`);
+      assert(read(file) === before, 'the file changed despite the refusal');
+    });
+
+    expect("the hook reader's node map is prototype-polluted by a __proto__ entry", () => {
+      const text = BASE_STATE.replace('    alpha: {kind: phase, status: pending}',
+        '    alpha: {kind: phase, status: pending}\n    __proto__: {status: running}');
+      const scanned = scanState(text);
+      assert(Object.getPrototypeOf(scanned.nodes) === null, 'the node map is a plain object');
+      assert(Object.keys(scanned.nodes).length === 2,
+        `a node is invisible to Object.keys — the map every caller counts (got ${Object.keys(scanned.nodes).length})`);
+    });
+
+    // -- the temp file: exclusive, and recoverable in band --------------------
+
+    expect('a temp left by a crash blocks every later write forever', () => {
+      const file = state();
+      const tmp = path.join(path.dirname(file), 'orchestrator-state.yml.tmp');
+      fs.writeFileSync(tmp, 'bytes a crashed writer left behind\n', 'utf8');
+      const old = Date.now() / 1000 - 3600;
+      fs.utimesSync(tmp, old, old);
+      const res = writeState({ state: file, patch: { task: { status: 'completed' } } });
+      assert(res.ok === true, `a stale temp still blocks the write: ${JSON.stringify(res.errors)}`);
+      assert(/^ {2}status: completed$/m.test(read(file)), 'the write did not land');
+      assert(!fs.existsSync(tmp), 'the reclaimed temp survived the write');
+    });
+
+    expect('the state-temp-exists guidance names no route available during a gate', () => {
+      const file = state();
+      const tmp = path.join(path.dirname(file), 'orchestrator-state.yml.tmp');
+      fs.writeFileSync(tmp, 'held\n', 'utf8');
+      const res = writeState({ state: file, patch: { task: { status: 'completed' } } });
+      assert(refusal(res) === 'state-temp-exists', `expected state-temp-exists, got ${refusal(res)}`);
+      const message = res.errors[0].message;
+      // While a gate is pending the operator has no tool that can delete a
+      // file, so "remove it" is not a recovery. Waiting and writing again is.
+      assert(/again/i.test(message) && /\b(minute|second)/i.test(message),
+        `the guidance still names no in-band route: ${message}`);
+    });
+
+    expect('the module docstring still overclaims byte preservation', () => {
+      const src = fs.readFileSync(stateSrc, 'utf8');
+      const header = src.slice(0, src.indexOf('import fs'));
+      assert(!/the bytes of every line the write did not touch\s*\n?\s*\*?\s*are the bytes that were there before/
+        .test(header.replace(/\n \* /g, ' ')), 'the unqualified byte-preservation claim is still there');
+      assert(/adopt/i.test(header), 'the header does not mention adoption');
+      assert(/re-indent|reindent|normaliz/i.test(header), 'the header does not say the adoption walk rewrites the file');
+    });
+
+    expect('the writer module is not dependency-free, cross-platform and unattributed', () => {
+      const src = fs.readFileSync(stateSrc, 'utf8');
+      assert(!src.startsWith('#!'), 'the module carries a shebang');
+      assert(!(fs.statSync(stateSrc).mode & 0o111), 'the module carries an exec bit');
+      for (const m of src.matchAll(/^import .* from '([^']+)';$/gm)) {
+        assert(m[1].startsWith('node:') || m[1].startsWith('.'), `non-builtin import: ${m[1]}`);
+      }
+      assert(!/\bmaister:/.test(src), 'a literal plugin-name prefix appears in the module');
+      assert(!/\r/.test(src), 'the file carries CRLF');
+      assert(!/claude|anthropic|copilot ai/i.test(src), 'vendor attribution in the module');
+    });
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+
+  return { checks, failures, notes };
+}
+
+// ---------------------------------------------------------------------------
+// T31 — research parity checklist
+// ---------------------------------------------------------------------------
+
+/**
+ * The checklist is verification evidence, not shipped documentation: it carries
+ * development-task context, nothing in the plugin reads it, and the generated
+ * variant's rewrite pass mangled the very strings its verbatim rows pin. It
+ * therefore lives beside the run it was written for — under the in-repo task
+ * tree, anchored at the repository root rather than at the plugin root.
+ */
+const CHECKLIST_REL = '.maister/tasks/development/2026-08-26-workflow-engine-and-research-builtin/'
+  + 'verification/research-parity-checklist.md';
+const PROSE_TWIN_REL = 'skills/research/SKILL.md';
+const NODE_PROSE_REL = `${ENGINE}/workflows/research.md`;
+
+/** Every checklist section, with the row count it pins. */
+const CHECKLIST_SECTIONS = [
+  ['Nodes', 10],
+  ['Run-scoped context set', 4],
+  ['Delegate contexts inside `direct:` nodes', 3],
+  ['Mandatory gate texts', 3],
+  ['Stop-path termination', 3],
+  ['In-node questions', 8],
+  ['Artifacts', 12],
+  ['Companion pairs', 4],
+  ['`research_context` fields', 9],
+  ['`phase_summaries` keys', 7],
+  ['`orchestrator.options`', 3],
+  ['`node_summaries` keys', 9],
+  ['Resume', 8],
+  ['Gathering strategy', 2],
+  ['`project_doc_paths` discovery', 1],
+  ['Auto-recovery', 9],
+  ['Verbatim sentences', 7],
+  ['Operator visibility', 5],
+  ['Reference reads', 3],
+  ['Initialization', 8],
+  ['Embedded mode', 3],
+  ['Transitions', 2],
+];
+
+/**
+ * The four nodes that mirror a summary into a phase key, and the key each one
+ * owns. The engine reads the key from the node's own prose section, so what is
+ * asserted below is that the section states it — a mapping that exists only in
+ * this checklist is a mapping the interpreter never sees.
+ */
+const PHASE_KEY_OWNERS = [
+  ['research-foundation', 'phase-1'],
+  ['solution-generation', 'phase-3'],
+  ['solution-convergence', 'phase-4'],
+  ['high-level-design', 'phase-5'],
+];
+
+/**
+ * The nine recovery budgets, as the Auto-recovery section pins them: the row
+ * label, the node prose section that owns the budget, and the attempt count the
+ * prose must state in words. The four foundation steps share one block inside
+ * `research-foundation`, so each names its own step; the other five are a
+ * `**Recovery budget**` line in the node's own section.
+ */
+const RECOVERY_BUDGETS = [
+  ['foundation step 1', 'research-foundation', 1, 'step 1 one attempt'],
+  ['foundation step 2', 'research-foundation', 2, 'step 2 two attempts'],
+  ['foundation step 3', 'research-foundation', 3, 'step 3 three attempts'],
+  ['foundation step 4', 'research-foundation', 2, 'step 4 two attempts'],
+  ['`optional-phases-decision`', 'optional-phases-decision', 1, '**Recovery budget**: one attempt'],
+  ['`solution-generation`', 'solution-generation', 2, '**Recovery budget**: two attempts'],
+  ['`solution-convergence`', 'solution-convergence', 1, '**Recovery budget**: one attempt'],
+  ['`high-level-design`', 'high-level-design', 2, '**Recovery budget**: two attempts'],
+  ['`completion`', 'completion', 0, '**Recovery budget**: none'],
+];
+
+/**
+ * The dashboard cannot derive an icon from a node id, so the node prose names
+ * one per node. The six here are the phases in order; the three gates are
+ * absent on purpose — a gate inherits the icon of the phase it gates, which the
+ * section states in prose and the check below reads separately.
+ */
+const ICON_HINTS = [
+  ['research-foundation', 'analysis'],
+  ['optional-phases-decision', 'plan'],
+  ['solution-generation', 'spec'],
+  ['solution-convergence', 'plan'],
+  ['high-level-design', 'spec'],
+  ['completion', 'done'],
+];
+
+/** The gate icons, inherited from the phase each gate closes. */
+const GATE_ICONS = [
+  ['foundation-approval', 'analysis'],
+  ['convergence-approval', 'plan'],
+  ['design-approval', 'spec'],
+];
+
+/** `research_context.gathering_strategy`: three fields, a cap and four fallbacks. */
+const STRATEGY_FIELDS = ['categories', 'count', 'source'];
+const STRATEGY_FALLBACK = ['codebase', 'documentation', 'configuration', 'external'];
+
+/** The parent's contract in embedded mode: five keys, and the node that is skipped. */
+const HANDOFF_KEYS = [
+  'research_report', 'findings_directory', 'solution_exploration', 'high_level_design', 'decision_log',
+];
+
+/** Every element of the `phase-4` decision list carries exactly these three keys. */
+const DECISION_AREA_KEYS = ['area', 'alternatives_count', 'chosen_approach'];
+
+/** A row that reads as a judgement cannot be checked statically. */
+const JUDGEMENT = /\b(appropriate|appropriately|reasonable|reasonably|sensible|adequate|adequately|properly|nicely|roughly|seems?|looks right|good enough|well.written)\b/i;
+
+/** The grammar cannot express these, so only their literal presence keeps them. */
+const SELF_CHECK_STOPS = ['**STOP. Do NOT proceed.**', '**STOP. Do NOT proceed to Part C.**'];
+const MISSED_GATE = 'never paper over a missed gate by updating state';
+const MISSED_GATE_INITIAL = 'Never paper over a missed gate by updating state.';
+
+/** The checklist's own budget, and the literals the generated-variant greps hunt. */
+const REFERENCE_LINE_BUDGET = 3000;
+
+function t31(ctx) {
+  const failures = [];
+  const notes = [];
+  let checks = 0;
+
+  // The source tree, never the generated variant: the build rewrites
+  // `AskUserQuestion` and the provider prefix, which are the very strings the
+  // verbatim rows assert.
+  const plugin = ctx.pluginRoot;
+  const file = path.join(ctx.repoRoot, CHECKLIST_REL);
+  checks++;
+  if (!isFile(file)) return { checks, failures: [`${CHECKLIST_REL} is absent`] };
+
+  const text = fs.readFileSync(file, 'utf8');
+  const lines = text.split('\n');
+  const twin = fs.readFileSync(path.join(plugin, PROSE_TWIN_REL), 'utf8');
+  const prose = fs.readFileSync(path.join(plugin, NODE_PROSE_REL), 'utf8');
+  const definition = fs.readFileSync(path.join(plugin, ENGINE, 'workflows', 'research.yml'), 'utf8');
+  const count = (hay, needle) => hay.split(needle).length - 1;
+
+  // A section is a `### ` heading; its rows are the table body rows between it
+  // and the next heading of the same or a higher level.
+  const isSeparator = l => /^\s*\|[\s:|-]+\|\s*$/.test(l);
+  const sections = new Map();
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].startsWith('### ')) continue;
+    let end = i + 1;
+    while (end < lines.length && !/^#{2,3} /.test(lines[end])) end++;
+    sections.set(lines[i].replace(/^#+ /, '').trim(), lines.slice(i + 1, end));
+  }
+  const tableRows = body => body.filter((l, at) => l.trim().startsWith('|') && !isSeparator(l)
+    && !isSeparator(body[at + 1] ?? ''));
+
+  // -- every section is present, with its pinned row count ------------------
+  let rows = 0;
+  for (const [name, want] of CHECKLIST_SECTIONS) {
+    checks++;
+    if (!sections.has(name)) { failures.push(`${name}: the section is absent`); continue; }
+    const got = tableRows(sections.get(name)).length;
+    rows += got;
+    if (got !== want) failures.push(`${name}: ${got} rows, expected ${want}`);
+  }
+
+  // The nine node rows are the definition's nine node ids, in order.
+  const ids = [...definition.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(m => m[1]);
+  checks++;
+  if (ids.length !== 9) failures.push(`the shipped definition no longer has nine nodes (${ids.length})`);
+  const nodeRows = sections.has('Nodes') ? tableRows(sections.get('Nodes')) : [];
+  checks++;
+  const listed = nodeRows.map(r => (r.split('|')[1] ?? '').replace(/`/g, '').trim());
+  if (JSON.stringify(listed.slice(0, ids.length)) !== JSON.stringify(ids)) {
+    failures.push(`the Nodes rows name ${listed.slice(0, 9).join(', ')}`);
+  }
+  checks++;
+  const tail = nodeRows[9] ?? '';
+  if (!/`on:`/.test(tail) || !/flow-safe/.test(tail)) {
+    failures.push('the Nodes section is missing the no-`on:` or the flow-safe sub-assertion');
+  }
+
+  // -- every section names a source file, and every row is machine-findable --
+  for (const [name] of CHECKLIST_SECTIONS) {
+    if (!sections.has(name)) continue;
+    const body = sections.get(name);
+    checks++;
+    const where = body.find(l => l.startsWith('**Where**:'));
+    if (!where) { failures.push(`${name}: no **Where** line`); continue; }
+    const named = [...where.matchAll(/`([^`]+)`/g)].map(m => m[1]).filter(p => p.includes('/'));
+    if (!named.some(p => isFile(path.join(plugin, p)) || isDir(path.join(plugin, p)))) {
+      failures.push(`${name}: **Where** names no existing path under the plugin source (${named.join(', ')})`);
+    }
+    for (const row of tableRows(body)) {
+      const cells = row.split('|').slice(1, -1).map(c => c.trim());
+      checks++;
+      if (!/`[^`]+`/.test(row) && !/\b\d+\b/.test(cells.slice(1).join(' '))) {
+        failures.push(`${name}: row ${JSON.stringify(cells[0])} names no literal, key, path or count`);
+      }
+      const judgement = row.match(JUDGEMENT);
+      if (judgement) failures.push(`${name}: row ${JSON.stringify(cells[0])} is a judgement ("${judgement[0]}")`);
+    }
+  }
+
+  // -- the phase keys, named where the engine reads them ---------------------
+  const phaseRows = sections.has('`phase_summaries` keys')
+    ? tableRows(sections.get('`phase_summaries` keys')) : [];
+  checks++;
+  const mappingRow = phaseRows.find(row => row.includes(NODE_PROSE_REL));
+  if (!mappingRow) {
+    failures.push('no `phase_summaries` keys row requires the node prose to name each phase key');
+  } else {
+    for (const [node, key] of PHASE_KEY_OWNERS) {
+      checks++;
+      if (!mappingRow.includes(`\`${node}\` → \`${key}\``)) {
+        failures.push(`the phase-key row does not map ${node} to ${key}`);
+      }
+    }
+  }
+
+  // A node section is `## \`<id>\``; the run-scoped sections carry no backticks.
+  const proseLines = prose.split('\n').map(l => l.replace(/\r$/, ''));
+  const proseSections = new Map();
+  const proseNamed = new Map();
+  for (let i = 0; i < proseLines.length; i++) {
+    const head = /^## (.+?)\s*$/.exec(proseLines[i]);
+    if (!head) continue;
+    let end = i + 1;
+    while (end < proseLines.length && !/^## /.test(proseLines[end])) end++;
+    const body = proseLines.slice(i + 1, end).join('\n');
+    proseNamed.set(head[1], body);
+    const node = /^`([a-z][a-z0-9-]*)`$/.exec(head[1]);
+    if (node) proseSections.set(node[1], body);
+  }
+  for (const [node, key] of PHASE_KEY_OWNERS) {
+    checks++;
+    const body = proseSections.get(node);
+    if (body === undefined) {
+      failures.push(`${NODE_PROSE_REL}: no \`${node}\` section`);
+      continue;
+    }
+    checks++;
+    if (!body.includes(key)) {
+      failures.push(`${NODE_PROSE_REL}: the ${node} section names no phase key, so nothing tells the engine to write ${key}`);
+    }
+  }
+  const owners = new Set(PHASE_KEY_OWNERS.map(([node]) => node));
+  for (const [node, body] of proseSections) {
+    if (owners.has(node)) continue;
+    checks++;
+    if (/phase_summaries\.phase-\d/.test(body)) {
+      failures.push(`${NODE_PROSE_REL}: the ${node} section claims a phase key, but this node mirrors none`);
+    }
+  }
+
+  // -- the nine recovery budgets, in the prose the interpreter reads --------
+  // A budget the checklist pins and the node prose does not state is a budget
+  // no run ever applies: deleting the prose block must redden this test.
+  const recoveryRows = sections.has('Auto-recovery') ? tableRows(sections.get('Auto-recovery')) : [];
+  checks++;
+  if (recoveryRows.length !== RECOVERY_BUDGETS.length) {
+    failures.push(`Auto-recovery: ${recoveryRows.length} budget rows, expected ${RECOVERY_BUDGETS.length}`);
+  }
+  for (const [label, node, attempts, stated] of RECOVERY_BUDGETS) {
+    checks++;
+    const row = recoveryRows.find(r => (r.split('|')[1] ?? '').trim() === label);
+    if (!row) { failures.push(`Auto-recovery: no row for ${label}`); continue; }
+    checks++;
+    const pinnedCount = (row.split('|')[2] ?? '').replace(/`/g, '').trim();
+    if (pinnedCount !== String(attempts)) {
+      failures.push(`Auto-recovery: ${label} pins ${JSON.stringify(pinnedCount)} attempts, expected ${attempts}`);
+    }
+    checks++;
+    const body = proseSections.get(node);
+    if (body === undefined) {
+      failures.push(`${NODE_PROSE_REL}: no \`${node}\` section to carry the ${label} budget`);
+    } else if (!body.includes(stated)) {
+      failures.push(`${NODE_PROSE_REL}: the ${node} section does not state the ${label} budget (${JSON.stringify(stated)})`);
+    }
+  }
+  // The budgets are prose in both twins, and never a `with:` key the engine
+  // would have to interpret.
+  checks++;
+  const budgetKeys = definition.split('\n').filter(l => /^\s+(max_)?attempts:|^\s+recovery(_budget)?:/.test(l));
+  if (budgetKeys.length) failures.push(`the definition carries a recovery budget as data: ${budgetKeys.join(' | ')}`);
+
+  // -- the gathering strategy: three fields, a cap and four fallbacks --------
+  const strategyRows = sections.has('Gathering strategy') ? tableRows(sections.get('Gathering strategy')) : [];
+  const strategyText = strategyRows.join('\n');
+  const foundation = proseSections.get('research-foundation') ?? '';
+  checks++;
+  if (!/`8`/.test(strategyText) || !/`4`/.test(strategyText)) {
+    failures.push('Gathering strategy: the rows no longer pin the cap of 8 and the 4 fallback categories');
+  }
+  checks++;
+  if (!foundation.includes('research_context.gathering_strategy')) {
+    failures.push(`${NODE_PROSE_REL}: the research-foundation section names no \`research_context.gathering_strategy\``);
+  }
+  // The three field names are pinned by the context row that owns the shape.
+  const contextRows = sections.has('`research_context` fields')
+    ? tableRows(sections.get('`research_context` fields')) : [];
+  const strategyRow = contextRows.find(row => (row.split('|')[1] ?? '').includes('gathering_strategy')) ?? '';
+  checks++;
+  if (!strategyRow) failures.push('`research_context` fields: no `gathering_strategy` row');
+  for (const field of STRATEGY_FIELDS) {
+    checks++;
+    if (!foundation.includes(`\`${field}\``)) {
+      failures.push(`${NODE_PROSE_REL}: the gathering strategy names no \`${field}\` field`);
+    }
+    checks++;
+    if (!strategyRow.includes(`\`${field}\``)) {
+      failures.push(`\`research_context\` fields: the gathering_strategy row drops \`${field}\``);
+    }
+  }
+  checks++;
+  if (!/capped at eight/.test(foundation)) {
+    failures.push(`${NODE_PROSE_REL}: the gathering strategy states no cap of eight categories`);
+  }
+  for (const category of STRATEGY_FALLBACK) {
+    checks++;
+    if (!foundation.includes(category)) {
+      failures.push(`${NODE_PROSE_REL}: the fallback category ${category} is not named in the node prose`);
+    }
+    checks++;
+    if (!strategyText.includes(category)) failures.push(`Gathering strategy: the rows drop the ${category} fallback`);
+  }
+  for (const origin of ['planner', 'default']) {
+    checks++;
+    if (!foundation.includes(`\`${origin}\``)) {
+      failures.push(`${NODE_PROSE_REL}: the gathering strategy records no \`${origin}\` origin`);
+    }
+  }
+
+  // -- the icon hints, and the three gates that inherit one -----------------
+  const icons = proseNamed.get('Icon hints');
+  const visibility = sections.has('Operator visibility') ? tableRows(sections.get('Operator visibility')) : [];
+  const iconRow = visibility.find(row => /icon hints/i.test(row.split('|')[1] ?? '')) ?? '';
+  checks++;
+  if (icons === undefined) failures.push(`${NODE_PROSE_REL}: no \`## Icon hints\` section`);
+  checks++;
+  if (!iconRow) failures.push('Operator visibility: no icon-hints row');
+  for (const [index, [node, icon]] of ICON_HINTS.entries()) {
+    checks++;
+    if (icons !== undefined && !new RegExp(`^\\|\\s*\`${node}\`\\s*\\|\\s*\`${icon}\`\\s*\\|`, 'm').test(icons)) {
+      failures.push(`${NODE_PROSE_REL}: the icon-hint table does not give \`${node}\` the \`${icon}\` icon`);
+    }
+    checks++;
+    if (!iconRow.includes(`\`${index + 1} ${icon}\``)) {
+      failures.push(`Operator visibility: the icon-hints row does not pin \`${index + 1} ${icon}\``);
+    }
+  }
+  for (const [gate, icon] of GATE_ICONS) {
+    checks++;
+    if (icons !== undefined && !new RegExp(`\`${gate}\`\\s*\n?\\s*\`${icon}\``).test(icons)) {
+      failures.push(`${NODE_PROSE_REL}: the icon-hint section does not have \`${gate}\` inherit \`${icon}\``);
+    }
+    checks++;
+    if (!new RegExp(`\`${gate}\`\\s*\`${icon}\``).test(iconRow)) {
+      failures.push(`Operator visibility: the icon-hints row does not have \`${gate}\` inherit \`${icon}\``);
+    }
+  }
+  checks++;
+  if (icons !== undefined && !/inherits rather\s*\n?\s*than owns its icon/.test(icons)) {
+    failures.push(`${NODE_PROSE_REL}: the icon-hint section states no gate-inheritance rule`);
+  }
+
+  // -- embedded mode: the skipped node and the parent's five handoff keys ----
+  const embedded = proseNamed.get('Embedded mode');
+  const embeddedRows = sections.has('Embedded mode') ? tableRows(sections.get('Embedded mode')) : [];
+  const embeddedText = embeddedRows.join('\n');
+  checks++;
+  if (embedded === undefined) failures.push(`${NODE_PROSE_REL}: no \`## Embedded mode\` section`);
+  checks++;
+  if (!/^ {2}completion:$[\s\S]*?^ {4}when: "!\$\{inputs\.embedded\}"$/m.test(definition)) {
+    failures.push('the completion node no longer carries when: "!${inputs.embedded}", so an embedded run runs it');
+  }
+  checks++;
+  if (!/^ {2}embedded: /m.test(definition)) failures.push('the definition declares no `embedded` input');
+  checks++;
+  if (embedded !== undefined && !embedded.includes('analysis/research/')) {
+    failures.push(`${NODE_PROSE_REL}: the embedded-mode section does not hand the report to the parent's analysis/research/`);
+  }
+  checks++;
+  if (!embeddedText.includes('analysis/research/')) {
+    failures.push('Embedded mode: no row pins the parent directory the report is copied into');
+  }
+  for (const key of ['research_outputs', ...HANDOFF_KEYS]) {
+    checks++;
+    if (embedded !== undefined && !embedded.includes(key)) {
+      failures.push(`${NODE_PROSE_REL}: the embedded-mode handoff block names no ${key}`);
+    }
+    checks++;
+    if (!embeddedText.includes(key)) failures.push(`Embedded mode: the handoff row drops ${key}`);
+  }
+
+  // -- the decision areas a resumed convergence node reads -------------------
+  const convergence = proseSections.get('solution-convergence') ?? '';
+  const phaseFour = phaseRows.find(row => (row.split('|')[1] ?? '').includes('phase-4')) ?? '';
+  checks++;
+  if (!phaseFour) failures.push('`phase_summaries` keys: no `phase-4` row');
+  for (const key of [...DECISION_AREA_KEYS, 'deferred_ideas']) {
+    checks++;
+    if (!convergence.includes(`\`${key}\``)) {
+      failures.push(`${NODE_PROSE_REL}: the solution-convergence summary names no \`${key}\``);
+    }
+    checks++;
+    if (!phaseFour.includes(`\`${key}\``) && !phaseFour.includes(key)) {
+      failures.push(`\`phase_summaries\` keys: the phase-4 row drops ${key}`);
+    }
+  }
+  checks++;
+  if (!convergence.includes('`decision_areas`')) {
+    failures.push(`${NODE_PROSE_REL}: the solution-convergence section names no \`decision_areas\` list`);
+  }
+
+  // -- the seven verbatim sentences, at counts that are true ----------------
+  const verbatim = sections.has('Verbatim sentences') ? tableRows(sections.get('Verbatim sentences')) : [];
+  let pinnedAtThree = 0;
+  for (const row of verbatim) {
+    const cells = row.split('|').slice(1, -1).map(c => c.trim());
+    checks++;
+    const quoted = cells[0]?.match(/^`(.+)`$/);
+    if (!quoted || cells.length < 3) { failures.push(`a verbatim row is not a code span with two counts: ${row}`); continue; }
+    const sentence = quoted[1].replace(/\\\|/g, '|');
+    const [wantTwin, wantProse] = [Number(cells[1]), Number(cells[2])];
+    checks++;
+    if (!Number.isInteger(wantTwin) || !Number.isInteger(wantProse)) {
+      failures.push(`non-integer occurrence counts in: ${row}`);
+      continue;
+    }
+    const gotTwin = count(twin, sentence);
+    const gotProse = count(prose, sentence);
+    checks++;
+    if (gotTwin !== wantTwin || gotProse !== wantProse) {
+      failures.push(`${JSON.stringify(sentence.slice(0, 48))}: ${gotTwin}/${gotProse} occurrences, the row pins ${wantTwin}/${wantProse}`);
+    }
+    if (sentence === MISSED_GATE) {
+      checks++;
+      if (wantTwin !== 3) failures.push(`the missed-gate sentence is pinned at ${wantTwin} in the twin, expected three`);
+      pinnedAtThree++;
+    }
+  }
+  checks++;
+  if (pinnedAtThree !== 1) failures.push('the missed-gate sentence is not one of the seven verbatim rows');
+
+  for (const sentence of [...SELF_CHECK_STOPS, MISSED_GATE_INITIAL]) {
+    checks++;
+    if (!text.includes(sentence)) failures.push(`${JSON.stringify(sentence)} is not pinned by the checklist`);
+    checks++;
+    if (count(prose, sentence) < 1) failures.push(`${JSON.stringify(sentence)} is not in ${NODE_PROSE_REL}`);
+  }
+  checks++;
+  if (count(prose, MISSED_GATE_INITIAL) !== 1) {
+    failures.push(`the sentence-initial missed-gate form occurs ${count(prose, MISSED_GATE_INITIAL)}x in the node prose, expected 1`);
+  }
+
+  // -- the three gate texts equal the twin's, after the stated normalization --
+  const twinQuestions = twin.split('\n').map(l => l.replace(/\r$/, ''))
+    .filter(l => l.startsWith('AskUserQuestion - '))
+    .map(l => l.slice('AskUserQuestion - '.length).replace(/^"(.*)"$/, '$1'));
+  checks++;
+  if (twinQuestions.length !== 3) {
+    failures.push(`the prose twin carries ${twinQuestions.length} mandatory gate lines, expected three`);
+  } else {
+    for (const [index, id] of ['foundation-approval', 'convergence-approval', 'design-approval'].entries()) {
+      checks++;
+      const ask = new RegExp(`^ {2}${id}:$[\\s\\S]*?^ {4}ask: "([^"]*)"`, 'm').exec(definition)?.[1];
+      if (ask !== twinQuestions[index]) failures.push(`${id}: the gate question has drifted from the prose twin`);
+    }
+  }
+
+  // -- the source-tree rule and the comparison procedure --------------------
+  checks++;
+  if (!/plugins\/maister\//.test(text) || !/never the generated variant/i.test(text)
+    || !/AskUserQuestion/.test(text) || !/ask_user/.test(text)) {
+    failures.push('the checklist does not state the source-tree rule with the rewrite that motivates it');
+  }
+  checks++;
+  const procedure = (sections.get('Comparison procedure') ?? []).join('\n');
+  if (!procedure) {
+    failures.push('no `### Comparison procedure` section');
+  } else if (!/node -p "process\.env\.MAISTER_WORKFLOW_ENGINE \?\? ''"/.test(procedure) || !/MAISTER_WORKFLOW_ENGINE=1/.test(procedure)
+    || !/non-empty value/.test(procedure) || !/fixtures\/contracts\/valid\/runs\/research-a/.test(procedure)
+    || !/diff/i.test(procedure)) {
+    failures.push('the comparison procedure omits the variable, the non-empty rule, the reference run or the diff');
+  }
+
+  // -- the reference budget, and the literals no shipped file may carry -----
+  // The engine ships no references today — the checklist was the only one, and
+  // it moved out of the plugin tree. An absent directory is that state, not a
+  // failure, and reading it must not throw the whole test.
+  const refs = path.join(plugin, ENGINE, 'references');
+  checks++;
+  const total = isDir(refs)
+    ? fs.readdirSync(refs).filter(f => isFile(path.join(refs, f)))
+      .reduce((sum, f) => sum + fs.readFileSync(path.join(refs, f), 'utf8').split('\n').length, 0)
+    : 0;
+  if (total >= REFERENCE_LINE_BUDGET) failures.push(`the engine references total ${total} lines, the budget is ${REFERENCE_LINE_BUDGET}`);
+  if (!isDir(refs)) notes.push(`${ENGINE}/references is absent — the engine ships no reference files`);
+
+  checks++;
+  if (/multi-?select/i.test(text) || /claude\.md/i.test(text) || text.includes(NESTED_MARKER)
+    || text.includes('\r') || /\b(Claude|Anthropic|Copilot)\b/.test(text)) {
+    failures.push(`${CHECKLIST_REL}: a forbidden literal, a nested gate marker, a carriage return or a vendor name`);
+  }
+
+  notes.push(`${CHECKLIST_SECTIONS.length} sections, ${rows} rows, checked against the plugin source tree`);
+  return { checks, failures, notes };
+}
+
+// ---------------------------------------------------------------------------
+// T32 — the emitted engine scripts run
+// ---------------------------------------------------------------------------
+
+const VARIANT_ROOT = 'plugins/maister-copilot';
+
+/**
+ * Every other test reads the source tree. This one executes the *emitted* one.
+ *
+ * The generated variant is a copy with a rewrite pass over its `.md` files and
+ * a relocation of its hook registrations, and neither the prose lint nor the
+ * schema checks can see whether the scripts it carries still resolve their
+ * imports. A verb that cannot load its module exits 2 while every other check
+ * in the repository stays green — so each verb is run once here, against the
+ * emitted entry point, with the state writer last because it is the verb that
+ * imports the shared reader from outside its own directory.
+ */
+function t32(ctx) {
+  const failures = [];
+  const notes = [];
+  let checks = 0;
+
+  const variant = path.join(ctx.repoRoot, VARIANT_ROOT);
+  const entry = path.join(variant, ENGINE, 'scripts', 'workflow.mjs');
+  const definition = path.join(variant, ENGINE, 'workflows', 'research.yml');
+  checks++;
+  if (!isFile(entry) || !isFile(definition)) {
+    return { checks, failures: [`${VARIANT_ROOT}: the engine is not in the emitted tree — build the variant first`], notes };
+  }
+
+  // The shared reader, at the path the emitted state writer imports it from.
+  const emittedLib = path.join(variant, GATE_LIB);
+  checks++;
+  if (!isFile(emittedLib)) {
+    failures.push(`${VARIANT_ROOT}/${GATE_LIB}: absent — the emitted state writer imports it and cannot load without it`);
+  } else {
+    checks++;
+    if (fs.readFileSync(emittedLib, 'utf8') !== fs.readFileSync(path.join(ctx.pluginRoot, GATE_LIB), 'utf8')) {
+      failures.push(`${VARIANT_ROOT}/${GATE_LIB}: not a byte copy of the source library`);
+    }
+  }
+
+  const why = proc => String(proc.stderr ?? '').trim().split('\n')[0] || `no stderr, exit ${proc.status}`;
+  const run = (args, input = '') => runBounded(process.execPath, [entry, ...args], { encoding: 'utf8', input });
+
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-contracts-variant-'));
+  try {
+    for (const verb of ['validate', 'resolve']) {
+      const proc = run([verb, `--definition=${definition}`]);
+      checks++;
+      if (proc.status !== 0) {
+        failures.push(`${verb}: exited ${proc.status} — ${why(proc)}`);
+        continue;
+      }
+      let report = null;
+      checks++;
+      try {
+        report = JSON.parse(proc.stdout);
+      } catch (err) {
+        failures.push(`${verb}: stdout is not the JSON report — ${err.message.split('\n')[0]}`);
+      }
+      if (!report) continue;
+      checks++;
+      if (report.ok !== true) failures.push(`${verb}: reported ok ${JSON.stringify(report.ok)} on the shipped definition`);
+    }
+
+    const diagram = run(['diagram', `--definition=${definition}`]);
+    checks++;
+    if (diagram.status !== 0) {
+      failures.push(`diagram: exited ${diagram.status} — ${why(diagram)}`);
+    } else {
+      checks++;
+      if (!/^flowchart /m.test(diagram.stdout)) failures.push('diagram: emitted no flowchart');
+    }
+
+    const state = path.join(scratch, 'orchestrator-state.yml');
+    fs.copyFileSync(path.join(ctx.fixtures, CHAIN_TEMPLATE_STATE), state);
+    const before = fs.readFileSync(state, 'utf8');
+    const wrote = run(['write-state', `--state=${state}`],
+      JSON.stringify({ nodes: { research: { status: 'running' } } }));
+    checks++;
+    if (wrote.status !== 0) {
+      failures.push(`write-state: exited ${wrote.status} — ${why(wrote)}`);
+    } else {
+      const printed = wrote.stdout.split('\n').map(l => l.trim()).filter(Boolean);
+      checks++;
+      if (!printed.includes('orchestrator.updated') || !printed.includes('workflow.nodes.research')) {
+        failures.push(`write-state: printed ${JSON.stringify(printed)}, expected the two changed paths`);
+      }
+      checks++;
+      const after = fs.readFileSync(state, 'utf8');
+      if (after === before || !/^ {4}research: \{[^}]*status: running/m.test(after)) {
+        failures.push('write-state: exited 0 without publishing the node entry');
+      }
+    }
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+
+  notes.push(`four verbs executed against ${VARIANT_ROOT}`);
+  return { checks, failures, notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -3833,6 +5658,10 @@ const TESTS = [
   { id: 'T26', name: 'orphan-check', needs: ['fixtures'], run: t26 },
   { id: 'T27', name: 'release-tarball', needs: ['plugin'], run: t27 },
   { id: 'T28', name: 'in-repo-task-dirs', needs: ['plugin', 'in-repo'], run: t28 },
+  { id: 'T29', name: 'workflow-grammar-runner', needs: ['plugin', 'fixtures'], run: t29 },
+  { id: 'T30', name: 'workflow-state-writer', needs: ['plugin', 'fixtures'], run: t30 },
+  { id: 'T31', name: 'research-parity-checklist', needs: ['plugin', 'in-repo'], run: t31 },
+  { id: 'T32', name: 'emitted-engine-smoke', needs: ['plugin', 'fixtures'], run: t32 },
 ];
 
 // ---------------------------------------------------------------------------

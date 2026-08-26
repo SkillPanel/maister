@@ -57,7 +57,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 
 ## 2. Phase Gate Behavior
 
-`→ Pause` in older prose is a synonym for `→ MANDATORY GATE`. SKILL.md orchestrators are terminal-mode only until task 3/8 make them driver-aware: the ask_user rule below applies when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode (chain runs driven by the engine prompt) the gate is a request file + `GATE-PENDING` line, never an in-session question (`compatibility-contracts.md § E2`).
+`→ Pause` in older prose is a synonym for `→ MANDATORY GATE`. SKILL.md orchestrators are terminal-mode only until the engine gains a driver-aware mode: the ask_user rule below applies when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode (chain runs driven by the engine prompt) the gate is a request file + `GATE-PENDING` line, never an in-session question (`compatibility-contracts.md § E2`).
 
 **`→ MANDATORY GATE` means STOP and USE ask_user.** This is NOT optional. You MUST invoke the `ask_user` tool and WAIT for user response. Proceeding without it is a protocol violation.
 
