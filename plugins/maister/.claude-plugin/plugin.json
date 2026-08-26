@@ -1,6 +1,6 @@
 {
   "name": "maister",
-  "version": "2.2.3",
+  "version": "2.3.0-beta.1",
   "description": "Structured, standards-aware development workflows for Claude Code",
   "author": {
     "name": "Skillpanel",
