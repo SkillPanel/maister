@@ -21,9 +21,15 @@ a graph engine runs. Both produce the same task directory; only the interpreter 
   operator who hits an engine defect gets the previous behaviour back in one step.
 - **Otherwise — the default** — hand the run over. Invoke the `maister-workflow-engine` skill
   with the Skill tool, naming the workflow `builtin:research` and passing the research
-  question, the resume target and any flags through unchanged. The engine owns the run from
-  there: it resolves the definition, freezes the resolved graph into state and executes it.
-  Do not also run the phases below.
+  question, the resume target and the invocation's flags. Hand over `--from=PHASE` and
+  `--reset-attempts` as well rather than dropping them on the way — the graph has no mid-graph
+  entry point and no attempt counter, and the engine surfaces that by naming the flag it
+  declines instead of ignoring it in silence. Say what the prose phases below actually offer
+  in their place: they take no phase flag either, and re-enter by artifact presence — every
+  phase checks whether its own outputs already exist and skips ahead when they do — so a plain
+  re-run of the prose path resumes near where the last one stopped. The engine owns the run
+  from there: it resolves the definition, freezes the resolved graph into state and executes
+  it. Do not also run the phases below.
 
 Read the variable with a Bash call — `node -p "process.env.MAISTER_WORKFLOW_PROSE ?? ''"`,
 which reads the same under zsh, bash, PowerShell and cmd.exe; no value, or an empty one,
@@ -544,7 +550,7 @@ research_outputs:
 
 Invoked via:
 - `/maister-research [question] [--type=TYPE] [--brainstorm] [--no-brainstorm] [--design] [--no-design]` (new)
-- `/maister-research [task-path] [--from=PHASE]` (resume)
+- `/maister-research [task-path]` (resume)
 
 **Brainstorming flags**:
 - `--brainstorm`: Force brainstorming phase (auto-resolves Phase 2 brainstorming decision to "enable")

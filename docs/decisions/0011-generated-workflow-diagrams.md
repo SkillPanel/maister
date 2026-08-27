@@ -11,7 +11,7 @@ The engine renders a workflow definition as a diagram, and the shipped built-in 
 Accepted. Nothing here adds to the contract register; the absence is the decision.
 
 ### Context
-A nine-node graph with guards on half its nodes and a stop path out of each of its gates is legible as a picture and tedious as a list. A diagram is worth shipping. But this repository has a strong convention that a shape which crosses a boundary gets a register row, a schema and a fixture pair — and that convention exists because reversing a shape after consumers depend on it is expensive. The question was whether a diagram is that kind of shape.
+A workflow graph with guards on some of its nodes and a stop path out of each of its gates is legible as a picture and tedious as a list — and the larger the graph, the wider that gap. A diagram is worth shipping. But this repository has a strong convention that a shape which crosses a boundary gets a register row, a schema and a fixture pair — and that convention exists because reversing a shape after consumers depend on it is expensive. The question was whether a diagram is that kind of shape.
 
 There is a second question underneath it. A hand-drawn diagram beside a machine-readable definition is a liability with a delay fuse: it is correct on the day it is drawn and wrong on the first day nobody remembers to redraw it, and nothing detects the drift.
 

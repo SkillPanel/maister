@@ -67,8 +67,33 @@ import { scanState } from '../../../../hooks/gate-lib.mjs';
 /** The only temp name the allow-list knows. Not configurable, by contract. */
 const TMP_NAME = 'orchestrator-state.yml.tmp';
 
-/** The closed patch vocabulary. An unknown key is an error, not a no-op. */
-const PATCH_KEYS = ['orchestrator', 'task', 'workflow', 'nodes', 'context', 'phase_summaries', 'node_summaries'];
+/**
+ * The A1 core-optional top-level blocks the writer reaches by name.
+ *
+ * These are siblings of `orchestrator:` and of the run's per-workflow context
+ * block, never children of either. The contract tolerates a file that nests
+ * `project_context` under `task_context` — it reports that shape rather than
+ * refusing it — but the writer never produces it: every key here is located and
+ * emitted at column 0, so a nested twin an adopted file carries is left where
+ * it is and the canonical sibling is written beside it.
+ *
+ * They are listed separately from the rest of the vocabulary because the suite
+ * derives this list from the register and asserts the writer's vocabulary is
+ * exactly it plus the four keys below that are not A1 top-level blocks at all.
+ */
+const TOP_LEVEL_BLOCKS = ['project_context', 'related_tasks', 'verification_context', 'external_research'];
+
+/**
+ * The closed patch vocabulary. An unknown key is an error, not a no-op.
+ *
+ * Four of these name no top-level block: `nodes` edits entries inside
+ * `workflow.nodes`, `context` and `phase_summaries` are written into whichever
+ * per-workflow context block the run resolves to, and `workflow` and
+ * `node_summaries` are the two B1 blocks. Everything else is an A1 top-level
+ * block spelled exactly as the contract spells it.
+ */
+const PATCH_KEYS = ['orchestrator', 'task', 'workflow', 'nodes', 'context', 'phase_summaries', 'node_summaries',
+  ...TOP_LEVEL_BLOCKS];
 
 /** Fixed key order inside a one-line node entry. */
 const NODE_KEYS = ['kind', 'status', 'started', 'completed', 'needs', 'on', 'values', 'dir', 'provider', 'session'];
@@ -125,6 +150,52 @@ const NODE_ID = /^[a-z][a-z0-9-]{1,40}$/;
  * through the success path. So the key is validated, never rewritten.
  */
 const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
+
+/**
+ * The nested mappings under `orchestrator:` that merge key by key instead of
+ * replacing whole, and the reason each one is on the list rather than an
+ * accident of shape.
+ *
+ * All four are **open maps whose keys are written by different nodes at
+ * different times**, which is the whole of the test. `options` is the one that
+ * cost a live run: `intake` writes `html_output` and `mockup_format`,
+ * `specification` writes `spec_audit_enabled`, `verification-options` writes
+ * six more — and a replacing write meant an operator who had deliberately set
+ * `html_output: false` silently got the dashboard and every companion report
+ * back at the next option write, through the success path. `task_ids`,
+ * `auto_fix_attempts` and `skipped_phases` are keyed by phase or node and are
+ * filled in the same way, one entry per node as the run reaches it.
+ *
+ * Everything else under `orchestrator:` replaces, and deliberately:
+ *
+ *   driver          A closed contract shape (E1), written whole by the engine
+ *                   at init and rewritten whole by the daemon. Merged, a write
+ *                   demoting a run to `{kind: terminal}` would leave the
+ *                   cockpit's `cwd` and `session` standing beside it — a
+ *                   combination E1 does not describe and no writer meant.
+ *   gate_pending    One contract-shaped value, and the writer already refuses
+ *                   every spelling of it but the literal null.
+ *   completed_phases, failed_phases
+ *                   Sequences. There is no key to merge on; a caller that means
+ *                   to append sends the whole list, the same rule
+ *                   `related_tasks` follows at the top level.
+ *   the scalars     `started_phase`, `created`, `updated`, `task_path`,
+ *                   `next_phase`, `type` — one value each, so a write of one is
+ *                   a replacement by definition.
+ *
+ * `task:` carries no open map at all (A1: `title`, `status`, `description`,
+ * `tags[]`, `priority`, `key`), so nothing under it merges and the list stays
+ * qualified by its section rather than by key alone.
+ *
+ * A future open map added to A1 must be added here too: the default is to
+ * replace, so a mapping absent from this list is replaced silently.
+ */
+const MERGED_MAPS = new Set([
+  'orchestrator.options',
+  'orchestrator.task_ids',
+  'orchestrator.auto_fix_attempts',
+  'orchestrator.skipped_phases',
+]);
 
 /**
  * The five per-workflow context blocks (A1 layer 2). The root accepts exactly
@@ -234,6 +305,11 @@ function apply(doc, patch, changed) {
     applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed);
     intended.add('node_summaries');
   }
+  for (const key of TOP_LEVEL_BLOCKS) {
+    if (!(key in patch)) continue;
+    applyTopLevel(doc, key, patch[key], changed);
+    intended.add(key);
+  }
 
   // Every write moves the run's clock. Set last so it reflects the whole write
   // rather than the moment the first section was touched.
@@ -278,7 +354,10 @@ function contextBlock(doc, patch) {
       : 'the state file carries no workflow name and no context block, so the context block cannot be derived');
 }
 
-/** The flat scalars under `orchestrator:` and `task:`. */
+/**
+ * The scalars under `orchestrator:` and `task:`, and the four open maps under
+ * `orchestrator:` that merge instead (`MERGED_MAPS` says which and why).
+ */
 function applyScalars(doc, section, values, changed) {
   if (!isPlainObject(values)) throw new Refusal('state-patch-invalid', `the ${section} patch must be an object`);
   for (const [key, value] of Object.entries(values)) {
@@ -295,9 +374,133 @@ function applyScalars(doc, section, values, changed) {
       throw new Refusal('state-gate-pending-form',
         'gate_pending is written only as the literal null; the flow-map form belongs to the driver-led modes');
     }
+    if (MERGED_MAPS.has(`${section}.${key}`) && isPlainObject(value)) {
+      mergeMap(doc, section, key, value, changed);
+      continue;
+    }
     doc.set([section, key], [`  ${key}: ${flow(value, `${section}.${key}`)}`]);
     changed.push(`${section}.${key}`);
   }
+}
+
+/**
+ * One open map under `orchestrator:`, merged key by key.
+ *
+ * The form the file already uses is the form it keeps, because both are in the
+ * wild and both are read: the engine and the fixtures write the one-line flow
+ * map, while every state file a prose orchestrator wrote by hand carries a
+ * block map — often with a trailing comment saying why an option was set. So a
+ * block map is edited child by child, which leaves its other children and their
+ * comments on their own bytes, and a flow map is re-emitted on its one line
+ * with the keys it already carried kept **verbatim**. Keeping the existing
+ * values as raw text rather than re-serialising them is what stops a quoted
+ * scalar from being re-quoted, or a nested flow map from being flattened, by a
+ * write that never named it.
+ *
+ * Two shapes are not maps and cannot be merged into: a value that is not a flow
+ * map at all (`options: null` is the one that occurs) is replaced, since there
+ * are no keys to keep. A value that opens as a flow map and then cannot be read
+ * back refuses rather than being replaced — dropping keys the caller cannot see
+ * is the defect this function exists to fix, and doing it on a parse failure
+ * would be the same loss by another route.
+ */
+function mergeMap(doc, section, key, value, changed) {
+  const where = `${section}.${key}`;
+  const entries = Object.entries(value);
+  // Guarded before anything is located, so a refusal costs no edit.
+  for (const [name] of entries) assertBlockKey(name);
+
+  const found = doc.locate([section, key]);
+  if (found && found.inline === '') {
+    // Already a block map. An empty patch has nothing to add to it, and
+    // rewriting it into the flow form to say so would be a change nobody asked
+    // for, so the no-op stays a no-op.
+    for (const [name, item] of entries) {
+      doc.set([section, key, name], block(name, item, 4));
+      changed.push(`${where}.${name}`);
+    }
+    return;
+  }
+
+  const existing = found ? splitFlowMap(found.inline, where) : { entries: [], trailing: '' };
+  const merged = new Map(existing ? existing.entries : []);
+  for (const [name, item] of entries) merged.set(name, flow(item, `${where}.${name}`));
+  const parts = [...merged].map(([name, raw]) => `${name}: ${raw}`);
+  doc.set([section, key], [`  ${key}: {${parts.join(', ')}}${existing ? existing.trailing : ''}`]);
+  if (!entries.length) changed.push(where);
+  for (const [name] of entries) changed.push(`${where}.${name}`);
+}
+
+/**
+ * The inverse of the flow-map emitter, and only that far: it returns each key
+ * with its value as the **raw text the file carries**, never a parsed value.
+ * Nothing here needs to know what a value means — the merge replaces the keys
+ * the patch names and passes every other one through byte for byte.
+ *
+ * Returns null when the inline value is not a flow map, so the caller can
+ * replace it. Refuses when it opens as one and does not read back: a key that
+ * cannot be re-emitted raw is one this writer would have to drop, and dropping
+ * keys is the defect, not the recovery.
+ */
+function splitFlowMap(inline, where) {
+  if (!inline.startsWith('{')) return null;
+  let depth = 0;
+  let quoted = false;
+  let end = -1;
+  for (let i = 0; i < inline.length && end < 0; i++) {
+    const ch = inline[i];
+    if (ch === '"') quoted = !quoted;
+    else if (quoted) continue;
+    else if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) end = i;
+      else if (depth < 0) break;
+    }
+  }
+  const unreadable = message => {
+    throw new Refusal('state-unreadable',
+      `${where} is written as "${inline}", which cannot be read back to be merged: ${message}. Repair the line before writing this key again.`);
+  };
+  if (quoted || end < 0) unreadable('the flow map does not close on its line');
+  // Whatever follows the closing brace is a trailing comment and is kept; a
+  // second value there is a line this writer did not produce and will not
+  // guess at.
+  const trailing = inline.slice(end + 1);
+  if (trailing.trim() !== '' && !trailing.trimStart().startsWith('#')) {
+    unreadable('it carries something other than a comment after the closing brace');
+  }
+  const entries = [];
+  const body = inline.slice(1, end).trim();
+  if (body !== '') {
+    for (const part of splitTopLevel(body)) {
+      const match = /^([A-Za-z0-9._-]+)\s*:\s*(\S[\s\S]*)$/.exec(part.trim());
+      if (!match) unreadable(`the entry "${part.trim()}" is not a key and a value this writer can re-emit`);
+      entries.push([match[1], match[2].trim()]);
+    }
+  }
+  return { entries, trailing };
+}
+
+/** Split on the commas that separate a flow map's own entries, and no others. */
+function splitTopLevel(body) {
+  const parts = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (ch === '"') quoted = !quoted;
+    else if (quoted) continue;
+    else if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') depth--;
+    else if (ch === ',' && depth === 0) {
+      parts.push(body.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(body.slice(start));
+  return parts;
 }
 
 /**
@@ -442,6 +645,47 @@ function nodeLine(id, entry) {
   // future field written by a newer build must survive an older one's write.
   for (const key of Object.keys(entry)) if (!NODE_KEYS.includes(key)) emit(key);
   return `    ${id}: {${fields.join(', ')}}`;
+}
+
+/**
+ * One A1 core-optional top-level block.
+ *
+ * A mapping is merged key by key, so a write that records `fixes_applied` does
+ * not drop a `reverify_count` the block already carried — the same rule the
+ * per-workflow context block follows, and the reason the verifier can read one
+ * key back after another node wrote the other. A sequence — `related_tasks` is
+ * the only one the contract shapes that way — has no key to merge on, so it
+ * replaces the block whole; a caller that means to append sends the whole list.
+ *
+ * Every child is emitted through `block`, which is the same emitter the context
+ * keys and the summary maps use: canonical two-space steps, one line per
+ * scalar, no block scalars, and the key guard on every level of the recursion.
+ * Nothing here is consulted by the enforcement hook's reader, which looks only
+ * at `task:`, `workflow:`, `workflow.nodes` and `orchestrator.gate_pending` —
+ * but the reader still has to *parse past* these lines, so they are emitted at
+ * column 0 with their children at column 2 like every other block, and the
+ * pre-publish self-check runs the candidate through it either way.
+ */
+function applyTopLevel(doc, key, value, changed) {
+  if (Array.isArray(value)) {
+    doc.set([key], block(key, value, 0));
+    changed.push(key);
+    return;
+  }
+  if (!isPlainObject(value)) {
+    throw new Refusal('state-patch-invalid',
+      `the ${key} patch must be an object or an array`);
+  }
+  const entries = Object.entries(value);
+  if (!entries.length) {
+    doc.set([key], block(key, value, 0));
+    changed.push(key);
+    return;
+  }
+  for (const [name, item] of entries) {
+    doc.set([key, name], block(name, item, 2));
+    changed.push(`${key}.${name}`);
+  }
 }
 
 /** Free-form keys under the run's context block, beside `phase_summaries:`. */

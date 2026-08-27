@@ -3,13 +3,17 @@
 build:
 	bash platforms/copilot-cli/build.sh
 
-# Regenerate the shipped workflow diagram. The suite byte-compares it against the
-# definition, so run this after editing the definition and commit both together.
+# Regenerate every shipped workflow diagram. The suite byte-compares each one
+# against its definition, so run this after editing a definition and commit both
+# together. Definition-agnostic on purpose: a definition added to workflows/ is
+# picked up here without an edit, the way the suite picks it up without one.
 ENGINE = plugins/maister/skills/workflow-engine
 diagram:
-	node $(ENGINE)/scripts/workflow.mjs diagram \
-	  --definition $(ENGINE)/workflows/research.yml \
-	  --out $(ENGINE)/workflows/research.mmd
+	@for definition in $(ENGINE)/workflows/*.yml; do \
+	  node $(ENGINE)/scripts/workflow.mjs diagram \
+	    --definition $$definition \
+	    --out $${definition%.yml}.mmd || exit 1; \
+	done
 
 # Prerequisites: node (the contracts runner). Everything else here is grep.
 validate:

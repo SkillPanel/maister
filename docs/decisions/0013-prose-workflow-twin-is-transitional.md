@@ -51,9 +51,10 @@ written.
   state writing, so on a machine without Node the prose twin is not a preference but the only
   path. Deleting it turns a soft requirement hard, which is the breaking change this ADR says
   needs a deprecation note and a release of its own.
-- **The other three workflows.** Only research ships a definition today. While the rest are
-  prose-only, the prose orchestrators are load-bearing regardless of what research does, so
-  nothing is saved by deleting research's copy alone.
+- **The workflows that are still prose-only.** Two of the four ship a definition; the other two
+  remain prose-only, and have no engine path at all. While any workflow is prose-only, the prose
+  orchestrators are load-bearing regardless of what the definition-backed ones do, so nothing is
+  saved by deleting a twin whose workflow has already switched over.
 
 Until all three clear, the prose twin stays maintained rather than merely present, and the
 parity checklist stays with it.

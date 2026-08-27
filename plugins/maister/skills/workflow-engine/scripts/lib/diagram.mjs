@@ -34,8 +34,8 @@
 
 /**
  * The first line. `TD` rather than `LR` because these graphs are deep and
- * narrow — the shipped built-in is a nine-node chain — and a left-to-right
- * chain of nine boxes is unreadable at any page width.
+ * narrow — a workflow definition is largely a chain of phases — and the same
+ * chain laid out left to right is unreadable at any page width.
  */
 const HEADER = 'flowchart TD';
 

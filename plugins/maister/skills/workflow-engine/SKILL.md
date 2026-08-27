@@ -108,6 +108,30 @@ block.
 If `validate` rejects the definition, stop with `RUN-FAILED:` carrying the validator's first
 error. A definition that does not validate cannot be executed part-way.
 
+### Step 5: Decline the resume flags the graph cannot express
+
+An invocation may arrive carrying `--from=PHASE` or `--reset-attempts`, because the prose
+orchestrators offer both. Neither has an expression here. Resume recomputes the ready set from
+the frozen graph, so there is no mid-graph entry point to start from; and no attempt counter
+lives in state, because budgets are node prose rather than data.
+
+**Say so by name, before the first node runs.** Name the flag that arrived, state which of the
+two facts above makes it inert, and name the route that still serves it — the workflow's prose
+twin, reached by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value before the workflow's
+own command. Then continue with the flag dropped: an ordinary run, or an ordinary resume from
+the frozen state.
+
+**Describe that route as the twin actually behaves, which differs by workflow.** Some prose
+orchestrators document a named entry point and honour `--from=PHASE` directly; others carry no
+phase flag at all and re-enter by artifact presence instead — each step checks whether its own
+output is already on disk and skips ahead when it is, so a plain re-run picks up near where the
+last one stopped. Read the workflow's own resume signature before promising an operator either
+one. Promising a phase jump to a twin that has none replaces one dead flag with another.
+
+**Never accept one silently.** Dropping a flag without a word is the failure this step exists
+to prevent — the operator asked to re-enter a run partway, watched it start somewhere else, and
+was given no reason for it.
+
 ---
 
 ## The invocation contract
@@ -268,8 +292,30 @@ per-node summaries and their mirrored phase summaries, and the scalars beside th
 at a fixed canonical indent, writes the whole file once per invocation, and self-checks the
 candidate through the enforcement hook's own reader before it publishes anything.
 
-The patch vocabulary is closed: `workflow`, `nodes`, `node_summaries`, `phase_summaries`,
-`context`, `orchestrator`, `task`. Anything else is an error rather than a silent no-op.
+The patch vocabulary is closed, and it is exactly the set of state blocks a run has to be
+able to write:
+
+- `orchestrator` and `task` — the two required core blocks. Scalars replace, and so does
+  `orchestrator.driver`, which is one contract-shaped value written whole. The four **open
+  maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
+  — merge key by key instead, because different nodes write different keys of them at
+  different times: a write recording `spec_audit_enabled` leaves an `html_output` an earlier
+  node set alone. Send the whole map only when you mean to add to it.
+- `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
+  edited in place afterwards.
+- `context` and `phase_summaries` — written into whichever per-workflow context block the
+  run's name resolves to (`task_context` for development, `research_context` for research,
+  and so on); `node_summaries` is its own top-level block, keyed by node id.
+- `project_context`, `related_tasks`, `verification_context`, `external_research` — the four
+  optional top-level blocks. Each is written as a **top-level sibling** of `orchestrator:`
+  and of the context block, never nested inside either. A mapping is merged key by key, so
+  one write recording `verification_context.fixes_applied` leaves a `reverify_count` another
+  write put there alone; `related_tasks` is a list and is replaced whole, so a caller that
+  means to append sends the whole list.
+
+Anything else is an error rather than a silent no-op. The set is pinned against the state
+contract by the repository's own suite: a block the contract defines that the writer cannot
+reach is a test failure, not something to work around with an editor tool.
 
 ### When a write is refused
 
@@ -313,6 +359,12 @@ whole design removes.** A refusal is a correct answer, not an obstacle.
 Read `orchestrator-state.yml`, take the frozen graph from its `workflow:` block, recompute
 the ready set from the recorded node statuses, and continue. Resume never re-resolves the
 definition: the graph that ran is the graph that resumes.
+
+**A resume declines the same two flags a first run does.** Step 5's rule is not scoped to a
+fresh run: `--from=PHASE` and `--reset-attempts` are resume flags, so a resume is where they
+usually arrive, and it is where the decline matters most. Resume skips Step 3 and Step 4 — the
+graph is already frozen — but never Step 5. Name the flag, say which fact makes it inert, name
+the route, and continue.
 
 **A task directory with no `workflow:` block is not engine-resumable.** It carries no frozen
 graph, so hand it to the workflow's prose orchestrator — which is exactly why that

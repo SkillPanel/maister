@@ -1,0 +1,58 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: development
+%% graph_hash: 7332851263e5ea3428795fc45c22651395701c48b8b602d3d03e525bba95f869
+
+flowchart TD
+  n_intake["intake<br/>direct:intake"]
+  n_codebase_analysis["codebase-analysis<br/>skill:codebase-analyzer"]
+  n_gap_analysis["gap-analysis<br/>agent:gap-analyzer"]
+  n_gap_approval{{"gap-approval<br/>gate<br/>Gap analysis complete. Continue?<br/>continue-past-analysis: continue, stop-development: stop"}}
+  n_tdd_red{"tdd-red<br/>direct:tdd-red<br/>when: ${gap-analysis.values.has_reproducible_defect}"}
+  n_tdd_red_approval{{"tdd-red-approval<br/>gate<br/>TDD red gate complete. Continue to Phase 4?<br/>continue-to-mockups: continue, stop-development: stop<br/>when: ${gap-analysis.values.has_reproducible_defect}"}}
+  n_ui_mockups{"ui-mockups<br/>skill:mockup-studio<br/>when: ${gap-analysis.values.mockups_needed}"}
+  n_mockup_approval{{"mockup-approval<br/>gate<br/>UI mockups complete. Continue to Phase 5?<br/>continue-to-specification: continue, stop-development: stop<br/>when: ${gap-analysis.values.mockups_needed}"}}
+  n_specification["specification<br/>direct:specification"]
+  n_specification_approval{{"specification-approval<br/>gate<br/>Continue to specification audit?<br/>continue-to-spec-audit: continue, stop-development: stop"}}
+  n_spec_audit{"spec-audit<br/>agent:spec-auditor<br/>when: ${specification.values.spec_audit_enabled}"}
+  n_spec_audit_approval{{"spec-audit-approval<br/>gate<br/>Continue to implementation planning?<br/>continue-to-planning: continue, stop-development: stop<br/>when: ${specification.values.spec_audit_enabled}"}}
+  n_planning["planning<br/>agent:implementation-planner"]
+  n_planning_approval{{"planning-approval<br/>gate<br/>Continue to implementation?<br/>continue-to-implementation: continue, stop-development: stop"}}
+  n_implementation["implementation<br/>skill:implementation-plan-executor"]
+  n_implementation_approval{{"implementation-approval<br/>gate<br/>Continue to verification?<br/>continue-to-tdd-green: continue, stop-development: stop"}}
+  n_tdd_green{"tdd-green<br/>direct:tdd-green<br/>when: ${gap-analysis.values.has_reproducible_defect}"}
+  n_tdd_green_approval{{"tdd-green-approval<br/>gate<br/>TDD gate passed. Continue to Phase 10?<br/>continue-to-verification-options: continue, stop-development: stop<br/>when: ${gap-analysis.values.has_reproducible_defect}"}}
+  n_verification_options["verification-options<br/>direct:verification-options"]
+  n_verification["verification<br/>skill:implementation-verifier"]
+  n_verification_approval{{"verification-approval<br/>gate<br/>Continue to Phase 12?<br/>continue-to-e2e: continue, stop-development: stop"}}
+  n_e2e_verification{"e2e-verification<br/>agent:e2e-test-verifier<br/>when: ${verification-options.values.browser_tests_enabled}"}
+  n_e2e_approval{{"e2e-approval<br/>gate<br/>E2E complete. Continue to Phase 13?<br/>continue-to-user-docs: continue, stop-development: stop<br/>when: ${verification-options.values.browser_tests_enabled}"}}
+  n_user_docs{"user-docs<br/>agent:user-docs-generator<br/>when: ${verification-options.values.user_docs_enabled}"}
+  n_docs_approval{{"docs-approval<br/>gate<br/>Documentation complete. Continue to Phase 14?<br/>continue-to-finalization: continue, stop-development: stop<br/>when: ${verification-options.values.user_docs_enabled}"}}
+  n_finalization["finalization<br/>direct:finalization"]
+  n_intake --> n_codebase_analysis
+  n_codebase_analysis --> n_gap_analysis
+  n_gap_analysis --> n_gap_approval
+  n_gap_approval --> n_tdd_red
+  n_tdd_red --> n_tdd_red_approval
+  n_tdd_red_approval --> n_ui_mockups
+  n_ui_mockups --> n_mockup_approval
+  n_mockup_approval --> n_specification
+  n_specification --> n_specification_approval
+  n_specification_approval --> n_spec_audit
+  n_spec_audit --> n_spec_audit_approval
+  n_spec_audit_approval --> n_planning
+  n_planning --> n_planning_approval
+  n_planning_approval --> n_implementation
+  n_implementation --> n_implementation_approval
+  n_implementation_approval --> n_tdd_green
+  n_tdd_green --> n_tdd_green_approval
+  n_tdd_green_approval --> n_verification_options
+  n_verification_options --> n_verification
+  n_verification --> n_verification_approval
+  n_verification_approval --> n_e2e_verification
+  n_e2e_verification --> n_e2e_approval
+  n_e2e_approval --> n_user_docs
+  n_user_docs --> n_docs_approval
+  n_docs_approval --> n_finalization
+  class n_gap_approval,n_tdd_red_approval,n_mockup_approval,n_specification_approval,n_spec_audit_approval,n_planning_approval,n_implementation_approval,n_tdd_green_approval,n_verification_approval,n_e2e_approval,n_docs_approval gate
+  class n_tdd_red,n_tdd_red_approval,n_ui_mockups,n_mockup_approval,n_spec_audit,n_spec_audit_approval,n_tdd_green,n_tdd_green_approval,n_e2e_verification,n_e2e_approval,n_user_docs,n_docs_approval conditional

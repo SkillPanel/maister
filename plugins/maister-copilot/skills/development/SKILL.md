@@ -290,7 +290,7 @@ ask_user - "UI mockups complete — review the live gallery at [companion URL] (
 **SELF-CHECK**: Did you just invoke the Task tool with `maister-specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 **Output**: `analysis/technical-clarifications.md` (conditional), `analysis/requirements.md`, `implementation/spec.md`
-**State**: Update `task_context.tech_clarified`, `task_context.architecture_decision`, `phase_summaries.specification`
+**State**: Update `task_context.tech_clarified`, `task_context.architecture_decision`, `phase_summaries.specification`, and `phase_summaries.architecture_decision` (the chosen approach plus a one-line rationale) when an architecture decision was made
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -305,7 +305,7 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 **Purpose**: Independent review of specification before implementation
 **Execute**: Task tool - `maister-spec-auditor` subagent
 **Output**: `verification/spec-audit.md`
-**State**: Update `options.spec_audit_enabled`
+**State**: Update `options.spec_audit_enabled` and `phase_summaries.spec_audit` (verdict plus a 1-2 sentence summary of the audit's issue counts)
 
 **Recommended**: Always. Present spec audit as the recommended default. User can skip if they choose.
 
@@ -332,7 +332,7 @@ ask_user - Display executive summary before asking. Read `verification/spec-audi
 
 **Execute**: Task tool - `maister-implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md`
-**State**: Update task groups and dependencies
+**State**: Update task groups and dependencies, and `phase_summaries.implementation_plan` (task group count plus a 1-2 sentence summary of the plan)
 
 **Context to pass to subagent**: task_path, task_description, task_characteristics, phase_summaries (specification, gap_analysis, codebase_analysis, design), research_context (if any), design_reference (if any — when `analysis/design-context/INDEX.md` exists, planner MUST enumerate every screen/component, map task groups to them via the required `Visual References` field, and produce `implementation/visual-coverage.md` proving every screen is covered by ≥1 group), html_style_guide_path (for the implementation-plan.html companion)
 
@@ -612,6 +612,9 @@ task_context:
     ui_mockups: {components_designed: [], summary: null}
     specification: {summary: null}
     architecture_decision: {decision: null, summary: null}
+    spec_audit: {summary: null, verdict: null}
+    implementation_plan: {summary: null, task_group_count: 0}
+    implementation: {summary: null}
 ```
 
 ---

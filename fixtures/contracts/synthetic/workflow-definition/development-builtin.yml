@@ -1,0 +1,326 @@
+# The shipped built-in development workflow, held here as a golden copy.
+#
+# The suite resolves this file and the shipped definition and asserts one
+# graph_hash for both. An edit to either that the other does not receive turns
+# the suite red, which is the whole reason the copy exists.
+#
+# Node prose lives beside a definition, so the copy carries its own companion
+# (development-builtin.md) with one section per direct: node. The companion is a
+# stub: only the presence of the section is what makes the target resolve.
+#
+# The file warns about nothing. No key anywhere is named after a reserved path,
+# every target resolves, and every when clause names a declared bool - so the
+# expected warning set is empty and any new warning is a regression.
+#
+# Fifteen nodes named for what they do and eleven named for what they approve,
+# in one linear chain. The branching a reader might expect is carried entirely
+# by the per-node when guards plus the rule that a node whose guard is false is
+# skipped and still satisfies everything downstream. A skip does not cascade, so
+# the guard of a conditional stretch is repeated on every node of it, its
+# closing gate included.
+name: development
+version: 1
+inputs:
+  task_description: {type: string, required: true}
+  research: {type: string, required: false}
+  # Tri-state, and a string rather than a bool for that reason: absent means
+  # ask the operator, `yes`/`no` means the flag was set. Never referenced from
+  # a `when` clause - the node that reads one turns it into a declared bool
+  # first, and only a declared bool may guard.
+  audit: {type: string, required: false}
+  browser_tests: {type: string, required: false}
+  user_docs: {type: string, required: false}
+  sequential: {type: bool, required: false, default: false}
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    with:
+      task_description: "${inputs.task_description}"
+      research: "${inputs.research}"
+    outputs:
+      artifacts:
+        research_context: analysis/research-context
+        design_index: analysis/design-context/INDEX.md
+
+  codebase-analysis:
+    uses: skill:codebase-analyzer
+    needs: [intake]
+    with:
+      task_description: "${inputs.task_description}"
+      research_context: "${intake.artifacts.research_context}"
+      design_index: "${intake.artifacts.design_index}"
+    outputs:
+      artifacts:
+        analysis: analysis/codebase-analysis.md
+        clarifications: analysis/clarifications.md
+
+  gap-analysis:
+    uses: agent:gap-analyzer
+    needs: [codebase-analysis]
+    with:
+      task_description: "${inputs.task_description}"
+      analysis: "${codebase-analysis.artifacts.analysis}"
+      clarifications: "${codebase-analysis.artifacts.clarifications}"
+      design_index: "${intake.artifacts.design_index}"
+    outputs:
+      artifacts:
+        gap: analysis/gap-analysis.md
+        scope: analysis/scope-clarifications.md
+      values:
+        # The three characteristics that decide the shape of the rest of the
+        # run. The first two are guards; the third is state and dashboard
+        # content, and it is a closed enum so it stays flow-safe.
+        has_reproducible_defect: bool
+        mockups_needed: bool
+        risk_level: {enum: [high, medium, low]}
+
+  gap-approval:
+    type: gate
+    needs: [gap-analysis]
+    ask: "Gap analysis complete. Continue?"
+    options:
+      continue-past-analysis: continue
+      stop-development: stop
+
+  tdd-red:
+    uses: direct:tdd-red
+    needs: [gap-approval]
+    when: "${gap-analysis.values.has_reproducible_defect}"
+    with:
+      task_description: "${inputs.task_description}"
+      gap: "${gap-analysis.artifacts.gap}"
+      analysis: "${codebase-analysis.artifacts.analysis}"
+    outputs:
+      artifacts:
+        red_gate: implementation/tdd-red-gate.md
+
+  tdd-red-approval:
+    type: gate
+    needs: [tdd-red]
+    when: "${gap-analysis.values.has_reproducible_defect}"
+    ask: "TDD red gate complete. Continue to Phase 4?"
+    options:
+      continue-to-mockups: continue
+      stop-development: stop
+
+  ui-mockups:
+    uses: skill:mockup-studio
+    needs: [tdd-red-approval]
+    when: "${gap-analysis.values.mockups_needed}"
+    with:
+      output_subdir: analysis/design-context/mockups
+      iteration: single
+      emit_index_rows: true
+      gap: "${gap-analysis.artifacts.gap}"
+      scope: "${gap-analysis.artifacts.scope}"
+      design_index: "${intake.artifacts.design_index}"
+    outputs:
+      artifacts:
+        mockups: analysis/design-context
+        index: analysis/design-context/INDEX.md
+
+  mockup-approval:
+    type: gate
+    needs: [ui-mockups]
+    when: "${gap-analysis.values.mockups_needed}"
+    ask: "UI mockups complete. Continue to Phase 5?"
+    options:
+      continue-to-specification: continue
+      stop-development: stop
+
+  specification:
+    uses: direct:specification
+    needs: [mockup-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      analysis: "${codebase-analysis.artifacts.analysis}"
+      gap: "${gap-analysis.artifacts.gap}"
+      scope: "${gap-analysis.artifacts.scope}"
+      design_index: "${ui-mockups.artifacts.index}"
+      risk_level: "${gap-analysis.values.risk_level}"
+      audit_flag: "${inputs.audit}"
+    outputs:
+      artifacts:
+        requirements: analysis/requirements.md
+        spec: implementation/spec.md
+        technical_clarifications: analysis/technical-clarifications.md
+      values:
+        spec_audit_enabled: bool
+
+  specification-approval:
+    type: gate
+    needs: [specification]
+    ask: "Continue to specification audit?"
+    options:
+      continue-to-spec-audit: continue
+      stop-development: stop
+
+  spec-audit:
+    uses: agent:spec-auditor
+    needs: [specification-approval]
+    when: "${specification.values.spec_audit_enabled}"
+    with:
+      spec: "${specification.artifacts.spec}"
+      requirements: "${specification.artifacts.requirements}"
+      gap: "${gap-analysis.artifacts.gap}"
+    outputs:
+      artifacts:
+        audit: verification/spec-audit.md
+
+  spec-audit-approval:
+    type: gate
+    needs: [spec-audit]
+    when: "${specification.values.spec_audit_enabled}"
+    ask: "Continue to implementation planning?"
+    options:
+      continue-to-planning: continue
+      stop-development: stop
+
+  planning:
+    uses: agent:implementation-planner
+    needs: [spec-audit-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      spec: "${specification.artifacts.spec}"
+      audit: "${spec-audit.artifacts.audit}"
+      design_index: "${ui-mockups.artifacts.index}"
+    outputs:
+      artifacts:
+        plan: implementation/implementation-plan.md
+        visual_coverage: implementation/visual-coverage.md
+
+  planning-approval:
+    type: gate
+    needs: [planning]
+    ask: "Continue to implementation?"
+    options:
+      continue-to-implementation: continue
+      stop-development: stop
+
+  implementation:
+    uses: skill:implementation-plan-executor
+    needs: [planning-approval]
+    with:
+      plan: "${planning.artifacts.plan}"
+      spec: "${specification.artifacts.spec}"
+      visual_coverage: "${planning.artifacts.visual_coverage}"
+      sequential: "${inputs.sequential}"
+    outputs:
+      artifacts:
+        work_log: implementation/work-log.md
+
+  implementation-approval:
+    type: gate
+    needs: [implementation]
+    ask: "Continue to verification?"
+    options:
+      continue-to-tdd-green: continue
+      stop-development: stop
+
+  tdd-green:
+    uses: direct:tdd-green
+    needs: [implementation-approval]
+    when: "${gap-analysis.values.has_reproducible_defect}"
+    with:
+      red_gate: "${tdd-red.artifacts.red_gate}"
+      work_log: "${implementation.artifacts.work_log}"
+    outputs:
+      artifacts:
+        green_gate: implementation/tdd-green-gate.md
+
+  tdd-green-approval:
+    type: gate
+    needs: [tdd-green]
+    when: "${gap-analysis.values.has_reproducible_defect}"
+    ask: "TDD gate passed. Continue to Phase 10?"
+    options:
+      continue-to-verification-options: continue
+      stop-development: stop
+
+  verification-options:
+    uses: direct:verification-options
+    needs: [tdd-green-approval]
+    with:
+      gap: "${gap-analysis.artifacts.gap}"
+      browser_tests_flag: "${inputs.browser_tests}"
+      user_docs_flag: "${inputs.user_docs}"
+    outputs:
+      values:
+        # Named for what they enable rather than for the flag that seeds them:
+        # the `when` pattern's trailing character class admits lowercase and
+        # underscore only, so a declared guard value can carry no digit.
+        browser_tests_enabled: bool
+        user_docs_enabled: bool
+
+  verification:
+    uses: skill:implementation-verifier
+    needs: [verification-options]
+    with:
+      spec: "${specification.artifacts.spec}"
+      plan: "${planning.artifacts.plan}"
+      work_log: "${implementation.artifacts.work_log}"
+    outputs:
+      artifacts:
+        report: verification/implementation-verification.md
+
+  verification-approval:
+    type: gate
+    needs: [verification]
+    ask: "Continue to Phase 12?"
+    options:
+      continue-to-e2e: continue
+      stop-development: stop
+
+  e2e-verification:
+    uses: agent:e2e-test-verifier
+    needs: [verification-approval]
+    when: "${verification-options.values.browser_tests_enabled}"
+    with:
+      spec: "${specification.artifacts.spec}"
+      report: "${verification.artifacts.report}"
+      design_context: "${ui-mockups.artifacts.mockups}"
+    outputs:
+      artifacts:
+        e2e: verification/e2e-verification-report.md
+        fidelity: verification/visual-fidelity.md
+
+  e2e-approval:
+    type: gate
+    needs: [e2e-verification]
+    when: "${verification-options.values.browser_tests_enabled}"
+    ask: "E2E complete. Continue to Phase 13?"
+    options:
+      continue-to-user-docs: continue
+      stop-development: stop
+
+  user-docs:
+    uses: agent:user-docs-generator
+    needs: [e2e-approval]
+    when: "${verification-options.values.user_docs_enabled}"
+    with:
+      spec: "${specification.artifacts.spec}"
+      e2e: "${e2e-verification.artifacts.e2e}"
+    outputs:
+      artifacts:
+        guide: documentation/user-guide.md
+
+  docs-approval:
+    type: gate
+    needs: [user-docs]
+    when: "${verification-options.values.user_docs_enabled}"
+    ask: "Documentation complete. Continue to Phase 14?"
+    options:
+      continue-to-finalization: continue
+      stop-development: stop
+
+  # Nothing invokes this workflow as a sub-run: every reference to it in the
+  # tree hands an operator a next step rather than executing one. So there is
+  # no embedded input, and this node carries no guard.
+  finalization:
+    uses: direct:finalization
+    needs: [docs-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      report: "${verification.artifacts.report}"
+      work_log: "${implementation.artifacts.work_log}"

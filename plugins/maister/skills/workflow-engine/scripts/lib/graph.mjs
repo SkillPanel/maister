@@ -883,9 +883,10 @@ function canonicalValue(value) {
 /**
  * A deterministic topological order. Quadratic in the node count, and cubic
  * counting the `ordered.includes` scan inside it — which is stated rather than
- * optimised: the graphs this runs on have nine nodes, and a Kahn queue here
- * would trade a readable ordering rule for a saving nothing can measure. Worth
- * revisiting only if a definition ever carries hundreds of nodes.
+ * optimised: the graphs this runs on are hand-authored workflow definitions,
+ * small enough that a Kahn queue here would trade a readable ordering rule for
+ * a saving nothing can measure. Worth revisiting only if a definition ever
+ * carries hundreds of nodes.
  */
 function topological(nodes) {
   const remaining = new Map();

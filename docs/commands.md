@@ -31,6 +31,8 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 | `--from=PHASE` | Start from or resume at a specific phase |
 | `--reset-attempts` | Reset failed attempt counters (resume) |
 
+**Runs its prose phases.** This workflow also ships as a workflow definition — a graph of nodes the workflow engine freezes into the task's state and executes — but `/maister:development` runs the prose phases, so both flags above apply in full. The engine executes the definition only when a run names `builtin:development` to the workflow engine. That changes if development's default ever switches to the engine: the engine resumes by recomputing which nodes are ready from the frozen state, so it has no mid-graph entry point to jump to and no attempt counter to reset, and it declines both flags by name rather than accepting one it would ignore.
+
 **Task directory**: `.maister/tasks/development/`
 **Resume phases**: `analysis`, `gap`, `spec`, `plan`, `implement`, `verify`
 
@@ -82,8 +84,10 @@ Starts research workflow (8 phases) with multi-source gathering, synthesis, and 
 | `--type=technical\|requirements\|literature\|mixed` | Research methodology type |
 | `--brainstorm` | Force brainstorming + design phases |
 | `--no-brainstorm` | Skip brainstorming phases |
-| `--from=PHASE` | Start from or resume at a specific phase |
-| `--reset-attempts` | Reset failed attempt counters (resume) |
+| `--from=PHASE` | Not taken by either interpreter — see below |
+| `--reset-attempts` | Not taken by either interpreter — see below |
+
+**Neither flag applies to research.** Research runs on the workflow engine by default, and the engine resumes by recomputing which nodes are ready from the graph frozen into the task's state: there is no mid-graph entry point to jump to, and no attempt counter held in state to reset. A run on the engine declines both by name rather than accepting one it would ignore. The prose phases, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, do not implement a phase jump either — they re-enter by artifact presence, skipping each step whose output is already on disk. Resume research by passing the task path alone.
 
 Research output can feed into development: `/maister:development --research=.maister/tasks/research/...`
 

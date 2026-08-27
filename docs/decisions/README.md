@@ -3,7 +3,7 @@
 **Scope**: this repository — the plugin, its generated Copilot variant, the contract register and the gate hooks · **Format**: MADR · **Normative shapes**: `plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md`
 
 ## TL;DR
-Thirteen accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0013 come from the workflow engine that executes a definition as a run. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
+Sixteen accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 onwards come from the workflow engine that executes a definition as a run. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
 Alternatives are not restated: each ADR states in its own Considered Options why the ones it rejected were rejected.
 
 ## Key Decisions
@@ -18,6 +18,9 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - The workflow diagram is generated and golden-file tested, and deliberately not a registered shape (ADR-0011)
 - State is written by a script at a mandated canonical indent, gated on the hook's own reader, with no fallback writer (ADR-0012)
 - The prose twin of a definition-backed workflow is the rollout escape hatch and is retired once the engine is proven (ADR-0013)
+- Development is expressed on the grammar as frozen: guards carry its conditional stretches, node prose carries its loops (ADR-0014)
+- An overlay adapts a graph but cannot reshape it, so performance and migration need definitions of their own (ADR-0015)
+- Mid-graph entry and attempt resets have no graph expression, so the engine path declines them rather than ignoring them (ADR-0016)
 
 ## Index
 
@@ -38,3 +41,6 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0011](0011-generated-workflow-diagrams.md) | Generated workflow diagrams are non-contractual | Accepted | 2026-08-26 | — |
 | [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | — |
 | [ADR-0013](0013-prose-workflow-twin-is-transitional.md) | The prose workflow twin is transitional | Accepted | 2026-08-26 | — |
+| [ADR-0014](0014-development-ships-as-a-workflow-definition.md) | Development ships as a workflow definition | Accepted | 2026-08-27 | — |
+| [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | — |
+| [ADR-0016](0016-mid-graph-entry-is-not-an-engine-feature.md) | Mid-graph entry is not an engine feature | Accepted | 2026-08-27 | — |
