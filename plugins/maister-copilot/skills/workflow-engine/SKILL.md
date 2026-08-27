@@ -77,14 +77,19 @@ beside this file:
 Resolution order is eject → overlay → built-in, and the first hit wins. Authoring an eject
 or an overlay, and running an arbitrary definition file, are not this skill's business.
 
-**Reading the opt-in switch, on every platform.** Until a workflow's own orchestrator hands
-runs here by default, `MAISTER_WORKFLOW_ENGINE` is what decides whether the engine is
-reached at all — so the way it is read has to work wherever the plugin runs. Read it as
-`node -p "process.env.MAISTER_WORKFLOW_ENGINE ?? ''"`: the same one line is correct under
+**Reading the opt-out switch, on every platform.** A workflow's own orchestrator hands runs
+here by default, and `MAISTER_WORKFLOW_PROSE` is what sends a run to the prose twin instead —
+so the way it is read has to work wherever the plugin runs. Read it as
+`node -p "process.env.MAISTER_WORKFLOW_PROSE ?? ''"`: the same one line is correct under
 zsh, bash, PowerShell and cmd.exe, and `node` is already a hard prerequisite of the engine.
 `printenv` is not — it does not exist in cmd.exe or PowerShell, and a read that fails there
-looks exactly like a variable that was never set, so the branch silently falls through and
-the operator sees no engine and no error.
+looks exactly like a variable that was never set.
+
+**Which way a failed read falls matters more now than it did.** While the engine was opt-in,
+a read that silently failed left the operator on the prose path with no engine and no error.
+Now it leaves them on the engine path — so the reading rule above is what keeps an opt-out
+honoured on a platform whose shell has no `printenv`, and the orchestrator that owns the
+branch, not this skill, is where that read belongs.
 
 ### Step 4: Freeze the graph before executing anything
 

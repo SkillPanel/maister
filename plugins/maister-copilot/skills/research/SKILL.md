@@ -15,23 +15,29 @@ a graph engine runs. Both produce the same task directory; only the interpreter 
 
 **Settle this before Initialization, once per run:**
 
-- **`MAISTER_WORKFLOW_ENGINE` is set to a non-empty value in the environment** — hand the
-  run over. Invoke the `maister-workflow-engine` skill with the Skill tool, naming the
-  workflow `builtin:research` and passing the research question, the resume target and any
-  flags through unchanged. The engine owns the run from there: it resolves the definition,
-  freezes the resolved graph into state and executes it. Do not also run the phases below.
-- **Otherwise — the default** — run the prose phases below exactly as written, with nothing
-  else changed by the presence of this branch.
+- **`MAISTER_WORKFLOW_PROSE` is set to a non-empty value in the environment** — run the prose
+  phases below exactly as written, with nothing else changed by the presence of this branch.
+  This is the opt-out: it exists for an install with no script runtime, and so that an
+  operator who hits an engine defect gets the previous behaviour back in one step.
+- **Otherwise — the default** — hand the run over. Invoke the `maister-workflow-engine` skill
+  with the Skill tool, naming the workflow `builtin:research` and passing the research
+  question, the resume target and any flags through unchanged. The engine owns the run from
+  there: it resolves the definition, freezes the resolved graph into state and executes it.
+  Do not also run the phases below.
 
-Read the variable with a Bash call — `node -p "process.env.MAISTER_WORKFLOW_ENGINE ?? ''"`,
+Read the variable with a Bash call — `node -p "process.env.MAISTER_WORKFLOW_PROSE ?? ''"`,
 which reads the same under zsh, bash, PowerShell and cmd.exe; no value, or an empty one,
-means the default.
+means the engine.
+
+The variable names what it selects rather than what it disables, so no value ever has to be
+read as a double negative — the opt-out is spelled by asking for prose, never by switching an
+engine off.
 
 Two rules hold whichever way the branch points. **A task directory that carries no `workflow:` block is
 always resumed by the prose phases**, whatever the variable says — such a directory has no
 frozen graph, so there is nothing for the engine to resume. And the prose phases stay in
-this file after the default changes over: they remain the twin the definition is measured
-against.
+this file now that the default has changed over: they remain the twin the definition is
+measured against, and the path an install without a script runtime still takes.
 
 ---
 
@@ -316,6 +322,8 @@ ask_user - "Research foundation complete (initialized, planned, gathered, synthe
       - Cons (bullet list)
    c. **Recommendation**: which alternative is recommended and why (1 sentence)
    d. **ask_user (exactly ONE question in this call)**: this area's alternatives as options (mark recommended with "(Recommended)") + "Need more info" option
+      - **Option cap**: ask_user accepts at most 4 options and "Need more info" always takes one of them, so an area with more than 3 alternatives does not fit. Show the recommended alternative plus the 2 strongest rivals, and name the remaining alternatives in the question text — the user selects one of those through the free-text "Other" path.
+      - This caps the OPTION LIST only. Step (b) still shows EVERY alternative with its description, pros and cons; quietly narrowing the area to three alternatives is the failure this rule prevents.
    e. If user picks → record choice, move to next area
    f. If "Need more info" → present the detailed trade-off analysis for the requested alternative, then re-ask
 

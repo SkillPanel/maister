@@ -294,7 +294,14 @@ The protocol:
    c. **Recommendation**: which alternative is recommended, and why, in one
       sentence.
    d. **One question in this call**: this area's alternatives as options, the
-      recommended one marked, plus a "Need more info" option.
+      recommended one marked, plus a "Need more info" option. An area carrying
+      more than three alternatives cannot list them all: the question tool takes
+      at most four options and "Need more info" always occupies one of them. Offer
+      the recommended alternative and the two strongest rivals, and name the
+      remaining ones in the question text, which the operator reaches through the
+      free-text option. The cap binds the option list and nothing else — every
+      alternative is still presented in full at (b), and an area silently reduced
+      to three is the failure this paragraph exists to prevent.
    e. If the operator picks an alternative, record the choice and move on.
    f. If the operator picks **"Need more info"**, present the detailed trade-off
       analysis for the requested alternative and then re-ask the same area. The

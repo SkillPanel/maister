@@ -33,6 +33,31 @@ Chosen option: **keep, then retire**. The prose orchestrator stays while the eng
 
 Option 1 loses on the arithmetic above, and it loses worse over time: the second implementation is the one nobody runs, so its checks are the ones that go stale, and every new workflow doubles the bill. Option 2 gives up something real while it is still needed — during rollout the prose path is the known-good escape hatch, and an operator who hits an engine defect unsets the opt-in and gets the previous behaviour back in one step. Option 3 is the worst of both: an unmaintained fallback still looks like a supported path, and the person who discovers otherwise is by definition the person whose machine cannot run the alternative.
 
+**Rollout status: the default has changed over, the prose has not been deleted.** Research now
+runs on the engine by default, and the prose phases are reached by setting
+`MAISTER_WORKFLOW_PROSE` to a non-empty value. Retirement is two events, not one, and only the
+first has happened. What licensed it was the condition this ADR set: a parity checklist walked
+green against real runs — a full run exercising both optional stretches, all three gates asked
+and answered in session, and a second run taking a stop option at the first gate. Those runs
+also earned their keep, turning up a convergence instruction that could not be satisfied as
+written.
+
+**What still blocks deleting the prose.** Three things, and none of them is time passing:
+
+- **Directories with no frozen graph.** A task directory written before the engine is resumable
+  only by the prose phases, so the prose cannot go while such runs are still open. This is the
+  precondition below, unchanged by the switch.
+- **Installs with no script runtime.** The engine has deliberately no editor-tool fallback for
+  state writing, so on a machine without Node the prose twin is not a preference but the only
+  path. Deleting it turns a soft requirement hard, which is the breaking change this ADR says
+  needs a deprecation note and a release of its own.
+- **The other three workflows.** Only research ships a definition today. While the rest are
+  prose-only, the prose orchestrators are load-bearing regardless of what research does, so
+  nothing is saved by deleting research's copy alone.
+
+Until all three clear, the prose twin stays maintained rather than merely present, and the
+parity checklist stays with it.
+
 **Retirement has a precondition, not a schedule.** A task directory written before the engine carries no frozen graph and is resumable only by the prose orchestrator. Retirement therefore waits until those runs have closed out, or until the engine can adopt a directory that has no graph in it. That is a blocker on the removal, not a caveat attached to it.
 
 ### Consequences

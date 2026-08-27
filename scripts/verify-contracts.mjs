@@ -5479,7 +5479,7 @@ function t31(ctx) {
   const procedure = (sections.get('Comparison procedure') ?? []).join('\n');
   if (!procedure) {
     failures.push('no `### Comparison procedure` section');
-  } else if (!/node -p "process\.env\.MAISTER_WORKFLOW_ENGINE \?\? ''"/.test(procedure) || !/MAISTER_WORKFLOW_ENGINE=1/.test(procedure)
+  } else if (!/node -p "process\.env\.MAISTER_WORKFLOW_PROSE \?\? ''"/.test(procedure) || !/MAISTER_WORKFLOW_PROSE=1/.test(procedure)
     || !/non-empty value/.test(procedure) || !/fixtures\/contracts\/valid\/runs\/research-a/.test(procedure)
     || !/diff/i.test(procedure)) {
     failures.push('the comparison procedure omits the variable, the non-empty rule, the reference run or the diff');

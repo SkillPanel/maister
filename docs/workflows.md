@@ -143,6 +143,25 @@ Multi-source research with synthesis, optional solution brainstorming, and high-
 
 **Flags**: `--brainstorm` (force brainstorming phases), `--no-brainstorm` (skip them)
 
+### Interpreter
+
+Research runs on the workflow engine by default: the workflow ships as a definition — a graph
+of nodes with declared dependencies and guards — which the engine freezes into the task's state
+and executes. The same phases also exist as prose in the workflow's own skill, and both produce
+the same task directory.
+
+To run the prose phases instead, set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
+
+```
+MAISTER_WORKFLOW_PROSE=1 /maister:research "..."
+```
+
+Use it if the machine has no Node runtime (the engine writes state through a script and needs
+one), or to get the previous behaviour back in one step. Unset it to return to the default.
+
+A task directory created before the engine carries no frozen graph, and is always resumed by
+the prose phases whatever the variable says.
+
 ### Phases
 
 | # | Phase |
