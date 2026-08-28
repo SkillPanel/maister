@@ -8,6 +8,44 @@ user-invocable: true
 
 Unified workflow for all development tasks — bug fixes, enhancements, and new features. Phases activate based on context and analysis findings, not predetermined task types.
 
+## Entry Point
+
+This workflow exists twice: as the prose phases in this file, and as a workflow definition
+a graph engine runs. Both produce the same task directory; only the interpreter differs.
+
+**Settle this before Initialization, once per run:**
+
+- **`MAISTER_WORKFLOW_PROSE` is set to a non-empty value in the environment** — run the prose
+  phases below exactly as written, with nothing else changed by the presence of this branch.
+  This is the opt-out: it exists for an install with no script runtime, and so that an
+  operator who hits an engine defect gets the previous behaviour back in one step.
+- **Otherwise — the default** — hand the run over. Invoke the `maister:workflow-engine` skill
+  with the Skill tool, naming the workflow `builtin:development` and passing the task
+  description, the resume target and the invocation's flags. Hand over `--from=PHASE` and
+  `--reset-attempts` as well rather than dropping them on the way — the graph has no
+  mid-graph entry point and no attempt counter, and the engine surfaces that by naming the
+  flag it declines instead of ignoring it in silence. Say what the prose phases below
+  actually offer in their place: they take the phase flag, so an operator who needs to
+  re-enter mid-workflow has the prose path for it. The engine owns the run from there: it
+  resolves the definition, freezes the resolved graph into state and executes it. Do not
+  also run the phases below.
+
+Read the variable with a Bash call — `node -p "process.env.MAISTER_WORKFLOW_PROSE ?? ''"`,
+which reads the same under zsh, bash, PowerShell and cmd.exe; no value, or an empty one,
+means the engine.
+
+The variable names what it selects rather than what it disables, so no value ever has to be
+read as a double negative — the opt-out is spelled by asking for prose, never by switching an
+engine off. It is one variable for every workflow that has a twin, not one per workflow.
+
+Two rules hold whichever way the branch points. **A task directory that carries no `workflow:` block is
+always resumed by the prose phases**, whatever the variable says — such a directory has no
+frozen graph, so there is nothing for the engine to resume. And the prose phases stay in
+this file now that the default has changed over: they remain the twin the definition is
+measured against, and the path an install without a script runtime still takes.
+
+---
+
 ## Initialization
 
 **BEFORE executing any phase, you MUST complete these steps:**
@@ -756,6 +794,16 @@ Auto-detected when the argument resolves to a `.maister/tasks/product-design/*` 
 /maister:development "Implement the dashboard from /tmp/dashboard-mockup.html"
 ```
 Auto-detected file paths (`.html`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.pdf`) are copied into `design-context/mockups/`. Design-tool URLs (Figma, Sketch Cloud, Zeplin) are recorded in `design-context/external-links.md`.
+
+**A mockup is a picture of the thing, never the thing itself.** An ingested mockup is a binding input to implementation, so the extension alone must not decide. Judge each matched path before copying it:
+
+| The matched path | Treat it as |
+|---|---|
+| Outside the project working tree (scratch directory, downloads folder, an absolute path elsewhere) | A mockup — copy it in |
+| Inside the project, under a design location — `design/`, `designs/`, `mockups/`, a product-design task directory, or an existing `design-context/` | A mockup — copy it in |
+| Inside the project and tracked as source (`git ls-files --error-unmatch <path>` exits `0`, and it is not under a design location) | The **subject** of the work — do not copy it, do not index it, do not set `design_reference` |
+
+`"Fix the column order in src/board.html"` names the file the run edits. Ingesting it would make the pre-change file a binding design input to its own replacement, and would bias the run toward Phase 4 on top. When a path is excluded this way, say so in one line so the operator can see it was read as a target rather than silently ignored. Design-tool URLs are unaffected — a URL is never a file this run changes.
 
 **Source 3 — Phase 4 generation via `mockup-studio`**: When no external mockups exist and `task_characteristics.ui_heavy` is true, Phase 4 invokes `mockup-studio` (Skill tool). It produces HTML mockups in `design-context/mockups/` by default, or ASCII in `design-context/ascii/` when `mockup_format: ascii` (or Node is unavailable).
 

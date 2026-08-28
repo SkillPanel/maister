@@ -14,7 +14,7 @@ The unified development workflow handles features, enhancements, and bug fixes t
 
 When run without arguments, the plugin extracts the task description from your conversation and auto-detects the type (feature, bug, or enhancement). Use `--type=` only when you want to override the auto-detection.
 
-**Flags**: `--type=bug|enhancement|feature`, `--e2e`, `--user-docs`, `--code-review`, `--research=PATH`, `--from=PHASE`
+**Flags**: `--type=bug|enhancement|feature`, `--e2e`, `--user-docs`, `--code-review`, `--research=PATH`, `--sequential`; `--from=PHASE` on the prose phases only
 
 ### Interpreter
 
@@ -22,32 +22,31 @@ This workflow exists twice: as the prose phases in the development skill, and as
 definition — a graph of nodes with declared dependencies and guards — that the workflow engine
 freezes into the task's state and executes. Both interpreters produce the same task directory.
 
-`/maister:development` runs the prose phases. The definition ships alongside them as
-`builtin:development`, with a diagram generated from it — regenerate that diagram, never edit
-it — and the engine executes it when a run names it. Research is the workflow the engine runs
-by default.
+`/maister:development` runs the definition — it ships as `builtin:development`, with a diagram
+generated from it (regenerate that diagram, never edit it). Research runs on the engine by
+default too; they are the two workflows that do.
 
 Definitions resolve eject → overlay → built-in, and the first hit wins, so a project can eject a
 shipped graph into its own workspace, or lay an overlay over it, without patching the plugin. That
-route reaches a workflow only where the engine executes it — research today. Ejecting or overlaying
-`builtin:development` has no effect until the development entry point switches over, because the
-command does not reach the engine to resolve it.
+route reaches a workflow wherever the engine executes it — research and development today, so
+ejecting or overlaying `builtin:development` takes effect on the next run.
 
-`/maister:development` reads no opt-out variable. It runs the prose phases every time, and the
-engine executes the definition only when a run names `builtin:development` to the workflow
-engine — so both resume options the prose phases document, `--from=PHASE` and
-`--reset-attempts`, apply in full today.
+`/maister:development` runs on the workflow engine by default. To run its prose phases instead,
+set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
 
-That changes if development's default ever switches to the engine. The engine resumes by
-recomputing which nodes are ready from the frozen state, so there is no mid-graph entry point to
-start from, and no attempt counter in that state to reset — attempt budgets are node prose. An
-engine-executed run declines both by name rather than accepting a flag it would silently ignore,
-and the prose phases stay the route when you need to re-enter a run partway.
+```
+MAISTER_WORKFLOW_PROSE=1 /maister:development "..."
+```
 
-`MAISTER_WORKFLOW_PROSE` selects nothing here. One variable covers every workflow that has one —
-its scope is the whole plugin, not a single workflow — so setting it while working on
-development changes nothing about development, and lands every engine-backed workflow, research
-among them, on its prose phases for as long as it is set.
+One variable covers every workflow that has a prose twin — its scope is the whole plugin, not a
+single workflow — so while it is set, research runs on prose too.
+
+The two resume flags differ by interpreter. The engine resumes by recomputing which nodes are
+ready from the frozen state, so there is no mid-graph entry point to start from and no attempt
+counter in that state to reset — attempt budgets are node prose. An engine-executed run declines
+`--from=PHASE` and `--reset-attempts` by name rather than accepting a flag it would silently
+ignore. Development's prose phases do take `--from=PHASE`, so selecting them is the route when
+you need to re-enter a run partway.
 
 ### Phases
 
@@ -81,14 +80,15 @@ Research artifacts are copied to `analysis/research-context/` and summaries pass
 ### Resume
 
 ```
-/maister:development [task-path] [--from=PHASE] [--reset-attempts]
+/maister:development [task-path]
+MAISTER_WORKFLOW_PROSE=1 /maister:development [task-path] [--from=PHASE] [--reset-attempts]
 ```
 
-Resume phases: `analysis`, `gap`, `spec`, `plan`, `implement`, `verify`
+Resume phases (prose only): `analysis`, `gap`, `spec`, `plan`, `implement`, `verify`
 
-`/maister:development` runs the prose phases, so both flags apply in full. They would be
-declined by a run the workflow engine executes, which is not how development is reached
-today — see **Interpreter** above.
+Pass the task path alone to resume on the engine: it recomputes which nodes are ready from the
+frozen graph, and declines `--from=PHASE` and `--reset-attempts` by name. Both flags apply in
+full on the prose phases — see **Interpreter** above.
 
 ---
 

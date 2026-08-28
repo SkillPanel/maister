@@ -6059,7 +6059,7 @@ const DEV_TWIN_REL = 'skills/development/SKILL.md';
 const DEV_PROSE_REL = `${ENGINE}/workflows/development.md`;
 const DEV_DEFINITION_REL = `${ENGINE}/workflows/development.yml`;
 
-/** Every checklist section, with the row count it pins; 220 rows in total. */
+/** Every checklist section, with the row count it pins; 221 rows in total. */
 const DEV_SECTIONS = [
   ['Nodes', 27],
   ['Guards', 12],
@@ -6068,7 +6068,7 @@ const DEV_SECTIONS = [
   ['Pre-gate executive summaries', 6],
   ['Stop-path termination', 11],
   ['In-node questions', 10],
-  ['Artifacts', 24],
+  ['Artifacts', 25],
   ['Companion pairs', 5],
   ['`task_context` fields', 8],
   ['`phase_summaries` keys', 14],
@@ -6083,7 +6083,7 @@ const DEV_SECTIONS = [
   ['Embedded mode', 2],
   ['Accepted divergences', 9],
 ];
-const DEV_TOTAL_ROWS = 220;
+const DEV_TOTAL_ROWS = 221;
 
 /** The definition's node count; the Nodes section carries one tail row beyond it. */
 const DEV_NODE_COUNT = 26;

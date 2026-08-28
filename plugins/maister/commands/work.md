@@ -132,15 +132,17 @@ Options:
 ```
 
 Offer the phase-restart and fresh-attempts options only for workflows whose resume signature
-still lists them. Today that is every workflow except research. Research is the one workflow
-with an engine path: the workflow engine resumes it by recomputing which nodes are ready from
-its frozen state, so it has no mid-graph entry point and keeps no attempt counter, and it
-declines both flags by name. When an operator needs either on a research task, say so, and be
-accurate about what remains: research's prose phases carry no phase flag of their own either.
-They re-enter by artifact presence — each phase skips ahead when its outputs are already on
-disk — so re-running the prose path resumes near where the last run stopped without any flag.
-The prose path is selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and that
-variable is global, so while it is set every engine-backed workflow runs its prose phases.
+still lists them. Today that is every workflow except research and development. Those two have
+an engine path: the workflow engine resumes them by recomputing which nodes are ready from
+frozen state, so there is no mid-graph entry point and no attempt counter, and it declines both
+flags by name. When an operator needs either on such a task, say so, and be accurate about what
+remains in each case. Research's prose phases carry no phase flag of their own: they re-enter by
+artifact presence — each phase skips ahead when its outputs are already on disk — so re-running
+the prose path resumes near where the last run stopped without any flag. Development's prose
+phases do take `--from=PHASE`, so an operator who needs a mid-workflow entry has a real route to
+it there. The prose path is selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value,
+and that variable is global, so while it is set every engine-backed workflow runs its prose
+phases.
 
 5. **Route using Skill tool:**
 
@@ -152,7 +154,7 @@ Use Skill tool:
 
 Examples:
 - Resume development: `skill: "maister:development"` with `args: "--resume .maister/tasks/development/2025-10-23-fix"`
-- Restart from phase: `skill: "maister:development"` with `args: "--resume .maister/tasks/development/2025-10-26-auth --from=verify"`
+- Restart from phase: `MAISTER_WORKFLOW_PROSE=1`, then `skill: "maister:development"` with `args: "--resume .maister/tasks/development/2025-10-26-auth --from=verify"` — the phase flag is a prose-path capability
 - Fresh attempts: `skill: "maister:migration"` with `args: "--resume .maister/tasks/migrations/2025-10-20-redux --reset-attempts"`
 
 Pass only the flags the workflow's resume signature lists — see **Resume Skill Reference** below.
@@ -241,20 +243,21 @@ Display:
 
 | Workflow Type | Skill | Args |
 |---------------|-------|------|
-| development | `maister:development` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
+| development | `maister:development` | `--resume [path]` |
 | performance | `maister:performance` | `--resume [path] [--from=PHASE]` |
 | migration | `maister:migration` | `--resume [path] [--from=PHASE]` |
 | research | `maister:research` | `--resume [path]` |
 | product-design | `maister:product-design` | `--resume [path] [--from=PHASE]` |
 
-A signature is trimmed only for a workflow that has an engine path today, and research is the
-only one: it is resumed by the workflow engine, which recomputes the ready set from frozen
+A signature is trimmed only for a workflow that has an engine path today: research and
+development. Both are resumed by the workflow engine, which recomputes the ready set from frozen
 state. Mid-graph entry and attempt counters have no expression there, so `--from=PHASE` and
-`--reset-attempts` are declined by name rather than silently ignored. Research's prose phases
-are the fallback path, but they take no phase flag either: they re-enter by artifact presence,
-skipping each phase whose outputs already exist. Select them by setting `MAISTER_WORKFLOW_PROSE`
-to any non-empty value, remembering that the variable is global and moves every engine-backed
-workflow onto prose while it is set.
+`--reset-attempts` are declined by name rather than silently ignored. The prose phases are the
+fallback path in both cases, and they differ in what they offer: research's take no phase flag
+and re-enter by artifact presence, skipping each phase whose outputs already exist; development's
+do take `--from=PHASE`. Select the prose path by setting `MAISTER_WORKFLOW_PROSE` to any
+non-empty value, remembering that the variable is global and moves every engine-backed workflow
+onto prose while it is set.
 
 Every other workflow above runs its own prose phases and honours the flags its row lists. A row
 loses a flag only when that workflow gains an engine path of its own, never merely because a

@@ -53,8 +53,26 @@ This table is how a reader resolves one to the other:
 A gate may name a destination that is then skipped. `tdd-red-approval` names
 phase 4, `specification-approval` names the audit, `verification-approval` names
 phase 12 and `e2e-approval` names phase 13 — every one of those destinations is
-guarded, and the engine prints the skip when the guard is false. That is the
-normal shape of a guarded chain, not a defect in the question.
+guarded, and a guard may be false by the time its gate is asked. That is the
+normal shape of a guarded chain, not a defect in the question, but the operator
+must not have to discover it after answering.
+
+**Name the true destination before the gate fires, not after.** Immediately
+before asking one of those four gates, print one line stating which node will
+actually run next — evaluate the destination's guard against the values already
+declared by completed nodes, exactly as the ready set will, and say plainly when
+the destination the question names is going to be skipped:
+
+```
+Next: specification — phase 4 (UI mockups) is skipped, the gap analysis found mockups are not needed.
+```
+
+The line is printed by the node that closes into the gate, in the same breath as
+its executive summary where it has one, so the operator answers with it on
+screen. It changes no question text and no option: the `ask:` value stays
+verbatim, which is what keeps the equality assertion against the prose form
+intact, and the line carries what the fixed question cannot. When the guard is
+true, the line says so in the same shape and costs one sentence.
 
 ---
 
@@ -211,6 +229,29 @@ in-node questions.
    task description, the files copied in and the links recorded; and legacy
    locations from a resumed run, migrated in. Skip silently when no source
    exists — a task with no UI surface sees no change.
+
+   **A mockup is a picture of the thing, never the thing itself.** An ingested
+   mockup becomes a *binding* input to the implementation, so a path matched out
+   of the task description is ingested only when it is a design source rather
+   than a file this run is going to change. Decide it per path, before copying
+   anything:
+
+   | The matched path | Treat it as |
+   |---|---|
+   | outside the project working tree — a scratch directory, a downloads folder, an absolute path elsewhere | a mockup: copy it in |
+   | inside the project, under a design location — `design/`, `designs/`, `mockups/`, a product-design task directory, or an existing `analysis/design-context/` | a mockup: copy it in |
+   | inside the project and tracked as source — `git ls-files --error-unmatch <path>` exits `0` and it is not under a design location | the **subject** of the work: do not copy it, do not give it an index row, and do not let it set `design_reference` |
+
+   The extension alone does not decide, and matching on it alone is the failure
+   this rule exists to prevent: a description reading *"fix the column order in
+   `src/board.html`"* names the file the run edits, and ingesting it would make
+   the pre-change file a binding design input to its own replacement — and would
+   bias the run toward the mockup stretch on top. When a path is excluded by the
+   table, say so in one line in the node summary, so the operator can see that a
+   file they named was read as a target rather than silently ignored.
+
+   Design-tool links — Figma, Sketch Cloud, Zeplin — are unaffected: a URL is
+   never a file this run changes, and is recorded as before.
 8. **Generate the design index** when anything was ingested — one row per screen
    or component with a stable id, its source mockup and a one-line description.
    Downstream nodes reference screens by those ids and by nothing else.
@@ -387,8 +428,11 @@ A gate, guarded by the same condition as the node before it. When no reproducibl
 defect was found, this gate is skipped along with `tdd-red` and the run continues
 to the mockup stretch without asking.
 
-Its question names phase 4, whose node is itself guarded. When mockups are not
-needed either, the engine prints that skip and continues to the specification.
+Its question names phase 4, whose node is itself guarded. The mockup guard is
+already settled here — `gap-analysis` declared it two nodes ago — so print the
+true-destination line before asking, per § `The phase numbers, and where they
+went`: when mockups are not needed, the operator is told that answering continue
+goes to the specification, not to phase 4.
 
 ---
 
@@ -550,8 +594,10 @@ A gate, unguarded. Ask the question the definition carries, record the answer,
 and stop the run on the stop option.
 
 Its question names the audit, whose node is guarded by the boolean
-`specification` just emitted. When the operator declined the audit, the engine
-prints that skip and the run continues to planning.
+`specification` just emitted — settled, so print the true-destination line before
+asking, per § `The phase numbers, and where they went`. When the operator
+declined the audit, the operator is told before answering that continue goes to
+planning.
 
 ---
 
@@ -832,9 +878,11 @@ over, before asking the operator how to proceed.
 A gate, unguarded. Ask the question the definition carries, record the answer,
 and stop the run on the stop option.
 
-Its question names phase 12, whose node is guarded. When browser verification
-was declined, the engine prints that skip and the run continues to the user
-documentation — or past it too, when that was declined as well.
+Its question names phase 12, whose node is guarded by a boolean
+`verification-options` settled before the verification node ran, so print the
+true-destination line before asking, per § `The phase numbers, and where they
+went`. When browser verification was declined, the line names the user
+documentation instead — or `finalization`, when that was declined as well.
 
 ---
 
@@ -872,6 +920,11 @@ reported as a finding rather than retried blindly.
 A gate, guarded by the same condition as the node before it. When browser
 verification was declined, this gate is skipped along with `e2e-verification` and
 the run continues to the user documentation without asking.
+
+Its question names phase 13, whose node is guarded by a boolean already settled,
+so print the true-destination line before asking, per § `The phase numbers, and
+where they went`: when the user documentation was declined, continue goes to
+`finalization`.
 
 **The prose form's "return to the phase 12 gate" is dropped, and that is a
 recorded divergence.** A `needs` graph is acyclic and a back-edge fails

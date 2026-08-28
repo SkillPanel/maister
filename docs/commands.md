@@ -28,13 +28,16 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 | `--user-docs` | Generate user documentation phase |
 | `--code-review` | Include code review phase |
 | `--research=PATH` | Start development informed by a completed research task |
-| `--from=PHASE` | Start from or resume at a specific phase |
-| `--reset-attempts` | Reset failed attempt counters (resume) |
+| `--sequential` | Run task groups one at a time instead of in parallel waves |
+| `--from=PHASE` | Prose phases only — see below |
+| `--reset-attempts` | Prose phases only — see below |
 
-**Runs its prose phases.** This workflow also ships as a workflow definition — a graph of nodes the workflow engine freezes into the task's state and executes — but `/maister:development` runs the prose phases, so both flags above apply in full. The engine executes the definition only when a run names `builtin:development` to the workflow engine. That changes if development's default ever switches to the engine: the engine resumes by recomputing which nodes are ready from the frozen state, so it has no mid-graph entry point to jump to and no attempt counter to reset, and it declines both flags by name rather than accepting one it would ignore.
+**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:development` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume an engine run by passing the task path alone.
+
+The prose phases remain, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and they do take `--from=PHASE` — so a mid-workflow re-entry is a real route, on that path. The variable is global to every workflow that has a prose twin, research included, for as long as it is set.
 
 **Task directory**: `.maister/tasks/development/`
-**Resume phases**: `analysis`, `gap`, `spec`, `plan`, `implement`, `verify`
+**Resume phases** (prose only): `analysis`, `gap`, `spec`, `plan`, `implement`, `verify`
 
 ---
 

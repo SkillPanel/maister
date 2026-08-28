@@ -213,6 +213,27 @@ schemes:
 | Budget exhausted, the operator chose to skip | `skipped` | satisfies `needs`; declared boolean outputs default false, declared string outputs to null |
 | Hard failure with no operator path | `failed` | satisfies nothing by default; the run stops with `RUN-FAILED` |
 
+**A node that did not produce its declared artifacts has not completed.** Before recording
+a node `completed`, check that every path the node declares under `outputs.artifacts` exists
+— one `test -e` per declared path, against the path resolved from the task directory. A
+declared artifact that is missing is one of exactly two things, and the node prose is what
+tells them apart:
+
+| The node prose | The missing path means |
+|---|---|
+| sanctions the absence by name — the artifact's source may legitimately not exist | no such context; record `completed` and say in the summary which declared path was absent and why |
+| says nothing about it, or says the file is written either way | the delegate skipped work it was asked to do; the node has **not** completed |
+
+Treat the second as a failed self-check and re-drive the node within its budget, naming the
+missing path in the context handed back. When the budget is exhausted, the node's outcome
+follows the table above rather than being recorded green with a hole in it.
+
+The check costs one existence test per declared path and needs nothing the engine does not
+already hold: the definition declares every artifact, so the list is free. Without it, a
+delegate that returns successfully having written nothing is indistinguishable from one that
+wrote everything, and the absence surfaces only when a later node reads the path — or when a
+human compares two lists by hand.
+
 **A phase key is never a node id.** `node_summaries` is keyed by node id, and the workflow's
 own `phase_summaries` map is keyed by the workflow's phase keys. The node prose names the
 key each mirroring node writes under; a node whose prose names none writes a node summary
