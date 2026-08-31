@@ -7672,6 +7672,41 @@ workflow:
       throwsWith('a descriptor rendering past the cap', 'seed-over-cap', () => renderSeed(fat));
     });
 
+    t.check('every command line the seed hands a worker is runnable as written', () => {
+      // Found by the first live worker ever dispatched. The seed used to name
+      // its two scripts through `${CLAUDE_PLUGIN_ROOT}`, which the host exports
+      // to hook, MCP and LSP subprocesses and interpolates into *skill
+      // content* — but a seed is delivered as a headless prompt, so the
+      // placeholder reached the worker verbatim and its shell expanded it to
+      // the empty string. The worker's first tool call printed
+      // `CLAUDE_PLUGIN_ROOT=` and it recovered only by hunting the install down
+      // itself. Both of the seed's command lines — the only sanctioned way to
+      // write the outbox, and the only sanctioned way to suspend a gate — were
+      // unrunnable exactly as written.
+      const root = '/opt/maister/plugins/maister';
+      const prompt = renderSeed(buildSeed(build('dev-beta'), { siblings: 3, pluginRoot: root }));
+      const unexpanded = prompt.split('\n').filter(line => /\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*/.test(line));
+      equalJson(unexpanded, [],
+        'a seed line carries a shell or host variable: nothing interpolates a prompt, so it reaches the worker verbatim');
+
+      // And the lines that name a script name a real one, at an absolute path.
+      const commands = prompt.split('\n').filter(line => /^\s+node\s/.test(line));
+      must(commands.length === 2, `the seed names ${commands.length} command lines, expected 2`);
+      for (const line of commands) {
+        const script = /^\s+node\s+(\S+)/.exec(line)[1];
+        must(path.isAbsolute(script), `the seed names a non-absolute script: ${script}`);
+        must(script.startsWith(`${root}/`), `the seed did not resolve the script against the root it was given: ${script}`);
+        const shipped = path.join(ctx.pluginRoot, script.slice(root.length + 1));
+        must(isFile(shipped), `the seed names a script that does not ship: ${script}`);
+      }
+      // The root is an argument, so a seed is reproducible: the same envelope
+      // and the same root give the same prompt, byte for byte.
+      must(renderSeed(buildSeed(build('dev-beta'), { siblings: 3, pluginRoot: root })) === prompt,
+        'buildSeed is not pure once the plugin root is an argument');
+      must(!renderSeed(buildSeed(build('dev-beta'), { siblings: 3, pluginRoot: '/elsewhere' })).includes(root),
+        'the plugin root is not actually being read from the argument');
+    });
+
     t.check('the golden seed fixture is the descriptor renderSeed turns into the golden prompt', () => {
       const dir = path.join(ctx.fixtures, SEED_FIXTURE_DIR);
       const descriptor = parseYaml(fs.readFileSync(path.join(dir, 'seed.yml'), 'utf8'), YAML_OPTS);

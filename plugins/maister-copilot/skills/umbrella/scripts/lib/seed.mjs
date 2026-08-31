@@ -64,6 +64,7 @@
  */
 
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
@@ -84,11 +85,26 @@ const CONTROL_ARGS = new Set(['autonomy', 'statement', 'task']);
 const MESSAGE_TYPES = ['status', 'followup', 'artifact', 'closeout', 'blocked'];
 
 /**
- * The exec form of the runtime the outbox instruction names. Spelled with the
- * host's own root variable so one seed is correct under every install, and kept
- * in a plain string so nothing here is interpolated at render time.
+ * The exec form of the runtime the outbox instruction names, resolved against a
+ * plugin root the caller supplies.
+ *
+ * It used to be the literal string `${CLAUDE_PLUGIN_ROOT}/skills/…`, on the
+ * reasoning that the host's own root variable makes one seed correct under
+ * every install. The first live worker ever dispatched disproved it on its very
+ * first tool call: `CLAUDE_PLUGIN_ROOT` is exported to hook, MCP and LSP
+ * subprocesses, **not** into the shell the model runs commands in, and it is
+ * interpolated into *skill content* — never into a headless prompt. A seed is
+ * delivered as a prompt, so the placeholder arrives at the worker verbatim and
+ * expands to the empty string, leaving `node /skills/umbrella/scripts/…`. Both
+ * command lines the seed names — the only sanctioned way to write the outbox
+ * and the only sanctioned way to suspend a gate — were unrunnable as written.
+ *
+ * So the path is rendered absolute, like every other path in the prompt. The
+ * root is an argument rather than a constant for the same reason the fixture
+ * exists: a seed built with a pinned root is reproducible and pinnable, and the
+ * verb passes the root of the install it is itself running out of.
  */
-const SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs';
+const script = root => `${root}/skills/umbrella/scripts/umbrella.mjs`;
 
 /**
  * The engine script a dispatched worker suspends its own gates through. Named
@@ -98,7 +114,20 @@ const SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs';
  * moment the request file lands, and a second shell call against a pending run
  * is denied.
  */
-const WORKFLOW_SCRIPT = '${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs';
+const workflowScript = root => `${root}/skills/workflow-engine/scripts/workflow.mjs`;
+
+/**
+ * The plugin install this runtime is executing out of, used when a caller names
+ * no root. The environment variable is honoured first where it *is* set — a
+ * hook or an MCP subprocess — and the module's own location is the fallback,
+ * which is what makes the default correct inside a headless worker where the
+ * variable is absent.
+ */
+function defaultPluginRoot() {
+  const declared = process.env.CLAUDE_PLUGIN_ROOT;
+  if (declared) return declared;
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+}
 
 /** C2's autonomy and provider enums, checked before an envelope is trusted. */
 const AUTONOMY = ['attended', 'auto-low', 'auto-medium', 'auto-high'];
@@ -149,7 +178,7 @@ function countOf(value) {
  * The seed descriptor for one envelope. Pure: the same envelope and the same
  * sibling count always give the same object, which is what makes it golden.
  */
-export function buildSeed(envelope, { siblings = null } = {}) {
+export function buildSeed(envelope, { siblings = null, pluginRoot = defaultPluginRoot() } = {}) {
   const document = assertEnvelope(envelope);
   const chain = mapOf(document.chain);
   const target = mapOf(document.target);
@@ -158,8 +187,8 @@ export function buildSeed(envelope, { siblings = null } = {}) {
 
   const lines = {
     identity: identityLines({ document, chain, target }),
-    task: taskLines({ document, workflow }),
-    outbox: outboxLines(document),
+    task: taskLines({ document, workflow, pluginRoot }),
+    outbox: outboxLines(document, pluginRoot),
     closeout: closeoutLines({ closeout, autonomy: document.autonomy }),
     siblings: siblingLines(siblings),
   };
@@ -212,7 +241,7 @@ function identityLines({ document, chain, target }) {
  * carried one. Absent it the seed still names the workflow and its arguments,
  * which is the whole of what the node said.
  */
-function taskLines({ document, workflow }) {
+function taskLines({ document, workflow, pluginRoot }) {
   const lines = [];
   if (typeof document.statement === 'string' && document.statement.trim() !== '') {
     lines.push(`The work: ${oneLine(document.statement)}`);
@@ -220,8 +249,8 @@ function taskLines({ document, workflow }) {
   lines.push(workflow.uses
     ? `Run ${oneLine(workflow.uses)}.`
     : 'Run the workflow named by your dispatch.');
-  lines.push('You run under the dispatch driver: record `orchestrator.driver.kind: dispatch` in your run state. At every gate suspend the run with one call to the engine\'s gate-request verb, never by writing the gate files yourself:');
-  lines.push(`  node ${WORKFLOW_SCRIPT} gate-request --state=<your own orchestrator-state.yml>`);
+  lines.push('You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state — E1 requires the cwd beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run with one call to the engine\'s gate-request verb, never by writing the gate files yourself:');
+  lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml>`);
   lines.push('with the request as JSON on stdin. It writes the request file, the gate index and the pending marker together; there is no second write and the run is already suspended once it returns. Then print `GATE-PENDING: ` followed by that gate\'s own node id as the last line of the turn, and stop. Never ask a question in session.');
   const args = mapOf(workflow.with);
   const inputs = Array.isArray(document.inputs) ? document.inputs : [];
@@ -268,11 +297,11 @@ function taskLines({ document, workflow }) {
  * matches, and the message is lost by the exact mechanism the fallback exists
  * to defeat.
  */
-function outboxLines(document) {
+function outboxLines(document, pluginRoot) {
   const root = rootOf(document);
   return [
     `Report through the outbox verb, never by writing a file under the outbox path yourself:`,
-    `  node ${SCRIPT} outbox --outbox=${anchor(root, outboxRootOf(document))} --dispatch-id=${oneLine(document.dispatch_id)} --type=<type>`,
+    `  node ${script(pluginRoot)} outbox --outbox=${anchor(root, outboxRootOf(document))} --dispatch-id=${oneLine(document.dispatch_id)} --type=<type>`,
     `with the message body as JSON on stdin. Types: ${MESSAGE_TYPES.join(', ')}; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade. Messages are append-only and the writer never rewrites one.`,
     'If the outbox cannot be written the verb hands you a line to print instead: `DISPATCH-RESULT: <grade> <summary>` for a closeout, `DISPATCH-FOLLOWUP: <summary>` for a followup. Print it as the last line of your turn — it is the only form in which the message survives.',
     'The other three types have no such line: run the same write again once the path is writable, or fold what it carried into the closeout summary.',
