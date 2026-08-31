@@ -231,6 +231,16 @@ On Claude the reliable lever is **removing the capability**, not describing it:
 deny the tool itself, and where a tier must keep a shell, gate it with a
 `PreToolUse` hook that inspects the command the worker actually runs.
 
+**A command gate matches the command, never the data it carries.** A worker's
+commands routinely *contain* the words of a denied atom without doing it: a
+state patch in a heredoc, a commit message, a research finding. During this
+runtime's live acceptance a tier gate denied a legitimate state write because
+the patch's own prose explained that a directory had arrived by `git subtree
+merge`. Strip heredoc bodies and quoted strings before matching, or the gate
+denies a worker for what it says rather than what it does — and the worker then
+routes around a denial that should never have fired, which is the reflex the
+whole design exists to avoid provoking.
+
 **Do not enforce a shell atom with an argument pattern.** A rule of the shape
 `Bash(git push:*)` reads like the atom and is not equivalent to it. It matches a
 prefix of the command text, so it is defeated by a flag before the subcommand, a
