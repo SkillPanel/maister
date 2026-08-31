@@ -195,6 +195,59 @@ and a marker with nothing behind it is a run that looks dispatched and is not.
 
 ---
 
+## The permissions block is not self-enforcing
+
+The envelope carries the autonomy tier's `permissions` as two lists of atoms,
+and **they are data. Nothing in this runtime enforces them, and nothing can.**
+The runtime never spawns a worker, so it never sees the process that would have
+to be constrained; by the time a worker is running, the envelope is a document it
+has already been handed. Enforcement is owed by **whoever spawns the worker** —
+the cockpit daemon, or any script standing in for it — and it is owed *before*
+the seed reaches the provider.
+
+This is not a theoretical gap. A worker dispatched at `attended`, whose deny list
+names `shell(gh pr create)`, committed and opened a pull request, because the
+spawner passed a blanket tool allow-list and no layer below it said no. The seed
+makes this worse rather than better if it is ignored: the close-out section tells
+a worker at a relaying tier that its denial "pauses for an operator to approve" —
+so a worker whose tier is unenforced reads a promise that the wait will happen,
+finds nothing stopping it, and proceeds.
+
+**The atoms.** Eight, and they are Copilot's tool vocabulary on purpose:
+
+| Atom | Capability |
+|---|---|
+| `read` | read files |
+| `tests` | run the project's tests |
+| `write` | modify the worktree |
+| `shell(git commit)` · `shell(git push)` · `shell(git merge)` · `shell(gh pr create)` · `shell(gh pr merge)` | the five commands that decide whether work leaves the worktree |
+
+An atom in neither list has no defined answer; the tier presets put every atom on
+one list or the other so a spawner never has to invent one.
+
+**Translating them.** On Copilot the atoms are already the vocabulary: pass each
+denied atom verbatim, `--deny-tool='shell(git push)'`, `--deny-tool='write'`.
+On Claude the reliable lever is **removing the capability**, not describing it:
+deny the tool itself, and where a tier must keep a shell, gate it with a
+`PreToolUse` hook that inspects the command the worker actually runs.
+
+**Do not enforce a shell atom with an argument pattern.** A rule of the shape
+`Bash(git push:*)` reads like the atom and is not equivalent to it. It matches a
+prefix of the command text, so it is defeated by a flag before the subcommand, a
+doubled space, a compound `cd x && git push`, a variable, a pipe — and by any
+`PreToolUse` hook that rewrites the command before it is judged, which is a
+common local setup rather than an exotic one. An argument pattern was observed
+failing to stop a push during this runtime's own live acceptance. Treat it as
+advisory; put the enforcement in the tool list or the hook.
+
+**The consequence of skipping this** is a run whose autonomy tier is decorative:
+every envelope, ledger entry and seed still says `attended`, the worker still
+reads that its denials relay to an operator, and nothing is true. A spawner that
+cannot enforce a tier should refuse to dispatch at it rather than dispatch and
+hope.
+
+---
+
 ## When a write is refused
 
 Exit `1` names a code per rejection in the report. The codes are closed

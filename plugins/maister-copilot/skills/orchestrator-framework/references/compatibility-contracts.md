@@ -305,6 +305,8 @@ A flow map, keys in any order, scalars bare or double-quoted, no nesting. **The 
 | C7 | event | `version: 1`; files are immutable and folded in `at` order; `mirror` event data is T1 (`{tracker, event_ref, key}`) |
 | C8 | worker seed | `version: 1`; the five section ids `identity`, `task`, `outbox`, `closeout`, `siblings`, their order and the 60-line cap are frozen; each section opens with its marker line and the wording under it is free; a descriptor that would render over the cap is refused, never truncated |
 
+**C2 enforcement rule.** `permissions` is **data, and the layer that spawns the worker owes its enforcement.** Nothing in the runtime enforces it: the runtime does not spawn, so it never sees the process to constrain. A spawner translates the denied atoms into the provider's own permission surface before the seed is delivered — verbatim on Copilot, whose tool vocabulary the atoms are (`--deny-tool='shell(git push)'`); by removing the tool, or by a `PreToolUse` gate, on Claude. **An argument-prefix rule such as `Bash(git push:*)` is not an enforcement mechanism** — it matches command text, so a flag before the subcommand, a compound command or a hook that rewrites the command defeats it. A spawner that cannot enforce a tier does not dispatch at it. The seed's close-out prose assumes the denial is real, so an unenforced tier does not merely fail to stop a worker: it tells the worker it will be stopped.
+
 **C5 outcome rule.** A run's outcome is derived in this order and no other:
 
 1. **On-disk E2 state** — `gate_pending` and the `gates/` directory as they are on disk after the process exits.

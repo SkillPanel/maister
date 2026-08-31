@@ -7672,6 +7672,56 @@ workflow:
       throwsWith('a descriptor rendering past the cap', 'seed-over-cap', () => renderSeed(fat));
     });
 
+    t.check('the SKILL names every permission atom the tiers emit, and says who enforces them', () => {
+      // The gap this closes was found live: a worker at a tier denying
+      // `shell(gh pr create)` opened a pull request, because `permissions` is
+      // data and the runtime — which never spawns — cannot enforce it. The
+      // obligation therefore lives in prose, and prose drifts, so the atom
+      // vocabulary is held equal in both directions the way the refusal list is.
+      const skill = fs.readFileSync(path.join(ctx.pluginRoot, 'skills', 'umbrella', 'SKILL.md'), 'utf8');
+
+      // Built, never published: an envelope on disk is never rewritten, so a
+      // check that publishes one per tier would poison every later check for
+      // the same node.
+      // Swept out of the source rather than collected from envelopes: the tier
+      // resolves from the node, the member or the manifest defaults and never
+      // from an override, so no single built envelope reaches every atom, and a
+      // hand-kept list here would be a fourth copy of the vocabulary.
+      const source = fs.readFileSync(path.join(ctx.pluginRoot, 'skills', 'umbrella', 'scripts', 'lib', 'envelope.mjs'), 'utf8');
+      const table = /const CAN = \{([\s\S]*?)\n\};/.exec(source);
+      must(table !== null, 'envelope.mjs no longer declares a CAN table — the atom sweep has nothing to read');
+      const emitted = new Set([...table[1].matchAll(/:\s*'([^']+)'/g)].map(m => m[1]));
+      must(emitted.size === 8, `the CAN table carries ${emitted.size} atoms, expected 8`);
+
+      // And the atoms the sweep found are the atoms an envelope really carries.
+      const carried = new Set([...build('dev-beta').permissions.allow, ...build('dev-beta').permissions.deny]);
+      const stray = [...carried].filter(atom => !emitted.has(atom));
+      equalJson(stray, [], 'atoms an envelope carries that the CAN table does not declare');
+
+      // Every atom the tiers can emit is spelled in the SKILL, in code position.
+      const spelled = new Set([...skill.matchAll(/`([a-z]+(?:\([a-z]+(?: [a-z]+)*\))?)`/g)].map(m => m[1]));
+      const undocumented = [...emitted].filter(atom => !spelled.has(atom));
+      equalJson(undocumented, [], 'permission atoms the tiers emit and the SKILL never spells');
+
+      // And the SKILL names an enforcement lever for each provider, plus the
+      // one it must warn against. Named by substring rather than by sentence so
+      // the wording stays free.
+      for (const [what, needle] of [
+        ['the Copilot deny flag', '--deny-tool='],
+        ['the rule that the spawner enforces', 'spawns the worker'],
+        ['the warning against argument patterns', 'Bash(git push:*)'],
+        ['the hook lever for Claude', 'PreToolUse'],
+      ]) {
+        must(skill.includes(needle), `the SKILL no longer names ${what} (${needle})`);
+      }
+
+      // The register carries the same rule, so a reader of either lands on it.
+      const register = fs.readFileSync(path.join(ctx.pluginRoot, 'skills', 'orchestrator-framework',
+        'references', 'compatibility-contracts.md'), 'utf8');
+      must(/C2 enforcement rule/.test(register) && register.includes('the layer that spawns the worker owes its enforcement'),
+        'the register no longer carries the C2 enforcement rule');
+    });
+
     t.check('every command line the seed hands a worker is runnable as written', () => {
       // Found by the first live worker ever dispatched. The seed used to name
       // its two scripts through `${CLAUDE_PLUGIN_ROOT}`, which the host exports
