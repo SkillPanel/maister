@@ -8770,6 +8770,102 @@ async function t38(ctx) {
       }
     });
 
+    t.check('below the floor there is no gate, and a legacy type dir never holds one', () => {
+      // Found by the first live worker ever dispatched, not by this suite: two
+      // pre-v3 task directories in a real repository denied every shell call in
+      // it, permanently. The pre-v3 orchestrators wrote a top-level `workflow:`
+      // header of their own — a scalar, or a `{name, version, mode}` block —
+      // and neither carries `nodes:`, so both satisfied the pending
+      // predicate's rule (c). A gate no request file describes cannot be
+      // answered, so the deny had no way out. § 2, § E2 and § H1 all already
+      // said such a document never gates; nothing checked it.
+      const cwd = tempDir('gate-floor');
+      const beacons = tempDir('gate-floor-beacons');
+      try {
+        const stamp = '2026-08-31T06:00:00Z';
+        const atFloor = taskRoot => [
+          'orchestrator:',
+          '  started_phase: null',
+          '  completed_phases: []',
+          '  failed_phases: []',
+          `  created: "${stamp}"`,
+          `  updated: "${stamp}"`,
+          `  task_path: "${taskRoot}"`,
+          `  gate_pending: {node: approve, request: gates/approve.request.yml, since: "${stamp}"}`,
+          '',
+          'task:',
+          '  title: "Floor control"',
+          '  status: in_progress',
+          '',
+        ].join('\n');
+
+        const place = (type, name, text, request) => {
+          const dir = path.join(cwd, '.maister', 'tasks', type, name);
+          fs.mkdirSync(path.join(dir, 'gates'), { recursive: true });
+          fs.writeFileSync(path.join(dir, 'orchestrator-state.yml'), text);
+          if (request) {
+            fs.writeFileSync(path.join(dir, 'gates', 'approve.request.yml'),
+              'version: 1\nnode: approve\nkind: gate\nanswer: null\n');
+          }
+          return `.maister/tasks/${type}/${name}`;
+        };
+
+        const decide = () => {
+          const proc = runBounded(process.execPath, [path.join(ctx.pluginRoot, GATE_HOOK)], {
+            input: JSON.stringify({
+              session_id: 'e25cad30-ca2c-4cdb-8290-b3763b9b35ee',
+              transcript_path: path.join(cwd, 'transcript.jsonl'),
+              cwd,
+              permission_mode: 'default',
+              hook_event_name: 'PreToolUse',
+              tool_name: 'Write',
+              tool_input: { file_path: path.join(cwd, 'notes.md'), content: 'x' },
+              tool_use_id: 'toolu_01VNiy1yUkbhmcVbzB78NFrg',
+            }),
+            encoding: 'utf8',
+            cwd,
+            env: { ...process.env, MAISTER_BEACON_DIR: beacons },
+          });
+          const stdout = String(proc.stdout ?? '');
+          if (proc.status === 0 && stdout.trim() === '') return null;
+          const decision = parseJsonOut(stdout);
+          must(decision.ok, `the hook printed no decision: ${firstLine(stdout) || proc.status}`);
+          return reasonOf('claude', 'deny', decision.value);
+        };
+
+        // A pre-v3 state carrying the header key rule (c) reads, with an
+        // unanswered request file beside it so rule (b) is live too. Below the
+        // floor neither rule is reached at all.
+        place('research', '2026-01-06-pre-v3-research',
+          'workflow: research-orchestrator\nversion: "1.0"\nmode: yolo\n', true);
+        must(decide() === null,
+          'a state file with no orchestrator: block gated the session — below the floor there is no gate (§ 2, § E2, § H1)');
+
+        // The other shape the same era wrote: a `workflow:` block of metadata,
+        // no `nodes:`, and no `orchestrator:`.
+        place('research', '2026-01-14-pre-v3-block',
+          'workflow:\n  name: development-orchestrator\n  version: "1.0"\n  mode: interactive\n\ntask:\n  title: "Old"\n', false);
+        must(decide() === null, 'a pre-v3 `workflow:` metadata block gated the session');
+
+        // A legacy type dir is inventory-only *regardless of what its state
+        // contains* (§ 2), so even a flawless pending v3 run inside one is not
+        // a gate.
+        const legacy = place('enhancements', '2026-01-14-legacy-type-dir', atFloor('x'), true);
+        must(decide() === null,
+          `a legacy type dir held a gate: ${legacy} — § 2 makes those inventory-only regardless of their state file`);
+
+        // The negative control, and the reason none of the above may be a blanket
+        // shrug: the identical document under a current type dir still gates.
+        const live = place('development', '2026-08-31-floor-control', atFloor('.maister/tasks/development/2026-08-31-floor-control'), true);
+        const reason = decide();
+        must(reason !== null && reason.startsWith(DENY_PREFIX),
+          `the same state under a current type dir did not gate (${live}) — the floor check has swallowed rule (a)`);
+      } finally {
+        fs.rmSync(cwd, { recursive: true, force: true });
+        fs.rmSync(beacons, { recursive: true, force: true });
+      }
+    });
+
     t.check('an absolute Windows path in the same write is single-quoted, and both readers agree on it', () => {
       // The one spelling a strict YAML parser and the plugin's own outer-pair
       // unquoters read identically: double quotes would give `\U` a meaning it

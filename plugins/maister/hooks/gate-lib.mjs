@@ -92,6 +92,7 @@ export function findStates(cwd) {
   const seen = new Set();
   const tasks = path.join(root, 'tasks');
   for (const type of subdirs(tasks)) {
+    if (LEGACY_TYPE_DIRS.has(type)) continue;
     for (const name of subdirs(path.join(tasks, type))) add(runs, seen, path.join(tasks, type, name));
   }
   const umbrella = path.join(root, 'umbrella', 'runs');
@@ -103,6 +104,29 @@ export function findStates(cwd) {
   }
   return runs;
 }
+
+/**
+ * The five legacy type dirs of § 2. They are **inventory-only regardless of
+ * what their state files contain**, so a run is never read out of one and a
+ * gate can never be pending in one. Skipping them here rather than in
+ * `pendingSet` keeps the stop nudge on the same rule for free.
+ *
+ * They are not merely old: the pre-v3 orchestrators wrote a top-level
+ * `workflow:` key of their own — a scalar name, or a `{name, version, mode}`
+ * block — which is the same key the pending predicate's rule (c) keys on. A
+ * repository carrying a few years of them would otherwise have every one of
+ * them read as a run awaiting an operator.
+ */
+const LEGACY_TYPE_DIRS = new Set(['bug-fixes', 'enhancements', 'new-features', 'refactoring', 'mockups']);
+
+/**
+ * A top-level `orchestrator:` key: the floor marker of § 2. Tested against the
+ * raw text rather than against a scan, because a below-floor document must not
+ * even be scanned — its `workflow:` block is a pre-v3 shape and scanning it can
+ * throw, which would fail the session closed on a document that is an inventory
+ * row rather than a run.
+ */
+const ORCHESTRATOR_BLOCK = /^orchestrator:/m;
 
 /**
  * One run, once. A symlinked layout can reach the same state file by more than
@@ -286,15 +310,36 @@ const REQUEST_SUFFIX = '.request.yml';
  *   (b) a `gates/*.request.yml` beside the state still reads `answer: null`;
  *   (c) a `workflow:` block exists but its `nodes:` or the `task:` block does not.
  *
- * Rule (c) fires only when `workflow:` is there, so a pre-v3 task directory —
- * which never carries one — can only be pending through (a) or (b).
+ * All three are qualified by the compatibility floor: **below the floor there is
+ * no gate** (§ 2, § E2, § H1). A state file carrying no `orchestrator:` block is
+ * an inventory row rather than a run, so it is skipped before it is scanned and
+ * none of the three rules is reached — not even (b), an unanswered request file
+ * lying beside it.
+ *
+ * That qualification is the whole of what keeps rule (c) honest. Its original
+ * note read "a pre-v3 task directory never carries a `workflow:` key", and that
+ * is simply false: the pre-v3 orchestrators wrote one as their own header, as a
+ * scalar (`workflow: research-orchestrator`) or as a `{name, version, mode}`
+ * block. Neither carries `nodes:`, so every such directory satisfied (c) — and
+ * because a gate no request file describes can never be answered, one legacy
+ * directory left in a repository denied every write in it, permanently. The
+ * floor check is what distinguishes "a v3 run whose state was truncated", which
+ * must fail closed, from "a document written before any of this existed", which
+ * must not gate at all.
  */
 export function pendingSet(runs) {
   const pending = [];
   for (const run of runs) {
+    let text;
+    try {
+      text = fs.readFileSync(run.stateFile, 'utf8');
+    } catch (err) {
+      throw new Error(`${run.stateFile}: ${err.message}`);
+    }
+    if (!ORCHESTRATOR_BLOCK.test(text)) continue;
     let scanned;
     try {
-      scanned = scanState(fs.readFileSync(run.stateFile, 'utf8'));
+      scanned = scanState(text);
     } catch (err) {
       throw new Error(`${run.stateFile}: ${err.message}`);
     }
