@@ -307,6 +307,37 @@ What sits beside them depends on the workflow:
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
 
+A run that hands work out to another repository also writes a `dispatch/` directory beside
+those, holding one envelope per dispatched node.
+
+### Umbrella workspaces
+
+A workspace whose members are checkouts of separate repositories carries a second tree, beside
+the task directories and independent of them:
+
+```
+.maister/
+├── umbrella.yml                    # The workspace manifest: members, branch convention, defaults
+├── workflows/                      # Workflow definitions and overlays this workspace owns
+└── umbrella/
+    ├── runs/<run-id>/              # One directory per coordinated run
+    ├── ledger/
+    │   ├── entries/                # One file per dispatch — the unit of visible work
+    │   ├── index.yml               # Regenerated whole after every op
+    │   └── ledger.log              # Append-only, one line per op, written after the entry
+    └── outbox/<dispatch-id>/       # Numbered result messages, append-only, never rewritten
+```
+
+The ledger is the answer to "what work is out, who has it, and how did it end". Each entry is
+rewritten atomically by one op at a time, the index is derived from the entries rather than
+maintained alongside them, and the log records every op in the order it committed — so a
+ledger that disagrees with its index is repaired by regenerating the index, never the other
+way round.
+
+The outbox is the return channel: a worker appends `status`, `followup`, `artifact`, `blocked`
+and `closeout` messages as numbered files, and nothing ever rewrites one. Messages accumulate;
+the last word on a dispatch is its close-out, not the state of a file that kept being edited.
+
 The normative layout and naming rules are `plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md § A4`.
 
 ## Internal Skills

@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const HOOK_VERSION = 'contracts-v1';
+export const HOOK_VERSION = 'contracts-v2';
 
 /** The provider's fail-closed exit code (contract H1). */
 const FAIL_CLOSED_EXIT = { claude: 2, copilot: 0, unknown: 2 };

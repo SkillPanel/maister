@@ -6,12 +6,14 @@
  * Windows checkout with no POSIX shell as it does anywhere else. Zero
  * dependencies, `node:` builtins only, Node >= 20.
  *
- * Four verbs, one contract:
+ * Five verbs, one contract:
  *
- *   validate     --definition and/or repeatable --overlay   JSON on stdout
- *   resolve      --definition, --overlay…, --profile        JSON on stdout
- *   diagram      the same, plus optional --out              Mermaid text
- *   write-state  --state, the patch as JSON on stdin        changed paths
+ *   validate      --definition and/or repeatable --overlay   JSON on stdout
+ *   resolve       --definition, --overlay…, --profile        JSON on stdout
+ *   diagram       the same, plus optional --out              Mermaid text
+ *   write-state   --state, the patch as JSON on stdin        changed paths
+ *   gate-request  --state, the request as JSON on stdin      the files written
+ *                 (the request file, the gate index and the pending marker)
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -44,6 +46,11 @@ const VERBS = {
   resolve: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile'] },
   diagram: { module: 'diagram.mjs', flags: ['definition', 'overlay', 'profile', 'out'] },
   'write-state': { module: 'state.mjs', flags: ['state'] },
+  // One flag, like `write-state`, and for the same reason: everything the verb
+  // needs — the run directory, the `gates/` directory and the frozen graph — is
+  // derived from the state file, so there is no second path a caller could get
+  // wrong or point at another run.
+  'gate-request': { module: 'gate.mjs', flags: ['state'] },
 };
 
 /** The flags that may be given more than once; every other flag is single-valued. */
@@ -293,7 +300,7 @@ async function runDiagram(flags) {
 
 async function runWriteState(flags) {
   if (!flags.state) throw new UsageError('write-state needs --state');
-  const patch = readPatch();
+  const patch = readStdinJson('the patch');
   const module = await loadModule(VERBS['write-state'].module);
   const write = entryOf(module, 'writeState', VERBS['write-state'].module);
   const result = write({ state: flags.state, patch });
@@ -305,19 +312,49 @@ async function runWriteState(flags) {
   return EXIT.REJECTED;
 }
 
-/** The patch, read whole from stdin. An unreadable or non-JSON patch never ran. */
-function readPatch() {
+/**
+ * Write the gate request file and regenerate the gate index.
+ *
+ * Reported like `write-state` — the files written, one per line, and the
+ * refusal message on stderr with the code as its first token — because a caller
+ * that has learned one of these two verbs has learned both. It reports the
+ * state file among them: the pending marker is written inside this verb, not by
+ * a second call, because the run is pending from the moment the request file
+ * lands and a second shell call against a pending run is denied.
+ */
+async function runGateRequest(flags) {
+  if (!flags.state) throw new UsageError('gate-request needs --state');
+  const request = readStdinJson('the request document');
+  const module = await loadModule(VERBS['gate-request'].module);
+  const write = entryOf(module, 'gateRequest', VERBS['gate-request'].module);
+  const result = write({ state: flags.state, request });
+  for (const written of result.changed || []) process.stdout.write(`${written}\n`);
+  if (result.ok) return EXIT.OK;
+  for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  return EXIT.REJECTED;
+}
+
+/**
+ * A structured input, read whole from stdin. Unreadable or non-JSON never ran.
+ *
+ * `what` names the document in the message because two verbs read stdin now,
+ * and "the patch on stdin is not JSON" reported for a gate request would send a
+ * caller to the wrong document. Empty *stdin* is rejected; an empty *object* is
+ * not, and for `write-state` that is a sanctioned call — the validate-and-
+ * republish step of a resume.
+ */
+function readStdinJson(what) {
   let text;
   try {
     text = fs.readFileSync(0, 'utf8');
   } catch (err) {
-    throw new UsageError(`the patch could not be read from stdin: ${err.message}`);
+    throw new UsageError(`${what} could not be read from stdin: ${err.message}`);
   }
-  if (text.trim() === '') throw new UsageError('the patch on stdin is empty');
+  if (text.trim() === '') throw new UsageError(`${what} on stdin is empty`);
   try {
     return JSON.parse(text);
   } catch (err) {
-    throw new UsageError(`the patch on stdin is not JSON: ${err.message}`);
+    throw new UsageError(`${what} on stdin is not JSON: ${err.message}`);
   }
 }
 
@@ -326,6 +363,7 @@ const RUNNERS = {
   resolve: runResolve,
   diagram: runDiagram,
   'write-state': runWriteState,
+  'gate-request': runGateRequest,
 };
 
 // ---------------------------------------------------------------------------

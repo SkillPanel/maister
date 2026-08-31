@@ -57,7 +57,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 
 ## 2. Phase Gate Behavior
 
-`→ Pause` in older prose is a synonym for `→ MANDATORY GATE`. SKILL.md orchestrators are terminal-mode only until the engine gains a driver-aware mode: the AskUserQuestion rule below applies when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode (chain runs driven by the engine prompt) the gate is a request file + `GATE-PENDING` line, never an in-session question (`compatibility-contracts.md § E2`).
+`→ Pause` in older prose is a synonym for `→ MANDATORY GATE`. **The gate rule is qualified by the run's driver, not by the orchestrator**: the AskUserQuestion rule below applies when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode (chain runs driven by the engine prompt) the gate is one `gate-request` call — the engine verb that writes the request file, the gate index and `gate_pending` together — plus a `GATE-PENDING` line, never an in-session question (`compatibility-contracts.md § E2`).
 
 **`→ MANDATORY GATE` means STOP and USE AskUserQuestion.** This is NOT optional. You MUST invoke the `AskUserQuestion` tool and WAIT for user response. Proceeding without it is a protocol violation.
 
@@ -69,7 +69,7 @@ All orchestrators pause at `→ MANDATORY GATE` transitions for user review and 
 
 Claude Code's `auto` permission mode instructs the model to execute immediately and minimize clarifying questions. The `→ MANDATORY GATE` checkpoints in this framework are an explicit stated boundary that overrides that instruction.
 
-You MUST invoke `AskUserQuestion` at every `→ MANDATORY GATE` in every permission mode — `default`, `acceptEdits`, `auto`, `plan`, `bypassPermissions` — when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode write the gate request file and end the turn instead (`compatibility-contracts.md § E2`). "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
+You MUST invoke `AskUserQuestion` at every `→ MANDATORY GATE` in every permission mode — `default`, `acceptEdits`, `auto`, `plan`, `bypassPermissions` — when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode suspend the run with one `gate-request` call and end the turn instead (`compatibility-contracts.md § E2`). "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
 
 ### 2.1 Resolving session-reminder conflicts (decide ONCE, do not re-litigate at each gate)
 

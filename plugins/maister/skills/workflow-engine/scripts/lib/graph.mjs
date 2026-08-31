@@ -593,6 +593,17 @@ function checkGraph(graph, errors, warnings) {
 }
 
 /**
+ * An authored gate option is either the bare effect or a map carrying that
+ * effect beside the values the option emits. Every effect check reads through
+ * here so the two spellings stay one rule. What the values mean is not this
+ * version's business; only the effect is.
+ */
+function optionEffect(option) {
+  if (isMap(option)) return option.effect;
+  return option;
+}
+
+/**
  * The gate rule and its mirror image. A gate runs nothing and must be able to
  * stop the run; a task node must name something to run. Both halves matter: a
  * gate that cannot stop is not a gate, and a node with no target is a step the
@@ -621,10 +632,14 @@ function checkNodeShape(node, id, at, file, errors) {
 
   let continues = 0;
   let stops = 0;
-  for (const [option, effect] of Object.entries(node.options)) {
+  for (const [option, authored] of Object.entries(node.options)) {
     if (!OPTION_ID.test(option)) {
       fail(errors, file, `${at}.options.${option}`, `the option id "${option}" is outside the closed character set`, id);
     }
+    if (isMap(authored) && authored.values !== undefined && !isMap(authored.values)) {
+      fail(errors, file, `${at}.options.${option}.values`, 'an option carries the values it emits as a map, never a scalar', id);
+    }
+    const effect = optionEffect(authored);
     if (effect === 'continue') continues++;
     else if (effect === 'stop') stops++;
     else fail(errors, file, `${at}.options.${option}`, `an option effect is "continue" or "stop", never "${effect}"`, id);

@@ -1,0 +1,19 @@
+{
+  "id": "gate-emitting-values",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-28T09:12:44Z",
+  "files": [
+    {
+      "path": "gate-emitting-values.yml",
+      "schema": "workflow-definition.schema.json#"
+    }
+  ],
+  "notes": "A gate whose options carry the values the answer emits, mixed with the bare-effect spelling on the third option so both authored forms are pinned by one document. The one-continue rule still counts through the effect, whichever spelling carries it. Nothing reads the values at this version; the grammar is frozen ahead of the engine so the day it emits them costs no second bump."
+}

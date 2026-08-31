@@ -23,6 +23,10 @@
       "schema": "gate.schema.json#/$defs/request"
     },
     {
+      "path": "request-gate-values.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    },
+    {
       "path": "version-99-request.yml",
       "schema": null
     }
@@ -32,5 +36,5 @@
       "newer-format"
     ]
   },
-  "notes": "One standalone request document per kind. gate stops the chain unless the operator continues; decision offers two continue options and no stop; convergence is the only multi-choice case (multi_select true, several continue options). The multi-choice flag key is spelled here and in gate.schema.json only. version-99-request.yml carries schema null on purpose: a document declaring a newer format cannot validate against the v1 const, and the expectation is the runner reporting degraded: newer-format rather than a schema pass."
+  "notes": "One standalone request document per kind. gate stops the chain unless the operator continues; decision offers two continue options and no stop; convergence is the only multi-choice case (multi_select true, several continue options). request-gate-values.yml is the same gate kind with the optional per-option values map present, which is the request-file mirror of the widened definition-side option grammar; nothing writes or reads it at this version. The multi-choice flag key is spelled here and in gate.schema.json only. version-99-request.yml carries schema null on purpose: a document declaring a newer format cannot validate against the v1 const, and the expectation is the runner reporting degraded: newer-format rather than a schema pass."
 }

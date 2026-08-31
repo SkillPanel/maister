@@ -1,0 +1,23 @@
+{
+  "id": "gate-option-values-not-a-map",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-28T09:12:44Z",
+  "files": [
+    {
+      "path": "gate-option-values-not-a-map.yml",
+      "schema": "workflow-definition.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/nodes/approve/options/proceed",
+    "error_keyword": "type"
+  },
+  "notes": "The widened option grammar accepts a bare effect or an object carrying an effect and a values map. A scalar under values fails the object branch while the bare-effect branch already failed, which is what makes the whole option invalid rather than degraded."
+}

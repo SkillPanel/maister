@@ -25,7 +25,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import vm from 'node:vm';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { parse as parseYaml } from 'yaml';
 import crypto from 'node:crypto';
 import os from 'node:os';
@@ -494,13 +494,20 @@ function lintDag(doc) {
     : [];
 }
 
+/**
+ * B1: an authored option is the bare effect or a map carrying that effect
+ * beside the values the option emits. The count reads through here so the two
+ * spellings stay one rule, exactly as the engine's own reader does.
+ */
+const optionEffect = option => (isObject(option) ? option.effect : option);
+
 /** B1: a gate offers exactly one continue and at least one stop. */
 function lintGateContinue(doc) {
   if (!isObject(doc) || !isObject(doc.nodes)) return [];
   const errors = [];
   for (const [id, node] of Object.entries(doc.nodes)) {
     if (!isObject(node) || node.type !== 'gate' || !isObject(node.options)) continue;
-    const effects = Object.values(node.options);
+    const effects = Object.values(node.options).map(optionEffect);
     const continues = effects.filter(e => e === 'continue').length;
     const stops = effects.filter(e => e === 'stop').length;
     if (continues !== 1 || stops < 1) {
@@ -932,6 +939,7 @@ const HOOK_SCRIPTS = {
   sessionStart: 'hooks/gate-beacon.mjs',
 };
 const GATE_LIB = 'hooks/gate-lib.mjs';
+const CANONICAL_LIB = 'lib/canonical.mjs';
 
 /** The `task_path` shape each of the three A4 depths admits. */
 const CWD_LAYOUTS = {
@@ -959,7 +967,8 @@ const FAIL_CLOSED_PREFIX = 'GATE HOOK FAIL-CLOSED: ';
 const FAIL_CLOSED_TAIL =
   'Fix the file with the editor tools or stop and report RUN-FAILED: state-unparseable. Do not retry with another tool.';
 const NUDGE_TAIL =
-  'write the request file (temp + rename), set gate_pending, rewrite dashboard-data.js, print GATE-PENDING: ';
+  'suspend the run with one gate-request call (it writes the request file, the gate index and '
+  + 'gate_pending together — there is no second state write), rewrite dashboard-data.js, print GATE-PENDING: ';
 
 // ---------------------------------------------------------------------------
 // E2 one-line reader — the reference implementation T13 measures against
@@ -1555,6 +1564,13 @@ function t03(ctx) {
 // ---------------------------------------------------------------------------
 // T04 — invalid fixtures fail where the manifest says they do
 // ---------------------------------------------------------------------------
+
+/**
+ * The hook version the shipped gate library stamps into its beacon. Named once
+ * here so a contracts bump moves one literal rather than two assertions that
+ * can drift apart.
+ */
+const EXPECTED_HOOK_VERSION = 'contracts-v2';
 
 const RUNNER_KEYWORDS = new Set([
   'phase-status-cross-check', 'not_midnight', 'e2-one-line-form', 'b2-one-line-form',
@@ -2287,7 +2303,7 @@ function t14(ctx) {
         if (marker[key] === undefined) failures.push(`${fx.id}: beacon has no ${key}`);
       }
       checks++;
-      if (marker.provider !== 'claude' || marker.hook_version !== 'contracts-v1') {
+      if (marker.provider !== 'claude' || marker.hook_version !== EXPECTED_HOOK_VERSION) {
         failures.push(`${fx.id}: beacon reads provider ${marker.provider}, hook_version ${marker.hook_version}`);
       }
     }
@@ -2420,7 +2436,7 @@ function t15(ctx) {
         if (marker[key] === undefined) failures.push(`${fx.id}: beacon has no ${key}`);
       }
       checks++;
-      if (marker.provider !== 'copilot' || marker.hook_version !== 'contracts-v1') {
+      if (marker.provider !== 'copilot' || marker.hook_version !== EXPECTED_HOOK_VERSION) {
         failures.push(`${fx.id}: beacon reads provider ${marker.provider}, hook_version ${marker.hook_version}`);
       }
       checks++;
@@ -3385,7 +3401,7 @@ function t25(ctx) {
 
 const CONTRACT_IDS = [
   'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'B1', 'B2', 'B3',
-  'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'E1', 'E2', 'H1', 'R', 'T1',
+  'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'E1', 'E2', 'H1', 'R', 'T1',
 ];
 
 /** Contracts with no document of their own to reject, and why. */
@@ -3507,13 +3523,21 @@ const TARBALL_ENTRIES = [
   'scripts/verify-contracts.mjs',
   'package.json',
   'package-lock.json',
+  // The dispatch ledger and its whole import closure, staged under a non-plugin
+  // root: the daemon vendors them from the archive, and nothing else ships them.
+  'lib/ledger.mjs',
+  'lib/canonical.mjs',
+  'lib/definition.mjs',
 ];
+
+/** The staged modules, in the order VERSION counts them. */
+const TARBALL_LIB = ['lib/ledger.mjs', 'lib/canonical.mjs', 'lib/definition.mjs'];
 
 // The tarball carries no plugin tree and no `.maister/tasks`, so the runner it
 // ships must report exactly these as `skip` — never as `FAIL`.
 const TREE_DEPENDENT_TESTS = [
   'T11', 'T14', 'T15', 'T16', 'T17', 'T18', 'T19', 'T20', 'T21', 'T22', 'T23', 'T24', 'T27', 'T28',
-  'T29', 'T30', 'T31', 'T32', 'T33', 'T34',
+  'T29', 'T30', 'T31', 'T32', 'T33', 'T34', 'T35', 'T36', 'T37', 'T38', 'T39',
 ];
 
 /** Every step of every job in a workflow document, flattened. */
@@ -3639,6 +3663,17 @@ function t27(ctx) {
     }
   }
 
+  // The archive carries no plugin tree, and the staged library is why that has
+  // to be asserted rather than assumed: `ctx.pluginRoot` is derived by walking
+  // up from the schemas directory, so even a partial `plugins/` subtree could
+  // flip capability detection inside the vendored runner and turn a required
+  // `skip` into a `FAIL`.
+  checks++;
+  const pluginEntries = entries.filter(e => e.startsWith(`${tag}/plugins/`));
+  if (pluginEntries.length) {
+    failures.push(`dist/${archive.name}: the tarball carries a plugin tree — ${pluginEntries.slice(0, 3).join(', ')}`);
+  }
+
   // The staging dir is what was archived; a mismatch means files were dropped.
   const staging = path.join(distDir, tag);
   checks++;
@@ -3692,6 +3727,35 @@ function t27(ctx) {
     }
   }
 
+  // -- the staged library and its closure ----------------------------------
+  // Re-derived from the staged bytes rather than from the builder: the staging
+  // list is what would go stale when a fourth dependency is added, and reading
+  // the imports back out of what was actually staged is the only way to notice.
+  if (isDir(staging)) {
+    checks++;
+    const versionDoc = isFile(path.join(staging, 'VERSION')) ? readJson(path.join(staging, 'VERSION')) : {};
+    if (versionDoc.lib_count !== TARBALL_LIB.length) {
+      failures.push(`dist/${tag}/VERSION: lib_count ${JSON.stringify(versionDoc.lib_count)} ≠ the ${TARBALL_LIB.length} staged modules`);
+    }
+    for (const relative of TARBALL_LIB) {
+      const staged = path.join(staging, ...relative.split('/'));
+      checks++;
+      if (!isFile(staged)) {
+        failures.push(`dist/${tag}/${relative}: not staged`);
+        continue;
+      }
+      const text = fs.readFileSync(staged, 'utf8');
+      for (const m of text.matchAll(/^\s*(?:import|export)\s[^\n]*?from\s+'([^']+)'/gm)) {
+        const spec = m[1];
+        if (spec.startsWith('node:')) continue;
+        checks++;
+        if (!spec.startsWith('./') || !isFile(path.join(staging, 'lib', spec.slice(2)))) {
+          failures.push(`dist/${tag}/${relative}: imports ${spec}, which the flattened archive cannot resolve`);
+        }
+      }
+    }
+  }
+
   // -- the vendored runner, from the extracted archive -----------------------
   // Extracted into a fresh directory under the platform temp location, unique
   // per run: two suites running at once must not share an extraction tree.
@@ -3740,6 +3804,20 @@ function t27(ctx) {
         failures.push(`the vendored runner did not skip ${id} — the tarball carries no plugin tree`);
       }
     }
+    // Nothing else in the suite executes the staged library: T27 runs only the
+    // vendored runner, so a dependency that was never staged stays green in CI
+    // and surfaces in the daemon. This is a resolution check, not a behavioural
+    // one, and it is the guard against a fourth dependency being added later
+    // without being staged beside the three that are.
+    const stagedLedger = pathToFileURL(path.join(root, 'lib', 'ledger.mjs')).href;
+    const resolved = runBounded(process.execPath,
+      ['--input-type=module', '-e', `await import(${JSON.stringify(stagedLedger)})`],
+      { encoding: 'utf8', timeout: ARCHIVE_TIMEOUT_MS });
+    checks++;
+    if (resolved.status !== 0) {
+      failures.push(`import(<archive>/lib/ledger.mjs) exited ${resolved.status}: ${(resolved.stderr ?? '').trim().split('\n')[0]}`);
+    }
+
     const okCount = lines.filter(l => l.startsWith('ok ')).length;
     checks++;
     if (okCount < 10) failures.push(`the vendored runner reported ${okCount} ok lines — the tree-independent tests did not run`);
@@ -4892,7 +4970,12 @@ async function t30(ctx) {
       const copy = path.join(scratch, 'state-noguard.mjs');
       const src = fs.readFileSync(stateSrc, 'utf8')
         .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/hooks\/gate-lib\.mjs'/,
-          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, GATE_LIB)).href));
+          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, GATE_LIB)).href))
+        // The copy lives outside the plugin tree, so every plugin-root import the
+        // writer carries — the hook's reader and the shared write primitives —
+        // has to be re-pointed at an absolute URL or the copy will not load.
+        .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/lib\/canonical\.mjs'/,
+          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, CANONICAL_LIB)).href));
       const patched = src.replace(/^const BLOCK_KEY = .*$/m, 'const BLOCK_KEY = /[\\s\\S]*/;');
       if (patched === src) return null;
       fs.writeFileSync(copy, patched, 'utf8');
@@ -4973,12 +5056,83 @@ async function t30(ctx) {
       assert(read(file) === before, 'the file changed despite the refusal');
     });
 
+    expect('a prototype member is not a workflow name, a node id or a status', () => {
+      // Bracket access on a plain-object map answers for `Object.prototype`'s
+      // members, and every answer is truthy. `name: constructor` walked past
+      // the refusal above and wrote `function Object() { [native code] }:` as a
+      // top-level YAML key — a corrupt file that passed the self-check, the
+      // structure check and the hook's own reader at exit 0.
+      for (const name of ['constructor', 'toString', 'valueOf', '__proto__', 'hasOwnProperty']) {
+        const file = state(BASE_STATE.replace('  name: research\n', `  name: ${name}\n`));
+        const before = read(file);
+        const res = writeState({ state: file, patch: { context: { k: 'v' } } });
+        assert(res.ok === false, `the workflow name "${name}" was accepted`);
+        assert(refusal(res) === 'state-context-block-unknown',
+          `the workflow name "${name}" refused ${refusal(res)}, expected state-context-block-unknown`);
+        assert(read(file) === before, `the file changed although "${name}" was refused`);
+      }
+
+      // The same read on the other two maps. Both are legal inputs, so they are
+      // written rather than refused — what must not happen is a prototype
+      // member reaching the file as a value.
+      const file = state();
+      const res = writeState({
+        state: file,
+        patch: {
+          nodes: { constructor: { kind: 'task', status: 'running' } },
+          node_summaries: { constructor: { summary: 'x' }, toString: { node: 'constructor', summary: 'y' } },
+        },
+      });
+      assert(res.ok === true, `refused: ${JSON.stringify(res.errors)}`);
+      const text = read(file);
+      assert(!/native code/.test(text), 'a prototype member reached the state file');
+      assert(!/function Object/.test(text), 'a prototype member reached the state file');
+      assert(/^ {4}constructor: \{kind: task, status: running/m.test(text),
+        `the node entry reads ${JSON.stringify(text.split('\n').find(l => l.includes('constructor:')))}`);
+      // `status: running` mirrors to `in_progress`; `toString` names no status
+      // the mirror carries, so nothing is mirrored rather than a function being.
+      assert(/status: in_progress/.test(text), 'the summary status was not mirrored');
+      assert(text.split('\n').every(line => !/status: (?:function|\[object)/.test(line)),
+        'a prototype member was mirrored as a status');
+    });
+
     expect('an existing context block is ignored when the name gives none', () => {
       const file = state(`${BASE_STATE.replace('  name: research\n', '')}\nmigration_context:\n  phase_summaries: {}\n`);
       const res = writeState({ state: file, patch: { phase_summaries: { 'phase-1': { summary: 'x' } } } });
       assert(res.ok === true, `refused: ${JSON.stringify(res.errors)}`);
       assert(/^migration_context:$/m.test(read(file)), 'the existing block was not adopted');
       assert(!/research_context/.test(read(file)), 'research_context was written beside an existing block');
+    });
+
+    expect('a temp stamped in the future is reclaimed rather than wedging the file forever', () => {
+      // Age was `now - mtime`, so a future mtime gave a negative age, a negative
+      // age is never past the stale threshold, and the refusal said to wait a
+      // minute — forever. NTP stepping the clock back, a network filesystem
+      // whose server clock runs ahead and a backup restore that preserves
+      // mtimes all produce it, and under a pending gate there is no shell to
+      // delete the file with.
+      const file = state();
+      const tmp = path.join(path.dirname(file), 'orchestrator-state.yml.tmp');
+      fs.writeFileSync(tmp, "a dead writer's bytes\n", 'utf8');
+      const ahead = new Date(Date.now() + 10 * 60_000);
+      fs.utimesSync(tmp, ahead, ahead);
+      const res = writeState({ state: file, patch: { task: { status: 'completed' } } });
+      assert(res.ok === true,
+        `a temp stamped in the future wedged the write: ${JSON.stringify(res.errors)}`);
+      assert(/status: completed/.test(read(file)), 'the write did not land');
+      assert(!fs.existsSync(tmp), 'the reclaimed temp was left behind');
+
+      // A temp stamped just ahead of now is still a live writer's: only the
+      // threshold's worth of skew is called a leftover, in either direction.
+      const held = path.join(path.dirname(file), 'orchestrator-state.yml.tmp');
+      fs.writeFileSync(held, 'live writer bytes\n', 'utf8');
+      const soon = new Date(Date.now() + 5_000);
+      fs.utimesSync(held, soon, soon);
+      const second = writeState({ state: file, patch: { task: { status: 'in_progress' } } });
+      assert(second.ok === false, "a live writer's temp was reclaimed");
+      assert(refusal(second) === 'state-temp-exists', `expected state-temp-exists, got ${refusal(second)}`);
+      assert(read(held) === 'live writer bytes\n', "the live writer's bytes were destroyed");
+      fs.rmSync(held, { force: true });
     });
 
     expect('a pre-existing temp file is clobbered', () => {
@@ -4994,10 +5148,15 @@ async function t30(ctx) {
     });
 
     expect('the temp name drifted or the write does not fsync before renaming', () => {
+      // The two halves live in two files since the write primitives were
+      // shared: the frozen name is the writer's, because only the writer knows
+      // which name the gate allow-list carries, and the publish path is the
+      // plugin-root library's, because every writer in the plugin uses it.
       const src = fs.readFileSync(stateSrc, 'utf8');
+      const lib = fs.readFileSync(path.join(ctx.pluginRoot, CANONICAL_LIB), 'utf8');
       assert(/const TMP_NAME = 'orchestrator-state\.yml\.tmp';/.test(src), 'the frozen temp name changed');
-      assert(/openSync\(\s*tmp,\s*'wx'\s*\)/.test(src), 'the temp file is not opened exclusively');
-      assert(/fsyncSync\(/.test(src), 'the temp file is not fsynced before the rename');
+      assert(/openSync\(\s*tmp,\s*'wx'\s*\)/.test(lib), 'the temp file is not opened exclusively');
+      assert(/fsyncSync\(/.test(lib), 'the temp file is not fsynced before the rename');
     });
 
     expect('a normal write leaves its temp file behind', () => {
@@ -5393,7 +5552,12 @@ async function t30(ctx) {
       const copy = path.join(scratch, 'state-nomerge.mjs');
       const src = fs.readFileSync(stateSrc, 'utf8')
         .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/hooks\/gate-lib\.mjs'/,
-          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, GATE_LIB)).href));
+          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, GATE_LIB)).href))
+        // The copy lives outside the plugin tree, so every plugin-root import the
+        // writer carries — the hook's reader and the shared write primitives —
+        // has to be re-pointed at an absolute URL or the copy will not load.
+        .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/lib\/canonical\.mjs'/,
+          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, CANONICAL_LIB)).href));
       const patched = src.replace(/^const MERGED_MAPS = new Set\(\[[^\]]*\]\);$/m, 'const MERGED_MAPS = new Set();');
       if (patched === src) return null;
       fs.writeFileSync(copy, patched, 'utf8');
@@ -6771,6 +6935,1978 @@ function t34(ctx) {
 }
 
 // ===========================================================================
+// T35-T38 — the umbrella runtime
+// ===========================================================================
+
+/**
+ * The four tests below are behavioural: they execute the shipped writers rather
+ * than reading them, because every one of the properties they pin is invisible
+ * to a schema. A manifest that validates can still have been written outside
+ * `.maister/`; a ledger entry that validates can still have been published
+ * before its log line; an emitted script that lints can still fail to resolve
+ * its own import.
+ *
+ * They share one small accumulator so a broken property is reported instead of
+ * crashing the test and hiding the twenty that still hold.
+ */
+
+/** An assertion one of these tests made, as opposed to an unexpected throw. */
+class CheckFailed extends Error {}
+
+const must = (condition, why) => { if (!condition) throw new CheckFailed(why); };
+
+const equalJson = (actual, expected, what) => must(
+  JSON.stringify(actual) === JSON.stringify(expected),
+  `${what}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+);
+
+function checker() {
+  const state = { checks: 0, failures: [], notes: [] };
+  const record = (label, err) => {
+    state.failures.push(err instanceof CheckFailed
+      ? `${label}: ${err.message}`
+      : `${label}: threw ${err?.constructor?.name ?? 'Error'} — ${String(err?.message ?? err).split('\n')[0]}`);
+  };
+  state.check = (label, body) => {
+    state.checks++;
+    try {
+      body();
+    } catch (err) {
+      record(label, err);
+    }
+  };
+  state.checkAsync = async (label, body) => {
+    state.checks++;
+    try {
+      await body();
+    } catch (err) {
+      record(label, err);
+    }
+  };
+  return state;
+}
+
+/** The report a refused call returns, or the code a thrown Refusal carried. */
+function refusalCodes(result) {
+  return (result?.errors ?? []).map(e => e.code);
+}
+
+/**
+ * Call `body` expecting a `Refusal`; return its code. Every umbrella library
+ * throws `Refusal` from its build half and returns a report from its verb half,
+ * so both spellings are collected the same way.
+ */
+function caught(body) {
+  try {
+    body();
+  } catch (err) {
+    if (err instanceof CheckFailed) throw err;
+    if (typeof err?.code === 'string') return err.code;
+    throw err;
+  }
+  throw new CheckFailed('nothing was thrown, expected a Refusal');
+}
+
+// ---------------------------------------------------------------------------
+// T35 — the umbrella runtime, over the live writers
+// ---------------------------------------------------------------------------
+
+const UMBRELLA_SCRIPTS = 'skills/umbrella/scripts';
+const SEED_FIXTURE_DIR = path.join('synthetic', 'worker-seed');
+
+/**
+ * Every refusal the umbrella runtime names. The set is closed by design — the
+ * SKILL documents a recovery for each — so the test asserts coverage of the
+ * whole list rather than of the handful a change happened to touch. A code that
+ * cannot be provoked portably is listed in `PLATFORM_GATED_REFUSALS` with the
+ * reason, and is reported as a note rather than silently dropped.
+ *
+ * **The list is checked against the runtime in both directions.** It used to be
+ * checked only one way — list → provoked — so a code the runtime raised but the
+ * list never named passed a green suite, and the coverage note printed more
+ * refusals provoked than the list declared, which is arithmetically impossible
+ * and was ignored for two rounds. `sweepRefusalCodes` now derives the set the
+ * umbrella sources actually manufacture and holds it equal to this list, and
+ * the coverage assertion holds the provoked set inside it, so a code cannot
+ * escape the list by being added to the code.
+ *
+ * "The SKILL documents a recovery for each" used to be a claim in this comment
+ * and nowhere else, while the assertion below only checked that each code was
+ * *provoked*. A code whose documented recovery was wrong — "wait a minute and
+ * re-issue" for a refusal raised after the mutation had already been published,
+ * which silently applied it a second time — passed a green suite. The comment
+ * is now load-bearing: `t.check('the SKILL documents…')` reads the shipped
+ * tables, matches them against this list in both directions, and holds the
+ * post-publish recoveries to saying so.
+ */
+const UMBRELLA_REFUSALS = [
+  'umbrella-root-unusable', 'umbrella-member-unreadable', 'umbrella-members-root-outside',
+  'umbrella-manifest-exists', 'umbrella-unwritable', 'umbrella-temp-exists',
+  'dispatch-node-incomplete', 'dispatch-autonomy-unknown', 'dispatch-autonomy-unresolved',
+  'dispatch-graph-drifted', 'dispatch-envelope-exists', 'dispatch-unwritable', 'dispatch-temp-exists',
+  'dispatch-workflow-not-driver-capable', 'dispatch-closeout-impossible',
+  'seed-envelope-invalid', 'seed-over-cap',
+  'ledger-locked', 'ledger-entry-missing', 'ledger-entry-exists', 'ledger-entry-unreadable',
+  'ledger-op-unknown', 'ledger-args-invalid', 'ledger-status-illegal', 'ledger-unwritable',
+  'ledger-log-unappendable', 'ledger-temp-exists',
+  'outbox-message-invalid', 'outbox-type-invalid', 'outbox-sequence-taken', 'outbox-unwritable',
+  'outbox-unreadable',
+  'value-not-flow-safe',
+];
+
+/**
+ * Every documented recovery in the shipped SKILL's refusal tables, by code.
+ *
+ * A row is a table row whose first cell is a backticked token shaped like a
+ * refusal code. The flag table beside them keys on underscored names and is
+ * deliberately not matched. A code may hold several rows — one per subsystem
+ * table that names it — and each is checked.
+ */
+function skillRows(skill) {
+  const rows = new Map();
+  for (const found of skill.matchAll(/^\|\s*`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`\s*\|(.*)\|\s*$/gm)) {
+    if (!rows.has(found[1])) rows.set(found[1], []);
+    rows.get(found[1]).push(found[2].trim());
+  }
+  return rows;
+}
+
+/** The two refusals that need a filesystem mode win32 has no equivalent for. */
+const PLATFORM_GATED_REFUSALS = new Map([
+  ['outbox-unreadable', 'a directory that can be entered but not listed is a POSIX mode'],
+  ['dispatch-unwritable', 'a directory that exists but cannot be written into is a POSIX mode'],
+]);
+
+/**
+ * The refusal codes the umbrella sources manufacture, read out of the sources.
+ *
+ * Three positions produce a `Refusal` in this runtime and there is no fourth:
+ * a literal `new Refusal('code', …)`, and the two shapes the shared publish
+ * helpers take their codes in — `{unwritable, tempExists}` handed to `commit`
+ * and `openTemp`, and the `{code, unwritable}` `claimLock` takes. A code is
+ * counted only when it is spelled in one of those positions *and* carries a
+ * refusal prefix, so the validation-error codes that ride the same `code:` key
+ * (`duplicate-member-name` and its neighbours) are not mistaken for refusals.
+ *
+ * Deriving beats hand-keeping because the failure this closes was a hand-kept
+ * list: two codes reached the shipped runtime — one of them a containment fix
+ * added in the round that added the guard — while the list, the SKILL tables
+ * and the coverage assertion all stayed as they were.
+ */
+const REFUSAL_PREFIX = /^(?:umbrella|dispatch|seed|ledger|outbox)-[a-z0-9]+(?:-[a-z0-9]+)*$|^value-not-flow-safe$/;
+
+function sweepRefusalCodes(scriptsDir) {
+  const files = [];
+  const walk = dir => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile() && entry.name.endsWith('.mjs')) files.push(full);
+    }
+  };
+  walk(scriptsDir);
+  const found = new Map();
+  for (const file of files) {
+    const text = fs.readFileSync(file, 'utf8');
+    const add = code => {
+      if (!REFUSAL_PREFIX.test(code)) return;
+      if (!found.has(code)) found.set(code, new Set());
+      found.get(code).add(path.basename(file));
+    };
+    for (const m of text.matchAll(/new Refusal\(\s*'([^']+)'/g)) add(m[1]);
+    for (const m of text.matchAll(/\b(?:code|unwritable|tempExists)\s*:\s*'([^']+)'/g)) add(m[1]);
+  }
+  return { files, found };
+}
+
+/** The fixture definition the envelope and seed halves are driven from. */
+const T35_DEFINITION = `name: widget-rollout
+version: 1
+inputs:
+  target: {type: string, required: true}
+nodes:
+  research:
+    uses: skill:research
+    needs: []
+    outputs:
+      artifacts:
+        report: outputs/research-report.md
+  dev-beta:
+    uses: skill:development
+    needs: [research]
+    dir: repo-beta
+    provider: copilot
+    with:
+      autonomy: attended
+      research: runs/research/outputs/research-report.md
+  dev-alpha:
+    uses: skill:development
+    needs: [research]
+    dir: repo-alpha
+  dev-shared:
+    uses: skill:development
+    needs: [research]
+    dir: shared-types
+  dev-docs:
+    uses: skill:development
+    needs: [research]
+    dir: docs-site
+  dev-ghost:
+    uses: skill:development
+    needs: [research]
+    dir: no-such-member
+  dev-bad:
+    uses: skill:development
+    needs: [research]
+    dir: repo-alpha
+    with:
+      autonomy: yolo
+  dev-plain:
+    uses: skill:quick-dev
+    needs: [research]
+    dir: repo-alpha
+`;
+
+const T35_RUN_ID = '019260a2-1122-7c33-8d44-5e6677889900';
+
+const T35_MANIFEST = {
+  version: 1,
+  umbrella_id: '019260a3-7788-7e99-8a11-b2c3d4e5f607',
+  members: {
+    'repo-alpha': { path: 'projects/repo-alpha', kind: 'repo', default_provider: 'claude', autonomy: 'auto-medium' },
+    'repo-beta': { path: 'projects/repo-beta', kind: 'repo' },
+    'shared-types': { path: 'projects/shared-types', kind: 'repo' },
+    'docs-site': { path: 'projects/docs-site', kind: 'repo', default_provider: 'claude' },
+  },
+  branch_convention: 'feature/{run_id}-{node}',
+  defaults: { autonomy: 'auto-low', worktree: true },
+};
+
+/** C1's four autonomy tiers, in the order the spec widens them. */
+const AUTONOMY_TIERS = ['attended', 'auto-low', 'auto-medium', 'auto-high'];
+
+/** The shipped fixtures the runtime itself reads back with `readDefinition`. */
+const RUNTIME_READ_FIXTURES = [
+  path.join('synthetic', 'dispatch-envelope', 'dev-beta.envelope.yml'),
+  path.join('synthetic', 'umbrella-manifest', 'umbrella.yml'),
+  path.join('synthetic', 'ledger-entry', 'd-0142.yml'),
+];
+
+/** A clone: a `.git` directory inside it. */
+function gitDir(...parts) {
+  const dir = path.join(...parts);
+  fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
+  return dir;
+}
+
+/** A worktree: a `.git` **file** inside it. */
+function gitFileDir(...parts) {
+  const dir = path.join(...parts);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '.git'), 'gitdir: /elsewhere/.git/worktrees/x\n', 'utf8');
+  return dir;
+}
+
+async function t35(ctx) {
+  const t = checker();
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+  const entry = path.join(scripts, 'umbrella.mjs');
+  t.checks++;
+  if (!isFile(entry)) return { checks: t.checks, failures: [`${UMBRELLA_SCRIPTS}/umbrella.mjs is absent`] };
+
+  const lib = name => import(pathToFileURL(path.join(scripts, 'lib', name)).href);
+  const { init, validate, discover } = await lib('manifest.mjs');
+  const { buildEnvelope, writeEnvelope, envelope: envelopeVerb } = await lib('envelope.mjs');
+  const { buildSeed, renderSeed, seed: seedVerb, SEED_SECTIONS, SEED_LINE_CAP } = await lib('seed.mjs');
+  const led = await lib('ledger.mjs');
+  const { readDefinition } = await lib('definition.mjs');
+  const { resolve: resolveGraph } = await import(
+    pathToFileURL(path.join(ctx.pluginRoot, ENGINE, 'scripts', 'lib', 'graph.mjs')).href);
+
+  const { ajv } = loadSchemas(ctx.schemas);
+  const validates = (ref, doc) => {
+    const validator = ajv.getSchema(schemaKey(ref));
+    must(validator, `no schema registered at ${ref}`);
+    must(validator(doc), `does not validate against ${ref}: ${ajv.errorsText(validator.errors)}`);
+  };
+
+  /** Every refusal code this test provoked, for the coverage assertion. */
+  const provoked = new Set();
+  const seen = code => { provoked.add(code); return code; };
+  /**
+   * The codes observed arriving *after* a mutation reached disk. Collected from
+   * the runtime rather than listed, because a hand-kept list of these is the
+   * thing that went wrong: the recovery guard below is only as honest as the
+   * set it checks, and this one is measured.
+   */
+  const postPublish = new Set();
+  const refusedWith = (label, code, result) => {
+    const codes = refusalCodes(result);
+    must(result?.ok === false, `${label}: the call was accepted`);
+    must(codes[0] === code, `${label}: refused ${codes.join(', ') || '(no code)'}, expected ${code}`);
+    if (result?.entry_written === true) postPublish.add(code);
+    seen(code);
+  };
+  const throwsWith = (label, code, body) => {
+    const actual = caught(body);
+    must(actual === code, `${label}: threw ${actual}, expected ${code}`);
+    seen(code);
+  };
+
+  const scratch = tempDir('umbrella');
+  const workspace = name => {
+    const root = path.join(scratch, name);
+    fs.mkdirSync(root, { recursive: true });
+    return root;
+  };
+
+  try {
+    // -- member discovery ---------------------------------------------------
+
+    t.check('discovery finds a symlinked member one level down and a member at the root', () => {
+      const root = workspace('discover-symlink');
+      const outside = gitDir(scratch, 'discover-symlink-target');
+      fs.mkdirSync(path.join(root, 'projects'), { recursive: true });
+      try {
+        fs.symlinkSync(outside, path.join(root, 'projects', 'auth'), 'junction');
+      } catch {
+        t.notes.push('discovery through a symlink: this platform refused to create one, so the member set is checked without it');
+      }
+      gitDir(root, 'plugins');
+      const found = discover(root, { membersRoot: null });
+      must(found.members.some(m => m.name === 'plugins'), 'a member at the workspace root was not found');
+      must(found.membersRoot === 'projects', `the members root defaulted to ${JSON.stringify(found.membersRoot)}`);
+      if (fs.existsSync(path.join(root, 'projects', 'auth'))) {
+        const auth = found.members.find(m => m.name === 'auth');
+        must(auth, 'the symlinked member was not found');
+        must(auth.path === 'projects/auth', `a member path is ${auth.path}, not the workspace-relative one`);
+      }
+    });
+
+    t.check('a dot-prefixed directory and a directory with no .git are ignored', () => {
+      const root = workspace('discover-ignored');
+      gitDir(root, '.worktrees');
+      gitDir(root, 'projects', '.hidden');
+      fs.mkdirSync(path.join(root, 'knowledge'), { recursive: true });
+      fs.mkdirSync(path.join(root, 'projects', 'design'), { recursive: true });
+      gitDir(root, 'projects', 'map');
+      equalJson(discover(root, { membersRoot: null }).members.map(m => m.name), ['map'], 'members');
+    });
+
+    t.check('a .git file qualifies, and a repository nested inside a member is not a second member', () => {
+      const root = workspace('discover-worktree');
+      gitFileDir(root, 'projects', 'beacon');
+      gitDir(path.join(gitDir(root, 'projects', 'map'), 'vendored'));
+      equalJson(discover(root, { membersRoot: null }).members.map(m => m.name), ['beacon', 'map'], 'members');
+    });
+
+    t.check('a members root carrying .git warns members-root-is-a-repo and still yields its children', () => {
+      const root = workspace('discover-members-root');
+      fs.mkdirSync(path.join(root, 'projects', '.git'), { recursive: true });
+      gitDir(root, 'projects', 'auth');
+      gitDir(root, 'projects', 'map');
+      const found = discover(root, { membersRoot: null });
+      equalJson(found.members.map(m => m.name), ['auth', 'map'], 'the members root is never a member itself');
+      equalJson(found.warnings.map(w => w.code), ['members-root-is-a-repo'], 'warnings');
+    });
+
+    // -- init: the write scope ----------------------------------------------
+
+    t.check('init without --scaffold writes nothing outside .maister/ and names both skipped targets', () => {
+      const root = workspace('init-scope');
+      gitDir(root, 'projects', 'auth');
+      const before = fs.readdirSync(root).sort();
+      const report = init(root, { membersRoot: null, force: false, scaffold: false });
+      must(report.ok, `init refused: ${JSON.stringify(report.errors)}`);
+      equalJson(fs.readdirSync(root).sort(), [...before, '.maister'].sort(), 'the root gained more than .maister');
+      equalJson(report.skipped.map(s => [s.path, s.reason]),
+        [['knowledge/README.md', 'scaffold-not-requested'], ['CLAUDE.md', 'scaffold-not-requested']],
+        'the skipped targets');
+      for (const relative of ['.maister/umbrella.yml', '.maister/workflows', '.maister/umbrella/ledger/entries',
+        '.maister/umbrella/ledger/index.yml', '.maister/umbrella/ledger/ledger.log', '.maister/umbrella/outbox']) {
+        must(fs.existsSync(path.join(root, relative)), `${relative} was not created`);
+      }
+      must(fs.readFileSync(path.join(root, '.maister/umbrella/ledger/index.yml'), 'utf8') === 'version: 1\nentries: []\n',
+        'the ledger index was not initialized empty');
+      must(fs.readFileSync(path.join(root, '.maister/umbrella/ledger/ledger.log'), 'utf8') === '',
+        'the ledger log was not initialized empty');
+    });
+
+    t.check('init --scaffold creates the two targets once and rewrites neither on a second run', () => {
+      const root = workspace('init-scaffold');
+      gitDir(root, 'projects', 'auth');
+      const first = init(root, { membersRoot: null, force: false, scaffold: true });
+      must(first.ok, `the first init refused: ${JSON.stringify(first.errors)}`);
+      equalJson(first.skipped, [], 'nothing may be skipped when both targets are absent');
+      const stamped = ['knowledge/README.md', 'CLAUDE.md'].map(relative => {
+        must(first.created.includes(relative), `${relative} was not created`);
+        const text = fs.readFileSync(path.join(root, relative), 'utf8');
+        must(text.length > 0, `${relative} is empty`);
+        return [relative, text];
+      });
+      const second = init(root, { membersRoot: null, force: true, scaffold: true });
+      must(second.ok, `the second init refused: ${JSON.stringify(second.errors)}`);
+      equalJson(second.skipped.map(s => [s.path, s.reason]),
+        [['knowledge/README.md', 'already-exists'], ['CLAUDE.md', 'already-exists']], 'the skipped targets');
+      for (const [relative, text] of stamped) {
+        must(fs.readFileSync(path.join(root, relative), 'utf8') === text, `${relative} was rewritten`);
+      }
+    });
+
+    t.check('the emitted manifest validates against C1, re-reads through readDefinition and passes validate', () => {
+      const root = workspace('init-round-trip');
+      gitDir(root, 'projects', 'auth');
+      gitFileDir(root, 'projects', 'beacon');
+      gitDir(root, 'plugins');
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+
+      const file = path.join(root, '.maister', 'umbrella.yml');
+      validates('umbrella-manifest.schema.json', parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS));
+      const read = readDefinition(file);
+      equalJson(read.errors, [], 'the emitted manifest does not re-read through the runtime reader');
+      equalJson(Object.keys(read.doc.members).sort(), ['auth', 'beacon', 'plugins'], 'the members map');
+      must(read.doc.members.auth.path === 'projects/auth', 'a member path did not survive the round trip');
+      must(/^[0-9a-f]{8}-[0-9a-f]{4}-7/.test(read.doc.umbrella_id), `umbrella_id is not a uuid7: ${read.doc.umbrella_id}`);
+
+      const judged = validate(root, { definitions: [] });
+      must(judged.ok, `validate rejected a fresh workspace: ${JSON.stringify(judged.errors)}`);
+      equalJson(judged.warnings.map(w => w.message), ['reserved-key:routing.tiers'], 'the warning stream');
+    });
+
+    t.check('validate reports a dir: naming an undeclared member as an error carrying file, node, path and message', () => {
+      const root = workspace('validate-errors');
+      gitDir(root, 'projects', 'auth');
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+      const definition = path.join(root, '.maister', 'workflows', 'chain.yml');
+      fs.writeFileSync(definition, [
+        'version: 1', 'name: chain', 'nodes:',
+        '  build:', '    uses: skill:quick-dev', '    dir: auth',
+        '  ship:', '    uses: skill:quick-dev', '    dir: nowhere', '    needs: [build]', '    foreach: [a]', '',
+      ].join('\n'), 'utf8');
+
+      const judged = validate(root, { definitions: [definition] });
+      must(!judged.ok, 'an undeclared dir: was accepted');
+      const dirErrors = judged.errors.filter(e => e.path === 'nodes.ship.dir');
+      must(dirErrors.length === 1, `expected one dir error, got ${judged.errors.length} errors`);
+      for (const key of ['file', 'node', 'path', 'message']) {
+        must(dirErrors[0][key] !== undefined && dirErrors[0][key] !== null, `the error carries no ${key}`);
+      }
+      must(dirErrors[0].node === 'ship', `the error names node ${dirErrors[0].node}`);
+      must(judged.warnings.some(w => w.message === 'reserved-key:foreach'), 'the graph warning stream was not merged');
+      must(judged.warnings.some(w => w.message === 'reserved-key:routing.tiers'), 'the manifest warning stream was not merged');
+    });
+
+    t.check('the closed init refusal set is provoked, each returning its own code', () => {
+      refusedWith('a missing root', 'umbrella-root-unusable',
+        init(path.join(scratch, 'init-absent'), { membersRoot: null, force: false, scaffold: false }));
+
+      const members = workspace('init-members');
+      fs.writeFileSync(path.join(members, 'projects'), 'not a directory\n', 'utf8');
+      refusedWith('an unreadable members root', 'umbrella-member-unreadable',
+        init(members, { membersRoot: 'projects', force: false, scaffold: false }));
+
+      // Containment, before anything is listed: a members root that resolves
+      // out of the workspace would record `../../…` as a member path, which is
+      // the directory a worker is then told to work in. Both spellings that
+      // reach outside are refused — the traversal and the absolute path — and
+      // neither is answered with a member list.
+      const outside = workspace('init-members-outside');
+      gitDir(outside, 'projects', 'auth');
+      refusedWith('a members root that traverses out of the workspace', 'umbrella-members-root-outside',
+        init(outside, { membersRoot: '../..', force: false, scaffold: false }));
+      refusedWith('an absolute members root outside the workspace', 'umbrella-members-root-outside',
+        init(outside, { membersRoot: scratch, force: false, scaffold: false }));
+      must(!isFile(path.join(outside, '.maister', 'umbrella.yml')),
+        'a refused members root still published a manifest');
+
+      const unwritable = workspace('init-unwritable');
+      gitDir(unwritable, 'projects', 'auth');
+      fs.writeFileSync(path.join(unwritable, '.maister'), 'not a directory\n', 'utf8');
+      refusedWith('an unwritable framework directory', 'umbrella-unwritable',
+        init(unwritable, { membersRoot: null, force: false, scaffold: false }));
+
+      const contended = workspace('init-temp');
+      gitDir(contended, 'projects', 'auth');
+      fs.mkdirSync(path.join(contended, '.maister'), { recursive: true });
+      fs.writeFileSync(path.join(contended, '.maister', 'umbrella.yml.tmp'), '', 'utf8');
+      refusedWith('a held temp', 'umbrella-temp-exists',
+        init(contended, { membersRoot: null, force: false, scaffold: false }));
+
+      const unsafe = workspace('init-unsafe');
+      gitDir(unsafe, 'projects', 'we"ird');
+      refusedWith('a member name the one-line reader could not parse back', 'value-not-flow-safe',
+        init(unsafe, { membersRoot: null, force: false, scaffold: false }));
+
+      const twice = workspace('init-twice');
+      gitDir(twice, 'projects', 'auth');
+      must(init(twice, { membersRoot: null, force: false, scaffold: false }).ok, 'the first init refused');
+      const before = fs.readFileSync(path.join(twice, '.maister', 'umbrella.yml'), 'utf8');
+      refusedWith('a second init without --force', 'umbrella-manifest-exists',
+        init(twice, { membersRoot: null, force: false, scaffold: false }));
+      must(fs.readFileSync(path.join(twice, '.maister', 'umbrella.yml'), 'utf8') === before,
+        'the refused init rewrote the manifest');
+      must(init(twice, { membersRoot: null, force: true, scaffold: false }).ok, '--force refused');
+    });
+
+    // -- the envelope and the seed ------------------------------------------
+
+    const dispatchRoot = workspace('dispatch');
+    const definitionPath = path.join(dispatchRoot, '.maister', 'workflows', 'chain.yml');
+    const run = path.join(dispatchRoot, '.maister', 'umbrella', 'runs', T35_RUN_ID);
+    const ledgerRoot = path.join(dispatchRoot, '.maister', 'umbrella', 'ledger');
+    fs.mkdirSync(path.dirname(definitionPath), { recursive: true });
+    fs.writeFileSync(definitionPath, T35_DEFINITION, 'utf8');
+    fs.writeFileSync(path.join(dispatchRoot, '.maister', 'umbrella.yml'), [
+      'version: 1',
+      `umbrella_id: ${T35_MANIFEST.umbrella_id}`,
+      'members:',
+      '  repo-alpha:   {path: projects/repo-alpha, kind: repo, default_provider: claude, autonomy: auto-medium}',
+      '  repo-beta:    {path: projects/repo-beta, kind: repo}',
+      '  shared-types: {path: projects/shared-types, kind: repo}',
+      '  docs-site:    {path: projects/docs-site, kind: repo, default_provider: claude}',
+      `branch_convention: "${T35_MANIFEST.branch_convention}"`,
+      'defaults:',
+      '  autonomy: auto-low',
+      '  worktree: true',
+      '',
+    ].join('\n'), 'utf8');
+    fs.mkdirSync(run, { recursive: true });
+    fs.mkdirSync(path.join(ledgerRoot, 'entries'), { recursive: true });
+    fs.writeFileSync(path.join(ledgerRoot, 'index.yml'), 'version: 1\nentries: []\n', 'utf8');
+    fs.writeFileSync(path.join(ledgerRoot, 'ledger.log'), '', 'utf8');
+
+    const baseline = resolveGraph({ definition: readDefinition(definitionPath), overlays: [], profile: null });
+    fs.writeFileSync(path.join(run, 'orchestrator-state.yml'), `orchestrator:
+  started_phase: null
+  completed_phases: []
+  failed_phases: []
+  created: "2026-08-28T09:00:00Z"
+  updated: "2026-08-28T11:15:40Z"
+  task_path: ".maister/umbrella/runs/${T35_RUN_ID}"
+  gate_pending: null
+
+task:
+  title: "Widget rollout chain"
+  status: in_progress
+
+workflow:
+  name: widget-rollout
+  source: ".maister/workflows/chain.yml"
+  overlays: []
+  profile: null
+  graph_hash: "sha256:${baseline.graph_hash}"
+  grammar_version: 1
+  nodes:
+    research:   {kind: task, status: completed, needs: []}
+    dev-beta:   {kind: task, status: running, needs: [research], dir: repo-beta, provider: copilot}
+    dev-alpha:  {kind: task, status: pending, needs: [research], dir: repo-alpha}
+    dev-shared: {kind: task, status: pending, needs: [research], dir: shared-types}
+    dev-docs:   {kind: task, status: pending, needs: [research], dir: docs-site}
+    dev-ghost:  {kind: task, status: pending, needs: [research], dir: no-such-member}
+    dev-bad:    {kind: task, status: pending, needs: [research], dir: repo-alpha}
+`, 'utf8');
+
+    const build = (node, options = {}) => buildEnvelope({
+      run, node, manifest: options.manifest ?? T35_MANIFEST, dispatchId: options.dispatchId ?? 'd-0142',
+      overrides: options.overrides ?? {},
+    });
+
+    t.check('a built envelope validates against C2 and takes uses, with and inputs from the re-resolved definition', () => {
+      must(baseline.ok, `the fixture definition does not resolve: ${JSON.stringify(baseline.errors)}`);
+      const doc = build('dev-beta');
+      validates('dispatch-envelope.schema.json', doc);
+      // The three fields the frozen state block cannot supply: their presence
+      // here is the proof that the definition was re-resolved.
+      must(doc.workflow.uses === 'skill:development', `workflow.uses is ${JSON.stringify(doc.workflow.uses)}`);
+      equalJson(doc.workflow.with,
+        { autonomy: 'attended', research: 'runs/research/outputs/research-report.md' }, 'workflow.with');
+      equalJson(doc.inputs, [{ path: 'runs/research/outputs/research-report.md', role: 'research' }], 'inputs');
+      must(doc.target.member === 'repo-beta' && doc.target.path === 'projects/repo-beta', 'the target member');
+      must(doc.branch === `feature/${T35_RUN_ID}-dev-beta`, `the branch is ${doc.branch}`);
+
+      const written = writeEnvelope({ run, envelope: doc });
+      must(written.ok, `the envelope was not published: ${JSON.stringify(written.errors)}`);
+      equalJson(parseYaml(fs.readFileSync(written.path, 'utf8'), YAML_OPTS), doc, 'the published envelope');
+      const strict = readDefinition(written.path);
+      must(strict.doc !== null, `the published envelope does not re-read: ${strict.errors[0]?.message}`);
+      refusedWith('a second publish of the same node', 'dispatch-envelope-exists', writeEnvelope({ run, envelope: doc }));
+    });
+
+    t.check('provider and autonomy fall back through the member, and every unresolved case refuses its own code', () => {
+      must(build('dev-beta').provider === 'copilot', 'the node provider was not honoured');
+      must(build('dev-alpha').provider === 'claude', 'the member default_provider was not consulted');
+      throwsWith('a node and member with no provider', 'dispatch-node-incomplete', () => build('dev-shared'));
+      throwsWith('a dir: naming an undeclared member', 'dispatch-node-incomplete', () => build('dev-ghost'));
+
+      must(build('dev-beta').autonomy === 'attended', 'with.autonomy was not honoured');
+      must(build('dev-alpha').autonomy === 'auto-medium', 'the member autonomy was not consulted');
+      must(build('dev-docs').autonomy === 'auto-low', 'defaults.autonomy was not consulted');
+      throwsWith('an off-enum autonomy', 'dispatch-autonomy-unknown', () => build('dev-bad'));
+      throwsWith('a dir: node whose workflow cannot honour a driver', 'dispatch-workflow-not-driver-capable',
+        () => build('dev-plain'));
+      throwsWith('no autonomy anywhere', 'dispatch-autonomy-unresolved',
+        () => build('dev-docs', { manifest: { ...T35_MANIFEST, defaults: {} } }));
+    });
+
+    // C2's close-out contract against C1's four tiers. `attended` denies
+    // `gh pr create` and still requires a pull request, because on that tier a
+    // denial is relayed to the operator who approves it; the two low auto tiers
+    // have no operator, so for them the denial is final and an override
+    // asserting otherwise is refused.
+    t.check('pr_required follows the tier: attended and auto-high reach a pull request, the low auto tiers cannot', () => {
+      const at = (autonomy, overrides) => build('dev-docs', {
+        manifest: { ...T35_MANIFEST, defaults: { ...T35_MANIFEST.defaults, autonomy } },
+        overrides,
+      });
+      equalJson(
+        Object.fromEntries(AUTONOMY_TIERS.map(tier => [tier, at(tier).closeout_contract.pr_required])),
+        { attended: true, 'auto-low': false, 'auto-medium': false, 'auto-high': true },
+        'the tier -> pr_required mapping');
+
+      // The shipped C2 fixture pairs `attended` with `pr_required: true`; the
+      // builder must agree with it rather than contradict it.
+      must(build('dev-beta').autonomy === 'attended' && build('dev-beta').closeout_contract.pr_required === true,
+        'the attended node did not require a pull request');
+
+      // An override is honoured only where the tier can reach it.
+      must(at('attended', { closeout_contract: { pr_required: true } }).closeout_contract.pr_required === true,
+        'an override was not honoured on a tier that can relay the denial');
+      must(at('auto-high', { closeout_contract: { pr_required: false } }).closeout_contract.pr_required === false,
+        'an override lowering pr_required was not honoured');
+      for (const tier of ['auto-low', 'auto-medium']) {
+        throwsWith(`pr_required: true under ${tier}`, 'dispatch-closeout-impossible',
+          () => at(tier, { closeout_contract: { pr_required: true } }));
+      }
+
+      // The seed's close-out prose has to match: an attended worker is told the
+      // command pauses for approval, never that its tier forbids the request.
+      const attended = renderSeed(buildSeed(at('attended'), { siblings: 1 }));
+      must(/pauses for an operator to approve/.test(attended),
+        'the attended seed does not say the pull request pauses for approval');
+      must(!/does not permit|can never open one/.test(attended),
+        'the attended seed still tells the worker it cannot open a pull request');
+      must(/can never open one/.test(renderSeed(buildSeed(at('auto-low'), { siblings: 1 }))),
+        'the auto-low seed does not say a pull request is out of reach');
+    });
+
+    t.check('a definition mutated under a frozen graph_hash refuses dispatch-graph-drifted', () => {
+      const original = fs.readFileSync(definitionPath, 'utf8');
+      try {
+        fs.writeFileSync(definitionPath,
+          `${original}  dev-extra:\n    uses: skill:development\n    needs: [research]\n`, 'utf8');
+        throwsWith('a mutated definition', 'dispatch-graph-drifted', () => build('dev-alpha'));
+        must(!fs.existsSync(path.join(run, 'dispatch', 'dev-alpha.envelope.yml')), 'the refusal published an envelope');
+      } finally {
+        fs.writeFileSync(definitionPath, original, 'utf8');
+      }
+      must(build('dev-alpha').workflow.uses === 'skill:development', 'the unmutated definition no longer builds');
+    });
+
+    t.check('the envelope writer refuses an unwritable dispatch directory, a held temp and an unquotable value', () => {
+      const held = path.join(run, 'dispatch', 'dev-alpha.envelope.yml.tmp');
+      fs.mkdirSync(path.dirname(held), { recursive: true });
+      fs.writeFileSync(held, '', 'utf8');
+      refusedWith('a held envelope temp', 'dispatch-temp-exists',
+        writeEnvelope({ run, envelope: build('dev-alpha', { dispatchId: 'd-0002' }) }));
+      fs.rmSync(held, { force: true });
+
+      const unsafe = build('dev-alpha', { dispatchId: 'd-0003' });
+      unsafe.ticket = 'ACME-1 "urgent"';
+      refusedWith('an unquotable envelope value', 'value-not-flow-safe', writeEnvelope({ run, envelope: unsafe }));
+      must(!fs.existsSync(path.join(run, 'dispatch', 'dev-alpha.envelope.yml')), 'the refusal published an envelope');
+
+      // A dispatch directory that exists but cannot be written into. The
+      // read-only mode is the portable way to make the exclusive open fail with
+      // something other than EEXIST, which is the branch the shared publish path
+      // maps onto the caller's `unwritable` name; a directory that refuses to be
+      // *created* is not usable here, because the shared `commit` makes its
+      // parent outside the region it maps.
+      if (process.platform === 'win32' || (typeof process.getuid === 'function' && process.getuid() === 0)) {
+        t.notes.push(`dispatch-unwritable not provoked: ${PLATFORM_GATED_REFUSALS.get('dispatch-unwritable')}`);
+      } else {
+        const dispatchDir = path.join(run, 'dispatch');
+        fs.mkdirSync(dispatchDir, { recursive: true });
+        const mode = fs.statSync(dispatchDir).mode;
+        fs.chmodSync(dispatchDir, 0o555);
+        try {
+          refusedWith('an unwritable dispatch directory', 'dispatch-unwritable',
+            writeEnvelope({ run, envelope: build('dev-docs', { dispatchId: 'd-0004' }) }));
+        } finally {
+          fs.chmodSync(dispatchDir, mode);
+        }
+      }
+    });
+
+    t.check('the seed carries the five frozen sections in order, within the cap, and leaks no chain internal', () => {
+      const doc = build('dev-beta');
+      const descriptor = buildSeed(doc, { siblings: 3 });
+      validates('worker-seed.schema.json#/$defs/seed', descriptor);
+      equalJson(descriptor.sections.map(s => s.id), [...SEED_SECTIONS], 'the section ids');
+      equalJson(descriptor.sections.map(s => s.id),
+        ['identity', 'task', 'outbox', 'closeout', 'siblings'], 'the frozen section order');
+      must(SEED_LINE_CAP === 60 && descriptor.cap === 60, 'the line cap moved');
+
+      const prompt = renderSeed(descriptor);
+      const lines = prompt.split('\n');
+      must(lines.length <= 60, `the prompt renders ${lines.length} lines`);
+      equalJson(lines.filter(l => /^# (identity|task|outbox|closeout|siblings)$/.test(l)),
+        ['# identity', '# task', '# outbox', '# closeout', '# siblings'], 'the marker lines that survived rendering');
+      must(prompt.includes(T35_RUN_ID) && prompt.includes('dev-beta') && prompt.includes('repo-beta'),
+        'the identity section does not name the run, the node and the member');
+      for (const leak of [T35_MANIFEST.umbrella_id, 'graph_hash', ledgerRoot, 'dev-alpha']) {
+        must(!prompt.includes(leak), `a chain internal leaked into the prompt: ${leak}`);
+      }
+      // Pure: the same envelope gives the same descriptor and the same prompt.
+      equalJson(buildSeed(doc, { siblings: 3 }), descriptor, 'buildSeed is not pure');
+      must(renderSeed(descriptor) === prompt, 'renderSeed is not pure');
+
+      const { dispatch_id: _dropped, ...incomplete } = doc;
+      throwsWith('an envelope missing a required C2 field', 'seed-envelope-invalid',
+        () => buildSeed(incomplete, { siblings: 3 }));
+      const fat = {
+        ...descriptor,
+        sections: descriptor.sections.map((section, index) => (index === 1
+          ? { ...section, lines: Array.from({ length: 80 }, (_, i) => `line ${i}`) }
+          : section)),
+      };
+      throwsWith('a descriptor rendering past the cap', 'seed-over-cap', () => renderSeed(fat));
+    });
+
+    t.check('the golden seed fixture is the descriptor renderSeed turns into the golden prompt', () => {
+      const dir = path.join(ctx.fixtures, SEED_FIXTURE_DIR);
+      const descriptor = parseYaml(fs.readFileSync(path.join(dir, 'seed.yml'), 'utf8'), YAML_OPTS);
+      validates('worker-seed.schema.json#/$defs/seed', descriptor);
+      const golden = fs.readFileSync(path.join(dir, 'seed.prompt.txt'), 'utf8').replace(/\r\n/g, '\n');
+      must(`${renderSeed(descriptor)}\n` === golden,
+        'renderSeed no longer produces the golden prompt this fixture pins — update the fixture deliberately or fix the renderer');
+    });
+
+    t.check('the envelope and seed verb halves report in the shell shape', () => {
+      const built = envelopeVerb({
+        run, node: 'dev-docs', ledger: ledgerRoot, root: dispatchRoot, overrides: { dispatch_id: 'd-0007' },
+      });
+      must(built.ok, `the envelope verb refused: ${JSON.stringify(built.errors)}`);
+      must(built.dispatch_id === 'd-0007', `the override was not honoured: ${built.dispatch_id}`);
+      validates('dispatch-envelope.schema.json', built.envelope);
+
+      const rendered = seedVerb({ envelope: built.path, siblings: '2' });
+      must(rendered.ok, `the seed verb refused: ${JSON.stringify(rendered.errors)}`);
+      validates('worker-seed.schema.json#/$defs/seed', rendered.descriptor);
+      must(rendered.prompt.includes('# identity'), 'the rendered prompt carries no identity marker');
+      refusedWith('a node the manifest cannot satisfy', 'dispatch-node-incomplete',
+        envelopeVerb({ run, node: 'dev-ghost', ledger: ledgerRoot, root: dispatchRoot, overrides: {} }));
+    });
+
+    // -- the ledger ---------------------------------------------------------
+
+    const newLedger = name => {
+      const root = workspace(name);
+      fs.mkdirSync(path.join(root, 'entries'), { recursive: true });
+      fs.writeFileSync(path.join(root, 'index.yml'), 'version: 1\nentries: []\n', 'utf8');
+      fs.writeFileSync(path.join(root, 'ledger.log'), '', 'utf8');
+      return root;
+    };
+    const logLines = root => fs.readFileSync(path.join(root, 'ledger.log'), 'utf8')
+      .split('\n').map(l => l.replace(/\r$/, '')).filter(Boolean);
+    const entryFile = (root, id) => path.join(root, 'entries', `${id}.yml`);
+    const LOG_LINE = new RegExp(readJson(path.join(ctx.schemas, 'ledger-entry.schema.json')).$defs.log_line.pattern);
+
+    t.check('each ledger op writes a C3 entry, regenerates the index and appends exactly one matching log line', () => {
+      const root = newLedger('ledger-ops');
+      const created = led.createEntry({
+        ledger: root,
+        actor: 'engine',
+        args: {
+          chain: { run_id: T35_RUN_ID, node: 'dev-beta' },
+          target: { member: 'repo-beta', path: 'projects/repo-beta', worktree: '.worktrees/widget-0001' },
+          provider: 'copilot',
+        },
+      });
+      must(created.ok, `create-entry refused: ${JSON.stringify(created.errors)}`);
+      const id = created.entry.dispatch_id;
+      must(id === 'd-0001', `the first allocated id is ${id}`);
+      validates('ledger-entry.schema.json#/$defs/entry', parseYaml(fs.readFileSync(entryFile(root, id), 'utf8'), YAML_OPTS));
+      must(logLines(root).length === 1, 'create-entry appended more or less than one line');
+
+      const transcript = [
+        ['claim', () => led.claim({ ledger: root, dispatch_id: id, actor: 'engine', args: { session: 'widget/0001/dev' } })],
+        ['update-status', () => led.updateStatus({ ledger: root, dispatch_id: id, actor: 'engine', args: { status: 'in_progress' } })],
+        ['add-constraint', () => led.addConstraint({ ledger: root, dispatch_id: id, actor: 'daemon', args: { kind: 'merge_after', ref: 'd-0139' } })],
+        ['add-followup', () => led.addFollowup({ ledger: root, dispatch_id: id, actor: 'daemon', args: { id: 'fu-0001-01', to: 'parent', summary: 'The shared client needs the owner field.' } })],
+        ['close-out', () => led.closeOut({ ledger: root, dispatch_id: id, actor: 'daemon', args: { grade: 'success', prs: [{ repo: 'repo-beta', number: 481 }], summary: 'Shipped behind the flag.' } })],
+      ];
+      let expected = 1;
+      for (const [op, issue] of transcript) {
+        const result = issue();
+        must(result.ok, `${op} refused: ${JSON.stringify(result.errors)}`);
+        const doc = parseYaml(fs.readFileSync(entryFile(root, id), 'utf8'), YAML_OPTS);
+        validates('ledger-entry.schema.json#/$defs/entry', doc);
+
+        const index = parseYaml(fs.readFileSync(path.join(root, 'index.yml'), 'utf8'), YAML_OPTS);
+        const row = (index.entries ?? []).find(e => e.dispatch_id === id);
+        must(row, `${op}: the regenerated index carries no row for ${id}`);
+        must(row.status === doc.status, `${op}: the index row status ${row.status} lags the entry's ${doc.status}`);
+
+        expected++;
+        const lines = logLines(root);
+        must(lines.length === expected, `${op}: expected ${expected} log lines, found ${lines.length}`);
+        const last = lines[lines.length - 1];
+        must(LOG_LINE.test(last), `${op}: "${last}" does not match the frozen log_line pattern`);
+        const [ts, name, dispatch] = last.split(' ');
+        must(name === op && dispatch === id, `${op}: the log line reads "${last}"`);
+        must(ts === doc.updated, `${op}: the log timestamp ${ts} is not the entry's updated ${doc.updated}`);
+      }
+      const closed = parseYaml(fs.readFileSync(entryFile(root, id), 'utf8'), YAML_OPTS);
+      must(closed.status === 'closed' && closed.grade === 'success', 'close-out did not close the entry');
+      must(closed.constraints.length === 1 && closed.followups.length === 1, 'the constraint or the follow-up was lost');
+    });
+
+    t.check('a dispatch_id is not reused after its entry is deleted', () => {
+      const root = newLedger('ledger-ids');
+      must(led.createEntry({ ledger: root, actor: 'engine', args: {} }).entry.dispatch_id === 'd-0001', 'the first id');
+      must(led.createEntry({ ledger: root, actor: 'engine', args: {} }).entry.dispatch_id === 'd-0002', 'the second id');
+      fs.rmSync(entryFile(root, 'd-0002'));
+      const third = led.createEntry({ ledger: root, actor: 'engine', args: {} });
+      must(third.ok && third.entry.dispatch_id === 'd-0003',
+        `a deleted entry freed its ordinal: got ${third.entry?.dispatch_id} — the log's create-entry lines are the high-water mark`);
+      for (const name of fs.readdirSync(path.join(root, 'entries'))) fs.rmSync(path.join(root, 'entries', name));
+      must(led.createEntry({ ledger: root, actor: 'engine', args: {} }).entry.dispatch_id === 'd-0004',
+        'an emptied entries/ recycled an ordinal');
+    });
+
+    t.check('the ledger refusal set is provoked, each returning its own code', () => {
+      const root = newLedger('ledger-refusals');
+      const id = led.createEntry({ ledger: root, actor: 'engine', args: {} }).entry.dispatch_id;
+
+      refusedWith('an unknown status', 'ledger-status-illegal',
+        led.updateStatus({ ledger: root, dispatch_id: id, actor: 'engine', args: { status: 'in-progress' } }));
+      must(logLines(root).length === 1, 'a refused op appended a log line');
+      refusedWith('an absent entry', 'ledger-entry-missing',
+        led.updateStatus({ ledger: root, dispatch_id: 'd-0404', actor: 'engine', args: { status: 'blocked' } }));
+      refusedWith('an op outside the frozen seven', 'ledger-op-unknown',
+        led.ledger({ ledger: root, op: 'delete-entry', dispatch_id: id, actor: 'engine', args: {} }));
+      refusedWith('an actor that is not a bare token', 'ledger-args-invalid',
+        led.updateStatus({ ledger: root, dispatch_id: id, actor: 'two words', args: { status: 'blocked' } }));
+      refusedWith('an id whose entry exists', 'ledger-entry-exists',
+        led.createEntry({ ledger: root, dispatch_id: id, actor: 'engine', args: {} }));
+
+      const lock = path.join(root, 'entries', `${id}.yml.tmp`);
+      const before = fs.readFileSync(entryFile(root, id), 'utf8');
+      fs.writeFileSync(lock, '', 'utf8');
+      refusedWith('a fresh entry lock', 'ledger-locked',
+        led.updateStatus({ ledger: root, dispatch_id: id, actor: 'engine', args: { status: 'blocked' } }));
+      must(fs.readFileSync(entryFile(root, id), 'utf8') === before, 'a refused op did not leave the entry alone');
+      fs.rmSync(lock, { force: true });
+
+      // A held index temp: the entry is published and the index is behind.
+      fs.writeFileSync(path.join(root, 'index.yml.tmp'), '', 'utf8');
+      refusedWith('a held index temp', 'ledger-temp-exists',
+        led.updateStatus({ ledger: root, dispatch_id: id, actor: 'engine', args: { status: 'blocked' } }));
+      fs.rmSync(path.join(root, 'index.yml.tmp'), { force: true });
+
+      const unreadable = newLedger('ledger-unreadable');
+      const other = led.createEntry({ ledger: unreadable, actor: 'engine', args: {} }).entry.dispatch_id;
+      fs.writeFileSync(entryFile(unreadable, other), 'nodes:\n  - kind: merge_after\n    ref: d-1\n', 'utf8');
+      refusedWith('an entry outside the reader subset', 'ledger-entry-unreadable',
+        led.updateStatus({ ledger: unreadable, dispatch_id: other, actor: 'engine', args: { status: 'blocked' } }));
+
+      // A closed entry is terminal.
+      const terminal = newLedger('ledger-terminal');
+      const closedId = led.createEntry({ ledger: terminal, actor: 'engine', args: {} }).entry.dispatch_id;
+      must(led.closeOut({ ledger: terminal, dispatch_id: closedId, actor: 'daemon', args: { grade: 'failed' } }).ok, 'close-out refused');
+      refusedWith('a transition out of closed', 'ledger-status-illegal',
+        led.updateStatus({ ledger: terminal, dispatch_id: closedId, actor: 'engine', args: { status: 'in_progress' } }));
+    });
+
+    t.check('a failed log append refuses ledger-log-unappendable with the entry written and the log behind', () => {
+      const root = newLedger('ledger-log');
+      const id = led.createEntry({ ledger: root, actor: 'engine', args: {} }).entry.dispatch_id;
+      // A directory cannot be appended to on any platform this runs on.
+      fs.rmSync(path.join(root, 'ledger.log'));
+      fs.mkdirSync(path.join(root, 'ledger.log'));
+
+      const moved = led.updateStatus({ ledger: root, dispatch_id: id, actor: 'engine', args: { status: 'in_progress' } });
+      refusedWith('an unappendable log', 'ledger-log-unappendable', moved);
+      must(moved.entry_written === true && moved.log_behind === true, 'the refusal does not report what reached disk');
+      const doc = parseYaml(fs.readFileSync(entryFile(root, id), 'utf8'), YAML_OPTS);
+      must(doc.status === 'in_progress',
+        'the mutation is not on disk, so the append is not the last step of the op');
+      validates('ledger-entry.schema.json#/$defs/entry', doc);
+      const index = parseYaml(fs.readFileSync(path.join(root, 'index.yml'), 'utf8'), YAML_OPTS);
+      must((index.entries ?? []).some(e => e.dispatch_id === id && e.status === 'in_progress'),
+        'the index was not regenerated before the append');
+
+      refusedWith('an unreadable log at allocation time', 'ledger-unwritable',
+        led.createEntry({ ledger: root, actor: 'engine', args: {} }));
+      must(fs.readdirSync(path.join(root, 'entries')).length === 1, 'the refused create-entry wrote something');
+    });
+
+    t.check('the log line is appended before the index, so an index that cannot be written does not lose it', () => {
+      // The index is derived and regenerates itself from `entries/` on the next
+      // op; the log is derived by nothing, and its `create-entry` lines are the
+      // high-water mark that keeps an ordinal from being reused. So the
+      // irrecoverable write goes first. This ran the other way round, and an
+      // index refusal — ordinary contention, not even a fault — dropped the
+      // line for good.
+      const root = newLedger('ledger-log-order');
+      const id = led.createEntry({ ledger: root, actor: 'engine', args: {} }).entry.dispatch_id;
+      must(logLines(root).length === 1, 'create-entry appended more or less than one line');
+
+      // A directory cannot be renamed over on any platform this runs on.
+      fs.rmSync(path.join(root, 'index.yml'));
+      fs.mkdirSync(path.join(root, 'index.yml'));
+      fs.writeFileSync(path.join(root, 'index.yml', 'keep'), '', 'utf8');
+
+      const moved = led.updateStatus({ ledger: root, dispatch_id: id, actor: 'engine', args: { status: 'in_progress' } });
+      refusedWith('an index that cannot be published', 'ledger-unwritable', moved);
+      must(moved.entry_written === true && moved.index_behind === true,
+        `the refusal does not report what reached disk: ${JSON.stringify(moved)}`);
+      must(moved.log_behind !== true, 'the log was reported behind although only the index failed');
+      const doc = parseYaml(fs.readFileSync(entryFile(root, id), 'utf8'), YAML_OPTS);
+      must(doc.status === 'in_progress', 'the mutation is not on disk');
+      const lines = logLines(root);
+      must(lines.length === 2 && lines[1].includes('update-status'),
+        `the log line was lost when the index refused: ${JSON.stringify(lines)}`);
+    });
+
+    t.check('add-constraint is idempotent, so the recovery from a post-publish refusal cannot multiply one', () => {
+      const root = newLedger('ledger-constraint');
+      const id = led.createEntry({ ledger: root, actor: 'engine', args: {} }).entry.dispatch_id;
+      const add = () => led.addConstraint({ ledger: root, dispatch_id: id, actor: 'daemon', args: { kind: 'merge_after', ref: 'd-0139' } });
+      must(add().ok && add().ok && add().ok, 'add-constraint refused');
+      const doc = parseYaml(fs.readFileSync(entryFile(root, id), 'utf8'), YAML_OPTS);
+      must(doc.constraints.length === 1,
+        `three identical add-constraint calls left ${doc.constraints.length} constraints`);
+      validates('ledger-entry.schema.json#/$defs/entry', doc);
+
+      // Idempotent on the pair, not on the kind: a different ref is a different
+      // constraint and still appends.
+      must(led.addConstraint({ ledger: root, dispatch_id: id, actor: 'daemon', args: { kind: 'merge_after', ref: 'd-0140' } }).ok,
+        'a second, different constraint was refused');
+      must(parseYaml(fs.readFileSync(entryFile(root, id), 'utf8'), YAML_OPTS).constraints.length === 2,
+        'a constraint with another ref was folded into the first');
+    });
+
+    // -- the outbox, through the entry point --------------------------------
+
+    const outboxWrite = (outbox, type, body) => {
+      const proc = runBounded(process.execPath,
+        [entry, 'outbox', '--outbox', outbox, '--dispatch-id', 'd-0142', '--type', type],
+        { input: JSON.stringify(body), encoding: 'utf8' });
+      const lines = String(proc.stdout ?? '').split('\n').filter(l => l !== '');
+      let report = null;
+      for (let take = lines.length; take > 0; take--) {
+        try {
+          report = JSON.parse(lines.slice(0, take).join('\n'));
+          break;
+        } catch { /* not a whole document yet */ }
+      }
+      return { proc, lines, report, last: lines[lines.length - 1] ?? null };
+    };
+    const SATISFIED = {
+      status: { phase: 'phase-5', note: 'Specification approved; starting the implementation groups.' },
+      followup: { summary: 'The shared client package needs the widget owner field.' },
+      artifact: { path: 'implementation/visual-coverage.md', role: 'coverage' },
+      blocked: { reason: 'The shared cluster credential is not present in this worktree.', needs: ['permission'] },
+      closeout: { grade: 'success', summary: 'Owner column shipped behind the existing flag.' },
+    };
+
+    t.check('every outbox type writes a C4 message and an existing sequenced file is never rewritten', () => {
+      const root = workspace('outbox-append');
+      let seq = 0;
+      for (const [type, body] of Object.entries(SATISFIED)) {
+        seq++;
+        const { proc, report } = outboxWrite(root, type, body);
+        must(proc.status === 0, `${type}: exited ${proc.status} — ${String(proc.stderr ?? '').trim().split('\n')[0]}`);
+        must(report?.ok === true && report.degraded === false, `${type}: reported ${JSON.stringify(report)}`);
+        const expected = path.join(root, 'd-0142', `${String(seq).padStart(4, '0')}-${type}.yml`);
+        must(path.resolve(report.written) === path.resolve(expected), `${type}: wrote ${report.written}`);
+        validates('outbox-message.schema.json', parseYaml(fs.readFileSync(expected, 'utf8'), YAML_OPTS));
+      }
+      const first = path.join(root, 'd-0142', '0001-status.yml');
+      const sentinel = fs.readFileSync(first, 'utf8');
+      const again = outboxWrite(root, 'status', { note: 'the sixth message' });
+      must(path.basename(again.report.written) === '0006-status.yml', `the next message took ${again.report?.written}`);
+      must(fs.readFileSync(first, 'utf8') === sentinel, 'an earlier message was rewritten');
+    });
+
+    t.check('closeout and followup degrade onto their frozen dispatch line while the other three refuse', () => {
+      const unwritable = name => {
+        const root = workspace(name);
+        fs.writeFileSync(path.join(root, 'd-0142'), 'not a directory\n', 'utf8');
+        return root;
+      };
+      const closeout = outboxWrite(unwritable('outbox-closeout'), 'closeout', SATISFIED.closeout);
+      must(closeout.proc.status === 0 && closeout.report?.degraded === true, 'closeout did not degrade');
+      must(closeout.report.written === null, 'a degraded write put something on disk');
+      must(closeout.last === 'DISPATCH-RESULT: success Owner column shipped behind the existing flag.',
+        `the last line is ${JSON.stringify(closeout.last)}`);
+
+      const followup = outboxWrite(unwritable('outbox-followup'), 'followup', SATISFIED.followup);
+      must(followup.proc.status === 0 && followup.report?.degraded === true, 'followup did not degrade');
+      must(followup.last === 'DISPATCH-FOLLOWUP: The shared client package needs the widget owner field.',
+        `the last line is ${JSON.stringify(followup.last)}`);
+
+      for (const type of ['status', 'artifact', 'blocked']) {
+        const refused = outboxWrite(unwritable(`outbox-refuse-${type}`), type, SATISFIED[type]);
+        must(refused.proc.status === 1, `${type}: exited ${refused.proc.status}`);
+        refusedWith(`${type} on an unwritable outbox`, 'outbox-unwritable', refused.report);
+        must(!/^DISPATCH-/m.test(String(refused.proc.stdout ?? '')),
+          `${type} printed a dispatch line — a sixth marker spelling is not invented`);
+      }
+    });
+
+    t.check('an invalid body, an unknown type and a name that stays taken each refuse their own code', () => {
+      const root = workspace('outbox-invalid');
+      refusedWith('a closeout with no grade', 'outbox-message-invalid',
+        outboxWrite(root, 'closeout', { summary: 'no grade' }).report);
+      refusedWith('a type outside the five', 'outbox-type-invalid',
+        outboxWrite(root, 'progress', { note: 'no such type' }).report);
+
+      const taken = workspace('outbox-taken');
+      const dir = path.join(taken, 'd-0142');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, '0001-status.yml'), 'version: 1\n', 'utf8');
+      // A *directory* is invisible to the message scan, so every attempt picks
+      // 0002 and every exclusive open answers EEXIST.
+      fs.mkdirSync(path.join(dir, '0002-status.yml'));
+      refusedWith('a candidate name that stays taken', 'outbox-sequence-taken',
+        outboxWrite(taken, 'status', { note: 'contended' }).report);
+
+      if (process.platform === 'win32' || (typeof process.getuid === 'function' && process.getuid() === 0)) {
+        t.notes.push(`outbox-unreadable not provoked: ${PLATFORM_GATED_REFUSALS.get('outbox-unreadable')}`);
+      } else {
+        const unlistable = workspace('outbox-unreadable');
+        const target = path.join(unlistable, 'd-0142');
+        fs.mkdirSync(target, { recursive: true });
+        fs.chmodSync(target, 0o300);
+        try {
+          refusedWith('an unlistable dispatch directory', 'outbox-unreadable',
+            outboxWrite(unlistable, 'status', { note: 'unlistable' }).report);
+        } finally {
+          fs.chmodSync(target, 0o700);
+        }
+      }
+    });
+
+    // -- the shell ----------------------------------------------------------
+
+    t.check('the shell answers an unknown verb, a missing value and a repeated flag with usage on exit 2', () => {
+      const shell = (...argv) => runBounded(process.execPath, [entry, ...argv], { encoding: 'utf8' });
+      for (const [argv, wanted] of [
+        [['not-a-verb'], 'unknown verb "not-a-verb"'],
+        [['constructor'], 'unknown verb "constructor"'],
+        [[], 'a verb is required'],
+        [['init', '--root'], 'the flag --root needs a value'],
+        [['init', '--root', '/a', '--root', '/b'], 'given more than once'],
+        [['seed', '--envelope', 'e.yml', '--force'], 'takes no --force flag'],
+      ]) {
+        const proc = shell(...argv);
+        must(proc.status === 2, `${argv.join(' ') || '(no argv)'}: exited ${proc.status}`);
+        must(String(proc.stderr ?? '').includes(wanted),
+          `${argv.join(' ') || '(no argv)'}: stderr is ${JSON.stringify(String(proc.stderr ?? '').trim())}`);
+        must(String(proc.stdout ?? '') === '', `${argv.join(' ')}: a usage error printed on stdout`);
+      }
+    });
+
+    t.check('a verb whose module is genuinely absent fails through the existsSync guard, never as an import error', () => {
+      // The module set is complete in the shipped tree, so the guard is reached
+      // only against a build that lost one. A copy of the shipped entry point
+      // beside an empty `lib/` is that build.
+      const partial = workspace('shell-partial');
+      fs.mkdirSync(path.join(partial, 'lib'), { recursive: true });
+      fs.copyFileSync(entry, path.join(partial, 'umbrella.mjs'));
+      const proc = runBounded(process.execPath,
+        [path.join(partial, 'umbrella.mjs'), 'seed', '--envelope', 'e.yml'], { encoding: 'utf8' });
+      const stderr = String(proc.stderr ?? '');
+      must(proc.status === 2, `expected exit 2, got ${proc.status}: ${stderr}`);
+      must(stderr.includes('lib/seed.mjs is not present in this build'), `stderr is ${JSON.stringify(stderr)}`);
+      must(!/ERR_MODULE_NOT_FOUND|Cannot find module/.test(stderr), 'the raw import error surfaced');
+      must(stderr.trim().split('\n').length === 1, 'a stack trace reached stderr');
+
+      // Required flags are checked before the module is loaded, so a caller
+      // fixing a broken build is still told what the invocation was owed.
+      const usage = runBounded(process.execPath, [path.join(partial, 'umbrella.mjs'), 'envelope'], { encoding: 'utf8' });
+      must(usage.status === 2 && String(usage.stderr ?? '').startsWith('usage: '), 'the module was reached before the flags');
+      must(!String(usage.stderr ?? '').includes('not present in this build'), 'the module was reached before the flags');
+
+      // And against the shipped tree the same verb reaches its real module,
+      // which is what makes the case above a synthetic build rather than a bug.
+      const shipped = runBounded(process.execPath, [entry, 'seed', '--envelope', 'e.yml'], { encoding: 'utf8' });
+      must(!String(shipped.stderr ?? '').includes('not present in this build'),
+        'lib/seed.mjs is missing from the shipped tree');
+    });
+
+    // -- the two readers agree about every fixture the runtime reads ---------
+
+    t.check('every shipped fixture the runtime reads back parses through the runtime reader too', () => {
+      // The suite parses fixtures with the `yaml` package and Ajv; the runtime
+      // parses them with `definition.mjs`. The two disagreed for a long time
+      // and only the suite's opinion was tested. `synthetic/worker-seed/seed.yml`
+      // is deliberately not on this list: it opens a block mapping on a sequence
+      // dash, which the reader refuses for the reason the guard exists, and
+      // nothing reads a seed descriptor back at runtime.
+      for (const relative of RUNTIME_READ_FIXTURES) {
+        const file = path.join(ctx.fixtures, relative);
+        must(isFile(file), `${relative}: the fixture is missing`);
+        const read = readDefinition(file);
+        must(read.doc !== null, `${relative}: the runtime reader refuses it — ${read.errors[0]?.message}`);
+        equalJson(JSON.parse(JSON.stringify(read.doc)), parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS),
+          `${relative}: the runtime reader and the suite reader disagree`);
+      }
+      const seedFixture = path.join(ctx.fixtures, SEED_FIXTURE_DIR, 'seed.yml');
+      const refused = readDefinition(seedFixture);
+      must(refused.doc === null, 'the worker-seed fixture is no longer a block mapping on a dash — move it onto the list above');
+    });
+
+    // -- the recovery guard --------------------------------------------------
+
+    t.check('the SKILL documents a recovery for every refusal the runtime names, and no others', () => {
+      const skill = fs.readFileSync(path.join(ctx.pluginRoot, 'skills', 'umbrella', 'SKILL.md'), 'utf8');
+      // A refusal row is a table row whose first cell is a code-spelled token
+      // shaped like a refusal code. The flag table beside them uses underscores
+      // and is deliberately not matched.
+      // A code shared by several subsystems — `value-not-flow-safe` is one —
+      // gets a row in each of their tables, and every one of them has to hold.
+      const rows = skillRows(skill);
+      const undocumented = UMBRELLA_REFUSALS.filter(code => !rows.has(code));
+      must(undocumented.length === 0, `named by the runtime, documented nowhere: ${undocumented.join(', ')}`);
+      const orphaned = [...rows.keys()].filter(code => !UMBRELLA_REFUSALS.includes(code));
+      must(orphaned.length === 0, `documented as a refusal the runtime does not name: ${orphaned.join(', ')}`);
+      for (const code of UMBRELLA_REFUSALS) {
+        for (const text of rows.get(code)) {
+          must(text.length >= 40, `${code}: the documented recovery is too short to be one — ${JSON.stringify(text)}`);
+        }
+      }
+      t.notes.push(`${rows.size} documented refusals matched against the runtime's own list`);
+    });
+
+    t.check('the ledger lends its callers the same recovery text the SKILL prints', () => {
+      // `REFUSALS` and `OWNERSHIP` are exported for the daemon, which vendors
+      // this module out of the archive and never sees the SKILL. Two surfaces
+      // stating one contract is drift unless something compares them, and
+      // nothing did.
+      const skill = fs.readFileSync(path.join(ctx.pluginRoot, 'skills', 'umbrella', 'SKILL.md'), 'utf8');
+      const ledgerCodes = UMBRELLA_REFUSALS.filter(code => code.startsWith('ledger-') || code === 'value-not-flow-safe');
+      equalJson(Object.keys(led.REFUSALS).sort(), [...ledgerCodes].sort(),
+        'the ledger REFUSALS export and the runtime refusal list name different codes');
+      // `OWNERSHIP` is held to the runtime's own dispatch table rather than to
+      // a fifth hand-copied list: an op it names has to be one `ledger()`
+      // recognises, and the seven are the whole write surface.
+      must(Object.keys(led.OWNERSHIP).length === 7, `OWNERSHIP names ${Object.keys(led.OWNERSHIP).length} ops, not seven`);
+      const opRoot = newLedger('ledger-ownership');
+      for (const op of Object.keys(led.OWNERSHIP)) {
+        const answer = led.ledger({ ledger: opRoot, op, dispatch_id: 'd-0404', actor: 'engine', args: {} });
+        must(!refusalCodes(answer).includes('ledger-op-unknown'),
+          `OWNERSHIP names ${op}, which the runtime does not recognise as an op`);
+      }
+      refusedWith('an op OWNERSHIP does not name', 'ledger-op-unknown',
+        led.ledger({ ledger: opRoot, op: 'reopen', dispatch_id: 'd-0404', actor: 'engine', args: {} }));
+
+      // The class B5 belonged to: a refusal raised after the entry was renamed
+      // into place, whose recovery tells the caller to re-issue. Both surfaces
+      // have to say the entry is written; a caller that reads either and
+      // re-issues applies the mutation twice.
+      must(postPublish.size > 0, 'no post-publish refusal was provoked, so this guard checked nothing');
+      for (const code of [...postPublish].sort()) {
+        must(UMBRELLA_REFUSALS.includes(code), `${code} was raised after a publish but is not a named refusal`);
+        const documented = [...(skillRows(skill).get(code) ?? []).map(text => ['a SKILL row', text]),
+          ['the REFUSALS export', led.REFUSALS[code] ?? '']];
+        must(documented.length >= 2, `${code} is raised after a publish but is documented on only one surface`);
+        for (const [where, text] of documented) {
+          must(/the entry is written/i.test(text),
+            `${code} is raised after the entry is on disk, but ${where} does not say so: ${text.slice(0, 120)}`);
+          must(/do not re-issue|re-issuing \*?this\*? op|applying it twice|applied? the mutation twice|apply the mutation twice/i.test(text),
+            `${code} is raised after the entry is on disk, but ${where} does not warn against re-issuing: ${text.slice(0, 120)}`);
+        }
+      }
+      t.notes.push(`post-publish refusals held to their recovery text: ${[...postPublish].sort().join(', ')}`);
+    });
+
+    // -- the coverage assertion ---------------------------------------------
+
+    // Runtime -> list. The direction nothing ran: the guard matched the SKILL
+    // tables against the list both ways and the list against the provoked set
+    // one way, so a code the sources raised and the list never named was
+    // invisible to all three. Two had escaped that way by the time this was
+    // written, one of them added by the round that wrote the other guard.
+    t.check('the refusal list names exactly the codes the umbrella sources manufacture', () => {
+      const { files, found } = sweepRefusalCodes(path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS));
+      must(files.length > 0, 'the sweep read no umbrella sources, so it proved nothing');
+      const derived = [...found.keys()].sort();
+      const declared = [...UMBRELLA_REFUSALS].sort();
+      const unlisted = derived.filter(code => !UMBRELLA_REFUSALS.includes(code));
+      must(unlisted.length === 0,
+        `raised by the runtime, named by no list: ${unlisted.map(c => `${c} (${[...found.get(c)].join(', ')})`).join('; ')}`);
+      const phantom = declared.filter(code => !found.has(code));
+      must(phantom.length === 0, `named by the list, raised nowhere in the sources: ${phantom.join(', ')}`);
+      equalJson(derived, declared, 'the derived refusal set and the declared list disagree');
+      t.notes.push(`${derived.length} refusal codes swept out of ${files.length} umbrella sources`);
+    });
+
+    t.check('every refusal the umbrella runtime names was provoked and returned its own code', () => {
+      // The provoked set is held inside the list as well as the other way
+      // round. `32 of 31` printed green for two rounds because only one of the
+      // two containments was ever asserted.
+      const stray = [...provoked].filter(code => !UMBRELLA_REFUSALS.includes(code)).sort();
+      must(stray.length === 0, `provoked by a check but named by no list: ${stray.join(', ')}`);
+      const missing = UMBRELLA_REFUSALS.filter(code => !provoked.has(code) && !PLATFORM_GATED_REFUSALS.has(code));
+      const gated = UMBRELLA_REFUSALS.filter(code => !provoked.has(code) && PLATFORM_GATED_REFUSALS.has(code));
+      must(missing.length === 0, `never provoked: ${missing.join(', ')}`);
+      if (gated.length) t.notes.push(`platform-gated refusals not provoked here: ${gated.join(', ')}`);
+      must(provoked.size <= UMBRELLA_REFUSALS.length,
+        `${provoked.size} refusals provoked against a list of ${UMBRELLA_REFUSALS.length} — a code escaped the list`);
+      t.notes.push(`${provoked.size} of ${UMBRELLA_REFUSALS.length} named refusals provoked over the live writers`);
+    });
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+// ---------------------------------------------------------------------------
+// T36 — two writers racing one ledger entry
+// ---------------------------------------------------------------------------
+
+/**
+ * The lock is the only thing standing between the cockpit daemon and a lost
+ * write, and no in-process assertion can exercise it: a single process never
+ * contends with itself. So two child processes are released on a shared
+ * wall-clock instant and both issue an op against the same entry.
+ *
+ * Contention is probabilistic even so — the two may simply serialize — which is
+ * why the round is repeated. A run in which contention was never observed is
+ * reported as a failure rather than passed off as a success: an inconclusive
+ * lock test is worse than none, because it reads as coverage.
+ */
+const RACE_ROUNDS = 6;
+const RACE_RELEASE_MS = 400;
+const LEDGER_ENTRY_FIXTURE = path.join('synthetic', 'ledger-entry', 'd-0142.yml');
+
+/** The racer, written out per run: one op, released on a shared instant. */
+const RACER_SOURCE = [
+  "import { pathToFileURL } from 'node:url';",
+  'const [module, root, id, op, actor, startAt] = process.argv.slice(2);',
+  'const led = await import(pathToFileURL(module).href);',
+  '// Spin rather than sleep: the two critical sections have to overlap, and a',
+  '// timer would hand the loser a scheduling head start.',
+  'while (Date.now() < Number(startAt)) { /* spin */ }',
+  "const call = { ledger: root, dispatch_id: id, actor, args: op === 'close-out' ? { grade: 'success' } : { status: 'in_progress' } };",
+  "const r = op === 'close-out' ? led.closeOut(call) : led.updateStatus(call);",
+  'process.stdout.write(JSON.stringify({ ok: r.ok, codes: (r.errors ?? []).map(e => e.code) }));',
+  'process.exit(r.ok ? 0 : 1);',
+  '',
+].join('\n');
+
+async function t36(ctx) {
+  const t = checker();
+  const module = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS, 'lib', 'ledger.mjs');
+  t.checks++;
+  if (!isFile(module)) return { checks: t.checks, failures: [`${UMBRELLA_SCRIPTS}/lib/ledger.mjs is absent`] };
+
+  const { ajv } = loadSchemas(ctx.schemas);
+  const entryValidator = ajv.getSchema(schemaKey('ledger-entry.schema.json#/$defs/entry'));
+
+  const scratch = tempDir('ledger-race');
+  const racer = path.join(scratch, 'racer.mjs');
+  fs.writeFileSync(racer, RACER_SOURCE, 'utf8');
+
+  /**
+   * A ledger holding one open entry, built from the frozen C3 fixture: the
+   * document the two writers race over is the shipped shape, not a shape this
+   * test invented. `status` and `grade` are wound back because the fixture is a
+   * closed dispatch and `closed` is terminal.
+   */
+  const seedLedger = round => {
+    const root = path.join(scratch, `ledger-${round}`);
+    fs.mkdirSync(path.join(root, 'entries'), { recursive: true });
+    const fixture = fs.readFileSync(path.join(ctx.fixtures, LEDGER_ENTRY_FIXTURE), 'utf8')
+      .replace(/^status: closed$/m, 'status: in_progress')
+      .replace(/^grade: success$/m, 'grade: null');
+    fs.writeFileSync(path.join(root, 'entries', 'd-0142.yml'), fixture, 'utf8');
+    fs.writeFileSync(path.join(root, 'index.yml'), 'version: 1\nentries: []\n', 'utf8');
+    // The log carries the allocation high-water mark, so the entry's own
+    // create-entry line has to be there or the next allocation would recycle it.
+    fs.writeFileSync(path.join(root, 'ledger.log'), '2026-08-24T11:15:41Z create-entry d-0142 engine\n', 'utf8');
+    return root;
+  };
+
+  const spawnRacer = (root, op, actor, startAt) => new Promise(resolve => {
+    const child = spawn(process.execPath, [racer, module, root, 'd-0142', op, actor, String(startAt)],
+      { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', d => { out += d; });
+    child.stderr.on('data', d => { err += d; });
+    child.on('close', code => resolve({ code, out, err }));
+  });
+
+  let contended = null;
+  const outcomes = [];
+  const crashes = [];
+  const unexpected = [];
+  try {
+    for (let round = 1; round <= RACE_ROUNDS && !contended; round++) {
+      const root = seedLedger(round);
+      const startAt = Date.now() + RACE_RELEASE_MS;
+      const results = await Promise.all([
+        spawnRacer(root, 'update-status', 'engine', startAt),
+        spawnRacer(root, 'close-out', 'daemon', startAt),
+      ]);
+      const parsed = results.map(r => {
+        if (r.code !== 0 && r.code !== 1) {
+          crashes.push(`exit ${r.code}: ${r.err.trim().split('\n')[0] || 'no stderr'}`);
+          return null;
+        }
+        try {
+          return { ...JSON.parse(r.out), exit: r.code };
+        } catch {
+          crashes.push(`stdout was not a report: ${JSON.stringify(r.out.slice(0, 120))}`);
+          return null;
+        }
+      });
+      if (parsed.some(p => p === null)) break;
+      for (const p of parsed) {
+        if (p.ok) continue;
+        // A loser that arrived after the winner committed sees a legal refusal
+        // of its own; anything outside those two has leaked out of the section.
+        if (!['ledger-locked', 'ledger-status-illegal'].includes(p.codes[0])) unexpected.push(p.codes.join(','));
+      }
+      const wins = parsed.filter(p => p.ok);
+      const locked = parsed.filter(p => !p.ok && p.codes[0] === 'ledger-locked');
+      outcomes.push(`${wins.length} won, ${locked.length} locked`);
+      if (wins.length === 1 && locked.length === 1) contended = { root, wins, locked, parsed, round };
+    }
+
+    t.check('no racer crashed and no refusal leaked out of the critical section', () => {
+      must(crashes.length === 0, `a racer crashed instead of refusing: ${crashes[0]}`);
+      must(unexpected.length === 0, `a loser refused with something else: ${unexpected.join(' | ')}`);
+    });
+
+    t.check('exactly one writer wins and the other exits 1 with ledger-locked', () => {
+      must(contended !== null,
+        `no contention in ${RACE_ROUNDS} rounds (${outcomes.join('; ')}) — the lock was never exercised, which is inconclusive and therefore a failure`);
+      must(contended.locked[0].exit === 1, `the loser exited ${contended.locked[0].exit}, expected 1`);
+      must(contended.wins[0].exit === 0, `the winner exited ${contended.wins[0].exit}, expected 0`);
+    });
+
+    t.check('the raced entry still validates against C3 and the log gained exactly one line', () => {
+      must(contended !== null, 'no contended round was observed, so there is nothing to inspect');
+      const doc = parseYaml(fs.readFileSync(path.join(contended.root, 'entries', 'd-0142.yml'), 'utf8'), YAML_OPTS);
+      must(entryValidator(doc), `the raced entry does not satisfy C3: ${ajv.errorsText(entryValidator.errors)}`);
+      must(['in_progress', 'closed'].includes(doc.status), `the raced entry ended at ${doc.status}`);
+      const lines = fs.readFileSync(path.join(contended.root, 'ledger.log'), 'utf8')
+        .split('\n').map(l => l.replace(/\r$/, '')).filter(Boolean);
+      must(lines.length === 2, `the log holds ${lines.length} lines, expected the seeded create-entry plus exactly one`);
+      must(!fs.existsSync(path.join(contended.root, 'entries', 'd-0142.yml.tmp')), 'the lock survived the round');
+    });
+
+    t.notes.push(`rounds: ${outcomes.join('; ') || 'none completed'}`);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+// ---------------------------------------------------------------------------
+// T37 — the emitted umbrella scripts run
+// ---------------------------------------------------------------------------
+
+/**
+ * The umbrella libraries reach outside their own directory twice: `canonical.mjs`
+ * and `definition.mjs` are one-line shims onto modules that live elsewhere in
+ * the plugin tree. The generated variant is a byte copy, so a shim whose target
+ * was not copied resolves in the source tree and fails in the emitted one —
+ * with every other test in this repository still green. Each verb is therefore
+ * run once against the emitted entry point.
+ */
+const VARIANT_SHIMS = [
+  ['skills/umbrella/scripts/lib/canonical.mjs', 'lib/canonical.mjs'],
+  ['skills/umbrella/scripts/lib/definition.mjs', `${ENGINE}/scripts/lib/definition.mjs`],
+];
+
+function t37(ctx) {
+  const t = checker();
+  const variant = path.join(ctx.repoRoot, VARIANT_ROOT);
+  const entry = path.join(variant, UMBRELLA_SCRIPTS, 'umbrella.mjs');
+  t.checks++;
+  if (!isFile(entry)) {
+    return {
+      checks: t.checks,
+      failures: [`${VARIANT_ROOT}/${UMBRELLA_SCRIPTS}/umbrella.mjs is absent — build the variant first`],
+    };
+  }
+
+  t.check('the emitted tree carries the shared library each shim resolves onto', () => {
+    for (const [shim, target] of VARIANT_SHIMS) {
+      const emittedShim = path.join(variant, shim);
+      const emittedTarget = path.join(variant, target);
+      must(isFile(emittedShim), `${VARIANT_ROOT}/${shim}: absent`);
+      must(isFile(emittedTarget), `${VARIANT_ROOT}/${target}: absent — the shim beside it cannot resolve`);
+      must(fs.readFileSync(emittedTarget, 'utf8') === fs.readFileSync(path.join(ctx.pluginRoot, target), 'utf8'),
+        `${VARIANT_ROOT}/${target}: not a byte copy of the source library`);
+    }
+  });
+
+  const scratch = tempDir('umbrella-variant');
+  const report = (label, argv, input = '') => {
+    const proc = runBounded(process.execPath, [entry, ...argv], { encoding: 'utf8', input });
+    const stderr = String(proc.stderr ?? '').trim().split('\n')[0];
+    // Exit 2 is the shell's own failure — a usage error or a module that would
+    // not load — and is what a broken import looks like from outside.
+    must(proc.status === 0 || proc.status === 1, `${label}: exited ${proc.status} — ${stderr || 'no stderr'}`);
+    // The report is the JSON prefix of stdout; a marker line, when there is
+    // one, follows it. Parse by growing the prefix rather than by counting.
+    const lines = String(proc.stdout ?? '').split('\n').filter(line => line !== '');
+    for (let take = lines.length; take > 0; take--) {
+      try {
+        return JSON.parse(lines.slice(0, take).join('\n'));
+      } catch { /* not a whole document yet */ }
+    }
+    throw new CheckFailed(`${label}: stdout is not the JSON report — ${JSON.stringify(String(proc.stdout ?? '').slice(0, 120))}`);
+  };
+
+  try {
+    const workspace = path.join(scratch, 'ws');
+    fs.mkdirSync(path.join(workspace, 'projects', 'repo-beta', '.git'), { recursive: true });
+    const ledgerRoot = path.join(workspace, '.maister', 'umbrella', 'ledger');
+
+    t.check('init and validate run from the emitted tree', () => {
+      const initReport = report('init', ['init', `--root=${workspace}`]);
+      must(initReport.ok === true, `init reported ${JSON.stringify(initReport)}`);
+      const judged = report('validate', ['validate', `--root=${workspace}`]);
+      must(judged.ok === true, `validate reported ${JSON.stringify(judged)}`);
+    });
+
+    t.check('ledger and outbox run from the emitted tree', () => {
+      const created = report('ledger', ['ledger', `--ledger=${ledgerRoot}`, '--op=create-entry', '--actor=engine']);
+      must(created.ok === true, `create-entry reported ${JSON.stringify(created)}`);
+      const wrote = report('outbox',
+        ['outbox', `--outbox=${path.join(workspace, '.maister', 'umbrella', 'outbox')}`, '--dispatch-id=d-0001', '--type=status'],
+        JSON.stringify({ note: 'the emitted writer ran' }));
+      must(wrote.ok === true, `outbox reported ${JSON.stringify(wrote)}`);
+    });
+
+    t.check('envelope and seed load their modules from the emitted tree', () => {
+      // Both are pointed at a run and an envelope that do not exist: the module
+      // has to load and refuse in its own vocabulary. A refusal is the proof
+      // that the import resolved; the behaviour itself is T35's subject.
+      const refusedEnvelope = report('envelope',
+        ['envelope', `--run=${path.join(workspace, 'no-such-run')}`, '--node=dev', `--ledger=${ledgerRoot}`, `--root=${workspace}`]);
+      must(refusedEnvelope.ok === false && refusalCodes(refusedEnvelope).length === 1,
+        `envelope reported ${JSON.stringify(refusedEnvelope)}`);
+      const refusedSeed = report('seed', ['seed', `--envelope=${path.join(workspace, 'no-such.envelope.yml')}`]);
+      must(refusedSeed.ok === false && refusalCodes(refusedSeed).length === 1,
+        `seed reported ${JSON.stringify(refusedSeed)}`);
+    });
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+
+  t.notes.push(`six verbs executed against ${VARIANT_ROOT}`);
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+// ---------------------------------------------------------------------------
+// T38 — the gate-suspend writer
+// ---------------------------------------------------------------------------
+
+const GATE_RUNNING_FIXTURE = path.join('synthetic', 'gate', 'running-no-request');
+const GATE_TERMINAL_FIXTURE = path.join('synthetic', 'gate', 'terminal-mode-request');
+
+/** The pending value the driver-aware suspend path writes. */
+const PENDING = Object.freeze({
+  node: 'approve',
+  request: 'gates/approve.request.yml',
+  since: '2026-08-28T09:41:07Z',
+});
+
+async function t38(ctx) {
+  const t = checker();
+  const engine = path.join(ctx.pluginRoot, ENGINE, 'scripts');
+  t.checks++;
+  if (!isFile(path.join(engine, 'lib', 'gate.mjs'))) {
+    return { checks: t.checks, failures: [`${ENGINE}/scripts/lib/gate.mjs is absent`] };
+  }
+
+  const { writeState } = await import(pathToFileURL(path.join(engine, 'lib', 'state.mjs')).href);
+  const { gateRequest } = await import(pathToFileURL(path.join(engine, 'lib', 'gate.mjs')).href);
+  const { scanState } = await import(pathToFileURL(path.join(ctx.pluginRoot, GATE_LIB)).href);
+  const { flow } = await import(pathToFileURL(path.join(ctx.pluginRoot, CANONICAL_LIB)).href);
+
+  const { ajv } = loadSchemas(ctx.schemas);
+  const validates = (ref, doc) => {
+    const validator = ajv.getSchema(schemaKey(ref));
+    must(validator, `no schema registered at ${ref}`);
+    must(validator(doc), `does not validate against ${ref}: ${ajv.errorsText(validator.errors)}`);
+  };
+
+  const scratch = tempDir('gate-writer');
+  let counter = 0;
+  /** A run directory copied out of a frozen fixture; the original is never touched. */
+  const runDir = fixture => {
+    const dir = path.join(scratch, `run-${counter++}`);
+    fs.cpSync(path.join(ctx.fixtures, fixture), dir, { recursive: true });
+    fs.rmSync(path.join(dir, 'manifest.json'), { force: true });
+    return dir;
+  };
+  const stateOf = dir => path.join(dir, 'orchestrator-state.yml');
+  const read = file => fs.readFileSync(file, 'utf8');
+  const pendingLine = text => {
+    const line = text.split('\n').find(raw => raw.replace(/\r$/, '').trimStart().startsWith('gate_pending:'));
+    must(line !== undefined, 'the state file carries no gate_pending line');
+    return line.replace(/\r$/, '');
+  };
+
+  try {
+    t.check('the flow form is accepted, emitted on one line and read back by the hook reader', () => {
+      const file = stateOf(runDir(GATE_RUNNING_FIXTURE));
+      const result = writeState({ state: file, patch: { orchestrator: { gate_pending: { ...PENDING } } } });
+      must(result.ok, `the write was refused: ${JSON.stringify(result.errors)}`);
+      must(result.changed.includes('orchestrator.gate_pending'), 'the writer did not report the marker as changed');
+
+      const text = read(file);
+      must(pendingLine(text) === `  gate_pending: ${flow({ ...PENDING }, 'orchestrator.gate_pending')}`,
+        `the marker was emitted as ${JSON.stringify(pendingLine(text))}`);
+      must(text.split('\n').filter(raw => raw.includes('gate_pending')).length === 1, 'a second gate_pending line appeared');
+
+      // The hook's own reader is the acceptance oracle: it is what decides
+      // whether an operator's session is blocked.
+      const scanned = scanState(text);
+      equalJson({ ...scanned.gatePending }, { ...PENDING }, 'the value the hook reader recovers');
+      validates('gate.schema.json#/$defs/pending', JSON.parse(JSON.stringify(scanned.gatePending)));
+
+      // A whole-value replacement, not a merge.
+      const second = { node: 'pick-store', request: 'gates/pick-store.request.yml', since: '2026-08-28T09:42:11Z' };
+      must(writeState({ state: file, patch: { orchestrator: { gate_pending: second } } }).ok, 'the second write was refused');
+      equalJson({ ...scanState(read(file)).gatePending }, second, 'the marker merged instead of replacing');
+    });
+
+    t.check('the five refused spellings each come back as state-gate-pending-form with the file untouched', () => {
+      const file = stateOf(runDir(GATE_RUNNING_FIXTURE));
+      const before = read(file);
+      const cases = {
+        'block form': '\n  node: approve\n  request: gates/approve.request.yml\n  since: "2026-08-28T09:41:07Z"',
+        'nested block form': { ...PENDING, context: { summary: 'why' } },
+        'mismatched request path': { ...PENDING, request: 'gates/pick-store.request.yml' },
+        'request path outside gates/': { ...PENDING, request: 'approve.request.yml' },
+        'midnight since': { ...PENDING, since: '2026-08-28T00:00:00Z' },
+        'trailing comment': `{node: approve, request: gates/approve.request.yml, since: "2026-08-28T09:41:07Z"} # asked`,
+        'the value as a flow-map string': '{node: approve, request: gates/approve.request.yml, since: "2026-08-28T09:41:07Z"}',
+        'a sequence': [{ ...PENDING }],
+        'an unknown key': { ...PENDING, mode: 'cockpit' },
+        'a missing key': { node: 'approve', request: 'gates/approve.request.yml' },
+        'a node id the grammar would never produce': { ...PENDING, node: '__proto__', request: 'gates/__proto__.request.yml' },
+        'a boolean': true,
+      };
+      for (const [name, value] of Object.entries(cases)) {
+        const result = writeState({ state: file, patch: { orchestrator: { gate_pending: value } } });
+        must(result.ok === false, `${name}: the write was accepted`);
+        equalJson(result.changed, [], `${name}: a refusal reported changed paths`);
+        must(result.errors[0]?.code === 'state-gate-pending-form',
+          `${name}: refused ${result.errors[0]?.code}, expected state-gate-pending-form`);
+        must(String(result.errors[0]?.message ?? '').includes('gate_pending'), `${name}: the message does not name the key`);
+        must(read(file) === before, `${name}: the file changed despite the refusal`);
+      }
+    });
+
+    t.check('the literal null is still accepted and still emitted as the bare literal', () => {
+      const file = stateOf(runDir(GATE_RUNNING_FIXTURE));
+      must(writeState({ state: file, patch: { orchestrator: { gate_pending: { ...PENDING } } } }).ok, 'the marker write was refused');
+      must(writeState({ state: file, patch: { orchestrator: { gate_pending: null } } }).ok, 'the clearing write was refused');
+      must(pendingLine(read(file)) === '  gate_pending: null', `the cleared marker reads ${JSON.stringify(pendingLine(read(file)))}`);
+      must(scanState(read(file)).gatePending === null, 'the hook reader still sees a pending gate');
+    });
+
+    t.check('the empty patch republishes with orchestrator.updated as the only changed line', () => {
+      const dir = runDir(GATE_RUNNING_FIXTURE);
+      const file = stateOf(dir);
+      const before = read(file);
+      const result = writeState({ state: file, patch: {} });
+      must(result.ok, `the empty patch was refused: ${JSON.stringify(result.errors)}`);
+      equalJson(result.changed, ['orchestrator.updated'], 'the empty patch changed more than the clock');
+
+      const after = read(file);
+      const beforeLines = before.split('\n');
+      const afterLines = after.split('\n');
+      must(beforeLines.length === afterLines.length, 'the republish gained or lost a line');
+      const differing = beforeLines.map((line, i) => [i, line, afterLines[i]]).filter(([, a, b]) => a !== b);
+      must(differing.length === 1, `changed lines: ${JSON.stringify(differing)}`);
+      must(/^\s+updated: "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"$/.test(differing[0][2]),
+        `the one changed line is ${JSON.stringify(differing[0][2])}`);
+
+      // The republished file reads back through the hook's reader — which is
+      // what the resume path depends on, since the re-validation is the only
+      // thing standing behind an answer recorded with editor tools.
+      const scanned = scanState(after);
+      must(scanned.gatePending === null && scanned.hasWorkflow && scanned.hasNodes && scanned.hasTask,
+        'the republished state does not read back through the hook reader');
+
+      const proc = runBounded(process.execPath, [path.join(engine, 'workflow.mjs'), 'write-state', `--state=${file}`],
+        { encoding: 'utf8', input: '{}' });
+      must(proc.status === 0, `the verb exited ${proc.status} — ${String(proc.stderr ?? '').trim().split('\n')[0]}`);
+      must(String(proc.stdout ?? '') === 'orchestrator.updated\n', `the verb printed ${JSON.stringify(proc.stdout)}`);
+    });
+
+    /** The suspend request T38 issues; `same()` is the byte-identical re-issue. */
+    const APPROVE_REQUEST = Object.freeze({
+      node: 'approve',
+      kind: 'gate',
+      question: 'Research is complete. Proceed to the per-repo implementation runs?',
+      context: { summary: 'One rollout order is forced by the shared client package.', artifacts: ['outputs/research-report.md'] },
+      options: [
+        { id: 'proceed', label: 'Proceed to implementation', effect: 'continue', description: 'Run the per-repo development nodes.', recommended: true },
+        { id: 'abort', label: 'Abort the chain', effect: 'stop' },
+      ],
+      multi_select: false,
+    });
+    const same = () => JSON.parse(JSON.stringify(APPROVE_REQUEST));
+
+    t.check('gate-request writes the request file, the index and the pending marker in one call', () => {
+      const dir = runDir(GATE_RUNNING_FIXTURE);
+      const file = stateOf(dir);
+      const result = gateRequest({ state: file, request: same() });
+      must(result.ok, `gate-request refused: ${JSON.stringify(result.errors)}`);
+      equalJson(result.changed, ['gates/approve.request.yml', 'gates/index.yml', 'orchestrator-state.yml'],
+        'the paths the verb reports');
+
+      const requestFile = path.join(dir, 'gates', 'approve.request.yml');
+      validates('gate.schema.json#/$defs/request', parseYaml(read(requestFile), YAML_OPTS));
+      validates('gate.schema.json#/$defs/index', parseYaml(read(path.join(dir, 'gates', 'index.yml')), YAML_OPTS));
+      // The line the hook greps for, at column zero with nothing after it.
+      must(/^answer: null$/m.test(read(requestFile)), 'the request file carries no bare `answer: null` line');
+      must(!read(requestFile).includes('\r'), 'the request file carries a carriage return');
+
+      // The marker the cockpit reads, through the hook's own reader, and the
+      // node moved to `suspended` — the two halves of the write that used to be
+      // a second, denied call.
+      const marker = scanState(read(file)).gatePending;
+      must(marker !== null, 'gate-request wrote no pending marker, so the run suspends at a gate nothing recorded');
+      validates('gate.schema.json#/$defs/pending', JSON.parse(JSON.stringify(marker)));
+      must(marker.node === 'approve' && marker.request === 'gates/approve.request.yml',
+        `the marker reads ${JSON.stringify(marker)}`);
+      const asked = /^asked_at: "?([^"\n]*?)"?$/m.exec(read(requestFile));
+      must(asked !== null && marker.since === asked[1],
+        `the marker's since ${marker.since} is not the request's asked_at ${asked?.[1]}`);
+      must(scanState(read(file)).nodes.approve.status === 'suspended',
+        `the gate node reads ${scanState(read(file)).nodes.approve.status}`);
+
+      const index = parseYaml(read(path.join(dir, 'gates', 'index.yml')), YAML_OPTS);
+      must(index.entries.length === 1 && index.entries[0].node === 'approve' && index.entries[0].status === 'pending',
+        `the index reads ${JSON.stringify(index.entries)}`);
+
+      must(gateRequest({ state: file, request: { node: 'approve', kind: 'gate', question: 'again?', options: [{ id: 'yes' }] } }).errors[0]?.code === 'gate-request-exists',
+        'a second, different request for the same node did not refuse gate-request-exists');
+      must(gateRequest({ state: file, request: { node: 'nope', kind: 'gate', question: 'q', options: [{ id: 'yes' }] } }).errors[0]?.code === 'gate-request-invalid',
+        'a node the frozen graph does not carry was accepted');
+    });
+
+    t.check('a re-issue that finds its own unanswered request file finishes the suspend instead of refusing', () => {
+      // The window a kill between the request file and the marker leaves. There
+      // is no shell to clear the file with — the run is already pending on rule
+      // (b) — so a refusal here makes the gate permanently unaskable.
+      const dir = runDir(GATE_RUNNING_FIXTURE);
+      const file = stateOf(dir);
+      const first = gateRequest({ state: file, request: same() });
+      must(first.ok, `the first call refused: ${JSON.stringify(first.errors)}`);
+      const requestBytes = read(path.join(dir, 'gates', 'approve.request.yml'));
+
+      // Put the run back in the half-suspended shape: the file, no marker.
+      must(writeState({ state: file, patch: { orchestrator: { gate_pending: null } } }).ok, 'the marker could not be cleared');
+      must(scanState(read(file)).gatePending === null, 'the marker was not cleared');
+
+      const retry = gateRequest({ state: file, request: same() });
+      must(retry.ok, `the re-issue refused: ${JSON.stringify(retry.errors)}`);
+      equalJson(retry.changed, ['gates/index.yml', 'orchestrator-state.yml'],
+        'the re-issue rewrote the request file instead of adopting it');
+      must(read(path.join(dir, 'gates', 'approve.request.yml')) === requestBytes,
+        're-issuing rewrote the question the operator was already asked');
+      const marker = scanState(read(file)).gatePending;
+      must(marker !== null && marker.since === /^asked_at: "?([^"\n]*?)"?$/m.exec(requestBytes)[1],
+        'the adopted marker does not carry the time the operator was actually asked');
+
+      // An answered file is still refused: the answer is not to be discarded.
+      must(writeState({ state: file, patch: { orchestrator: { gate_pending: null } } }).ok, 'the marker could not be cleared');
+      const answered = path.join(dir, 'gates', 'approve.request.yml');
+      fs.writeFileSync(answered, requestBytes.replace(/^answer: null$/m, 'answer: {option: proceed}'), 'utf8');
+      must(gateRequest({ state: file, request: same() }).errors[0]?.code === 'gate-request-exists',
+        'an answered request file was adopted');
+    });
+
+    t.check('a refusal after the request file leaves the run unsuspended and the shell available', () => {
+      // The index temp held by another writer: the request file is already
+      // published, and if it stayed the run would be pending on rule (b) with
+      // no marker and no way to retry.
+      const dir = runDir(GATE_RUNNING_FIXTURE);
+      const file = stateOf(dir);
+      const before = read(file);
+      fs.mkdirSync(path.join(dir, 'gates'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'gates', 'index.yml.tmp'), '', 'utf8');
+
+      const result = gateRequest({ state: file, request: same() });
+      must(result.ok === false, 'the call was accepted with the index temp held');
+      equalJson(result.changed, [], 'a refusal reported changed paths');
+      must(result.errors[0]?.code === 'gate-temp-exists', `refused ${result.errors[0]?.code}`);
+      must(!fs.existsSync(path.join(dir, 'gates', 'approve.request.yml')),
+        'the request file was left behind, so the hook reads the run as pending with no marker');
+      must(read(file) === before, 'the state file changed although the call refused');
+
+      // The same holds when it is the marker that refuses, and the refusal
+      // arrives under the state writer's own code rather than a gate code
+      // re-spelling it — with the code written exactly once.
+      fs.rmSync(path.join(dir, 'gates', 'index.yml.tmp'));
+      const stateTemp = `${file}.tmp`;
+      fs.writeFileSync(stateTemp, "another writer's bytes\n", 'utf8');
+      const marker = gateRequest({ state: file, request: same() });
+      must(marker.ok === false, 'the call was accepted with the state temp held');
+      must(marker.errors[0]?.code === 'state-temp-exists', `refused ${marker.errors[0]?.code}`);
+      must((String(marker.errors[0]?.message ?? '').match(/state-temp-exists/g) ?? []).length === 1,
+        `the code is spelled twice in the message: ${marker.errors[0]?.message}`);
+      must(!fs.existsSync(path.join(dir, 'gates', 'approve.request.yml')),
+        'the request file survived a refused marker, leaving the run pending with none');
+      must(read(file) === before, 'the state file changed although the call refused');
+      fs.rmSync(stateTemp);
+
+      // With both temps released the same call goes through.
+      must(gateRequest({ state: file, request: same() }).ok, 'the retry after the rollback refused');
+      must(scanState(read(file)).gatePending !== null, 'the retry wrote no marker');
+    });
+
+    t.check('a terminal-mode write still emits gate_pending: null and writes no request file', () => {
+      const dir = runDir(GATE_TERMINAL_FIXTURE);
+      const file = stateOf(dir);
+      const gatesBefore = fs.readdirSync(path.join(dir, 'gates')).sort();
+      const before = read(file);
+
+      const result = writeState({
+        state: file,
+        patch: {
+          nodes: { approve: { status: 'completed' } },
+          node_summaries: { approve: { decision: 'proceed', answered_by: 'operator' } },
+        },
+      });
+      must(result.ok, `the terminal-mode write was refused: ${JSON.stringify(result.errors)}`);
+
+      const after = read(file);
+      must(pendingLine(after) === '  gate_pending: null', 'terminal mode wrote a marker');
+      must(scanState(after).gatePending === null, 'the hook reader sees a pending gate after a terminal-mode write');
+      equalJson(fs.readdirSync(path.join(dir, 'gates')).sort(), gatesBefore, 'terminal mode wrote a gate file');
+
+      // Only the clock moves under `orchestrator:`; the marker line and the
+      // driver block keep their own bytes.
+      const block = text => text.split('\n\n')[0].split('\n');
+      const touched = block(before).map((line, i) => [line, block(after)[i]])
+        .filter(([a, b]) => a !== b).map(([a]) => a.trim().split(':')[0]);
+      equalJson(touched, ['updated'], 'the keys a terminal-mode write touched under orchestrator:');
+    });
+
+    t.check('the suspend sequence survives the enforcement hook, which is where it used to deadlock', () => {
+      // The seam every other check bypassed. T38 imports the writers in
+      // process and the round-trip ran the verbs as raw shell, so neither ever
+      // asked the hook what it thought — and the hook is what decides whether
+      // the documented sequence can run at all. `Bash` is `opaque` to `mapTool`
+      // and there is no allow-list entry that can rescue it, so a run that is
+      // already pending cannot reach the shell. Rule (b) makes a run pending
+      // the moment an unanswered request file lands beside its state, which is
+      // *before* a second call could set the marker. Hence one call.
+      const cwd = tempDir('gate-hook');
+      const beacons = tempDir('gate-hook-beacons');
+      try {
+        const mount = path.join(cwd, '.maister', 'umbrella', 'runs', '019260a2-1122-7c33-8d44-5e6677889900');
+        fs.cpSync(path.join(ctx.fixtures, GATE_RUNNING_FIXTURE), mount, { recursive: true });
+        fs.rmSync(path.join(mount, 'manifest.json'), { force: true });
+        const file = path.join(mount, 'orchestrator-state.yml');
+        const workflowScript = path.join(engine, 'workflow.mjs');
+
+        const hook = command => {
+          const payload = {
+            session_id: 'e25cad30-ca2c-4cdb-8290-b3763b9b35ee',
+            transcript_path: path.join(cwd, 'transcript.jsonl'),
+            cwd,
+            permission_mode: 'default',
+            hook_event_name: 'PreToolUse',
+            tool_name: 'Bash',
+            tool_input: { command },
+            tool_use_id: 'toolu_01VNiy1yUkbhmcVbzB78NFrg',
+          };
+          const proc = runBounded(process.execPath, [path.join(ctx.pluginRoot, GATE_HOOK)],
+            { input: JSON.stringify(payload), encoding: 'utf8', cwd, env: { ...process.env, MAISTER_BEACON_DIR: beacons } });
+          return { status: proc.status, stdout: String(proc.stdout ?? ''), stderr: String(proc.stderr ?? '') };
+        };
+        const requestCall = `node ${workflowScript} gate-request --state=${file}`;
+        const stateCall = `node ${workflowScript} write-state --state=${file}`;
+
+        // Nothing is pending yet, so the suspending call itself gets through.
+        const before = hook(requestCall);
+        must(before.status === 0 && before.stdout.trim() === '',
+          `the hook denied the suspending call itself: ${firstLine(before.stdout) || before.status}`);
+
+        const issued = runBounded(process.execPath, [workflowScript, 'gate-request', `--state=${file}`],
+          { encoding: 'utf8', input: JSON.stringify(same()) });
+        must(issued.status === 0, `gate-request exited ${issued.status}: ${firstLine(String(issued.stderr ?? ''))}`);
+
+        // And now the shell is shut, which is the fact the sequence has to be
+        // built around rather than tested after.
+        const after = hook(stateCall);
+        must(after.status === 0, `the deny did not exit 0: ${after.status}`);
+        const denial = parseJsonOut(after.stdout);
+        must(denial.ok, `the hook printed no decision: ${firstLine(after.stdout)}`);
+        const reason = reasonOf('claude', 'deny', denial.value);
+        must(reason.startsWith(DENY_PREFIX),
+          `a write-state shell call after the request file was not denied — the hook said ${JSON.stringify(firstLine(reason))}`);
+
+        // So the marker cannot be a later call, and it is not: it is already on
+        // disk, written by the call the hook did allow.
+        const marker = scanState(read(file)).gatePending;
+        must(marker !== null,
+          'the request file is on disk, the shell is shut, and no pending marker was written — the run is wedged at a gate the cockpit cannot see');
+        must(marker.node === 'approve' && marker.request === 'gates/approve.request.yml',
+          `the marker reads ${JSON.stringify(marker)}`);
+      } finally {
+        fs.rmSync(cwd, { recursive: true, force: true });
+        fs.rmSync(beacons, { recursive: true, force: true });
+      }
+    });
+
+    t.check('an absolute Windows path in the same write is single-quoted, and both readers agree on it', () => {
+      // The one spelling a strict YAML parser and the plugin's own outer-pair
+      // unquoters read identically: double quotes would give `\U` a meaning it
+      // does not have, and escaping to satisfy the parser would hand `scanState`
+      // a path with every separator doubled.
+      const file = stateOf(runDir(GATE_RUNNING_FIXTURE));
+      const result = writeState({
+        state: file,
+        patch: {
+          orchestrator: { gate_pending: { ...PENDING }, task_path: 'C:\\Users\\dev\\work\\repo-alpha' },
+          nodes: { dev: { dir: 'C:\\Users\\dev\\work\\repo-beta' } },
+        },
+      });
+      must(result.ok, `the write was refused: ${JSON.stringify(result.errors)}`);
+      const text = read(file);
+      must(text.includes("  task_path: 'C:\\Users\\dev\\work\\repo-alpha'"), 'the Windows path was not single-quoted');
+      must(text.includes("dir: 'C:\\Users\\dev\\work\\repo-beta'"), 'the node dir was not single-quoted');
+      // Parsed, not merely inspected: a check that only asserts the outer pair
+      // cannot tell quoting from escaping.
+      const parsed = parseYaml(text, YAML_OPTS);
+      must(parsed.orchestrator.task_path === 'C:\\Users\\dev\\work\\repo-alpha',
+        `a YAML reader parses the task_path as ${JSON.stringify(parsed.orchestrator.task_path)}`);
+      must(scanState(text).nodes.dev.dir === 'C:\\Users\\dev\\work\\repo-beta',
+        'the engine scanner and the YAML reader disagree about the node dir');
+    });
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+// ---------------------------------------------------------------------------
+// T39 — the gate-sequence carriers, in lockstep
+// ---------------------------------------------------------------------------
+
+/**
+ * Every surface that tells a model how a driver-suspended gate is raised.
+ *
+ * The engine collapsed the request file, the gate index and the pending marker
+ * into one `gate-request` call because the deadlock is symmetric: whichever
+ * write lands first makes the run pending, and the second is a shell call
+ * against a pending run, which the enforcement hook denies. That fix reached
+ * the engine's own SKILL and nowhere else — every other carrier went on
+ * spelling the superseded two-write sequence, so a *compliant* orchestrator
+ * reading the shipped prose still reached the deadlock. The rule was already
+ * written down ("change them in lockstep") and enforced by nothing.
+ *
+ * `repo` marks a carrier that lives outside the plugin tree, so a vendored
+ * checkout that has the plugin but not this repository skips it rather than
+ * failing on a file it was never shipped.
+ */
+const GATE_CARRIERS = [
+  { path: 'hooks/skill-invocation-reminder.sh', driver: true },
+  { path: 'hooks/post-compact-reminder.sh', driver: true },
+  { path: 'hooks/gate-stop-nudge.mjs' },
+  { path: 'skills/development/SKILL.md', driver: true },
+  { path: 'skills/research/SKILL.md', driver: true },
+  { path: 'skills/migration/SKILL.md', driver: true },
+  { path: 'skills/performance/SKILL.md', driver: true },
+  { path: 'skills/product-design/SKILL.md', driver: true },
+  { path: 'skills/workflow-engine/SKILL.md', driver: true },
+  { path: 'skills/orchestrator-framework/references/orchestrator-patterns.md', driver: true },
+  { path: 'skills/orchestrator-framework/references/compatibility-contracts.md' },
+  { path: 'skills/umbrella/scripts/lib/seed.mjs' },
+  { path: 'CLAUDE.md', repo: true, driver: true },
+];
+
+/**
+ * The superseded shapes. Each is an instruction to a *caller* to write the
+ * marker as a step of its own after the request file — the sequence that
+ * deadlocks. Prose describing what the one verb does internally says "writes"
+ * and "sets", never "write … then set", so the verb's own documentation is not
+ * caught by these.
+ */
+const SUPERSEDED_GATE_SEQUENCES = [
+  { name: 'write the request file, then set the marker',
+    re: /\bwrit(?:e|ing)\b[^.\n]{0,90}\brequest\b[^.\n]{0,90}\bset\b[^.\n]{0,30}gate_pending/i },
+  { name: 'set the marker, then rewrite the dashboard as a separate step',
+    re: /\bset\b\s+`?gate_pending`?\s*,\s*(?:then\s+)?re-?write/i },
+  { name: 'the marker as a second write-state call',
+    re: /gate_pending[^.\n]{0,60}\bwrite-state\b/i },
+];
+
+/**
+ * The claim that makes the carrier's instruction the single-call one: the word
+ * "one" or "single" within a clause of the verb's name, in either order. The
+ * count is the load-bearing part — a carrier that names the verb but leaves the
+ * number open reads as compatible with the two-write sequence it replaced.
+ */
+const ONE_CALL = /(?:\b(?:one|a single|single)\b[^.\n]{0,60}`?gate-request`?|`?gate-request`?[^.\n]{0,60}\b(?:one|a single|single)\b)/i;
+
+/**
+ * The driver qualification, required of the carriers that state the branch rule
+ * itself. The stop nudge, the register's E2 rules and the worker seed carry the
+ * sequence without restating the branch — the nudge only ever fires inside a
+ * driver-suspended run, and the seed's worker is told its driver outright — so
+ * they are held to the sequence and not to this.
+ */
+const DRIVER_CLAUSES = [
+  { name: 'names driver.kind', re: /driver\.kind/ },
+  { name: 'names the terminal branch', re: /absent or `?terminal`?/i },
+  { name: 'names the suspending branch', re: /cockpit/ },
+];
+
+function t39(ctx) {
+  const t = checker();
+  for (const carrier of GATE_CARRIERS) {
+    const file = carrier.repo
+      ? path.join(ctx.repoRoot, carrier.path)
+      : path.join(ctx.pluginRoot, carrier.path);
+    if (carrier.repo && !isFile(file)) {
+      t.notes.push(`${carrier.path} is not in this checkout — skipped`);
+      continue;
+    }
+    t.check(`${carrier.path} carries the single-verb gate sequence`, () => {
+      must(isFile(file), `${carrier.path}: the carrier is missing — remove it from the list or restore the file`);
+      const text = fs.readFileSync(file, 'utf8');
+      must(text.includes('gate-request'),
+        `${carrier.path}: the gate mechanism is named without naming the \`gate-request\` verb, which is the only way to raise a gate without deadlocking`);
+      must(ONE_CALL.test(text),
+        `${carrier.path}: names the verb but does not say it is one call, so a reader may still split it in two`);
+      for (const { name, re } of SUPERSEDED_GATE_SEQUENCES) {
+        const hit = re.exec(text);
+        must(hit === null, `${carrier.path}: the superseded two-write sequence survives (${name}) — ${JSON.stringify(hit?.[0] ?? '')}`);
+      }
+      if (carrier.driver) {
+        for (const { name, re } of DRIVER_CLAUSES) {
+          must(re.test(text), `${carrier.path}: no longer ${name}`);
+        }
+      }
+    });
+  }
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+// ===========================================================================
 // registry and entry point
 // ===========================================================================
 
@@ -6823,6 +8959,11 @@ const TESTS = [
   { id: 'T32', name: 'emitted-engine-smoke', needs: ['plugin', 'fixtures'], run: t32 },
   { id: 'T33', name: 'development-parity-checklist', needs: ['plugin', 'in-repo'], run: t33 },
   { id: 'T34', name: 'generated-variant-parity', needs: ['plugin'], run: t34 },
+  { id: 'T35', name: 'umbrella-runtime', needs: ['plugin', 'fixtures'], run: t35 },
+  { id: 'T36', name: 'ledger-concurrency', needs: ['plugin', 'fixtures'], run: t36 },
+  { id: 'T37', name: 'emitted-umbrella-smoke', needs: ['plugin', 'fixtures'], run: t37 },
+  { id: 'T38', name: 'gate-suspend-writer', needs: ['plugin', 'fixtures'], run: t38 },
+  { id: 'T39', name: 'gate-sequence-lockstep', needs: ['plugin'], run: t39 },
 ];
 
 // ---------------------------------------------------------------------------

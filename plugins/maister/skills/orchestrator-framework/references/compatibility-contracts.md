@@ -1,6 +1,6 @@
 # Compatibility Contracts
 
-The normative register of every file shape the maister plugin writes or reads and that other tools may depend on: what writes each shape, where its version lives, how a reader must tolerate it, which schema validates it and which fixtures pin it. It binds everything that touches those files — the plugin's orchestrators and engine, the cockpit daemon, and the gate hook scripts. `make test` validates the schemas, the fixtures and the hooks against this register, and the `contracts-v*` release tarball vendors it for readers outside this repository. Contracts are **additive only**: fields may be added, never renamed, removed or re-typed, and a contract version bump ships as a new tag rather than as an edit to an existing one. Each contract carries a short key — `A1`-`A6`, `B1`-`B3`, `C1`-`C7`, `E1`, `E2`, `H1`, `R`, `T1` — used in fixture manifests, schema descriptions and cross-references such as `compatibility-contracts.md § E2`; the keys are the register's stable identifiers, and nothing on disk is named after one.
+The normative register of every file shape the maister plugin writes or reads and that other tools may depend on: what writes each shape, where its version lives, how a reader must tolerate it, which schema validates it and which fixtures pin it. It binds everything that touches those files — the plugin's orchestrators and engine, the cockpit daemon, and the gate hook scripts. `make test` validates the schemas, the fixtures and the hooks against this register, and the `contracts-v*` release tarball vendors it for readers outside this repository. Contracts are **additive only**: fields may be added, never renamed, removed or re-typed, and a contract version bump ships as a new tag rather than as an edit to an existing one. Each contract carries a short key — `A1`-`A6`, `B1`-`B3`, `C1`-`C8`, `E1`, `E2`, `H1`, `R`, `T1` — used in fixture manifests, schema descriptions and cross-references such as `compatibility-contracts.md § E2`; the keys are the register's stable identifiers, and nothing on disk is named after one.
 
 ---
 
@@ -33,19 +33,20 @@ Column meanings: **Owner** = who writes it (engine = the orchestrator or model i
 | A1 | `orchestrator-state.yml` | engine | implicit v1 — absence of any version field is v1; floor-detection rule § 2 | strict core (`orchestrator`, `task`), typed optional core keys, open per-workflow `$defs`, unknown keys preserved, absence is empty/null | `orchestrator-state` | valid (5 runs), invalid (3), tolerated (product-design), synthetic (performance, migration, skipped/failed, chain-run) |
 | A2 | `dashboard-data.js` | engine | `generated` + shape | write-strict one statement / read-tolerant bare-key literal; severity emit set 3, tolerate 7; `fixes[]` and `decisions[]` string or object; `resolved:` prefix or `(resolved` marker | `dashboard-data` | valid (5), invalid (2), tolerated (bare-key, legacy global), synthetic (performance, migration) |
 | A3 | `.maister/config.yml` | engine (scaffolded at init) | keys | open map; absent file is defaults; read once at init; `repo_id` additive | `project-config` | synthetic (default, `repo_id`), invalid (bad `mockup_format`) |
-| A4 | task-dir layout + artifact path patterns | engine | — | path-pattern register; enumeration rule; non-task children ignored; unregistered task-root files ignored; dot-prefixed non-contractual; artifact paths task-root-relative, `task_path` repo-root-relative | none (this register + the suite enumerator) | synthetic (tree listing) |
+| A4 | task-dir layout + artifact path patterns | engine | — | path-pattern register; enumeration rule; non-task children ignored; unregistered task-root files ignored; dot-prefixed non-contractual; artifact paths task-root-relative, `task_path` repo-root-relative, and neither absolute nor escaping its root | `common#/$defs/rel_path` (every relative path field), otherwise none (this register + the suite enumerator) | synthetic (tree listing) |
 | A5 | artifact summary block | engine + agents | — | positional form; `&` heading tolerated on read, slash on write; exempt list | none (§ A5 + runner lint) | valid (md per run), tolerated (`&` form), invalid (TL;DR over 5 lines, block after another section) |
 | A6 | timestamps | engine | — | `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$` on the field-path list, never `T00:00:00Z`; task-dir name prefix exempt | `common#/$defs/timestamp` | invalid (midnight, date-only) |
-| B1 | workflow definition + overlay grammar | engine | `version: 1` | additive; unknown `version` degrades; R keys accepted with a warning | `workflow-definition`, `workflow-overlay` | synthetic (research-shaped, richtext, overlay, `version: 99`, reserved keys), invalid (cycle, bad node id, two continue options) |
+| B1 | workflow definition + overlay grammar | engine | `version: 1` | additive; unknown `version` degrades; R keys accepted with a warning | `workflow-definition`, `workflow-overlay` | synthetic (research-shaped, richtext, overlay, `version: 99`, reserved keys, gate options carrying values), invalid (cycle, bad node id, two continue options, option values not a map) |
 | B2 | `workflow:` block in state | engine | `grammar_version` | one-line flow-map node entries (§ E2); additive | `workflow-state` | synthetic (chain template), invalid (block-form node) |
 | B3 | `node_summaries` entry | engine | — | the `phase_summaries` value shape | `node-summary` (refs `common#/$defs/phase_summary_value`) | synthetic |
-| C1 | `.maister/umbrella.yml` | engine (umbrella init) | `version: 1` | additive; `routing.tiers` reserved | `umbrella-manifest` | synthetic (6-member), invalid (member without path) |
-| C2 | dispatch envelope | engine | `version: 1` | additive | `dispatch-envelope` | synthetic, invalid (bad `autonomy`) |
-| C3 | ledger entry + 7 ops + `ledger.log` line | engine (`create-entry`, `claim`, `update-status`), daemon (rest) | `version: 1` | additive; op names closed; log line `ts op dispatch_id actor` | `ledger-entry` (`#/$defs/entry`, `op`, `log_line`) | synthetic (entry, op transcript), invalid (illegal status) |
+| C1 | `.maister/umbrella.yml` | engine (umbrella init) | `version: 1` | additive — the branch convention, coordination, tracker, git host, per-person member list and per-member `autonomy` are one such addition; `routing.tiers` reserved | `umbrella-manifest` | synthetic (6-member), invalid (member without path, person members not a list) |
+| C2 | dispatch envelope | engine | `version: 1` | additive — the optional `statement` and `workspace_root` are two such additions | `dispatch-envelope` | synthetic (envelope, worker-seed chain), invalid (bad `autonomy`) |
+| C3 | ledger entry + 7 ops + `ledger.log` line | engine (`create-entry`, `claim`, `update-status`), daemon (rest) | `version: 1` | additive; op names closed; log line `ts op dispatch_id actor` | `ledger-entry` (`#/$defs/entry`, `op`, `#/$defs/op_call`, `log_line`) | synthetic (entry, op transcript), invalid (illegal status, op call without actor) |
 | C4 | outbox message | worker | `version: 1` | additive; one `type` per file; append-only | `outbox-message` | synthetic (one per `type`), invalid (unknown `type`) |
 | C5 | stdout markers + outcome rule | engine prints; daemon reads | — | exit code is not a signal; outcome from on-disk E2, marker, denials | `markers` (`#/$defs/marker_line`, `prompt_line`, `outcome`) | valid (result records, both providers), synthetic (outcome records) |
 | C6 | coordination branch layout | daemon | `COORDINATION.md` `version: 1` | path-pattern register only at v1; no document schema | none | none (register rows, § C6) |
 | C7 | event schema | engine / daemon / cockpit (`actor.via`) | `version: 1` | immutable files; fold in `at` order; `mirror` data carries T1 | `event` (`#/$defs/mirror_data` is T1) | synthetic (one per `type`), invalid (unknown `type`, non-UUIDv7 id) |
+| C8 | worker seed descriptor | engine (dispatch node) | `version: 1` | additive; the five section ids, their order and the 60-line cap are frozen; section wording is free | `worker-seed` (`#/$defs/seed`, `section`, `section_marker`, `line_cap`) | synthetic (descriptor), invalid (missing the siblings section) |
 | T1 | tracker mirror map | daemon | via C7 `mirror` events | key stored per event; idempotent | inside `event` | synthetic (`mirror` event) |
 | E1 | `orchestrator.driver` | engine writes at init; daemon rewrites `session` before re-spawn | field presence | absent is terminal; `kind` in `terminal\|cockpit\|dispatch`; `cwd` absolute; `session.model` optional | `driver` | synthetic (3 kinds, both providers), invalid (relative `cwd`) |
 | E2 | `gate_pending` + `gates/<node>.request.yml` + `gates/index.yml` | engine (request, pending, answer); daemon never writes | `version: 1` in request and index | one-line form (§ E2); commit point is `gate_pending: null` written last; an unanswered request is a second signal; `kind` in `gate\|decision\|convergence` | `gate` (`#/$defs/pending`, `request`, `index`) | synthetic (pending, request per kind, answered, index), invalid (block-form pending, request without answer, option id collision) |
@@ -72,6 +73,7 @@ Strictness lives in the enums (§ 1), and the schema is where each one is spelle
 | C4 | message `type`, `need`, `to` | `outbox-message#/$defs/type`, `#/$defs/need` |
 | C5 | marker vocabulary, outcome classification | `markers#/$defs/marker_line`, `#/$defs/outcome` |
 | C7 | event `type`, `actor.via`, `mirror.tracker` | `event#/$defs/type` |
+| C8 | seed `section` | `worker-seed#/$defs/section` |
 | E1 | `driver.kind`, `session.provider`, `session.status` | `driver` (inline), `driver#/$defs/session` |
 | E2 | request `kind`, option `effect`, answer `via`, index `status` | `gate#/$defs/request`, `#/$defs/option`, `#/$defs/answer`, `#/$defs/index` |
 | H1 | `hook_event_name`, `permissionDecision`, stop `decision`, SessionStart `source` | `hook-payloads` (`const` per `$def`) |
@@ -150,6 +152,18 @@ Everything a workflow produces lives under `.maister/tasks/<type>/<YYYY-MM-DD-sl
   dashboard.html             # fixed asset, MD5 pinned below
   dashboard-data.js          # A2
   gates/                     # E2, chain runs only
+  dispatch/                  # C2 envelopes, dispatching runs only
+```
+
+**Umbrella root** — present only in a workspace initialized as an umbrella:
+
+```
+.maister/umbrella.yml                  # C1
+.maister/umbrella/runs/<uuid7>/        # one directory per chain run
+.maister/umbrella/ledger/entries/      # C3, one file per dispatch
+.maister/umbrella/ledger/index.yml     # C3, regenerated whole
+.maister/umbrella/ledger/ledger.log    # C3, append-only
+.maister/umbrella/outbox/<dispatch_id>/ # C4, one directory per dispatch
 ```
 
 **Per-workflow subdirectories:**
@@ -191,6 +205,7 @@ The dashboard page is a maintained plugin asset, copied into every task dir and 
 - **Dot-prefixed paths are non-contractual.** `.archive/`, `.mockups.json` and anything else beginning with a dot carries no contract and is never enumerated.
 - **Mockups** live at `analysis/mockups/*.html` (any slug) and `analysis/design-context/mockups/*.html`. The glob is the contract; the sibling `INDEX.md` binds names to files.
 - **Artifact paths are task-root-relative**; `task_path` in the state is **repo-root-relative**.
+- **A relative path never escapes its root.** Wherever `common#/$defs/rel_path` is referenced, a leading slash and any `..` segment are refused. This is a tightening rather than an addition: the only document it turns from valid into invalid is one naming a directory outside the root its field is relative to, which no writer was ever scoped to.
 - **Reserved path** (C6, month 2): `gates/<node>.answer.<actor>.yml`. Listed here, written by nothing at v1, validated by nothing.
 
 ## 8. Artifact summary block (A5)
@@ -269,7 +284,7 @@ A flow map, keys in any order, scalars bare or double-quoted, no nesting. **The 
 **The allow-list is a list of names, not a glob.** While a run waits on an operator, the files the engine may still write in that run directory are exactly: `orchestrator-state.yml`, `gates/index.yml`, `dashboard-data.js`, `dashboard.html`, `gates/<node>.request.yml` for each pending node, and the temp twin of each whole-file rename — `orchestrator-state.yml.tmp` and `gates/<node>.request.yml.tmp`, spelled with that exact suffix. No other `*.tmp` is engine-owned: `notes.tmp` is denied like any other file.
 
 **Rules**:
-- **Write order is enforced**: request file (temp file, then rename) → `gate_pending` plus `status: suspended` → dashboard.
+- **Write order is enforced, and it is the order inside one `gate-request` call**: request file (temp file, then rename) → `gate_pending` plus `status: suspended`; the dashboard is rewritten after that call returns. The order is normative and the single call is what makes it reachable — an unanswered request file already reads as pending, so a marker written by a second shell call is denied and the run wedges at a gate nothing recorded.
 - **The commit point is `gate_pending: null`, written last.** A decision is recorded across two to four edits and readers tolerate every intermediate shape — `node_summaries.<node>` present while `gate_pending` is still set is normal.
 - **The request file is a second signal.** An unanswered `gates/*.request.yml` with no matching `gate_pending` is treated as pending. A valid-but-truncated state file must never fail open.
 - A request carries `version`, `run_id`, `node`, `kind` (`gate|decision|convergence`), `asked_at`, `question`, optional `context`, `options[]` with unique ids, the multi-choice flag, and `answer`. **The multi-choice flag key is spelled only in `gate.schema.json` and in fixtures** — prose everywhere calls it "the multi-choice flag". The suite lints every fixture for hyphenated spellings in key position.
@@ -277,17 +292,18 @@ A flow map, keys in any order, scalars bare or double-quoted, no nesting. **The 
 - In terminal mode the gate is asked with the in-session question tool and the request file is optional. In `cockpit` and `dispatch` mode the request file **is** the question and the session ends its turn.
 - `gates/index.yml` lists one entry per request (`node`, `request`, optional `sub_run`, `kind`, `asked_at`, `status`).
 
-## 13. Coordination contracts (C1-C7)
+## 13. Coordination contracts (C1-C8)
 
 | Id | Shape | Rules |
 |---|---|---|
-| C1 | `.maister/umbrella.yml` | `version: 1`; `members[]` each with a path; additive; `routing.tiers` reserved |
-| C2 | dispatch envelope | `version: 1`; additive; `autonomy` is a closed enum |
+| C1 | `.maister/umbrella.yml` | `version: 1`; `members` is a map from member name to `{path, kind, default_provider, autonomy}`; additive — the branch convention, coordination block, tracker, git host and per-person member list are one such addition; `routing.tiers` reserved ; `attended` denies push, merge and pull-request creation as a **relay point** — the action is held for an operator to approve — while an auto tier has no operator and its denials are final |
+| C2 | dispatch envelope | `version: 1`; additive; `autonomy` is a closed enum; `statement` is the work in one line, resolved override → `with.statement` → `with.task` and null when the node carried none; `workspace_root` is the absolute umbrella root, so a worker whose working directory is a worktree inside a member repo — often reached through a symlink out of the workspace — can still anchor every other path in the document; both are optional, and a reader that knows neither still reads the document. `closeout_contract.pr_required` is derived from the tier, never asserted: `attended` and `auto-high` reach a pull request, `auto-low` and `auto-medium` cannot |
 | C3 | ledger entry, ops, log | `version: 1`; the seven op names `create-entry`, `claim`, `update-status`, `add-constraint`, `add-followup`, `close-out`, `query` are a closed set; a log line is `ts op dispatch_id actor` |
 | C4 | outbox message | `version: 1`; one `type` per file; append-only, never rewritten |
 | C5 | stdout markers + outcome | marker and prompt vocabularies are fixed regexes; the outcome rule is below |
 | C6 | coordination branch | `COORDINATION.md` `version: 1`; an orphan branch, mounted as a worktree, never merged, single-writer; `runs/<uuid7>/`, `ledger/events/`, `outbox/`, `archive/`. Path register only — no document schema at v1 |
 | C7 | event | `version: 1`; files are immutable and folded in `at` order; `mirror` event data is T1 (`{tracker, event_ref, key}`) |
+| C8 | worker seed | `version: 1`; the five section ids `identity`, `task`, `outbox`, `closeout`, `siblings`, their order and the 60-line cap are frozen; each section opens with its marker line and the wording under it is free; a descriptor that would render over the cap is refused, never truncated |
 
 **C5 outcome rule.** A run's outcome is derived in this order and no other:
 

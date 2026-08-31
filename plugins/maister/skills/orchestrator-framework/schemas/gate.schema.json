@@ -67,7 +67,11 @@
         "label": { "type": ["string", "null"] },
         "effect": { "anyOf": [{ "type": "null" }, { "enum": ["continue", "stop"] }] },
         "description": { "type": ["string", "null"] },
-        "recommended": { "type": ["boolean", "null"] }
+        "recommended": { "type": ["boolean", "null"] },
+        "values": {
+          "description": "Values the authored option carries into the run when this option is chosen. Mirrors the definition-side option map; nothing writes it at this version.",
+          "type": ["object", "null"]
+        }
       }
     },
     "answer": {

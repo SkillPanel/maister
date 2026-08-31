@@ -36,6 +36,7 @@ Applies when editing skills, agents, commands, hooks, or references under `plugi
 
 - `hooks/*.mjs` and `hooks/*.sh` — executable code, written to be read as code.
 - `skills/*/scripts/*.mjs` and `skills/*/server/*.mjs` — executable code shipped with a skill, written to be read as code. A skill's script directory holds the tooling its prose invokes; its server directory holds a local companion process.
+- `lib/*.mjs` — executable code shared by more than one skill, written to be read as code. It sits at the plugin root because no single skill owns it.
 - `skills/orchestrator-framework/schemas/*.json` — JSON Schema documents, generated-shaped by nature.
 - `skills/orchestrator-framework/references/compatibility-contracts.md` — a **register**, not a guide: normative tables and frozen literals, max 600 lines, samples ≤ 10 lines each.
 

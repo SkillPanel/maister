@@ -63,6 +63,21 @@ import path from 'node:path';
 // emitted plugin tree must therefore carry `hooks/gate-lib.mjs` at this path,
 // whatever else a build does with the hook registrations.
 import { scanState } from '../../../../hooks/gate-lib.mjs';
+// The write primitives are shared with the umbrella writer, so they live beside
+// `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
+// same depth as the reader above, and `build.sh` copies both unmodified. The
+// namespace form is deliberate: `canonical.stamp()` cannot be confused with the
+// local `stamp()` a few hundred lines down, which fills a node's clock fields.
+import * as canonical from '../../../../lib/canonical.mjs';
+const { Refusal, flow } = canonical;
+
+/**
+ * This writer's own names for the two refusals the shared publish path can
+ * raise. They are passed in rather than emitted by `canonical.mjs` so this
+ * module keeps its closed fifteen-code vocabulary, which the contract suite
+ * reads back out of the refusals themselves.
+ */
+const COMMIT_CODES = { unwritable: 'state-unwritable', tempExists: 'state-temp-exists' };
 
 /** The only temp name the allow-list knows. Not configurable, by contract. */
 const TMP_NAME = 'orchestrator-state.yml.tmp';
@@ -123,7 +138,6 @@ const ENDS = new Set(['completed', 'failed', 'skipped']);
 /** Scalars that YAML would read as something other than a string. */
 const RESERVED = /^(?:true|false|yes|no|on|off|null|~)$/i;
 const NUMBERISH = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
-const BARE_FLOW = /^[A-Za-z0-9._/-]+$/;
 
 /**
  * A node id, spelled exactly as `lib/graph.mjs` spells it.
@@ -135,6 +149,22 @@ const BARE_FLOW = /^[A-Za-z0-9._/-]+$/;
  * them — reached the file through it.
  */
 const NODE_ID = /^[a-z][a-z0-9-]{1,40}$/;
+
+/**
+ * The three keys of the pending-gate marker, and the two patterns its non-id
+ * fields obey. Spelled as `gate.schema.json#/$defs/pending` and
+ * `common.schema.json#/$defs/timestamp` spell them, because the value this
+ * writer emits is the value the contract suite validates.
+ *
+ * `MIDNIGHT` is a separate test rather than a tighter pattern for the reason
+ * A6 gives: a pattern that excluded it would also exclude the one legal
+ * midnight, and the rule is "measured, not formatted", which is a claim about
+ * where the value came from.
+ */
+const PENDING_KEYS = ['node', 'request', 'since'];
+const REQUEST_PATH = /^gates\/[a-z0-9-]+\.request\.yml$/;
+const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const MIDNIGHT = /^\d{4}-\d{2}-\d{2}T00:00:00Z$/;
 
 /**
  * A key in a block-map position, at any depth.
@@ -173,8 +203,11 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  *                   demoting a run to `{kind: terminal}` would leave the
  *                   cockpit's `cwd` and `session` standing beside it — a
  *                   combination E1 does not describe and no writer meant.
- *   gate_pending    One contract-shaped value, and the writer already refuses
- *                   every spelling of it but the literal null.
+ *   gate_pending    One contract-shaped value (E2), validated whole before it
+ *                   is emitted. Merged, a write clearing the marker would leave
+ *                   the answered gate's `node` and `request` standing beside a
+ *                   null nobody wrote — a marker the hook would still read as
+ *                   pending.
  *   completed_phases, failed_phases
  *                   Sequences. There is no key to merge on; a caller that means
  *                   to append sends the whole list, the same rule
@@ -212,17 +245,6 @@ const WORKFLOW_CONTEXT = {
   performance: 'performance_context',
   migration: 'migration_context',
 };
-
-/**
- * A refusal: the input cannot be written safely. The dispatcher turns it into
- * exit 1, and by the time one is thrown nothing on disk has changed.
- */
-class Refusal extends Error {
-  constructor(code, message) {
-    super(`${code}: ${message}`);
-    this.code = code;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // entry point
@@ -279,7 +301,7 @@ function checkPatch(patch) {
  * the self-check tell an intended block from an injected one.
  */
 function apply(doc, patch, changed) {
-  const now = timestamp();
+  const now = canonical.stamp();
   const intended = new Set(['orchestrator']);
 
   if (patch.orchestrator) applyScalars(doc, 'orchestrator', patch.orchestrator, changed);
@@ -306,7 +328,7 @@ function apply(doc, patch, changed) {
     intended.add('node_summaries');
   }
   for (const key of TOP_LEVEL_BLOCKS) {
-    if (!(key in patch)) continue;
+    if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
     intended.add(key);
   }
@@ -336,7 +358,13 @@ function contextBlock(doc, patch) {
   if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
     const name = String(raw).trim().toLowerCase();
     const stem = `${name.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_context`;
-    derived = WORKFLOW_CONTEXT[name] ?? (CONTEXT_BLOCKS.includes(stem) ? stem : null);
+    // `Object.hasOwn`, not bracket access: `workflow.mjs`'s rule, and this is
+    // the site that made it load-bearing. `name: constructor` reached
+    // `WORKFLOW_CONTEXT.constructor`, which is truthy, so the refusal below
+    // never fired and `function Object() { [native code] }:` was written as a
+    // top-level YAML key by a file that then passed every self-check at exit 0.
+    const known = Object.hasOwn(WORKFLOW_CONTEXT, name) ? WORKFLOW_CONTEXT[name] : null;
+    derived = known ?? (CONTEXT_BLOCKS.includes(stem) ? stem : null);
     if (!derived) {
       throw new Refusal('state-context-block-unknown',
         `the workflow name "${raw}" names none of ${CONTEXT_BLOCKS.join(', ')}, so the context block cannot be derived`);
@@ -368,18 +396,83 @@ function applyScalars(doc, section, values, changed) {
       throw new Refusal('state-patch-invalid',
         `${JSON.stringify(String(key))} is not a usable key under ${section}:`);
     }
-    // Terminal mode never writes the flow-map form of a pending gate, so the
-    // only spelling this writer knows is the literal one.
-    if (key === 'gate_pending' && value !== null) {
-      throw new Refusal('state-gate-pending-form',
-        'gate_pending is written only as the literal null; the flow-map form belongs to the driver-led modes');
-    }
+    if (key === 'gate_pending') assertPending(value);
     if (MERGED_MAPS.has(`${section}.${key}`) && isPlainObject(value)) {
       mergeMap(doc, section, key, value, changed);
       continue;
     }
     doc.set([section, key], [`  ${key}: ${flow(value, `${section}.${key}`)}`]);
     changed.push(`${section}.${key}`);
+  }
+}
+
+/**
+ * The pending-gate marker (E2), validated whole before anything is emitted.
+ *
+ * Two spellings are legal and there is no third: the literal `null`, and a
+ * `{node, request, since}` map that goes onto one line. Everything else refuses
+ * under the one code name this key has always used — the refusal vocabulary is
+ * closed and does not grow because a value gained a second legal form.
+ *
+ * The strictness is not schema pedantry; each rule is a way a session gets
+ * blocked by a write that reported success:
+ *
+ *   an extra or missing key    The marker is read by the enforcement hook on
+ *                              every mutating tool call. A marker without
+ *                              `node` is a pending run the hook cannot name a
+ *                              gate for, and a nested value is the one shape
+ *                              the one-line reader throws on.
+ *
+ *   a string, however spelled  This is the sharp edge. `flow()` passes a value
+ *                              that is *already* a balanced flow collection
+ *                              through verbatim, so a caller sending the marker
+ *                              as text — with a trailing comment, or with an
+ *                              embedded quote — would have those bytes land on
+ *                              the line. `stripComment` in the reader does not
+ *                              strip a comment from a line that opens with `{`,
+ *                              so the parse throws and the hook fails closed.
+ *                              Only a real object is accepted, so the emitter
+ *                              spells the line and nothing else can.
+ *
+ *   `request` naming `node`    A writer-side rule the schema cannot express:
+ *                              the hook's allow-list is built from the marker's
+ *                              `node`, and a `request` naming another node
+ *                              would leave the file the model must edit off the
+ *                              list — a gate that can be neither answered nor
+ *                              cleared.
+ *
+ *   a non-midnight `since`     A6. Midnight is the signature of a date that was
+ *                              formatted rather than measured, and the suite
+ *                              lints for it; the writer refuses it here so the
+ *                              defect is caught at the write rather than at the
+ *                              next contract run.
+ */
+function assertPending(value) {
+  if (value === null) return;
+  const refuse = detail => {
+    throw new Refusal('state-gate-pending-form',
+      `gate_pending is written as the literal null or as {node, request, since} on one line: ${detail}`);
+  };
+  if (!isPlainObject(value)) {
+    return refuse(`this value is ${Array.isArray(value) ? 'a sequence' : typeof value}, and a marker sent as text would reach the file with its own bytes`);
+  }
+  const keys = Object.keys(value);
+  const missing = PENDING_KEYS.filter(key => !keys.includes(key));
+  if (missing.length) return refuse(`it is missing ${missing.join(', ')}`);
+  const extra = keys.filter(key => !PENDING_KEYS.includes(key));
+  if (extra.length) return refuse(`${extra.join(', ')} is not part of the marker`);
+
+  if (typeof value.node !== 'string' || !NODE_ID.test(value.node)) {
+    return refuse(`${JSON.stringify(String(value.node))} is not a usable node id`);
+  }
+  if (typeof value.request !== 'string' || !REQUEST_PATH.test(value.request)) {
+    return refuse(`${JSON.stringify(String(value.request))} is not a task-root-relative gates/<node>.request.yml path`);
+  }
+  if (value.request !== `gates/${value.node}.request.yml`) {
+    return refuse(`the request file ${value.request} names another node than ${value.node}, so the hook would not allow the file the answer has to be written into`);
+  }
+  if (typeof value.since !== 'string' || !TIMESTAMP.test(value.since) || MIDNIGHT.test(value.since)) {
+    return refuse(`${JSON.stringify(String(value.since))} is not a measured UTC timestamp`);
   }
 }
 
@@ -535,7 +628,7 @@ function applyWorkflow(doc, workflow, now, changed) {
 
   const lines = ['workflow:'];
   for (const key of WORKFLOW_KEYS) {
-    if (!(key in workflow)) continue;
+    if (!Object.hasOwn(workflow, key)) continue;
     assertBlockKey(key);
     lines.push(`  ${key}: ${flow(workflow[key], `workflow.${key}`)}`);
   }
@@ -582,7 +675,10 @@ function applyNodes(doc, nodes, now, changed) {
     if (!isPlainObject(patchEntry)) {
       throw new Refusal('state-patch-invalid', `the patch for node ${id} must be an object`);
     }
-    const merged = stamp(patchEntry, existing[id] ?? {}, now);
+    // `NODE_ID` admits `constructor`, and the entry map is a bare object
+    // literal, so an unguarded read here would merge `Object.prototype`'s
+    // member in as the existing entry. Same rule as everywhere else.
+    const merged = stamp(patchEntry, Object.hasOwn(existing, id) ? existing[id] ?? {} : {}, now);
     doc.setNode(id, serializeNode(id, merged, patchEntry, now));
     changed.push(`workflow.nodes.${id}`);
   }
@@ -713,8 +809,14 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed) {
     const entry = { ...value };
     if (!('status' in entry)) {
       const nodeId = kind === 'node' ? key : entry.node;
-      const nodeStatus = nodeId && nodePatch ? nodePatch[nodeId]?.status : undefined;
-      const mirrored = nodeStatus ? STATUS_MIRROR[String(nodeStatus)] : undefined;
+      // Both reads are own-property reads for the reason `contextBlock` gives:
+      // a summary keyed `constructor` reached the patch's prototype, and a
+      // status of `constructor` reached `Object.prototype.constructor`.
+      const nodeStatus = nodeId && isPlainObject(nodePatch) && Object.hasOwn(nodePatch, nodeId)
+        ? nodePatch[nodeId]?.status
+        : undefined;
+      const statusKey = nodeStatus === undefined || nodeStatus === null ? '' : String(nodeStatus);
+      const mirrored = Object.hasOwn(STATUS_MIRROR, statusKey) ? STATUS_MIRROR[statusKey] : undefined;
       if (mirrored) entry.status = mirrored;
     }
     const at = kind === 'node' ? ['node_summaries', key] : [contextKey, 'phase_summaries', key];
@@ -728,67 +830,19 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed) {
 // ---------------------------------------------------------------------------
 
 /**
- * A value in a flow-map position.
+ * A field name in a node entry, emitted raw between the braces.
  *
- * The refusal is the last line of defence behind the declared-output rule: the
- * reader's quote scanner toggles on every `"` with no escape awareness and its
- * unquoter strips only the outer pair, so one embedded quote corrupts the whole
- * line — and the corruption throws, which is a blocked session rather than a
- * bad-looking file.
- */
-function flow(value, where) {
-  if (value === undefined || value === null) return 'null';
-  if (typeof value === 'boolean') return String(value);
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Refusal('value-not-flow-safe', `${where} is not a finite number`);
-    return String(value);
-  }
-  if (Array.isArray(value)) return `[${value.map(item => flow(item, where)).join(', ')}]`;
-  if (isPlainObject(value)) {
-    const parts = Object.entries(value).map(([key, item]) => {
-      assertFlowKey(key, where);
-      return `${key}: ${flow(item, `${where}.${key}`)}`;
-    });
-    return `{${parts.join(', ')}}`;
-  }
-
-  const text = String(value);
-  if (/["\n\r]/.test(text)) {
-    throw new Refusal('value-not-flow-safe',
-      `${where} carries a quote, a newline or a carriage return, which the one-line reader cannot parse`);
-  }
-  // A value already spelled as a balanced flow collection is passed through:
-  // this is how a `needs` or a `values` read back out of an existing entry
-  // keeps its own shape instead of being re-quoted into a scalar.
-  if (isBalancedFlow(text)) return text;
-  if (BARE_FLOW.test(text) && !RESERVED.test(text) && !NUMBERISH.test(text)) return text;
-  return `"${text}"`;
-}
-
-/**
- * A key in a flow-map position — a nested map inside a value, and a field name
- * inside a node entry. Both are emitted raw between the braces, so both obey
- * the one rule. Reported as `value-not-flow-safe` because that is the code the
- * entry serializer already tells apart from a fault in the file.
+ * `canonical.flow` guards the keys of a nested map inside a value; this guards
+ * the entry's own field names, which the node serializer emits itself and which
+ * therefore never pass through the emitter's key check. Same rule, same code:
+ * `value-not-flow-safe` is what the entry serializer already tells apart from a
+ * fault in the file.
  */
 function assertFlowKey(key, where) {
   if (!BLOCK_KEY.test(key)) {
     throw new Refusal('value-not-flow-safe',
       `${where}.${JSON.stringify(String(key))} is not a usable flow-map key`);
   }
-}
-
-function isBalancedFlow(text) {
-  if (!/^[[{]/.test(text)) return false;
-  let depth = 0;
-  for (const ch of text) {
-    if (ch === '{' || ch === '[') depth++;
-    else if (ch === '}' || ch === ']') {
-      depth--;
-      if (depth < 0) return false;
-    }
-  }
-  return depth === 0;
 }
 
 /**
@@ -862,11 +916,6 @@ function blockScalar(value) {
   const risky = text === '' || /[:#"'\n\r\t]/.test(text) || /^[-?,[\]{}&*!|>%@`]/.test(text)
     || text !== text.trim() || RESERVED.test(text) || NUMBERISH.test(text);
   return risky ? JSON.stringify(text) : text;
-}
-
-/** A full UTC date and time from the system clock. Never date-only. */
-function timestamp() {
-  return `${new Date().toISOString().slice(0, 19)}Z`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1272,95 +1321,16 @@ function topLevelKeys(text) {
   return keys;
 }
 
-/** One whole-file write, temp-then-rename, under the one allow-listed name. */
+/**
+ * One whole-file write, temp-then-rename, under the one allow-listed name.
+ *
+ * The publish path itself is `canonical.commit`; what stays here is the pair of
+ * facts only this writer knows — the frozen temp name and this module's own
+ * refusal codes.
+ */
 function commit(state, text) {
-  const target = path.resolve(state);
-  const tmp = path.join(path.dirname(target), TMP_NAME);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-
-  // Exclusive, with a stale leftover reclaimed rather than refused forever —
-  // see `openTemp`, which carries the reasoning and the age rule.
-  let fd;
-  try {
-    fd = openTemp(tmp);
-  } catch (err) {
-    if (err instanceof Refusal) throw err;
-    throw new Refusal('state-unwritable', `${state} could not be written: ${err.message}`);
-  }
-
-  try {
-    fs.writeFileSync(fd, text, 'utf8');
-    // The rename is atomic against a concurrent reader; without this it is not
-    // atomic against a crash, which is the case the docstring claims.
-    fs.fsyncSync(fd);
-    fs.closeSync(fd);
-    fd = null;
-    fs.renameSync(tmp, target);
-  } catch (err) {
-    if (fd !== null) {
-      try {
-        fs.closeSync(fd);
-      } catch {
-        // The descriptor is being abandoned either way.
-      }
-    }
-    // Only the temp this call created is removed — never one another writer holds.
-    fs.rmSync(tmp, { force: true });
-    throw new Refusal('state-unwritable', `${state} could not be written: ${err.message}`);
-  }
-}
-
-/**
- * How old a temp file has to be before it is a crashed writer's leftover
- * rather than a live writer's working file. A write is a whole-file
- * `writeFileSync`, one `fsync` and a rename — milliseconds — so a minute is
- * three orders of magnitude past any writer that is still running.
- */
-const STALE_TEMP_MS = 60_000;
-
-/**
- * The exclusive open, with the recovery that makes it survivable.
- *
- * Exclusivity is what stops two writers publishing one set of bytes under two
- * sets of reported changes, and the temp name is frozen by contract, so it has
- * to come from the open rather than from a unique name. Left alone, that turns
- * a process killed between the open and the rename into a permanent refusal —
- * and the moment a long turn is most likely to be cut is a gate answer, which
- * is exactly when the operator has no tool that can delete the leftover: the
- * enforcement hook denies Bash, and an editor tool can write the allow-listed
- * temp name but not remove it, and rewriting it does not clear EEXIST.
- *
- * So the recovery is in-band. A temp younger than a minute belongs to a live
- * writer and is never touched; an older one is a leftover and is reclaimed.
- * That is safe because publishing is one rename of a whole, fsynced file:
- * nothing reads the temp, and no write is ever partially applied from it.
- */
-function openTemp(tmp) {
-  try {
-    return fs.openSync(tmp, 'wx');
-  } catch (err) {
-    if (err.code !== 'EEXIST') throw err;
-    let age;
-    try {
-      age = Date.now() - fs.statSync(tmp).mtimeMs;
-    } catch {
-      // It vanished between the open and the stat: the writer that held it
-      // finished. Take the retry, and let a second EEXIST refuse normally.
-      age = 0;
-    }
-    if (age < STALE_TEMP_MS) {
-      throw new Refusal('state-temp-exists',
-        `${tmp} already exists and is less than a minute old, so another writer holds it — a write takes milliseconds. Nothing was written; run the same write again in a minute, and if the temp is still there it is a crashed writer's leftover and this write reclaims it.`);
-    }
-    fs.rmSync(tmp, { force: true });
-    try {
-      return fs.openSync(tmp, 'wx');
-    } catch (retry) {
-      if (retry.code !== 'EEXIST') throw retry;
-      throw new Refusal('state-temp-exists',
-        `${tmp} was reclaimed as stale and immediately taken by another writer. Nothing was written; run the same write again.`);
-    }
-  }
+  const tmp = path.join(path.dirname(path.resolve(state)), TMP_NAME);
+  canonical.commit({ target: state, text, tmp, codes: COMMIT_CODES });
 }
 
 function isPlainObject(value) {

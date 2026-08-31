@@ -1,0 +1,28 @@
+{
+  "id": "worker-seed",
+  "contracts": [
+    "C8",
+    "C2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-31T09:40:00Z",
+  "files": [
+    {
+      "path": "envelope.yml",
+      "schema": "dispatch-envelope.schema.json"
+    },
+    {
+      "path": "seed.yml",
+      "schema": "worker-seed.schema.json#/$defs/seed"
+    },
+    {
+      "path": "seed.prompt.txt",
+      "schema": null
+    }
+  ],
+  "notes": "The three files are one generated chain, not three hand-written documents: envelope.yml is a published C2 envelope, seed.yml is buildSeed of that envelope with three siblings, and seed.prompt.txt is renderSeed of that descriptor. Regenerating means building the envelope again and re-deriving both — which is the point: the previous golden was a document the builder would never emit, so it pinned a concatenator and left the sentences a worker actually reads pinned by nothing. What it now pins, beyond the five section ids and their order and the cap: that the outbox instruction names the outbox verb and its outbox-root flag rather than a directory to hand-author YAML in, that the fallback names both frozen C5 dispatch prefixes (DISPATCH-RESULT and DISPATCH-FOLLOWUP), that the dispatch driver is stated as state and marker behaviour rather than as a command-line flag no workflow parses, that every path is anchored to the envelope's absolute workspace_root, and the close-out grade vocabulary. seed.prompt.txt carries no schema: it is a golden rendering rather than a document, and it is bound to seed.yml by the renderer, which is asserted to reproduce it byte for byte. A wording change is made by regenerating both files in the same commit; a structural change is a contract change."
+}

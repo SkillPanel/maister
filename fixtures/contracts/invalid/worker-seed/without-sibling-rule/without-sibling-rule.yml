@@ -1,0 +1,19 @@
+# Invalid: the siblings section is missing. A worker that is never told it has
+# siblings has no reason to route through the outbox, and will reach for a
+# sibling repository directly.
+version: 1
+dispatch_id: d-0143
+cap: 60
+sections:
+  - id: identity
+    marker: "# identity"
+    lines: ["You are dispatch d-0143 of run 019260a2-1122-7c33-8d44-5e6677889900, node dev-alpha."]
+  - id: task
+    marker: "# task"
+    lines: ["Run the development workflow with --driver=dispatch."]
+  - id: outbox
+    marker: "# outbox"
+    lines: ["Write one file per message under .maister/umbrella/outbox/d-0143/."]
+  - id: closeout
+    marker: "# closeout"
+    lines: ["A pull request is required before close-out."]

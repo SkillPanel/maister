@@ -6,9 +6,10 @@
  *   node scripts/build-tarball.mjs [--tag=<tag>]     (default: contracts-dev)
  *
  * Stages `dist/<tag>/` with the schemas, every contract fixture, the register,
- * an aggregate `manifest.json`, a `VERSION` stamp and the contract runner plus
- * its `package.json`/`package-lock.json`, then writes `dist/<tag>.tar.gz` and
- * a `dist/<tag>.tar.gz.sha256` sidecar in `shasum -a 256 -c` form.
+ * an aggregate `manifest.json`, a `VERSION` stamp, the contract runner plus its
+ * `package.json`/`package-lock.json`, and the ledger library under a flat
+ * `lib/` root, then writes `dist/<tag>.tar.gz` and a `dist/<tag>.tar.gz.sha256`
+ * sidecar in `shasum -a 256 -c` form.
  *
  * A consumer that vendors the archive runs the same suite with:
  *   npm ci && node scripts/verify-contracts.mjs \
@@ -37,6 +38,38 @@ const PLUGIN_MANIFEST = 'plugins/maister/.claude-plugin/plugin.json';
 const FIXTURE_DIR = 'fixtures/contracts';
 const RUNNER = 'scripts/verify-contracts.mjs';
 const ROOT_FILES = ['package.json', 'package-lock.json'];
+
+/**
+ * The ledger library and its whole dependency closure, staged flat under a
+ * `lib/` root so a consumer — the cockpit daemon — can vendor and call the seven
+ * ops in process instead of reimplementing them against the schemas.
+ *
+ * Two things about this list are load-bearing.
+ *
+ * The root is `lib/`, **not** `plugins/`. T27 asserts the archive carries no
+ * plugin tree, and the vendored runner derives `ctx.pluginRoot` by walking up
+ * from the schemas directory: a partial `plugins/` subtree inside the archive
+ * could flip its `plugin` capability detection and turn T27's required `skip`
+ * into a FAIL. A flat `lib/` creates no such tree and is inert to it.
+ *
+ * The archive names are the sibling names the source already imports, so **no
+ * line is rewritten here**. `ledger.mjs` imports `./canonical.mjs` and
+ * `./definition.mjs`, which in the plugin tree resolve to one-line re-export
+ * shims and here resolve to the real modules staged beside it. The vendored
+ * copy is therefore byte-identical to the shipped one.
+ *
+ * The closure is `{ledger, canonical, definition}` and it is closed: both
+ * `canonical.mjs` and `definition.mjs` import `node:` builtins and nothing else.
+ * A fourth dependency added later without a row here would resolve in the plugin
+ * tree and fail in the daemon, which is what T27's post-extraction
+ * `import('<archive>/lib/ledger.mjs')` check exists to catch.
+ */
+const LIB_FILES = [
+  ['plugins/maister/skills/umbrella/scripts/lib/ledger.mjs', 'ledger.mjs'],
+  ['plugins/maister/lib/canonical.mjs', 'canonical.mjs'],
+  ['plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs', 'definition.mjs'],
+];
+const LIB_DIR = 'lib';
 
 const DEFAULT_TAG = 'contracts-dev';
 const TAG_FORM = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -142,6 +175,7 @@ const fixtureSrc = requirePath(FIXTURE_DIR, 'dir');
 const registerSrc = requirePath(REGISTER, 'file');
 const runnerSrc = requirePath(RUNNER, 'file');
 for (const f of ROOT_FILES) requirePath(f, 'file');
+const libSrc = LIB_FILES.map(([from, to]) => [requirePath(from, 'file'), to]);
 
 // Rebuild the staging dir from scratch so a removed fixture cannot survive.
 fs.rmSync(staging, { recursive: true, force: true });
@@ -160,6 +194,9 @@ if (!fixtureFiles) die(`${FIXTURE_DIR} is empty`);
 copyFile(registerSrc, path.join(staging, path.basename(REGISTER)));
 copyFile(runnerSrc, path.join(staging, RUNNER));
 for (const f of ROOT_FILES) copyFile(path.join(REPO_ROOT, f), path.join(staging, f));
+
+// lib/ — the ledger library and its closure, flat, under no plugin tree
+for (const [from, to] of libSrc) copyFile(from, path.join(staging, LIB_DIR, to));
 
 // manifest.json — every fixture manifest with its path inside the archive
 const manifests = listFiles(path.join(staging, FIXTURE_DIR))
@@ -182,6 +219,10 @@ const version = {
   built_at: utcStamp(),
   fixture_count: manifests.length,
   schema_count: schemaNames.length,
+  // The archive carries no per-file checksum list — `manifest.json` aggregates
+  // the fixture manifests and the sidecar covers the tarball as a whole — so a
+  // count is what makes a truncated extraction detectable at all.
+  lib_count: LIB_FILES.length,
   runner: RUNNER,
   verify: `npm ci && node ${RUNNER} --fixtures=${FIXTURE_DIR} --schemas=schemas`,
   note: 'Not byte-reproducible across builds (built_at, staging mtimes). The .sha256 sidecar verifies a downloaded asset against the one the release attached; git_sha is the cross-build identity.',
@@ -210,7 +251,7 @@ const digest = crypto.createHash('sha256').update(bytes).digest('hex');
 fs.writeFileSync(`${archivePath}.sha256`, `${digest}  ${archiveName}\n`);
 
 const mb = (bytes.length / (1024 * 1024)).toFixed(2);
-console.log(`staged   dist/${tag}/ — ${staged.length} files (${manifests.length} fixtures, ${schemaNames.length} schemas)`);
+console.log(`staged   dist/${tag}/ — ${staged.length} files (${manifests.length} fixtures, ${schemaNames.length} schemas, ${LIB_FILES.length} lib modules)`);
 console.log(`archive  dist/${archiveName} — ${mb} MB`);
 console.log(`sha256   ${digest}`);
 console.log(`verify   shasum -a 256 -c dist/${archiveName}.sha256`);

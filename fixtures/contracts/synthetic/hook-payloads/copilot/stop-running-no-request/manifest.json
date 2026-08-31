@@ -27,5 +27,5 @@
       "cwd_layout": "umbrella-run"
     }
   },
-  "notes": "A gate node with kind gate and status running while gates/approve.request.yml does not exist: the model is about to end the turn without ever asking the operator. The nudge blocks and the reason tells it to write the request file (temp + rename), set gate_pending, rewrite dashboard-data.js, print GATE-PENDING and stop. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+  "notes": "A gate node with kind gate and status running while gates/approve.request.yml does not exist: the model is about to end the turn without ever asking the operator. The nudge blocks and the reason tells it to suspend the run with one gate-request call (the request file, the gate index and gate_pending in one write), rewrite dashboard-data.js, print GATE-PENDING and stop. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
 }

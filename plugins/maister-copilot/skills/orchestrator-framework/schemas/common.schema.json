@@ -15,10 +15,10 @@
       "pattern": "^/"
     },
     "rel_path": {
-      "description": "Path relative to the task root (artifacts) or the repository root (task_path).",
+      "description": "Path relative to the task root (artifacts), the repository root (task_path) or the workspace root (member paths). Neither absolute nor escaping: a leading slash is refused, and so is any `..` segment — a relative path that climbs out of the root it is relative to names a directory the writer was never scoped to.",
       "type": "string",
       "minLength": 1,
-      "pattern": "^[^/]"
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
     },
     "short_id": {
       "description": "Opaque identifier used for run, dispatch, session and umbrella ids.",

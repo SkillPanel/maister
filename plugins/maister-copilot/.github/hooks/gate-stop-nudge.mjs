@@ -29,7 +29,8 @@ const REQUEST_DIR = 'gates';
 function blockReason(node) {
   return (
     `gate node '${node}' is running but ${REQUEST_DIR}/${node}.request.yml does not exist: `
-    + 'write the request file (temp + rename), set gate_pending, rewrite dashboard-data.js, '
+    + 'suspend the run with one gate-request call (it writes the request file, the gate index and '
+    + 'gate_pending together — there is no second state write), rewrite dashboard-data.js, '
     + `print GATE-PENDING: ${node}, then stop.`
   );
 }

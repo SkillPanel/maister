@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://maister.dev/schemas/contracts/worker-seed",
+  "title": "Worker seed descriptor",
+  "description": "Contract C8. The prompt a dispatched worker is seeded with, described before it is rendered. Frozen: the five section ids, their order and the rendered line cap. The wording of a section is free and additive, so a descriptor gains keys but never loses a section.",
+  "$ref": "#/$defs/seed",
+  "$defs": {
+    "section": {
+      "description": "The closed set of section ids. A seed carries each one exactly once, in this order.",
+      "enum": ["identity", "task", "outbox", "closeout", "siblings"]
+    },
+    "section_marker": {
+      "description": "The machine-readable line that opens a section in the rendered prompt. It is what makes the structure testable without freezing the prose under it.",
+      "type": "string",
+      "pattern": "^# (identity|task|outbox|closeout|siblings)$"
+    },
+    "line_cap": {
+      "description": "The rendered prompt is capped at this many lines. A descriptor that would render longer is refused, never truncated.",
+      "const": 60
+    },
+    "seed": {
+      "description": "One seed descriptor: a pure function of the dispatch envelope, so it is golden-testable before it is rendered.",
+      "type": "object",
+      "required": ["version", "dispatch_id", "cap", "sections"],
+      "properties": {
+        "version": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/version1" },
+        "dispatch_id": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/short_id" },
+        "cap": { "$ref": "#/$defs/line_cap" },
+        "sections": {
+          "description": "The five sections, in the frozen order. Fewer or more is not a seed.",
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["id", "marker"],
+            "properties": {
+              "id": { "$ref": "#/$defs/section" },
+              "marker": { "$ref": "#/$defs/section_marker" },
+              "lines": {
+                "description": "The rendered body of the section, one entry per line.",
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "allOf": [
+            {
+              "minItems": 5,
+              "maxItems": 5,
+              "prefixItems": [
+                { "type": "object", "properties": { "id": { "const": "identity" } } },
+                { "type": "object", "properties": { "id": { "const": "task" } } },
+                { "type": "object", "properties": { "id": { "const": "outbox" } } },
+                { "type": "object", "properties": { "id": { "const": "closeout" } } },
+                { "type": "object", "properties": { "id": { "const": "siblings" } } }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

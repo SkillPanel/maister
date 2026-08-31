@@ -72,4 +72,15 @@ find "$OUT" -name "*.md" | while read f; do
   sedi 's/AskUserQuestion/ask_user/g' "$f"
 done
 
+# The shared write primitives are a plugin-root library, not a skill's script:
+# the engine's state writer and the umbrella writer both import them from
+# ../../../../lib/canonical.mjs. `cp -r` above carries the directory across and
+# no sed pass touches .mjs, so this is an assertion rather than a copy — if a
+# future transform ever prunes or rewrites the tree, the build fails here rather
+# than shipping a variant whose engine cannot resolve its own import.
+if [ ! -f "$OUT/lib/canonical.mjs" ]; then
+  echo "build: $OUT/lib/canonical.mjs is missing; the emitted engine cannot resolve its write primitives" >&2
+  exit 1
+fi
+
 echo "Built Copilot CLI variant at $OUT"

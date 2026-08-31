@@ -43,6 +43,9 @@ const ENTRY = /^("(?:[^"\\]|\\.)*"|'(?:[^'])*'|[^:#]+?)\s*:(?:\s+(.*))?$/;
 /** A block sequence entry, in both its inline and its nested-block forms. */
 const SEQUENCE_ENTRY = /^-(?:\s+(.*))?$/;
 
+/** A value that opens a flow collection, and so is one inline value, not a block. */
+const OPENS_FLOW = /^[[{]/;
+
 // ---------------------------------------------------------------------------
 // entry points
 // ---------------------------------------------------------------------------
@@ -204,11 +207,17 @@ function parseSequence(cursor, indent, path) {
     const entry = SEQUENCE_ENTRY.exec(line.body);
     if (!entry) break;
     const child = `${path}.${list.length}`;
-    if (entry[1] !== undefined && ENTRY.test(entry[1])) {
-      // A mapping opened on the dash line is legal YAML and is deliberately not
-      // accepted: nothing shipped or frozen writes one, and admitting it would
-      // mean carrying a second indentation rule for the sake of a shape no
-      // definition uses. Rejecting is the honest answer, not a silent misread.
+    // A *block* mapping opened on the dash line is legal YAML and is deliberately
+    // not accepted: admitting it would mean carrying a second indentation rule
+    // for the sake of a shape no definition uses. Rejecting is the honest
+    // answer, not a silent misread.
+    //
+    // A *flow* collection on the dash — `- {kind: merge_after, ref: d-0139}` —
+    // is a different shape entirely: one inline value, no second indentation
+    // rule, and `parseInline` already reads it. It has to be excluded from the
+    // guard explicitly because `ENTRY`'s `[^:#]+?` branch matches the braces
+    // too, so the guard rejected shipped frozen fixtures that spell it this way.
+    if (entry[1] !== undefined && !OPENS_FLOW.test(entry[1]) && ENTRY.test(entry[1])) {
       throw new SubsetError(child, line.number, 'a mapping opened on a sequence dash is outside the accepted subset');
     }
     cursor.at++;

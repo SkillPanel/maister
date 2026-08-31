@@ -1,0 +1,23 @@
+{
+  "id": "person-members-not-a-list",
+  "contracts": [
+    "C1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-28T09:12:44Z",
+  "files": [
+    {
+      "path": "person-members-not-a-list.yml",
+      "schema": "umbrella-manifest.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "/people/0/members",
+    "error_keyword": "type"
+  },
+  "notes": "A person owns members by name, in a list. A map here reads as an unknown key on an open object in every tolerant reader, so the schema is the only place the mistake can surface."
+}

@@ -1,6 +1,6 @@
 ---
 name: workflow-engine
-description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as a terminal-mode orchestration. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator; not a workflow a user starts directly.
+description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as an orchestrated run. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session or suspends on them according to the run's driver, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator; not a workflow a user starts directly.
 user-invocable: true
 ---
 
@@ -16,9 +16,11 @@ own command, and that command's orchestrator hands the run here with a workflow 
 There is no engine command and no engine entry point of its own. Nothing in a user's
 mental model needs the word "engine" in it.
 
-**Terminal mode only.** The engine asks its gates in session and answers them in the same
-turn. It writes no driver block, and every rule below marked *mode-scoped* holds only
-while that is true.
+**The gate mode follows the run's driver.** With no driver block, or one whose `kind` is
+`terminal`, the engine asks its gates in session and answers them in the same turn. With
+`kind` `cockpit` or `dispatch` it suspends on them instead — request file, pending marker,
+`GATE-PENDING` line, turn over. Every rule below marked *mode-scoped* names which of the
+two it holds for.
 
 ---
 
@@ -30,7 +32,7 @@ while that is true.
 
 Before doing anything else, settle this policy now and do not re-litigate it at any gate:
 
-**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications. Invoke `ask_user` when `orchestrator.driver.kind` is absent or `terminal` — the only modes this orchestrator runs in until the engine makes it driver-aware; in `cockpit`/`dispatch` mode write the gate request file and end the turn instead (`compatibility-contracts.md § E2`).
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications. Invoke `ask_user` when `orchestrator.driver.kind` is absent or `terminal`; when it is `cockpit` or `dispatch` you MUST NOT ask in session — suspend the run with one `gate-request` call, which writes the request file, the gate index and `gate_pending` together, then rewrite the dashboard data, print `GATE-PENDING: <node>` as the last line and end the turn instead (`compatibility-contracts.md § E2`).
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
@@ -136,7 +138,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, four verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, five verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -149,6 +151,36 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs <verb> [f
 | `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph plus its `graph_hash` |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
+| `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
+
+`gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
+regenerated `gates/index.yml`, **and** the pending marker — `orchestrator.gate_pending` plus
+the node's `status: suspended`, through the state writer, in that order. The marker is not a
+second call, and it cannot be one: the enforcement hook reads a run as pending the moment an
+unanswered request file sits beside its state, so a `write-state` issued after the request
+file is a shell call against an already-pending run and is denied — and reversing the two
+fails identically from the other side. Whichever write goes first suspends the run, so both
+belong inside one invocation. Everything the verb needs is derived from `--state`: the
+run directory, the `gates/` directory beside it, and the frozen graph the node id is checked
+against, so a request for a node the graph does not carry is refused rather than written
+somewhere nothing will look for it. Send `{node, kind, question, context?, options[], the
+flag that says whether more than one option may be picked, run_id?}`; the verb supplies
+`version`, `asked_at` and `answer: null` itself and **refuses a caller that sends any of the
+three**, so a caller can neither pre-answer its own gate nor stamp a time it did not measure.
+Its own four refusals are `gate-request-invalid` (fix the document and re-run),
+`gate-request-exists` (a *different* gate has already been asked at that node — read the file
+rather than re-asking), `gate-unwritable` and `gate-temp-exists` (handled exactly like
+`state-unwritable` and `state-temp-exists` in the table below). Because the marker rides along,
+the verb may also return any refusal `write-state` names, verbatim and with its own code; both
+sets are closed and both are in the table below. The request document's shape is
+`gate.schema.json`; the options it carries are the options the operator is offered.
+
+**A refusal leaves the run unsuspended.** If anything after the request file refuses, the
+request file this call published is removed and the index regenerated without it, so the run
+is not pending, the shell is still available, and the same call can be re-issued. And a
+re-issue that finds its own identical, still-unanswered request file — the shape a kill in
+that window leaves — adopts it and finishes the marker rather than refusing, keeping the
+gate askable. A file that is answered, or that spells a different question, still refuses.
 
 The patch arrives on stdin so no quoting has to survive a shell — Windows without a POSIX
 shell is a supported target. An unknown version degrades **the same way in every verb** —
@@ -242,7 +274,9 @@ because the write succeeds and the run keeps going with a key nothing else reads
 
 A node's summary carries the shorter phase-status vocabulary, so the node status is mapped
 rather than copied: `running` becomes `in_progress`, and the other four map to themselves.
-`suspended` never occurs in terminal mode. `stopped` occurs only on nodes a stop option left
+`suspended` occurs only on a node the run is suspended at while its gate awaits an answer,
+which is a driver-suspended mode only — in terminal mode the answer arrives in the same turn
+and the node goes straight to `completed`. `stopped` occurs only on nodes a stop option left
 unexecuted, and those carry no summary at all.
 
 **Retry budgets are prose, never `with:` data.** `with:` is an unconstrained free-form
@@ -252,10 +286,20 @@ them from there.
 
 ---
 
-## Gates in terminal mode
+## Gates
 
 A gate node is a question with a closed set of options, exactly one of which continues the
-run. The engine:
+run. What the engine does with it follows the run's driver, and nothing else:
+
+| `orchestrator.driver.kind` | The gate is |
+|---|---|
+| absent, or `terminal` | asked in session and answered in the same turn |
+| `cockpit`, `dispatch` | written to a request file; the run suspends and a later turn answers it |
+
+Decide which of the two applies once, when the run starts, from the driver block the state
+file already carries. A gate never changes mode partway through a run.
+
+### Terminal mode — asked and answered in one turn
 
 1. **Asks it in session** with `ask_user`, carrying the node's own question text and
    its own options.
@@ -263,6 +307,11 @@ run. The engine:
    summary, and marks the node `completed`.
 3. **Writes no `gate_pending` and no gate request file.** The pending marker is only ever
    written as the one-line null form.
+
+Terminal mode is exactly this and nothing more: no request file is written, no
+`GATE-PENDING` line is printed, and `gate_pending` never holds anything but the literal
+`null`. A request file without a marker would be a gate nothing enforces, which is worse
+than no gate at all.
 
 **Why nothing is marked pending.** A pending gate is what the enforcement hook reads to
 deny writes while an answer is awaited, and it cannot see inside a shell invocation — so a
@@ -287,9 +336,80 @@ once it is genuinely dead. Do neither on the operator's behalf: another run's st
 this run's to edit, and a deleted directory is not recoverable. Report the offending path
 and let the operator choose.
 
-**This is mode-scoped, not a permanent rule.** It holds because the engine asks in session.
-A later driver-aware mode writes the request file, marks the gate pending and ends its turn;
-the reasoning above is the reason terminal mode does not, not a reason no mode ever should.
+**All of the above is mode-scoped.** It holds because the engine asks in session, where
+nothing is ever awaited across turns. A driver-suspended run *does* write the request file
+and *does* mark the gate pending — the reasoning above is the reason terminal mode does not,
+never a reason no mode may.
+
+### Driver-suspended mode — the write order
+
+With `driver.kind` `cockpit` or `dispatch` the engine does not ask. It suspends, in this
+order, and the order is the contract:
+
+1. **Every dispatch envelope, ledger and outbox write for the current ready set completes
+   first** — before the request file exists and before the pending marker is set.
+2. `workflow.mjs gate-request --state=<state>` writes `gates/<node>.request.yml` through a
+   temp file and a rename, regenerates `gates/index.yml`, and then sets
+   `orchestrator.gate_pending` to `{node, request, since}` **and** the node's `status` to
+   `suspended` through the state writer — one invocation, three writes, in that order. The
+   request document arrives on stdin as JSON: the node id, the kind, the question, its options
+   and the multi-choice flag (`gate.schema.json` declares the shape). `since` is the request's
+   own `asked_at`, so the marker and the file agree about when the operator was asked.
+   **There is no second call here, and there must not be**: the run is pending from the moment
+   the request file lands, and a shell call against a pending run is denied.
+3. `dashboard-data.js` is rewritten to show the gate card — by the same prose that rewrites
+   it after any other phase, because there is no dashboard verb and the dashboard is a
+   whole-file rewrite rather than a state edit.
+4. `GATE-PENDING: <node>` is printed as the **last** line of the turn.
+5. The turn ends. Nothing polls, nothing waits, no session is left idle.
+
+**Step 1 is the whole mechanism.** The enforcement hook allows a small list of paths while a
+gate is pending and denies everything else, and that list is fixed. Holding step 1 means
+nothing in the run ever needs to be written after step 2, so nothing ever needs allowing:
+the writes that would have been denied already happened. The same reasoning is why step 2 is
+one call — a run is pending from its first write, and its second write would need allowing. A write belonging to a
+*different* run is denied whatever the list says — the hook builds it from the pending run,
+not from the run doing the writing — and that cross-run behaviour is the deadlock described
+above, with the operator recovery given there. This is why suspending a run required no
+change to the hook's allow-list, its deny reason or its decision logic.
+
+The run is suspended the moment step 2's marker publishes. **The commit point is
+`gate_pending` back to `null`, and that is written on resume, not here.**
+
+### Driver-suspended mode — resume
+
+Under a pending gate the whole tool surface is denied, the shell included, so the state
+writer is unreachable and the decision is recorded with editor tools on the allow-listed
+files only. This is the one sanctioned exception to "never edit state with an editor tool",
+and it is narrow: it lasts exactly until the marker is null, and it ends with an immediate
+re-validation through the writer.
+
+1. Read the request file and the state with read-only tools; those are answered before any
+   state is read.
+2. Validate the answer against the request's own option ids. Not one of them → print
+   `GATE-INVALID: <reason>`, write nothing, stay suspended.
+3. `gate_pending` already `null` → print `GATE-ALREADY-ANSWERED`, write nothing. A gate is
+   answered once.
+4. Otherwise record, **in this order**: the `answer:` block in `gates/<node>.request.yml`,
+   then `node_summaries.<node>` and the node's `status: completed`, then
+   **`gate_pending: null` last**. The order matters because the marker is what the hook
+   reads: clearing it first would open the tool surface before the decision was recorded.
+5. The instant the marker is null the gate is no longer pending, so the very next action is
+   `echo '{}' | node .../workflow.mjs write-state --state=<state>` — the empty patch. It is
+   not a no-op: the writer reads the file the editor tools just wrote, self-checks it through
+   the enforcement hook's own reader, and re-publishes it. The file changes by one line
+   (`orchestrator.updated`), and that is the expected result. This is what keeps the editor-
+   tool exception honest — model-authored state is accepted only after the writer has read
+   it back and agreed.
+6. Rewrite `dashboard-data.js` to clear the gate card, by the same means as the suspend
+   path's step 3.
+7. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run is handed to
+   the workflow's prose orchestrator. **Never repair the state file to get past it** — a
+   refusal there means the recorded decision did not survive the reader, and editing further
+   with the same tools that produced it compounds the drift instead of clearing it.
+
+Unchanged in both modes: the enforcement hook itself, default-deny for a tool name it does
+not recognise, and fail-closed on any error while deciding.
 
 ### Choosing a stop option
 
@@ -308,7 +428,11 @@ never re-ask a gate the operator has already answered.
 
 **Every state change goes through `write-state`. Never edit `orchestrator-state.yml` with an
 editor tool** — not to fix a stray line, not to record one small field, not when a write has
-just been refused. The writer owns the `workflow:` block and its one-line node entries, the
+just been refused. There is exactly one exception, and it is not a fallback: answering a
+pending gate, where the shell is denied and the writer is therefore unreachable, records the
+decision with editor tools and then hands the file straight back to the writer for
+re-validation (see *Driver-suspended mode — resume*). Outside that window, an editor-tool
+write is the corruption this writer exists to prevent. The writer owns the `workflow:` block and its one-line node entries, the
 per-node summaries and their mirrored phase summaries, and the scalars beside them; it emits
 at a fixed canonical indent, writes the whole file once per invocation, and self-checks the
 candidate through the enforcement hook's own reader before it publishes anything.
@@ -352,7 +476,8 @@ row:
 | `value-not-flow-safe` | A declared output cannot go on a one-line entry. Record the node `failed` with that reason and stop with `RUN-FAILED: value-not-flow-safe`. |
 | `state-entry-unserializable` | A node entry **already in the file** cannot be re-serialised. The patch is fine; the file needs repair. Stop with `RUN-FAILED: state-entry-unserializable` and report the message verbatim. This is **not** the `value-not-flow-safe` recovery — shortening the value the patch carries changes nothing here, and trying it loops. |
 | `state-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. Nothing was written. **Do not delete anything**: wait a minute and issue the same write again. A temp older than a minute is a crashed writer's leftover, and the next write reclaims it itself. |
-| `state-patch-invalid`, `state-patch-unknown-key`, `state-gate-pending-form`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
+| `state-gate-pending-form` | The pending-gate marker has two legal spellings and this was neither. It is written as the literal `null`, or as `{node, request, since}` — `request` being `gates/<node>.request.yml` for that same `node`, and `since` a measured UTC timestamp — which the writer puts on one line itself. Send the marker as an object, never as pre-spelled text: text carrying a trailing comment or a quote reaches the file with its own bytes and the reader throws on it. Stop with `RUN-FAILED: state-gate-pending-form` and report the message verbatim. |
+| `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |
 
 Exit `2` is the one row that is not a refusal at all, which is why it is easy to mishandle:

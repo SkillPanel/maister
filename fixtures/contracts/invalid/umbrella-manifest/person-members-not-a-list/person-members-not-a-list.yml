@@ -1,0 +1,15 @@
+# Invalid: a person's members are written as a map keyed by member name. The key
+# is a list of member names, so an identity mapping written this way silently
+# owns nothing.
+version: 1
+umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607
+members:
+  repo-alpha: {path: projects/repo-alpha, kind: repo, default_provider: claude}
+  repo-beta:  {path: projects/repo-beta,  kind: repo, autonomy: auto-low}
+people:
+  - id: operator-1
+    email: dev1@example.test
+    members: {repo-alpha: true, repo-beta: true}
+defaults:
+  autonomy: attended
+  worktree: true

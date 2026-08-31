@@ -1,0 +1,21 @@
+name: gate-emitting-values
+version: 1
+inputs:
+  target: {type: string, required: true}
+nodes:
+  research:
+    uses: workflow:research
+    needs: []
+  approve:
+    type: gate
+    needs: [research]
+    ask: "Research is complete. Proceed to the per-repo implementation runs?"
+    options:
+      proceed: {effect: continue, values: {rollout_order: researched}}
+      revise: {effect: stop, values: {reason: rollout-order-disputed}}
+      abort: stop
+  rollout:
+    uses: workflow:development
+    needs: [approve]
+    dir: projects/repo-beta
+    provider: claude

@@ -64,9 +64,24 @@
         },
         "ask": { "type": "string" },
         "options": {
-          "description": "Gate options: option id to effect.",
+          "description": "Gate options: option id to an effect, or to an effect carrying the values the chosen option emits. Both spellings are authored forms and readers accept either.",
           "type": "object",
-          "additionalProperties": { "enum": ["continue", "stop"] }
+          "additionalProperties": {
+            "anyOf": [
+              { "enum": ["continue", "stop"] },
+              {
+                "type": "object",
+                "required": ["effect"],
+                "properties": {
+                  "effect": { "enum": ["continue", "stop"] },
+                  "values": {
+                    "description": "Values the answer contributes to the run. A map; the engine does not read it at this version.",
+                    "type": "object"
+                  }
+                }
+              }
+            ]
+          }
         },
         "on": { "enum": ["success", "failure", "always"] },
         "optional": { "type": "boolean" }

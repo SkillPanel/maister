@@ -1,0 +1,18 @@
+# Invalid: the option carries its values as a bare string. An option either names
+# an effect or carries an effect plus a map of the values it emits; a scalar is
+# neither, and nothing downstream can merge it into a run.
+name: gate-option-values-not-a-map
+version: 1
+inputs:
+  target: {type: string, required: true}
+nodes:
+  research:
+    uses: workflow:research
+    needs: []
+  approve:
+    type: gate
+    needs: [research]
+    ask: "Proceed?"
+    options:
+      proceed: {effect: continue, values: "rollout-order=alpha"}
+      revise: stop

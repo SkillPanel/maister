@@ -201,6 +201,117 @@ Update or create standards from conversation context or explicit description. Wh
 
 ---
 
+## Umbrella
+
+Multi-repository coordination: one workspace directory whose members are checkouts of
+separate repositories, run as a single unit.
+
+### The workspace runtime — machinery, not a command
+
+There is **no umbrella command**. A user reaches a multi-repository workspace through a
+workflow's own command, and that workflow's orchestrator reaches the runtime by name. The
+runtime is one script, run in the exec form:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs <verb> [flags]
+```
+
+It is documented here because an operator reading a workspace's ledger, outbox or manifest
+needs to know what wrote them, and because the verbs are the sanctioned way to touch those
+files by hand — never an editor.
+
+Each verb prints a JSON report. Exit `0` means the verb was
+accepted, exit `1` means it was rejected with a named code and **nothing was published**, and
+exit `2` means the runtime itself did not start. Every write commits through a temp file and a
+rename, so a rejected verb leaves the files on disk byte-for-byte what they were.
+
+Both `--flag=value` and `--flag value` are accepted. Structured input arrives on standard
+input as JSON rather than in an argument, so no quoting has to survive a shell.
+
+**`init`** — scaffold a workspace: the manifest, the workflow directory, an empty ledger with
+its index and log, and the outbox root. Members are discovered by a bounded two-level walk,
+following symlinks, so a repository checked out inside the workspace is found without being
+listed by hand.
+
+| Flag | Description |
+|------|-------------|
+| `--root=PATH` | The workspace root (required) |
+| `--members-root=PATH` | Where member checkouts live, when it is not the workspace root itself |
+| `--scaffold` | Additionally create a knowledge README and a root guidance stub where neither exists — never overwriting one |
+| `--force` | Replace an existing manifest instead of refusing |
+
+Without `--scaffold`, `init` writes nothing outside the framework directory, and every target
+it declines to write is named in the report with a reason.
+
+**`validate`** — judge the workspace, and any workflow definitions named with it. Deterministic
+and model-free: it parses, checks structure and ids, checks the graph is acyclic, resolves
+references, applies overlays, checks gate shape and warns on reserved keys, collecting findings
+per stage rather than stopping at the first. Errors exit `1`; warnings alone exit `0`.
+
+| Flag | Description |
+|------|-------------|
+| `--root=PATH` | The workspace root (required) |
+| `--definition=PATH` | A workflow definition to validate with the workspace (repeatable) |
+
+**`envelope`** — build and publish one node's dispatch envelope, the contract between the run
+and the worker who picks it up. It is built from the definition rather than from state: the
+definition the run froze is re-resolved, the graph hash recomputed, and a mismatch refused
+rather than dispatching work the run never planned. Provider and autonomy resolve node →
+member → workspace default, and refuse at the end of that chain instead of acquiring a default
+nobody chose.
+
+| Flag | Description |
+|------|-------------|
+| `--run=PATH` | The run directory whose state froze the graph (required) |
+| `--node=ID` | The node being dispatched (required) |
+| `--ledger=PATH` | The ledger the dispatch is recorded in (required) |
+| `--root=PATH` | The workspace root, consulted for the member, provider and autonomy tier (required) |
+| *stdin* | Optional overrides, as JSON |
+
+**`seed`** — render the worker's prompt for a published envelope. A pure function of the
+envelope: same envelope, same prompt, every time. The prompt carries a fixed set of sections in
+a fixed order, stays within a line cap, and is refused rather than truncated if it would run
+past it — a truncated prompt silently loses the close-out contract at the bottom.
+
+| Flag | Description |
+|------|-------------|
+| `--envelope=PATH` | The published envelope to render (required) |
+| `--siblings=N` | How many workers are running in this wave, so the prompt can say the worker has peers. A count, never a list: naming a sibling would name a repository the worker must not touch |
+
+**`ledger`** — run one ledger op. The ops are `create-entry`, `claim`, `update-status`,
+`add-constraint`, `add-followup`, `close-out` and the read-only `query`. Each one reads,
+mutates, writes atomically, regenerates the index and appends exactly one log line after the
+rename. Ids are allocated under a lock and never reused. `ledger-locked` is the one refusal
+whose recovery is to re-issue the same op.
+
+| Flag | Description |
+|------|-------------|
+| `--ledger=PATH` | The ledger directory (required) |
+| `--op=NAME` | The op to run (required) |
+| `--actor=NAME` | Who is performing it (required) |
+| `--dispatch-id=ID` | The entry to act on — required by every op except `create-entry`, which allocates its own |
+| *stdin* | The op's arguments, as JSON |
+
+**`outbox`** — append one message to a dispatch's outbox, the channel results come back on.
+Messages are `status`, `followup`, `artifact`, `blocked` and `closeout`; they are written
+append-only as numbered files and are never rewritten. When the outbox cannot be written,
+`closeout` and `followup` degrade onto a printed result line as the last line of output — the
+other three refuse, because a lost status is not a lost result.
+
+| Flag | Description |
+|------|-------------|
+| `--outbox=PATH` | The outbox root (required) |
+| `--dispatch-id=ID` | The dispatch the message belongs to (required) |
+| `--type=NAME` | The message type (required) |
+| *stdin* | The message body, as JSON — required, since each type demands fields an empty body could not carry |
+
+**Workspace directory**: `.maister/umbrella/`
+**Verbs**: `init`, `validate`, `envelope`, `seed`, `ledger`, `outbox`
+**Entry point**: the script above — there is no `/maister:umbrella` slash command, and nothing
+in a user's mental model needs the word "umbrella" in it.
+
+---
+
 ## Quick Commands
 
 Lightweight commands for small tasks that don't need a full orchestrator workflow.

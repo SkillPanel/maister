@@ -2,12 +2,31 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://maister.dev/schemas/contracts/ledger-entry",
   "title": "Ledger entry, operation and log line",
-  "description": "Contract C3. One file per entry plus a regenerated index. Every mutation is read, mutate, atomic write, append one log line. The seven operation names are frozen; the entry body is additive.",
+  "description": "Contract C3. One file per entry plus a regenerated index. Every mutation is read, mutate, atomic write, append one log line. The seven operation names are frozen; the entry body and the operation call record are additive.",
   "$ref": "#/$defs/entry",
   "$defs": {
     "op": {
       "description": "The complete write surface. Status transitions belong to the engine; everything derived from an ingested outbox belongs to the daemon.",
       "enum": ["create-entry", "claim", "update-status", "add-constraint", "add-followup", "close-out", "query"]
+    },
+    "op_call": {
+      "description": "One recorded call of a frozen operation: which op, on which dispatch, by whom, when, and the op-specific arguments. The call record is additive; `args` stays open because each op names its own.",
+      "type": "object",
+      "required": ["op", "dispatch_id", "actor", "at"],
+      "properties": {
+        "op": { "$ref": "#/$defs/op" },
+        "dispatch_id": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/short_id" },
+        "actor": {
+          "description": "Who issued the call. Free text so a future actor needs no contract bump.",
+          "type": "string",
+          "minLength": 1
+        },
+        "at": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/timestamp" },
+        "args": {
+          "description": "Arguments of this op. Open by construction: the op name selects the shape.",
+          "type": "object"
+        }
+      }
     },
     "log_line": {
       "description": "One appended line: timestamp, operation, dispatch id, actor.",

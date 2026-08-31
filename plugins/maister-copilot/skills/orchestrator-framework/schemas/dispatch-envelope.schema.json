@@ -52,6 +52,14 @@
         }
       }
     },
+    "statement": {
+      "description": "One-line statement of the work, taken from the dispatching node. Optional and additive: absent (or null) means the node said nothing beyond the workflow it names and its arguments.",
+      "type": ["string", "null"]
+    },
+    "workspace_root": {
+      "description": "Absolute path of the umbrella workspace, so every other path in this document can be anchored. A worker's working directory is a checkout inside a member repository — often reached through a symlink to a repository outside the workspace — so a workspace-relative path resolved from that cwd lands in the member repo. Optional and additive; null when the builder was given no root.",
+      "anyOf": [{ "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path" }, { "type": "null" }]
+    },
     "autonomy": { "$ref": "https://maister.dev/schemas/contracts/umbrella-manifest#/$defs/autonomy" },
     "permissions": {
       "type": "object",

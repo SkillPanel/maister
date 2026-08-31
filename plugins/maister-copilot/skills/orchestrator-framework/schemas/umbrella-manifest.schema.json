@@ -15,6 +15,45 @@
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/member" }
     },
+    "branch_convention": {
+      "description": "Template for the branch a dispatch works on. Placeholders are substituted by the engine; an absent convention leaves branch choice to the worker.",
+      "type": ["string", "null"]
+    },
+    "coordination": {
+      "description": "The coordination branch and the worktree it is mounted at.",
+      "type": "object",
+      "properties": {
+        "branch": { "type": ["string", "null"] },
+        "worktree": { "type": ["string", "null"] },
+        "retention": {
+          "type": "object",
+          "properties": { "days": { "type": ["integer", "null"] } }
+        }
+      }
+    },
+    "tracker": {
+      "description": "Optional issue-tracker mirror. Absent means no mirror is written.",
+      "type": "object",
+      "properties": {
+        "kind": { "type": ["string", "null"] },
+        "project": { "type": ["string", "null"] },
+        "mirror": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "scope": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "git_host": {
+      "description": "Where the members are hosted. Used to build pull-request links; nothing is fetched.",
+      "type": "object",
+      "properties": {
+        "kind": { "type": ["string", "null"] },
+        "org": { "type": ["string", "null"] }
+      }
+    },
     "routing": {
       "description": "Data for the intake node. Reserved (contract R): parsed, warned about, inert.",
       "type": "object",
@@ -51,13 +90,23 @@
       "properties": {
         "path": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
         "kind": { "type": "string" },
-        "default_provider": { "enum": ["claude", "copilot"] }
+        "default_provider": { "enum": ["claude", "copilot"] },
+        "autonomy": {
+          "description": "Per-member permission tier. Absent means the umbrella default applies.",
+          "$ref": "#/$defs/autonomy"
+        }
       }
     },
     "person": {
       "description": "Identity mapping. When absent, accounts are matched by e-mail.",
       "type": "object",
       "properties": {
+        "id": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/short_id" },
+        "members": {
+          "description": "Member names this person owns. Names, not paths: a member is looked up in the members map.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "email": { "type": "string" },
         "name": { "type": ["string", "null"] },
         "github": { "type": ["string", "null"] },

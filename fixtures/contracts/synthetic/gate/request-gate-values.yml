@@ -1,0 +1,16 @@
+version: 1
+run_id: 019260a2-1122-7c33-8d44-5e6677889900
+node: approve
+kind: gate
+asked_at: "2026-08-28T09:12:44Z"
+question: "Research is complete. Proceed to the per-repo implementation runs?"
+context:
+  summary: "The rollout order the research settled on is carried by the option itself."
+  artifacts:
+    - outputs/research-report.md
+options:
+  - {id: proceed, label: "Proceed to implementation", effect: continue, values: {rollout_order: researched}, recommended: true}
+  - {id: revise, label: "Revise the rollout order first", effect: stop, values: {reason: rollout-order-disputed}}
+  - {id: abort, label: "Abort the chain", effect: stop}
+multi_select: false
+answer: null

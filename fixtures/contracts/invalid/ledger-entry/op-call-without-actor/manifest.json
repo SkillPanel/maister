@@ -1,0 +1,22 @@
+{
+  "id": "op-call-without-actor",
+  "contracts": [
+    "C3"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-28T09:12:44Z",
+  "files": [
+    {
+      "path": "op-call-without-actor.jsonl",
+      "schema": "ledger-entry.schema.json#/$defs/op_call"
+    }
+  ],
+  "expect": {
+    "error_keyword": "required"
+  },
+  "notes": "Every ledger mutation records who issued it. A call with no actor cannot be attributed once it is folded into the log line, which is ts op dispatch_id actor."
+}

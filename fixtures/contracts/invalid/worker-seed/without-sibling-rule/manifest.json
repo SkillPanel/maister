@@ -1,0 +1,23 @@
+{
+  "id": "without-sibling-rule",
+  "contracts": [
+    "C8"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-28T09:12:44Z",
+  "files": [
+    {
+      "path": "without-sibling-rule.yml",
+      "schema": "worker-seed.schema.json#/$defs/seed"
+    }
+  ],
+  "expect": {
+    "error_path": "/sections",
+    "error_keyword": "minItems"
+  },
+  "notes": "The five sections are the contract, not a suggestion: a descriptor that drops one is refused rather than rendered short, because the missing section is the only place a rule is stated."
+}
