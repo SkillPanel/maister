@@ -7581,12 +7581,33 @@ workflow:
       // The seed's close-out prose has to match: an attended worker is told the
       // command pauses for approval, never that its tier forbids the request.
       const attended = renderSeed(buildSeed(at('attended'), { siblings: 1 }));
-      must(/pauses for an operator to approve/.test(attended),
-        'the attended seed does not say the pull request pauses for approval');
+      must(/held for an operator to approve/.test(attended),
+        'the attended seed does not say the pull request is held for approval');
       must(!/does not permit|can never open one/.test(attended),
         'the attended seed still tells the worker it cannot open a pull request');
       must(/can never open one/.test(renderSeed(buildSeed(at('auto-low'), { siblings: 1 }))),
         'the auto-low seed does not say a pull request is out of reach');
+
+      // A held command ends the turn; it is not a pause a turn can sit
+      // through. The seed used to say "wait for that approval", a worker at a
+      // relaying tier obeyed it exactly, and its dispatch ended with no
+      // close-out, no marker and nothing for the daemon to read. Both the
+      // section that raises the relay and the section that resolves it have to
+      // say the same thing, or the worker follows whichever it read last.
+      must(/do not wait inside this turn/.test(attended),
+        'the attended seed still tells the worker to wait inside the turn for an approval that cannot arrive in one');
+      must(/DISPATCH-FOLLOWUP/.test(attended) && /followup message/.test(attended),
+        'the attended seed does not name the followup message and the frozen marker a held command ends on');
+      equalJson(attended.split('\n').filter(line => /wait for that (approval|decision)/.test(line)), [],
+        'a seed line still tells the worker to wait for a decision inside its turn');
+
+      // The three tiers that cannot relay must not carry the relay wording:
+      // there is no operator behind them, so a held command is simply final.
+      for (const tier of ['auto-low', 'auto-medium', 'auto-high']) {
+        const text = renderSeed(buildSeed(at(tier), { siblings: 1 }));
+        must(!/do not wait inside this turn/.test(text),
+          `the ${tier} seed carries the relay instruction, but that tier has no operator to relay to`);
+      }
     });
 
     t.check('a definition mutated under a frozen graph_hash refuses dispatch-graph-drifted', () => {

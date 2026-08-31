@@ -149,6 +149,18 @@ The next id is one past the high-water mark of both the entries present and the
 creations the log records. **Ids are never reused**: deleting an entry does not
 free its ordinal.
 
+**A dispatch the worker never closed is the daemon's to grade.** Not every
+dispatch ends in a close-out, and the commonest reason is not failure: at a
+relaying tier a held command ends the worker's turn on a `followup`, because an
+operator's approval cannot arrive inside a turn. Such an entry sits `blocked`
+with its follow-up recorded, and it stays open — that is the point, since the
+work resumes when the operator answers. When a dispatch has to be closed with no
+close-out message to close it from, **the daemon writes the close-out and grades
+it**, `partial` where the work was done but something is still held, `failed`
+where it was not. The engine never grades on a worker's behalf: it owns
+creation, claiming and status, and a grade it invented would be a judgement no
+one made.
+
 **`outbox`** — for everything a worker sends back. Messages are append-only and
 sequenced, and the sequenced filename *is* the exclusivity: the runtime opens
 the next name exclusively, and an existing file is never rewritten. Five message

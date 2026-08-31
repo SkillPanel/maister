@@ -223,7 +223,11 @@ function identityLines({ document, chain, target }) {
       ? `Work in ${where}. The paths below are relative to the workspace root — the directory holding the member checkouts — and never to your own working directory. The one exception is the read-only inputs under \`# task\`, which are as the dispatching run named them and are anchored to nothing here.`
       : `Work in ${where}. Every path below is absolute except the read-only inputs under \`# task\`, which are as the dispatching run named them; write nothing outside that directory except through the outbox verb named below.`,
     document.autonomy === RELAYED
-      ? `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake. At this tier a denial is relayed to an operator for approval rather than final: when a command is held, wait for that decision instead of routing around it.`
+      // "Wait for that decision" was the wording here too, and it contradicts
+      // what `# closeout` now says. A held command is not a pause a turn can
+      // sit through; it is the end of the turn. Both sections have to say so,
+      // or the worker picks whichever it read last.
+      ? `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake. At this tier a denial is relayed to an operator rather than final: never route around a held command — report it and end the turn, as \`# closeout\` describes.`
       : `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake.`,
   ];
 }
@@ -320,15 +324,25 @@ function outboxLines(document, pluginRoot) {
  * failure the moment the command is held.
  */
 function closeoutLines({ closeout, autonomy }) {
-  return [
-    closeout.pr_required === true
-      ? (autonomy === RELAYED
-        ? 'A pull request is required before close-out. Your tier denies opening one directly, so the command pauses for an operator to approve it — wait for that approval, then put the pull request URL in the closeout message.'
-        : 'A pull request is required before close-out; open it and put its URL in the closeout message.')
-      : 'No pull request is required — your tier can never open one. Say in the closeout what a reviewer has to open and merge.',
-    `Grade the run ${listOf(Array.isArray(closeout.grade) && closeout.grade.length ? closeout.grade.map(oneLine) : ['success', 'partial', 'failed'])}.`,
-    'The closeout message carries the grade, a summary of what changed, and what a reviewer must check.',
-  ];
+  const lines = [];
+  if (closeout.pr_required === true && autonomy === RELAYED) {
+    lines.push('A pull request is required before close-out. Your tier denies opening one directly, so the command is held for an operator to approve rather than refused outright.');
+    // The line this section was missing, and the one a live worker needed. It
+    // used to say "wait for that approval", which a headless worker cannot do:
+    // its turn ends. Obeying that literally produced a dispatch with no
+    // close-out, no marker and nothing for the daemon to read — so the relay
+    // now ends the turn the way every other unfinished dispatch ends, on a
+    // followup and a frozen marker. Both already exist; only the instruction
+    // connecting them to a fired relay was absent.
+    lines.push('If it is held, do not wait inside this turn — an approval cannot arrive in one. Write a followup message naming the held command and what is left to do, print `DISPATCH-FOLLOWUP: ` followed by that summary as the last line, and end the turn. The close-out, carrying the pull request URL, belongs to a later turn.');
+  } else if (closeout.pr_required === true) {
+    lines.push('A pull request is required before close-out; open it and put its URL in the closeout message.');
+  } else {
+    lines.push('No pull request is required — your tier can never open one. Say in the closeout what a reviewer has to open and merge.');
+  }
+  lines.push(`Grade the run ${listOf(Array.isArray(closeout.grade) && closeout.grade.length ? closeout.grade.map(oneLine) : ['success', 'partial', 'failed'])}.`);
+  lines.push('The closeout message carries the grade, a summary of what changed, and what a reviewer must check.');
+  return lines;
 }
 
 /**
