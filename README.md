@@ -211,9 +211,33 @@ You can also append additional instructions to narrow scope or guide the workflo
 /maister:development .maister/tasks/development/2026-03-24-my-feature
 ```
 
+## Watching and driving runs from a browser
+
+The plugin runs workflows in one repository at a time, in your terminal. The
+**[maister cockpit](https://github.com/SkillPanel/maister-cockpit)** is its companion: a local daemon
+plus a browser tab that watches those runs live, starts and steers provider sessions, and drives
+multi-repository chains across an umbrella workspace.
+
+```sh
+npx maister-cockpit
+npx maister-cockpit repo add /absolute/path/to/your/repo
+```
+
+It runs entirely on your machine and never writes into a repository you register unless you opt into
+chain driving. Its [quickstart](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/quickstart.md)
+picks up where this README leaves off — install, `/maister:init`, a first workflow, then the cockpit
+beside it — and continues into umbrella workspaces and chains.
+
+| To | See |
+|---|---|
+| Watch a run you started in a terminal | [Cockpit README](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/README.md) |
+| Turn a workspace into an umbrella and author a chain | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
+| Understand what an autonomy tier actually enforces | [Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md) |
+
 ## Learn More
 
 - [Workflow Details](docs/workflows.md) - phases, examples, and task structure for each workflow type
 - [Full Command Reference](docs/commands.md) - all workflow, review, utility, and quick commands
 - [Decision Log](docs/decisions/README.md) - the ADRs behind the gate protocol, the coordination shapes, and the compatibility floor
 - [Compatibility Contracts](plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md) - the normative register of every on-disk shape, and the rules for changing one
+- [Cockpit quickstart](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/quickstart.md) - the browser-side path, from a first workflow to a chain across repositories
