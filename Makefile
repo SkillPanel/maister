@@ -29,11 +29,15 @@ validate-codex:
 	@echo "Checking no Claude-only artifacts in codex skills..."
 	@! grep -rE 'AskUserQuestion|TaskCreate|TaskUpdate|SlashCommand|Skill tool|Task tool|CLAUDE_PLUGIN_ROOT|CLAUDE\.md|/maister:' plugins/maister-codex/skills/ 2>/dev/null || (echo "FAIL: Claude-only artifact found in codex skills" && exit 1)
 	@echo "Checking codex SKILL.md names match directories..."
-	@for d in plugins/maister-codex/skills/*/; do n=$$(basename $$d); grep -q "^name: $$n$$" "$$d/SKILL.md" || (echo "FAIL: $$d frontmatter name != $$n" && exit 1); done
+	@for d in plugins/maister-codex/skills/*/; do n=$$(basename $$d); grep -q "^name: $$n$$" "$$d/SKILL.md" || { echo "FAIL: $$d frontmatter name != $$n"; exit 1; }; done
 	@echo "Checking codex agent template names match filenames..."
-	@for f in plugins/maister-codex/skills/maister-init/assets/agents/*.toml; do b=$$(basename $$f .toml); grep -q "^name = \"$$b\"$$" "$$f" || (echo "FAIL: $$f name != $$b" && exit 1); done
+	@for f in plugins/maister-codex/skills/maister-init/assets/agents/*.toml; do b=$$(basename $$f .toml); grep -q "^name = \"$$b\"$$" "$$f" || { echo "FAIL: $$f name != $$b"; exit 1; }; done
 	@echo "Checking codex-native marketplace manifest parses..."
 	@node -e "const m=JSON.parse(require('fs').readFileSync('.agents/plugins/marketplace.json','utf8')); if(!m.plugins.some(p=>p.name==='maister-codex')) throw new Error('maister-codex missing')" || (echo "FAIL: invalid .agents/plugins/marketplace.json" && exit 1)
+	@node scripts/sync-codex-hooks.mjs
+	@python3 scripts/validate-codex.py
+	@python3 -B -m unittest discover -s tests -p 'test_*.py'
+	@node --test tests/*.test.mjs
 	@echo "Codex checks passed"
 
 clean:

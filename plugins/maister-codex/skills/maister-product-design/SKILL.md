@@ -34,11 +34,11 @@ design_context:
   user_files_list: []
   refinement_iterations: {phase_2: 0, phase_3: 0, phase_5: 0, phase_6_sections: {}, phase_7: 0}
   research_reference: {path: null, research_question: null}
-  phase_summaries: {}
-options:
-  html_output: true
-  mockup_format: html
-  visual_enabled: null
+orchestrator:
+  options:
+    html_output: true
+    mockup_format: html
+    visual_enabled: null
 ```
 
 Derive `visual_enabled` at initialization: false when `--no-visual` was passed **or** `.maister/config.yml` sets `mockup_format: ascii`; true otherwise. An explicit per-run flag always overrides project configuration.

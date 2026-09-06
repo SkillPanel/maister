@@ -9,6 +9,16 @@ Load and follow `$maister-codex:maister-orchestrator-framework` before starting 
 
 Initialize `analysis/`, `implementation/`, `verification/`, `documentation/`, `orchestrator-state.yml`, and `implementation/work-log.md`. Read `.maister/config.yml` (`html_output: true`, `mockup_format: html` by default), `.maister/docs/INDEX.md`, every applicable standard, and every project document linked from the index. When HTML output is enabled, copy the shared dashboard asset and maintain `dashboard-data.js` as described by the framework.
 
+## Research and design handoff
+
+Before Phase 1, resolve a supplied task path by its artifacts and recorded workflow. A research or product-design task is input to a **new development task**, not a development resume; retain its original state and files. Only resume the supplied task in place when it is already a development task.
+
+- For a research task path or `--research=<task>`, read its state and `outputs/research-report.md`, plus existing `outputs/solution-exploration.md`, `outputs/high-level-design.md`, and `outputs/decision-log.md`. Derive the task description from the research question when no implementation description was supplied. Copy these artifacts into `analysis/research-context/`, retain source paths and selected decisions in `task_context.research_reference`, and carry their relevant conclusions into specification and planning. An explicitly supplied path with missing required output is a prerequisite to resolve, not permission to ignore the research.
+- For a product-design task path, read `outputs/product-brief.md`, copy it to `analysis/design-context/brief.md`, and copy available `analysis/mockups/` into `analysis/design-context/mockups/`. Keep the brief and approved mockups binding; record provenance in `task_context.design_reference`.
+- Import explicitly supplied local design files into `analysis/design-context/mockups/`; preserve design-tool URLs in `analysis/design-context/external-links.md`. Record inaccessible references and ask only when they block a binding requirement. On legacy resumes, copy `analysis/visuals/` or `analysis/ui-mockups.md` into design context when no current index exists, retaining originals.
+
+When design inputs exist, write `analysis/design-context/INDEX.md` with stable `screen:<slug>` and `component:<slug>` IDs, source paths, descriptions, and approval status. Reuse existing IDs and imported files on resume; do not overwrite differing content without approval. Pass the brief and matching index rows to specification, planning, implementation workers, and E2E verification. Skip fresh mockup generation when approved inputs already cover the required screens and states. Research or design approval does not replace the development specification and plan gates.
+
 ## Adaptive phases
 
 | # | Phase | Required outcome | Transition |
@@ -50,7 +60,7 @@ Implementation runs focused tests after each group and continuously applies newl
 
 Phase 10 records options for code review, pragmatic review, production readiness, reality assessment, E2E, and user docs. Load `$maister-codex:maister-verify` once for the canonical verification cycle; never launch competing full test suites. Present non-trivial findings before modifying code. After fixes, re-run affected checks and refresh the canonical report so no stale verdict remains.
 
-E2E uses the bundled Playwright MCP when available and writes evidence under `verification/`; degrade to explicit manual steps when unavailable. User documentation reuses E2E screenshots before capturing new ones. Finalization verifies all required artifacts, acceptance criteria, plan checkboxes, standards, and final verdict before setting `status: completed`.
+E2E uses the bundled Playwright MCP when available and writes `verification/e2e-verification-report.md`; degrade to explicit manual steps when unavailable. When binding mockups exist, pass their index and paths to the verifier and also write `verification/visual-fidelity.md`, separating structural design differences from functional failures. This visual comparison is report-only. Run E2E and screenshot-backed documentation sequentially because they share the browser. User documentation reuses E2E screenshots before capturing new ones. Finalization verifies all required artifacts, acceptance criteria, plan checkboxes, standards, and final verdict before setting `status: completed`.
 
 ## State and recovery
 

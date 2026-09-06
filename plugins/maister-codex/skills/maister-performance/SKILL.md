@@ -26,17 +26,17 @@ performance_context:
   bottleneck_priorities: {p0: 0, p1: 0, p2: 0, p3: 0}
   baseline_metrics: []
   target_metrics: []
-  phase_summaries: {}
 verification_context:
   last_status: null
-  issues_found: 0
+  issues_found: []
   fixes_applied: []
   reverify_count: 0
-options:
-  html_output: true
-  sequential: false
-  spec_audit_enabled: null
-  production_check_enabled: null
+orchestrator:
+  options:
+    html_output: true
+    sequential: false
+    spec_audit_enabled: null
+    production_check_enabled: null
 ```
 
 ## Phases

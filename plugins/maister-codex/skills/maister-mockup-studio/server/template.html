@@ -278,7 +278,7 @@
       if (target) {
         e.preventDefault();
         var slug = target.getAttribute('data-screen');
-        window.location.href = window.location.protocol === 'file:' ? slug + '.html' : '/screen/' + slug;
+        window.location.href = !liveMode ? (slug === 'index' ? 'index.screen.html' : slug + '.html') : '/screen/' + slug;
       }
     });
   </script>

@@ -28,11 +28,11 @@ research_context:
   sources: []
   confidence_level: null
   gathering_strategy: {categories: [], count: 0, source: null}
-  phase_summaries: {}
-options:
-  html_output: true
-  brainstorming_enabled: null
-  design_enabled: null
+orchestrator:
+  options:
+    html_output: true
+    brainstorming_enabled: null
+    design_enabled: null
 ```
 
 ## Phases

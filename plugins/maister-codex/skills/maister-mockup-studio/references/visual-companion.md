@@ -38,7 +38,7 @@ POST screens as JSON with `X-Maister-Token: <mutationToken from /status>`:
 }
 ```
 
-Titles determine stable lowercase-hyphenated IDs. Posting a title again updates that screen. Each update writes `<task_path>/<output_subdir>/<slug>.html`, an offline `index.html` gallery, and `.mockups.json`; a restarted server restores the gallery from this manifest.
+Titles determine stable lowercase-hyphenated IDs. Posting a title again updates that screen. Each update writes `<task_path>/<output_subdir>/<slug>.html` (`index.screen.html` for the reserved `index` slug), an offline `index.html` gallery, and `.mockups.json`; a restarted server restores the gallery from this manifest. Invalid manifests and symlinked destinations are rejected; preserve the affected files and report the error instead of deleting them to force startup.
 
 ## Lifecycle
 

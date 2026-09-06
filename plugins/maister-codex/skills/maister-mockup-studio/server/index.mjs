@@ -33,7 +33,7 @@ function assertOutputPathSafe() {
   let cursor = taskPath;
   for (const segment of relative.split(path.sep).filter(Boolean)) {
     cursor = path.join(cursor, segment);
-    if (fs.existsSync(cursor) && fs.lstatSync(cursor).isSymbolicLink()) {
+    if (fs.lstatSync(cursor, { throwIfNoEntry: false })?.isSymbolicLink()) {
       throw new Error(`--output-subdir cannot traverse a symbolic link: ${cursor}`);
     }
   }
@@ -46,6 +46,45 @@ function assertOutputPathSafe() {
 }
 
 assertOutputPathSafe();
+
+// Check leaf files too, including dangling links. O_NOFOLLOW closes the leaf
+// check/open race; atomic replacement also avoids truncating hard-linked files.
+function outputFile(name) {
+  assertOutputPathSafe();
+  if (path.basename(name) !== name || name === '.' || name === '..') {
+    throw new Error('Invalid output filename');
+  }
+  const destination = path.join(outputDir, name);
+  const stat = fs.lstatSync(destination, { throwIfNoEntry: false });
+  if (stat && !stat.isFile()) throw new Error(`Output must be a regular file: ${name}`);
+  return destination;
+}
+
+function writeOutput(name, content) {
+  assertOutputPathSafe();
+  fs.mkdirSync(outputDir, { recursive: true });
+  const destination = outputFile(name);
+  const temporary = outputFile(`.write-${crypto.randomUUID()}`);
+  let descriptor;
+  try {
+    descriptor = fs.openSync(temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+    fs.writeFileSync(descriptor, content, 'utf8');
+    fs.closeSync(descriptor);
+    descriptor = undefined;
+    outputFile(name);
+    fs.renameSync(temporary, destination);
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
+}
+
+function screenFilename(id) {
+  if (typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) {
+    throw new Error('Invalid mockup screen ID');
+  }
+  return id === 'index' ? 'index.screen.html' : `${id}.html`;
+}
 
 const mutationToken = crypto.randomBytes(24).toString('hex');
 const maxBodyBytes = 2 * 1024 * 1024;
@@ -77,35 +116,38 @@ function escapeAttr(s) {
 // startup even though the .html files exist on disk).
 function manifestPath() {
   if (!taskPath) return null;
-  assertOutputPathSafe();
-  return path.join(outputDir, '.mockups.json');
+  return outputFile('.mockups.json');
 }
 
 function saveManifest() {
-  const p = manifestPath();
-  if (!p) return;
-  try {
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, JSON.stringify({ latestId, mockups }, null, 2), 'utf-8');
-  } catch (err) {
-    console.warn(`[visual-companion] Could not write manifest: ${err.message}`);
-  }
+  if (!taskPath) return;
+  writeOutput('.mockups.json', JSON.stringify({ latestId, mockups }, null, 2));
 }
 
 function loadManifest() {
   const p = manifestPath();
   if (!p || !fs.existsSync(p)) return;
-  try {
-    const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    if (Array.isArray(data.mockups) && data.mockups.length) {
-      mockups.push(...data.mockups);
-      latestId = data.latestId || mockups[mockups.length - 1].id;
-      version = mockups.length;
-      console.log(`Restored ${mockups.length} screen(s) from disk.`);
+  const descriptor = fs.openSync(p, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  let data;
+  try { data = JSON.parse(fs.readFileSync(descriptor, 'utf8')); }
+  finally { fs.closeSync(descriptor); }
+  if (!data || !Array.isArray(data.mockups)) throw new Error('Invalid mockup manifest');
+  const ids = new Set();
+  for (const mockup of data.mockups) {
+    screenFilename(mockup?.id);
+    if (ids.has(mockup.id) || typeof mockup.title !== 'string' ||
+        (mockup.html !== undefined && typeof mockup.html !== 'string') ||
+        (mockup.css !== undefined && typeof mockup.css !== 'string') ||
+        (mockup.annotations !== undefined && !Array.isArray(mockup.annotations))) {
+      throw new Error('Invalid or duplicate mockup in manifest');
     }
-  } catch (err) {
-    console.warn(`[visual-companion] Could not read manifest: ${err.message}`);
+    ids.add(mockup.id);
   }
+  if (data.latestId != null && !ids.has(data.latestId)) throw new Error('Invalid latest screen ID');
+  mockups.push(...data.mockups);
+  latestId = data.latestId || mockups.at(-1)?.id || null;
+  version = mockups.length;
+  console.log(`Restored ${mockups.length} screen(s) from disk.`);
 }
 
 // Save a rendered standalone HTML file to disk. Returns true if saved, false if skipped.
@@ -114,15 +156,8 @@ function saveToDisk(mockup) {
     console.warn(`[visual-companion] Skipping disk save for "${mockup.id}" — no task path configured.`);
     return false;
   }
-  const dir = outputDir;
-  assertOutputPathSafe();
-  fs.mkdirSync(dir, { recursive: true });
-  assertOutputPathSafe();
-
   const html = renderScreen(mockup, true);
-  const filePath = path.join(dir, `${mockup.id}.html`);
-  fs.writeFileSync(filePath, html, 'utf-8');
-  fs.writeFileSync(path.join(dir, 'index.html'), renderGallery(true), 'utf-8');
+  writeOutput(screenFilename(mockup.id), html);
   return true;
 }
 
@@ -136,7 +171,7 @@ function renderScreen(mockup, staticMode = false) {
   const annotations = JSON.stringify(mockup.annotations || []);
 
   // Build screen nav
-  const screenHref = id => staticMode ? `${id}.html` : `/screen/${id}`;
+  const screenHref = id => staticMode ? screenFilename(id) : `/screen/${id}`;
   const navItems = mockups.map(m =>
     `<a href="${screenHref(m.id)}" class="nav-screen${m.id === mockup.id ? ' active' : ''}">${m.title}</a>`
   ).join('');
@@ -179,7 +214,7 @@ function renderGallery(staticMode = false) {
     const cards = mockups.map(m => {
       const doc = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#0e0f11}${m.css || ''}</style></head><body>${m.html || ''}</body></html>`;
       return `
-      <a href="${staticMode ? `${m.id}.html` : `/screen/${m.id}`}" class="gallery-card">
+      <a href="${staticMode ? screenFilename(m.id) : `/screen/${m.id}`}" class="gallery-card">
         <div class="gallery-card-title">${m.title}</div>
         <div class="gallery-card-preview"><iframe class="gallery-frame" scrolling="no" sandbox="allow-same-origin" srcdoc="${escapeAttr(doc)}"></iframe></div>
       </a>`;
@@ -287,6 +322,12 @@ async function handler(req, res) {
     // POST /update
     if (req.method === 'POST' && url.pathname === '/update') {
       const body = await parseBody(req);
+      if (!body || typeof body !== 'object' || Array.isArray(body) ||
+          ['title', 'html', 'css'].some(key => body[key] !== undefined && typeof body[key] !== 'string') ||
+          (body.annotations !== undefined && !Array.isArray(body.annotations))) {
+        jsonResponse(res, 400, { error: 'Invalid mockup payload' });
+        return;
+      }
       const id = slugify(body.title || 'untitled');
 
       const mockup = {
@@ -297,6 +338,13 @@ async function handler(req, res) {
         css: body.css || '',
         annotations: body.annotations || [],
       };
+
+      // Reject unsafe destinations before mutating state or writing any screen.
+      if (taskPath) {
+        for (const screen of [...mockups, mockup]) outputFile(screenFilename(screen.id));
+        outputFile('index.html');
+        outputFile('.mockups.json');
+      }
 
       // Update existing or add new
       const existingIdx = mockups.findIndex(m => m.id === id);
@@ -311,6 +359,7 @@ async function handler(req, res) {
       let saved = false;
       if (taskPath) {
         for (const screen of mockups) saveToDisk(screen);
+        writeOutput('index.html', renderGallery(true));
         saved = true;
       } else {
         saveToDisk(mockup);
@@ -360,15 +409,13 @@ async function handler(req, res) {
 // PID file management
 function pidFilePath() {
   if (!taskPath) return null;
-  assertOutputPathSafe();
-  return path.join(outputDir, '.visual-companion.pid');
+  return outputFile('.visual-companion.pid');
 }
 
 function writePidFile() {
   const p = pidFilePath();
   if (!p) return;
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, String(process.pid), 'utf-8');
+  writeOutput('.visual-companion.pid', String(process.pid));
 }
 
 function cleanupPidFile() {
@@ -394,6 +441,7 @@ function tryPort(port) {
 
 async function start() {
   loadManifest();
+  pidFilePath();
   const ports = [3847, 3848, 3849, 3850];
   for (const port of ports) {
     try {

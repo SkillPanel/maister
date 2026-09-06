@@ -37,13 +37,14 @@ external_research:
   breaking_changes: []
 verification_context:
   last_status: null
-  issues_found: 0
+  issues_found: []
   fixes_applied: []
   reverify_count: 0
-options:
-  html_output: true
-  sequential: false
-  docs_enabled: false
+orchestrator:
+  options:
+    html_output: true
+    sequential: false
+    docs_enabled: false
 ```
 
 ## Phases

@@ -11,7 +11,7 @@ Maister provides Codex-native, standards-aware workflows for software delivery. 
 - `$maister-codex:maister-reviews-code`, `$maister-codex:maister-reviews-pragmatic`, `$maister-codex:maister-reviews-production-readiness`, `$maister-codex:maister-reviews-reality-check`, and `$maister-codex:maister-reviews-spec-audit` provide focused read-only reviews.
 - `$maister-codex:maister-init`, `$maister-codex:maister-docs-manager`, `$maister-codex:maister-standards-discover`, and `$maister-codex:maister-standards-update` initialize and maintain project guidance.
 
-The plugin bundles Playwright MCP for browser verification, mockups, and screenshot-backed documentation. It also includes Node-based lifecycle hooks: reminders for explicit skill invocation and state recovery after compaction, plus a PreToolUse guard that denies destructive shell commands (`git stash`, `git reset --hard`, `git clean`, force-push, `rm -rf`) from non-whitelisted subagents so parallel implementers cannot clobber each other's work. Codex asks you to review and trust plugin hooks before they run. Node.js is required for hooks, the HTML mockup companion, and Playwright MCP; no separate `jq` or Bash dependency is used.
+The plugin bundles Playwright MCP for browser verification, mockups, and screenshot-backed documentation. It also includes Node-based lifecycle hooks: reminders for explicit skill invocation and state recovery after compaction, plus a PreToolUse guard that denies common destructive shell commands (`git stash`, `git reset --hard`, `git clean`, force-push, `rm -rf`). The guard applies to the main agent and subagents alike because the hook payload does not guarantee agent identity. It is a heuristic guardrail, not a complete shell security boundary. For an explicitly authorized operation blocked by the guard, the user must review and disable that hook in `/hooks`; agents must not work around it with alternate syntax or tools. Codex asks you to review and trust plugin hooks before they run. Node.js is required for hooks, the HTML mockup companion, and Playwright MCP; no separate `jq` or Bash dependency is used.
 
 ## Specialist agents
 
@@ -29,6 +29,8 @@ codex plugin add maister-codex@maister-plugins
 Add `--ref <branch>` to install from a branch instead of the default one.
 
 ## Local testing
+
+Repository validation requires Node.js 20+, Python 3.11+, and PyYAML (also used by the local Codex skill validators). Run `make validate` for metadata, state examples, hook/source consistency, and temporary-fixture regression tests. The runtime tests need permission to bind loopback ports 3847–3850. After changing a hook source, run `node scripts/sync-codex-hooks.mjs --write` before validation.
 
 Register a local checkout as a marketplace, then install the plugin:
 

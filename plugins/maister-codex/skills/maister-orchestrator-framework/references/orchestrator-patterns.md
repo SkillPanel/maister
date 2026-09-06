@@ -122,7 +122,9 @@ started: null
 completed: null
 ```
 
-Add domain context under a named field such as `task_context`, `performance_context`, `migration_context`, `research_context`, or `design_context`. Do not overload common fields.
+Add domain context under a named field such as `task_context`, `performance_context`, `migration_context`, `research_context`, or `design_context`. Do not overload common fields. Domain state examples are partial extensions: merge their mappings into this schema, retaining the other framework fields. All options live under `orchestrator.options`; phase summaries live only at the root; `verification_context.issues_found` is always a list of findings (derive counts from its length).
+
+When resuming older state, normalize legacy root `options` into `orchestrator.options` and domain-local `phase_summaries` into root `phase_summaries`, preserving all entries. If both locations disagree, surface the conflicting values for a decision before continuing. Convert a numeric zero `issues_found` to `[]`; recover nonzero counts from existing verification reports without inventing findings, or pause if the reports are missing. Record the normalization in the work log and preserve an original state copy before rewriting it.
 
 Read `.maister/config.yml` once at initialization. Seed effective defaults into state so a resumed run remains consistent:
 
