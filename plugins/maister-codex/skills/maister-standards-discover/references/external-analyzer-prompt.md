@@ -10,18 +10,19 @@ Mine external sources for standards evidence, return findings as YAML.
 
 ### 1. Pull Requests (via gh CLI)
 
-**First check availability:**
+Honor original user exclusions supplied by the caller: if PRs are user-excluded, record that instruction and omit PR access checks. A caller's unsupported scope reduction does not count as a user exclusion. Otherwise **first check availability and, when installed, authentication:**
 ```bash
-which gh && gh auth status
+command -v gh && gh auth status
 ```
 
-If gh CLI available:
+Record command outcomes and sanitized evidence without credentials. If gh is installed and authenticated:
 - Get last `[pr_count]` merged PRs: `gh pr list --state merged --limit [pr_count] --json number,title`
 - For each PR, check review comments for repeated feedback patterns
+- Record the PR query and review evidence inspected; authentication alone is not PR discovery. A successful query returning no PRs is inspected with no findings.
 - Look for: "Please use...", "Always...", "Avoid...", "Per our convention...", "Style:", "Nit:"
 - Only report patterns that appear in **3+ different PRs** (significant feedback, not one-off)
 
-If gh CLI unavailable: skip PR analysis, note in output, not an error.
+If gh is missing, authentication fails, or repository/API access fails: record PR history as unavailable with the observed command failure and reason. Do not label an unattempted check unavailable, install/authenticate automatically, or repeatedly request permission for the same limitation. If access fails after partial inspection, retain inspected evidence and identify the remaining coverage limitation.
 
 ### 2. CI/CD Workflows
 
@@ -53,7 +54,13 @@ Extract: mandatory checks, formatting enforcement, commit message validation.
 Return YAML:
 
 ```yaml
-github_available: true  # or false
+github_available: true  # false for observed access failure; null if user-excluded
+sources:
+  - source: "pr-history"  # also return separate ci-cd and pre-commit rows
+    disposition: "inspected"  # user-excluded or unavailable; pending if unsupported
+    reason: "[coverage achieved, original user exclusion, or observed failure]"
+    evidence:
+      - "[command and outcome / inspected file / original user instruction reference]"
 findings:
   - category: "[category/subcategory]"
     standard_name: "[Short Name]"
@@ -67,7 +74,7 @@ findings:
 
 ## Rules
 
-- Handle gh CLI gracefully — return `github_available: false` and empty PR findings, not error
+- Handle gh CLI failures gracefully — return `github_available: false`, the unavailable source row with observed evidence, and any findings already supported by partial inspection
 - Only report PR patterns appearing in 3+ different PRs
 - For CI/CD: extract specific thresholds and rules, not just "runs tests"
 - Return empty findings list if no external sources available
