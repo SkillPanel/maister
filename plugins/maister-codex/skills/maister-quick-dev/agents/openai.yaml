@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Quick Dev"
+  short_description: "Implement a focused standards-aware change."
+  default_prompt: "Use $maister-codex:maister-quick-dev to implement this focused change."

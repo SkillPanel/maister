@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Quick Plan"
+  short_description: "Create a standards-aware plan without edits."
+  default_prompt: "Use $maister-codex:maister-quick-plan to plan this change before implementation."

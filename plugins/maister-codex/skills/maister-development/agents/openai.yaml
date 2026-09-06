@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Development"
+  short_description: "Run a full, resumable development workflow."
+  default_prompt: "Use $maister-codex:maister-development to build this feature with standards and verification."

@@ -1,0 +1,52 @@
+{
+  "description": "Maister workflow reminders, subagent safety guidance, and destructive-command protection. Commands are inlined (node -e) so no plugin-root path variable is required; the sibling .mjs files are the readable sources — keep them in sync.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --input-type=module -e '// Source of the inline `node -e` command in hooks.json (kept path-free there because\n// plugin-root variables are not reliably expanded). Keep both in sync when editing.\nimport fs from '\\''node:fs'\\'';\nimport path from '\\''node:path'\\'';\n\nlet input = '\\'''\\'';\nfor await (const chunk of process.stdin) input += chunk;\n\nlet event = {};\ntry {\n  event = input.trim() ? JSON.parse(input) : {};\n} catch {\n  event = {};\n}\n\nconst workspace = path.resolve(typeof event.cwd === '\\''string'\\'' && event.cwd ? event.cwd : process.cwd());\nif (fs.existsSync(path.join(workspace, '\\''.maister'\\'', '\\''tasks'\\''))) {\n  const payload = {\n    hookSpecificOutput: {\n      hookEventName: '\\''SessionStart'\\'',\n      additionalContext: '\\''MAISTER RESUME CHECK: A .maister/tasks directory exists. If this chat was running a Maister orchestrator before compaction, read the active task orchestrator-state.yml and completed artifacts before continuing. Treat the state file, not recalled chat history, as the resume source of truth. Honor every remaining explicit phase approval gate.'\\'',\n    },\n  };\n  process.stdout.write(`${JSON.stringify(payload)}\\n`);\n}\n'",
+            "timeout": 10,
+            "additionalContextLimit": 1000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --input-type=module -e '// Source of the inline `node -e` command in hooks.json (kept path-free there because\n// plugin-root variables are not reliably expanded). Keep both in sync when editing.\nconst payload = {\n  hookSpecificOutput: {\n    hookEventName: '\\''SessionStart'\\'',\n    additionalContext: '\\''MAISTER PLUGIN RULES: When the user explicitly invokes a $maister-codex:maister-* skill, read that skill completely and follow it before substituting another workflow. Skills compose natively: load each named supporting skill and follow its instructions. Required discovery sources remain pending until inspected, explicitly user-excluded, or unavailable with observed tool evidence. Agent-created scope reductions and disclosure alone cannot satisfy required steps. Verify delegated source coverage before reporting completion; distinguish finished setup from incomplete discovery and report legitimate exclusions or access limitations without repeatedly requesting permission. For a required phase gate, stop after presenting the review summary and request the specified user decision; do not mark the phase complete until the user responds. Never reset, discard, or roll back work without explicit user approval.'\\'',\n  },\n};\n\nprocess.stdout.write(`${JSON.stringify(payload)}\\n`);\n'",
+            "timeout": 10,
+            "additionalContextLimit": 1200
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|shell|local_shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --input-type=module -e '// Source of the inline `node -e` command in hooks.json (kept path-free there because\n// plugin-root variables are not reliably expanded). Keep both in sync when editing.\n// PreToolUse does not guarantee agent identity. Apply the same guard to all\n// shell calls; missing identity must never imply a privileged main agent.\n\nlet input = '\\'''\\'';\nfor await (const chunk of process.stdin) input += chunk;\n\nlet event = {};\ntry {\n  event = input.trim() ? JSON.parse(input) : {};\n} catch {\n  event = {};\n}\n\nconst command =\n  (event.tool_input && (event.tool_input.command || event.tool_input.cmd)) ||\n  (event.toolInput && (event.toolInput.command || event.toolInput.cmd)) ||\n  '\\'''\\'';\n\nconst destructive =\n  /git\\s+stash|git\\s+reset\\s+--hard|git\\s+checkout\\s+--\\s+\\.|git\\s+checkout\\s+\\.\\s*$|git\\s+clean|git\\s+push\\s+(-f|--force)|rm\\s+-rf/i;\n\nif (typeof command === '\\''string'\\'' && destructive.test(command)) {\n  const payload = {\n    hookSpecificOutput: {\n      hookEventName: '\\''PreToolUse'\\'',\n      permissionDecision: '\\''deny'\\'',\n      permissionDecisionReason: '\\''Destructive command blocked by the Maister shell guard. An explicitly authorized operation requires the user to review and disable this guard in /hooks; do not bypass it with alternate syntax or tools.'\\'',\n    },\n  };\n  process.stdout.write(`${JSON.stringify(payload)}\\n`);\n}\n\nprocess.exit(0);\n'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --input-type=module -e '// Source of the inline `node -e` command in hooks.json (kept path-free there because\n// plugin-root variables are not reliably expanded). Keep both in sync when editing.\nconst payload = {\n  hookSpecificOutput: {\n    hookEventName: '\\''SubagentStart'\\'',\n    additionalContext: '\\''MAISTER SUBAGENT SAFETY: Stay within the assigned role, files, and output contract. Preserve unrelated work. Do not run git stash, git reset --hard, git clean, force-push, broad recursive deletion, or any rollback/discard operation. Return concrete evidence and unresolved blockers to the parent agent. For required discovery sources, return inspected evidence, original user exclusions, or observed availability/access failures. A parent agent scope reduction without original user authorization is not a valid exclusion; flag it as pending rather than claiming completion.'\\'',\n  },\n};\n\nprocess.stdout.write(`${JSON.stringify(payload)}\\n`);\n'",
+            "timeout": 10,
+            "additionalContextLimit": 800
+          }
+        ]
+      }
+    ]
+  }
+}
