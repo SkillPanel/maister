@@ -203,55 +203,86 @@ Update or create standards from conversation context or explicit description. Wh
 
 ## Umbrella
 
-Multi-repository coordination: one workspace directory whose members are checkouts of
-separate repositories, run as a single unit.
+A multi-repository workspace: an umbrella directory whose members are checkouts of separate
+repositories, coordinated by a manifest and driven as chains by the cockpit. Two commands turn a
+directory into one and judge it. The rest of the workspace runtime is machinery a running chain
+uses, documented below for the operator who needs to know what wrote a ledger or an outbox.
 
-### The workspace runtime — machinery, not a command
+### `/maister:umbrella init [--root DIR] [--members-root DIR] [--force]`
 
-There is **no umbrella command**. A user reaches a multi-repository workspace through a
-workflow's own command, and that workflow's orchestrator reaches the runtime by name. The
-runtime is one script, run in the exec form:
+Scaffold a workspace: the manifest, the workflow directory, an empty ledger with its index and log,
+and the outbox root. Members are discovered by a bounded two-level walk, following symlinks, so a
+repository checked out inside the workspace is found without being listed by hand. Run it from the
+workspace directory and `--root` defaults to it.
+
+| Flag | Description |
+|------|-------------|
+| `--root DIR` | The workspace root. Defaults to the current directory |
+| `--members-root DIR` | Where member checkouts live, when it is not the workspace root itself. Must be inside the workspace |
+| `--scaffold` | Additionally create a knowledge README and a root guidance stub where neither exists — never overwriting one |
+| `--force` | Replace an existing manifest instead of refusing |
+
+Without `--scaffold`, `init` writes nothing outside the framework directory, and every target it
+declines to write is named with a reason. A second `init` over an existing manifest refuses unless
+`--force` is given; the ledger and the outbox are never touched either way.
+
+**Examples**:
+```bash
+/maister:umbrella init
+/maister:umbrella init --root /work/acme-platform --members-root repos
+/maister:umbrella init --force
+```
+
+### `/maister:umbrella validate [--root DIR] [--definition FILE ...]`
+
+Judge the workspace, and any chain files named with it. Deterministic and model-free: it parses,
+checks structure and ids, checks the graph is acyclic, resolves references, applies overlays,
+checks gate shape, checks every `dir:` against the manifest's member list and warns on reserved
+keys, collecting findings per stage rather than stopping at the first.
+
+| Flag | Description |
+|------|-------------|
+| `--root DIR` | The workspace root. Defaults to the current directory |
+| `--definition FILE` | A chain file to validate with the workspace (repeatable). None judges the workspace alone |
+
+Errors exit `1` and name the file, node and field; warnings alone exit `0`, so a workspace can carry
+advisory findings without being blocked. A freshly scaffolded manifest reports one advisory warning
+about a reserved key — expected and harmless.
+
+**Examples**:
+```bash
+/maister:umbrella validate
+/maister:umbrella validate --definition .maister/workflows/rollout.yml
+```
+
+Both commands report in plain language: what was found and written, or what passed, and each
+refusal by name with the move that clears it. No other verb is reachable from the command —
+`envelope`, `seed`, `ledger` and `outbox` are the machinery described next, and asking for one
+gets you pointed here.
+
+### From a script or CI — the workspace runtime
+
+Every verb, the two above included, is one script run in the exec form:
 
 ```
 node ${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs <verb> [flags]
 ```
 
-It is documented here because an operator reading a workspace's ledger, outbox or manifest
-needs to know what wrote them, and because the verbs are the sanctioned way to touch those
-files by hand — never an editor.
+Outside a session, substitute the installed plugin directory for `CLAUDE_PLUGIN_ROOT`. Node 20 or
+newer, no dependencies to install. This is the form a script, a CI job, a workflow's orchestrator
+and the cockpit daemon use, and the verbs are the sanctioned way to touch a workspace's files by
+hand — never an editor.
 
-Each verb prints a JSON report. Exit `0` means the verb was
-accepted, exit `1` means it was rejected with a named code and **nothing was published**, and
-exit `2` means the runtime itself did not start. Every write commits through a temp file and a
-rename, so a rejected verb leaves the files on disk byte-for-byte what they were.
+Each verb prints a JSON report. Exit `0` means the verb was accepted, exit `1` means it was
+rejected with a named code and **nothing was published**, and exit `2` means the runtime itself did
+not start. Every write commits through a temp file and a rename, so a rejected verb leaves the
+files on disk byte-for-byte what they were.
 
-Both `--flag=value` and `--flag value` are accepted. Structured input arrives on standard
-input as JSON rather than in an argument, so no quoting has to survive a shell.
+Both `--flag=value` and `--flag value` are accepted. Structured input arrives on standard input as
+JSON rather than in an argument, so no quoting has to survive a shell.
 
-**`init`** — scaffold a workspace: the manifest, the workflow directory, an empty ledger with
-its index and log, and the outbox root. Members are discovered by a bounded two-level walk,
-following symlinks, so a repository checked out inside the workspace is found without being
-listed by hand.
-
-| Flag | Description |
-|------|-------------|
-| `--root=PATH` | The workspace root (required) |
-| `--members-root=PATH` | Where member checkouts live, when it is not the workspace root itself |
-| `--scaffold` | Additionally create a knowledge README and a root guidance stub where neither exists — never overwriting one |
-| `--force` | Replace an existing manifest instead of refusing |
-
-Without `--scaffold`, `init` writes nothing outside the framework directory, and every target
-it declines to write is named in the report with a reason.
-
-**`validate`** — judge the workspace, and any workflow definitions named with it. Deterministic
-and model-free: it parses, checks structure and ids, checks the graph is acyclic, resolves
-references, applies overlays, checks gate shape and warns on reserved keys, collecting findings
-per stage rather than stopping at the first. Errors exit `1`; warnings alone exit `0`.
-
-| Flag | Description |
-|------|-------------|
-| `--root=PATH` | The workspace root (required) |
-| `--definition=PATH` | A workflow definition to validate with the workspace (repeatable) |
+**`init`** and **`validate`** take the flags listed above. In this form `--root=PATH` is required
+rather than defaulted: a script has no working directory a user meant.
 
 **`envelope`** — build and publish one node's dispatch envelope, the contract between the run
 and the worker who picks it up. It is built from the definition rather than from state: the
@@ -307,8 +338,8 @@ other three refuse, because a lost status is not a lost result.
 
 **Workspace directory**: `.maister/umbrella/`
 **Verbs**: `init`, `validate`, `envelope`, `seed`, `ledger`, `outbox`
-**Entry point**: the script above — there is no `/maister:umbrella` slash command, and nothing
-in a user's mental model needs the word "umbrella" in it.
+**Entry point**: `/maister:umbrella init` and `/maister:umbrella validate` for a user; the script
+above for everything else, and for scripts and CI.
 
 ---
 

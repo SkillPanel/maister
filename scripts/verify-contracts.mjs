@@ -9108,6 +9108,82 @@ function t39(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T40 — the umbrella skill's user-facing verbs
+// ---------------------------------------------------------------------------
+
+/**
+ * Two of the runtime's six verbs are a user's entry point — `init` scaffolds a
+ * workspace, `validate` judges one — and a user reaches them as
+ * `/maister:umbrella <verb>`. The other four are the machinery a running chain
+ * uses, and the skill must not offer them to a user: a ledger op typed by hand
+ * is the drift the runtime exists to remove. The exec-form line is what the
+ * engine and the daemon call, so it is pinned byte for byte.
+ *
+ * The command reference is held to the same two rules where this checkout has
+ * it, so the shipped docs cannot drift back to naming the script as the entry
+ * point, or forward to naming a machine verb as a command.
+ */
+const UMBRELLA_SKILL_REL = 'skills/umbrella/SKILL.md';
+const UMBRELLA_DOCS_REL = 'docs/commands.md';
+const UMBRELLA_EXEC_LINE = 'node ${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs <verb> [flags]';
+const UMBRELLA_USER_VERBS = ['init', 'validate'];
+const UMBRELLA_MACHINE_VERBS = ['envelope', 'seed', 'ledger', 'outbox'];
+/** The slash form with the word that follows it: `/maister:umbrella init`, `/maister:umbrella `ledger``. */
+const UMBRELLA_SLASH_FORM = /\/maister:umbrella\s+`?([a-z-]+)/g;
+/** The sentence that closes the four machine verbs to a user, all four named in it. */
+const UMBRELLA_NOT_A_COMMAND =
+  /`envelope`, `seed`, `ledger`, `outbox`[^.]{0,160}\bnot a user command\b/;
+
+function t40(ctx) {
+  const t = checker();
+  const carriers = [
+    { path: UMBRELLA_SKILL_REL, file: path.join(ctx.pluginRoot, UMBRELLA_SKILL_REL), skill: true },
+    { path: UMBRELLA_DOCS_REL, file: path.join(ctx.repoRoot, UMBRELLA_DOCS_REL), repo: true },
+  ];
+  for (const carrier of carriers) {
+    if (carrier.repo && !isFile(carrier.file)) {
+      t.notes.push(`${carrier.path} is not in this checkout — skipped`);
+      continue;
+    }
+    t.check(`${carrier.path} names the two user verbs and no other`, () => {
+      must(isFile(carrier.file), `${carrier.path}: missing`);
+      const text = fs.readFileSync(carrier.file, 'utf8');
+      for (const verb of UMBRELLA_USER_VERBS) {
+        must(text.includes(`/maister:umbrella ${verb}`),
+          `${carrier.path}: never spells \`/maister:umbrella ${verb}\`, so the user path is undocumented`);
+      }
+      for (const hit of text.matchAll(UMBRELLA_SLASH_FORM)) {
+        must(!UMBRELLA_MACHINE_VERBS.includes(hit[1]),
+          `${carrier.path}: offers the machine verb \`${hit[1]}\` as a user command — ${JSON.stringify(hit[0])}`);
+      }
+      must(!/there is no `?\/maister:umbrella`? (?:slash )?command/i.test(text),
+        `${carrier.path}: still says there is no \`/maister:umbrella\` command`);
+    });
+    t.check(`${carrier.path} keeps the exec form the engine and the daemon call`, () => {
+      const text = fs.readFileSync(carrier.file, 'utf8');
+      must(text.includes(UMBRELLA_EXEC_LINE),
+        `${carrier.path}: the exec-form line is missing or changed — ${JSON.stringify(UMBRELLA_EXEC_LINE)}`);
+    });
+  }
+
+  t.check(`${UMBRELLA_SKILL_REL} is a user-invocable skill with the two verbs as its argument hint`, () => {
+    const text = fs.readFileSync(carriers[0].file, 'utf8');
+    const frontmatter = text.split('\n---\n')[0];
+    must(/^user-invocable: true$/m.test(frontmatter), 'user-invocable is not true, so the slash command does not exist');
+    const hint = /^argument-hint: "(.*)"$/m.exec(frontmatter)?.[1] ?? '';
+    for (const verb of UMBRELLA_USER_VERBS) {
+      must(new RegExp(`\\b${verb}\\b`).test(hint), `argument-hint does not name \`${verb}\``);
+    }
+    for (const verb of UMBRELLA_MACHINE_VERBS) {
+      must(!new RegExp(`\\b${verb}\\b`).test(hint), `argument-hint offers the machine verb \`${verb}\``);
+    }
+    must(UMBRELLA_NOT_A_COMMAND.test(text),
+      'the body no longer closes the four machine verbs to a user in one sentence');
+  });
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -9166,6 +9242,7 @@ const TESTS = [
   { id: 'T37', name: 'emitted-umbrella-smoke', needs: ['plugin', 'fixtures'], run: t37 },
   { id: 'T38', name: 'gate-suspend-writer', needs: ['plugin', 'fixtures'], run: t38 },
   { id: 'T39', name: 'gate-sequence-lockstep', needs: ['plugin'], run: t39 },
+  { id: 'T40', name: 'umbrella-user-verbs', needs: ['plugin'], run: t40 },
 ];
 
 // ---------------------------------------------------------------------------

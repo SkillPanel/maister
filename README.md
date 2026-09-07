@@ -231,7 +231,7 @@ beside it — and continues into umbrella workspaces and chains.
 | To | See |
 |---|---|
 | Watch a run you started in a terminal | [Cockpit README](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/README.md) |
-| Turn a workspace into an umbrella and author a chain | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
+| Turn a workspace into an umbrella (`/maister:umbrella init`, then `validate`) and author a chain | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
 | Understand what an autonomy tier actually enforces | [Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md) |
 
 ## Learn More

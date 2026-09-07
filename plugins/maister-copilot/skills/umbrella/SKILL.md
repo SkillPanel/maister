@@ -1,6 +1,7 @@
 ---
 name: umbrella
-description: Runs a multi-repository workspace — an umbrella directory whose members are checkouts of separate repositories — as one coordinated unit. Scaffolds and validates the workspace manifest, builds the dispatch envelope a workflow node hands to a worker in a member repository, renders that worker's seed prompt, and keeps the dispatch ledger and the per-dispatch outbox that carry results back. Six verbs behind one script, every write atomic and every rejection named. Machinery invoked by a workflow's own orchestrator and by the cockpit daemon; not a workflow a user starts directly.
+description: Scaffolds and validates a multi-repository workspace — an umbrella directory whose members are checkouts of separate repositories — and runs it as one coordinated unit. For a user, `init` turns a directory into a workspace and `validate` judges it together with any chain files, both reached as `/maister-umbrella <verb>`. For a workflow's orchestrator and for the cockpit daemon, the same script builds the dispatch envelope a node hands to a worker in a member repository, renders that worker's seed prompt, and keeps the dispatch ledger and the per-dispatch outbox that carry results back. Six verbs behind one script, every write atomic and every rejection named.
+argument-hint: "init [--root DIR] [--members-root DIR] [--force] | validate [--definition FILE ...]"
 user-invocable: true
 ---
 
@@ -12,10 +13,13 @@ turns a workflow node that names one of those members into a dispatch — an
 envelope describing the work, a seed prompt for whoever does it, a ledger entry
 that makes it visible, and an outbox that carries the answer back.
 
-**This is machinery, not a feature.** There is no umbrella command and no user
-entry point of its own: a user reaches a workspace through a workflow's command,
-and that workflow's orchestrator reaches the runtime by name. Nothing in a
-user's mental model needs the word "umbrella" in it.
+**Two of the six verbs are a user's; four are machinery.** A user reaches this
+skill as `/maister-umbrella init` to turn a directory into a workspace and as
+`/maister-umbrella validate` to judge it — the section *When a user invokes this
+skill* below says how each argument maps onto the script and what to report
+back. The other four verbs are reached by name, by a workflow's orchestrator and
+by the cockpit daemon while a run is in flight; a user never needs them, and this
+skill never offers them.
 
 **Nothing here spawns anything.** The runtime describes work and records it; it
 never launches a worker, never polls, and never holds a session open. A node
@@ -68,6 +72,51 @@ Exit `2` is the row that is easy to mishandle, because the tempting next step is
 to do by hand what the script would not do. Don't. A runtime that could not
 start is not a runtime that half-ran, and a hand-written envelope or ledger
 entry is exactly the drift the script exists to prevent.
+
+---
+
+## When a user invokes this skill
+
+The invocation carries an argument string whose first word is the verb. Only two
+verbs are reachable this way:
+
+| A user types | What runs |
+|---|---|
+| `/maister-umbrella init [--root DIR] [--members-root DIR] [--force]` | the exec form above with `init` and the flags as given |
+| `/maister-umbrella validate [--root DIR] [--definition FILE ...]` | the exec form above with `validate` and every `--definition` as given |
+
+Flags pass through as spelled — the script accepts both `--flag=value` and
+`--flag value`, and `--scaffold` on `init` passes through when given. One default
+is added: when no `--root` is given, pass the current working directory, since a
+user runs the command from inside the workspace they mean. Run the script with
+the shell tool, capture stdout and the exit code, and read the JSON report. The
+report is for machines; what goes back to the user is plain language:
+
+- **`init`, exit `0`** — the workspace root and the members root, each member
+  found with its path, what was created, what was preserved, and every skipped
+  target with its reason. Say the manifest is complete as written, where it
+  lives (`.maister/umbrella.yml`), and which two fields are most often changed
+  first: `defaults.autonomy`, which starts at the most conservative tier, and
+  `defaults.worktree`.
+- **`validate`, exit `0`** — what was judged (the manifest, and each definition
+  by name) and that it passed; each warning with its file, node and path, and
+  that warnings alone never block. A freshly scaffolded manifest carries one
+  advisory warning on a reserved key — say that it is expected.
+- **Exit `1`** — nothing was written, and say so first. Then each refusal or
+  error by its code: for `init`, the recovery from the workspace table under
+  *When a write is refused*; for `validate`, the file, node, path and message of
+  every error, so the user can go straight to the line.
+- **Exit `2`** — the runtime did not start. Quote the stderr message verbatim,
+  and do not do by hand what the script would not do.
+
+Any other first word — `envelope`, `seed`, `ledger`, `outbox`, or a word that
+is no verb at all — is not a user command. Say so, run nothing, and point at the
+plugin's command reference (`docs/commands.md`, *Umbrella*), where the
+machine-facing verbs are documented for an operator reading a ledger or an
+outbox by hand. Never guess which of the four was meant and never run one to be
+helpful: a ledger op typed by hand is the drift this runtime exists to remove.
+With no argument at all, ask with ask_user whether to scaffold the
+current directory (`init`) or judge it (`validate`).
 
 ---
 
