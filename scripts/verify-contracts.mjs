@@ -9120,9 +9120,9 @@ function t39(ctx) {
  * is the drift the runtime exists to remove. The exec-form line is what the
  * engine and the daemon call, so it is pinned byte for byte.
  *
- * The command reference is held to the same two rules where this checkout has
- * it, so the shipped docs cannot drift back to naming the script as the entry
- * point, or forward to naming a machine verb as a command.
+ * The command reference is held to the same two verb rules where this checkout
+ * has it, and additionally must not name the script at all: the exec form is
+ * something the engine and the daemon run, never something a user types.
  */
 const UMBRELLA_SKILL_REL = 'skills/umbrella/SKILL.md';
 const UMBRELLA_DOCS_REL = 'docs/commands.md';
@@ -9160,11 +9160,19 @@ function t40(ctx) {
       must(!/there is no `?\/maister:umbrella`? (?:slash )?command/i.test(text),
         `${carrier.path}: still says there is no \`/maister:umbrella\` command`);
     });
-    t.check(`${carrier.path} keeps the exec form the engine and the daemon call`, () => {
-      const text = fs.readFileSync(carrier.file, 'utf8');
-      must(text.includes(UMBRELLA_EXEC_LINE),
-        `${carrier.path}: the exec-form line is missing or changed — ${JSON.stringify(UMBRELLA_EXEC_LINE)}`);
-    });
+    if (carrier.skill) {
+      t.check(`${carrier.path} keeps the exec form the engine and the daemon call`, () => {
+        const text = fs.readFileSync(carrier.file, 'utf8');
+        must(text.includes(UMBRELLA_EXEC_LINE),
+          `${carrier.path}: the exec-form line is missing or changed — ${JSON.stringify(UMBRELLA_EXEC_LINE)}`);
+      });
+    } else {
+      t.check(`${carrier.path} does not name the script as something a user runs`, () => {
+        const text = fs.readFileSync(carrier.file, 'utf8');
+        must(!text.includes('umbrella.mjs'),
+          `${carrier.path}: names the runtime script — the user surface is the two commands`);
+      });
+    }
   }
 
   t.check(`${UMBRELLA_SKILL_REL} is a user-invocable skill with the two verbs as its argument hint`, () => {

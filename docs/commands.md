@@ -260,18 +260,14 @@ refusal by name with the move that clears it. No other verb is reachable from th
 `envelope`, `seed`, `ledger` and `outbox` are the machinery described next, and asking for one
 gets you pointed here.
 
-### From a script or CI — the workspace runtime
+### The workspace runtime
 
-Every verb, the two above included, is one script run in the exec form:
-
-```
-node ${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs <verb> [flags]
-```
-
-Outside a session, substitute the installed plugin directory for `CLAUDE_PLUGIN_ROOT`. Node 20 or
-newer, no dependencies to install. This is the form a script, a CI job, a workflow's orchestrator
-and the cockpit daemon use, and the verbs are the sanctioned way to touch a workspace's files by
-hand — never an editor.
+Every verb, the two above included, runs through one workspace runtime that the commands, a
+workflow's orchestrator and the cockpit daemon share. It is not something a user types: the two
+commands above are the user surface, and the runtime's other verbs are listed here so the reports
+and refusals they print are recognisable when a chain or the cockpit shows them. Node 20 or newer,
+no dependencies to install. The verbs are the sanctioned way anything touches a workspace's files —
+never an editor.
 
 Each verb prints a JSON report. Exit `0` means the verb was accepted, exit `1` means it was
 rejected with a named code and **nothing was published**, and exit `2` means the runtime itself did
@@ -281,8 +277,6 @@ files on disk byte-for-byte what they were.
 Both `--flag=value` and `--flag value` are accepted. Structured input arrives on standard input as
 JSON rather than in an argument, so no quoting has to survive a shell.
 
-**`init`** and **`validate`** take the flags listed above. In this form `--root=PATH` is required
-rather than defaulted: a script has no working directory a user meant.
 
 **`envelope`** — build and publish one node's dispatch envelope, the contract between the run
 and the worker who picks it up. It is built from the definition rather than from state: the
@@ -338,8 +332,8 @@ other three refuse, because a lost status is not a lost result.
 
 **Workspace directory**: `.maister/umbrella/`
 **Verbs**: `init`, `validate`, `envelope`, `seed`, `ledger`, `outbox`
-**Entry point**: `/maister:umbrella init` and `/maister:umbrella validate` for a user; the script
-above for everything else, and for scripts and CI.
+**Entry point**: `/maister:umbrella init` and `/maister:umbrella validate`; the other verbs are run
+by a workflow's orchestrator and by the cockpit, not by a user.
 
 ---
 
