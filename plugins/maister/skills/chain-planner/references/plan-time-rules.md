@@ -474,9 +474,15 @@ once, and re-validate.
 
 ---
 
-## 7. A checklist worth running before publishing
+## 7. The checklist: every plan-time rule, once
 
-Not a substitute for the loop — a list of what the loop cannot tell you.
+**This is the one enumeration of these rules.** The skill points here rather
+than carrying a second copy, and nothing else in the plugin should list them
+either — a rule stated twice is a rule that will eventually be stated two ways.
+Each item names the section above that explains it and cites the code.
+
+It is not a substitute for the loop; it is the list of what the loop cannot tell
+you. Run it against the draft before publishing.
 
 1. Does every guard read a `bool` from a node inside its needs closure, rather
    than an input? (2.1, 4.4)
@@ -485,10 +491,12 @@ Not a substitute for the loop — a list of what the loop cannot tell you.
 3. Are value names `[a-z_]+` and node ids hyphenated? (2.3)
 4. Is any node named after a reserved word? (2.4)
 5. Does every `dir:` node name a declared member, a driver-capable target, and
-   its own `provider:`? (3.1, 3.5)
+   its own `provider:` — and does its autonomy tier resolve somewhere along the
+   node/member/`defaults` chain? (3.1, 3.5)
 6. Does any `with:` value contain `${`? If so, it will vanish. (3.2)
-7. Is the statement one short physical line, and is the `with:` map small enough
-   that a wide wave still renders? (3.3, 3.4)
+7. Is the per-run text carried by the statement, on one short physical line, and
+   is the `with:` map small enough that a wide wave still renders inside the
+   seed's line budget? (3.3, 3.4)
 8. Does the guard repeat on every node of each conditional stretch, the closing
    gate included? (4.1)
 9. Does the companion carry one heading per inline node, equal to the node id?

@@ -19,12 +19,12 @@ run has already frozen. Everything it produces is a file a person reads before
 anything is launched — the review step is the cockpit's dry-run, and it is not
 optional.
 
-**It authors only what the grammar has.** There is no fan-out construct, no
-routing construct and no loop, so a chain that would need one is refused with
-what the shape would have to be, rather than written in a spelling the reader
-would only warn about. The three reserved words that look like those constructs
-parse, warn and do nothing; emitting one would be a chain that reads as if it
-worked.
+**It authors only what the grammar has.** A task that would need a construct the
+grammar lacks is refused with what the shape would have to be, rather than
+written in a spelling the reader would only warn about — a chain that reads as
+if it worked. `references/plan-time-rules.md` § 4.1 is where the absent
+constructs are named and where the consequence that catches drafts is worked
+through; this file states it nowhere else, so there is one copy to keep true.
 
 **It writes nothing on a refusal, and says so first.** Every row of the refusal
 table below leaves the workspace byte-for-byte as it was, because the loop
@@ -191,21 +191,12 @@ Warnings never block, and they are not all the planner's to fix.
 ### The rules the planner enforces itself
 
 The validator does not report these, or does not report them in time to help.
-`references/plan-time-rules.md` carries each one with the code that enforces it;
-this list is what the planner checks before it publishes:
-
-- no `${` in a `with:` value meant to reach the worker as an input — such values
-  are dropped, so interpolation is never how a value reaches a worker;
-- per-run text carried by the statement override, on one physical line;
-- a small `with:` map and short statements, so the worker's seed stays inside its
-  line budget — an over-budget seed is refused at dispatch, never truncated;
-- `provider:` on every dispatching node, and an autonomy tier that resolves;
-- the guard repeated on **every** node of a conditional stretch, the closing gate
-  included, because a skipped node satisfies everything downstream;
-- one prose section per inline node, keyed by exact heading equality;
-- `bool`, `id` and `enum` value outputs preferred over `string`;
-- no reserved key anywhere, **including as a node id**;
-- only constructs the definition reader's YAML subset accepts.
+They are enumerated in exactly one place — `references/plan-time-rules.md` § 7,
+whose eleven items each cite the section that explains the rule and the code
+that enforces it. **Run that checklist against the draft before publishing**, and
+read the sections it points at for anything the draft does not obviously
+satisfy. The list is not repeated here: three copies of one grammar is how the
+copies start to disagree, and the checklist is a file read away.
 
 ### Inputs
 
@@ -221,9 +212,10 @@ by the person who reads it.
 
 ### The plan file
 
-`<name>.plan.md` carries four required headings. The prose under each is free;
-the headings are not, so a reviewer knows what to expect and a later check can
-pin them:
+`<name>.plan.md` carries four required headings, spelled exactly as below and in
+this order. The prose under each is free; the headings are not, so a reviewer
+knows what to expect — and the contract suite pins them against a checked-in
+plan file, in both directions:
 
 1. **The task, as given** — the user's text verbatim, not a paraphrase.
 2. **The nodes** — a table saying what each node does and why it exists.
@@ -255,7 +247,7 @@ Every row writes nothing. Say that first, then the recovery.
 |---|---|
 | **Not a workspace** — `--root` holds no manifest at `.maister/umbrella.yml`. | There is nothing to plan against: member names, providers and defaults all come from the manifest. Run the workspace init command in the directory that holds the repositories, then plan again. Point `--root` at the workspace if the current directory was not it. |
 | **No members declared** — the manifest is there and declares none. | Nothing can be dispatched, so the chain would be gates and inline nodes only, entirely inside the coordinating repository. Say so, and ask whether that is what was meant. If members were expected, the workspace init command registers them; a member is a checkout under the workspace or its members root. |
-| **The task needs fan-out, routing, or a loop** — one node over an unknown set, a choice of branch decided at run time, or a repeat-until. | The grammar has none of the three, and the words that look like them warn and do nothing. Say what the chain would need. Then offer the shape that does exist: explicit nodes, one per known target, each behind its own guard — which is the reason the member set has to be known at plan time. |
+| **The task needs fan-out, routing, or a loop** — one node over an unknown set, a choice of branch decided at run time, or a repeat-until. | Say what the chain would need, and why it cannot be written — `references/plan-time-rules.md` § 4.1 carries the reason. Then offer the shape that does exist: explicit nodes, one per known target, each behind its own guard — which is the reason the member set has to be known at plan time. |
 | **A dispatch names a member the manifest does not declare.** | List the members the manifest does declare, with their paths, so the intended one can be named or added. A member name is not a repository name and not a path — it is the key the manifest uses. |
 | **A dispatch target cannot honour a driver.** | Name the target the task implied and say why it cannot be dispatched: dispatched work runs with no one to answer a question, so the target has to be one that suspends at a gate instead of asking. Then list the driver-capable alternatives **as discovered** — never the engine, which is the runner rather than a target — or drop the dispatch and run the step in the coordinating repository. |
 | **`--name` is empty, too short, or off the charset.** | Say which of the three, quote what was derived or given, and ask for `--name` explicitly. The stem is lowercase letters, digits and hyphens, starts with a letter, and is at least two characters. |

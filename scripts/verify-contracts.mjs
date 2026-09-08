@@ -7692,8 +7692,25 @@ workflow:
       try { build('dev-plain'); } catch (err) { refusal = err; }
       must(refusal !== null, 'the non-capable node was dispatched');
       must(refusal.code === 'dispatch-workflow-not-driver-capable', `the refusal code is ${refusal.code}`);
-      must(refusal.message.endsWith('the node "dev-plain" dispatches into a member with uses: skill:quick-dev, which cannot honour a driver: a dispatched worker has to record orchestrator.driver.kind, write its gate requests and print a marker instead of asking, and only an orchestrator workflow does that. Point the node at an orchestrator skill or a workflow:, or drop the dir: and run it in the coordinating repository.'),
-        `the dispatch refusal message changed: ${refusal.message}`);
+      // What the message has to *do* is pinned; its wording is not. An operator
+      // who meets this refusal mid-run has to learn which node was refused,
+      // which target failed the rule, what the rule is, and both ways out — so
+      // those five are asserted and the sentence carrying them stays editable.
+      for (const [obligation, present] of [
+        ['names the node it refused', /"dev-plain"/],
+        ['names the target that cannot honour a driver', /skill:quick-dev/],
+        ['names the rule the target fails', /orchestrator\.driver\.kind/],
+        ['offers the capable-target recovery', /\bworkflow:/],
+        ['offers the drop-the-dispatch recovery', /drop the .{0,2}dir:/],
+      ]) {
+        must(present.test(refusal.message),
+          `the dispatch refusal no longer ${obligation}: ${refusal.message}`);
+      }
+      // A message that keeps the five needles and loses everything around them
+      // is not a recovery any more. The declared recoveries carry a length
+      // floor of their own; this is the runtime message's.
+      must(refusal.message.length >= 160,
+        `the dispatch refusal is ${refusal.message.length} characters — too short to carry a recovery: ${refusal.message}`);
       throwsWith('no autonomy anywhere', 'dispatch-autonomy-unresolved',
         () => build('dev-docs', { manifest: { ...T35_MANIFEST, defaults: {} } }));
     });
@@ -9367,13 +9384,17 @@ function t40(ctx) {
  * *absent* from the planner's skill file — adding it there would silently make
  * the planner dispatchable with nothing else to notice.
  *
- * The last check is the output, not the prose: a checked-in definition and
- * companion pair, the shape the loop publishes, run through the workspace
+ * The last checks are the output, not the prose. A checked-in definition and
+ * companion pair, the shape the loop publishes, is run through the workspace
  * runtime's own `validate` against a workspace staged the way the
  * umbrella-runtime test stages one. It must be accepted with exactly the one
  * warning a freshly scaffolded manifest always carries — the workspace's
  * reserved-key advisory, not the chain's — because "the pair validates clean"
  * is the planner's whole contract and nothing else in the suite asserts it.
+ * The third published file, `<stem>.plan.md`, no validator judges at all, so
+ * its four required headings are pinned here against the skill that requires
+ * them — both directions, so renaming the requirement without renaming the
+ * fixture fails rather than quietly leaving the plan file unproved again.
  *
  * The command reference is repository-level: absent in the tarball, and skipped
  * with a note there rather than failed. That is the only skip it gets — a
@@ -9401,6 +9422,18 @@ const PLANNED_CHAIN_STEM = 'docs-refresh';
 const PLANNED_CHAIN_MEMBERS = ['docs-site', 'repo-alpha'];
 /** A freshly scaffolded manifest carries exactly this one advisory, and the chain adds none. */
 const PLANNED_CHAIN_WARNINGS = ['reserved-key:routing.tiers'];
+/**
+ * The plan file's four required headings, in the order the skill requires them.
+ * It is the third of the three files the planner publishes and the only one no
+ * validator judges, so the headings are pinned here or nowhere: the skill makes
+ * them a requirement, and a requirement nothing checks is a suggestion.
+ */
+const PLANNED_CHAIN_PLAN_HEADINGS = [
+  'The task, as given',
+  'The nodes',
+  'The guards',
+  'Refusals considered and rejected',
+];
 
 async function t41(ctx) {
   const t = checker();
@@ -9451,6 +9484,22 @@ async function t41(ctx) {
     const text = fs.readFileSync(skillFile, 'utf8');
     must(!text.includes(PLANNER_DRIVER_LITERAL),
       `the skill states ${JSON.stringify(PLANNER_DRIVER_LITERAL)}, which makes driverCapable() answer true for it: the planner becomes a legal dir: target and a chain can dispatch the planner into a member`);
+  });
+
+  t.check(`${PLANNED_CHAIN_FIXTURE}/${PLANNED_CHAIN_STEM}.plan.md carries the four required headings, in order`, () => {
+    const planFile = path.join(ctx.fixtures, PLANNED_CHAIN_FIXTURE, `${PLANNED_CHAIN_STEM}.plan.md`);
+    must(isFile(planFile), `${PLANNED_CHAIN_FIXTURE}/${PLANNED_CHAIN_STEM}.plan.md: missing — the planner publishes three files, not two`);
+    const headings = fs.readFileSync(planFile, 'utf8')
+      .split('\n')
+      .filter(line => line.startsWith('## '))
+      .map(line => line.slice(3).replace(/`/g, '').trim());
+    equalJson(headings, PLANNED_CHAIN_PLAN_HEADINGS,
+      'the plan file\'s second-level headings — the skill requires exactly these four, in this order');
+    const skillText = fs.readFileSync(skillFile, 'utf8');
+    for (const heading of PLANNED_CHAIN_PLAN_HEADINGS) {
+      must(skillText.includes(heading),
+        `${PLANNER_SKILL_REL} no longer requires the heading ${JSON.stringify(heading)} the fixture is pinned to`);
+    }
   });
 
   t.check(`${PLANNER_REFERENCE_REL} is present`, () => {
