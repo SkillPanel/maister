@@ -33,6 +33,8 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 After installing, restart Claude Code (`/exit` and relaunch) to ensure the plugin is fully loaded.
 
+On GitHub Copilot CLI, install the `maister-copilot` variant with `copilot plugin install` — from a registered marketplace (`copilot plugin marketplace add SkillPanel/maister`, then `copilot plugin install maister-copilot@maister-plugins`) or straight from the repository subdirectory (`copilot plugin install SkillPanel/maister:plugins/maister-copilot`). To run a local checkout instead, load it with `copilot --plugin-dir /path/to/maister/plugins/maister-copilot`; add `--add-dir` for the same path when the checkout sits outside your working directory, which grants file access to it. `--add-dir` on its own does not load a plugin.
+
 ### Initial project setup
 
 Initialize your project to auto-detect coding standards and generate project documentation:
