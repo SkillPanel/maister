@@ -10115,6 +10115,76 @@ async function t43(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T44 — every workflow type has a run fixture
+// ---------------------------------------------------------------------------
+
+/**
+ * The workflow-type enum (`common.schema.json#/$defs/workflow_type`) is closed,
+ * and appending to it is a contract change: register row, schema and fixture
+ * move together (CLAUDE.md, hard rules). The schema and the register are read
+ * by every test; a *missing* fixture is read by none of them, which is how
+ * `plan` shipped with its enum member and its register row and no run
+ * fixture at all. This test closes that gap: for every enum member there is at
+ * least one `valid` run fixture whose state file resolves to that type, so the
+ * next enum addition fails the suite until its run directory is sampled.
+ *
+ * A run fixture's type is read from where the writer records it: the A4
+ * `task_path` type segment first, then `orchestrator.type`, then the
+ * dashboard's `task.type`. The register spells the migration type dir in the
+ * plural, the enum in the singular; the segment is normalized so a fixture
+ * written against either spelling counts.
+ */
+const WORKFLOW_TYPE_POINTER = '/$defs/workflow_type/enum';
+const TYPE_DIR_ALIASES = new Map([['migrations', 'migration']]);
+
+/** The workflow type a run fixture records, or null when it is not a run. */
+function runFixtureType(fx) {
+  const { state, dashboard } = runPair(fx);
+  if (!state) return null;
+  const taskPath = String(state.orchestrator?.task_path ?? '');
+  const segments = taskPath.split('/');
+  const at = segments.indexOf('tasks');
+  const fromPath = at >= 0 && segments.length > at + 2 ? segments[at + 1] : null;
+  const raw = fromPath ?? state.orchestrator?.type ?? dashboard?.task?.type ?? null;
+  return raw === null ? null : (TYPE_DIR_ALIASES.get(String(raw)) ?? String(raw));
+}
+
+function t44(ctx) {
+  const failures = [];
+  const notes = [];
+  let checks = 0;
+
+  const common = readJson(path.join(ctx.schemas, 'common.schema.json'));
+  const members = resolvePointer(common, WORKFLOW_TYPE_POINTER);
+  checks++;
+  if (!Array.isArray(members) || members.length === 0) {
+    return { checks, failures: [`common.schema.json#${WORKFLOW_TYPE_POINTER} is not a non-empty enum`] };
+  }
+
+  const covered = new Map(members.map(m => [m, []]));
+  for (const fx of byVerdict(ctx, 'valid')) {
+    const type = runFixtureType(fx);
+    if (type === null) continue;
+    checks++;
+    if (!covered.has(type)) {
+      failures.push(`${fx.id}: records workflow type ${JSON.stringify(type)}, which is not an enum member`);
+      continue;
+    }
+    covered.get(type).push(fx.id);
+  }
+
+  for (const [type, ids] of covered) {
+    checks++;
+    if (ids.length === 0) {
+      failures.push(`${type}: an enum member with no valid run fixture — sample one under fixtures/contracts/valid/runs/${type}-<slug>/`);
+    } else {
+      notes.push(`${type}: ${ids.join(', ')}`);
+    }
+  }
+  return { checks, failures, notes };
+}
+
 
 // ===========================================================================
 // registry and entry point
@@ -10178,6 +10248,7 @@ const TESTS = [
   { id: 'T41', name: 'chain-planner-surface', needs: ['plugin', 'fixtures'], run: t41 },
   { id: 'T42', name: 'generated-chain-home', needs: ['plugin', 'fixtures'], run: t42 },
   { id: 'T43', name: 'plan-workflow-surface', needs: ['plugin', 'fixtures'], run: t43 },
+  { id: 'T44', name: 'workflow-type-fixture-coverage', needs: ['fixtures'], run: t44 },
 ];
 
 // ---------------------------------------------------------------------------

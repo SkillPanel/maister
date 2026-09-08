@@ -1,0 +1,45 @@
+{
+  "id": "plan-token-bucket",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A5",
+    "A6",
+    "B2",
+    "B3",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-alpha/plan/2026-09-08-token-bucket-rate-limiter",
+  "writer_version": "2.3.0-beta.7",
+  "sampled_at": "2026-09-08T19:09:01Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "gates/index.yml",
+      "schema": "gate.schema.json#/$defs/index"
+    },
+    {
+      "path": "gates/plan-approval.request.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    },
+    {
+      "path": "implementation/plan.md",
+      "schema": null
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "The first plan-typed run: a chain-only workflow:plan node dispatched under the dispatch driver, sampled from a real headless provider session. No per-workflow context block -- the four nodes (standards-discovery, plan, plan-approval, handoff) live under the frozen workflow: block with node_summaries beside it, the plan-approval gate is answered via file by the dispatching operator, and handoff carries the two emitted values (plan_outcome, plan). Artifacts keep the A4 layout (implementation/plan.md) rather than the artifacts/ flattening the older run fixtures use. Only the two absolute paths (driver.cwd, workflow.source) are pseudonymized; the em dashes and box-drawing characters of the plan were replaced with ASCII."
+}

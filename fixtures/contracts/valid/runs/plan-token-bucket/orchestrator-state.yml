@@ -1,0 +1,94 @@
+orchestrator:
+  started_phase: handoff
+  completed_phases: [standards-discovery, plan, plan-approval, handoff]
+  failed_phases: []
+  created: "2026-09-08T15:44:30Z"
+  updated: "2026-09-08T15:55:14Z"
+  task_path: .maister/tasks/plan/2026-09-08-token-bucket-rate-limiter
+  gate_pending: null
+  options: {html_output: true}
+  task_ids: {}
+  driver: {kind: dispatch, cwd: /home/dev/work/proof-ws/api-service/.worktrees/019260b1-0001-7c00-8a00-0123456789ab-plan-api}
+
+task:
+  title: "Add a token bucket rate limiter to the request pipeline"
+  description: "Add a token bucket rate limiter to the request pipeline"
+  status: completed
+
+workflow:
+  source: /home/dev/work/plugin-copy/plugins/maister/skills/workflow-engine/workflows/plan.yml
+  overlays: []
+  profile: null
+  graph_hash: "sha256:9fa47c2bcc7830faa9bb8064d228d7a3181a860d0da25a8ea268c1c877990598"
+  grammar_version: 1
+  name: plan
+  nodes:
+    standards-discovery: {kind: task, status: completed, started: "2026-09-08T15:44:49Z", completed: "2026-09-08T15:45:05Z", needs: []}
+    plan: {kind: task, status: completed, started: "2026-09-08T15:45:05Z", completed: "2026-09-08T15:49:20Z", needs: [standards-discovery]}
+    plan-approval: {kind: gate, status: completed, started: "2026-09-08T15:49:20Z", completed: "2026-09-08T15:50:07Z", needs: [plan]}
+    handoff: {kind: task, status: completed, started: "2026-09-08T15:55:14Z", completed: "2026-09-08T15:55:14Z", needs: [plan-approval], values: {plan_outcome: approved, plan: implementation/plan.md}}
+
+node_summaries:
+  standards-discovery:
+    status: completed
+    summary: "Greenfield: no docs index and no standards files found in api-service; planning proceeds against the repo's own ES-module conventions."
+    decisions:
+      - decision: Plan against repo conventions rather than a standards index
+        rationale: No .maister/docs/INDEX.md exists and no docs_index input was supplied
+    risks:
+      - No project standards exist, so the plan cannot be checked against one; running the initialization command would establish them.
+    artifacts: []
+    icon_hint: analysis
+  plan:
+    status: completed
+    summary: "Plan written to implementation/plan.md by the host Plan subagent: a dependency-free lazy-refill token bucket (core, keyed store, middleware) plus the minimal (ctx, next) pipeline it attaches to, in six task groups with 2-8 tests each."
+    decisions:
+      - decision: In-process Map store, no Redis
+        rationale: the repo has zero dependencies and no deployment topology defined; a shared store is a documented extension point (BucketStore interface), not day-one scope
+      - decision: Lazy refill on read, no timers
+        rationale: O(1) per request, no background interval to leak or to keep the event loop alive
+      - decision: Monotonic clock injected as now()
+        rationale: wall clock is subject to NTP steps and adjustable jumps, which can grant infinite tokens or freeze a bucket
+      - decision: Framework-agnostic core
+        rationale: TokenBucket knows nothing about HTTP, so the core is unit-testable without a server
+      - decision: "node:test + node:assert as the test runner"
+        rationale: keeps the zero-dependency posture
+      - decision: "Add a package.json with type: module"
+        rationale: src/index.js already uses export, which currently only works via .mjs or an implicit assumption
+      - decision: Deny (429) by default when over limit, sweep idle buckets on a size threshold
+        rationale: an unbounded Map keyed by client IP is a memory-exhaustion vector
+    risks:
+      - No pipeline exists. The plan invents one; if a framework (Express/Fastify/Hono) is intended for api-service, the middleware adapter must be swapped before implementation starts.
+      - "Multi-instance correctness: an in-process limiter allows N x rate in aggregate across N instances."
+      - "Key selection is a security decision: remote address is wrong behind a proxy, X-Forwarded-For is spoofable without a trusted-proxy count."
+      - "Fail-open vs fail-closed on store errors is deferred: the flag is reserved, the semantics are not decided."
+      - No CI, no lint config, no formatter in the repo, so nothing enforces the conventions the plan follows.
+      - No project standards were found; running the initialization command would establish them.
+    artifacts:
+      - path: implementation/plan.md
+        label: Implementation plan
+        html: null
+    icon_hint: plan
+  plan-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-handoff. The plan stands and the run proceeds to handoff."
+    decisions:
+      - decision: continue-to-handoff
+        rationale: the dispatching operator approved the plan and chose to continue to handoff
+    risks: []
+    artifacts: []
+    icon_hint: plan
+  handoff:
+    status: completed
+    summary: "Handoff recorded: plan artifact implementation/plan.md and plan_outcome approved. The run ends here; a chain that dispatched it reads both from this state."
+    decisions: []
+    risks: []
+    artifacts:
+      - path: implementation/plan.md
+        label: Implementation plan
+        html: null
+    icon_hint: done
+
+project_context:
+  project_doc_paths: []
+  project_context_summary: "No .maister/docs/INDEX.md exists in api-service and no docs_index input was supplied, so no project standards were found. The member repo is a bare Node ES-module package (src/index.js only). Greenfield fallback applies: the plan is written against the code's own conventions and records that running the initialization command would establish standards."

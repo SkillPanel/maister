@@ -1,0 +1,19 @@
+version: 1
+run_id: 019260b1-0001-7c00-8a00-0123456789ab
+node: plan-approval
+kind: gate
+asked_at: "2026-09-08T15:50:07Z"
+question: "Plan complete. Continue to handoff?"
+context:
+  summary: "implementation/plan.md plans a dependency-free lazy-refill token bucket for api-service: pure core, keyed store with bounded eviction, framework-agnostic (ctx, next) middleware, plus the minimal node:http pipeline it attaches to, in six task groups with 2-8 tests each. api-service is greenfield (src/index.js only, no package.json, no standards index), so the plan proposes the pipeline shape and records that no project standards were found."
+  artifacts:
+    - implementation/plan.md
+options:
+  - {id: continue-to-handoff, label: "Continue to handoff", effect: continue, description: "Record the plan path and plan_outcome: approved, and finish the run.", recommended: true}
+  - {id: stop-after-plan, label: "Stop after plan", effect: stop, description: "End the run here; handoff never becomes ready and the plan stands as the only output."}
+multi_select: false
+answer:
+  option: continue-to-handoff
+  answered_by: dispatching-operator
+  at: "2026-09-08T15:50:07Z"
+  via: file
