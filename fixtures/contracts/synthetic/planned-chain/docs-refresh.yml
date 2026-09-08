@@ -1,0 +1,54 @@
+# A planned chain, as the chain planner publishes one.
+#
+# This is the shape the planner's draft-validate-publish loop ends on: a
+# definition and the prose companion beside it, both under one stem, holding
+# only constructs the grammar actually has. It is checked in so the suite can
+# prove that shape stays clean against the workspace runtime's own validator -
+# a planner that starts emitting something the validator warns about is a
+# planner whose output a reviewer has to second-guess.
+#
+# It is deliberately small and deliberately complete: one inline node that
+# declares a bool, one gate, two dispatching nodes into two declared members
+# with a provider each, one guarded node whose bool comes from inside its own
+# needs closure, and one inline close-out. No reserved key appears anywhere,
+# including as a node id, and no `${` reaches a dispatched worker's with: map.
+#
+# The companion (docs-refresh.md) carries one section per inline node, keyed by
+# exact heading equality, because a companion is looked for beside the file
+# that declares the node.
+version: 1
+name: docs-refresh
+nodes:
+  survey:
+    uses: direct:survey
+    needs: []
+    outputs:
+      artifacts:
+        notes: analysis/survey.md
+      values:
+        docs_affected: bool
+
+  survey-approval:
+    type: gate
+    needs: [survey]
+    ask: "The survey is done. Continue into the two repositories?"
+    options:
+      continue-to-build: continue
+      stop-chain: stop
+
+  build-api:
+    uses: skill:development
+    needs: [survey-approval]
+    dir: repo-alpha
+    provider: claude
+
+  update-docs:
+    uses: skill:development
+    needs: [build-api]
+    when: "${survey.values.docs_affected}"
+    dir: docs-site
+    provider: claude
+
+  close-out:
+    uses: direct:close-out
+    needs: [build-api]

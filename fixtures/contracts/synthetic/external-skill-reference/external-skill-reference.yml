@@ -1,0 +1,23 @@
+# A definition whose second node names a skill this tree does not carry. The
+# name is well formed and the scheme is known, so the only thing wrong with it
+# is that nothing here provides it - and nothing here can prove nothing does,
+# because a consumer project may install the plugin that does. The runner
+# accepts the document and warns once, naming the node and the target it could
+# not resolve.
+#
+# Everything else about the graph is deliberately quiet: no reserved key, no
+# declared value output, no gate, no cycle, so the expected warning set is this
+# one warning and a second warning appearing here is a regression.
+name: external-skill-reference
+version: 1
+inputs:
+  brief: {type: path, required: true}
+nodes:
+  plan:
+    uses: skill:quick-plan
+    needs: []
+    with: {brief: "${inputs.brief}"}
+  handoff:
+    uses: skill:partner-review
+    needs: [plan]
+    with: {brief: "${inputs.brief}"}

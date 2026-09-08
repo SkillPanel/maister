@@ -73,9 +73,10 @@
  * The refusal set is closed: `dispatch-node-incomplete`,
  * `dispatch-graph-drifted`, `dispatch-autonomy-unresolved`,
  * `dispatch-autonomy-unknown`, `dispatch-workflow-not-driver-capable`,
- * `dispatch-closeout-impossible`, `dispatch-envelope-exists`,
- * `dispatch-unwritable`, `dispatch-temp-exists`, and `value-not-flow-safe` from
- * the shared emitter. Each is documented with its recovery in `SKILL.md`.
+ * `dispatch-run-unresolved`, `dispatch-closeout-impossible`,
+ * `dispatch-envelope-exists`, `dispatch-unwritable`, `dispatch-temp-exists`,
+ * and `value-not-flow-safe` from the shared emitter. Each is documented with
+ * its recovery in `SKILL.md`.
  */
 
 import fs from 'node:fs';
@@ -249,7 +250,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const runId = runIdOf({ state, run });
 
   const inputs = inputsOf(defined);
-  const worktree = worktreeOf({ manifest, node });
+  const worktree = worktreeOf({ manifest, runId, node });
   const session = mapOf(overrides.session);
   const statement = statementOf({ defined, overrides });
   const prRequired = closeoutPrOf({ node, autonomy, overrides });
@@ -311,17 +312,43 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
  * `workflow:` target is run by the engine, which is driver-aware itself, so it
  * qualifies without the lookup. `agent:` and `direct:` targets are steps inside
  * a run, not runs, and can never be dispatched.
+ *
+ * Exported as a **boolean predicate**, not as the assertion below, and that is
+ * the whole of the difference between the two. `manifest.mjs`'s `validate`
+ * reports located `{file, node, path, message}` entries and never refuses; were
+ * it to call a helper that throws, a dispatch-vocabulary refusal code would
+ * have to be caught on the validate path and quoted in a validate report. So
+ * the rule — the driver-rule pattern and the skill-text read — has one
+ * definition and one grep here, and each caller composes its own answer from
+ * the boolean: this module refuses, the validator locates.
+ *
+ * The engine itself carries the driver literal and therefore qualifies. That is
+ * deliberate and is today's behaviour: no exclusion lives in the rule. A
+ * planner offering an operator a set of dispatch targets excludes the engine
+ * when it *authors* the set, which is a presentational choice made where the
+ * set is presented, not here.
+ */
+export function driverCapable(uses) {
+  if (typeof uses !== 'string' || uses === '') return false;
+  const at = uses.indexOf(':');
+  const scheme = at < 0 ? '' : uses.slice(0, at);
+  const name = at < 0 ? '' : uses.slice(at + 1);
+  if (scheme === 'workflow') return true;
+  return scheme === 'skill' && DRIVER_RULE.test(skillText(name));
+}
+
+/**
+ * The dispatch-side reading of the predicate. The refusal and its two messages
+ * are this module's own and are unchanged by the extraction: an absent `uses:`
+ * is reported as the missing declaration it is rather than as an incapable
+ * target, because the recovery differs.
  */
 function assertDriverCapable({ node, uses }) {
   if (typeof uses !== 'string' || uses === '') {
     throw new Refusal('dispatch-workflow-not-driver-capable',
       `the node "${node}" dispatches into a member but names no uses:, so there is no workflow to run under a driver`);
   }
-  const at = uses.indexOf(':');
-  const scheme = at < 0 ? '' : uses.slice(0, at);
-  const name = at < 0 ? '' : uses.slice(at + 1);
-  if (scheme === 'workflow') return;
-  if (scheme === 'skill' && DRIVER_RULE.test(skillText(name))) return;
+  if (driverCapable(uses)) return;
   throw new Refusal('dispatch-workflow-not-driver-capable',
     `the node "${node}" dispatches into a member with uses: ${uses}, which cannot honour a driver: a dispatched worker has to record orchestrator.driver.kind, write its gate requests and print a marker instead of asking, and only an orchestrator workflow does that. Point the node at an orchestrator skill or a workflow:, or drop the dir: and run it in the coordinating repository.`);
 }
@@ -458,12 +485,25 @@ function inputsOf(defined) {
 }
 
 /**
- * The worktree the dispatch works in, named after the node so two dispatches of
- * one run never share a checkout. `defaults.worktree: false` opts a workspace
- * out and the dispatch then works in the member checkout itself.
+ * The worktree the dispatch works in, named after the run and the node, so two
+ * runs' dispatches of one node never share a checkout. Naming it after the node
+ * alone was the older shape and it collided: a second run of the same chain
+ * into the same member landed in the first run's tree.
+ * `defaults.worktree: false` opts a workspace out and the dispatch then works
+ * in the member checkout itself.
+ *
+ * Exported, unlike its neighbours, because the refusal it raises is not
+ * reachable through the envelope builder — the run id there is a resolved
+ * directory basename and is null only for a path that cannot be staged — so a
+ * direct call is the only way to provoke the code.
  */
-function worktreeOf({ manifest, node }) {
-  return mapOf(manifest?.defaults).worktree === false ? null : `.worktrees/${node}`;
+export function worktreeOf({ manifest, runId, node }) {
+  if (mapOf(manifest?.defaults).worktree === false) return null;
+  if (typeof runId !== 'string' || runId === '') {
+    throw new Refusal('dispatch-run-unresolved',
+      `the node "${node}" would be dispatched into a worktree, but no run id resolves, so the worktree cannot be named after its run: point --run at the run directory whose basename is the run id, or record the run's task path in its state, or set defaults.worktree: false in the manifest to work in the member checkout itself. Nothing was written.`);
+  }
+  return `.worktrees/${runId}-${node}`;
 }
 
 /**

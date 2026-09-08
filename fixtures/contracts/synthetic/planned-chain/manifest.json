@@ -1,0 +1,23 @@
+{
+  "id": "planned-chain",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-08T00:00:00Z",
+  "files": [
+    {
+      "path": "docs-refresh.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "docs-refresh.md",
+      "schema": null
+    }
+  ],
+  "notes": "A planned chain as the chain planner publishes one: a definition and the prose companion beside it, under one stem. The suite copies both into a scratch workspace staged the way the umbrella-runtime test stages one - two members under projects/, then umbrella init - and runs the workspace runtime's own validate over the pair, expecting ok true and exactly one warning, the freshly scaffolded manifest's reserved-key:routing.tiers advisory, which is the workspace's and not the chain's. The pair holds only constructs the grammar has: one inline node declaring a bool value output, one gate with one continue and one stop, two dispatching nodes into two declared members with a provider each, one guarded node whose bool comes from inside its own needs closure, and one inline close-out. No reserved key appears anywhere, including as a node id. docs-refresh.md carries schema null because a prose companion is judged by the graph checker's heading-equality lint, not by a schema. expect is absent on purpose: the corpus-wide consumer of expect.warnings is hard-wired to the reserved-key fixture, so a warning expectation declared here would assert nothing - the expectation is asserted in the suite instead."
+}

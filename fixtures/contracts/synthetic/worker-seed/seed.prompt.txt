@@ -1,7 +1,7 @@
 # identity
 You are dispatch d-0142 of run 019260a2-1122-7c33-8d44-5e6677889900, node dev-beta.
-Member repo-beta, checked out at /workspaces/widget/projects/repo-beta, worktree /workspaces/widget/projects/repo-beta/.worktrees/dev-beta.
-Work in /workspaces/widget/projects/repo-beta/.worktrees/dev-beta. Every path below is absolute except the read-only inputs under `# task`, which are as the dispatching run named them; write nothing outside that directory except through the outbox verb named below.
+Member repo-beta, checked out at /workspaces/widget/projects/repo-beta, worktree /workspaces/widget/projects/repo-beta/.worktrees/019260a2-1122-7c33-8d44-5e6677889900-dev-beta.
+Work in /workspaces/widget/projects/repo-beta/.worktrees/019260a2-1122-7c33-8d44-5e6677889900-dev-beta. Every path below is absolute except the read-only inputs under `# task`, which are as the dispatching run named them; write nothing outside that directory except through the outbox verb named below.
 Autonomy tier auto-high; the permissions it grants are already in force, so a refused command is the tier and not a mistake.
 
 # task

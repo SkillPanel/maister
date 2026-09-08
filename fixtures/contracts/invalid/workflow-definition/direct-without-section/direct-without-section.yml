@@ -1,0 +1,27 @@
+# Invalid: the intake node is a direct: node, its prose companion exists beside
+# this file, and that companion carries no section named "intake". A direct:
+# node has no implementation anywhere else - the engine executes it out of that
+# section - so this is a node with nothing to run, and the one target scheme a
+# static check can decide.
+#
+# The companion existing but being silent is the stronger of the two failure
+# modes: a missing companion could be a packaging accident, while a present one
+# with no matching heading is a definition and its prose out of step.
+#
+# The graph is deliberately acyclic, gate-free and free of unknown references.
+# The DAG check and the gate-continue check run ahead of everything else for a
+# definition and the suite reads the first error only, so a fixture that tripped
+# either would be reported for the wrong reason.
+name: direct-without-section
+version: 1
+inputs:
+  brief: {type: path, required: true}
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    with: {brief: "${inputs.brief}"}
+  build:
+    uses: skill:quick-dev
+    needs: [intake]
+    with: {brief: "${inputs.brief}"}

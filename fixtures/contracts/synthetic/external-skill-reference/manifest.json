@@ -1,0 +1,24 @@
+{
+  "id": "external-skill-reference",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-08T10:12:44Z",
+  "files": [
+    {
+      "path": "external-skill-reference.yml",
+      "schema": "workflow-definition.schema.json#"
+    }
+  ],
+  "expect": {
+    "warnings": [
+      "unresolved-reference:handoff:skill:partner-review"
+    ]
+  },
+  "notes": "A skill: target that resolves to nothing under the plugin root is undecidable, not wrong: an environment the validator cannot see - a consumer project, another installed plugin - may provide it. The runner therefore warns and accepts, and this fixture is the positive case for that. It lives in its own directory because the synthetic/workflow-definition set narrates its members by name and declares its expect block closed around them. The warning is asserted live in the suite's grammar runner (T29), beside the other pinned warning sets: the corpus-wide consumer of expect.warnings is hard-wired to the reserved-key fixture, so a manifest alone would assert nothing here. The graph carries no reserved key, no declared value output and no gate on purpose, so the pinned set is exactly one warning."
+}

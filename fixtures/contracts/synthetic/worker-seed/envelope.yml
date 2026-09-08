@@ -1,7 +1,7 @@
 version: 1
 dispatch_id: d-0142
 chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-beta, umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607}
-target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/dev-beta}
+target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/019260a2-1122-7c33-8d44-5e6677889900-dev-beta}
 provider: copilot
 session: {name: 019260a2-1122-7c33-8d44-5e6677889900/d-0142/dev-beta, substrate: p}
 workflow: {uses: "skill:development", with: {autonomy: auto-high, decisions: runs/research/outputs/decision-log.md, research: runs/research/outputs/research-report.md, statement: "Add the widget owner column behind the existing rollout flag, and keep the shim until repo-alpha ships its client."}}

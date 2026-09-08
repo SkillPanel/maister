@@ -335,6 +335,41 @@ other three refuse, because a lost status is not a lost result.
 **Entry point**: `/maister:umbrella init` and `/maister:umbrella validate`; the other verbs are run
 by a workflow's orchestrator and by the cockpit, not by a user.
 
+### `/maister:chain-planner "<task>" [--name STEM] [--root DIR] [--force]`
+
+Turns a one-paragraph task description into a chain the workspace has already accepted. It reads the
+manifest for the members, their providers and the workspace defaults, decides which nodes exist and
+how they depend on one another, drafts the definition together with the prose companion that carries
+its inline steps, and proves the draft with the workspace's own validator before publishing anything.
+It authors only constructs the grammar actually has — there is no fan-out, routing or loop
+construct, and a task that would need one is refused with the shape it would take rather than
+written in a spelling that only warns. Run it from inside the workspace; a chain that will not
+validate is reported and nothing is written.
+
+| Flag | Description |
+|------|-------------|
+| `--name STEM` | The file stem to publish under. Derived from the task text when omitted; given explicitly it skips the derivation, not the charset and length checks |
+| `--root DIR` | The workspace root. Defaults to the current directory |
+| `--force` | Publish over files of that stem that already exist, instead of refusing |
+
+Run with no task text at all, it asks once for the paragraph and then proceeds. That is the only
+question it ever asks: every other missing value takes its default, and a default that would be
+wrong is a refusal with its recovery rather than a second prompt — which is what lets the planner
+run headless.
+
+**What is written**: three files under `<root>/.maister/workflows/`, all of them or none —
+`<name>.yml`, the definition; `<name>.md`, the prose companion, one section per inline node; and
+`<name>.plan.md`, the reasoning a reviewer reads before starting anything. Nothing is written under
+a member directory, nothing outside the framework directory, and no run is started: the chain is
+reviewed in the cockpit's *Start a chain* dry-run, which is where a run begins.
+
+**Examples**:
+```bash
+/maister:chain-planner "Roll the new auth token format out across the API and both clients"
+/maister:chain-planner "Retire the legacy billing endpoint" --name billing-retirement
+/maister:chain-planner "Bump the shared logger" --root /work/acme-platform --force
+```
+
 ---
 
 ## Quick Commands

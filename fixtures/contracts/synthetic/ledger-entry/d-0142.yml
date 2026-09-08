@@ -1,7 +1,7 @@
 version: 1
 dispatch_id: d-0142
 chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-beta}
-target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/widget-0142}
+target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/019260a2-1122-7c33-8d44-5e6677889900-dev-beta}
 provider: copilot
 session: {name: "widget-rollout/0142/dev-beta", id: 019260a4-1a2b-7c3d-8e4f-506172839405, substrate: p, status: closed}
 status: closed

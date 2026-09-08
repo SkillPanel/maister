@@ -1,0 +1,27 @@
+{
+  "id": "direct-without-section",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-08T10:19:03Z",
+  "files": [
+    {
+      "path": "direct-without-section.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "direct-without-section.md",
+      "schema": null
+    }
+  ],
+  "expect": {
+    "error_path": "/nodes",
+    "error_keyword": "direct-missing-section"
+  },
+  "notes": "The counterpart to external-skill-reference: direct: is the one target scheme a static check can decide, and it stays an error while skill:, agent: and workflow: relaxed to warnings. The companion .md exists and carries only a heading that mentions the node rather than a section named for it, which is the stronger failure mode of the two. The document is schema-valid, so the expected keyword is a runner rule name rather than an AJV keyword; the located error is nodes.intake.uses and error_path stays at /nodes so the assertion holds whichever depth the lint reports. The graph carries no cycle, no gate and no unknown reference on purpose: those lints run first and only the first error is read."
+}

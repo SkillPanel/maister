@@ -222,6 +222,13 @@ The node's `uses` names both the mechanism and the target:
 | `direct:<name>` | inline, by this engine, following the node's section in the definition's prose companion |
 | `workflow:<name>` | **stops the run** with a clear message — sub-run execution is out of scope; the validator resolves the target, nothing executes it |
 
+**An unresolved `skill:` or `agent:` target warns; it no longer errors.** Like a
+`workflow:` target, either may be provided by an environment `validate` cannot see — a
+consumer project's own skills, or another installed plugin — so `validate` accepts the
+document and reports `unresolved-reference:<node>:<target>`. The cost is that a mistyped
+name surfaces when the node is reached rather than at validation time. Only `direct:`
+stays an error, because its implementation is the section beside the definition in hand.
+
 **Target names in a definition are bare, and the provider prefix is applied at invocation.**
 Resolution is rooted at the plugin root, so one shipped definition is correct under every
 generated variant with no rewrite pass. A prefix written into a definition file breaks the

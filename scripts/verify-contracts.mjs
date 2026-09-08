@@ -548,6 +548,43 @@ function lintUnknownReference(doc) {
   return errors;
 }
 
+/**
+ * B1: a `direct:` node is executed out of the section named for it in the prose
+ * companion beside the definition, so a companion that is absent, or present
+ * with no such section, leaves the node with no implementation at all. This is
+ * the one target scheme a static check can decide — `skill:`, `agent:` and
+ * `workflow:` targets may be provided by an environment neither the runner nor
+ * this suite can see, and are warnings there — so it stays an error here.
+ *
+ * The heading must *be* the node id, not mention it: a section titled "Notes on
+ * intake failure modes" is prose about the node, and accepting it would report
+ * an implementation that is not there.
+ */
+function lintDirectSection(doc, file) {
+  if (!isObject(doc) || !isObject(doc.nodes)) return [];
+  const companion = file.replace(/\.ya?ml$/i, '.md');
+  const sections = new Set();
+  if (companion !== file && isFile(companion)) {
+    for (const row of fs.readFileSync(companion, 'utf8').split('\n')) {
+      const line = row.replace(/\r$/, '');
+      if (!line.startsWith('#')) continue;
+      sections.add(line.replace(/^#+\s*/, '').replace(/`/g, '').trim());
+    }
+  }
+  const errors = [];
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    if (!isObject(node) || typeof node.uses !== 'string' || !node.uses.startsWith('direct:')) continue;
+    const name = node.uses.slice('direct:'.length);
+    if (name !== '' && sections.has(name)) continue;
+    errors.push({
+      instancePath: `/nodes/${id}/uses`,
+      keyword: 'direct-missing-section',
+      message: `the prose companion carries no section for "${name}"`,
+    });
+  }
+  return errors;
+}
+
 /** E2: the answer records only an option id, so ids must be unique. */
 function lintGateOptionIds(doc) {
   if (!isObject(doc) || !Array.isArray(doc.options)) return [];
@@ -697,7 +734,8 @@ function runnerLints(fx, { a5 = false, crossCheck = false } = {}) {
       errors.push(...lintB2OneLine(fs.readFileSync(file, 'utf8'), 'root'));
     } else if (base === 'workflow-definition.schema.json') {
       const doc = parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS);
-      errors.push(...lintDag(doc), ...lintGateContinue(doc), ...lintUnknownReference(doc));
+      errors.push(...lintDag(doc), ...lintGateContinue(doc), ...lintUnknownReference(doc),
+        ...lintDirectSection(doc, file));
     } else if (base === 'gate.schema.json' && ref.includes('request')) {
       errors.push(...lintGateOptionIds(parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS)));
     } else if (ext === '.js') {
@@ -1575,7 +1613,7 @@ const EXPECTED_HOOK_VERSION = 'contracts-v2';
 const RUNNER_KEYWORDS = new Set([
   'phase-status-cross-check', 'not_midnight', 'e2-one-line-form', 'b2-one-line-form',
   'a5-tldr-line-count', 'a5-block-position', 'dag-cycle', 'gate-option-id-unique',
-  'gate-exactly-one-continue', 'reference-unknown-node',
+  'gate-exactly-one-continue', 'reference-unknown-node', 'direct-missing-section',
 ]);
 
 function t04(ctx) {
@@ -1630,8 +1668,15 @@ function t04(ctx) {
 // document still validates and only the reader records the drift.
 const SCHEMA_BREAKING = new Set(['no-orchestrator-block', 'window.DASHBOARD_DATA']);
 
-/** Reasons owned by other tests: reserved keys are T25, newer-format is T07. */
-const isReaderReason = reason => reason !== 'newer-format' && !reason.startsWith('reserved-key:');
+/**
+ * Reasons owned by other tests: reserved keys are T25, newer-format is T07, and
+ * an unresolved reference is pinned live against the runner in T29. None of the
+ * three is something the tolerant reader reports, so a manifest that declares
+ * one must not enlist its fixture as a degradation case here.
+ */
+const isReaderReason = reason => reason !== 'newer-format'
+  && !reason.startsWith('reserved-key:')
+  && !reason.startsWith('unresolved-reference:');
 
 function expectedDegradations(manifest) {
   const expect = manifest.expect ?? {};
@@ -3537,7 +3582,7 @@ const TARBALL_LIB = ['lib/ledger.mjs', 'lib/canonical.mjs', 'lib/definition.mjs'
 // ships must report exactly these as `skip` — never as `FAIL`.
 const TREE_DEPENDENT_TESTS = [
   'T11', 'T14', 'T15', 'T16', 'T17', 'T18', 'T19', 'T20', 'T21', 'T22', 'T23', 'T24', 'T27', 'T28',
-  'T29', 'T30', 'T31', 'T32', 'T33', 'T34', 'T35', 'T36', 'T37', 'T38', 'T39',
+  'T29', 'T30', 'T31', 'T32', 'T33', 'T34', 'T35', 'T36', 'T37', 'T38', 'T39', 'T40', 'T41',
 ];
 
 /** Every step of every job in a workflow document, flattened. */
@@ -4194,6 +4239,17 @@ async function t29(ctx) {
   const standalone = validated('overlay.yml standalone', `--overlay=${path.join(synthetic, 'overlay.yml')}`);
   checks++;
   if (standalone) pinned('overlay.yml standalone', standalone.warnings, []);
+
+  // An unresolvable `skill:` target warns and the document is accepted. Pinned
+  // here rather than left to the fixture's own `expect.warnings`: the only
+  // corpus-wide consumer of that key is hard-wired to the reserved-key fixture,
+  // so a manifest declaring the warning would assert nothing. Reverting the
+  // relaxation turns this into a rejection and `validated` reports it.
+  const external = path.join(ctx.fixtures, 'synthetic', 'external-skill-reference', 'external-skill-reference.yml');
+  const externalManifest = readJson(path.join(path.dirname(external), 'manifest.json'));
+  const outside = validated('external-skill-reference.yml', `--definition=${external}`);
+  checks++;
+  if (outside) pinned('external-skill-reference.yml', outside.warnings, externalManifest.expect.warnings);
 
   // The twins' zero-warning surface is pinned inside the definition walk below,
   // once per `twin:` row, rather than by a hardcoded call to one of them here.
@@ -7044,7 +7100,7 @@ const UMBRELLA_REFUSALS = [
   'umbrella-manifest-exists', 'umbrella-unwritable', 'umbrella-temp-exists',
   'dispatch-node-incomplete', 'dispatch-autonomy-unknown', 'dispatch-autonomy-unresolved',
   'dispatch-graph-drifted', 'dispatch-envelope-exists', 'dispatch-unwritable', 'dispatch-temp-exists',
-  'dispatch-workflow-not-driver-capable', 'dispatch-closeout-impossible',
+  'dispatch-workflow-not-driver-capable', 'dispatch-run-unresolved', 'dispatch-closeout-impossible',
   'seed-envelope-invalid', 'seed-over-cap',
   'ledger-locked', 'ledger-entry-missing', 'ledger-entry-exists', 'ledger-entry-unreadable',
   'ledger-op-unknown', 'ledger-args-invalid', 'ledger-status-illegal', 'ledger-unwritable',
@@ -7216,7 +7272,7 @@ async function t35(ctx) {
 
   const lib = name => import(pathToFileURL(path.join(scripts, 'lib', name)).href);
   const { init, validate, discover } = await lib('manifest.mjs');
-  const { buildEnvelope, writeEnvelope, envelope: envelopeVerb } = await lib('envelope.mjs');
+  const { buildEnvelope, writeEnvelope, worktreeOf, driverCapable, envelope: envelopeVerb } = await lib('envelope.mjs');
   const { buildSeed, renderSeed, seed: seedVerb, SEED_SECTIONS, SEED_LINE_CAP } = await lib('seed.mjs');
   const led = await lib('ledger.mjs');
   const { readDefinition } = await lib('definition.mjs');
@@ -7396,6 +7452,48 @@ async function t35(ctx) {
       must(judged.warnings.some(w => w.message === 'reserved-key:routing.tiers'), 'the manifest warning stream was not merged');
     });
 
+    // The validate-side capability check. Nothing in the fixture tree exercises
+    // it — every `dir:`-bearing node in the whole repository uses the
+    // `workflow:` scheme, which the rule answers true on without a lookup — so
+    // the pin is authored here, against the live validator, rather than as a
+    // fixture pair: the fixture harness judges definitions through the engine's
+    // graph checker and never calls the umbrella's `validate`, which is the
+    // function this check lives in and which needs a manifest and a workspace
+    // to run at all.
+    t.check('validate reports a dir: node whose target cannot honour a driver, and passes the two that can', () => {
+      const root = workspace('validate-driver');
+      gitDir(root, 'projects', 'auth');
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+      const definition = path.join(root, '.maister', 'workflows', 'chain.yml');
+      fs.writeFileSync(definition, [
+        'version: 1', 'name: chain', 'nodes:',
+        '  plan:', '    uses: workflow:research', '    dir: auth',
+        '  build:', '    uses: skill:development', '    dir: auth', '    needs: [plan]',
+        '  ship:', '    uses: skill:quick-dev', '    dir: auth', '    needs: [build]', '',
+      ].join('\n'), 'utf8');
+
+      const judged = validate(root, { definitions: [definition] });
+      const located = judged.errors.filter(e => e.path.endsWith('.uses'));
+      equalJson(located.map(e => [e.node, e.path]), [['ship', 'nodes.ship.uses']],
+        'the located capability errors — a workflow: target and a capable skill: target must pass');
+      must(located[0].file === definition, `the error names ${located[0].file}, not the definition`);
+      must(located[0].message.includes('skill:quick-dev'), 'the message does not name the target');
+      // The dispatch vocabulary stays on the dispatch side: a validate report
+      // never quotes a refusal code, and nothing on this path caught one.
+      for (const entry of [...judged.errors, ...judged.warnings]) {
+        must(!/dispatch-[a-z-]+/.test(entry.message),
+          `a validate report quotes a dispatch refusal code: ${entry.message}`);
+      }
+
+      // The predicate itself, driven directly: the two capable schemes, the two
+      // that can never be dispatched, and the empty and malformed spellings.
+      equalJson(
+        ['workflow:research', 'skill:development', 'skill:quick-dev', 'agent:code-reviewer',
+          'direct:write-it', 'skill:no-such-skill', 'skill:../escape', 'nonsense', ''].map(driverCapable),
+        [true, true, false, false, false, false, false, false, false],
+        'the exported driverCapable predicate');
+    });
+
     t.check('the closed init refusal set is provoked, each returning its own code', () => {
       refusedWith('a missing root', 'umbrella-root-unusable',
         init(path.join(scratch, 'init-absent'), { membersRoot: null, force: false, scaffold: false }));
@@ -7532,6 +7630,33 @@ workflow:
       refusedWith('a second publish of the same node', 'dispatch-envelope-exists', writeEnvelope({ run, envelope: doc }));
     });
 
+    t.check('two runs dispatching one node into one member never share a working tree', () => {
+      // The manifest promises per-dispatch isolation; the branch already carries
+      // the run id, and the worktree has to carry it too, or the second run of a
+      // chain into the same member lands in the first run's tree.
+      const otherRunId = '019260a2-3344-7c55-8d66-778899aabbcc';
+      const otherRun = path.join(dispatchRoot, '.maister', 'umbrella', 'runs', otherRunId);
+      fs.mkdirSync(otherRun, { recursive: true });
+      fs.writeFileSync(path.join(otherRun, 'orchestrator-state.yml'),
+        fs.readFileSync(path.join(run, 'orchestrator-state.yml'), 'utf8').replaceAll(T35_RUN_ID, otherRunId), 'utf8');
+      const first = build('dev-beta');
+      const second = buildEnvelope({ run: otherRun, node: 'dev-beta', manifest: T35_MANIFEST, dispatchId: 'd-0143', overrides: {} });
+      must(first.target.worktree === `.worktrees/${T35_RUN_ID}-dev-beta`,
+        `the worktree is ${JSON.stringify(first.target.worktree)}, not named after the run and the node`);
+      must(second.target.worktree === `.worktrees/${otherRunId}-dev-beta`,
+        `the second run's worktree is ${JSON.stringify(second.target.worktree)}`);
+      must(first.target.worktree !== second.target.worktree, 'two runs share one worktree');
+
+      // The opt-out keeps working, and stays legal with no run id at all.
+      must(worktreeOf({ manifest: { defaults: { worktree: false } }, runId: null, node: 'dev-beta' }) === null,
+        'defaults.worktree: false no longer opts the workspace out');
+      // A worktree that would be minted with no run id is refused by name. The
+      // envelope builder cannot reach this — its run id is a resolved directory
+      // basename — so the exported helper is driven directly.
+      throwsWith('a worktree that would be minted with no run id', 'dispatch-run-unresolved',
+        () => worktreeOf({ manifest: T35_MANIFEST, runId: null, node: 'dev-beta' }));
+    });
+
     t.check('provider and autonomy fall back through the member, and every unresolved case refuses its own code', () => {
       must(build('dev-beta').provider === 'copilot', 'the node provider was not honoured');
       must(build('dev-alpha').provider === 'claude', 'the member default_provider was not consulted');
@@ -7544,6 +7669,15 @@ workflow:
       throwsWith('an off-enum autonomy', 'dispatch-autonomy-unknown', () => build('dev-bad'));
       throwsWith('a dir: node whose workflow cannot honour a driver', 'dispatch-workflow-not-driver-capable',
         () => build('dev-plain'));
+      // The refusal is fed by the same predicate the validator reads, so its
+      // code and its message are pinned literally: the extraction was allowed
+      // to change where the rule lives and nothing about what dispatch says.
+      let refusal = null;
+      try { build('dev-plain'); } catch (err) { refusal = err; }
+      must(refusal !== null, 'the non-capable node was dispatched');
+      must(refusal.code === 'dispatch-workflow-not-driver-capable', `the refusal code is ${refusal.code}`);
+      must(refusal.message.endsWith('the node "dev-plain" dispatches into a member with uses: skill:quick-dev, which cannot honour a driver: a dispatched worker has to record orchestrator.driver.kind, write its gate requests and print a marker instead of asking, and only an orchestrator workflow does that. Point the node at an orchestrator skill or a workflow:, or drop the dir: and run it in the coordinating repository.'),
+        `the dispatch refusal message changed: ${refusal.message}`);
       throwsWith('no autonomy anywhere', 'dispatch-autonomy-unresolved',
         () => build('dev-docs', { manifest: { ...T35_MANIFEST, defaults: {} } }));
     });
@@ -9192,6 +9326,166 @@ function t40(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T41 — the chain planner's user surface, and a planned chain that validates
+// ---------------------------------------------------------------------------
+
+/**
+ * The planner is a generator with two things a check can hold it to.
+ *
+ * The first is its user surface. A user reaches it as
+ * `/maister:chain-planner`, so the slash form has to be spelled in the skill
+ * and in the command reference, the frontmatter has to actually make the
+ * command exist (`user-invocable: true`) and its argument hint has to name the
+ * two flags a user needs to steer a plan (`--name` and `--root`). The loop is
+ * bounded, and the sentence that bounds it is pinned because an unbounded
+ * validate loop is the failure mode the budget exists to prevent: three passes
+ * and a stop, never "keep editing until it passes".
+ *
+ * The second is the absence of the driver rule. `driverCapable` in
+ * `envelope.mjs` decides whether a skill can be dispatched by reading its
+ * `SKILL.md` for the driver literal, so a skill that states the literal becomes
+ * a legal `dir:` target. The planner must never be one: it authors chains, it
+ * does not run inside them, and a chain that dispatches the planner into a
+ * member is a chain that plans while it runs. The literal is therefore pinned
+ * *absent* from the planner's skill file — adding it there would silently make
+ * the planner dispatchable with nothing else to notice.
+ *
+ * The last check is the output, not the prose: a checked-in definition and
+ * companion pair, the shape the loop publishes, run through the workspace
+ * runtime's own `validate` against a workspace staged the way the
+ * umbrella-runtime test stages one. It must be accepted with exactly the one
+ * warning a freshly scaffolded manifest always carries — the workspace's
+ * reserved-key advisory, not the chain's — because "the pair validates clean"
+ * is the planner's whole contract and nothing else in the suite asserts it.
+ *
+ * The command reference is repository-level: absent in the tarball, and skipped
+ * with a note there rather than failed. It is also skipped, with a note, while
+ * it does not name the planner at all, so that documenting the planner and
+ * pinning it can land in either order.
+ */
+const PLANNER_SKILL_REL = 'skills/chain-planner/SKILL.md';
+const PLANNER_REFERENCE_REL = 'skills/chain-planner/references/plan-time-rules.md';
+const PLANNER_DOCS_REL = 'docs/commands.md';
+const PLANNER_SLASH_FORM = '/maister:chain-planner';
+/** The flags the argument hint must offer; `--force` is deliberately not required. */
+const PLANNER_HINT_FLAGS = ['--name', '--root'];
+/** The sentence that bounds the draft-validate loop. */
+const PLANNER_BOUNDED_LOOP = /at most three passes/;
+/**
+ * The driver literal, spelled here as `DRIVER_RULE` spells it in
+ * `skills/umbrella/scripts/lib/envelope.mjs`. Keeping the two in step is the
+ * point: this test is only meaningful while it names the same string the
+ * capability predicate reads.
+ */
+const PLANNER_DRIVER_LITERAL = 'orchestrator.driver.kind';
+/** The planned pair the loop publishes, held as a fixture. */
+const PLANNED_CHAIN_FIXTURE = path.join('synthetic', 'planned-chain');
+const PLANNED_CHAIN_STEM = 'docs-refresh';
+/** The members the fixture chain dispatches into, staged as clones under the members root. */
+const PLANNED_CHAIN_MEMBERS = ['docs-site', 'repo-alpha'];
+/** A freshly scaffolded manifest carries exactly this one advisory, and the chain adds none. */
+const PLANNED_CHAIN_WARNINGS = ['reserved-key:routing.tiers'];
+
+async function t41(ctx) {
+  const t = checker();
+  const skillFile = path.join(ctx.pluginRoot, PLANNER_SKILL_REL);
+  const carriers = [
+    { path: PLANNER_SKILL_REL, file: skillFile, skill: true },
+    { path: PLANNER_DOCS_REL, file: path.join(ctx.repoRoot, PLANNER_DOCS_REL), repo: true },
+  ];
+  for (const carrier of carriers) {
+    if (carrier.repo && !isFile(carrier.file)) {
+      t.notes.push(`${carrier.path} is not in this checkout — skipped`);
+      continue;
+    }
+    if (carrier.repo && !fs.readFileSync(carrier.file, 'utf8').includes('chain-planner')) {
+      t.notes.push(`${carrier.path} does not document the planner yet — skipped`);
+      continue;
+    }
+    t.check(`${carrier.path} spells the planner's slash form`, () => {
+      must(isFile(carrier.file), `${carrier.path}: missing`);
+      const text = fs.readFileSync(carrier.file, 'utf8');
+      must(text.includes(PLANNER_SLASH_FORM),
+        `${carrier.path}: never spells \`${PLANNER_SLASH_FORM}\`, so the user path is undocumented`);
+    });
+    if (carrier.repo) {
+      t.check(`${carrier.path} does not name the script the planner's oracle runs`, () => {
+        const text = fs.readFileSync(carrier.file, 'utf8');
+        must(!text.includes('umbrella.mjs'),
+          `${carrier.path}: names the runtime script — the user surface is the slash command`);
+      });
+    }
+  }
+
+  t.check(`${PLANNER_SKILL_REL} is a user-invocable skill whose argument hint names the steering flags`, () => {
+    must(isFile(skillFile), `${PLANNER_SKILL_REL}: missing`);
+    const text = fs.readFileSync(skillFile, 'utf8');
+    const frontmatter = text.split('\n---\n')[0];
+    must(/^user-invocable: true$/m.test(frontmatter),
+      'user-invocable is not true, so the slash command does not exist');
+    const hint = /^argument-hint: "(.*)"$/m.exec(frontmatter)?.[1] ?? '';
+    for (const flag of PLANNER_HINT_FLAGS) {
+      must(hint.includes(flag), `argument-hint does not name \`${flag}\`: ${JSON.stringify(hint)}`);
+    }
+  });
+
+  t.check(`${PLANNER_SKILL_REL} bounds its draft-validate loop`, () => {
+    const text = fs.readFileSync(skillFile, 'utf8');
+    must(PLANNER_BOUNDED_LOOP.test(text),
+      'the sentence bounding the validate loop is gone — an unbounded loop edits until it passes');
+  });
+
+  t.check(`${PLANNER_SKILL_REL} states no driver rule, so the planner is never a dispatch target`, () => {
+    const text = fs.readFileSync(skillFile, 'utf8');
+    must(!text.includes(PLANNER_DRIVER_LITERAL),
+      `the skill states ${JSON.stringify(PLANNER_DRIVER_LITERAL)}, which makes driverCapable() answer true for it: the planner becomes a legal dir: target and a chain can dispatch the planner into a member`);
+  });
+
+  t.check(`${PLANNER_REFERENCE_REL} is present`, () => {
+    must(isFile(path.join(ctx.pluginRoot, PLANNER_REFERENCE_REL)),
+      `${PLANNER_REFERENCE_REL}: missing — the skill defers the plan-time rules to it`);
+  });
+
+  // The published pair, judged by the oracle the planner itself uses. The
+  // validator reads the definition path as given and re-anchors nothing, but
+  // the pair is copied into the workspace anyway, because that is where a
+  // published chain lives and the companion is found by extension swap.
+  const fixtureDir = path.join(ctx.fixtures, PLANNED_CHAIN_FIXTURE);
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+  await t.checkAsync('the planned pair validates clean, with only the workspace\'s own advisory', async () => {
+    must(isDir(fixtureDir), `${PLANNED_CHAIN_FIXTURE}: the planned-chain fixture is absent`);
+    must(isFile(path.join(scripts, 'umbrella.mjs')), `${UMBRELLA_SCRIPTS}/umbrella.mjs is absent`);
+    const { init, validate } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const root = tempDir('planned-chain');
+    try {
+      for (const member of PLANNED_CHAIN_MEMBERS) gitDir(root, 'projects', member);
+      const started = init(root, { membersRoot: null, force: false, scaffold: false });
+      must(started.ok, `init refused: ${JSON.stringify(started.errors)}`);
+      const workflows = path.join(root, '.maister', 'workflows');
+      for (const ext of ['yml', 'md']) {
+        const name = `${PLANNED_CHAIN_STEM}.${ext}`;
+        const from = path.join(fixtureDir, name);
+        must(isFile(from), `${PLANNED_CHAIN_FIXTURE}/${name}: missing — the pair is published side by side`);
+        fs.copyFileSync(from, path.join(workflows, name));
+      }
+      const definition = path.join(workflows, `${PLANNED_CHAIN_STEM}.yml`);
+      const judged = validate(root, { definitions: [definition] });
+      equalJson(judged.errors, [], 'the planned pair was rejected');
+      must(judged.ok === true, 'validate did not report ok');
+      equalJson(judged.warnings.map(w => w.message), PLANNED_CHAIN_WARNINGS,
+        'the warning stream — a planned chain adds nothing to the scaffolded manifest\'s advisory');
+      for (const warning of judged.warnings) {
+        must(warning.file === path.join(root, '.maister', 'umbrella.yml'),
+          `a warning names ${warning.file}, not the manifest: it would be reported as the chain's defect`);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -9251,6 +9545,7 @@ const TESTS = [
   { id: 'T38', name: 'gate-suspend-writer', needs: ['plugin', 'fixtures'], run: t38 },
   { id: 'T39', name: 'gate-sequence-lockstep', needs: ['plugin'], run: t39 },
   { id: 'T40', name: 'umbrella-user-verbs', needs: ['plugin'], run: t40 },
+  { id: 'T41', name: 'chain-planner-surface', needs: ['plugin', 'fixtures'], run: t41 },
 ];
 
 // ---------------------------------------------------------------------------

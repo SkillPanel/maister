@@ -8,15 +8,23 @@
  *
  * Three decisions shape everything below.
  *
- * **Warn where a static check cannot decide, error where it can.** A `skill:`,
- * `agent:` or `direct:` target that does not resolve is a run that will fail on
- * its first step, so it is an error. A `workflow:` target that does not resolve
- * may still be provided by a workspace the validator cannot see, so it is a
- * warning. A declared value output typed `bool`, `id` or `enum` is provably
- * safe to carry through a one-line flow map; one typed `string` is not provably
- * unsafe either, so it is a warning. Loosening the strict half to keep the
- * undecidable half quiet is the silent-failure class this module exists to
- * prevent, and the two halves are kept apart deliberately.
+ * **Warn where a static check cannot decide, error where it can.** Only one of
+ * the four target schemes is decidable here. A `direct:` node is executed by
+ * this engine out of the prose companion beside its own definition, so a
+ * missing section is a fact of the file in hand and an error. The other three
+ * name something an environment this validator cannot see may provide: a
+ * `workflow:` target may come from a workspace eject, and a `skill:` or
+ * `agent:` target from another installed plugin, so all three warn when the
+ * name is not found under this plugin root. The trade-off the relaxation buys
+ * is that a typo in a skill or agent name is no longer caught by `validate`; it
+ * surfaces at run time instead, when the node it names is reached. Decidable
+ * checks on those names stay errors regardless of whether the target exists:
+ * an unknown or empty scheme, and a name off the target charset. A declared
+ * value output typed `bool`, `id` or `enum` is provably safe to carry through a
+ * one-line flow map; one typed `string` is not provably unsafe either, so it is
+ * a warning. Loosening a decidable check to keep the undecidable half quiet is
+ * the silent-failure class this module exists to prevent, and the two halves
+ * are kept apart deliberately.
  *
  * **Validation runs on the resolved graph, not on the file.** Overlays are
  * folded in first, so a check reads the nodes that will actually execute rather
@@ -308,9 +316,23 @@ function hasProseSection(file, name) {
 
 /**
  * Resolve one node target. Returns null when it resolves, a message when it is
- * an error, and `{warning}` when it is undecidable — the `workflow:` case,
- * whose target may be provided by a workspace eject or overlay this static
- * check cannot see.
+ * an error, and `{warning}` when it is undecidable.
+ *
+ * Three of the four schemes are undecidable. A `workflow:` target may be
+ * provided by a workspace eject or overlay this static check cannot see, and a
+ * `skill:` or `agent:` target by an environment this validator cannot see
+ * either — another installed plugin, or a consumer project's own skills — so
+ * none of the three is an error merely for being absent from this tree. The
+ * trade-off: a mistyped skill or agent name is no longer refused here and
+ * surfaces at run time, when the node that names it is reached.
+ *
+ * `direct:` is the decidable one and stays an error. Its implementation is the
+ * section in the prose companion beside the definition being validated, which
+ * is a file in hand: no environment can supply it later.
+ *
+ * The scheme check and the charset check below are errors under every scheme,
+ * absent target or not — the charset check is also the traversal guard, so a
+ * name it rejects must never be softened into a warning.
  */
 function resolveTarget(uses, origin) {
   const at = String(uses).indexOf(':');
@@ -320,19 +342,19 @@ function resolveTarget(uses, origin) {
     return { message: `"${uses}" is not a target: expected one of ${SCHEMES.map((each) => `${each}:`).join(' ')}` };
   }
   // The name is checked against the closed set before it reaches path.join, and
-  // an unnameable target is an error under every scheme — including the sub-run
-  // scheme, whose warning would otherwise present a traversal as an ordinary
-  // reference this build cannot see.
+  // an unnameable target is an error under every scheme — including the three
+  // warning schemes, whose warning would otherwise present a traversal as an
+  // ordinary reference this build cannot see.
   const name = scheme === 'workflow' ? bareWorkflowName(written) : written;
   if (name === null || !TARGET_NAME.test(name)) {
     return { message: `"${written}" is not a ${scheme} name: expected ${TARGET_NAME.source}` };
   }
   const root = pluginRoot();
   if (scheme === 'skill') {
-    return isDirectory(path.join(root, 'skills', name)) ? null : { message: `no skill named "${name}" is available` };
+    return isDirectory(path.join(root, 'skills', name)) ? null : { warning: true };
   }
   if (scheme === 'agent') {
-    return isFile(path.join(root, 'agents', `${name}.md`)) ? null : { message: `no agent named "${name}" is available` };
+    return isFile(path.join(root, 'agents', `${name}.md`)) ? null : { warning: true };
   }
   if (scheme === 'direct') {
     return hasProseSection(origin, name) ? null : { message: `the prose companion carries no section for "${name}"` };

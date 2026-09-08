@@ -81,6 +81,7 @@ import { randomBytes } from 'node:crypto';
 
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
+import { driverCapable } from './envelope.mjs';
 import { validate as validateGraph } from '../../../workflow-engine/scripts/lib/graph.mjs';
 
 /** The refusal names `commit` and `openTemp` report under, kept in one place. */
@@ -629,6 +630,7 @@ export function validate(root, { definitions = [] } = {}) {
     errors.push(...report.errors.map((entry) => locate(entry, file)));
     warnings.push(...report.warnings.map((entry) => locate(entry, file)));
     if (members !== null) checkMemberDirs(definition.doc, file, members, errors);
+    checkDriverCapable(definition.doc, file, errors);
   }
 
   return { ok: errors.length === 0, root: base, manifest: relative(base, manifestPath), errors, warnings };
@@ -850,6 +852,41 @@ function checkMemberDirs(doc, file, members, errors) {
       node: id,
       path: `nodes.${id}.dir`,
       message: `"${node.dir}" is not a member this workspace declares; the members are ${[...members.names].join(', ') || 'none'}`,
+    });
+  }
+}
+
+/**
+ * Every `dir:` node names a target that can honour a driver.
+ *
+ * The sibling of the member check above, and the second reference the graph
+ * checker cannot judge: it decides whether a target *resolves*, while whether a
+ * resolved target can be *dispatched* is a property of the shipped skill behind
+ * it. A dispatched worker is unattended, so its workflow has to record a driver
+ * kind, write its gate requests to a file and print a marker instead of asking
+ * a question nobody is there to answer.
+ *
+ * The rule itself is `envelope.mjs`'s `driverCapable`, so there is one
+ * definition of "driver-capable" and one grep behind it. Only the boolean is
+ * imported: the dispatch refusal that the same predicate feeds stays in the
+ * dispatch vocabulary, is never raised or caught here, and is never quoted in
+ * this report. The message below is composed for an operator reading a
+ * validation report, and names what a capable target is rather than a code.
+ *
+ * A node with no `uses:` at all is left alone — the graph checker already fails
+ * it at this very path, and saying it twice in two vocabularies helps nobody.
+ */
+function checkDriverCapable(doc, file, errors) {
+  if (!isMap(doc) || !isMap(doc.nodes)) return;
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    if (!isMap(node) || typeof node.dir !== 'string' || node.dir === '') continue;
+    if (typeof node.uses !== 'string' || node.uses === '') continue;
+    if (driverCapable(node.uses)) continue;
+    errors.push({
+      file,
+      node: id,
+      path: `nodes.${id}.uses`,
+      message: `"${node.uses}" cannot be dispatched into a member: a dispatched worker runs unattended, so it has to record the driver it was started under, write each gate out as a request file and print a marker instead of asking. Only a workflow: target, which the engine runs, or an orchestrator skill whose SKILL.md states that driver-qualified gate rule does that. Point this node at one of those, or drop its dir: and run it in the coordinating repository.`,
     });
   }
 }
