@@ -11,11 +11,14 @@
 # makes the gate's stop option actually end the run: `handoff` is never ready
 # after a stop, and it is the only thing left.
 #
-# This definition is chain-only. It has no orchestrator skill, no slash command
-# and no prose twin: it is reached as `workflow:plan` from a chain node that
-# carries a `dir:`, and nowhere else. That is why `statement` is the required
+# This definition is chain-only. It has no orchestrator skill and no slash
+# command, and therefore no `SKILL.md` twin for a parity checklist to hold it in
+# step with: it is reached as `workflow:plan` from a chain node that carries a
+# `dir:`, and nowhere else. (The node prose in `plan.md` is not that twin; see
+# the last paragraph of this header.) That is why `statement` is the required
 # input — it is the one thing the dispatch envelope carries as free text, and
-# the worker's seed names it as this input.
+# the worker's seed hands it over as the statement of the work for this
+# definition to bind.
 #
 # Target names are bare on purpose. Resolution is rooted at the plugin root and
 # the provider prefix is applied at invocation, so this one file is correct

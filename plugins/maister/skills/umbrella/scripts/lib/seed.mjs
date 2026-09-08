@@ -68,7 +68,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
-import { bareWorkflowName } from '../../../workflow-engine/scripts/lib/graph.mjs';
+import { bareWorkflowName, TARGET_NAME } from '../../../workflow-engine/scripts/lib/graph.mjs';
 
 /** The format version a seed descriptor declares. */
 const VERSION = 1;
@@ -248,10 +248,11 @@ function identityLines({ document, chain, target }) {
  */
 /**
  * The definition a `workflow:` target names, bare, or `null` for every other
- * target — including a `workflow:` target whose name is malformed, which
- * dispatch refuses before a seed is ever rendered. The prefix strip is the
- * engine's own, so this prompt and the engine's lookup cannot diverge on what
- * the name is.
+ * target. A `workflow:` target whose name is malformed also strips to `null`,
+ * and `assertEnvelope` refuses that envelope before this is ever reached, so
+ * the `null` here means "not a workflow target" and nothing else. The prefix
+ * strip is the engine's own, so this prompt and the engine's lookup cannot
+ * diverge on what the name is.
  */
 function workflowTarget(uses) {
   if (typeof uses !== 'string' || !uses.startsWith('workflow:')) return null;
@@ -272,11 +273,18 @@ function taskLines({ document, workflow, pluginRoot }) {
     // are stated: which skill runs a definition, the bare name to run it by,
     // and the order the name is looked up in — the last so that a member-side
     // ejection visibly wins rather than being shadowed by the shipped file.
-    lines.push(`Run the \`${definition}\` workflow definition with the workflow-engine skill, invoked by that name — the definition carries no command of its own.`);
+    lines.push(`Run the \`${definition}\` workflow definition with the workflow-engine skill, invoked by that name — that skill is how a dispatched worker runs a definition; do not go looking for a command.`);
     lines.push(`Resolve \`${definition}\` by that bare name, first hit winning, in this order: \`.maister/workflows/${definition}.yml\` (an eject, which shadows the built-in entirely), then \`.maister/workflows/generated/${definition}.yml\` (a generated chain, complete in itself), then \`.maister/workflows/${definition}.overlay.yml\` (an overlay merged over the built-in), then the built-in shipped with the plugin.`);
+    // Neutral about the input's *name* on purpose. C2's `statement` is a
+    // generic free-text carrier of what the work is; each definition names its
+    // own required text input — `plan` calls it `statement`, `development`
+    // calls it `task_description`, `research` calls it `question` — and this
+    // branch renders for every `workflow:` target. Naming one of them here
+    // would be a false claim in the other cases, and the worker can read the
+    // definition it is about to run.
     lines.push(stated
-      ? `The line above beginning \`The work:\` is that definition's \`statement\` input — bind it there; nothing else supplies it.`
-      : `That definition takes a \`statement\` input and your dispatch carried none. Send a blocked message rather than inventing one.`);
+      ? `The line above beginning \`The work:\` is the free-text statement your dispatch carried, and it is the whole of what the work is. Bind it to whichever input the definition declares for that: the definition names the input, the dispatch does not.`
+      : `Your dispatch carried no statement, so nothing here states the work beyond what is named above. If the definition requires a free-text input of it, send a blocked message rather than inventing one.`);
   } else {
     lines.push(workflow.uses
       ? `Run ${oneLine(workflow.uses)}.`
@@ -468,6 +476,17 @@ function assertEnvelope(envelope) {
   if (missing.length) {
     throw new Refusal('seed-envelope-invalid',
       `the envelope cannot be seeded from: ${missing.join(', ')}`);
+  }
+  // A `workflow:` target whose name is malformed has no definition to name, and
+  // the fall-through rendering would hand the worker `Run workflow:Plan.` —
+  // chain grammar as its whole instruction, which is the failure the task
+  // section exists to remove. Dispatch refuses this before publishing, but
+  // `seed` may be pointed at any envelope on disk, so it is refused here too
+  // rather than rendered.
+  const uses = mapOf(document.workflow).uses;
+  if (typeof uses === 'string' && uses.startsWith('workflow:') && workflowTarget(uses) === null) {
+    throw new Refusal('seed-envelope-invalid',
+      `the envelope names ${uses}, and "${uses.slice('workflow:'.length)}" is not a workflow name: expected ${TARGET_NAME.source}. Correct the target in the chain and republish the envelope; a seed built from this one would name a definition that cannot be resolved.`);
   }
   return document;
 }

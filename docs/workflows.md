@@ -31,11 +31,11 @@ Definitions resolve eject → generated → overlay → built-in, and the first 
 `.maister/workflows/<name>.yml`, then a generated chain at `.maister/workflows/generated/<name>.yml`,
 then an overlay at `.maister/workflows/<name>.overlay.yml`, then the shipped built-in. So a project
 can eject a shipped graph into its own workspace, or lay an overlay over it, without patching the
-plugin. That route reaches a workflow wherever the engine executes it — research and development
-today, so ejecting or overlaying `builtin:development` takes effect on the next run. A generated
-chain — one the planner published for a single ticket — is complete in itself and is never overlaid
-or ejected; it is resolved by name like any other and deleted by the workspace's `prune` command
-once its runs have closed.
+plugin. That route reaches a workflow wherever the engine executes it — research, development and
+the chain-only `plan` today, so ejecting or overlaying `builtin:development` takes effect on the
+next run. A generated chain — one the planner published for a single ticket — is complete in itself
+and is never overlaid or ejected; it is resolved by name like any other and deleted by the
+workspace's `prune` command once its runs have closed.
 
 `/maister:development` runs on the workflow engine by default. To run its prose phases instead,
 set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
@@ -291,8 +291,13 @@ resume by hand.
 It exists for scoped work that needs a plan rather than an implementation — the case a chain hits
 when a ticket's next step is "decide how", not "build it". Four nodes: discover the project's
 standards, write the plan, pause at an approval gate, then hand off. Stopping at the gate ends the
-run with the plan as its deliverable; continuing records the plan path and the outcome for whatever
-the chain does next.
+run with the plan as its deliverable; continuing records the plan path and the outcome in the run's
+own state. Either way the plan file is written into the member's task directory inside the dispatch's own
+worktree. A dispatched run's declared values do not cross back into the chain that dispatched it,
+so a follower node must never be guarded on the outcome. How a follower obtains the plan file is
+not defined at this version: the run directory is named at run time, and a follower's inputs are
+static literals, so nothing shipped routes that path from a dispatched run's artifact into a
+follower's input. Today the plan is a deliverable a human, a reviewer or the daemon collects.
 
 Its runs land in `.maister/tasks/plan/<YYYY-MM-DD-slug>/` with the same task root every other
 workflow writes — state, dashboard, gate files — so a plan run is visible to the cockpit and its

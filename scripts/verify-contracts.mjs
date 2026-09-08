@@ -3579,12 +3579,15 @@ const TARBALL_ENTRIES = [
 const TARBALL_LIB = ['lib/ledger.mjs', 'lib/canonical.mjs', 'lib/definition.mjs'];
 
 // The tarball carries no plugin tree and no `.maister/tasks`, so the runner it
-// ships must report exactly these as `skip` — never as `FAIL`.
-const TREE_DEPENDENT_TESTS = [
-  'T11', 'T14', 'T15', 'T16', 'T17', 'T18', 'T19', 'T20', 'T21', 'T22', 'T23', 'T24', 'T27', 'T28',
-  'T29', 'T30', 'T31', 'T32', 'T33', 'T34', 'T35', 'T36', 'T37', 'T38', 'T39', 'T40', 'T41',
-  'T43',
-];
+// ships must report every test that declares a need for either as `skip` —
+// never as `FAIL`. Derived from the registry rather than listed, because a
+// hand-kept list drifts silently in the one direction that matters: a
+// tree-dependent test omitted from it is free to run over nothing in a
+// tree-less archive and report success. `TESTS` is declared further down the
+// file, so this reads it when `t27` runs rather than at module evaluation.
+const TREE_DEPENDENT_NEEDS = ['plugin', 'in-repo'];
+const treeDependentTests = () =>
+  TESTS.filter(t => t.needs.some(n => TREE_DEPENDENT_NEEDS.includes(n))).map(t => t.id);
 
 /** Every step of every job in a workflow document, flattened. */
 function workflowSteps(doc) {
@@ -3844,7 +3847,7 @@ function t27(ctx) {
     if (failLines.length) failures.push(`the vendored runner reported ${failLines.length} FAIL: ${failLines.slice(0, 3).join(' | ')}`);
     checks++;
     if (run.status !== 0) failures.push(`the vendored runner exited ${run.status} from the extracted archive`);
-    for (const id of TREE_DEPENDENT_TESTS) {
+    for (const id of treeDependentTests()) {
       checks++;
       if (!lines.some(l => l.startsWith(`skip ${id} `))) {
         failures.push(`the vendored runner did not skip ${id} — the tarball carries no plugin tree`);
@@ -7087,10 +7090,12 @@ const SEED_FIXTURE_DIR = path.join('synthetic', 'worker-seed');
 /**
  * The filename prefixes the golden seed triples in that directory carry. The
  * empty one is the original `skill:` target, whose three files keep the paths
- * they have always had; each further stem is another target scheme the task
- * section branches on and would otherwise have no pinned rendering.
+ * they have always had; each further stem is another rendering of the task
+ * section that would otherwise be pinned by nothing — another target scheme,
+ * or, for the `workflow:` branch, a second definition, since that branch is
+ * written once and renders for every definition a chain can name.
  */
-const SEED_FIXTURE_STEMS = ['', 'workflow-target.'];
+const SEED_FIXTURE_STEMS = ['', 'workflow-target.', 'workflow-target-development.'];
 
 /**
  * Every refusal the umbrella runtime names. The set is closed by design — the
@@ -8063,16 +8068,36 @@ workflow:
 
     t.check('the golden seed fixture is the descriptor renderSeed turns into the golden prompt', () => {
       const dir = path.join(ctx.fixtures, SEED_FIXTURE_DIR);
-      // One stem per target scheme the task section branches on: the unprefixed
-      // stem is a `skill:` target, `workflow-target.` a `workflow:` one. The
-      // assertion is the same for both — the descriptor renders to the prompt
-      // beside it, byte for byte.
+      // The unprefixed stem is a `skill:` target and the two `workflow-target`
+      // stems are `workflow:` ones, for two different definitions. What the
+      // second `workflow:` stem pins is that the definition name is
+      // interpolated rather than written in, and that the branch renders
+      // unchanged for a second dispatch shape — not that a wording false of
+      // another definition would show as a diff. It would not: the only
+      // definition-dependent text in the branch is the interpolated name, so
+      // such a sentence is a static string that renders byte-identically into
+      // both goldens. The control for that is a human reading the regenerated
+      // goldens. The assertion is the same for all three stems — the
+      // descriptor renders to the prompt beside it, byte for byte.
+      // The root the stems were generated with. A seed resolves its two command
+      // lines against the root it is handed, so the build half is only
+      // reproducible when it is handed the same one.
+      const goldenRoot = '/opt/maister/plugins/maister';
       for (const stem of SEED_FIXTURE_STEMS) {
         const descriptor = parseYaml(fs.readFileSync(path.join(dir, `${stem}seed.yml`), 'utf8'), YAML_OPTS);
         validates('worker-seed.schema.json#/$defs/seed', descriptor);
         const golden = fs.readFileSync(path.join(dir, `${stem}seed.prompt.txt`), 'utf8').replace(/\r\n/g, '\n');
         must(`${renderSeed(descriptor)}\n` === golden,
           `${stem}seed.prompt.txt: renderSeed no longer produces the golden prompt this fixture pins — update the fixture deliberately or fix the renderer`);
+        // And the descriptor beside the envelope is what `buildSeed` still
+        // makes of it. Without this the triple pins the renderer alone: the
+        // stored descriptor already carries the sentences, so every wording the
+        // builder chooses would pass. This is what makes a second `workflow:`
+        // stem a guard rather than a document — a line true of one definition
+        // and false of another shows up here as a diff.
+        const envelope = parseYaml(fs.readFileSync(path.join(dir, `${stem}envelope.yml`), 'utf8'), YAML_OPTS);
+        equalJson(buildSeed(envelope, { siblings: 3, pluginRoot: goldenRoot }), descriptor,
+          `${stem}seed.yml: buildSeed no longer produces the descriptor this fixture pins — regenerate the triple deliberately or fix the builder`);
       }
     });
 
@@ -8107,6 +8132,33 @@ workflow:
       // real dispatch renders must still fit.
       const lines = prompt.split('\n').length;
       must(lines <= 60, `the seed for a workflow: target renders ${lines} lines, past the cap of 60`);
+    });
+
+    t.check('a malformed workflow: target is refused rather than seeded', () => {
+      // The hole this closes: `seed` is a verb of its own and may be pointed at
+      // any envelope on disk, so the capability check dispatch runs before
+      // publishing does not stand between a hand-edited file and a worker. A
+      // name the scheme cannot resolve used to fall through to the legacy
+      // branch and render `Run workflow:Plan.` — the raw grammar as the whole
+      // instruction, silently, in the one place nobody is watching.
+      const doc = build('plan-beta');
+      const malformed = { ...doc, workflow: { ...doc.workflow, uses: 'workflow:Plan' } };
+      throwsWith('an envelope naming a malformed workflow definition', 'seed-envelope-invalid',
+        () => buildSeed(malformed, { siblings: 3, pluginRoot: '/opt/maister/plugins/maister' }));
+
+      // The verb half, which is the surface the hole was actually in.
+      const onDisk = path.join(workspace('seed-malformed'), 'envelope.yml');
+      fs.writeFileSync(onDisk, JSON.stringify(malformed), 'utf8');
+      const rendered = seedVerb({ envelope: onDisk, siblings: '3' });
+      must(rendered.ok === false, 'the seed verb rendered a prompt for a malformed workflow target');
+      equalJson(refusalCodes(rendered), ['seed-envelope-invalid'], 'the refusal the seed verb reported');
+      must(rendered.prompt === undefined, 'a refused seed still carried a prompt');
+
+      // A `skill:` target with the same shape of name is not this refusal's
+      // business: only the workflow scheme resolves through a definition name.
+      const skillTarget = { ...doc, workflow: { ...doc.workflow, uses: 'skill:development' } };
+      must(buildSeed(skillTarget, { siblings: 3 }).sections.length === SEED_SECTIONS.length,
+        'the refusal caught a target that does not name the workflow scheme');
     });
 
     t.check('the envelope and seed verb halves report in the shell shape', () => {

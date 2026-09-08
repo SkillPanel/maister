@@ -14,11 +14,27 @@ here because neither host's planning agent is expressible as a target.
 one provider hands the work to a built-in subagent and the other to a plugin
 agent, and the generated diagram does not show it either.
 
-**This workflow has no user surface.** There is no `plan` skill, no
-`/maister-quick-plan`-style command for it and no prose twin. It is reached as
-`workflow:plan` from a chain node that carries a `dir:`, and nowhere else — so
-the prose below is written for a dispatched worker acting on a seed, not for an
-operator who read a command's help.
+**This workflow has no user surface.** There is no `plan` orchestrator skill and
+no `/maister-quick-plan`-style command for it, and therefore no `SKILL.md` twin
+for a parity checklist to hold this definition in step with. This file is not
+that twin: it is the node prose the engine executes from, and the definition
+requires it. The workflow is reached as `workflow:plan` from a chain node that
+carries a `dir:`, and nowhere else — so the prose below is written for a
+dispatched worker acting on a seed, not for an operator who read a command's
+help.
+
+**If the engine cannot run, there is nowhere to hand the run to.** The engine
+skill's degraded path prints `RUN-FAILED: node-unavailable` and hands the run to
+the workflow's prose orchestrator; this definition is the first with none, so
+for a plan run that path ends nowhere. The answer is the one a dispatched worker
+already has for anything else it cannot do: report `blocked` through the outbox
+verb its seed names, with the reason, and stop. A run under a terminal driver
+has neither a seed nor an outbox, so it has nowhere to report to: say to the
+operator in session that the engine is unavailable and that this workflow has
+no prose route around it, and stop there. Under either driver, do not run the
+workflow by hand instead — the state, the gate files and the artifact
+declarations are what anything outside the run reads, and none of them is
+writable correctly without the engine.
 
 ---
 
@@ -87,8 +103,9 @@ does, so there is no embedded path to describe and none to be written later
 without changing the definition first.
 
 What a caller gets instead is the hand-off: `handoff` records the plan path and
-the run's outcome, and a chain that dispatched this workflow reads them from the
-run's state.
+the run's outcome in this run's state, and the plan file itself is what a
+dispatching chain has afterwards — see the `handoff` section for what does and
+what does not cross the dispatch boundary.
 
 ---
 
@@ -212,11 +229,13 @@ stopped one. `handoff` needs this gate and is the only node left, so after
 whole mechanism — there is no termination construct beyond it.
 
 **How the question is asked depends on the run's driver, not on this file.**
-When `orchestrator.driver.kind` is absent or `terminal`, ask the operator in
-session. When it is `cockpit` or `dispatch` — which is every dispatched plan run
-— do not ask in session: suspend the run with one `gate-request` call, print the
-pending marker as the last line of the turn and end it. The engine skill owns
-that mechanism; this section only says which of the two applies.
+When `orchestrator.driver.kind` is absent or `terminal`, the question is put to
+the operator in session. When it is `cockpit` or `dispatch` — which is every
+dispatched plan run — it is not asked in session at all: the run suspends
+instead, and an operator answers it from outside. The mechanism for suspending
+belongs to the engine skill, which states it in full, and a dispatched worker's
+seed states it again; this section only says which of the two branches a plan
+run is in.
 
 ---
 
@@ -241,7 +260,22 @@ no follower ever observes, because the gate's stop option ends the run before
 anything downstream is reached. It is carried for the readability of the
 declaration, not for a live consumer.
 
-There is no gate after this node. The workflow ends here, and a chain that
-dispatched it reads the artifact and the outcome from the run's state.
+There is no gate after this node. The workflow ends here, and both records are
+read from this run's own state — by an operator, by the dashboard, and by
+anything that opens the task directory afterwards.
+
+**None of these values crosses the dispatch boundary.** Nothing lifts a
+dispatched run's declared outputs back into the chain: `${node.values.…}`
+interpolation resolves against the declarations on the chain's own node,
+nothing populates a dispatched node's values, and the return channel is the
+outbox, which carries a grade and a summary. A follower node must not be
+guarded on `plan_outcome`.
+
+The plan itself is written at `implementation/plan.md` under this run's task
+directory, inside the dispatch's own worktree in the member repository. Do not
+read that as a route into a follower's input: the run directory is named at run
+time and a follower's inputs are static literals, so the route from a
+dispatched run's artifact to a follower's input is undefined at this version.
+State where the plan is; promise nothing about who picks it up.
 
 **Recovery budget**: none — this node records and nothing else.

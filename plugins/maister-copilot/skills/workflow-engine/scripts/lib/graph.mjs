@@ -67,8 +67,12 @@ const INTERPOLATION = /\$\{([^}]*)\}/g;
  * because every one of these names reaches a file path, and a name carrying `/`
  * or `..` would drive a filesystem lookup outside the plugin root on nothing
  * but the word of an operator-supplied definition.
+ *
+ * Exported so that a caller refusing a malformed name — the seed builder, which
+ * reads envelopes this module never sees — quotes the same pattern rather than
+ * a copy of it.
  */
-const TARGET_NAME = /^[a-z][a-z0-9-]*$/;
+export const TARGET_NAME = /^[a-z][a-z0-9-]*$/;
 
 /**
  * The prefix a built-in workflow is named with. Both `builtin:<name>` and a bare

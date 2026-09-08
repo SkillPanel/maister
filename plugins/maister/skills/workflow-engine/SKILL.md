@@ -48,7 +48,10 @@ top of them and restates none of them.
 ### Step 2: Probe the runtime, before writing anything
 
 Run `node --version` once. On failure, stop immediately: print `RUN-FAILED: node-unavailable`
-and hand the run to the workflow's prose orchestrator, which needs no script.
+and hand the run to the workflow's prose orchestrator, which needs no script — unless the
+workflow has no prose orchestrator, in which case there is nowhere to hand it to: a
+dispatched worker reports `blocked` through the outbox verb and stops, and a terminal-driver
+run says the same to the operator in session and stops. Never run such a workflow by hand.
 
 **There is deliberately no editor-tool fallback for state writing.** Model-authored state
 is the corruption this engine exists to remove: a state file whose blocks drift out of

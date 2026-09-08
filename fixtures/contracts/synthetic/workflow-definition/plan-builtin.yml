@@ -12,23 +12,6 @@
 # every target resolves, and the hand-off value is typed as an enum rather than
 # a bare string - so the expected warning set is empty and any new warning is a
 # regression.
-#
-# Two nodes named for what they do, one named for what it approves and one that
-# hands the result on, in a single linear chain. There is no conditional stretch
-# here at all: a plan run reads the project's standards, writes one plan, asks
-# once whether that plan stands, and hands it over. Nothing branches, so no node
-# carries a `when` guard.
-#
-# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
-# completed or a skipped predecessor but never by a stopped one, which is what
-# makes the gate's stop option actually end the run: `handoff` is never ready
-# after a stop, and it is the only thing left.
-#
-# This definition is chain-only. It has no orchestrator skill, no slash command
-# and no prose twin: it is reached as `workflow:plan` from a chain node that
-# carries a `dir:`, and nowhere else. That is why `statement` is the required
-# input - it is the one thing the dispatch envelope carries as free text, and
-# the worker's seed names it as this input.
 name: plan
 version: 1
 inputs:
