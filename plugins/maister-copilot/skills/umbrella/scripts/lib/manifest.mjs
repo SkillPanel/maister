@@ -81,7 +81,7 @@ import { randomBytes } from 'node:crypto';
 
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
-import { driverCapable } from './envelope.mjs';
+import { driverCapability } from './envelope.mjs';
 import { validate as validateGraph } from '../../../workflow-engine/scripts/lib/graph.mjs';
 
 /** The refusal names `commit` and `openTemp` report under, kept in one place. */
@@ -866,12 +866,27 @@ function checkMemberDirs(doc, file, members, errors) {
  * kind, write its gate requests to a file and print a marker instead of asking
  * a question nobody is there to answer.
  *
- * The rule itself is `envelope.mjs`'s `driverCapable`, so there is one
- * definition of "driver-capable" and one grep behind it. Only the boolean is
- * imported: the dispatch refusal that the same predicate feeds stays in the
- * dispatch vocabulary, is never raised or caught here, and is never quoted in
- * this report. The message below is composed for an operator reading a
- * validation report, and names what a capable target is rather than a code.
+ * The rule itself is `envelope.mjs`'s `driverCapability`, so there is one
+ * definition of "driver-capable" and one grep behind it. Only the verdict is
+ * imported: the dispatch refusal that the same rule feeds stays in the dispatch
+ * vocabulary, is never raised or caught here, and is never quoted in this
+ * report. The two messages below are composed for an operator reading a
+ * validation report, and name what a capable target is rather than a code.
+ *
+ * The verdict is three-valued because the report has two different things to
+ * say. A target that was read and does not state the driver rule is the
+ * author's defect. A `skill:` target this installation holds no file for was
+ * never read at all, and claiming it lacks the rule would assert something this
+ * check cannot know — so it says that instead, and its recovery includes
+ * installing whatever ships the skill. The graph checker warns on the same
+ * node, and the two findings agree: it reports the reference as unresolved,
+ * this one reports that an unresolved target cannot be dispatched, because the
+ * runtime that builds the worker's envelope reads exactly this file too.
+ *
+ * Where it diverges from the member check above, it does so deliberately: that
+ * one skips an interpolated `dir:` because what it resolves to is decided at
+ * dispatch time, while `uses:` is not an interpolated key in the grammar, so
+ * there is never a spelling here whose target is unknown until the run.
  *
  * A node with no `uses:` at all is left alone — the graph checker already fails
  * it at this very path, and saying it twice in two vocabularies helps nobody.
@@ -881,12 +896,15 @@ function checkDriverCapable(doc, file, errors) {
   for (const [id, node] of Object.entries(doc.nodes)) {
     if (!isMap(node) || typeof node.dir !== 'string' || node.dir === '') continue;
     if (typeof node.uses !== 'string' || node.uses === '') continue;
-    if (driverCapable(node.uses)) continue;
+    const verdict = driverCapability(node.uses);
+    if (verdict === 'capable') continue;
     errors.push({
       file,
       node: id,
       path: `nodes.${id}.uses`,
-      message: `"${node.uses}" cannot be dispatched into a member: a dispatched worker runs unattended, so it has to record the driver it was started under, write each gate out as a request file and print a marker instead of asking. Only a workflow: target, which the engine runs, or an orchestrator skill whose SKILL.md states that driver-qualified gate rule does that. Point this node at one of those, or drop its dir: and run it in the coordinating repository.`,
+      message: verdict === 'unreadable'
+        ? `"${node.uses}" cannot be dispatched into a member: this installation holds no such skill, so nothing was read and whether it honours a driver is unknown here. A dispatched target has to be readable where the dispatch is built, because the same lookup decides it there. Install whatever ships that skill, point this node at a workflow: target or at an orchestrator skill this installation carries, or drop its dir: and run it in the coordinating repository.`
+        : `"${node.uses}" cannot be dispatched into a member: a dispatched worker runs unattended, so it has to record the driver it was started under, write each gate out as a request file and print a marker instead of asking. Only a workflow: target, which the engine runs, or an orchestrator skill whose SKILL.md states that driver-qualified gate rule does that. Point this node at one of those, or drop its dir: and run it in the coordinating repository.`,
     });
   }
 }

@@ -689,7 +689,9 @@ function checkReference(node, id, at, file, errors, warnings) {
  * The declared value types. `bool` and `id` are proven flow-safe by their token
  * alone; an `enum` is proven by its members. A bare `string` is the only token
  * a static check cannot decide, and undecidable is a warning here — the same
- * reasoning that makes an unresolvable `workflow:` target a warning.
+ * reasoning that makes an unresolvable `skill:`, `agent:` or `workflow:`
+ * target a warning, three of the four schemes being undecidable and only
+ * `direct:` decidable from the files in hand.
  */
 function checkDeclaredValues(node, at, file, errors, warnings, id) {
   const values = node.outputs?.values;

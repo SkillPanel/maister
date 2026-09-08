@@ -28,18 +28,21 @@ and both of them state in their own opening prose that there is no routing
 construct because the grammar has none. A planner that starts from a shipped
 pair and edits it is already past most of section 3.
 
-**Why anything is restated below at all.** Three of the rules in section 2 are
-enforced by code and appear in no prose anywhere — not in the register, not in
-the engine's own skill, not in either shipped chain. A fourth is a consequence
-of two rules that are each written down separately and whose interaction is
-not. A rule that exists nowhere in prose has to live somewhere, so it lives
-here, each one cited to the code that enforces it. Nothing in section 2 is a
-second copy of a register table; where the register carries the rule, this file
-points at it and stops.
+**Why anything is restated below at all.** The rules in section 2 are the ones a
+first draft breaks and no prose a planner reads states — not the register, not
+the engine's own skill, not either shipped chain. Three of them are carried by
+a contract JSON Schema as a `$defs` pattern or type, which is a machine-readable
+constraint rather than a sentence anyone drafts against; the fourth is a
+consequence of two rules that are each written down separately and whose
+interaction is not. So each rule here is cited to the code symbol that enforces
+it and, where a schema carries it too, to the `$defs` that does — edit either
+and this file is one grep away. Nothing in section 2 is a second copy of a
+register table; where the register carries the rule, this file points at it and
+stops.
 
 ---
 
-## 2. Four rules the register does not carry
+## 2. Four rules no prose a planner reads carries
 
 ### 2.1 The `when:` form: exactly one reference, optionally negated
 
@@ -53,13 +56,14 @@ when: "!${inputs.skip_beta}"       # its negation
 when: "${research.values.has_gap}" # a value output of an upstream node
 ```
 
-The pattern that decides this lives in the graph checker (`graph.mjs:52`,
-`WHEN_REF`), and it accepts exactly two subjects: `inputs.<name>`, and
-`<node-id>.values.<name>`. Anything else is a located error at the node's
-`when` path.
+The pattern that decides this is `WHEN_REF` in the graph checker (`graph.mjs`);
+the definition schema carries the same pattern and the same sentence as
+`$defs/when_ref` in `workflow-definition.schema.json`. It accepts exactly two
+subjects: `inputs.<name>`, and `<node-id>.values.<name>`. Anything else is a
+located error at the node's `when` path.
 
-Two semantic rules ride on top of the form (`graph.mjs:718-739`, closures at
-`:798-812`):
+Two semantic rules ride on top of the form (`checkWhen` in `graph.mjs`, reading
+the needs closures `closuresOf` computes):
 
 - an `inputs.<name>` guard requires that input to be declared `type: bool`;
 - a `<node>.values.<name>` guard requires that node to declare `<name>` as a
@@ -93,24 +97,32 @@ approve:
 ```
 
 Not a sequence of maps, not a sequence of strings. The checker reads the value as
-a map and rejects anything else (`graph.mjs:624-655`), and it enforces three
-further things: every option id matches the target-name charset; **exactly one**
+a map and rejects anything else (`checkNodeShape` in `graph.mjs`), and it
+enforces three further things: every option id matches the target-name charset; **exactly one**
 option has the effect `continue`; and **at least one** has `stop`.
 
 An option may also carry values, in which case its value is a map rather than a
-bare effect string — `{effect: continue, values: {...}}`. A `values` that is not
-a map is an error (`graph.mjs:601-604`, `:639-641`).
+bare effect string — `{effect: continue, values: {...}}`, which `optionEffect`
+reads through so both spellings stay one rule. A `values` that is not a map is
+an error (`checkNodeShape`).
 
 A gate node carries no `uses:`; its `ask` must be non-empty; and `type` has
-exactly one legal member, `gate` (`graph.mjs:613-615`). The register carries the
-one-continue-and-a-stop rule (§ 10, B1); the *map* shape it does not, which is
-precisely why drafts fail on it.
+exactly one legal member, `gate` (all of them in `checkNodeShape`). The register
+carries the one-continue-and-a-stop rule (§ 10, B1), and the map shape is typed
+in the definition schema — `options` under `$defs/node` in
+`workflow-definition.schema.json`, an object keyed by option id. Neither is a
+sentence a planner reads while drafting a gate, which is precisely why drafts
+fail on it.
 
 ### 2.3 Value-output names are `[a-z_]+`
 
-Node ids are hyphenated. Value output names are **not**: they are lowercase
-letters and underscores only (`graph.mjs:90`, checked at `:672-694`), and the
-guard pattern in 2.1 accepts nothing else either.
+Node ids are hyphenated (`NODE_ID` in `graph.mjs`, and `$defs/node_id` in
+`common.schema.json`). Value output names are **not**: they are lowercase letters
+and underscores only. The charset is embedded in the guard pattern rather than
+checked at the declaration — `WHEN_REF` in `graph.mjs` and `$defs/when_ref` in
+`workflow-definition.schema.json` both spell it `[a-z_]+` — so a hyphenated value
+name is one no guard can ever read, while what `checkDeclaredValues` judges at
+the declaration is the type.
 
 ```yaml
 outputs:
@@ -124,11 +136,13 @@ them the wrong way round produces an error at the outputs path that reads like a
 type problem.
 
 Artifact names are free-form and only checked for existence when something
-interpolates them (`graph.mjs:787-789`).
+interpolates them (`checkInterpolations` in `graph.mjs`, through
+`referenceProblem`).
 
 ### 2.4 A node id that is a reserved word warns
 
-Reserved keys match by **dotted-path suffix** (`graph.mjs:99-108`, `:360-376`).
+Reserved keys match by **dotted-path suffix** (`RESERVED_PATHS` and
+`scanReserved` in `graph.mjs`).
 A node's own id becomes part of that path, so naming a node after a reserved
 word emits a reserved-key warning against a chain that is otherwise perfect:
 
@@ -162,7 +176,8 @@ learn about them.
 A node that names a member directory hands its work to a session with **no one
 at the keyboard**. A target that asks a question there hangs. So the dispatch
 check requires the target to be one that suspends at a gate instead of asking
-(`envelope.mjs:315-327`, refusing `dispatch-workflow-not-driver-capable`):
+(`driverCapability` in `envelope.mjs`, whose dispatch-side reading
+`assertDriverCapable` refuses `dispatch-workflow-not-driver-capable`):
 
 - `workflow:` targets always pass — the engine runs them, and the engine
   suspends;
@@ -172,7 +187,8 @@ check requires the target to be one that suspends at a gate instead of asking
 
 **The capable set is discovered, never listed.** The check reads
 `skills/<name>/SKILL.md` and matches the driver rule literal
-`orchestrator.driver.kind` in the text (`envelope.mjs:329-341`); the rationale
+`orchestrator.driver.kind` in the text (`DRIVER_RULE` and `skillText` in
+`envelope.mjs`); the rationale
 recorded beside it is that capability is read off the shipped artifact rather
 than from a list kept in code. Discover the set the same way and offer what you
 found — a list written down anywhere is wrong the first time a skill is added.
@@ -196,10 +212,19 @@ driver is a located error at that node's `uses` path — the same shape as the
 undeclared-member error, and reported by the workspace validator rather than by
 the engine. It is the one dispatch rule the loop catches for you.
 
+The check reports two cases, and they read differently. A target that was read
+and does not state the rule is a planning defect. A `skill:` target the
+installation holds no file for was never read at all, so the message says that
+instead of asserting anything about the file — and the same node also collects
+the graph checker's `unresolved-reference` warning, which is not a contradiction:
+an unresolved reference is tolerated everywhere except on a node that dispatches,
+where the runtime building the envelope has to read the same file. A planner
+authoring from the discovered set should never emit either.
+
 ### 3.2 A `with:` value containing `${` never reaches the worker
 
 The envelope builder turns a node's `with:` map into the worker's inputs, and it
-**skips any value containing `${`** (`envelope.mjs:450-458`). It also skips
+**skips any value containing `${`** (`inputsOf` in `envelope.mjs`). It also skips
 non-strings, and keeps only values that look like paths. The `with:` key becomes
 the input's role.
 
@@ -227,7 +252,7 @@ resolves values inside the run.
 
 What a worker is asked to do arrives as the envelope's statement, resolved from
 the first non-blank of the dispatch override, `with.statement`, then `with.task`
-(`envelope.mjs:350-356`). For a planned chain that means: put the sentence a
+(`statementOf` in `envelope.mjs`). For a planned chain that means: put the sentence a
 worker should read in `with.statement`.
 
 Two constraints on it:
@@ -236,17 +261,19 @@ Two constraints on it:
   entries, and a value that cannot be emitted safely on one line is refused
   (`value-not-flow-safe`) rather than escaped. A decoded newline, carriage
   return or tab anywhere in a node is additionally a validate-time error
-  (`graph.mjs:451-472`) — so the block-scalar reflex fails twice over, and the
+  (`CONTROL_CHARS`, scanned by `scanControlCharacters` in `graph.mjs`) — so the
+  block-scalar reflex fails twice over, and the
   reader has no block scalars anyway (section 5).
 - **Short.** See 3.4.
 
 `with.autonomy`, `with.statement` and `with.task` are **control** for the seed,
-not arguments to the work (`seed.mjs:82`). Everything else in `with:` is an
+not arguments to the work (`CONTROL_ARGS` in `seed.mjs`). Everything else in `with:` is an
 argument, subject to 3.2.
 
 ### 3.4 The worker seed has a line budget
 
-The rendered seed prompt is capped at 60 lines (`seed.mjs:79`, `:392-399`), and a
+The rendered seed prompt is capped at 60 lines (`SEED_LINE_CAP` in `seed.mjs`,
+enforced in `renderSeed`), and a
 descriptor that would render past the cap is **refused, never truncated** —
 `seed-over-cap`. Truncation would silently drop the close-out contract at the
 bottom of the prompt, which is the part that tells a worker how to report back.
@@ -265,12 +292,12 @@ five prompts.
 
 Both resolve, neither defaults silently.
 
-**Provider** (`envelope.mjs:407-419`): the node's own `provider:`, then the run
+**Provider** (`resolveProvider` in `envelope.mjs`): the node's own `provider:`, then the run
 state's, then the member's `default_provider` in the manifest. Nothing found is
 `dispatch-node-incomplete`. Note what is *not* in the chain: the manifest's
 `defaults` block is deliberately not consulted for a provider.
 
-**Autonomy** (`envelope.mjs:426-442`): `with.autonomy`, then the member's, then
+**Autonomy** (`resolveAutonomy` in `envelope.mjs`): `with.autonomy`, then the member's, then
 `defaults.autonomy`. Nothing found is `dispatch-autonomy-unresolved`; a value
 outside the four-tier enum is `dispatch-autonomy-unknown`.
 
@@ -282,7 +309,7 @@ demonstrably carries the member default — it costs one line and removes a
 mid-run refusal.
 
 `provider:` on a base node is unvalidated by the graph checker; only an overlay
-tune checks it against the two known values (`graph.mjs:1036-1038`). A typo in a
+tune checks it against the two known values (`checkOps` in `graph.mjs`). A typo in a
 provider name is therefore a dispatch-time refusal, not a validate-time error.
 
 ---
@@ -320,7 +347,7 @@ correctly — the mistake only appears in a run.
 An inline node's step text lives in the companion `.md` beside the definition,
 found by swapping `.yml` for `.md`. The section is matched by scanning heading
 lines, stripping the leading hashes and **all backticks**, trimming, and
-requiring the result to **equal** the node id (`graph.mjs:295-307`):
+requiring the result to **equal** the node id (`hasProseSection` in `graph.mjs`):
 
 ```markdown
 ## `collect-results`     ✓ matches node id collect-results
@@ -342,7 +369,7 @@ backticks — the shipped pairs do, and it reads as the identifier it is.
 A value output typed `bool`, `id` or an `enum` of non-empty strings is provably
 safe to carry on a one-line flow entry. One typed `string` is not provably
 unsafe either, so it is accepted with a warning rather than refused
-(`graph.mjs:672-694`).
+(`checkDeclaredValues` in `graph.mjs`).
 
 That warning is the signal to think again. A `string` output is usually one of
 three things wearing the wrong type: a boolean the author did not want to commit
@@ -354,9 +381,10 @@ read one anyway — guards require `bool` (2.1).
 ### 4.4 The top-level `inputs:` map, and why guards should not read it
 
 `inputs:` is a mapping of input name to a small map carrying at least `.type`.
-**No type enum is validated** — `string`, `bool`, `path` all parse
-(`graph.mjs:432`, `:718-722`). The one place a type is enforced is a guard: an
-input a `when:` reads must be declared `type: bool`.
+**No type enum is validated** — `string`, `bool`, `path` all parse: `buildGraph`
+carries the `inputs:` map through untouched. The one place a type is enforced at
+all is a guard (`checkWhen`): an input a `when:` reads must be declared
+`type: bool`.
 
 Inputs are the values a *run* supplies at start time. That is their whole
 purpose, and it is also the reason a guard should rarely read one: a chain whose

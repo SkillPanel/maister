@@ -229,6 +229,11 @@ document and reports `unresolved-reference:<node>:<target>`. The cost is that a 
 name surfaces when the node is reached rather than at validation time. Only `direct:`
 stays an error, because its implementation is the section beside the definition in hand.
 
+**The relaxation stops at a node carrying `dir:`.** Such a node hands its work to a member
+repository, and the workspace validator errors on one whose target it cannot read — the
+runtime that builds the worker's envelope reads the same file, so a target invisible here is
+a dispatch that refuses there rather than a reference some environment may still supply.
+
 **Target names in a definition are bare, and the provider prefix is applied at invocation.**
 Resolution is rooted at the plugin root, so one shipped definition is correct under every
 generated variant with no rewrite pass. A prefix written into a definition file breaks the

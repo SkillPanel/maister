@@ -7470,14 +7470,30 @@ async function t35(ctx) {
         '  plan:', '    uses: workflow:research', '    dir: auth',
         '  build:', '    uses: skill:development', '    dir: auth', '    needs: [plan]',
         '  ship:', '    uses: skill:quick-dev', '    dir: auth', '    needs: [build]', '',
+        '  hand:', '    uses: skill:partner-orchestrator', '    dir: auth', '    needs: [build]', '',
       ].join('\n'), 'utf8');
 
       const judged = validate(root, { definitions: [definition] });
+      // Counted, not just filtered: a suffix filter would let an unrelated
+      // error through unnoticed, and the two that must be here are the whole
+      // point of the check.
+      must(judged.errors.length === 2, `expected two errors, got ${JSON.stringify(judged.errors)}`);
       const located = judged.errors.filter(e => e.path.endsWith('.uses'));
-      equalJson(located.map(e => [e.node, e.path]), [['ship', 'nodes.ship.uses']],
+      equalJson(located.map(e => [e.node, e.path]), [['ship', 'nodes.ship.uses'], ['hand', 'nodes.hand.uses']],
         'the located capability errors — a workflow: target and a capable skill: target must pass');
       must(located[0].file === definition, `the error names ${located[0].file}, not the definition`);
       must(located[0].message.includes('skill:quick-dev'), 'the message does not name the target');
+      // The two cases are told apart in the report. A skill that was read and
+      // does not state the rule is the author's defect; a skill this root holds
+      // no file for was never read, and saying it lacks the rule would assert a
+      // property of a file nothing opened — which is the relaxed graph
+      // checker's own reason for warning on the same node rather than failing.
+      must(!/holds no such skill/.test(located[0].message),
+        `a target that was read is reported as unreadable: ${located[0].message}`);
+      must(/holds no such skill/.test(located[1].message),
+        `an unreadable target is reported as stating no driver rule: ${located[1].message}`);
+      must(judged.warnings.some(w => w.message === 'unresolved-reference:hand:skill:partner-orchestrator'),
+        'the graph checker no longer warns on the unresolvable reference the error is about');
       // The dispatch vocabulary stays on the dispatch side: a validate report
       // never quotes a refusal code, and nothing on this path caught one.
       for (const entry of [...judged.errors, ...judged.warnings]) {
@@ -9360,9 +9376,8 @@ function t40(ctx) {
  * is the planner's whole contract and nothing else in the suite asserts it.
  *
  * The command reference is repository-level: absent in the tarball, and skipped
- * with a note there rather than failed. It is also skipped, with a note, while
- * it does not name the planner at all, so that documenting the planner and
- * pinning it can land in either order.
+ * with a note there rather than failed. That is the only skip it gets — a
+ * checkout that holds the file has to document the planner in it, or fail.
  */
 const PLANNER_SKILL_REL = 'skills/chain-planner/SKILL.md';
 const PLANNER_REFERENCE_REL = 'skills/chain-planner/references/plan-time-rules.md';
@@ -9397,10 +9412,6 @@ async function t41(ctx) {
   for (const carrier of carriers) {
     if (carrier.repo && !isFile(carrier.file)) {
       t.notes.push(`${carrier.path} is not in this checkout — skipped`);
-      continue;
-    }
-    if (carrier.repo && !fs.readFileSync(carrier.file, 'utf8').includes('chain-planner')) {
-      t.notes.push(`${carrier.path} does not document the planner yet — skipped`);
       continue;
     }
     t.check(`${carrier.path} spells the planner's slash form`, () => {
@@ -9471,8 +9482,8 @@ async function t41(ctx) {
       }
       const definition = path.join(workflows, `${PLANNED_CHAIN_STEM}.yml`);
       const judged = validate(root, { definitions: [definition] });
+      // `ok` is `errors.length === 0`, so asserting both would be asserting once.
       equalJson(judged.errors, [], 'the planned pair was rejected');
-      must(judged.ok === true, 'validate did not report ok');
       equalJson(judged.warnings.map(w => w.message), PLANNED_CHAIN_WARNINGS,
         'the warning stream — a planned chain adds nothing to the scaffolded manifest\'s advisory');
       for (const warning of judged.warnings) {

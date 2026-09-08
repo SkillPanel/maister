@@ -296,7 +296,8 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
 }
 
 /**
- * Whether the workflow a `dir:` node names can honour a driver.
+ * Whether the workflow a `dir:` node names can honour a driver, and — when it
+ * does not — whether that was read off the target or could not be read at all.
  *
  * A dispatched worker is unattended by construction: it has to record a driver
  * kind, suspend at a gate by writing a request file and print a frozen marker
@@ -313,14 +314,18 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
  * qualifies without the lookup. `agent:` and `direct:` targets are steps inside
  * a run, not runs, and can never be dispatched.
  *
- * Exported as a **boolean predicate**, not as the assertion below, and that is
- * the whole of the difference between the two. `manifest.mjs`'s `validate`
+ * Exported twice, and never as the assertion below: as the three-answer
+ * verdict, and as the boolean derived from it. `manifest.mjs`'s `validate`
  * reports located `{file, node, path, message}` entries and never refuses; were
  * it to call a helper that throws, a dispatch-vocabulary refusal code would
- * have to be caught on the validate path and quoted in a validate report. So
- * the rule — the driver-rule pattern and the skill-text read — has one
- * definition and one grep here, and each caller composes its own answer from
- * the boolean: this module refuses, the validator locates.
+ * have to be caught on the validate path and quoted in a validate report. The
+ * third answer, `unreadable`, is there for the same reason: a `skill:` target
+ * this root holds no file for was never read, so a validator calling it
+ * incapable would assert a property of a file it never opened, and no exception
+ * it could catch would tell it otherwise. So the rule — the driver-rule pattern
+ * and the skill-text read — has one definition and one grep here, and each
+ * caller composes its own answer: this module refuses on anything but
+ * `capable`, the validator locates and says which of the two it found.
  *
  * The engine itself carries the driver literal and therefore qualifies. That is
  * deliberate and is today's behaviour: no exclusion lives in the rule. A
@@ -328,13 +333,26 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
  * when it *authors* the set, which is a presentational choice made where the
  * set is presented, not here.
  */
-export function driverCapable(uses) {
-  if (typeof uses !== 'string' || uses === '') return false;
+export function driverCapability(uses) {
+  if (typeof uses !== 'string' || uses === '') return 'incapable';
   const at = uses.indexOf(':');
   const scheme = at < 0 ? '' : uses.slice(0, at);
   const name = at < 0 ? '' : uses.slice(at + 1);
-  if (scheme === 'workflow') return true;
-  return scheme === 'skill' && DRIVER_RULE.test(skillText(name));
+  if (scheme === 'workflow') return 'capable';
+  if (scheme !== 'skill' || !SKILL_NAME.test(name)) return 'incapable';
+  const text = skillText(name);
+  if (text === null) return 'unreadable';
+  return DRIVER_RULE.test(text) ? 'capable' : 'incapable';
+}
+
+/**
+ * The verdict as the one boolean a dispatch acts on. Unreadable and incapable
+ * collapse here on purpose: dispatch cannot build an envelope from a target it
+ * cannot read either, so both answers refuse, and the difference between them
+ * belongs to the report that is written before anything runs.
+ */
+export function driverCapable(uses) {
+  return driverCapability(uses) === 'capable';
 }
 
 /**
@@ -356,13 +374,15 @@ function assertDriverCapable({ node, uses }) {
 /** The sentence a driver-aware orchestrator states its gate rule with. */
 const DRIVER_RULE = /orchestrator\.driver\.kind/;
 
-/** One skill's SKILL.md, or the empty string when there is no such skill. */
+/** The closed set a skill name is looked up under; anything else names no file. */
+const SKILL_NAME = /^[a-z][a-z0-9-]*$/;
+
+/** One skill's SKILL.md, or null when this plugin root holds no such file. */
 function skillText(name) {
-  if (!/^[a-z][a-z0-9-]*$/.test(name)) return '';
   try {
     return fs.readFileSync(path.join(pluginRoot(), 'skills', name, 'SKILL.md'), 'utf8');
   } catch {
-    return '';
+    return null;
   }
 }
 

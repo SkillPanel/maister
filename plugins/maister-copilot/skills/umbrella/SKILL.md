@@ -146,7 +146,17 @@ operator the other five members.
 changes. It is deterministic and involves no model. It parses, checks structure,
 checks ids, checks the graph is acyclic, resolves references, applies overlays,
 checks gate shape and finally warns on reserved keys, collecting findings within
-each stage rather than stopping at the first. Errors exit `1`; warnings alone
+each stage rather than stopping at the first. A node carrying `dir:` is judged
+once more: dispatched work runs unattended, so its `uses:` has to name a
+`workflow:` target or an orchestrator skill whose file states the driver-
+qualified gate rule. That is a validate-time error class, not the
+`dispatch-workflow-not-driver-capable` refusal below — the same rule read early
+and reported as a located finding carrying no code. It distinguishes a target
+that was read and does not state the rule from one this installation holds no
+file for, because in the second case nothing was read and the recovery includes
+installing whatever ships the skill. A node with no `dir:` is not judged this
+way: an unresolved `skill:` there is the graph checker's warning and nothing
+more. Errors exit `1`; warnings alone
 exit `0`, so a workspace can carry advisory findings without blocking. Reserved
 keys are surface-scoped: the workspace checker warns only on the manifest's own
 reserved key, and the workflow keys are the graph checker's to warn about. Both

@@ -237,8 +237,9 @@ declines to write is named with a reason. A second `init` over an existing manif
 
 Judge the workspace, and any chain files named with it. Deterministic and model-free: it parses,
 checks structure and ids, checks the graph is acyclic, resolves references, applies overlays,
-checks gate shape, checks every `dir:` against the manifest's member list and warns on reserved
-keys, collecting findings per stage rather than stopping at the first.
+checks gate shape, checks every `dir:` against the manifest's member list, checks that every
+`dir:` node names a target that can honour a driver, and warns on reserved keys, collecting
+findings per stage rather than stopping at the first.
 
 | Flag | Description |
 |------|-------------|
@@ -248,6 +249,17 @@ keys, collecting findings per stage rather than stopping at the first.
 Errors exit `1` and name the file, node and field; warnings alone exit `0`, so a workspace can carry
 advisory findings without being blocked. A freshly scaffolded manifest reports one advisory warning
 about a reserved key — expected and harmless.
+
+**The driver-capability check is new, and a chain that validated before this release can fail now.**
+A node carrying `dir:` hands its work to a session with nobody at the keyboard, so its `uses:` has
+to name a `workflow:` target or an orchestrator skill whose own file states the driver-qualified
+gate rule; anything else is an error at that node's `uses` path. The report separates two cases: a
+target that was read and does not state the rule, and a target this installation holds no file for
+at all — the second says so, rather than claiming a target it never opened lacks the rule. The
+recoveries are the same three either way: point `uses:` at a `workflow:` or at an orchestrator
+skill, install whatever ships the skill it names, or drop the `dir:` and run the step in the
+coordinating repository. On a node with no `dir:`, an unresolved `skill:` or `agent:` target still
+only warns — the strictness is what dispatch itself requires, not a general tightening.
 
 **Examples**:
 ```bash
