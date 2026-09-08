@@ -6,10 +6,11 @@
  * Windows checkout with no POSIX shell as it does anywhere else. Zero
  * dependencies, `node:` builtins only, Node >= 20.
  *
- * Six verbs, one contract:
+ * Seven verbs, one contract:
  *
  *   init      --root [--members-root --force --scaffold]        JSON on stdout
  *   validate  --root [--definition…]                            JSON on stdout
+ *   prune     --root [--name --dry-run]                         JSON on stdout
  *   envelope  --run --node --ledger --root   overrides on stdin JSON on stdout
  *   seed      --envelope [--siblings]                           JSON on stdout
  *   ledger    --ledger --op --actor [--dispatch-id]  args stdin JSON on stdout
@@ -37,8 +38,8 @@
  * ONE DECLARED DEVIATION from that parser: a `BOOLEAN` set beside `REPEATABLE`.
  * The engine's parser has no boolean support, so a bare `--force` would consume
  * the next argv token as its value or throw `the flag --force needs a value`.
- * The members of `BOOLEAN` — `force` and `scaffold`, and no others — accept the
- * bare form (value `true`), the explicit `--force=false`, and nothing else.
+ * The members of `BOOLEAN` — `force`, `scaffold` and `dry-run`, and no others —
+ * accept the bare form (value `true`), the explicit `--force=false`, and nothing else.
  * Every flag outside the set keeps the engine's behaviour unchanged.
  *
  * This file owns argument parsing, the exit-code table and the report shape.
@@ -72,6 +73,12 @@ const VERBS = {
     module: 'manifest.mjs',
     entry: 'validate',
     flags: ['root', 'definition'],
+    required: ['root'],
+  },
+  prune: {
+    module: 'manifest.mjs',
+    entry: 'prune',
+    flags: ['root', 'name', 'dry-run'],
     required: ['root'],
   },
   envelope: {
@@ -108,7 +115,7 @@ const REPEATABLE = new Set(['definition']);
  * `--flag` (true) or an explicit `--flag=true` / `--flag=false`; it never
  * consumes the following argv token, so `--force --root /w` still sees `--root`.
  */
-const BOOLEAN = new Set(['force', 'scaffold']);
+const BOOLEAN = new Set(['force', 'scaffold', 'dry-run']);
 
 /**
  * The op that allocates its own `dispatch_id`. Every other ledger op addresses
@@ -303,6 +310,16 @@ async function runValidate(flags) {
 }
 
 /**
+ * Delete the generated chains whose runs have all closed — every one of them,
+ * or the one `--name` spells. `--dry-run` reports the same decisions and
+ * deletes nothing. Only the generated home is ever touched.
+ */
+async function runPrune(flags) {
+  const prune = await implementationOf('prune');
+  return finish(prune(flags.root, { name: flags.name ?? null, dryRun: Boolean(flags['dry-run']) }));
+}
+
+/**
  * Build and publish one node's dispatch envelope. `--root` is required rather
  * than derived: the manifest is consulted unconditionally, and walking up from
  * the run directory would guess at which workspace owns the run.
@@ -370,6 +387,7 @@ async function runOutbox(flags) {
 const RUNNERS = {
   init: runInit,
   validate: runValidate,
+  prune: runPrune,
   envelope: runEnvelope,
   seed: runSeed,
   ledger: runLedger,

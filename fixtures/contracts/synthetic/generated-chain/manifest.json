@@ -1,0 +1,27 @@
+{
+  "id": "generated-chain",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-08T00:00:00Z",
+  "files": [
+    {
+      "path": "ticket-alpha-42-rollout.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "ticket-alpha-42-rollout.md",
+      "schema": null
+    },
+    {
+      "path": "ticket-alpha-42-rollout.plan.md",
+      "schema": null
+    }
+  ],
+  "notes": "A generated chain as the chain planner publishes one with --generated: a per-ticket definition, its prose companion and its plan file under one stem that carries the ticket key, meant for .maister/workflows/generated/ rather than the top of the workflow directory. The suite stages a workspace the way the umbrella-runtime test does - one member under projects/, then umbrella init, which scaffolds the generated home and its ignore file - copies the pair both to the top level and under generated/, and proves the home changes nothing: both copies validate with ok true and exactly the freshly scaffolded manifest's reserved-key:routing.tiers advisory, both resolve to the same graph hash, and the validator's report marks only the generated copy as generated. It then drives the prune verb over the generated copy against staged run states. The shape holds only constructs the grammar has: one inline node declaring a bool value output, one gate with one continue and one stop, one guarded dispatch into a declared member with a provider, and one inline close-out. No inputs and no reserved key. The two prose files carry schema null because a prose companion is judged by the graph checker's heading-equality lint and a plan file by the suite's heading pin, not by a schema. expect is absent on purpose: the corpus-wide consumer of expect.warnings is hard-wired to the reserved-key fixture, so the expectation is asserted in the suite instead."
+}

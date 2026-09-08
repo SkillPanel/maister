@@ -67,17 +67,23 @@ both forms are accepted — `builtin:research` and `research` resolve to the sam
 candidates below. A prefix left on the name turns the lookup into a search for a file called
 `builtin:research.yml`, which exists nowhere.
 
-Search `.maister/workflows/` in the current project root, then the built-ins shipped
-beside this file:
+Search `.maister/workflows/` in the current project root, then its `generated/`
+subdirectory, then the built-ins shipped beside this file:
 
 | Found | Meaning |
 |---|---|
 | `.maister/workflows/<name>.yml` | an **eject** — it shadows the built-in entirely |
+| `.maister/workflows/generated/<name>.yml` | a **generated** chain — published by the chain planner for one ticket, complete in itself |
 | `.maister/workflows/<name>.overlay.yml` | an **overlay** — merged over the built-in |
 | `workflows/<name>.yml` beside this skill | the shipped **built-in** |
 
-Resolution order is eject → overlay → built-in, and the first hit wins. Authoring an eject
-or an overlay, and running an arbitrary definition file, are not this skill's business.
+Resolution order is eject → generated → overlay → built-in, and the first hit wins. A
+generated chain is never overlaid and never ejected: there is no `generated/<name>.overlay.yml`
+candidate, and a definition of the same name at the top of the directory would simply win —
+which the planner's collision check prevents. Its path is what the freeze records as
+`workflow.source`, exactly as for an eject, and the graph hash is computed from the resolved
+graph, never from the path, so where a chain lives changes nothing about the run. Authoring an
+eject or an overlay, and running an arbitrary definition file, are not this skill's business.
 
 **Reading the opt-out switch, on every platform.** A workflow's own orchestrator hands runs
 here by default, and `MAISTER_WORKFLOW_PROSE` is what sends a run to the prose twin instead —

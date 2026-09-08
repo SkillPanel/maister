@@ -93,6 +93,33 @@ const DEFAULT_MEMBERS_ROOT = 'projects';
 /** Where the framework state lives. Nothing outside it is written unasked. */
 const FRAMEWORK_DIR = '.maister';
 
+/**
+ * The workflow home, and the subdirectory inside it that generated chains are
+ * kept in. A generated chain is authored for one ticket or one run rather than
+ * kept for reuse, and it carries text derived from that ticket — so the home is
+ * a subdirectory of the one lookup root the engine already searches, and `init`
+ * drops an ignore file into it so nothing there is committed by default. The
+ * two ignore lines are exported because the chain planner spells the same file
+ * when it creates the home on first use, and the suite pins the two spellings
+ * to each other.
+ */
+const WORKFLOWS_DIR = 'workflows';
+const GENERATED_DIR = 'generated';
+export const GENERATED_IGNORE = '*\n!.gitignore\n';
+
+/** Where a workspace's coordinated runs keep their state, and the file that holds it. */
+const RUNS_DIR = ['umbrella', 'runs'];
+const STATE_FILE = 'orchestrator-state.yml';
+
+/** A run whose `task.status` is one of these dispatches nothing again. */
+const CLOSED_STATUSES = ['completed', 'failed', 'stopped'];
+
+/** The three files a chain of one stem consists of, by extension, in publish order. */
+const CHAIN_EXTENSIONS = ['yml', 'md', 'plan.md'];
+
+/** A chain stem: the planner's charset, so `--name` can never spell a path. */
+const CHAIN_STEM = /^[a-z][a-z0-9-]*$/;
+
 /** The knowledge directory the manifest declares, and the file `--scaffold` seeds in it. */
 const KNOWLEDGE_DIR = 'knowledge';
 const KNOWLEDGE_README = `${KNOWLEDGE_DIR}/README.md`;
@@ -279,6 +306,14 @@ function isDirectory(target) {
   }
 }
 
+function isFile(target) {
+  try {
+    return fs.statSync(target).isFile();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A workspace-relative path in the manifest's spelling: forward slashes on
  * every platform, because `common#/$defs/rel_path` is one grammar and a
@@ -417,7 +452,8 @@ export function init(root, { membersRoot = null, force = false, scaffold = false
     const preserved = [];
 
     for (const dir of [
-      path.join(base, FRAMEWORK_DIR, 'workflows'),
+      path.join(base, FRAMEWORK_DIR, WORKFLOWS_DIR),
+      generatedHome(base),
       path.join(base, FRAMEWORK_DIR, 'umbrella', 'ledger', 'entries'),
       path.join(base, FRAMEWORK_DIR, 'umbrella', 'outbox'),
     ]) {
@@ -428,9 +464,13 @@ export function init(root, { membersRoot = null, force = false, scaffold = false
     write(manifest, text, base);
     created.push(relative(base, manifest));
 
+    // The ignore file rides the same "written only when absent" rule as the
+    // ledger: an operator who loosened it — to commit one generated chain on
+    // purpose — is not overridden by a later `--force`.
+    const ignore = path.join(generatedHome(base), '.gitignore');
     const index = path.join(base, FRAMEWORK_DIR, 'umbrella', 'ledger', 'index.yml');
     const log = path.join(base, FRAMEWORK_DIR, 'umbrella', 'ledger', 'ledger.log');
-    for (const [file, body] of [[index, 'version: 1\nentries: []\n'], [log, '']]) {
+    for (const [file, body] of [[ignore, GENERATED_IGNORE], [index, 'version: 1\nentries: []\n'], [log, '']]) {
       if (exists(file)) {
         preserved.push(relative(base, file));
         continue;
@@ -505,6 +545,7 @@ function scaffoldTargets() {
         '- `.maister/umbrella/ledger/` — one entry per dispatch, plus the append-only log',
         '- `.maister/umbrella/outbox/` — what each dispatch reported back',
         '- `.maister/workflows/` — workflow definitions and overlays this workspace owns',
+        '- `.maister/workflows/generated/` — chains generated for one ticket or one run: ignored by git, pruned once their runs close',
         '',
         '## Conventions',
         '',
@@ -633,7 +674,163 @@ export function validate(root, { definitions = [] } = {}) {
     checkDriverCapable(definition.doc, file, errors);
   }
 
-  return { ok: errors.length === 0, root: base, manifest: relative(base, manifestPath), errors, warnings };
+  // Each definition is reported as generated or not, by where it sits: the
+  // rules it was judged by are identical either way, and the flag is what lets
+  // a caller say so rather than infer it from the path.
+  const home = generatedHome(base);
+  const judged = definitions.map((file) => ({ file, generated: contains(home, path.resolve(file)) }));
+
+  return { ok: errors.length === 0, root: base, manifest: relative(base, manifestPath), definitions: judged, errors, warnings };
+}
+
+// ---------------------------------------------------------------------------
+// prune
+// ---------------------------------------------------------------------------
+
+/**
+ * Delete generated chains whose runs have all closed.
+ *
+ * Why deletion is safe once a run closes, stated once: the engine freezes the
+ * resolved graph into the run's state before the first node executes, and the
+ * envelope re-reads the definition only while a node is being dispatched —
+ * proving it against the frozen hash each time. A run whose `task.status` is
+ * terminal dispatches nothing again, so nothing will open the file on its
+ * behalf, and everything the cockpit renders about the run is in the run's own
+ * directory. A run that is not terminal, or that holds a pending gate, may
+ * still dispatch, and a chain such a run names is kept.
+ *
+ * Why an unreadable run state does not block. Dispatch reads the state before
+ * it reads the definition, and refuses on a state it cannot read — so a run
+ * whose state is unreadable cannot reach the chain file either. It is reported
+ * as a warning rather than silently skipped, because an operator should know
+ * one run could not be judged.
+ *
+ * Why a chain no run ever named is kept by default. The window between a
+ * planner publishing a generated chain and an operator starting it is exactly
+ * when a sweep would otherwise delete it. Naming the stem with `--name` is the
+ * deliberate form, and it removes an unstarted chain too.
+ *
+ * Only the generated home is ever a candidate. A reusable chain at the top of
+ * the workflow directory is never touched, even when `--name` spells its stem.
+ */
+export function prune(root, { name = null, dryRun = false } = {}) {
+  try {
+    const base = path.resolve(root);
+    if (!isDirectory(base)) {
+      throw new Refusal('umbrella-root-unusable',
+        `${root} is not a directory, so there is nothing to prune. Pass --root pointing at the workspace itself.`);
+    }
+    const home = generatedHome(base);
+    const stems = generatedStems(home);
+    const runs = readRuns(base);
+
+    let targets = stems;
+    if (name !== null) {
+      const stem = String(name);
+      if (!CHAIN_STEM.test(stem) || !stems.includes(stem)) {
+        throw new Refusal('umbrella-chain-missing',
+          `${relative(base, home)}/${stem}.yml is not a generated chain this workspace holds${stems.length ? `; the generated chains are ${stems.join(', ')}` : '; it holds none'}. A stem is lowercase letters, digits and hyphens, and only the generated home is ever pruned — a reusable chain of that name is left alone. Nothing was deleted.`);
+      }
+      targets = [stem];
+    }
+
+    const pruned = [];
+    const kept = [];
+    for (const stem of targets) {
+      const file = path.join(home, `${stem}.yml`);
+      const naming = runs.entries.filter((run) => run.file !== null && samePath(run.file, file));
+      const open = naming.filter((run) => !run.closed).map((run) => run.id);
+      const ids = naming.map((run) => run.id);
+      if (open.length > 0) {
+        if (name !== null) {
+          throw new Refusal('umbrella-chain-open',
+            `${relative(base, file)} is named by ${open.length === 1 ? 'a run that has' : 'runs that have'} not closed (${open.join(', ')}), and a run that may still dispatch reads the definition when it does. Let the run finish, or stop it, then prune again. Nothing was deleted.`);
+        }
+        kept.push({ name: stem, reason: 'run-open', runs: ids });
+        continue;
+      }
+      if (naming.length === 0 && name === null) {
+        kept.push({ name: stem, reason: 'never-started', runs: [] });
+        continue;
+      }
+      const files = CHAIN_EXTENSIONS.map((ext) => path.join(home, `${stem}.${ext}`)).filter(exists);
+      if (!dryRun) for (const target of files) remove(target, base);
+      pruned.push({ name: stem, files: files.map((target) => relative(base, target)), runs: ids });
+    }
+
+    return { ok: true, root: base, dry_run: dryRun, pruned, kept, warnings: runs.warnings };
+  } catch (err) {
+    return refused(err);
+  }
+}
+
+/** `<root>/.maister/workflows/generated`, the one directory `prune` ever deletes from. */
+function generatedHome(base) {
+  return path.join(base, FRAMEWORK_DIR, WORKFLOWS_DIR, GENERATED_DIR);
+}
+
+/** The stems of every `<stem>.yml` in the generated home, sorted; none when the home is absent. */
+function generatedStems(home) {
+  if (!isDirectory(home)) return [];
+  return fs.readdirSync(home)
+    .filter((entry) => entry.endsWith('.yml') && isFile(path.join(home, entry)))
+    .map((entry) => entry.slice(0, -'.yml'.length))
+    .filter((stem) => CHAIN_STEM.test(stem))
+    .sort();
+}
+
+/**
+ * Every run under the workspace, with the definition file its state names and
+ * whether it has closed. The source is resolved the way the envelope resolves
+ * it — workspace-relative first, then run-relative, then as given — so a state
+ * the engine wrote reads back the same here as it does at dispatch.
+ */
+function readRuns(base) {
+  const runsDir = path.join(base, FRAMEWORK_DIR, ...RUNS_DIR);
+  const entries = [];
+  const warnings = [];
+  if (!isDirectory(runsDir)) return { entries, warnings };
+  for (const id of fs.readdirSync(runsDir).sort()) {
+    const run = path.join(runsDir, id);
+    const stateFile = path.join(run, STATE_FILE);
+    if (!isFile(stateFile)) continue;
+    const read = readDefinition(stateFile);
+    if (read.doc === null || !isMap(read.doc)) {
+      warnings.push({
+        code: 'run-state-unreadable',
+        path: relative(base, stateFile),
+        message: `${relative(base, stateFile)} could not be read (${read.errors.map((each) => each.message).join('; ') || 'not a mapping'}), so which chain it names is unknown; it cannot dispatch from an unreadable state either, so nothing was held back for it.`,
+      });
+      continue;
+    }
+    const source = isMap(read.doc.workflow) ? read.doc.workflow.source : null;
+    const status = isMap(read.doc.task) ? read.doc.task.status : null;
+    const pending = isMap(read.doc.orchestrator) ? read.doc.orchestrator.gate_pending : null;
+    entries.push({
+      id,
+      file: sourceFile(base, run, source),
+      closed: CLOSED_STATUSES.includes(status) && (pending === null || pending === undefined),
+    });
+  }
+  return { entries, warnings };
+}
+
+/** The file a state's `workflow.source` names, or null when it names none or a built-in. */
+function sourceFile(base, run, source) {
+  if (typeof source !== 'string' || source === '') return null;
+  if (path.isAbsolute(source)) return source;
+  const candidates = [path.resolve(base, source), path.resolve(run, source), path.resolve(source)];
+  return candidates.find(isFile) ?? candidates[0];
+}
+
+/** One deleted file, under this module's refusal vocabulary. */
+function remove(target, base) {
+  try {
+    fs.unlinkSync(target);
+  } catch (err) {
+    throw new Refusal(CODES.unwritable,
+      `${relative(base, target)} could not be deleted: ${err.message}. Files deleted before it stay deleted; run prune again once the path is writable.`);
+  }
 }
 
 /**

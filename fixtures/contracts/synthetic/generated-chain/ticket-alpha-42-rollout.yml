@@ -1,0 +1,49 @@
+# A generated chain, as the chain planner publishes one with --generated.
+#
+# A generated chain is authored for one ticket rather than kept for reuse: the
+# text it carries is derived from that ticket, its stem carries the ticket key,
+# and it lives under .maister/workflows/generated/ - the subdirectory of the
+# workflow home that umbrella init drops an ignore file into - rather than
+# beside the reusable chains at the top of that directory. The engine resolves
+# it by name exactly as it resolves an eject, its frozen graph and graph hash
+# are computed from the resolved graph and not from the path, and no overlay
+# or eject ever applies to it. Once every run that named it has closed, the
+# umbrella runtime's prune verb deletes all three of its files.
+#
+# It is checked in so the suite can prove the home changes nothing about the
+# verdict: copied under generated/ it validates exactly as it does at the top
+# level, with the same hash, and the workspace validator reports it as
+# generated. The shape is the planner's smallest complete one - one inline
+# node declaring a bool, one gate, one guarded dispatch into a declared member
+# with a provider, and one inline close-out. No inputs: everything the chain
+# reads is produced inside the run. No reserved key appears anywhere.
+version: 1
+name: ticket-alpha-42-rollout
+nodes:
+  analyze:
+    uses: direct:analyze
+    needs: []
+    outputs:
+      artifacts:
+        notes: analysis/ticket-alpha-42.md
+      values:
+        ready: bool
+
+  dispatch-approval:
+    type: gate
+    needs: [analyze]
+    ask: "The analysis for ALPHA-42 is done. Dispatch the change into repo-alpha?"
+    options:
+      dispatch: continue
+      stop-chain: stop
+
+  apply:
+    uses: skill:development
+    needs: [dispatch-approval]
+    when: "${analyze.values.ready}"
+    dir: repo-alpha
+    provider: claude
+
+  close-out:
+    uses: direct:close-out
+    needs: [apply]

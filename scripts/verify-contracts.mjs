@@ -7098,6 +7098,7 @@ const SEED_FIXTURE_DIR = path.join('synthetic', 'worker-seed');
 const UMBRELLA_REFUSALS = [
   'umbrella-root-unusable', 'umbrella-member-unreadable', 'umbrella-members-root-outside',
   'umbrella-manifest-exists', 'umbrella-unwritable', 'umbrella-temp-exists',
+  'umbrella-chain-open', 'umbrella-chain-missing',
   'dispatch-node-incomplete', 'dispatch-autonomy-unknown', 'dispatch-autonomy-unresolved',
   'dispatch-graph-drifted', 'dispatch-envelope-exists', 'dispatch-unwritable', 'dispatch-temp-exists',
   'dispatch-workflow-not-driver-capable', 'dispatch-run-unresolved', 'dispatch-closeout-impossible',
@@ -7271,7 +7272,7 @@ async function t35(ctx) {
   if (!isFile(entry)) return { checks: t.checks, failures: [`${UMBRELLA_SCRIPTS}/umbrella.mjs is absent`] };
 
   const lib = name => import(pathToFileURL(path.join(scripts, 'lib', name)).href);
-  const { init, validate, discover } = await lib('manifest.mjs');
+  const { init, validate, discover, prune } = await lib('manifest.mjs');
   const { buildEnvelope, writeEnvelope, worktreeOf, driverCapable, envelope: envelopeVerb } = await lib('envelope.mjs');
   const { buildSeed, renderSeed, seed: seedVerb, SEED_SECTIONS, SEED_LINE_CAP } = await lib('seed.mjs');
   const led = await lib('ledger.mjs');
@@ -7378,7 +7379,8 @@ async function t35(ctx) {
       equalJson(report.skipped.map(s => [s.path, s.reason]),
         [['knowledge/README.md', 'scaffold-not-requested'], ['CLAUDE.md', 'scaffold-not-requested']],
         'the skipped targets');
-      for (const relative of ['.maister/umbrella.yml', '.maister/workflows', '.maister/umbrella/ledger/entries',
+      for (const relative of ['.maister/umbrella.yml', '.maister/workflows', '.maister/workflows/generated',
+        '.maister/workflows/generated/.gitignore', '.maister/umbrella/ledger/entries',
         '.maister/umbrella/ledger/index.yml', '.maister/umbrella/ledger/ledger.log', '.maister/umbrella/outbox']) {
         must(fs.existsSync(path.join(root, relative)), `${relative} was not created`);
       }
@@ -7560,6 +7562,86 @@ async function t35(ctx) {
       must(fs.readFileSync(path.join(twice, '.maister', 'umbrella.yml'), 'utf8') === before,
         'the refused init rewrote the manifest');
       must(init(twice, { membersRoot: null, force: true, scaffold: false }).ok, '--force refused');
+    });
+
+    // -- prune: generated chains whose runs have closed ----------------------
+
+    t.check('prune deletes a generated chain only once every run naming it has closed, and refuses by name', () => {
+      const root = workspace('prune');
+      gitDir(root, 'projects', 'repo-alpha');
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+      const workflows = path.join(root, '.maister', 'workflows');
+      const home = path.join(workflows, 'generated');
+      const fixture = path.join(ctx.fixtures, GENERATED_CHAIN_FIXTURE);
+      const stem = GENERATED_CHAIN_STEM;
+      // One generated chain, all three files; one reusable chain of another
+      // stem at the top level, which no prune may ever reach; and the ignore
+      // file init wrote, which is not a chain file and stays.
+      for (const ext of ['yml', 'md', 'plan.md']) {
+        fs.copyFileSync(path.join(fixture, `${stem}.${ext}`), path.join(home, `${stem}.${ext}`));
+      }
+      fs.copyFileSync(path.join(fixture, `${stem}.yml`), path.join(workflows, 'reusable.yml'));
+      const ignore = fs.readFileSync(path.join(home, '.gitignore'), 'utf8');
+      const survives = () => {
+        must(isFile(path.join(workflows, 'reusable.yml')), 'a reusable chain at the top level was deleted');
+        must(fs.readFileSync(path.join(home, '.gitignore'), 'utf8') === ignore, 'the ignore file was touched');
+      };
+      const runState = (id, status, source, pending = 'null') => {
+        const dir = path.join(root, '.maister', 'umbrella', 'runs', id);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'orchestrator-state.yml'),
+          `orchestrator:\n  gate_pending: ${pending}\ntask:\n  status: ${status}\nworkflow:\n  source: "${source}"\n`, 'utf8');
+      };
+      const generated = `.maister/workflows/generated/${stem}.yml`;
+
+      // Never started: kept by a sweep, so a chain published a moment ago is
+      // not deleted from under the operator about to start it.
+      let report = prune(root, { name: null, dryRun: false });
+      must(report.ok, `prune refused: ${JSON.stringify(report.errors)}`);
+      equalJson(report.pruned, [], 'a chain no run ever named was pruned');
+      equalJson(report.kept, [{ name: stem, reason: 'never-started', runs: [] }], 'the kept list');
+
+      // An open run: kept by a sweep, refused by name. A pending gate on a
+      // terminal status is open too - the marker, not the status, decides.
+      runState('r-open', 'in_progress', generated);
+      runState('r-gated', 'completed', generated, '{node: dispatch-approval, since: "2026-09-08T09:00:00Z"}');
+      runState('r-other', 'completed', '.maister/workflows/reusable.yml');
+      report = prune(root, { name: null, dryRun: false });
+      must(report.ok, `prune refused: ${JSON.stringify(report.errors)}`);
+      equalJson(report.kept, [{ name: stem, reason: 'run-open', runs: ['r-gated', 'r-open'] }], 'the kept list with open runs');
+      refusedWith('pruning a chain an open run names, by name', 'umbrella-chain-open',
+        prune(root, { name: stem, dryRun: false }));
+      refusedWith('pruning a stem the generated home does not hold', 'umbrella-chain-missing',
+        prune(root, { name: 'reusable', dryRun: false }));
+      refusedWith('pruning a stem spelled as a path', 'umbrella-chain-missing',
+        prune(root, { name: `../${stem}`, dryRun: false }));
+      survives();
+      must(isFile(path.join(home, `${stem}.yml`)), 'a refused or kept prune still deleted the chain');
+
+      // Every run closed: a dry run reports the deletion and makes none; the
+      // real run deletes all three files and nothing else. An unreadable state
+      // is warned about, never a reason to hold a chain back - it cannot
+      // dispatch either.
+      runState('r-open', 'stopped', generated);
+      runState('r-gated', 'completed', generated);
+      const broken = path.join(root, '.maister', 'umbrella', 'runs', 'r-broken');
+      fs.mkdirSync(broken, { recursive: true });
+      fs.writeFileSync(path.join(broken, 'orchestrator-state.yml'), 'not: [a\n  mapping', 'utf8');
+      report = prune(root, { name: null, dryRun: true });
+      must(report.ok && report.dry_run === true, `the dry run refused: ${JSON.stringify(report.errors)}`);
+      equalJson(report.pruned.map(p => [p.name, p.runs]), [[stem, ['r-gated', 'r-open']]], 'the dry run\'s decision');
+      must(isFile(path.join(home, `${stem}.yml`)), 'a dry run deleted the chain');
+      equalJson(report.warnings.map(w => w.code), ['run-state-unreadable'], 'the unreadable state is warned about');
+      report = prune(root, { name: null, dryRun: false });
+      must(report.ok, `prune refused: ${JSON.stringify(report.errors)}`);
+      equalJson(report.pruned.map(p => p.files.sort()),
+        [[`${generated}`, `.maister/workflows/generated/${stem}.md`, `.maister/workflows/generated/${stem}.plan.md`].sort()],
+        'the files pruned');
+      for (const ext of ['yml', 'md', 'plan.md']) {
+        must(!fs.existsSync(path.join(home, `${stem}.${ext}`)), `${stem}.${ext} survived the prune`);
+      }
+      survives();
+      equalJson(prune(root, { name: null, dryRun: false }).pruned, [], 'a second prune found something to delete');
     });
 
     // -- the envelope and the seed ------------------------------------------
@@ -9294,7 +9376,7 @@ function t39(ctx) {
 const UMBRELLA_SKILL_REL = 'skills/umbrella/SKILL.md';
 const UMBRELLA_DOCS_REL = 'docs/commands.md';
 const UMBRELLA_EXEC_LINE = 'node ${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs <verb> [flags]';
-const UMBRELLA_USER_VERBS = ['init', 'validate'];
+const UMBRELLA_USER_VERBS = ['init', 'validate', 'prune'];
 const UMBRELLA_MACHINE_VERBS = ['envelope', 'seed', 'ledger', 'outbox'];
 /** The slash form with the word that follows it: `/maister:umbrella init`, `/maister:umbrella `ledger``. */
 const UMBRELLA_SLASH_FORM = /\/maister:umbrella\s+`?([a-z-]+)/g;
@@ -9405,7 +9487,7 @@ const PLANNER_REFERENCE_REL = 'skills/chain-planner/references/plan-time-rules.m
 const PLANNER_DOCS_REL = 'docs/commands.md';
 const PLANNER_SLASH_FORM = '/maister:chain-planner';
 /** The flags the argument hint must offer; `--force` is deliberately not required. */
-const PLANNER_HINT_FLAGS = ['--name', '--root'];
+const PLANNER_HINT_FLAGS = ['--name', '--root', '--generated'];
 /** The sentence that bounds the draft-validate loop. */
 const PLANNER_BOUNDED_LOOP = /at most three passes/;
 /**
@@ -9546,6 +9628,193 @@ async function t41(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+
+// ---------------------------------------------------------------------------
+// T42 — the home for generated chains
+// ---------------------------------------------------------------------------
+
+/**
+ * A generated chain is one the planner publishes for a single ticket or run,
+ * and it lives in `.maister/workflows/generated/` rather than beside the
+ * reusable chains. The claim the home makes is that it changes nothing but the
+ * listing: the same definition validates to the same verdict and the same
+ * graph hash from either directory, the run's frozen `workflow.source`
+ * re-resolves from the generated path exactly as the envelope re-resolves an
+ * eject, and the workspace validator merely *says* which it judged. That claim
+ * is what this test holds, against the checked-in generated-chain fixture.
+ *
+ * The rest is the surfaces that have to agree on the home: `init` scaffolds
+ * it with an ignore file whose two lines the planner spells too when it
+ * creates the home on first use — pinned equal, or the two drift apart; the
+ * engine's skill and the user docs state the resolution order with the
+ * generated candidate between eject and overlay; the planner offers the flag
+ * and names the home. The prune verb's behaviour is exercised in the
+ * umbrella-runtime test, where every refusal the runtime raises is provoked.
+ */
+const GENERATED_CHAIN_FIXTURE = path.join('synthetic', 'generated-chain');
+const GENERATED_CHAIN_STEM = 'ticket-alpha-42-rollout';
+const GENERATED_CHAIN_MEMBERS = ['repo-alpha'];
+const GENERATED_HOME = '.maister/workflows/generated/';
+/** The candidates in the order the engine tries them; the generated one sits second. */
+const RESOLUTION_ORDER = ['.maister/workflows/<name>.yml', '.maister/workflows/generated/<name>.yml', '.maister/workflows/<name>.overlay.yml'];
+const ENGINE_SKILL_REL = 'skills/workflow-engine/SKILL.md';
+const WORKFLOWS_DOCS_REL = 'docs/workflows.md';
+const GENERATED_RUN_ID = '019260a2-4455-7c33-8d44-5e6677889900';
+
+async function t42(ctx) {
+  const t = checker();
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+  const { init, validate, GENERATED_IGNORE } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+  const { resolveFromState, readState } = await import(pathToFileURL(path.join(scripts, 'lib', 'envelope.mjs')).href);
+  const { readDefinition } = await import(pathToFileURL(path.join(scripts, 'lib', 'definition.mjs')).href);
+  const { resolve: resolveGraph } = await import(
+    pathToFileURL(path.join(ctx.pluginRoot, ENGINE, 'scripts', 'lib', 'graph.mjs')).href);
+  const fixtureDir = path.join(ctx.fixtures, GENERATED_CHAIN_FIXTURE);
+
+  t.check('the ignore file has the two lines that ignore everything but itself', () => {
+    must(GENERATED_IGNORE === '*\n!.gitignore\n', `GENERATED_IGNORE is ${JSON.stringify(GENERATED_IGNORE)}`);
+  });
+
+  t.check('init scaffolds the generated home with its ignore file, and a forced re-init preserves an edited one', () => {
+    const root = tempDir('generated-init');
+    try {
+      gitDir(root, 'projects', 'repo-alpha');
+      const first = init(root, { membersRoot: null, force: false, scaffold: false });
+      must(first.ok, `init refused: ${JSON.stringify(first.errors)}`);
+      const ignore = path.join(root, GENERATED_HOME, '.gitignore');
+      must(first.created.includes(`${GENERATED_HOME}.gitignore`), 'the ignore file is not in the created list');
+      must(first.created.includes(GENERATED_HOME.slice(0, -1)), 'the generated home is not in the created list');
+      must(fs.readFileSync(ignore, 'utf8') === GENERATED_IGNORE, 'the ignore file is not the pinned two lines');
+      fs.writeFileSync(ignore, '*\n!.gitignore\n!keep-this.yml\n', 'utf8');
+      const second = init(root, { membersRoot: null, force: true, scaffold: false });
+      must(second.ok, `the forced init refused: ${JSON.stringify(second.errors)}`);
+      must(second.preserved.includes(`${GENERATED_HOME}.gitignore`), 'the edited ignore file is not reported as preserved');
+      must(fs.readFileSync(ignore, 'utf8').includes('keep-this.yml'), 'the forced init rewrote the edited ignore file');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.checkAsync('the same chain validates identically from the top level and from the generated home, and only the home is reported', async () => {
+    must(isDir(fixtureDir), `${GENERATED_CHAIN_FIXTURE}: the generated-chain fixture is absent`);
+    const root = tempDir('generated-home');
+    try {
+      for (const member of GENERATED_CHAIN_MEMBERS) gitDir(root, 'projects', member);
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+      const workflows = path.join(root, '.maister', 'workflows');
+      const home = path.join(root, GENERATED_HOME);
+      for (const dir of [workflows, home]) {
+        for (const ext of ['yml', 'md']) {
+          fs.copyFileSync(path.join(fixtureDir, `${GENERATED_CHAIN_STEM}.${ext}`), path.join(dir, `${GENERATED_CHAIN_STEM}.${ext}`));
+        }
+      }
+      const top = path.join(workflows, `${GENERATED_CHAIN_STEM}.yml`);
+      const generated = path.join(home, `${GENERATED_CHAIN_STEM}.yml`);
+      const judged = validate(root, { definitions: [top, generated] });
+      equalJson(judged.errors, [], 'the pair was rejected from one of the two homes');
+      equalJson(judged.warnings.map(w => w.message), PLANNED_CHAIN_WARNINGS,
+        'the warning stream — the home adds nothing to the scaffolded manifest\'s advisory');
+      equalJson(judged.definitions, [{ file: top, generated: false }, { file: generated, generated: true }],
+        'the report\'s definitions list');
+
+      // The hash is a function of the resolved graph, never of the path.
+      const hashOf = file => resolveGraph({ definition: readDefinition(file), overlays: [], profile: null }).graph_hash;
+      must(hashOf(top) === hashOf(generated), 'the graph hash differs between the two homes');
+
+      // A run that froze the generated path re-resolves through the envelope's
+      // own reader to the same hash, so dispatch is unaffected by the home.
+      const run = path.join(root, '.maister', 'umbrella', 'runs', GENERATED_RUN_ID);
+      fs.mkdirSync(run, { recursive: true });
+      fs.writeFileSync(path.join(run, 'orchestrator-state.yml'), `orchestrator:
+  started_phase: null
+  completed_phases: []
+  failed_phases: []
+  created: "2026-09-08T09:00:00Z"
+  updated: "2026-09-08T09:15:40Z"
+  task_path: ".maister/umbrella/runs/${GENERATED_RUN_ID}"
+  gate_pending: null
+
+task:
+  title: "Ticket rollout"
+  status: in_progress
+
+workflow:
+  name: ${GENERATED_CHAIN_STEM}
+  source: "${GENERATED_HOME}${GENERATED_CHAIN_STEM}.yml"
+  overlays: []
+  profile: null
+  graph_hash: "sha256:${hashOf(generated)}"
+  grammar_version: 1
+  nodes:
+    analyze:           {kind: task, status: completed, needs: []}
+    dispatch-approval: {kind: gate, status: completed, needs: [analyze]}
+    apply:             {kind: task, status: pending, needs: [dispatch-approval], dir: repo-alpha, provider: claude}
+    close-out:         {kind: task, status: pending, needs: [apply]}
+`, 'utf8');
+      const resolved = resolveFromState({ state: readState(run), run });
+      must(resolved.ok, `the frozen generated source did not re-resolve: ${JSON.stringify(resolved.errors)}`);
+      must(resolved.graph_hash === hashOf(generated), 'the re-resolved hash differs from the frozen one');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  t.check(`${GENERATED_CHAIN_FIXTURE}/${GENERATED_CHAIN_STEM}.plan.md carries the four required headings, in order`, () => {
+    const headings = fs.readFileSync(path.join(fixtureDir, `${GENERATED_CHAIN_STEM}.plan.md`), 'utf8')
+      .split('\n')
+      .filter(line => line.startsWith('## '))
+      .map(line => line.slice(3).replace(/`/g, '').trim());
+    equalJson(headings, PLANNED_CHAIN_PLAN_HEADINGS, 'the plan file\'s second-level headings');
+  });
+
+  const carriers = [
+    { path: ENGINE_SKILL_REL, file: path.join(ctx.pluginRoot, ENGINE_SKILL_REL) },
+    { path: WORKFLOWS_DOCS_REL, file: path.join(ctx.repoRoot, WORKFLOWS_DOCS_REL), repo: true },
+  ];
+  for (const carrier of carriers) {
+    if (carrier.repo && !isFile(carrier.file)) {
+      t.notes.push(`${carrier.path} is not in this checkout — skipped`);
+      continue;
+    }
+    t.check(`${carrier.path} states the resolution order with the generated candidate between eject and overlay`, () => {
+      must(isFile(carrier.file), `${carrier.path}: missing`);
+      const text = fs.readFileSync(carrier.file, 'utf8');
+      const positions = RESOLUTION_ORDER.map(candidate => text.indexOf(candidate));
+      RESOLUTION_ORDER.forEach((candidate, index) => {
+        must(positions[index] >= 0, `${carrier.path}: never spells the candidate \`${candidate}\``);
+      });
+      must(positions[0] < positions[1] && positions[1] < positions[2],
+        `${carrier.path}: the candidates are not in the order eject → generated → overlay`);
+    });
+  }
+
+  t.check(`${PLANNER_SKILL_REL} offers --generated, names the home, and spells the ignore file as init writes it`, () => {
+    const text = fs.readFileSync(path.join(ctx.pluginRoot, PLANNER_SKILL_REL), 'utf8');
+    const hint = /^argument-hint: "(.*)"$/m.exec(text.split('\n---\n')[0])?.[1] ?? '';
+    must(hint.includes('--generated'), `argument-hint does not name \`--generated\`: ${JSON.stringify(hint)}`);
+    must(text.includes(GENERATED_HOME), `never names the generated home ${GENERATED_HOME}`);
+    // The skill quotes the ignore file as a fenced block; its body has to be
+    // the runtime's own two lines, or the home the planner creates on first
+    // use is not the home init creates.
+    const fenced = /```\n\*\n!\.gitignore\n```/.test(text);
+    must(fenced, 'the ignore file the planner spells is not the two lines init writes');
+    must(!text.includes(PLANNER_DRIVER_LITERAL), 'the planner now states the driver literal — it would become a dispatch target');
+  });
+
+  t.check(`${UMBRELLA_SKILL_REL} and the command reference say a generated chain is never overlaid or ejected`, () => {
+    for (const carrier of [
+      { path: PLANNER_SKILL_REL, file: path.join(ctx.pluginRoot, PLANNER_SKILL_REL) },
+      { path: ENGINE_SKILL_REL, file: path.join(ctx.pluginRoot, ENGINE_SKILL_REL) },
+    ]) {
+      const text = fs.readFileSync(carrier.file, 'utf8');
+      must(/never (?:overlaid|ejected)|neither overlaid nor ejected|no overlay .{0,40}applies/i.test(text),
+        `${carrier.path}: does not state that a generated chain is never overlaid or ejected`);
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -9606,6 +9875,7 @@ const TESTS = [
   { id: 'T39', name: 'gate-sequence-lockstep', needs: ['plugin'], run: t39 },
   { id: 'T40', name: 'umbrella-user-verbs', needs: ['plugin'], run: t40 },
   { id: 'T41', name: 'chain-planner-surface', needs: ['plugin', 'fixtures'], run: t41 },
+  { id: 'T42', name: 'generated-chain-home', needs: ['plugin', 'fixtures'], run: t42 },
 ];
 
 // ---------------------------------------------------------------------------

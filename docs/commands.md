@@ -210,8 +210,11 @@ uses, documented below for the operator who needs to know what wrote a ledger or
 
 ### `/maister:umbrella init [--root DIR] [--members-root DIR] [--force]`
 
-Scaffold a workspace: the manifest, the workflow directory, an empty ledger with its index and log,
-and the outbox root. Members are discovered by a bounded two-level walk, following symlinks, so a
+Scaffold a workspace: the manifest, the workflow directory with its `generated/` subdirectory, an
+empty ledger with its index and log, and the outbox root. The `generated/` subdirectory is the home
+of chains the planner publishes for one ticket; it gets an ignore file (`*` and `!.gitignore`) so
+ticket-derived text is never committed by default, written only when absent and left alone by a
+later `--force`. Members are discovered by a bounded two-level walk, following symlinks, so a
 repository checked out inside the workspace is found without being listed by hand. Run it from the
 workspace directory and `--root` defaults to it.
 
@@ -248,7 +251,8 @@ findings per stage rather than stopping at the first.
 
 Errors exit `1` and name the file, node and field; warnings alone exit `0`, so a workspace can carry
 advisory findings without being blocked. A freshly scaffolded manifest reports one advisory warning
-about a reserved key — expected and harmless.
+about a reserved key — expected and harmless. The report lists each definition it judged and marks
+the ones that sit in the generated home as generated; the rules are identical either way.
 
 **The driver-capability check is new, and a chain that validated before this release can fail now.**
 A node carrying `dir:` hands its work to a session with nobody at the keyboard, so its `uses:` has
@@ -267,8 +271,39 @@ only warns — the strictness is what dispatch itself requires, not a general ti
 /maister:umbrella validate --definition .maister/workflows/rollout.yml
 ```
 
-Both commands report in plain language: what was found and written, or what passed, and each
-refusal by name with the move that clears it. No other verb is reachable from the command —
+### `/maister:umbrella prune [--root DIR] [--name STEM] [--dry-run]`
+
+Delete the generated chains whose runs have all closed. A generated chain is one the planner
+published with `--generated`: authored for one ticket, carrying that ticket's text, living in
+`.maister/workflows/generated/` rather than beside the reusable chains. Deleting it once its runs
+close is safe by construction — a run freezes the resolved graph into its state before the first
+node executes, and the only later read of the definition happens while a node is dispatched, proved
+against the frozen hash; a run whose status is terminal and whose gate marker is clear dispatches
+nothing again.
+
+| Flag | Description |
+|------|-------------|
+| `--root DIR` | The workspace root. Defaults to the current directory |
+| `--name STEM` | Prune this one chain. Refused if a run that has not closed names it |
+| `--dry-run` | Report every decision and delete nothing |
+
+Without `--name`, a chain is deleted when at least one run named it and every such run has closed;
+a chain no run ever named is kept and reported as `never-started`, because the moment between
+publishing and starting is exactly when a sweep would otherwise delete it — name its stem to remove
+it deliberately. A chain an open run names is kept and reported as `run-open`. Only the generated
+home is ever touched: a reusable chain at the top of `.maister/workflows/` is never a candidate,
+whatever `--name` says. The cockpit calls the same command after a run closes, so there is one
+deletion rule.
+
+**Examples**:
+```bash
+/maister:umbrella prune --dry-run
+/maister:umbrella prune --name ticket-alpha-42-rollout
+```
+
+All three commands report in plain language: what was found and written, what passed, or what was
+deleted and what was kept, and each refusal by name with the move that clears it. No other verb is
+reachable from the command —
 `envelope`, `seed`, `ledger` and `outbox` are the machinery described next, and asking for one
 gets you pointed here.
 
@@ -343,11 +378,11 @@ other three refuse, because a lost status is not a lost result.
 | *stdin* | The message body, as JSON — required, since each type demands fields an empty body could not carry |
 
 **Workspace directory**: `.maister/umbrella/`
-**Verbs**: `init`, `validate`, `envelope`, `seed`, `ledger`, `outbox`
-**Entry point**: `/maister:umbrella init` and `/maister:umbrella validate`; the other verbs are run
-by a workflow's orchestrator and by the cockpit, not by a user.
+**Verbs**: `init`, `validate`, `prune`, `envelope`, `seed`, `ledger`, `outbox`
+**Entry point**: `/maister:umbrella init`, `/maister:umbrella validate` and `/maister:umbrella prune`;
+the other verbs are run by a workflow's orchestrator and by the cockpit, not by a user.
 
-### `/maister:chain-planner "<task>" [--name STEM] [--root DIR] [--force]`
+### `/maister:chain-planner "<task>" [--name STEM] [--root DIR] [--generated] [--force]`
 
 Turns a one-paragraph task description into a chain the workspace has already accepted. It reads the
 manifest for the members, their providers and the workspace defaults, decides which nodes exist and
@@ -362,24 +397,30 @@ validate is reported and nothing is written.
 |------|-------------|
 | `--name STEM` | The file stem to publish under. Derived from the task text when omitted; given explicitly it skips the derivation, not the charset and length checks |
 | `--root DIR` | The workspace root. Defaults to the current directory |
-| `--force` | Publish over files of that stem that already exist, instead of refusing |
+| `--generated` | Publish into `.maister/workflows/generated/` — the home of chains authored for one ticket or one run rather than kept for reuse. Ignored by git, resolved by name like any other chain, never overlaid or ejected, and deleted by `/maister:umbrella prune` once the chain's runs have closed |
+| `--force` | Publish over files of that stem that already exist in the target home, instead of refusing |
 
 Run with no task text at all, it asks once for the paragraph and then proceeds. That is the only
 question it ever asks: every other missing value takes its default, and a default that would be
 wrong is a refusal with its recovery rather than a second prompt — which is what lets the planner
 run headless.
 
-**What is written**: three files under `<root>/.maister/workflows/`, all of them or none —
-`<name>.yml`, the definition; `<name>.md`, the prose companion, one section per inline node; and
-`<name>.plan.md`, the reasoning a reviewer reads before starting anything. Nothing is written under
-a member directory, nothing outside the framework directory, and no run is started: the chain is
-reviewed in the cockpit's *Start a chain* dry-run, which is where a run begins.
+**What is written**: three files under `<root>/.maister/workflows/` — or under its `generated/`
+subdirectory with `--generated` — all of them or none: `<name>.yml`, the definition; `<name>.md`, the
+prose companion, one section per inline node; and `<name>.plan.md`, the reasoning a reviewer reads
+before starting anything. The stem must be free in both directories and among the built-in
+workflow names, since the engine looks a name up across all of them. The report leads with the
+definition's path relative to the workspace root, so a chain whose node ran the planner can carry it
+onward as a value. Nothing is written under a member directory, nothing outside the framework
+directory, and no run is started: the chain is reviewed in the cockpit's *Start a chain* dry-run —
+generated chains in their own group — which is where a run begins.
 
 **Examples**:
 ```bash
 /maister:chain-planner "Roll the new auth token format out across the API and both clients"
 /maister:chain-planner "Retire the legacy billing endpoint" --name billing-retirement
 /maister:chain-planner "Bump the shared logger" --root /work/acme-platform --force
+/maister:chain-planner "Apply the ALPHA-42 fix in repo-alpha" --name ticket-alpha-42-rollout --generated
 ```
 
 ---

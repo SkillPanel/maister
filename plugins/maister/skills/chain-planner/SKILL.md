@@ -1,7 +1,7 @@
 ---
 name: maister:chain-planner
-description: Turns a one-paragraph task description into a validated multi-repository chain. Reads the workspace manifest for its members, their providers and its defaults, decides which nodes exist and how they depend on one another, and drafts the definition together with the prose companion that carries its inline steps. The draft is proved with the workspace's own validator before anything is published — three files land under `.maister/workflows/` only after the loop ends clean, and a run that will not validate is reported rather than written. For a user this is `/maister:chain-planner "<task>"`, run from inside the workspace; the derived file stem, every refusal and every warning are reported in plain language, and the chain is then reviewed in the cockpit's dry-run before any run starts. It authors only constructs the grammar actually has, and it starts nothing.
-argument-hint: "\"<task>\" [--name STEM] [--root DIR] [--force]"
+description: Turns a one-paragraph task description into a validated multi-repository chain. Reads the workspace manifest for its members, their providers and its defaults, decides which nodes exist and how they depend on one another, and drafts the definition together with the prose companion that carries its inline steps. The draft is proved with the workspace's own validator before anything is published — three files land under `.maister/workflows/` only after the loop ends clean, and a run that will not validate is reported rather than written. For a user this is `/maister:chain-planner "<task>"`, run from inside the workspace; the derived file stem, every refusal and every warning are reported in plain language, and the chain is then reviewed in the cockpit's dry-run before any run starts. It authors only constructs the grammar actually has, and it starts nothing. With `--generated` the chain is published for one ticket into the generated home, `.maister/workflows/generated/`, where it is ignored by git and pruned once its run closes.
+argument-hint: "\"<task>\" [--name STEM] [--root DIR] [--generated] [--force]"
 user-invocable: true
 ---
 
@@ -51,13 +51,23 @@ recorded.
 | `/maister:chain-planner "<task>"` | the loop below: derive the stem, draft into a temporary directory, validate the draft against the current working directory, publish into `<cwd>/.maister/workflows/` |
 | `/maister:chain-planner "<task>" --name STEM` | the same, with the derivation skipped — `STEM` is used as given and still held to the charset and length rules |
 | `/maister:chain-planner "<task>" --root DIR` | the same against `DIR` as the workspace root |
+| `/maister:chain-planner "<task>" --generated` | the same, published into `<root>/.maister/workflows/generated/` — the home of chains authored for one ticket or one run rather than kept for reuse |
 | `/maister:chain-planner "<task>" --force` | the same, permitted to publish over files of that stem that already exist |
 | `/maister:chain-planner` | one AskUserQuestion for the task text, then as above |
 
-`--force` is the bare boolean, as it is on the workspace scaffold verb: it takes
-the bare form or an explicit `--force=false`, and never consumes the token after
-it. `--root` defaults to the current working directory, because a user runs this
-from inside the workspace they mean.
+`--force` and `--generated` are bare booleans, as `--force` is on the workspace
+scaffold verb: each takes the bare form or an explicit `--force=false`, and
+never consumes the token after it. `--root` defaults to the current working
+directory, because a user runs this from inside the workspace they mean.
+
+**A generated chain is a chain like any other, kept apart.** It is resolved by
+the engine by name, second in its order — after an eject at the top of the
+workflow directory, before an overlay and the built-in — and it validates by
+the same rules. What differs is its life: it carries the text of one ticket,
+so its home is ignored by git; it is complete in itself, so it is never
+overlaid and never ejected; and it is deleted by the workspace runtime's
+`prune` verb once every run that named it has closed. A chain that will be
+started more than once is not generated, and does not take the flag.
 
 ### Exit codes
 
@@ -113,10 +123,12 @@ Then four cases decide what happens to it:
   name that yields an illegal node id.
 - **Begins with a digit** — prefix it so it starts with a letter rather than
   dropping the digit, which would silently change what the name says.
-- **Collides** with a built-in workflow name or with a file already under
-  `.maister/workflows/` — refuse. The user names it; the planner never
-  disambiguates by appending a number, because a chain called `<task>-2` tells a
-  later reader nothing about how it differs from `<task>`.
+- **Collides** with a built-in workflow name, with a file already under
+  `.maister/workflows/`, or with one under `.maister/workflows/generated/` —
+  refuse, whichever home the draft is bound for: the engine looks a name up
+  across both, so a collision in either shadows. The user names it; the planner
+  never disambiguates by appending a number, because a chain called `<task>-2`
+  tells a later reader nothing about how it differs from `<task>`.
 - **Otherwise** — the stem satisfies `/^[a-z][a-z0-9-]*$/` and is at least two
   characters. A `--name` given explicitly is held to the same two rules; it
   skips the derivation, not the check.
@@ -127,8 +139,8 @@ Then four cases decide what happens to it:
   per-member default provider, `defaults.autonomy`, `defaults.worktree` and the
   branch convention. This is the whole of what the planner knows about the
   workspace; it never walks a member repository to find out more.
-- `<root>/.maister/workflows/*.yml` — for the collision check, and for nothing
-  else.
+- `<root>/.maister/workflows/*.yml` and `<root>/.maister/workflows/generated/*.yml`
+  — for the collision check, and for nothing else.
 - **The driver-capable target set, discovered rather than listed.** Which
   shipped skills can honour a driver is read off the shipped artifacts by the
   same rule the dispatch check applies; `references/plan-time-rules.md` names
@@ -148,7 +160,8 @@ Then four cases decide what happens to it:
 
 ### What it writes, and nothing else
 
-Three files, all under `<root>/.maister/workflows/`:
+Three files, all under one directory: `<root>/.maister/workflows/` by default,
+`<root>/.maister/workflows/generated/` with `--generated`:
 
 | File | What it carries |
 |---|---|
@@ -159,6 +172,20 @@ Three files, all under `<root>/.maister/workflows/`:
 It writes nothing under a member directory, nothing into another workspace, and
 nothing outside the framework directory. It starts no run and edits no run's
 frozen definition.
+
+**The generated home is created on first use when the workspace predates it.**
+The workspace scaffold verb creates `.maister/workflows/generated/` with an
+ignore file inside it, so nothing ticket-derived is committed by default. A
+workspace scaffolded before that verb learned to may lack the directory; a
+generated publish then creates it, and drops the same ignore file into it,
+spelled exactly as the scaffold verb spells it — these two lines and no others:
+
+```
+*
+!.gitignore
+```
+
+An ignore file already there is left alone, whatever it says.
 
 ### The draft-validate-publish loop
 
@@ -228,14 +255,17 @@ plan file, in both directions:
 
 Plain language, never the raw JSON unless the user asks for it:
 
-- the three paths written;
+- **the definition's path relative to the workspace root, first** — for a
+  generated chain, `.maister/workflows/generated/<name>.yml` — so a chain whose
+  node invoked this skill can carry it onward as a declared `string` value, and
+  then the other two paths;
 - **the node count and the gate count, computed by the planner** — the verdict
   carries neither, so a report that quotes the validator has no counts to quote;
 - a node-by-node reading: what each node does, where it dispatches, what guards
   it;
 - every warning with its file, node and path, and whose file it is;
-- the next step, exactly: open the cockpit's *Start a chain*, pick `<name>.yml`,
-  and read the dry-run.
+- the next step, exactly: open the cockpit's *Start a chain*, pick `<name>.yml`
+  — from the generated group, for a generated chain — and read the dry-run.
 
 ---
 
@@ -252,7 +282,7 @@ Every row writes nothing. Say that first, then the recovery.
 | **A dispatch target cannot honour a driver.** | Name the target the task implied and say why it cannot be dispatched: dispatched work runs with no one to answer a question, so the target has to be one that suspends at a gate instead of asking. Then list the driver-capable alternatives **as discovered** — never the engine, which is the runner rather than a target — or drop the dispatch and run the step in the coordinating repository. |
 | **`--name` is empty, too short, or off the charset.** | Say which of the three, quote what was derived or given, and ask for `--name` explicitly. The stem is lowercase letters, digits and hyphens, starts with a letter, and is at least two characters. |
 | **`<name>` collides with a built-in workflow name.** | A workspace definition of that name shadows the built-in one wherever the built-in is named, so the collision is not cosmetic. Ask for a different stem; do not append a number. |
-| **`<name>.yml` already exists and `--force` was not given.** | This is the guard working. Decide deliberately: a different stem, or `--force`. And check first whether a run of that chain is in flight — a run freezes its graph, so republishing over the definition it froze drifts the graph out from under it, and the next dispatch of that run is refused rather than silently running the new shape. |
+| **`<name>.yml` already exists in the target home and `--force` was not given.** | This is the guard working. Decide deliberately: a different stem, or `--force`. And check first whether a run of that chain is in flight — a run freezes its graph, so republishing over the definition it froze drifts the graph out from under it, and the next dispatch of that run is refused rather than silently running the new shape. |
 
 ---
 
@@ -268,4 +298,7 @@ Every row writes nothing. Say that first, then the recovery.
 - **It does not disambiguate a name.** A collision is a question for whoever
   named the task, not a suffix.
 - **It does not write outside `.maister/workflows/`** under the root it was
-  given, and it never writes into a member repository.
+  given — the generated home is a subdirectory of it — and it never writes into
+  a member repository.
+- **It does not delete a generated chain.** That is the workspace runtime's
+  `prune` verb, once the chain's runs have closed.

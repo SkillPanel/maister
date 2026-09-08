@@ -1,7 +1,7 @@
 ---
 name: maister:umbrella
-description: Scaffolds and validates a multi-repository workspace — an umbrella directory whose members are checkouts of separate repositories — and runs it as one coordinated unit. For a user, `init` turns a directory into a workspace and `validate` judges it together with any chain files, both reached as `/maister:umbrella <verb>`. For a workflow's orchestrator and for the cockpit daemon, the same script builds the dispatch envelope a node hands to a worker in a member repository, renders that worker's seed prompt, and keeps the dispatch ledger and the per-dispatch outbox that carry results back. Six verbs behind one script, every write atomic and every rejection named.
-argument-hint: "init [--root DIR] [--members-root DIR] [--force] | validate [--definition FILE ...]"
+description: Scaffolds and validates a multi-repository workspace — an umbrella directory whose members are checkouts of separate repositories — and runs it as one coordinated unit. For a user, `init` turns a directory into a workspace and `validate` judges it together with any chain files, both reached as `/maister:umbrella <verb>`. For a workflow's orchestrator and for the cockpit daemon, the same script builds the dispatch envelope a node hands to a worker in a member repository, renders that worker's seed prompt, and keeps the dispatch ledger and the per-dispatch outbox that carry results back. A third user verb, `prune`, deletes the generated per-ticket chains whose runs have all closed. Seven verbs behind one script, every write atomic and every rejection named.
+argument-hint: "init [--root DIR] [--members-root DIR] [--force] | validate [--definition FILE ...] | prune [--root DIR] [--name STEM] [--dry-run]"
 user-invocable: true
 ---
 
@@ -13,13 +13,14 @@ turns a workflow node that names one of those members into a dispatch — an
 envelope describing the work, a seed prompt for whoever does it, a ledger entry
 that makes it visible, and an outbox that carries the answer back.
 
-**Two of the six verbs are a user's; four are machinery.** A user reaches this
-skill as `/maister:umbrella init` to turn a directory into a workspace and as
-`/maister:umbrella validate` to judge it — the section *When a user invokes this
-skill* below says how each argument maps onto the script and what to report
-back. The other four verbs are reached by name, by a workflow's orchestrator and
-by the cockpit daemon while a run is in flight; a user never needs them, and this
-skill never offers them.
+**Three of the seven verbs are a user's; four are machinery.** A user reaches
+this skill as `/maister:umbrella init` to turn a directory into a workspace, as
+`/maister:umbrella validate` to judge it, and as `/maister:umbrella prune` to
+delete the generated chains whose runs have closed — the section *When a user
+invokes this skill* below says how each argument maps onto the script and what
+to report back. The other four verbs are reached by name, by a workflow's
+orchestrator and by the cockpit daemon while a run is in flight; a user never
+needs them, and this skill never offers them.
 
 **Nothing here spawns anything.** The runtime describes work and records it; it
 never launches a worker, never polls, and never holds a session open. A node
@@ -30,7 +31,7 @@ the turn ends.
 
 ## Invocation
 
-One script, six verbs, the exec form:
+One script, seven verbs, the exec form:
 
 ```
 node ${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs <verb> [flags]
@@ -44,14 +45,15 @@ or newer, no dependencies to install.
 |---|---|---|---|---|
 | `init` | Scaffold a workspace: manifest, workflow directory, ledger, outbox | `--root` | `--members-root`, `--force`, `--scaffold` | — |
 | `validate` | Judge the workspace, and the named workflow definitions with it | `--root` | `--definition` (repeatable) | — |
+| `prune` | Delete the generated chains whose runs have all closed | `--root` | `--name`, `--dry-run` | — |
 | `envelope` | Build and publish one node's dispatch envelope | `--run`, `--node`, `--ledger`, `--root` | — | overrides (JSON) |
 | `seed` | Render the worker prompt for an envelope | `--envelope` | `--siblings` | — |
 | `ledger` | Run one ledger op | `--ledger`, `--op`, `--actor` | `--dispatch-id` | the op's `args` (JSON) |
 | `outbox` | Append one message to a dispatch's outbox | `--outbox`, `--dispatch-id`, `--type` | — | the message body (JSON) |
 
-Both `--flag=value` and `--flag value` are accepted. `--force` and `--scaffold`
-are the only boolean flags: they take the bare form, or an explicit
-`--force=false`, and never consume the following token. `--dispatch-id`
+Both `--flag=value` and `--flag value` are accepted. `--force`, `--scaffold`
+and `--dry-run` are the only boolean flags: they take the bare form, or an
+explicit `--force=false`, and never consume the following token. `--dispatch-id`
 addresses an entry that already exists, so every ledger op needs it except
 `create-entry`, which allocates its own.
 
@@ -77,13 +79,14 @@ entry is exactly the drift the script exists to prevent.
 
 ## When a user invokes this skill
 
-The invocation carries an argument string whose first word is the verb. Only two
-verbs are reachable this way:
+The invocation carries an argument string whose first word is the verb. Only
+three verbs are reachable this way:
 
 | A user types | What runs |
 |---|---|
 | `/maister:umbrella init [--root DIR] [--members-root DIR] [--force]` | the exec form above with `init` and the flags as given |
 | `/maister:umbrella validate [--root DIR] [--definition FILE ...]` | the exec form above with `validate` and every `--definition` as given |
+| `/maister:umbrella prune [--root DIR] [--name STEM] [--dry-run]` | the exec form above with `prune` and the flags as given |
 
 Flags pass through as spelled — the script accepts both `--flag=value` and
 `--flag value`, and `--scaffold` on `init` passes through when given. One default
@@ -99,9 +102,18 @@ report is for machines; what goes back to the user is plain language:
   first: `defaults.autonomy`, which starts at the most conservative tier, and
   `defaults.worktree`.
 - **`validate`, exit `0`** — what was judged (the manifest, and each definition
-  by name) and that it passed; each warning with its file, node and path, and
-  that warnings alone never block. A freshly scaffolded manifest carries one
-  advisory warning on a reserved key — say that it is expected.
+  by name, saying which of them sit in the generated home — the report marks
+  each one `generated` or not) and that it passed; each warning with its file,
+  node and path, and that warnings alone never block. A freshly scaffolded
+  manifest carries one advisory warning on a reserved key — say that it is
+  expected.
+- **`prune`, exit `0`** — each chain deleted, with its files and the closed runs
+  that named it; each chain kept, with the reason: `run-open` means a run that
+  may still dispatch names it, `never-started` means no run has, and a sweep
+  leaves such a chain for the operator who is about to start it. With
+  `--dry-run`, say that these are the decisions and nothing was deleted. A
+  `run-state-unreadable` warning names a run that could not be judged — it
+  cannot dispatch from that state either, so it held nothing back.
 - **Exit `1`** — nothing was written, and say so first. Then each refusal or
   error by its code: for `init`, the recovery from the workspace table under
   *When a write is refused*; for `validate`, the file, node, path and message of
@@ -116,14 +128,20 @@ machine-facing verbs are documented for an operator reading a ledger or an
 outbox by hand. Never guess which of the four was meant and never run one to be
 helpful: a ledger op typed by hand is the drift this runtime exists to remove.
 With no argument at all, ask with AskUserQuestion whether to scaffold the
-current directory (`init`) or judge it (`validate`).
+current directory (`init`), judge it (`validate`), or delete the generated
+chains whose runs have closed (`prune`).
 
 ---
 
 ## When to reach for each verb
 
 **`init`** — once per workspace, before anything else. It writes the manifest,
-an empty ledger with its index and log, and the outbox root. Its write scope is
+an empty ledger with its index and log, the outbox root, and the workflow
+directory together with its `generated/` subdirectory — the home of the chains
+the planner publishes for one ticket. That subdirectory gets an ignore file of
+two lines, `*` and `!.gitignore`, so ticket-derived text is never committed by
+default; the file is written only when absent, and a later `--force` leaves an
+edited one alone. Its write scope is
 a hard boundary: without `--scaffold` it writes nothing outside the framework
 directory, and every target it declines to write is named in the report with a
 reason rather than passing silently. With `--scaffold` it will additionally
@@ -161,6 +179,25 @@ exit `0`, so a workspace can carry advisory findings without blocking. Reserved
 keys are surface-scoped: the workspace checker warns only on the manifest's own
 reserved key, and the workflow keys are the graph checker's to warn about. Both
 streams merge into one report.
+
+**`prune`** — once a generated chain's runs have closed, or whenever the
+generated home needs tidying. A generated chain is one the planner published
+with its generated flag: authored for one ticket, carrying that ticket's text,
+resolved by the engine by name exactly like an eject, and never overlaid or
+ejected itself. Deleting it after its runs close is safe by construction — the
+engine freezes the resolved graph into the run's state before the first node
+executes, and the only later read of the definition is the envelope's, made
+while a node is dispatched and proved against the frozen hash; a run whose
+status is terminal and whose gate marker is clear dispatches nothing again. So
+`prune` deletes a chain's three files when at least one run named it and every
+such run has closed. A chain no run ever named is kept by a sweep — the moment
+between publishing and starting is exactly when a sweep would otherwise
+delete it — and removed only when `--name` spells its stem. `--name` on a
+chain an open run names is a refusal, not a wait. Only the generated home is
+ever a candidate: a reusable chain at the top of the workflow directory is
+never touched, whatever `--name` says. `--dry-run` reports every decision and
+deletes nothing. The cockpit calls the same verb after a run closes, so there
+is one deletion rule and it lives here.
 
 **`envelope`** — when a workflow node names a member directory and the run is
 ready to hand that work out. The envelope is the contract between the run and
@@ -338,7 +375,7 @@ move for exactly one code, `ledger-locked`, and is the failure mode for every
 other.** A refusal is a correct answer, not an obstacle; reaching for an editor
 tool because the script said no is the drift this whole design removes.
 
-### Workspace — `init` and `validate`
+### Workspace — `init`, `validate` and `prune`
 
 | Refusal | Response |
 |---|---|
@@ -348,6 +385,8 @@ tool because the script said no is the drift this whole design removes.
 | `umbrella-member-unreadable` | A candidate member could not be read at all. This is distinct from an unresolved symlink, which is reported and survived; an unreadable candidate stops the scan because a partial member list would silently drop work. Fix permissions and re-run. |
 | `umbrella-unwritable` | The target could not be written. A caller defect only if the path was wrong; otherwise an environment problem. Fix it and re-run. |
 | `umbrella-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. **Do not delete it**: wait a minute and re-run. A temp older than a minute is a crashed writer's leftover and the next write reclaims it itself. |
+| `umbrella-chain-open` | The chain `--name` spells is named by a run that has not closed, and a run that may still dispatch reads the definition when it does. Let the run finish or stop it, then prune again; a sweep without `--name` keeps such a chain and reports it as `run-open` instead of refusing. Nothing was deleted. |
+| `umbrella-chain-missing` | No generated chain of that stem exists — the report lists the ones that do. A stem is lowercase letters, digits and hyphens, never a path, and only the generated home is ever pruned: a reusable chain of that name at the top of the workflow directory is left alone by design. Nothing was deleted. |
 | `value-not-flow-safe` | A value cannot go on a one-line entry, and the runtime refuses rather than escaping it. Shorten or simplify the value the report names; repeating the write unchanged will loop. |
 
 ### Dispatch — `envelope`
@@ -423,6 +462,9 @@ instruction and "re-issue" is not.
 - **It does not roll back.** A refusal leaves the workspace exactly as it was,
   which is why there is nothing to undo. On a failure the run stops, the
   situation is analyzed, and the operator decides — never an automatic revert.
+- **It does not delete what a run may still read.** `prune` removes a generated
+  chain only once every run naming it has closed, and never reaches a reusable
+  chain at all.
 - **It does not repair.** An unreadable entry, a non-canonical file or a drifted
   graph is reported and handed back. Every recovery in the tables above is
   something a person or an orchestrator chooses, not something the script does
