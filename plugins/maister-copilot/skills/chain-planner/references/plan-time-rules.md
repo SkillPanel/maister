@@ -193,7 +193,7 @@ recorded beside it is that capability is read off the shipped artifact rather
 than from a list kept in code. Discover the set the same way and offer what you
 found — a list written down anywhere is wrong the first time a skill is added.
 
-Two consequences worth carrying:
+Three consequences worth carrying:
 
 - **The grep reads exactly `skills/<name>/SKILL.md`.** A skill whose own file
   quotes that literal passes the check, whatever the skill actually does. That
@@ -206,6 +206,13 @@ Two consequences worth carrying:
   a member is running the runner inside the run: never emit it as a dispatch
   target, and never list it among the alternatives offered on a refusal. This
   is a rule about what a planner authors, not a change to the check.
+- **Work that needs a plan is dispatched as `workflow:plan`.** When a node's
+  share of the chain is to decide *how* a member will do something rather than
+  to do it, author `workflow:plan` and let the plan the run publishes be what
+  the node hands downstream. It passes the check for the ordinary reason — it
+  is a `workflow:` target, and the engine suspends — so this is guidance about
+  which target fits work of that shape, not an entry in a list of capable
+  targets. Discover the set as above; this only says what to reach for.
 
 Since the validate-side check landed, a `dir:` node whose target cannot honour a
 driver is a located error at that node's `uses` path — the same shape as the

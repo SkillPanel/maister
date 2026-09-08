@@ -1,0 +1,18 @@
+version: 1
+dispatch_id: d-0143
+chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: plan-beta, umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607}
+target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/019260a2-1122-7c33-8d44-5e6677889900-plan-beta}
+provider: claude
+session: {name: 019260a2-1122-7c33-8d44-5e6677889900/d-0143/plan-beta, substrate: p}
+workflow: {uses: "workflow:plan", with: {statement: "Plan the widget owner column behind the existing rollout flag."}}
+inputs: [{path: runs/research/outputs/research-report.md, role: research}]
+statement: "Plan the widget owner column behind the existing rollout flag."
+workspace_root: /workspaces/widget
+autonomy: auto-low
+permissions:
+  allow: [read, tests, write]
+  deny: ["shell(git push)", "shell(gh pr create)"]
+outbox: .maister/umbrella/outbox/d-0143/
+branch: feature/019260a2-1122-7c33-8d44-5e6677889900-plan-beta
+ticket: null
+closeout_contract: {pr_required: false, grade: [success, partial, failed]}

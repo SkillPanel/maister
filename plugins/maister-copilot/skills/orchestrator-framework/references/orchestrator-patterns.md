@@ -332,7 +332,7 @@ phase_summaries:
 2. **Determine starting phase**: New task starts Phase 1; resume reads state for first incomplete phase
 3. **Capture the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash NOW — you do NOT know the time from context. Use the result for every timestamp written in this turn (`created`, `updated`, `generated`, `phases[].started`). This is a MANDATORY step, not optional: writing `created: 2026-06-12` or `T00:00:00Z` without having run `date` is the documented failure mode (§ 4 Timestamp Rule).
 4. **Read project config**: read `.maister/config.yml` if it exists; set `orchestrator.options.html_output` from its `html_output` key (default `true` when the file or key is absent — § 4 "Project Configuration"). This single read seeds the state; all dashboard/companion gates below read `options.html_output` from state.
-5. **Create task directory**: `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` plus the subdirectories this workflow owns — the per-workflow trees and the type-dir names are normative in `compatibility-contracts.md § A4`; there is no structure shared by all five workflows *(skip on resume)*
+5. **Create task directory**: `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` plus the subdirectories this workflow owns — the per-workflow trees and the type-dir names are normative in `compatibility-contracts.md § A4`; there is no structure shared by all six workflows *(skip on resume)*
 6. **Create state file**: `orchestrator-state.yml` *(skip on resume)*
 7. **Set up operator dashboard** (§ 8) — *skip this entire step when `options.html_output` is false*: copy `../assets/dashboard.html` (sibling `assets/` directory of this references/ file) to the task root as `dashboard.html`, write the initial `dashboard-data.js`, then **auto-open it in the user's browser** with the platform opener — `open "[abs-task-path]/dashboard.html"` (macOS), `xdg-open` (Linux), `start ""` (Windows). Pass the **plain absolute filesystem path — NEVER construct a `file://` URL** (hand-built URLs get mangled, e.g. `file///` missing the colon; the opener resolves plain paths itself). If the command fails, just print the path hint — never block initialization. On resume: re-copy `dashboard.html` only if missing; regenerate `dashboard-data.js` from state; then auto-open it in the browser again (same opener as a new task — if the tab is already open the OS focuses it rather than duplicating).
 8. **Create task items**: `TaskCreate` for all phases, then `TaskUpdate addBlockedBy` for dependencies. On resume, also restore completed phase statuses. When `TaskCreate`/`TaskUpdate` are unavailable in the session, record `task_ids: {}` and treat `orchestrator-state.yml` as the sole phase tracker; every other step is unchanged.
@@ -462,7 +462,7 @@ window.MAISTER_DATA = {
                                 // § 4 Timestamp Rule; never date-only, never T00:00:00Z.
                                 // (display only — the viewer detects updates by content comparison)
   task: {
-    title: "", type: "development|performance|migration|research|product-design",
+    title: "", type: "development|performance|migration|research|product-design|plan",
     status: "pending|in_progress|completed|failed|blocked",
     description: "", path: "",
     current_activity: null        // short present-continuous line for the running phase

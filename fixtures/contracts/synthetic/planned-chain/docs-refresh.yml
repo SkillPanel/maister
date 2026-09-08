@@ -13,6 +13,10 @@
 # needs closure, and one inline close-out. No reserved key appears anywhere,
 # including as a node id, and no `${` reaches a dispatched worker's with: map.
 #
+# The two dispatching nodes carry the two dispatch kinds side by side: one
+# names a skill, and the guarded one dispatches a built-in workflow
+# (`workflow:plan`), which the engine runs in that member.
+#
 # The companion (docs-refresh.md) carries one section per inline node, keyed by
 # exact heading equality, because a companion is looked for beside the file
 # that declares the node.
@@ -43,7 +47,7 @@ nodes:
     provider: claude
 
   update-docs:
-    uses: skill:development
+    uses: workflow:plan
     needs: [build-api]
     when: "${survey.values.docs_affected}"
     dir: docs-site

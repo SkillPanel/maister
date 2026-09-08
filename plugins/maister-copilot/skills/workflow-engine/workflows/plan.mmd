@@ -1,0 +1,13 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: plan
+%% graph_hash: 9fa47c2bcc7830faa9bb8064d228d7a3181a860d0da25a8ea268c1c877990598
+
+flowchart TD
+  n_standards_discovery["standards-discovery<br/>direct:standards-discovery"]
+  n_plan["plan<br/>direct:plan"]
+  n_plan_approval{{"plan-approval<br/>gate<br/>Plan complete. Continue to handoff?<br/>continue-to-handoff: continue, stop-after-plan: stop"}}
+  n_handoff["handoff<br/>direct:handoff"]
+  n_standards_discovery --> n_plan
+  n_plan --> n_plan_approval
+  n_plan_approval --> n_handoff
+  class n_plan_approval gate

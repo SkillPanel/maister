@@ -46,8 +46,8 @@
       "pattern": "^\\d{4}-\\d{2}-\\d{2}-[a-z0-9-]+$"
     },
     "workflow_type": {
-      "description": "The five workflow types a task directory can belong to.",
-      "enum": ["development", "performance", "migration", "research", "product-design"]
+      "description": "The six workflow types a task directory can belong to.",
+      "enum": ["development", "performance", "migration", "research", "product-design", "plan"]
     },
     "phase_status": {
       "description": "Status of a phase row (A1 phase bookkeeping, A2 phases[]).",

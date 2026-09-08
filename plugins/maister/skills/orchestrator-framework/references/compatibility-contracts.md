@@ -142,7 +142,7 @@ Unknown keys are preserved. The config is never rewritten by a workflow.
 
 ## 7. Task-directory layout and artifact paths (A4)
 
-Everything a workflow produces lives under `.maister/tasks/<type>/<YYYY-MM-DD-slug>/`. Type dirs are `development/`, `performance/`, `migrations/` (plural), `research/`, `product-design/`.
+Everything a workflow produces lives under `.maister/tasks/<type>/<YYYY-MM-DD-slug>/`. Type dirs are `development/`, `performance/`, `migrations/` (plural), `research/`, `product-design/`, `plan/`.
 
 **Generic task root** — present in every workflow:
 
@@ -175,6 +175,7 @@ Everything a workflow produces lives under `.maister/tasks/<type>/<YYYY-MM-DD-sl
 | product-design | `context/`, `analysis/` (`mockups/`), `outputs/` |
 | performance | `analysis/` (`user-profiling-data/`), `implementation/`, `verification/` |
 | migration | `analysis/`, `implementation/`, `verification/`, `documentation/` |
+| plan | `implementation/` |
 
 **Companion pairs** — each markdown artifact below has an `.html` sibling written by the same agent at the same time:
 

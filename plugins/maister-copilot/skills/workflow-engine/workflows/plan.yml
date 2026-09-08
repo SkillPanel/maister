@@ -1,0 +1,67 @@
+# The plan workflow, as a graph.
+#
+# Two nodes named for what they do, one named for what it approves and one that
+# hands the result on, in a single linear chain. There is no conditional stretch
+# here at all: a plan run reads the project's standards, writes one plan, asks
+# once whether that plan stands, and hands it over. Nothing branches, so no node
+# carries a `when` guard.
+#
+# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
+# completed or a skipped predecessor but never by a stopped one, which is what
+# makes the gate's stop option actually end the run: `handoff` is never ready
+# after a stop, and it is the only thing left.
+#
+# This definition is chain-only. It has no orchestrator skill, no slash command
+# and no prose twin: it is reached as `workflow:plan` from a chain node that
+# carries a `dir:`, and nowhere else. That is why `statement` is the required
+# input — it is the one thing the dispatch envelope carries as free text, and
+# the worker's seed names it as this input.
+#
+# Target names are bare on purpose. Resolution is rooted at the plugin root and
+# the provider prefix is applied at invocation, so this one file is correct
+# under every generated variant without a rewrite.
+#
+# The node prose lives beside this file in `plan.md`, one section per node id.
+# Every `direct:` node is executed from its section there, and the provider
+# branch the `plan` node takes appears only in that prose — a reader of this
+# file alone cannot see it, and neither can the generated diagram.
+name: plan
+version: 1
+inputs:
+  statement: {type: string, required: true}
+  # A documentation index a caller already knows about, so a run that was
+  # dispatched from a member whose index is not at the conventional path can
+  # skip discovery instead of guessing. Absent means discover.
+  docs_index: {type: path, required: false}
+nodes:
+  standards-discovery:
+    uses: direct:standards-discovery
+    needs: []
+    with:
+      docs_index: "${inputs.docs_index}"
+
+  plan:
+    uses: direct:plan
+    needs: [standards-discovery]
+    with:
+      statement: "${inputs.statement}"
+
+  plan-approval:
+    type: gate
+    needs: [plan]
+    ask: "Plan complete. Continue to handoff?"
+    options:
+      continue-to-handoff: continue
+      stop-after-plan: stop
+
+  handoff:
+    uses: direct:handoff
+    needs: [plan-approval]
+    outputs:
+      artifacts:
+        plan: implementation/plan.md
+      # An enum rather than a bare `string`: a declared `string` is undecidable
+      # to the static check and warns, and a shipped definition resolves with
+      # exactly zero warnings.
+      values:
+        plan_outcome: {enum: [approved, plan-only]}

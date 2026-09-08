@@ -1,6 +1,6 @@
 # Workflow Details
 
-Maister provides five workflow types, each with phases tailored to its needs. All workflows pause between phases for your review and input.
+Maister provides six workflow types, each with phases tailored to its needs. All workflows pause between phases for your review and input.
 
 ## Development Workflow
 
@@ -24,7 +24,8 @@ freezes into the task's state and executes. Both interpreters produce the same t
 
 `/maister:development` runs the definition — it ships as `builtin:development`, with a diagram
 generated from it (regenerate that diagram, never edit it). Research runs on the engine by
-default too; they are the two workflows that do.
+default too, and a third definition ships without a command of its own — the chain-only
+`plan` workflow described below, which the engine runs when a chain dispatches it.
 
 Definitions resolve eject → generated → overlay → built-in, and the first hit wins: an eject at
 `.maister/workflows/<name>.yml`, then a generated chain at `.maister/workflows/generated/<name>.yml`,
@@ -280,6 +281,28 @@ Resume phases: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `c
 
 ---
 
+## Chain-Only Workflows
+
+Not every workflow type has a command. The `plan` workflow is reachable only from a chain: a
+node that reads `uses: workflow:plan` with a `dir:` naming a member dispatches a worker into that
+repository, and the worker runs the definition there. There is nothing to type, and nothing to
+resume by hand.
+
+It exists for scoped work that needs a plan rather than an implementation — the case a chain hits
+when a ticket's next step is "decide how", not "build it". Four nodes: discover the project's
+standards, write the plan, pause at an approval gate, then hand off. Stopping at the gate ends the
+run with the plan as its deliverable; continuing records the plan path and the outcome for whatever
+the chain does next.
+
+Its runs land in `.maister/tasks/plan/<YYYY-MM-DD-slug>/` with the same task root every other
+workflow writes — state, dashboard, gate files — so a plan run is visible to the cockpit and its
+gate is answerable there like any other. Its one subdirectory is `implementation/`, holding
+`plan.md`.
+
+For plan work you drive yourself, use `/maister:quick-plan`.
+
+---
+
 ## Task Directory Structure
 
 All workflows create structured directories in `.maister/tasks/`:
@@ -290,7 +313,8 @@ All workflows create structured directories in `.maister/tasks/`:
 ├── performance/           # Performance optimization
 ├── migrations/            # Migrations
 ├── research/              # Research
-└── product-design/        # Product design
+├── product-design/        # Product design
+└── plan/                  # Chain-only plan runs
 ```
 
 Each task folder follows the pattern `YYYY-MM-DD-task-name/` and always starts with the same three files:
@@ -311,6 +335,7 @@ What sits beside them depends on the workflow:
 | **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, feature spec, `mockups/`), `outputs/` (product brief) |
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
+| **plan** | `implementation/` (the plan) |
 
 A run that hands work out to another repository also writes a `dispatch/` directory beside
 those, holding one envelope per dispatched node.

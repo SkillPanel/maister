@@ -155,8 +155,9 @@ Then four cases decide what happens to it:
   chain running the runner inside the run.
 - `references/plan-time-rules.md` — the rules the validator does not report in
   time to help.
-- `skills/workflow-engine/workflows/development.{yml,md}` and
-  `research.{yml,md}` — the two shipped pairs, as worked examples of the shape.
+- `skills/workflow-engine/workflows/development.{yml,md}`, `research.{yml,md}`
+  and `plan.{yml,md}` — the three shipped pairs, as worked examples of the
+  shape.
 
 ### What it writes, and nothing else
 

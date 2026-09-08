@@ -85,7 +85,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
-import { resolve as resolveGraph } from '../../../workflow-engine/scripts/lib/graph.mjs';
+import { bareWorkflowName, resolve as resolveGraph } from '../../../workflow-engine/scripts/lib/graph.mjs';
 
 /** The format version every C-series document this module writes declares. */
 const VERSION = 1;
@@ -338,7 +338,12 @@ export function driverCapability(uses) {
   const at = uses.indexOf(':');
   const scheme = at < 0 ? '' : uses.slice(0, at);
   const name = at < 0 ? '' : uses.slice(at + 1);
-  if (scheme === 'workflow') return 'capable';
+  // A workflow name reaches a file path exactly as every other target name
+  // does, so it is held to the same charset before anything else. Only the
+  // spelling is judged here: whether a definition of that name exists is a
+  // question for the run, not for a predicate that must answer without
+  // touching the filesystem.
+  if (scheme === 'workflow') return bareWorkflowName(name) === null ? 'incapable' : 'capable';
   if (scheme !== 'skill' || !SKILL_NAME.test(name)) return 'incapable';
   const text = skillText(name);
   if (text === null) return 'unreadable';

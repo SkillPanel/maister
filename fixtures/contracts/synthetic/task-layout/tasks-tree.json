@@ -65,6 +65,16 @@
       }
     },
     {
+      "path": "plan/2026-09-08-catalog-requests-plan",
+      "kind": "task-dir",
+      "state": {
+        "present": true,
+        "parses": true,
+        "created": "2026-09-08T09:12:31Z",
+        "task_title": "Catalog requests plan"
+      }
+    },
+    {
       "path": "product-design/2026-08-11-catalog-applications-ui",
       "kind": "task-dir",
       "state": {

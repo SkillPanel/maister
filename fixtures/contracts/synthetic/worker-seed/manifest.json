@@ -22,7 +22,19 @@
     {
       "path": "seed.prompt.txt",
       "schema": null
+    },
+    {
+      "path": "workflow-target.envelope.yml",
+      "schema": "dispatch-envelope.schema.json"
+    },
+    {
+      "path": "workflow-target.seed.yml",
+      "schema": "worker-seed.schema.json#/$defs/seed"
+    },
+    {
+      "path": "workflow-target.seed.prompt.txt",
+      "schema": null
     }
   ],
-  "notes": "The three files are one generated chain, not three hand-written documents: envelope.yml is a published C2 envelope, seed.yml is buildSeed of that envelope with three siblings, and seed.prompt.txt is renderSeed of that descriptor. Regenerating means building the envelope again and re-deriving both — which is the point: the previous golden was a document the builder would never emit, so it pinned a concatenator and left the sentences a worker actually reads pinned by nothing. What it now pins, beyond the five section ids and their order and the cap: that the outbox instruction names the outbox verb and its outbox-root flag rather than a directory to hand-author YAML in, that the fallback names both frozen C5 dispatch prefixes (DISPATCH-RESULT and DISPATCH-FOLLOWUP), that the dispatch driver is stated as state and marker behaviour rather than as a command-line flag no workflow parses, that every path is anchored to the envelope's absolute workspace_root, and the close-out grade vocabulary. seed.prompt.txt carries no schema: it is a golden rendering rather than a document, and it is bound to seed.yml by the renderer, which is asserted to reproduce it byte for byte. A wording change is made by regenerating both files in the same commit; a structural change is a contract change."
+  "notes": "The three files are one generated chain, not three hand-written documents: envelope.yml is a published C2 envelope, seed.yml is buildSeed of that envelope with three siblings, and seed.prompt.txt is renderSeed of that descriptor. Regenerating means building the envelope again and re-deriving both — which is the point: the previous golden was a document the builder would never emit, so it pinned a concatenator and left the sentences a worker actually reads pinned by nothing. What it now pins, beyond the five section ids and their order and the cap: that the outbox instruction names the outbox verb and its outbox-root flag rather than a directory to hand-author YAML in, that the fallback names both frozen C5 dispatch prefixes (DISPATCH-RESULT and DISPATCH-FOLLOWUP), that the dispatch driver is stated as state and marker behaviour rather than as a command-line flag no workflow parses, that every path is anchored to the envelope's absolute workspace_root, and the close-out grade vocabulary. seed.prompt.txt carries no schema: it is a golden rendering rather than a document, and it is bound to seed.yml by the renderer, which is asserted to reproduce it byte for byte. A wording change is made by regenerating both files in the same commit; a structural change is a contract change. The `workflow-target.` stem is the same chain again for a node whose target is a workflow definition rather than a skill (`workflow:plan`), generated the same way and pinned by the same byte comparison, which is the only regression guard the `workflow:` branch of the task section has: no live session runs in CI. What it pins beyond the first stem: that the branch names the skill that runs a definition on a line of its own rather than only inside the gate-request path, that the definition is named bare after the scheme prefix is stripped, that all four lookup candidates are stated in resolution order, and that the free-text statement is bound to the definition's `statement` input. It also carries the other closeout branch, the one where no pull request is required."
 }

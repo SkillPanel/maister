@@ -3583,6 +3583,7 @@ const TARBALL_LIB = ['lib/ledger.mjs', 'lib/canonical.mjs', 'lib/definition.mjs'
 const TREE_DEPENDENT_TESTS = [
   'T11', 'T14', 'T15', 'T16', 'T17', 'T18', 'T19', 'T20', 'T21', 'T22', 'T23', 'T24', 'T27', 'T28',
   'T29', 'T30', 'T31', 'T32', 'T33', 'T34', 'T35', 'T36', 'T37', 'T38', 'T39', 'T40', 'T41',
+  'T43',
 ];
 
 /** Every step of every job in a workflow document, flattened. */
@@ -4033,6 +4034,19 @@ const WORKFLOW_PINS = {
         'ask: "Gap analysis complete', 'ask: "Gap analysis done'],
       ['a renamed continue option',
         'continue-past-analysis: continue', 'proceed-past-analysis: continue'],
+    ],
+  },
+  plan: {
+    hash: '9fa47c2bcc7830faa9bb8064d228d7a3181a860d0da25a8ea268c1c877990598',
+    twin: 'plan-builtin.yml',
+    nodes: ['standards-discovery', 'plan', 'plan-approval', 'handoff'],
+    edits: [
+      ['an edited gate question',
+        'ask: "Plan complete', 'ask: "Plan drafted'],
+      ['a renamed continue option',
+        'continue-to-handoff: continue', 'proceed-to-handoff: continue'],
+      ['a retyped hand-off value',
+        'plan_outcome: {enum: [approved, plan-only]}', 'plan_outcome: {enum: [approved, draft-only]}'],
     ],
   },
   research: {
@@ -7071,6 +7085,14 @@ const UMBRELLA_SCRIPTS = 'skills/umbrella/scripts';
 const SEED_FIXTURE_DIR = path.join('synthetic', 'worker-seed');
 
 /**
+ * The filename prefixes the golden seed triples in that directory carry. The
+ * empty one is the original `skill:` target, whose three files keep the paths
+ * they have always had; each further stem is another target scheme the task
+ * section branches on and would otherwise have no pinned rendering.
+ */
+const SEED_FIXTURE_STEMS = ['', 'workflow-target.'];
+
+/**
  * Every refusal the umbrella runtime names. The set is closed by design — the
  * SKILL documents a recovery for each — so the test asserts coverage of the
  * whole list rather than of the handful a change happened to touch. A code that
@@ -7222,6 +7244,13 @@ nodes:
     uses: skill:quick-dev
     needs: [research]
     dir: repo-alpha
+  plan-beta:
+    uses: workflow:plan
+    needs: [research]
+    dir: repo-beta
+    provider: claude
+    with:
+      statement: Plan the rate limiter
 `;
 
 const T35_RUN_ID = '019260a2-1122-7c33-8d44-5e6677889900';
@@ -7507,8 +7536,13 @@ async function t35(ctx) {
       // that can never be dispatched, and the empty and malformed spellings.
       equalJson(
         ['workflow:research', 'skill:development', 'skill:quick-dev', 'agent:code-reviewer',
-          'direct:write-it', 'skill:no-such-skill', 'skill:../escape', 'nonsense', ''].map(driverCapable),
-        [true, true, false, false, false, false, false, false, false],
+          'direct:write-it', 'skill:no-such-skill', 'skill:../escape', 'nonsense', '',
+          // A workflow: name is a name, held to the same charset as every other
+          // target. Waving these through means a typo'd definition dispatches
+          // clean and fails inside a worker, where nothing is watching.
+          'workflow:Plan', 'workflow:../escape', 'workflow:', 'workflow:not a thing'].map(driverCapable),
+        [true, true, false, false, false, false, false, false, false,
+          false, false, false, false],
         'the exported driverCapable predicate');
     });
 
@@ -8029,11 +8063,50 @@ workflow:
 
     t.check('the golden seed fixture is the descriptor renderSeed turns into the golden prompt', () => {
       const dir = path.join(ctx.fixtures, SEED_FIXTURE_DIR);
-      const descriptor = parseYaml(fs.readFileSync(path.join(dir, 'seed.yml'), 'utf8'), YAML_OPTS);
-      validates('worker-seed.schema.json#/$defs/seed', descriptor);
-      const golden = fs.readFileSync(path.join(dir, 'seed.prompt.txt'), 'utf8').replace(/\r\n/g, '\n');
-      must(`${renderSeed(descriptor)}\n` === golden,
-        'renderSeed no longer produces the golden prompt this fixture pins — update the fixture deliberately or fix the renderer');
+      // One stem per target scheme the task section branches on: the unprefixed
+      // stem is a `skill:` target, `workflow-target.` a `workflow:` one. The
+      // assertion is the same for both — the descriptor renders to the prompt
+      // beside it, byte for byte.
+      for (const stem of SEED_FIXTURE_STEMS) {
+        const descriptor = parseYaml(fs.readFileSync(path.join(dir, `${stem}seed.yml`), 'utf8'), YAML_OPTS);
+        validates('worker-seed.schema.json#/$defs/seed', descriptor);
+        const golden = fs.readFileSync(path.join(dir, `${stem}seed.prompt.txt`), 'utf8').replace(/\r\n/g, '\n');
+        must(`${renderSeed(descriptor)}\n` === golden,
+          `${stem}seed.prompt.txt: renderSeed no longer produces the golden prompt this fixture pins — update the fixture deliberately or fix the renderer`);
+      }
+    });
+
+    t.check('a workflow: dispatch target renders a seed a worker can act on', () => {
+      // The gap this closes: the task line named the target with its scheme
+      // prefix and nothing else — `Run workflow:plan.` — which is chain
+      // grammar, not anything a worker can type. A `skill:` target at least
+      // hints at the tool by its scheme name; for a `workflow:` target there is
+      // nothing to guess from, and the definition it names deliberately has no
+      // command of its own. So the seed owes the worker three things it cannot
+      // infer: which skill runs a definition, the bare name to run, and the
+      // lookup order that lets a member-side ejection win.
+      const root = '/opt/maister/plugins/maister';
+      const prompt = renderSeed(buildSeed(build('plan-beta'), { siblings: 3, pluginRoot: root }));
+      const task = prompt.split('\n# ').find(section => section.startsWith('task'));
+      must(task !== undefined, 'the rendered prompt carries no task section');
+
+      // Not merely present: the engine's name already appears in the
+      // gate-request path every seed carries, so the assertion is over a line
+      // that is about running the definition.
+      const names = task.split('\n').filter(line => /workflow-engine/.test(line) && !/gate-request/.test(line));
+      must(names.length > 0,
+        `the task section names the skill that runs a definition only inside the gate-request path:\n${task}`);
+      must(/\bplan\b/.test(task.replace(/workflow:plan/g, '')),
+        `the task section never names the definition by its bare name:\n${task}`);
+      must(/\.maister\/workflows\//.test(task),
+        `the task section never states where a member-side ejection of the definition is looked for:\n${task}`);
+      must(!/^Run workflow:plan\.$/m.test(task),
+        'the task line still hands the worker the raw grammar token as its whole instruction');
+
+      // The line is added under a hard cap with no truncation, so the seed a
+      // real dispatch renders must still fit.
+      const lines = prompt.split('\n').length;
+      must(lines <= 60, `the seed for a workflow: target renders ${lines} lines, past the cap of 60`);
     });
 
     t.check('the envelope and seed verb halves report in the shell shape', () => {
@@ -9815,6 +9888,182 @@ workflow:
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T43 — the plan workflow, and the user surface it deliberately has none of
+// ---------------------------------------------------------------------------
+
+/**
+ * `plan` is the first chain-only built-in: a definition reached as
+ * `workflow:plan` from a chain node carrying a `dir:`, and reachable no other
+ * way. Every other shipped workflow has a twin somewhere a reader can find —
+ * an orchestrator skill, a slash command, a section in the command reference —
+ * and T31/T33 are the parity checklists that hold those two halves together.
+ * This one has no second half at all, which is why neither of those shapes
+ * fits it and why this test exists instead.
+ *
+ * It asserts four things, and the fourth is the reason for the first three.
+ *
+ * The definition validates and resolves clean, with an empty warning list.
+ * T29's walk already pins that property over every shipped definition; it is
+ * re-asserted here so that a failure names this file rather than a directory
+ * walk, and so that this test is meaningful on its own.
+ *
+ * The node ids and the gate shape are pinned. They are public API from first
+ * release: a chain frozen against this graph names `plan-approval` and answers
+ * it with `continue-to-handoff` or `stop-after-plan`, so a rename is a
+ * deprecation and not an edit. The gate's option *map* is pinned rather than
+ * its keys, because the verdict each option carries is the half that ends the
+ * run.
+ *
+ * There is no user alias. Four negatives: no `skills/plan/`, no
+ * `commands/plan.md`, no `SKILL.md` naming `builtin:plan` — the positive
+ * precedent being `skills/research/SKILL.md` and `skills/development/SKILL.md`,
+ * each naming its own — and no `commands/*.md` naming the workflow at all.
+ * That last one is a sweep and deliberately not an inventory: pinning the
+ * command directory as an exact file list would turn this test red the day an
+ * unrelated command ships, for a reason with nothing to do with `plan`.
+ *
+ * The prose names the driver rule and branches on provider. The literal
+ * `orchestrator.driver.kind` belongs in the workflow prose, where a run reads
+ * it — and in no new `SKILL.md`, because `driverCapable` reads that literal out
+ * of a skill file to decide whether the skill is a legal `dir:` target. The
+ * third negative above is what keeps that true. Both provider names are
+ * asserted inside the `plan` section specifically: a branch stated somewhere
+ * else in the file is not a branch this node takes.
+ */
+const PLAN_WORKFLOW_REL = `${ENGINE}/workflows/plan.yml`;
+const PLAN_PROSE_REL = `${ENGINE}/workflows/plan.md`;
+/** The node ids, in canonical order. Public API; see `WORKFLOW_PINS.plan`. */
+const PLAN_NODES = ['standards-discovery', 'plan', 'plan-approval', 'handoff'];
+const PLAN_GATE = 'plan-approval';
+/** The gate's option map: each id and the verdict it carries. */
+const PLAN_GATE_OPTIONS = { 'continue-to-handoff': 'continue', 'stop-after-plan': 'stop' };
+/**
+ * Every second-level heading in the prose companion, in order: the front
+ * sections `research.md` also carries, then one section per node. A node
+ * heading is keyed off the `direct:` target name rather than the node id —
+ * they are equal here, and `hasProseSection` breaks silently if a rename ever
+ * separates them.
+ */
+const PLAN_PROSE_HEADINGS = [
+  'Run-scoped context', 'Phase summary keys', 'Icon hints', 'Embedded mode',
+  'standards-discovery', 'plan', 'plan-approval', 'handoff',
+];
+/** The driver literal, spelled as `DRIVER_RULE` spells it in `envelope.mjs`. */
+const PLAN_DRIVER_LITERAL = 'orchestrator.driver.kind';
+/** Both hosts, named in the one section that branches between them. */
+const PLAN_PROVIDERS = ['Claude Code', 'Copilot CLI'];
+/**
+ * The three spellings a command file would reach this workflow by. A command
+ * naming any of them is a user surface, which this workflow does not have.
+ */
+const PLAN_ALIAS_SPELLINGS = [/builtin:plan\b/, /workflow:plan\b/, /\/maister:plan(?![\w-])/];
+
+async function t43(ctx) {
+  const t = checker();
+  const engine = path.join(ctx.pluginRoot, ENGINE);
+  const definitionFile = path.join(ctx.pluginRoot, PLAN_WORKFLOW_REL);
+  const proseFile = path.join(ctx.pluginRoot, PLAN_PROSE_REL);
+  const lib = name => pathToFileURL(path.join(engine, 'scripts', 'lib', `${name}.mjs`)).href;
+  const { readDefinition } = await import(lib('definition'));
+  const { resolve: resolveGraph } = await import(lib('graph'));
+
+  if (!isFile(definitionFile)) {
+    return { checks: 1, failures: [`${PLAN_WORKFLOW_REL}: the definition is absent`], notes: [] };
+  }
+  const graph = resolveGraph({ definition: readDefinition(definitionFile), overlays: [], profile: null, degraded: [] });
+
+  t.check('the plan definition resolves with no error and no warning', () => {
+    equalJson(graph.errors, [], `${PLAN_WORKFLOW_REL} was rejected`);
+    equalJson(graph.warnings, [],
+      `${PLAN_WORKFLOW_REL} resolves with a warning — a shipped definition carries none`);
+  });
+
+  t.check('the plan definition resolves to its four pinned nodes, in canonical order', () => {
+    equalJson(graph.nodes.map(n => n.id), PLAN_NODES,
+      'the node ids — public API from first release, so a rename is a deprecation and not an edit');
+  });
+
+  t.check(`the ${PLAN_GATE} gate offers exactly its two pinned options`, () => {
+    const gate = graph.nodes.find(n => n.id === PLAN_GATE);
+    must(gate, `${PLAN_GATE}: the gate node is gone`);
+    must(gate.type === 'gate', `${PLAN_GATE} is typed ${JSON.stringify(gate.type)}, not gate`);
+    equalJson(gate.options, PLAN_GATE_OPTIONS,
+      'the gate option map — the id a chain answers with, and the verdict that answer carries');
+  });
+
+  t.check('the prose companion carries the front sections and one section per node, in order', () => {
+    must(isFile(proseFile),
+      `${PLAN_PROSE_REL}: the prose companion is absent — every direct: node resolves against it`);
+    const headings = fs.readFileSync(proseFile, 'utf8')
+      .split('\n').filter(line => line.startsWith('## '))
+      .map(line => line.slice(3).replace(/`/g, '').trim());
+    equalJson(headings, PLAN_PROSE_HEADINGS,
+      'the prose companion\'s second-level headings; a node section is keyed off the direct: target name');
+  });
+
+  // -- the four negatives: this workflow has no user surface ----------------
+  t.check('skills/plan/ is not a directory', () => {
+    must(!isDir(path.join(ctx.pluginRoot, 'skills', 'plan')),
+      'skills/plan/ exists — a chain-only workflow has no orchestrator skill, and one there is a second half nothing keeps in step');
+  });
+
+  t.check('commands/plan.md is not a file', () => {
+    must(!isFile(path.join(ctx.pluginRoot, 'commands', 'plan.md')),
+      'commands/plan.md exists — the plan workflow is reached from a chain node, never from a slash command');
+  });
+
+  t.check('no SKILL.md names builtin:plan', () => {
+    const skillsDir = path.join(ctx.pluginRoot, 'skills');
+    must(isDir(skillsDir), 'skills/ is absent');
+    const named = fs.readdirSync(skillsDir)
+      .map(name => ({ name, file: path.join(skillsDir, name, 'SKILL.md') }))
+      .filter(each => isFile(each.file) && fs.readFileSync(each.file, 'utf8').includes('builtin:plan'))
+      .map(each => `skills/${each.name}/SKILL.md`);
+    equalJson(named, [],
+      'a skill names builtin:plan the way skills/research/SKILL.md and skills/development/SKILL.md name their own: that skill is the user surface this workflow has none of');
+  });
+
+  t.check('no command file names the plan workflow', () => {
+    const commandsDir = path.join(ctx.pluginRoot, 'commands');
+    must(isDir(commandsDir), 'commands/ is absent');
+    // A sweep, not an inventory: pinning the directory as an exact file list
+    // would turn red the day an unrelated command ships, for a reason with
+    // nothing to do with `plan`.
+    const named = [];
+    for (const name of fs.readdirSync(commandsDir).filter(each => each.endsWith('.md')).sort()) {
+      const text = fs.readFileSync(path.join(commandsDir, name), 'utf8');
+      for (const spelling of PLAN_ALIAS_SPELLINGS) {
+        if (spelling.test(text)) named.push(`commands/${name} names ${String(spelling)}`);
+      }
+    }
+    equalJson(named, [], 'a command file reaches the plan workflow, so it has a user surface after all');
+  });
+
+  // -- the prose names the driver rule and branches on provider -------------
+  t.check('the prose names the driver rule literal', () => {
+    const text = fs.readFileSync(proseFile, 'utf8');
+    must(text.includes(PLAN_DRIVER_LITERAL),
+      `${PLAN_PROSE_REL}: never spells ${JSON.stringify(PLAN_DRIVER_LITERAL)}, so a dispatched run has nothing telling it how to answer its gate`);
+  });
+
+  t.check('the plan section branches on provider, naming both hosts inside itself', () => {
+    const lines = fs.readFileSync(proseFile, 'utf8').split('\n');
+    const start = lines.findIndex(line => line.trim() === '## `plan`');
+    must(start >= 0, `${PLAN_PROSE_REL}: there is no \`plan\` section`);
+    const rest = lines.slice(start + 1);
+    const end = rest.findIndex(line => line.startsWith('## '));
+    const section = rest.slice(0, end < 0 ? rest.length : end).join('\n');
+    for (const provider of PLAN_PROVIDERS) {
+      must(section.includes(provider),
+        `the \`plan\` section never names ${JSON.stringify(provider)} — a branch stated elsewhere in the file is not one this node takes`);
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -9876,6 +10125,7 @@ const TESTS = [
   { id: 'T40', name: 'umbrella-user-verbs', needs: ['plugin'], run: t40 },
   { id: 'T41', name: 'chain-planner-surface', needs: ['plugin', 'fixtures'], run: t41 },
   { id: 'T42', name: 'generated-chain-home', needs: ['plugin', 'fixtures'], run: t42 },
+  { id: 'T43', name: 'plan-workflow-surface', needs: ['plugin', 'fixtures'], run: t43 },
 ];
 
 // ---------------------------------------------------------------------------

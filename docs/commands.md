@@ -439,6 +439,8 @@ Implement a task directly — exactly as the main agent normally would, no plann
 
 Works exactly like Claude Code's built-in plan mode, with standards enforcement folded in. While planning, it reads INDEX.md and the specific matched standard files (INDEX.md alone is not enough), and the plan must reference the applicable standards and include a Standards Compliance Checklist (verified after implementation) before exiting plan mode.
 
+This command is for planning you drive yourself; scoped plan work that a chain dispatches into another repository goes to the chain-only `plan` workflow instead (see [Workflow Details](workflows.md)).
+
 ### `/maister:quick-bugfix [bug description]`
 
 Lightweight TDD-driven bug fix without a full orchestrator workflow. Analyzes the bug, writes a failing test, implements the fix, and verifies the test passes.

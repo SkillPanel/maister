@@ -68,6 +68,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
+import { bareWorkflowName } from '../../../workflow-engine/scripts/lib/graph.mjs';
 
 /** The format version a seed descriptor declares. */
 const VERSION = 1;
@@ -245,14 +246,42 @@ function identityLines({ document, chain, target }) {
  * carried one. Absent it the seed still names the workflow and its arguments,
  * which is the whole of what the node said.
  */
+/**
+ * The definition a `workflow:` target names, bare, or `null` for every other
+ * target — including a `workflow:` target whose name is malformed, which
+ * dispatch refuses before a seed is ever rendered. The prefix strip is the
+ * engine's own, so this prompt and the engine's lookup cannot diverge on what
+ * the name is.
+ */
+function workflowTarget(uses) {
+  if (typeof uses !== 'string' || !uses.startsWith('workflow:')) return null;
+  return bareWorkflowName(uses.slice('workflow:'.length));
+}
+
 function taskLines({ document, workflow, pluginRoot }) {
   const lines = [];
-  if (typeof document.statement === 'string' && document.statement.trim() !== '') {
+  const stated = typeof document.statement === 'string' && document.statement.trim() !== '';
+  if (stated) {
     lines.push(`The work: ${oneLine(document.statement)}`);
   }
-  lines.push(workflow.uses
-    ? `Run ${oneLine(workflow.uses)}.`
-    : 'Run the workflow named by your dispatch.');
+  const definition = workflowTarget(workflow.uses);
+  if (definition !== null) {
+    // A `skill:` target hints at its tool by its scheme name; a `workflow:`
+    // target hints at nothing, and the scheme prefix is chain grammar rather
+    // than anything a worker can type. So the three facts a worker cannot infer
+    // are stated: which skill runs a definition, the bare name to run it by,
+    // and the order the name is looked up in — the last so that a member-side
+    // ejection visibly wins rather than being shadowed by the shipped file.
+    lines.push(`Run the \`${definition}\` workflow definition with the workflow-engine skill, invoked by that name — the definition carries no command of its own.`);
+    lines.push(`Resolve \`${definition}\` by that bare name, first hit winning, in this order: \`.maister/workflows/${definition}.yml\` (an eject, which shadows the built-in entirely), then \`.maister/workflows/generated/${definition}.yml\` (a generated chain, complete in itself), then \`.maister/workflows/${definition}.overlay.yml\` (an overlay merged over the built-in), then the built-in shipped with the plugin.`);
+    lines.push(stated
+      ? `The line above beginning \`The work:\` is that definition's \`statement\` input — bind it there; nothing else supplies it.`
+      : `That definition takes a \`statement\` input and your dispatch carried none. Send a blocked message rather than inventing one.`);
+  } else {
+    lines.push(workflow.uses
+      ? `Run ${oneLine(workflow.uses)}.`
+      : 'Run the workflow named by your dispatch.');
+  }
   lines.push('You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state — E1 requires the cwd beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run with one call to the engine\'s gate-request verb, never by writing the gate files yourself:');
   lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml>`);
   lines.push('with the request as JSON on stdin. It writes the request file, the gate index and the pending marker together; there is no second write and the run is already suspended once it returns. Then print `GATE-PENDING: ` followed by that gate\'s own node id as the last line of the turn, and stop. Never ask a question in session.');

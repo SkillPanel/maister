@@ -13,7 +13,7 @@ the API change in repo-alpha and refresh the documentation site if — and only 
 | `survey` | An inline node that reads both members and records `docs_affected` as a `bool` value output. | The branch downstream has to be decided by work the chain did, not by a flag the person starting the run had to remember. |
 | `survey-approval` | A gate: one `continue`, one `stop`. | Nothing reaches a member repository before a person has read the survey. |
 | `build-api` | Dispatches `skill:development` into `repo-alpha`, with its own `provider:`. | The API change is the work; it is named explicitly rather than fanned out, because the member set is known here. |
-| `update-docs` | Dispatches `skill:development` into `docs-site`, guarded. | The documentation site is touched only when the survey said it is affected. |
+| `update-docs` | Dispatches `workflow:plan` into `docs-site`, guarded. | The documentation site is touched only when the survey said it is affected, and what it needs is a plan to review rather than an edit made blind — so this node dispatches a built-in workflow where `build-api` dispatches a skill. |
 | `close-out` | An inline node summarizing what each dispatched node changed. | A reviewer reads one place rather than two branches. |
 
 Both dispatching nodes carry `provider: claude` explicitly: a member with no
