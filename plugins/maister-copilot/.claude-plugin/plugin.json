@@ -1,6 +1,6 @@
 {
   "name": "maister-copilot",
-  "version": "2.3.0-beta.10",
+  "version": "2.3.0-beta.11",
   "description": "Structured, standards-aware development workflows for GitHub Copilot CLI",
   "author": {
     "name": "Skillpanel",
