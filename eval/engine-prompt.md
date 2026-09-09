@@ -97,7 +97,7 @@ the decision — before any other write:
   block carrying `option`, `answered_by` and `at`. If the chosen option has `effect: stop`,
   set `task.status: stopped`. Then continue the main loop.
 
-A message starting with `RESUME run=<run_id>` (no answer) means: re-enter from state and
+A message starting with `RESUME run=<run_id> at=<ts>` (no answer) means: re-enter from state and
 continue the main loop; if a gate is pending, print `GATE-PENDING: <node>` again and stop.
 
 ## Markers

@@ -1,0 +1,24 @@
+{
+  "id": "unstamped-re-drive",
+  "contracts": [
+    "C5",
+    "A6"
+  ],
+  "verdict": "invalid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-09T09:14:33Z",
+  "files": [
+    {
+      "path": "prompts.txt",
+      "schema": "markers.schema.json#/$defs/prompt_line"
+    }
+  ],
+  "expect": {
+    "error_path": "",
+    "error_keyword": "anyOf"
+  },
+  "notes": "The line as the pre-widening pattern spelled it: a re-drive with no measured time. A driver resumed by it has no stamp for the turn, so it carries the previous one forward or formats a placeholder. Every prompt-line kind now ends with at=, and this fixture is what proves the unstamped form is refused rather than tolerated."
+}

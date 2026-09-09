@@ -15,7 +15,7 @@
  *                 tolerant readers, the runner lints, the register-derived
  *                 constants, and the hook replay harness (T13-T21 share it).
  *                 Anything used by more than one test lives here.
- *   2. tests      one `tNN(ctx)` per test, banner-titled, in id order T01-T28.
+ *   2. tests      one `tNN(ctx)` per test, banner-titled, in id order T01-T45.
  *                 A constant used by a single test sits in that test's band.
  *   3. registry   the `TESTS` table (also id-ordered) and `main`.
  */
@@ -3449,11 +3449,16 @@ const CONTRACT_IDS = [
   'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'E1', 'E2', 'H1', 'R', 'T1',
 ];
 
-/** Contracts with no document of their own to reject, and why. */
+/**
+ * Contracts with no document of their own to reject, and why. C5 was on this
+ * list while the outcome record was the whole of it — an unclassifiable record
+ * is `unknown`, itself a valid outcome, so there was nothing to reject. The
+ * prompt line is a document, and `contracts-v4` gave it a shape to fail: a
+ * line with no `at=`.
+ */
 const NO_NEGATIVE_FIXTURE = new Map([
   ['A4', 'no schema — the negative direction is the enumerator inventory_only list (T10)'],
   ['B3', 'an alias of common#/$defs/phase_summary_value — negatives live under A1'],
-  ['C5', 'a read rule; an unclassifiable record is `unknown`, itself a valid outcome'],
   ['C6', 'a path register at v1 — no document exists to reject'],
   ['R', 'accepted-and-ignored by construction — there is no invalid reserved key'],
   ['T1', 'carried inside a C7 mirror event — negatives are the event fixtures'],
@@ -10186,6 +10191,102 @@ function t44(ctx) {
 }
 
 
+// ---------------------------------------------------------------------------
+// T45 — every prompt-line kind carries a measured `at=`
+// ---------------------------------------------------------------------------
+
+/**
+ * The C5 prompt vocabulary is what the daemon sends as the first line when it
+ * resumes a driver, and the resumed turn has no other measured time for itself.
+ * `GATE-ANSWER` carried `at=` from the start and the other three did not, so a
+ * driver re-driven, steered or plainly resumed either carried the previous
+ * turn's stamp forward or formatted one — the defect that writes a midnight
+ * `started` into a run's permanent record. The `contracts-v4` widening put the
+ * field on all four.
+ *
+ * Nothing else would notice a fifth kind arriving without it: the union pattern
+ * validates each kind against its own branch, so an unstamped branch is simply
+ * a branch that accepts unstamped lines. This test reads the kinds structurally
+ * — every `#/$defs/prompt_*` the union names — and requires each to end with
+ * the A6 timestamp, so the next kind added to the vocabulary fails the suite
+ * until it carries the stamp too.
+ */
+const PROMPT_AT_TAIL = String.raw` at=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`;
+
+function t45(ctx) {
+  const failures = [];
+  const notes = [];
+  let checks = 0;
+
+  const markers = readJson(path.join(ctx.schemas, 'markers.schema.json'));
+  const defs = markers.$defs ?? {};
+  const union = defs.prompt_line?.anyOf;
+
+  checks++;
+  if (!Array.isArray(union) || union.length === 0) {
+    return { checks, failures: ['markers.schema.json#/$defs/prompt_line does not name its kinds as an anyOf union'] };
+  }
+
+  const kinds = [];
+  for (const branch of union) {
+    checks++;
+    const ref = branch?.$ref;
+    const name = typeof ref === 'string' ? ref.replace('#/$defs/', '') : null;
+    if (!name || !defs[name]) {
+      failures.push(`prompt_line names a branch the schema does not define: ${JSON.stringify(branch)}`);
+      continue;
+    }
+    kinds.push(name);
+  }
+
+  // every `$defs/prompt_*` is reachable from the union, so none can be orphaned
+  // into place and then quietly used by a reader the union never validated
+  for (const name of Object.keys(defs)) {
+    if (name === 'prompt_line' || !name.startsWith('prompt_')) continue;
+    checks++;
+    if (!kinds.includes(name)) failures.push(`${name}: a prompt-line kind the prompt_line union does not name`);
+  }
+
+  for (const name of kinds) {
+    const pattern = defs[name].pattern;
+    checks++;
+    if (typeof pattern !== 'string') {
+      failures.push(`${name}: no pattern`);
+      continue;
+    }
+    checks++;
+    if (!pattern.endsWith(PROMPT_AT_TAIL)) {
+      failures.push(`${name}: does not end with a measured at= on the A6 form (§ 9): ${pattern}`);
+    } else {
+      notes.push(`${name}: ${pattern.slice(1, -PROMPT_AT_TAIL.length)} … at=<ts>`);
+    }
+  }
+
+  // the fixture corpus spells one line per kind, and every one of them is stamped
+  if (ctx.have.has('fixtures')) {
+    const seen = new Set();
+    for (const fx of byVerdict(ctx, 'valid')) {
+      for (const entry of fx.manifest.files) {
+        if (entry.schema !== 'markers.schema.json#/$defs/prompt_line') continue;
+        const file = path.join(fx.dir, entry.path);
+        if (!isFile(file)) continue;
+        for (const line of loadDocs(file)) {
+          seen.add(String(line).split(' ')[0]);
+          checks++;
+          if (!new RegExp(PROMPT_AT_TAIL).test(String(line))) failures.push(`${fx.id}: an unstamped prompt line: ${line}`);
+        }
+      }
+    }
+    checks++;
+    if (seen.size !== kinds.length) {
+      failures.push(`the corpus spells ${seen.size} prompt-line kinds, the schema defines ${kinds.length}`);
+    }
+  }
+
+  return { checks, failures, notes };
+}
+
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -10249,6 +10350,7 @@ const TESTS = [
   { id: 'T42', name: 'generated-chain-home', needs: ['plugin', 'fixtures'], run: t42 },
   { id: 'T43', name: 'plan-workflow-surface', needs: ['plugin', 'fixtures'], run: t43 },
   { id: 'T44', name: 'workflow-type-fixture-coverage', needs: ['fixtures'], run: t44 },
+  { id: 'T45', name: 'prompt-line-timestamps', needs: [], run: t45 },
 ];
 
 // ---------------------------------------------------------------------------

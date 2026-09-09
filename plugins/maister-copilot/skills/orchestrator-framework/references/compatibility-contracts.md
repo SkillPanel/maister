@@ -43,7 +43,7 @@ Column meanings: **Owner** = who writes it (engine = the orchestrator or model i
 | C2 | dispatch envelope | engine | `version: 1` | additive — the optional `statement` and `workspace_root` are two such additions | `dispatch-envelope` | synthetic (envelope, worker-seed chain), invalid (bad `autonomy`) |
 | C3 | ledger entry + 7 ops + `ledger.log` line | engine (`create-entry`, `claim`, `update-status`), daemon (rest) | `version: 1` | additive; op names closed; log line `ts op dispatch_id actor` | `ledger-entry` (`#/$defs/entry`, `op`, `#/$defs/op_call`, `log_line`) | synthetic (entry, op transcript), invalid (illegal status, op call without actor) |
 | C4 | outbox message | worker | `version: 1` | additive; one `type` per file; append-only | `outbox-message` | synthetic (one per `type`), invalid (unknown `type`) |
-| C5 | stdout markers + outcome rule | engine prints; daemon reads | — | exit code is not a signal; outcome from on-disk E2, marker, denials | `markers` (`#/$defs/marker_line`, `prompt_line`, `outcome`) | valid (result records, both providers), synthetic (outcome records) |
+| C5 | stdout markers + prompt lines + outcome rule | engine prints; daemon reads and resumes | — | exit code is not a signal; outcome from on-disk E2, marker, denials; every prompt-line kind carries `at=` | `markers` (`#/$defs/marker_line`, `prompt_line` and its four kinds, `outcome`) | valid (result records, both providers), synthetic (outcome records, prompt lines), invalid (a prompt line with no `at=`) |
 | C6 | coordination branch layout | daemon | `COORDINATION.md` `version: 1` | path-pattern register only at v1; no document schema | none | none (register rows, § C6) |
 | C7 | event schema | engine / daemon / cockpit (`actor.via`) | `version: 1` | immutable files; fold in `at` order; `mirror` data carries T1 | `event` (`#/$defs/mirror_data` is T1) | synthetic (one per `type`), invalid (unknown `type`, non-UUIDv7 id) |
 | C8 | worker seed descriptor | engine (dispatch node) | `version: 1` | additive; the five section ids, their order and the 60-line cap are frozen; section wording is free | `worker-seed` (`#/$defs/seed`, `section`, `section_marker`, `line_cap`) | synthetic (descriptor), invalid (missing the siblings section) |
@@ -236,7 +236,7 @@ disk the headings start at column 1.
 
 `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`, and never `T00:00:00Z` — midnight is the signature of a date that was formatted rather than measured, so the pattern lives in the schema and the midnight rule is a separate lint.
 
-**Field-path list**: `orchestrator.created`, `orchestrator.updated`, `orchestrator.gate_pending.since`, `phases[].started`, `phases[].completed`, `generated`, `asked_at`, `answer.at`, `workflow.nodes.*.started`, `workflow.nodes.*.completed`, and the C-series `created` / `updated` / `at` (including the `ts` field of a `ledger.log` line).
+**Field-path list**: `orchestrator.created`, `orchestrator.updated`, `orchestrator.gate_pending.since`, `phases[].started`, `phases[].completed`, `generated`, `asked_at`, `answer.at`, `workflow.nodes.*.started`, `workflow.nodes.*.completed`, and the C-series `created` / `updated` / `at` (including the `ts` field of a `ledger.log` line and the `at=` field of a C5 prompt line).
 
 **Exempt**: the task-directory name prefix, and every other date embedded in a path. The exemption is the field-path list itself — no path-valued key is on it.
 
@@ -301,12 +301,23 @@ A flow map, keys in any order, scalars bare or double-quoted, no nesting. **The 
 | C2 | dispatch envelope | `version: 1`; additive; `autonomy` is a closed enum; `statement` is the work in one line, resolved override → `with.statement` → `with.task` and null when the node carried none; `workspace_root` is the absolute umbrella root, so a worker whose working directory is a worktree inside a member repo — often reached through a symlink out of the workspace — can still anchor every other path in the document; both are optional, and a reader that knows neither still reads the document. `closeout_contract.pr_required` is derived from the tier, never asserted: `attended` and `auto-high` reach a pull request, `auto-low` and `auto-medium` cannot |
 | C3 | ledger entry, ops, log | `version: 1`; the seven op names `create-entry`, `claim`, `update-status`, `add-constraint`, `add-followup`, `close-out`, `query` are a closed set; a log line is `ts op dispatch_id actor` |
 | C4 | outbox message | `version: 1`; one `type` per file; append-only, never rewritten |
-| C5 | stdout markers + outcome | marker and prompt vocabularies are fixed regexes; the outcome rule is below |
+| C5 | stdout markers + outcome | marker and prompt vocabularies are fixed regexes; every prompt-line kind ends with a measured `at=`; the outcome rule is below |
 | C6 | coordination branch | `COORDINATION.md` `version: 1`; an orphan branch, mounted as a worktree, never merged, single-writer; `runs/<uuid7>/`, `ledger/events/`, `outbox/`, `archive/`. Path register only — no document schema at v1 |
 | C7 | event | `version: 1`; files are immutable and folded in `at` order; `mirror` event data is T1 (`{tracker, event_ref, key}`) |
 | C8 | worker seed | `version: 1`; the five section ids `identity`, `task`, `outbox`, `closeout`, `siblings`, their order and the 60-line cap are frozen; each section opens with its marker line and the wording under it is free; a descriptor that would render over the cap is refused, never truncated |
 
 **C2 enforcement rule.** `permissions` is **data, and the layer that spawns the worker owes its enforcement.** Nothing in the runtime enforces it: the runtime does not spawn, so it never sees the process to constrain. A spawner translates the denied atoms into the provider's own permission surface before the seed is delivered — verbatim on Copilot, whose tool vocabulary the atoms are (`--deny-tool='shell(git push)'`); by removing the tool, or by a `PreToolUse` gate, on Claude. **An argument-prefix rule such as `Bash(git push:*)` is not an enforcement mechanism** — it matches command text, so a flag before the subcommand, a compound command or a hook that rewrites the command defeats it. A spawner that cannot enforce a tier does not dispatch at it. The seed's close-out prose assumes the denial is real, so an unenforced tier does not merely fail to stop a worker: it tells the worker it will be stopped.
+
+**C5 prompt-line vocabulary.** Four kinds, and the daemon sends exactly one as the first line when it resumes a driver:
+
+```
+GATE-ANSWER run=<run_id> node=<node> option=<id> answered_by=<who> at=<ts>
+RE-DRIVE    run=<run_id> reason=<reason> at=<ts>
+STEER       run=<run_id> text="<free text>" at=<ts>
+RESUME      run=<run_id> at=<ts>
+```
+
+`at=` is the last field of every kind, it is required on every kind, and its value is an A6 timestamp (§ 9) — measured, never formatted, and never midnight. **The `at=` on `RE-DRIVE`, `STEER` and `RESUME` is the `contracts-v4` change**, additive on the § 1 rule: `GATE-ANSWER` already carried the field and the other three are widened onto the same shape, so writers and readers move together behind the new tag. The reason it is not optional: the resumed driver has no other measured time for the turn it is about to record, so an absent stamp leaves it carrying the previous one forward or formatting a placeholder — the class of defect that writes a midnight `started` into a run's permanent record. A reader pinned to `contracts-v3` rejects a stamped `RE-DRIVE`, `STEER` or `RESUME`; a `contracts-v4` reader rejects an unstamped one.
 
 **C5 outcome rule.** A run's outcome is derived in this order and no other:
 

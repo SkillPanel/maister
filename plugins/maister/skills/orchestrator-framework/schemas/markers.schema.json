@@ -11,9 +11,33 @@
       "pattern": "^(GATE-PENDING: [a-z][a-z0-9-]{1,40}|RUN-COMPLETE|RUN-FAILED: .+|WAITING-DISPATCH|GATE-ALREADY-ANSWERED( by .+)?|GATE-INVALID: .+|DISPATCH-(RESULT|FOLLOWUP): .+)$"
     },
     "prompt_line": {
-      "description": "The first line the daemon sends when it resumes a driver.",
+      "description": "The first line the daemon sends when it resumes a driver. Every kind ends with a measured `at=` on the A6 form, so a resumed driver never carries a time forward or formats one.",
+      "anyOf": [
+        { "$ref": "#/$defs/prompt_gate_answer" },
+        { "$ref": "#/$defs/prompt_re_drive" },
+        { "$ref": "#/$defs/prompt_steer" },
+        { "$ref": "#/$defs/prompt_resume" }
+      ]
+    },
+    "prompt_gate_answer": {
+      "description": "An operator answered a pending gate; `at=` is when the answer was given.",
       "type": "string",
-      "pattern": "^(GATE-ANSWER run=\\S+ node=\\S+ option=\\S+ answered_by=\\S+ at=\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z|RE-DRIVE run=\\S+ reason=\\S+|STEER run=\\S+ text=\".*\"|RESUME run=\\S+)$"
+      "pattern": "^GATE-ANSWER run=\\S+ node=\\S+ option=\\S+ answered_by=\\S+ at=\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "prompt_re_drive": {
+      "description": "The daemon re-enters a driver that owes another turn; `at=` is when the re-drive was issued.",
+      "type": "string",
+      "pattern": "^RE-DRIVE run=\\S+ reason=\\S+ at=\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "prompt_steer": {
+      "description": "An operator steers a running driver with free text; `at=` is when the steer was sent.",
+      "type": "string",
+      "pattern": "^STEER run=\\S+ text=\".*\" at=\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "prompt_resume": {
+      "description": "A plain re-entry carrying neither an answer nor an instruction; `at=` is when the resume was issued.",
+      "type": "string",
+      "pattern": "^RESUME run=\\S+ at=\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
     },
     "outcome": {
       "description": "What the daemon records for one driver turn.",

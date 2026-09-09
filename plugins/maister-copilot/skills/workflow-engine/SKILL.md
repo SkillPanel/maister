@@ -399,6 +399,16 @@ The run is suspended the moment step 2's marker publishes. **The commit point is
 
 ### Driver-suspended mode — resume
 
+A resume always arrives as a first line in one of four shapes — `GATE-ANSWER`, `RE-DRIVE`,
+`STEER` or `RESUME` — and **all four end with `at=<timestamp>`**. That stamp is the turn's
+measured time and it is the only one the engine has: nothing in a resumed turn may read a
+clock of its own or reuse a time from an earlier turn. Record it exactly as a `GATE-ANSWER`
+stamp is recorded — as the `at` of the decision the turn writes, and as the `started` of any
+node the turn begins — on a re-drive and a steer no less than on an answer. A first line with
+no `at=` is below the contract: print `RUN-FAILED: prompt-line-unstamped`, write nothing, and
+leave the run where it was. Inventing a time there is what puts a midnight timestamp into a
+run's permanent record, and a fabricated stamp is worse than a refused turn.
+
 Under a pending gate the whole tool surface is denied, the shell included, so the state
 writer is unreachable and the decision is recorded with editor tools on the allow-listed
 files only. This is the one sanctioned exception to "never edit state with an editor tool",
