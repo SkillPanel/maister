@@ -116,6 +116,21 @@ than landing in some default block. The name is already part of the frozen key o
 this costs nothing at freeze time and cannot be recovered later without re-installing the
 block.
 
+**The freeze patch carries `task.key` when the definition declares a tracker key.** An input
+marked `tracker_key: true` says its value *is* the ticket the run was started from — a chain
+started from ALPHA-42 declares `ticket: {type: string, required: true, tracker_key: true}` and
+the operator supplies `ALPHA-42` at start. `resolve` reports the marked input's name as
+`tracker_key` (null when no input carries the mark), so the freeze reads the name from the
+resolved graph and writes that input's supplied value as `task.key` in the same `write-state`
+call that installs the `workflow:` block. A run whose definition marks nothing writes nothing:
+`task.key` stays absent rather than becoming an empty string or the workflow's name.
+
+Why it belongs at the freeze and nowhere else: the tracker mirror adopts an existing ticket as
+the run's parent when `task.key` is present, and creates a fresh epic when it is not. The
+decision is made from the state the first time it is read, so a key written later is a key
+written after a duplicate epic already exists. The validator holds the mark to one input and
+to `type: string`, so the value the freeze reads is unambiguous.
+
 If `validate` rejects the definition, stop with `RUN-FAILED:` carrying the validator's first
 error. A definition that does not validate cannot be executed part-way.
 
@@ -157,7 +172,7 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs <verb> [f
 | Verb | Flags | Gives |
 |---|---|---|
 | `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found |
-| `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph plus its `graph_hash` |
+| `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph, its `graph_hash`, and `tracker_key` — the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |

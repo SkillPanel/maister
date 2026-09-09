@@ -239,6 +239,15 @@ at start time. When the planner does declare one, the plan file says how a run
 supplies it; an input nobody knows how to set is a chain that cannot be started
 by the person who reads it.
 
+**A chain planned from a ticket marks its ticket input.** When the task the chain
+is planned from is a tracker ticket, declare the input that carries its key as
+`ticket: {type: string, required: true, tracker_key: true}`. The mark is what
+makes the run's `task.key` the ticket, and so what makes the tracker mirror adopt
+that ticket as the run's parent instead of opening a fresh epic beside it. At
+most one input per definition carries the mark and it must be `type: string`;
+the checker rejects a second one and a non-string one. Details and the reason it
+needs no schema change: `references/plan-time-rules.md` § 4.4.
+
 ### The plan file
 
 `<name>.plan.md` carries four required headings, spelled exactly as below and in

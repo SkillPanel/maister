@@ -232,6 +232,11 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     source: definition?.file ?? null,
     overlays: overlays.map((overlay) => overlay.file),
     profile,
+    // Which input the freeze reads for `task.key`, computed from the resolved
+    // inputs and reported beside the graph rather than folded into it: the
+    // engine needs it at freeze time, and the hash must not move because a
+    // definition said where its intake key comes from.
+    tracker_key: null,
   };
 
   // A degraded document declares a format whose grammar this build does not
@@ -252,7 +257,10 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
       return { ok: false, errors, warnings: [], ...provenance, degraded, graph_hash: null, nodes: [] };
     }
     const folded = canonicalNodes(graph);
-    return { ok: true, errors: [], warnings: [], ...provenance, degraded, graph_hash: hashNodes(folded), nodes: folded };
+    return {
+      ok: true, errors: [], warnings: [], ...provenance,
+      tracker_key: trackerKeyOf(graph.inputs), degraded, graph_hash: hashNodes(folded), nodes: folded,
+    };
   }
 
   const { report, graph } = inspect({ definition, overlays, profile, mode: 'resolved', project });
@@ -270,6 +278,7 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     warnings: report.warnings,
     degraded,
     ...provenance,
+    tracker_key: trackerKeyOf(graph.inputs),
     graph_hash: hashNodes(nodes),
     nodes,
   };
@@ -824,8 +833,76 @@ function isMap(value) {
 // the checks the schema leaves to the runner
 // ---------------------------------------------------------------------------
 
+/**
+ * The input attribute that names a run's tracker id, and the whole of the
+ * convention: an input carrying `tracker_key: true` says its value *is* the
+ * ticket the run was started from, so the engine writes that value into
+ * `task.key` at freeze time and the tracker mirror adopts the existing ticket
+ * as the run's parent instead of creating a fresh epic beside it.
+ *
+ * It is an attribute rather than a reserved input name because a chain names
+ * its inputs for what they mean to the chain — `ticket`, `issue`, `story` —
+ * and a convention that forces one spelling would either rename half of them
+ * or quietly miss the other half. It costs no schema change: B1's `input`
+ * shape carries no `additionalProperties: false`, so a reader pinned to
+ * `contracts-v4` already tolerates the attribute and simply does not act on
+ * it. Nothing about the attribute reaches the canonical node form, so a graph
+ * that gains the mark keeps its `graph_hash` — the same document, now saying
+ * where its intake key comes from.
+ */
+const TRACKER_KEY = 'tracker_key';
+
+/**
+ * The name of the input marked as the tracker key, or null when no input is
+ * marked. Read from the resolved graph's `inputs:` map, which overlays carry
+ * through untouched, so base and overlay agree by construction.
+ */
+export function trackerKeyOf(inputs) {
+  if (!isMap(inputs)) return null;
+  for (const [name, input] of Object.entries(inputs)) {
+    if (isMap(input) && input[TRACKER_KEY] === true) return name;
+  }
+  return null;
+}
+
+/**
+ * The two ways the mark goes wrong, both of which would otherwise surface as a
+ * run that silently wrote the wrong `task.key` or none at all.
+ *
+ * A second marked input is the sharper one: `trackerKeyOf` answers with the
+ * first in document order, so two marks make the intake key depend on the
+ * order the author happened to write the map in. A marked input that is not a
+ * string is the other — `task.key` is a string in A1, and a bool or a path
+ * marked as the tracker key is an authoring slip, not a value the writer
+ * should coerce.
+ */
+function checkInputs(inputs, file, errors) {
+  if (!isMap(inputs)) return;
+  const marked = [];
+  for (const [name, input] of Object.entries(inputs)) {
+    if (!isMap(input) || input[TRACKER_KEY] === undefined) continue;
+    const dotted = `inputs.${name}.${TRACKER_KEY}`;
+    if (typeof input[TRACKER_KEY] !== 'boolean') {
+      fail(errors, file, dotted, `${TRACKER_KEY} is true or false; ${describe(input[TRACKER_KEY])} is neither`);
+      continue;
+    }
+    if (input[TRACKER_KEY] !== true) continue;
+    marked.push(name);
+    if (input.type !== undefined && input.type !== 'string') {
+      fail(errors, file, dotted,
+        `an input marked as the tracker key carries the ticket id and must be declared string; "${name}" is declared ${input.type}`);
+    }
+  }
+  if (marked.length > 1) {
+    fail(errors, file, `inputs.${marked[1]}.${TRACKER_KEY}`,
+      `only one input is the tracker key; "${marked[0]}" already carries the mark`);
+  }
+}
+
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
   const { file, inputs, nodes, origins } = graph;
+
+  checkInputs(inputs, file, errors);
 
   for (const id of nodes.keys()) {
     if (!NODE_ID.test(id)) fail(errors, file, 'nodes',

@@ -10567,6 +10567,110 @@ async function t46(ctx) {
 
 
 // ===========================================================================
+// T47 — a chain's ticket input becomes the run's task.key
+// ===========================================================================
+
+/**
+ * The tracker-key convention, end to end.
+ *
+ * A chain started from a ticket declares the ticket as an input; the tracker
+ * mirror adopts an existing ticket as a run's parent only when the run's state
+ * carries `task.key`, and creates a fresh epic otherwise. `tracker_key: true`
+ * on an input is what joins the two: the engine reads the marked input's name
+ * off the `resolve` report and writes that input's value into `task.key` in the
+ * freeze patch.
+ *
+ * The convention rests on the attribute being additive, so that is what this
+ * test holds rather than assuming it: the marked definition validates against
+ * the pinned B1 schema (T03, through the fixture manifest), the mark moves no
+ * graph hash, an unmarked input reports nothing, and the state writer's closed
+ * patch vocabulary already carries `task.key`. The two ways the mark goes
+ * wrong — a second one, and a non-string one — are refused with located errors.
+ */
+const TICKET_KEY_FIXTURE = path.join('synthetic', 'ticket-key-intake');
+const TICKET_KEY_DEFINITION = 'ticket-rollout.yml';
+const TICKET_KEY_INPUT = 'ticket';
+const TICKET_KEY_UNMARKED = 'notes';
+const TICKET_KEY_VALUE = 'ALPHA-42';
+
+async function t47(ctx) {
+  const t = checker();
+  const engine = path.join(ctx.pluginRoot, ENGINE);
+  const lib = name => pathToFileURL(path.join(engine, 'scripts', 'lib', `${name}.mjs`)).href;
+  const { readDefinition, parseDefinition } = await import(lib('definition'));
+  const { resolve: resolveGraph } = await import(lib('graph'));
+  const { writeState } = await import(lib('state'));
+
+  const fixtureDir = path.join(ctx.fixtures, TICKET_KEY_FIXTURE);
+  const definitionFile = path.join(fixtureDir, TICKET_KEY_DEFINITION);
+  const stateFile = path.join(fixtureDir, 'orchestrator-state.yml');
+  if (!isFile(definitionFile) || !isFile(stateFile)) {
+    return { checks: 1, failures: [`${TICKET_KEY_FIXTURE}: the fixture pair is absent`], notes: [] };
+  }
+
+  const text = fs.readFileSync(definitionFile, 'utf8');
+  /** Resolve a variant of the fixture definition, read from its own text. */
+  const resolved = body => resolveGraph({
+    definition: { file: definitionFile, doc: parseDefinition(body, definitionFile).doc },
+    overlays: [], profile: null, degraded: [],
+  });
+
+  const marked = resolveGraph({ definition: readDefinition(definitionFile), overlays: [], profile: null, degraded: [] });
+
+  t.check('the marked definition resolves clean and names its tracker-key input', () => {
+    equalJson(marked.errors, [], `${TICKET_KEY_DEFINITION} was rejected`);
+    equalJson(marked.warnings, [], `${TICKET_KEY_DEFINITION} resolves with a warning`);
+    must(marked.tracker_key === TICKET_KEY_INPUT,
+      `resolve reports tracker_key ${JSON.stringify(marked.tracker_key)}, not ${JSON.stringify(TICKET_KEY_INPUT)}`);
+  });
+
+  t.check('an unmarked input names nothing, and the mark moves no graph hash', () => {
+    const plain = resolved(text.replace(', tracker_key: true}', '}'));
+    equalJson(plain.errors, [], 'the same definition without the mark was rejected');
+    must(plain.tracker_key === null,
+      `an unmarked definition reports tracker_key ${JSON.stringify(plain.tracker_key)}, not null`);
+    must(plain.graph_hash === marked.graph_hash,
+      'the mark moved the graph hash — it must reach no node, so a published chain can gain it');
+  });
+
+  t.check('a second marked input is refused, at its own path', () => {
+    const two = resolved(text.replace(`  ${TICKET_KEY_UNMARKED}: {type: string}`,
+      `  ${TICKET_KEY_UNMARKED}: {type: string, tracker_key: true}`));
+    must(two.ok === false, 'two marked inputs resolved clean');
+    equalJson(two.errors.map(e => e.path), [`inputs.${TICKET_KEY_UNMARKED}.tracker_key`],
+      'the located error names the second mark, not the first');
+  });
+
+  t.check('a marked input that is not a string is refused', () => {
+    const bool = resolved(text.replace('{type: string, required: true, tracker_key: true}',
+      '{type: bool, required: true, tracker_key: true}'));
+    must(bool.ok === false, 'a bool input marked as the tracker key resolved clean');
+    equalJson(bool.errors.map(e => e.path), [`inputs.${TICKET_KEY_INPUT}.tracker_key`], 'the located error');
+  });
+
+  t.check('the fixture run carries the ticket as its intake key', () => {
+    const line = fs.readFileSync(stateFile, 'utf8').split('\n').find(l => l.startsWith('  key:'));
+    must(line !== undefined, `${TICKET_KEY_FIXTURE}/orchestrator-state.yml carries no task.key`);
+    must(line.includes(TICKET_KEY_VALUE), `task.key is ${JSON.stringify(line)}, not ${TICKET_KEY_VALUE}`);
+  });
+
+  t.check('the state writer already carries task.key: the freeze patch writes it, editor tools never do', () => {
+    const scratch = tempDir('ticket-key');
+    const subject = path.join(scratch, 'orchestrator-state.yml');
+    fs.writeFileSync(subject, fs.readFileSync(stateFile, 'utf8').replace(`\n  key: ${TICKET_KEY_VALUE}`, ''), 'utf8');
+    must(!fs.readFileSync(subject, 'utf8').includes('key:'), 'the staged copy still carries a key');
+    const result = writeState({ state: subject, patch: { task: { key: TICKET_KEY_VALUE } } });
+    must(result.ok === true, `write-state refused task.key: ${JSON.stringify(result.errors)}`);
+    must(result.changed.includes('task.key'), `the write reported ${JSON.stringify(result.changed)}`);
+    must(fs.readFileSync(subject, 'utf8').includes(`  key: ${TICKET_KEY_VALUE}`),
+      'task.key is not in the written state');
+    fs.rmSync(scratch, { recursive: true, force: true });
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+// ===========================================================================
 // registry and entry point
 // ===========================================================================
 
@@ -10631,6 +10735,7 @@ const TESTS = [
   { id: 'T44', name: 'workflow-type-fixture-coverage', needs: ['fixtures'], run: t44 },
   { id: 'T45', name: 'prompt-line-timestamps', needs: [], run: t45 },
   { id: 'T46', name: 'extension-contract', needs: ['plugin', 'fixtures'], run: t46 },
+  { id: 'T47', name: 'ticket-key-intake', needs: ['plugin', 'fixtures'], run: t47 },
 ];
 
 // ---------------------------------------------------------------------------

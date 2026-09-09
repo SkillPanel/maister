@@ -399,6 +399,24 @@ carries the `inputs:` map through untouched. The one place a type is enforced at
 all is a guard (`checkWhen`): an input a `when:` reads must be declared
 `type: bool`.
 
+**One input attribute has a meaning: `tracker_key: true`.** It marks the input
+whose value is the ticket the run was started from. The engine reads it off the
+`resolve` report (`tracker_key`, the marked input's name or null) and writes that
+input's supplied value into `task.key` in the freeze patch, which is what makes
+the cockpit's tracker mirror adopt the existing ticket as the run's parent
+instead of opening a fresh epic beside it. The checker holds it to one input per
+definition and to `type: string`; everything else about it is inert, and the mark
+reaches no node, so adding it to a published chain does not move its graph hash.
+It needs no schema change either — B1's input shape does not close its
+properties, so a reader pinned to `contracts-v4` tolerates the attribute and
+simply does not act on it.
+
+**A chain planned from a ticket declares it.** The ticket input the plan already
+requires — `ticket: {type: string, required: true}` — becomes
+`ticket: {type: string, required: true, tracker_key: true}`, and the plan file
+says the run supplies it with the ticket key. A chain not planned from a ticket
+marks nothing, and its runs carry no `task.key`.
+
 Inputs are the values a *run* supplies at start time. That is their whole
 purpose, and it is also the reason a guard should rarely read one: a chain whose
 branch depends on an input is a chain that behaves differently depending on

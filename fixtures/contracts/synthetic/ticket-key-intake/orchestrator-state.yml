@@ -1,0 +1,28 @@
+orchestrator:
+  started_phase: analyze
+  completed_phases: [analyze]
+  failed_phases: []
+  created: "2026-09-09T09:12:00Z"
+  updated: "2026-09-09T09:19:41Z"
+  task_path: .maister/tasks/development/2026-09-09-ticket-rollout
+  gate_pending: null
+  options: {html_output: true}
+  driver: {kind: cockpit, cwd: /home/dev/work/proof-ws, session: {id: "019260b1-0001-7c00-8a00-0123456789ab", name: ticket-rollout, provider: claude, model: opus}}
+
+task:
+  title: "Roll ALPHA-42 into repo-alpha"
+  status: in_progress
+  key: ALPHA-42
+
+workflow:
+  source: .maister/workflows/generated/ticket-rollout.yml
+  overlays: []
+  profile: null
+  graph_hash: "sha256:9fa47c2bcc7830faa9bb8064d228d7a3181a860d0da25a8ea268c1c877990598"
+  grammar_version: 1
+  name: ticket-rollout
+  nodes:
+    analyze: {kind: task, status: completed, started: "2026-09-09T09:12:11Z", completed: "2026-09-09T09:19:41Z", needs: [], values: {ready: true}}
+    rollout-approval: {kind: gate, status: pending, needs: [analyze]}
+    apply: {kind: task, status: pending, needs: [rollout-approval], dir: repo-alpha, provider: claude}
+    close-out: {kind: task, status: pending, needs: [apply]}

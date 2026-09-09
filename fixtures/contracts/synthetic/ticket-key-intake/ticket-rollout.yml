@@ -1,0 +1,45 @@
+# A chain started from a ticket, and the whole of the tracker-key convention.
+#
+# `ticket` carries `tracker_key: true`: the run's intake key is that input's
+# value, so the engine writes it into `task.key` in the freeze patch and the
+# cockpit's tracker mirror adopts ALPHA-42 as the run's parent instead of
+# opening a fresh epic beside it. `notes` is the control - an unmarked string
+# input whose value never reaches `task.key`, however plausible it looks.
+#
+# The attribute needs no schema change: B1's input shape carries no
+# additionalProperties: false, so a reader pinned to contracts-v4 tolerates it
+# and simply does not act on it. It reaches no node, so the graph hash of this
+# definition is the hash of the same document with the mark removed.
+version: 1
+name: ticket-rollout
+inputs:
+  ticket: {type: string, required: true, tracker_key: true}
+  notes: {type: string}
+nodes:
+  analyze:
+    uses: direct:analyze
+    needs: []
+    outputs:
+      artifacts:
+        notes: analysis/ticket.md
+      values:
+        ready: bool
+
+  rollout-approval:
+    type: gate
+    needs: [analyze]
+    ask: "The analysis is done. Roll the change into repo-alpha?"
+    options:
+      roll: continue
+      stop-chain: stop
+
+  apply:
+    uses: skill:development
+    needs: [rollout-approval]
+    when: "${analyze.values.ready}"
+    dir: repo-alpha
+    provider: claude
+
+  close-out:
+    uses: direct:close-out
+    needs: [apply]

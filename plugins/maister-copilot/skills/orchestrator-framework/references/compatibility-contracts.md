@@ -246,6 +246,7 @@ disk the headings start at column 1.
 
 **Rules**:
 - A gate node (`type: gate`) has no `uses`, exactly one option whose effect is `continue`, and at least one `stop`.
+- An input may carry `tracker_key: true`, marking the input whose value is the run's tracker id: the engine writes it into `task.key` at freeze time (§ A1), and the tracker mirror adopts that ticket rather than creating an epic. **No schema keyword backs it** — the `input` shape does not close its properties, so a reader pinned to an earlier contracts tag tolerates the attribute and does not act on it. The runner holds it to one input per definition and to `type: string`, and it reaches no node, so marking an input does not move a `graph_hash`.
 - The node-id set of a built-in workflow is a public API: a rename is a deprecation carrying an alias for at least two releases.
 - Reserved keys (§ R) parse, warn and do nothing.
 

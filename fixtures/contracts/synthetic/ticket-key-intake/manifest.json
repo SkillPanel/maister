@@ -1,0 +1,29 @@
+{
+  "id": "ticket-key-intake",
+  "contracts": [
+    "A1",
+    "B1",
+    "B2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-09T09:19:41Z",
+  "files": [
+    {
+      "path": "ticket-rollout.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    {
+      "path": "ticket-rollout.md",
+      "schema": null
+    },
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "notes": "The tracker-key convention, both halves. ticket-rollout.yml declares two string inputs and marks one of them tracker_key: true; orchestrator-state.yml is the run that definition freezes into, carrying task.key: ALPHA-42 beside the frozen workflow block. The pair is what proves the convention is additive: the attribute has no schema keyword behind it - B1's input shape carries no additionalProperties: false - so the definition validates against the pinned workflow-definition schema unchanged, and task.key is the optional string A1 has always allowed. The suite resolves the definition and asserts tracker_key reports ticket, asserts an unmarked input reports nothing, asserts the mark moves no graph hash, and drives write-state to prove the freeze patch can carry task.key. ticket-rollout.md is the prose companion the two direct: nodes resolve against, judged by the graph checker's heading-equality lint rather than by a schema. No dashboard-data.js: the state is here for its task block and its frozen graph, and the A1/A2 cross-check skips a state with no dashboard beside it."
+}
