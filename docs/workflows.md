@@ -35,7 +35,9 @@ plugin. That route reaches a workflow wherever the engine executes it — resear
 the chain-only `plan` today, so ejecting or overlaying `builtin:development` takes effect on the
 next run. A generated chain — one the planner published for a single ticket — is complete in itself
 and is never overlaid or ejected; it is resolved by name like any other and deleted by the
-workspace's `prune` command once its runs have closed.
+workspace's `prune` command once its runs have closed. Writing a chain of your own, naming your
+own skills and agents from its nodes, and what an overlay may change are covered in
+[Extending maister](extending.md).
 
 `/maister:development` runs on the workflow engine by default. To run its prose phases instead,
 set `MAISTER_WORKFLOW_PROSE` to any non-empty value:

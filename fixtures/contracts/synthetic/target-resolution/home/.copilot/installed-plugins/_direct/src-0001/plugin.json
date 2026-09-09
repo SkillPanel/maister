@@ -1,0 +1,5 @@
+{
+  "name": "direct-tools",
+  "version": "0.1.0",
+  "description": "A plugin installed directly under Copilot CLI, named by its manifest rather than its directory."
+}

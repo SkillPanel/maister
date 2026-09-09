@@ -639,6 +639,7 @@ function refused(err) {
 export function validate(root, { definitions = [] } = {}) {
   const errors = [];
   const warnings = [];
+  const resolved = [];
 
   let base;
   try {
@@ -667,9 +668,12 @@ export function validate(root, { definitions = [] } = {}) {
       errors.push(...definition.errors);
       continue;
     }
-    const report = validateGraph({ definition, overlays: [], profile: null, mode: 'resolved' });
+    // The workspace is the project a `skill:` or `agent:` target is first
+    // looked for in: a chain authored here may name a skill kept beside it.
+    const report = validateGraph({ definition, overlays: [], profile: null, mode: 'resolved', project: base });
     errors.push(...report.errors.map((entry) => locate(entry, file)));
     warnings.push(...report.warnings.map((entry) => locate(entry, file)));
+    resolved.push(...report.resolved.map((entry) => ({ file, ...entry })));
     if (members !== null) checkMemberDirs(definition.doc, file, members, errors);
     checkDriverCapable(definition.doc, file, errors);
   }
@@ -680,7 +684,7 @@ export function validate(root, { definitions = [] } = {}) {
   const home = generatedHome(base);
   const judged = definitions.map((file) => ({ file, generated: contains(home, path.resolve(file)) }));
 
-  return { ok: errors.length === 0, root: base, manifest: relative(base, manifestPath), definitions: judged, errors, warnings };
+  return { ok: errors.length === 0, root: base, manifest: relative(base, manifestPath), definitions: judged, errors, warnings, resolved };
 }
 
 // ---------------------------------------------------------------------------
@@ -1100,8 +1104,8 @@ function checkDriverCapable(doc, file, errors) {
       node: id,
       path: `nodes.${id}.uses`,
       message: verdict === 'unreadable'
-        ? `"${node.uses}" cannot be dispatched into a member: this installation holds no such skill, so nothing was read and whether it honours a driver is unknown here. A dispatched target has to be readable where the dispatch is built, because the same lookup decides it there. Install whatever ships that skill, point this node at a workflow: target or at an orchestrator skill this installation carries, or drop its dir: and run it in the coordinating repository.`
-        : `"${node.uses}" cannot be dispatched into a member: a dispatched worker runs unattended, so it has to record the driver it was started under, write each gate out as a request file and print a marker instead of asking. Only a workflow: target, which the engine runs, or an orchestrator skill whose SKILL.md states that driver-qualified gate rule does that. Point this node at one of those, or drop its dir: and run it in the coordinating repository.`,
+        ? `"${node.uses}" cannot be dispatched into a member: this installation holds no such skill — not the workspace, not the plugin, not any installed plugin — so nothing was read and whether it honours a driver is unknown here. A dispatched target has to be readable where the dispatch is built, because the same lookup decides it there. Install whatever ships that skill, point this node at a workflow: target or at an orchestrator skill this installation carries, or drop its dir: and run it in the coordinating repository.`
+        : `"${node.uses}" cannot be dispatched into a member: a dispatched worker runs unattended, so it has to record the driver it was started under, write each gate out as a request file and print a marker instead of asking. Only a workflow: target, which the engine runs, or an orchestrator skill that declares driver_aware: true in its frontmatter, or whose SKILL.md states that driver-qualified gate rule, does that. Point this node at one of those, or drop its dir: and run it in the coordinating repository.`,
     });
   }
 }

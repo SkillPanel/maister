@@ -85,7 +85,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
-import { bareWorkflowName, resolve as resolveGraph } from '../../../workflow-engine/scripts/lib/graph.mjs';
+import { bareWorkflowName, locateTarget, resolve as resolveGraph, TARGET_REF } from '../../../workflow-engine/scripts/lib/graph.mjs';
 
 /** The format version every C-series document this module writes declares. */
 const VERSION = 1;
@@ -306,13 +306,20 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
  * exists to remove — so dispatching into one produces a worker that hangs on a
  * prompt nobody will answer.
  *
- * Capability is read off the shipped artifact rather than from a list kept
- * here: an orchestrator skill is one whose `SKILL.md` states the driver-
+ * Capability is read off the artifact rather than from a list kept here. A
+ * skill declares it in one of two ways, and either satisfies the check: the
+ * frontmatter field `driver_aware: true`, which is the documented way a skill
+ * outside this plugin says so; or a `SKILL.md` body that states the driver-
  * qualified gate rule by naming `orchestrator.driver.kind`, which is the
- * sentence every driver-aware orchestrator carries and no other skill does. A
+ * sentence every built-in orchestrator carries and stays honoured for them. A
  * `workflow:` target is run by the engine, which is driver-aware itself, so it
  * qualifies without the lookup. `agent:` and `direct:` targets are steps inside
  * a run, not runs, and can never be dispatched.
+ *
+ * The file read is the one the graph checker's own resolution finds — the
+ * project's skill of that name, else this plugin's, else an installed
+ * plugin's, or exactly the plugin a namespaced target names — so a definition
+ * cannot validate against one skill and dispatch another.
  *
  * Exported twice, and never as the assertion below: as the three-answer
  * verdict, and as the boolean derived from it. `manifest.mjs`'s `validate`
@@ -344,10 +351,26 @@ export function driverCapability(uses) {
   // question for the run, not for a predicate that must answer without
   // touching the filesystem.
   if (scheme === 'workflow') return bareWorkflowName(name) === null ? 'incapable' : 'capable';
-  if (scheme !== 'skill' || !SKILL_NAME.test(name)) return 'incapable';
+  if (scheme !== 'skill' || !TARGET_REF.test(name)) return 'incapable';
   const text = skillText(name);
   if (text === null) return 'unreadable';
-  return DRIVER_RULE.test(text) ? 'capable' : 'incapable';
+  return declaresDriverAware(text) || DRIVER_RULE.test(text) ? 'capable' : 'incapable';
+}
+
+/**
+ * Whether a skill file's frontmatter carries `driver_aware: true`. Only the
+ * leading `---` block is read, and only a bare `true` counts: a value quoted,
+ * commented or nested is not the declaration, and a skill that mentions the
+ * field in its prose has not made it.
+ */
+export function declaresDriverAware(text) {
+  const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+  if (lines[0] !== '---') return false;
+  for (const line of lines.slice(1)) {
+    if (line === '---') return false;
+    if (DRIVER_AWARE.test(line)) return true;
+  }
+  return false;
 }
 
 /**
@@ -373,19 +396,24 @@ function assertDriverCapable({ node, uses }) {
   }
   if (driverCapable(uses)) return;
   throw new Refusal('dispatch-workflow-not-driver-capable',
-    `the node "${node}" dispatches into a member with uses: ${uses}, which cannot honour a driver: a dispatched worker has to record orchestrator.driver.kind, write its gate requests and print a marker instead of asking, and only an orchestrator workflow does that. Point the node at an orchestrator skill or a workflow:, or drop the dir: and run it in the coordinating repository.`);
+    `the node "${node}" dispatches into a member with uses: ${uses}, which cannot honour a driver: a dispatched worker has to record orchestrator.driver.kind, write its gate requests and print a marker instead of asking, and only an orchestrator workflow does that. Point the node at an orchestrator skill — one declaring driver_aware: true in its frontmatter — or a workflow:, or drop the dir: and run it in the coordinating repository.`);
 }
 
 /** The sentence a driver-aware orchestrator states its gate rule with. */
 const DRIVER_RULE = /orchestrator\.driver\.kind/;
 
-/** The closed set a skill name is looked up under; anything else names no file. */
-const SKILL_NAME = /^[a-z][a-z0-9-]*$/;
+/** The frontmatter line by which a skill declares it honours a driver. */
+const DRIVER_AWARE = /^driver_aware:\s*true\s*$/;
 
-/** One skill's SKILL.md, or null when this plugin root holds no such file. */
+/**
+ * One skill's SKILL.md, found the way the graph checker finds it, or null when
+ * no searched place holds a file for the name.
+ */
 function skillText(name) {
+  const found = locateTarget('skill', name);
+  if (found === null) return null;
   try {
-    return fs.readFileSync(path.join(pluginRoot(), 'skills', name, 'SKILL.md'), 'utf8');
+    return fs.readFileSync(found.at, 'utf8');
   } catch {
     return null;
   }

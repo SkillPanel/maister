@@ -256,14 +256,21 @@ the ones that sit in the generated home as generated; the rules are identical ei
 
 **The driver-capability check is new, and a chain that validated before this release can fail now.**
 A node carrying `dir:` hands its work to a session with nobody at the keyboard, so its `uses:` has
-to name a `workflow:` target or an orchestrator skill whose own file states the driver-qualified
-gate rule; anything else is an error at that node's `uses` path. The report separates two cases: a
-target that was read and does not state the rule, and a target this installation holds no file for
-at all — the second says so, rather than claiming a target it never opened lacks the rule. The
-recoveries are the same three either way: point `uses:` at a `workflow:` or at an orchestrator
-skill, install whatever ships the skill it names, or drop the `dir:` and run the step in the
-coordinating repository. On a node with no `dir:`, an unresolved `skill:` or `agent:` target still
-only warns — the strictness is what dispatch itself requires, not a general tightening.
+to name a `workflow:` target or an orchestrator skill that declares `driver_aware: true` in its
+frontmatter (the plugin's own orchestrators state the driver-qualified gate rule in their body
+instead, and both forms count); anything else is an error at that node's `uses` path. The report
+separates two cases: a target that was read and declares neither, and a target no searched place
+holds a file for at all — the second says so, rather than claiming a target it never opened lacks
+the declaration. The recoveries are the same three either way: point `uses:` at a `workflow:` or at
+a driver-aware skill, install whatever ships the skill it names, or drop the `dir:` and run the step
+in the coordinating repository. On a node with no `dir:`, an unresolved `skill:` or `agent:` target
+still only warns — the strictness is what dispatch itself requires, not a general tightening.
+
+**Targets are looked for in the workspace first.** A `skill:` or `agent:` name is resolved against
+the workspace's own `.claude/` and `.github/` trees, then the plugin, then every installed plugin;
+`skill:<plugin>:<name>` names one plugin explicitly. The report's `resolved` list says, per node,
+which of the three places answered and which file it found. [Extending maister](extending.md)
+covers the order and the namespacing in full.
 
 **Examples**:
 ```bash

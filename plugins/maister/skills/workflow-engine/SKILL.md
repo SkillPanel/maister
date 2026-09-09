@@ -156,7 +156,7 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs <verb> [f
 
 | Verb | Flags | Gives |
 |---|---|---|
-| `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[]}` on stdout |
+| `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found |
 | `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph plus its `graph_hash` |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
@@ -231,12 +231,22 @@ The node's `uses` names both the mechanism and the target:
 | `direct:<name>` | inline, by this engine, following the node's section in the definition's prose companion |
 | `workflow:<name>` | **stops the run** with a clear message — sub-run execution is out of scope; the validator resolves the target, nothing executes it |
 
-**An unresolved `skill:` or `agent:` target warns; it no longer errors.** Like a
-`workflow:` target, either may be provided by an environment `validate` cannot see — a
-consumer project's own skills, or another installed plugin — so `validate` accepts the
-document and reports `unresolved-reference:<node>:<target>`. The cost is that a mistyped
-name surfaces when the node is reached rather than at validation time. Only `direct:`
-stays an error, because its implementation is the section beside the definition in hand.
+**A `skill:` or `agent:` target is looked for in the project, then in this plugin, then in
+every installed plugin — first hit wins.** The project is the directory the host declares
+as the project, else the one the verb runs in; both hosts' layouts are searched there
+(`.claude/skills/<name>/SKILL.md` or `.github/skills/<name>/SKILL.md`, and the agent
+files beside them, in either spelling). A target may name the plugin it means with one
+colon — `skill:acme-tools:review` — and is then looked for only in that plugin, this one
+included by its own name. `validate` reports where each target was found in its `resolved`
+list: the node, the target as written, the place (`project`, `plugin` or `installed`) and
+the file.
+
+**A target found nowhere warns; it no longer errors.** Like a `workflow:` target, it may
+be provided by an environment `validate` cannot see — a plugin installed later, a project
+the file is not being validated in — so `validate` accepts the document and reports
+`unresolved-reference:<node>:<target>`. The cost is that a mistyped name surfaces when the
+node is reached rather than at validation time. Only `direct:` stays an error, because its
+implementation is the section beside the definition in hand.
 
 **The relaxation stops at a node carrying `dir:`.** Such a node hands its work to a member
 repository, and the workspace validator errors on one whose target it cannot read — the

@@ -1,0 +1,37 @@
+{
+  "id": "target-resolution",
+  "contracts": [
+    "B1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-09T20:30:00Z",
+  "files": [
+    {
+      "path": "project/extension.yml",
+      "schema": "workflow-definition.schema.json#"
+    },
+    { "path": "project/.claude/skills/local-review/SKILL.md", "schema": null },
+    { "path": "project/.claude/skills/quick-plan/SKILL.md", "schema": null },
+    { "path": "project/.claude/skills/driver-aware-runner/SKILL.md", "schema": null },
+    { "path": "project/.claude/skills/prose-mention/SKILL.md", "schema": null },
+    { "path": "project/.claude/agents/local-agent.md", "schema": null },
+    { "path": "project/.github/skills/copilot-local/SKILL.md", "schema": null },
+    { "path": "project/.github/agents/copilot-agent.agent.md", "schema": null },
+    { "path": "home/.claude/plugins/cache/acme-marketplace/acme-tools/1.0.0/skills/review/SKILL.md", "schema": null },
+    { "path": "home/.claude/plugins/cache/acme-marketplace/acme-tools/1.0.0/agents/inspector.md", "schema": null },
+    { "path": "home/.copilot/installed-plugins/acme-marketplace/copilot-only/skills/relay/SKILL.md", "schema": null },
+    { "path": "home/.copilot/installed-plugins/_direct/src-0001/plugin.json", "schema": null },
+    { "path": "home/.copilot/installed-plugins/_direct/src-0001/skills/probe/SKILL.md", "schema": null }
+  ],
+  "expect": {
+    "warnings": [
+      "unresolved-reference:missing:skill:nowhere-at-all",
+      "unresolved-reference:missing-namespaced:skill:absent-plugin:review"
+    ]
+  },
+  "notes": "The resolution order for skill: and agent: targets, staged as a whole environment: project/ is a consumer project carrying its own skills and agents under both the .claude/ and the .github/ layouts, and home/ is a home directory carrying installed plugins in both hosts' layouts - the Claude Code cache, and Copilot CLI's installed-plugins tree with one marketplace install and one direct install whose name comes from its manifest. The definition names one target from every place, one bare name the project shadows the plugin on, one namespaced target for this plugin's own name, and two names found nowhere - a bare one and one whose namespace names no installed plugin. The suite copies the tree to a temporary directory, points the engine at project/ as the project and home/ as the home, and pins per node which of the three places answered and which file; the two unresolved targets are the pinned warning set, asserted in the suite rather than by the corpus-wide consumer of expect.warnings, which is hard-wired to the reserved-key fixture. The four skills under project/.claude/skills are also the driver-capability cases: driver-aware-runner declares driver_aware: true in its frontmatter and nothing else; local-review declares nothing; prose-mention names the field in its prose only; quick-plan is the shadowing case. The definition sits beside the project's own skill tree rather than under a .maister/workflows/ directory only because this repository ignores every .maister/ directory; where a chain is kept has no bearing on where its targets are looked for."
+}

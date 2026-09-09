@@ -185,22 +185,28 @@ check requires the target to be one that suspends at a gate instead of asking
 - `agent:` and `direct:` targets never pass. An inline step and an agent are
   work for the coordinating session, not work to hand to a member.
 
-**The capable set is discovered, never listed.** The check reads
-`skills/<name>/SKILL.md` and matches the driver rule literal
-`orchestrator.driver.kind` in the text (`DRIVER_RULE` and `skillText` in
-`envelope.mjs`); the rationale
-recorded beside it is that capability is read off the shipped artifact rather
+**The capable set is discovered, never listed.** The check reads the skill's
+`SKILL.md` — found through the same resolution order the graph checker applies:
+the workspace's own `.claude/skills/<name>/` or `.github/skills/<name>/`, then
+the plugin's `skills/<name>/`, then every installed plugin's, or exactly the
+plugin a `skill:<plugin>:<name>` target names — and accepts it on either of two
+declarations: the frontmatter field `driver_aware: true`, which is the
+documented way a skill outside the plugin declares it, or the driver rule
+literal `orchestrator.driver.kind` in the body, which the built-ins carry
+(`DRIVER_AWARE`, `DRIVER_RULE` and `skillText` in `envelope.mjs`). The
+rationale recorded beside it is that capability is read off the artifact rather
 than from a list kept in code. Discover the set the same way and offer what you
-found — a list written down anywhere is wrong the first time a skill is added.
+found — a list written down anywhere is wrong the first time a skill is added,
+and a workspace skill declaring the field is as much a target as a shipped one.
 
 Three consequences worth carrying:
 
-- **The grep reads exactly `skills/<name>/SKILL.md`.** A skill whose own file
-  quotes that literal passes the check, whatever the skill actually does. That
-  is why the planner's own skill file must not contain it — a planner that
-  passed as a dispatch target could be dispatched into a member, where it would
-  hang on its own question. The literal belongs in this file, which the grep
-  never reads.
+- **The check reads exactly the file the target resolves to.** A skill whose
+  own file carries either declaration passes the check, whatever the skill
+  actually does. That is why the planner's own skill file must contain neither
+  — a planner that passed as a dispatch target could be dispatched into a
+  member, where it would hang on its own question. The literal belongs in this
+  file, which the check never reads.
 - **The engine is capable and is still not a target.** The workflow engine's
   skill carries the literal, so the rule passes it. Dispatching the engine into
   a member is running the runner inside the run: never emit it as a dispatch

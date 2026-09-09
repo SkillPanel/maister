@@ -10287,6 +10287,285 @@ function t45(ctx) {
 }
 
 
+// ---------------------------------------------------------------------------
+// T46 — the extension contract: where a target resolves, how a skill declares
+// it honours a driver, and the guide that documents both
+// ---------------------------------------------------------------------------
+
+/**
+ * Three things a user who cannot modify the plugin relies on, each pinned
+ * against a staged environment rather than against this machine.
+ *
+ * **Resolution.** A `skill:` or `agent:` target is looked for in the project,
+ * then in this plugin, then in every installed plugin, first hit winning — the
+ * `RESOLUTION_ORDER` the graph module exports — and a namespaced target is
+ * looked for only in the plugin it names. The fixture is a whole environment:
+ * a project carrying skills and agents under both hosts' layouts, and a home
+ * directory carrying installed plugins in both hosts' layouts. It is copied to
+ * a temporary directory, the engine is pointed at it through the variables the
+ * hosts set, and every node's answer is pinned: which place answered and which
+ * file. The two names found nowhere are the warning set, and the two
+ * spellings the charset refuses are errors, not warnings, because the charset
+ * is the traversal guard.
+ *
+ * **Driver capability.** `driver_aware: true` in a skill's frontmatter is the
+ * documented declaration; the built-ins' rule sentence stays honoured. A
+ * project-local skill carrying the field is capable, one carrying neither is
+ * not, and one that merely mentions the field in prose is not — and the
+ * workspace validator, which reads the same file through the same lookup,
+ * agrees on a dispatching node. The planner's own skill must declare neither.
+ *
+ * **The guide.** `docs/extending.md` names the three extension points as
+ * headings, states the resolution order exactly once and in the order the code
+ * applies, tells a driver-aware skill the four things it must do, says plainly
+ * what a contract change is needed for, names no script a user would run and
+ * carries no development-process identifier. The README and the workflow
+ * reference link to it.
+ */
+const RESOLUTION_FIXTURE = 'synthetic/target-resolution';
+const UMBRELLA_SKILL = 'skills/umbrella';
+const EXTENDING_GUIDE_REL = 'docs/extending.md';
+const EXTENDING_LINKED_FROM = ['README.md', 'docs/workflows.md'];
+/** The three extension points, each exactly one second-level heading. */
+const EXTENSION_POINTS = [
+  'Your own chains',
+  'Your own skills and agents as nodes',
+  'Overlays and eject over the built-ins',
+];
+/** The words the guide's one resolution-order sentence must carry, per place. */
+const RESOLUTION_WORDS = { project: 'project', plugin: 'this plugin', installed: 'installed plugins' };
+/** What a driver-aware skill must do, as the guide has to spell it. */
+const DRIVER_AWARE_DUTIES = [/driver\.kind/, /cockpit/, /dispatch/, /`gate-request`/, /`write-state`/];
+/** The closed shapes the guide must say need a contract change. */
+const NOT_EXTENSIBLE = [/schemes?/i, /gate effects?/i, /node types?/i, /contract/];
+/** A user reads slash commands, never these. */
+const GUIDE_SCRIPT_PATHS = ['workflow.mjs', 'umbrella.mjs', 'CLAUDE_PLUGIN_ROOT'];
+/** Development-process identifiers a shipped document must not carry. */
+const GUIDE_PROCESS_IDS = [/\b1[0-9][a-z]\b/, /\bT[0-9]{2}\b/, /\bADR-/, /\bcontracts-v[0-9]/];
+/** Where each fixture node resolves: `from`, and the suffix of the file found. */
+const RESOLVED_PINS = {
+  review: ['project', 'project/.claude/skills/local-review/SKILL.md'],
+  shadowed: ['project', 'project/.claude/skills/quick-plan/SKILL.md'],
+  shipped: ['plugin', 'skills/quick-dev/SKILL.md'],
+  'github-skill': ['project', 'project/.github/skills/copilot-local/SKILL.md'],
+  packaged: ['installed', 'acme-tools/1.0.0/skills/review/SKILL.md'],
+  relayed: ['installed', 'copilot-only/skills/relay/SKILL.md'],
+  probed: ['installed', 'src-0001/skills/probe/SKILL.md'],
+  'own-namespace': ['plugin', 'skills/quick-dev/SKILL.md'],
+  'agent-local': ['project', 'project/.claude/agents/local-agent.md'],
+  'agent-copilot': ['project', 'project/.github/agents/copilot-agent.agent.md'],
+  'agent-packaged': ['installed', 'acme-tools/1.0.0/agents/inspector.md'],
+};
+
+async function t46(ctx) {
+  const t = checker();
+  const engine = path.join(ctx.pluginRoot, ENGINE);
+  const entry = path.join(engine, 'scripts', 'workflow.mjs');
+  const lib = (dir, name) => pathToFileURL(path.join(ctx.pluginRoot, dir, 'scripts', 'lib', `${name}.mjs`)).href;
+  const { locateTarget, RESOLUTION_ORDER, TARGET_REF } = await import(lib(ENGINE, 'graph'));
+  const { driverCapability, declaresDriverAware } = await import(lib(UMBRELLA_SKILL, 'envelope'));
+  const { init, validate: validateWorkspace } = await import(lib(UMBRELLA_SKILL, 'manifest'));
+
+  const fixture = path.join(ctx.fixtures, ...RESOLUTION_FIXTURE.split('/'));
+  const manifest = readJson(path.join(fixture, 'manifest.json'));
+  const staged = tempDir('extension');
+  copyTree(fixture, staged);
+  const project = path.join(staged, 'project');
+  const home = path.join(staged, 'home');
+  const definition = path.join(project, 'extension.yml');
+
+  // An install the index names and the cache does not hold: the index path.
+  const indexed = path.join(home, 'elsewhere', 'beta-tools');
+  fs.mkdirSync(path.join(indexed, 'skills', 'beam'), { recursive: true });
+  fs.writeFileSync(path.join(indexed, 'skills', 'beam', 'SKILL.md'),
+    '---\nname: beam\ndescription: An indexed install declaring driver awareness.\ndriver_aware: true\n---\n\n# Beam\n', 'utf8');
+  fs.writeFileSync(path.join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify({
+    version: 2,
+    plugins: { 'beta-tools@acme-marketplace': [{ scope: 'user', installPath: indexed, version: '0.1.0' }] },
+  }, null, 2), 'utf8');
+
+  /** The variables both hosts set, pointed at the staged environment. */
+  const env = {
+    ...process.env,
+    CLAUDE_PLUGIN_ROOT: ctx.pluginRoot,
+    CLAUDE_PROJECT_DIR: project,
+    CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
+    HOME: home,
+    USERPROFILE: home,
+  };
+  const run = (...args) => {
+    const proc = runBounded(process.execPath, [entry, ...args], { encoding: 'utf8', input: '', env, cwd: project });
+    let report = null;
+    try { report = JSON.parse(proc.stdout); } catch { /* asserted below */ }
+    return { status: proc.status, stderr: proc.stderr ?? '', report };
+  };
+  /** The same variables, applied to this process for the in-process checks. */
+  const withEnv = (body) => {
+    const saved = {};
+    for (const key of ['CLAUDE_PLUGIN_ROOT', 'CLAUDE_PROJECT_DIR', 'CLAUDE_CONFIG_DIR', 'HOME', 'USERPROFILE']) {
+      saved[key] = process.env[key];
+      process.env[key] = env[key];
+    }
+    try {
+      return body();
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  };
+  const suffix = (file) => file.split(path.sep).join('/');
+
+  t.check('the exported resolution order is the three documented places, in order', () => {
+    equalJson(RESOLUTION_ORDER, Object.keys(RESOLUTION_WORDS), 'RESOLUTION_ORDER');
+    equalJson(['review', 'acme-tools:review', 'a:b:c', 'Bad', 'a/b', '../x', ':x', 'x:'].map((name) => TARGET_REF.test(name)),
+      [true, true, false, false, false, false, false, false], 'TARGET_REF admits one namespace and nothing else');
+  });
+
+  t.check('validate resolves every target through the order and says where', () => {
+    const out = run('validate', `--definition=${definition}`);
+    must(out.report !== null, `no JSON report (${out.stderr.trim().split('\n')[0] ?? ''})`);
+    must(out.status === 0 && out.report.ok === true, `rejected: ${JSON.stringify(out.report.errors ?? [])}`);
+    equalJson([...out.report.warnings].sort(), [...manifest.expect.warnings].sort(), 'the warning set');
+    must(Array.isArray(out.report.resolved), 'the report carries no resolved list');
+    const byNode = new Map(out.report.resolved.map((entry) => [entry.node, entry]));
+    for (const [node, [from, tail]] of Object.entries(RESOLVED_PINS)) {
+      const entry = byNode.get(node);
+      must(entry, `${node}: not reported as resolved`);
+      must(entry.from === from, `${node}: resolved from ${entry.from}, expected ${from}`);
+      must(suffix(entry.at).endsWith(tail), `${node}: resolved at ${entry.at}, expected …${tail}`);
+      must(RESOLUTION_ORDER.includes(entry.from), `${node}: "${entry.from}" is not a place in the order`);
+    }
+    must(byNode.size === Object.keys(RESOLVED_PINS).length,
+      `resolved ${byNode.size} targets, expected ${Object.keys(RESOLVED_PINS).length}: ${[...byNode.keys()].join(', ')}`);
+  });
+
+  t.check('an install the index names resolves, and a name found nowhere warns by name', () => {
+    const file = path.join(staged, 'indexed.yml');
+    fs.writeFileSync(file, [
+      'name: indexed', 'version: 1', 'inputs:', '  brief: {type: path, required: true}', 'nodes:',
+      '  beam:', '    uses: skill:beta-tools:beam', '    needs: []',
+      '  nothing:', '    uses: agent:nowhere-at-all', '    needs: []', '',
+    ].join('\n'), 'utf8');
+    const out = run('validate', `--definition=${file}`);
+    must(out.report?.ok === true, `rejected: ${JSON.stringify(out.report?.errors ?? [])}`);
+    equalJson(out.report.warnings, ['unresolved-reference:nothing:agent:nowhere-at-all'], 'the warning set');
+    equalJson(out.report.resolved.map((entry) => [entry.node, entry.from, suffix(entry.at).endsWith('beta-tools/skills/beam/SKILL.md')]),
+      [['beam', 'installed', true]], 'the indexed install');
+  });
+
+  t.check('a name off the charset is an error under both schemes, never a warning', () => {
+    for (const [label, uses] of [['two namespaces', 'skill:a:b:c'], ['an upper-case name', 'agent:Bad-Name'], ['a path', 'skill:acme/review']]) {
+      const file = path.join(staged, 'charset.yml');
+      fs.writeFileSync(file, ['name: charset', 'version: 1', 'inputs:', '  brief: {type: path, required: true}', 'nodes:',
+        '  step:', `    uses: ${uses}`, '    needs: []', ''].join('\n'), 'utf8');
+      const out = run('validate', `--definition=${file}`);
+      must(out.status === 1 && out.report?.ok === false, `${label}: accepted (exit ${out.status})`);
+      must(out.report.errors.some((error) => error.path === 'nodes.step.uses'), `${label}: no error at nodes.step.uses`);
+      must(out.report.warnings.length === 0, `${label}: warned instead — ${JSON.stringify(out.report.warnings)}`);
+    }
+  });
+
+  t.check('the library lookup answers the same as the verb, and a namespace never reaches the project', () => withEnv(() => {
+    const local = locateTarget('skill', 'local-review');
+    must(local?.from === 'project', `local-review resolved ${JSON.stringify(local)}`);
+    must(locateTarget('skill', 'quick-plan')?.from === 'project', 'the project does not shadow the plugin');
+    must(locateTarget('skill', 'quick-plan', { project: staged })?.from === 'plugin',
+      'an explicit project root is not the one searched');
+    must(locateTarget('skill', 'acme-tools:review')?.from === 'installed', 'the namespaced install is not found');
+    must(locateTarget('skill', 'absent-plugin:local-review') === null,
+      'a namespace naming no plugin fell through to the project');
+    must(locateTarget('skill', 'nowhere-at-all') === null, 'a name found nowhere resolved');
+    must(locateTarget('direct', 'anything') === null, 'a scheme the lookup does not own answered');
+  }));
+
+  t.check('driver_aware: true in the frontmatter declares capability; prose does not', () => withEnv(() => {
+    equalJson(
+      ['skill:driver-aware-runner', 'skill:local-review', 'skill:prose-mention', 'skill:beta-tools:beam',
+        'skill:acme-tools:review', 'skill:nowhere-at-all', 'skill:development'].map(driverCapability),
+      ['capable', 'incapable', 'incapable', 'capable', 'incapable', 'unreadable', 'capable'],
+      'driverCapability over the staged skills');
+    equalJson(
+      ['---\ndriver_aware: true\n---\n', '---\nname: x\ndriver_aware: true\n---\nbody', '---\ndriver_aware: "true"\n---\n',
+        '---\nname: x\n---\ndriver_aware: true\n', 'driver_aware: true\n', '---\n# driver_aware: true\n---\n'].map(declaresDriverAware),
+      [true, true, false, false, false, false],
+      'declaresDriverAware reads the frontmatter and only the frontmatter');
+  }));
+
+  t.check('the workspace validator reads the same file: a project skill with the field dispatches, one without does not', () => {
+    const root = path.join(staged, 'workspace');
+    gitDir(root, 'projects', 'api');
+    copyTree(path.join(project, '.claude'), path.join(root, '.claude'));
+    const scaffolded = init(root, { membersRoot: null, force: false, scaffold: true });
+    must(scaffolded?.ok === true, `init refused: ${JSON.stringify(scaffolded)}`);
+    const file = path.join(root, '.maister', 'workflows', 'dispatch-check.yml');
+    fs.writeFileSync(file, ['name: dispatch-check', 'version: 1', 'inputs:', '  brief: {type: path, required: true}', 'nodes:',
+      '  capable:', '    uses: skill:driver-aware-runner', '    dir: api', '    needs: []',
+      '  incapable:', '    uses: skill:local-review', '    dir: api', '    needs: []', ''].join('\n'), 'utf8');
+    const report = withEnv(() => validateWorkspace(root, { definitions: [file] }));
+    must(report.ok === false, 'the incapable node was not reported');
+    equalJson(report.errors.map((error) => error.path), ['nodes.incapable.uses'], 'the located errors');
+    must(/driver_aware: true/.test(report.errors[0].message), 'the recovery does not name the frontmatter field');
+    must(report.warnings.every((warning) => !/unresolved-reference/.test(warning.message)),
+      `a project skill was reported unresolved: ${JSON.stringify(report.warnings)}`);
+    equalJson(report.resolved.map((entry) => [entry.node, entry.from]).sort(),
+      [['capable', 'project'], ['incapable', 'project']], 'where the workspace validator found the two skills');
+  });
+
+  t.check('the planner declares driver awareness in neither form', () => {
+    const text = fs.readFileSync(path.join(ctx.pluginRoot, PLANNER_SKILL_REL), 'utf8');
+    must(!declaresDriverAware(text), `${PLANNER_SKILL_REL} carries driver_aware: true, so a chain can dispatch the planner`);
+  });
+
+  const guide = path.join(ctx.repoRoot, EXTENDING_GUIDE_REL);
+  if (!isFile(guide)) {
+    t.notes.push(`${EXTENDING_GUIDE_REL} is not in this checkout — the guide checks were skipped`);
+    return { checks: t.checks, failures: t.failures, notes: t.notes };
+  }
+  const text = fs.readFileSync(guide, 'utf8');
+
+  t.check('the guide names the three extension points, each as one heading', () => {
+    for (const point of EXTENSION_POINTS) {
+      const hits = text.split('\n').filter((line) => line.trim() === `## ${point}`).length;
+      must(hits === 1, `"## ${point}" appears ${hits} times, expected once`);
+    }
+  });
+
+  t.check('the guide states the resolution order once, in the order the code applies', () => {
+    const lines = text.split('\n').filter((line) => /\bResolution order\b/.test(line));
+    must(lines.length === 1, `"Resolution order" appears on ${lines.length} lines, expected one`);
+    const words = RESOLUTION_ORDER.map((place) => RESOLUTION_WORDS[place]);
+    const ordered = new RegExp(words.map((word) => `\\b${word}\\b`).join('[^\\n]*'));
+    must(ordered.test(lines[0]), `the order sentence does not name ${words.join(', then ')} in that order: ${JSON.stringify(lines[0])}`);
+  });
+
+  t.check('the guide tells a driver-aware skill what it must do, and how it declares it', () => {
+    must(/^driver_aware: true$/m.test(text), 'the frontmatter line `driver_aware: true` is never shown');
+    for (const duty of DRIVER_AWARE_DUTIES) must(duty.test(text), `the guide never mentions ${duty.source}`);
+    must(/\b(?:one|a single|single)\b[^.\n]{0,60}`gate-request`|`gate-request`[^.\n]{0,60}\b(?:one|a single|single)\b/i.test(text),
+      'the guide does not say a gate is one gate-request call');
+  });
+
+  t.check('the guide says plainly what needs a contract change, and what it never shows a user', () => {
+    for (const shape of NOT_EXTENSIBLE) must(shape.test(text), `the guide never names ${shape.source}`);
+    for (const literal of GUIDE_SCRIPT_PATHS) must(!text.includes(literal), `the guide names ${literal}`);
+    for (const id of GUIDE_PROCESS_IDS) must(!id.test(text), `the guide carries a process identifier matching ${id.source}`);
+  });
+
+  t.check('the guide is linked from the README and the workflow reference', () => {
+    for (const rel of EXTENDING_LINKED_FROM) {
+      const file = path.join(ctx.repoRoot, rel);
+      if (!isFile(file)) { t.notes.push(`${rel} is not in this checkout — its link was not checked`); continue; }
+      must(fs.readFileSync(file, 'utf8').includes('docs/extending.md') || fs.readFileSync(file, 'utf8').includes('extending.md'),
+        `${rel} does not link to ${EXTENDING_GUIDE_REL}`);
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -10351,6 +10630,7 @@ const TESTS = [
   { id: 'T43', name: 'plan-workflow-surface', needs: ['plugin', 'fixtures'], run: t43 },
   { id: 'T44', name: 'workflow-type-fixture-coverage', needs: ['fixtures'], run: t44 },
   { id: 'T45', name: 'prompt-line-timestamps', needs: [], run: t45 },
+  { id: 'T46', name: 'extension-contract', needs: ['plugin', 'fixtures'], run: t46 },
 ];
 
 // ---------------------------------------------------------------------------

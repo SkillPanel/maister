@@ -1,0 +1,51 @@
+# A definition whose targets come from every place the resolution order
+# searches: the project's own skills and agents under .claude/ and .github/,
+# the plugin root, the installed plugins of both hosts - by namespace where the
+# author says which plugin they mean - and two names found nowhere. The suite
+# stages this tree as a project and a home directory and pins, per node, where
+# each target resolved; the two unresolved ones are the pinned warning set.
+name: extension
+version: 1
+inputs:
+  brief: {type: path, required: true}
+nodes:
+  review:
+    uses: skill:local-review
+    needs: []
+    with: {brief: "${inputs.brief}"}
+  shadowed:
+    uses: skill:quick-plan
+    needs: [review]
+  shipped:
+    uses: skill:quick-dev
+    needs: [review]
+  github-skill:
+    uses: skill:copilot-local
+    needs: [review]
+  packaged:
+    uses: skill:acme-tools:review
+    needs: [review]
+  relayed:
+    uses: skill:copilot-only:relay
+    needs: [review]
+  probed:
+    uses: skill:direct-tools:probe
+    needs: [review]
+  own-namespace:
+    uses: skill:maister:quick-dev
+    needs: [review]
+  agent-local:
+    uses: agent:local-agent
+    needs: [review]
+  agent-copilot:
+    uses: agent:copilot-agent
+    needs: [review]
+  agent-packaged:
+    uses: agent:acme-tools:inspector
+    needs: [review]
+  missing:
+    uses: skill:nowhere-at-all
+    needs: [review]
+  missing-namespaced:
+    uses: skill:absent-plugin:review
+    needs: [review]

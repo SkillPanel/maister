@@ -166,8 +166,10 @@ checks ids, checks the graph is acyclic, resolves references, applies overlays,
 checks gate shape and finally warns on reserved keys, collecting findings within
 each stage rather than stopping at the first. A node carrying `dir:` is judged
 once more: dispatched work runs unattended, so its `uses:` has to name a
-`workflow:` target or an orchestrator skill whose file states the driver-
-qualified gate rule. That is a validate-time error class, not the
+`workflow:` target or an orchestrator skill that declares `driver_aware: true`
+in its frontmatter or states the driver-qualified gate rule in its body — read
+off the skill file the resolution order finds, the workspace's own skills
+first. That is a validate-time error class, not the
 `dispatch-workflow-not-driver-capable` refusal below — the same rule read early
 and reported as a located finding carrying no code. It distinguishes a target
 that was read and does not state the rule from one this installation holds no

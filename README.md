@@ -235,10 +235,12 @@ beside it — and continues into umbrella workspaces and chains.
 | Watch a run you started in a terminal | [Cockpit README](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/README.md) |
 | Turn a workspace into an umbrella (`/maister:umbrella init`, then `validate`) and author a chain | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
 | Understand what an autonomy tier actually enforces | [Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md) |
+| Write your own chains, use your own skills and agents as nodes, or overlay a built-in | [Extending maister](docs/extending.md) |
 
 ## Learn More
 
 - [Workflow Details](docs/workflows.md) - phases, examples, and task structure for each workflow type
+- [Extending maister](docs/extending.md) - your own chains, skills and agents as nodes, overlays and eject, and what needs a contract change
 - [Full Command Reference](docs/commands.md) - all workflow, review, utility, and quick commands
 - [Decision Log](docs/decisions/README.md) - the ADRs behind the gate protocol, the coordination shapes, and the compatibility floor
 - [Compatibility Contracts](plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md) - the normative register of every on-disk shape, and the rules for changing one

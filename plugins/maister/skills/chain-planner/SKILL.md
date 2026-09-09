@@ -142,11 +142,12 @@ Then four cases decide what happens to it:
 - `<root>/.maister/workflows/*.yml` and `<root>/.maister/workflows/generated/*.yml`
   — for the collision check, and for nothing else.
 - **The driver-capable target set, discovered rather than listed.** Which
-  shipped skills can honour a driver is read off the shipped artifacts by the
-  same rule the dispatch check applies; `references/plan-time-rules.md` names
-  the rule and the file it is read from. No inventory of capable targets is kept
-  in this file or anywhere else, because an inventory drifts the moment a skill
-  is added.
+  skills can honour a driver — the workspace's own, the plugin's, any installed
+  plugin's — is read off the skill files by the same rule the dispatch check
+  applies; `references/plan-time-rules.md` names the rule, the two ways a skill
+  declares it and the order the file is looked for in. No inventory of capable
+  targets is kept in this file or anywhere else, because an inventory drifts the
+  moment a skill is added.
 - **The engine is excluded from what the planner authors, not from the rule.**
   The workflow engine's own skill satisfies the capability rule and remains
   dispatchable as far as the runtime is concerned. The planner simply never

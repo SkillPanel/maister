@@ -14,8 +14,10 @@
  * missing section is a fact of the file in hand and an error. The other three
  * name something an environment this validator cannot see may provide: a
  * `workflow:` target may come from a workspace eject, and a `skill:` or
- * `agent:` target from another installed plugin, so all three warn when the
- * name is not found under this plugin root. The trade-off the relaxation buys
+ * `agent:` target from a plugin installed later or a project this definition
+ * is not being validated in, so all three warn when the name is found nowhere
+ * — for a skill or an agent, nowhere in the project, this plugin or any
+ * installed plugin (`RESOLUTION_ORDER`). The trade-off the relaxation buys
  * is that a typo in a skill or agent name is no longer caught by `validate`; it
  * surfaces at run time instead, when the node it names is reached. Decidable
  * checks on those names stay errors regardless of whether the target exists:
@@ -41,6 +43,7 @@
 
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -73,6 +76,30 @@ const INTERPOLATION = /\$\{([^}]*)\}/g;
  * a copy of it.
  */
 export const TARGET_NAME = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * A skill or agent target, optionally namespaced to the plugin that ships it:
+ * `review` or `acme-tools:review`. Exactly one colon may appear in the name
+ * part, and both halves are held to `TARGET_NAME`, so the widening admits a
+ * plugin name and nothing else — no path, no second namespace, no scheme
+ * smuggled into the name. The four schemes themselves stay closed.
+ */
+export const TARGET_REF = /^(?:[a-z][a-z0-9-]*:)?[a-z][a-z0-9-]*$/;
+
+/**
+ * Where a `skill:` or `agent:` target is looked for, in the order it is
+ * searched; the first hit wins. Exported so a document describing the order
+ * can be checked against the order the code actually applies.
+ *
+ *   project    the consumer project's own `.claude/` and `.github/` trees
+ *   plugin     this plugin's root
+ *   installed  every other plugin installed on the machine
+ *
+ * A namespaced target searches only the plugin it names — this one when the
+ * namespace is this plugin's own name, otherwise the installed plugin of that
+ * name — and never the project.
+ */
+export const RESOLUTION_ORDER = ['project', 'plugin', 'installed'];
 
 /**
  * The prefix a built-in workflow is named with. Both `builtin:<name>` and a bare
@@ -154,9 +181,15 @@ const WARN = {
  * this build does not ship can be checked at all. In `resolved` mode the full
  * order applies on top: base-node existence, `uses` immutability and the `tune`
  * whitelist all become reachable because there is a base to compare against.
+ *
+ * `project` is the consumer project a `skill:` or `agent:` target is first
+ * looked for in (see `RESOLUTION_ORDER`); it defaults to the project the host
+ * declared, else the working directory. The report's `resolved` list says where
+ * each target that did resolve was found, so an author reading the output can
+ * tell a project-local skill from a shipped one from another plugin's.
  */
-export function validate({ definition, overlays = [], profile = null, mode = 'resolved' }) {
-  return inspect({ definition, overlays, profile, mode }).report;
+export function validate({ definition, overlays = [], profile = null, mode = 'resolved', project = null }) {
+  return inspect({ definition, overlays, profile, mode, project }).report;
 }
 
 /**
@@ -164,9 +197,10 @@ export function validate({ definition, overlays = [], profile = null, mode = 're
  * report was made about, so `resolve` hashes exactly what was validated rather
  * than building a second graph whose own findings nothing would ever look at.
  */
-function inspect({ definition, overlays, profile, mode }) {
+function inspect({ definition, overlays, profile, mode, project = null }) {
   const errors = [];
   const warnings = [];
+  const resolved = [];
 
   for (const overlay of overlays) {
     checkOverlayShape(overlay, errors);
@@ -174,14 +208,14 @@ function inspect({ definition, overlays, profile, mode }) {
   }
 
   if (mode === 'standalone') {
-    return { report: { ok: errors.length === 0, errors, warnings, degraded: [] }, graph: null };
+    return { report: { ok: errors.length === 0, errors, warnings, resolved, degraded: [] }, graph: null };
   }
 
   for (const overlay of overlays) checkOverlayBase(overlay, definition, errors);
   scanReserved(definition?.doc, warnings);
   const graph = buildGraph({ definition, overlays, profile, errors });
-  if (graph) checkGraph(graph, errors, warnings);
-  return { report: { ok: errors.length === 0, errors, warnings, degraded: [] }, graph };
+  if (graph) checkGraph(graph, errors, warnings, resolved, project);
+  return { report: { ok: errors.length === 0, errors, warnings, resolved, degraded: [] }, graph };
 }
 
 /**
@@ -192,7 +226,7 @@ function inspect({ definition, overlays, profile, mode }) {
  * whole point of the hash is that two things carrying the same one are the same
  * executable graph.
  */
-export function resolve({ definition, overlays = [], profile = null, degraded = [] }) {
+export function resolve({ definition, overlays = [], profile = null, degraded = [], project = null }) {
   const provenance = {
     name: definition?.doc?.name ?? null,
     source: definition?.file ?? null,
@@ -221,8 +255,13 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     return { ok: true, errors: [], warnings: [], ...provenance, degraded, graph_hash: hashNodes(folded), nodes: folded };
   }
 
-  const { report, graph } = inspect({ definition, overlays, profile, mode: 'resolved' });
-  if (!report.ok) return { ...report, ...provenance, degraded, graph_hash: null, nodes: [] };
+  const { report, graph } = inspect({ definition, overlays, profile, mode: 'resolved', project });
+  if (!report.ok) {
+    // Where each target resolved is `validate`'s finding to report; this verb's
+    // output is the graph and its identity, and its shape does not move here.
+    const { resolved: _resolved, ...judged } = report;
+    return { ...judged, ...provenance, degraded, graph_hash: null, nodes: [] };
+  }
 
   const nodes = canonicalNodes(graph);
   return {
@@ -318,17 +357,213 @@ function hasProseSection(file, name) {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// where a skill or agent may come from
+// ---------------------------------------------------------------------------
+
 /**
- * Resolve one node target. Returns null when it resolves, a message when it is
- * an error, and `{warning}` when it is undecidable.
+ * The consumer project a target is first looked for in. The host declares it
+ * to plugin code as `CLAUDE_PROJECT_DIR`; where nothing is declared it is the
+ * working directory, which is where every verb of this engine is invoked from.
+ * Read at call time, like the plugin root, so a caller can point it elsewhere.
+ */
+function projectRoot() {
+  const declared = process.env.CLAUDE_PROJECT_DIR;
+  return declared ? path.resolve(declared) : process.cwd();
+}
+
+/** Where Claude Code keeps its configuration; `CLAUDE_CONFIG_DIR` relocates it. */
+function claudeConfigDir() {
+  const declared = process.env.CLAUDE_CONFIG_DIR;
+  return declared ? path.resolve(declared) : path.join(os.homedir(), '.claude');
+}
+
+/** This plugin's own name, read off its manifest; null when the root has none. */
+function pluginName(root) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+    return typeof manifest?.name === 'string' && manifest.name !== '' ? manifest.name : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every plugin installed on this machine other than this one: `{name, root}`
+ * per install, deduplicated by real path.
+ *
+ * Two hosts, each with its own layout, and both are swept whatever host is
+ * running: a project may be opened under either, and a target that resolves
+ * under one host and not the other is the surprise this sweep exists to
+ * remove. Claude Code records each install's path in
+ * `<config>/plugins/installed_plugins.json`, keyed `<plugin>@<marketplace>`;
+ * the cache it points into is `<config>/plugins/cache/<marketplace>/<plugin>/
+ * <version>/`, which is swept as well in case the index is absent or stale.
+ * Copilot CLI installs to `~/.copilot/installed-plugins/<marketplace>/<plugin>/`
+ * and direct installs to `.../_direct/<source>/`, where the plugin name is the
+ * manifest's rather than the directory's.
+ *
+ * An unreadable index, a missing directory or a malformed entry is skipped, not
+ * reported: this is a search, and the only thing an absent candidate changes is
+ * whether the target resolves.
+ */
+function installedPlugins(self) {
+  const found = [];
+  const seen = new Set([realpathOf(self)]);
+  const add = (name, root) => {
+    if (!name || !isDirectory(root)) return;
+    const real = realpathOf(root);
+    if (seen.has(real)) return;
+    seen.add(real);
+    found.push({ name, root });
+  };
+
+  const plugins = path.join(claudeConfigDir(), 'plugins');
+  try {
+    const index = JSON.parse(fs.readFileSync(path.join(plugins, 'installed_plugins.json'), 'utf8'));
+    for (const [key, installs] of Object.entries(isMap(index?.plugins) ? index.plugins : {})) {
+      const name = key.split('@')[0];
+      for (const install of Array.isArray(installs) ? installs : []) {
+        if (typeof install?.installPath === 'string') add(name, install.installPath);
+      }
+    }
+  } catch { /* no index, or not one this build reads: the cache sweep below still runs */ }
+  for (const marketplace of listDirs(path.join(plugins, 'cache'))) {
+    for (const plugin of listDirs(marketplace)) {
+      for (const version of listDirs(plugin)) add(path.basename(plugin), version);
+    }
+  }
+
+  const copilot = path.join(os.homedir(), '.copilot', 'installed-plugins');
+  for (const marketplace of listDirs(copilot)) {
+    for (const plugin of listDirs(marketplace)) {
+      const direct = path.basename(marketplace) === '_direct';
+      add(direct ? manifestName(plugin) ?? path.basename(plugin) : path.basename(plugin), plugin);
+    }
+  }
+  return found;
+}
+
+/** The `name` a Copilot plugin manifest declares at its root, if it has one. */
+function manifestName(root) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8'));
+    return typeof manifest?.name === 'string' && manifest.name !== '' ? manifest.name : null;
+  } catch {
+    return null;
+  }
+}
+
+function listDirs(dir) {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(dir, entry.name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+function realpathOf(target) {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    return path.resolve(target);
+  }
+}
+
+/**
+ * The files a skill or an agent of a given name would be, under one root,
+ * across both hosts' layouts. A project keeps skills at `.claude/skills/<name>/
+ * SKILL.md` or `.github/skills/<name>/SKILL.md` and agents at `.claude/agents/
+ * <name>.md` or `.github/agents/<name>.md`; a plugin keeps them one level up,
+ * at `skills/<name>/SKILL.md` and `agents/<name>.md`. Copilot also spells an
+ * agent file `<name>.agent.md`, so that spelling is a candidate wherever an
+ * agent is looked for.
+ */
+function candidatesUnder(root, scheme, name, { project }) {
+  const homes = project ? ['.claude', '.github'] : [''];
+  const files = [];
+  for (const home of homes) {
+    if (scheme === 'skill') {
+      files.push(path.join(root, home, 'skills', name, 'SKILL.md'));
+    } else {
+      files.push(path.join(root, home, 'agents', `${name}.md`));
+      files.push(path.join(root, home, 'agents', `${name}.agent.md`));
+    }
+  }
+  return files;
+}
+
+/**
+ * Split a skill or agent target into the plugin it names, if any, and the name.
+ * Returns null for anything off `TARGET_REF`.
+ */
+function splitTarget(written) {
+  if (!TARGET_REF.test(written)) return null;
+  const at = written.indexOf(':');
+  return at < 0
+    ? { namespace: null, name: written }
+    : { namespace: written.slice(0, at), name: written.slice(at + 1) };
+}
+
+/**
+ * Find the file behind a `skill:` or `agent:` target, searching the project,
+ * then this plugin, then the installed plugins — `RESOLUTION_ORDER` — and
+ * returning `{at, from}` for the first hit, or null when the name is found
+ * nowhere. `from` is one of the three words in that list.
+ *
+ * A namespaced target — `acme-tools:review` — is looked for only in the plugin
+ * it names: this one when the namespace is this plugin's own name, else the
+ * installed plugin of that name. The project is never searched for it, because
+ * a namespace is precisely the author saying which plugin they mean.
+ *
+ * Exported because the dispatch runtime reads a skill's file to decide whether
+ * it can honour a driver, and it must read the same file this resolution would
+ * run: two lookups that could disagree would let a definition validate against
+ * one skill and dispatch another.
+ */
+export function locateTarget(scheme, written, { project = null } = {}) {
+  const target = splitTarget(String(written));
+  if (target === null || (scheme !== 'skill' && scheme !== 'agent')) return null;
+  const self = pluginRoot();
+  const hit = (root, from, inProject) => {
+    for (const file of candidatesUnder(root, scheme, target.name, { project: inProject })) {
+      if (isFile(file)) return { at: file, from };
+    }
+    return null;
+  };
+
+  if (target.namespace !== null) {
+    if (target.namespace === pluginName(self)) return hit(self, 'plugin', false);
+    for (const plugin of installedPlugins(self)) {
+      if (plugin.name !== target.namespace) continue;
+      const found = hit(plugin.root, 'installed', false);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  return hit(project ?? projectRoot(), 'project', true)
+    ?? hit(self, 'plugin', false)
+    ?? installedPlugins(self).reduce((found, plugin) => found ?? hit(plugin.root, 'installed', false), null);
+}
+
+/**
+ * Resolve one node target. Returns `{resolved}` when it resolves — `at` and
+ * `from` saying where — a message when it is an error, and `{warning}` when it
+ * is undecidable.
  *
  * Three of the four schemes are undecidable. A `workflow:` target may be
  * provided by a workspace eject or overlay this static check cannot see, and a
- * `skill:` or `agent:` target by an environment this validator cannot see
- * either — another installed plugin, or a consumer project's own skills — so
- * none of the three is an error merely for being absent from this tree. The
- * trade-off: a mistyped skill or agent name is no longer refused here and
- * surfaces at run time, when the node that names it is reached.
+ * `skill:` or `agent:` target by a plugin installed later, or by a project
+ * this definition will be run in but is not being validated in — so none of the
+ * three is an error merely for being absent from every tree searched. The
+ * trade-off: a mistyped skill or agent name is not refused here and surfaces at
+ * run time, when the node that names it is reached. What the search does
+ * remove is the false warning: a name the project or an installed plugin does
+ * provide resolves, and the report says where.
  *
  * `direct:` is the decidable one and stays an error. Its implementation is the
  * section in the prose companion beside the definition being validated, which
@@ -338,7 +573,7 @@ function hasProseSection(file, name) {
  * absent target or not — the charset check is also the traversal guard, so a
  * name it rejects must never be softened into a warning.
  */
-function resolveTarget(uses, origin) {
+function resolveTarget(uses, origin, project) {
   const at = String(uses).indexOf(':');
   const scheme = at < 0 ? '' : uses.slice(0, at);
   const written = at < 0 ? '' : uses.slice(at + 1);
@@ -349,22 +584,29 @@ function resolveTarget(uses, origin) {
   // an unnameable target is an error under every scheme — including the three
   // warning schemes, whose warning would otherwise present a traversal as an
   // ordinary reference this build cannot see.
+  if (scheme === 'skill' || scheme === 'agent') {
+    if (!TARGET_REF.test(written)) {
+      return { message: `"${written}" is not a ${scheme} name: expected ${TARGET_REF.source} — a name, or one plugin name and a colon before it` };
+    }
+    const found = locateTarget(scheme, written, { project });
+    return found ? { resolved: found } : { warning: true };
+  }
   const name = scheme === 'workflow' ? bareWorkflowName(written) : written;
   if (name === null || !TARGET_NAME.test(name)) {
     return { message: `"${written}" is not a ${scheme} name: expected ${TARGET_NAME.source}` };
   }
-  const root = pluginRoot();
-  if (scheme === 'skill') {
-    return isDirectory(path.join(root, 'skills', name)) ? null : { warning: true };
-  }
-  if (scheme === 'agent') {
-    return isFile(path.join(root, 'agents', `${name}.md`)) ? null : { warning: true };
-  }
   if (scheme === 'direct') {
-    return hasProseSection(origin, name) ? null : { message: `the prose companion carries no section for "${name}"` };
+    return hasProseSection(origin, name)
+      ? { resolved: { at: companionOf(origin), from: 'companion' } }
+      : { message: `the prose companion carries no section for "${name}"` };
   }
-  const builtin = path.join(root, 'skills', 'workflow-engine', 'workflows', `${name}.yml`);
-  return isFile(builtin) ? null : { warning: true };
+  const builtin = path.join(pluginRoot(), 'skills', 'workflow-engine', 'workflows', `${name}.yml`);
+  return isFile(builtin) ? { resolved: { at: builtin, from: 'builtin' } } : { warning: true };
+}
+
+/** The prose companion's path beside a definition file. */
+function companionOf(file) {
+  return String(file).replace(/\.ya?ml$/i, '.md');
 }
 
 /**
@@ -582,7 +824,7 @@ function isMap(value) {
 // the checks the schema leaves to the runner
 // ---------------------------------------------------------------------------
 
-function checkGraph(graph, errors, warnings) {
+function checkGraph(graph, errors, warnings, resolved = [], project = null) {
   const { file, inputs, nodes, origins } = graph;
 
   for (const id of nodes.keys()) {
@@ -601,7 +843,7 @@ function checkGraph(graph, errors, warnings) {
       if (!nodes.has(need)) fail(errors, origin, `${at}.needs.${index}`, `needs names "${need}", which no node declares`, id);
     }
     checkNodeShape(node, id, at, origin, errors);
-    checkReference(node, id, at, origin, errors, warnings);
+    checkReference(node, id, at, origin, errors, warnings, resolved, project);
     checkDeclaredValues(node, at, origin, errors, warnings, id);
   }
 
@@ -681,11 +923,16 @@ function checkNodeShape(node, id, at, file, errors) {
   }
 }
 
-function checkReference(node, id, at, file, errors, warnings) {
+/**
+ * A target that resolved is recorded as `{node, target, from, at}` — the node,
+ * what it wrote, which of the searched places answered, and the file — so the
+ * report can say where a name was found rather than only that it was.
+ */
+function checkReference(node, id, at, file, errors, warnings, resolved, project) {
   if (typeof node.uses !== 'string' || node.uses === '') return;
-  const verdict = resolveTarget(node.uses, file);
-  if (verdict === null) return;
-  if (verdict.warning) warnings.push(WARN.unresolved(id, node.uses));
+  const verdict = resolveTarget(node.uses, file, project);
+  if (verdict.resolved) resolved.push({ node: id, target: node.uses, ...verdict.resolved });
+  else if (verdict.warning) warnings.push(WARN.unresolved(id, node.uses));
   else fail(errors, file, `${at}.uses`, verdict.message, id);
 }
 
