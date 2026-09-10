@@ -9207,7 +9207,10 @@ async function t38(ctx) {
 
         const hook = command => {
           const payload = {
-            session_id: 'e25cad30-ca2c-4cdb-8290-b3763b9b35ee',
+            // The driver's own session id, out of the fixture's `driver` block:
+            // a pending gate binds the session that asked it, and this sequence
+            // is that session's.
+            session_id: DRIVER_SESSION,
             transcript_path: path.join(cwd, 'transcript.jsonl'),
             cwd,
             permission_mode: 'default',
@@ -10670,6 +10673,135 @@ async function t47(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T48 — a pending gate binds the session that asked and the run's own directory
+// ---------------------------------------------------------------------------
+
+/** A run whose driver is `kind: terminal`, so it records no session to match. */
+const NO_DRIVER_SESSION_STATE = 'synthetic/gate/terminal-mode-request';
+
+/** The session the pending fixtures record as their driver, and one that is not. */
+const DRIVER_SESSION = '019260a2-2233-7d44-9e55-6f7788990011';
+const OTHER_SESSION = '019260a7-4455-7e66-8f77-0a1b2c3d4e5f';
+
+/**
+ * Every case the scope rule has to get right, in one table. `target` is
+ * relative to the pending run directory; `outside` names a file under `cwd`
+ * that belongs to no run, and `tool` makes the call opaque instead.
+ */
+const SCOPE_CASES = [
+  { name: 'driver, a foreign file outside the run', session: DRIVER_SESSION, outside: 'notes.md', decision: 'deny', because: 'this session is the driver of' },
+  { name: 'driver, its own state file', session: DRIVER_SESSION, target: 'orchestrator-state.yml', decision: 'allow' },
+  { name: 'driver, its own request file', session: DRIVER_SESSION, target: 'gates/approve.request.yml', decision: 'allow' },
+  { name: 'driver, a shell', session: DRIVER_SESSION, tool: 'Bash', decision: 'deny', because: 'this session is the driver of' },
+  { name: 'another session, ordinary source outside the run', session: OTHER_SESSION, outside: 'src/catalog/CatalogListQuery.java', decision: 'allow' },
+  { name: 'another session, a draft under .maister but in no run', session: OTHER_SESSION, outside: '.maister/workflows/generated/chain.yml', decision: 'allow' },
+  { name: 'another session, inside the gated run', session: OTHER_SESSION, target: 'implementation/spec.md', decision: 'deny', because: "the gated run's own task directory" },
+  { name: 'another session, the run directory itself', session: OTHER_SESSION, target: '.', decision: 'deny', because: "the gated run's own task directory" },
+  { name: 'another session, an engine-owned file inside the run', session: OTHER_SESSION, target: 'gates/index.yml', decision: 'allow' },
+  { name: 'another session, a shell', session: OTHER_SESSION, tool: 'Bash', decision: 'allow' },
+  { name: 'no session id in the payload, a shell', session: null, tool: 'Bash', decision: 'deny', because: 'the payload carries no session id' },
+  { name: 'no session id in the payload, a foreign file', session: null, outside: 'notes.md', decision: 'deny', because: 'the payload carries no session id' },
+];
+
+/** The same table, in the shapes the Copilot vocabulary sends them in. */
+const SCOPE_CASES_COPILOT = [
+  { name: 'driver, a shell', session: DRIVER_SESSION, tool: 'bash', decision: 'deny', because: 'this session is the driver of' },
+  { name: 'driver, its own state file', session: DRIVER_SESSION, target: 'orchestrator-state.yml', decision: 'allow' },
+  { name: 'another session, a shell', session: OTHER_SESSION, tool: 'bash', decision: 'allow' },
+  { name: 'another session, ordinary source outside the run', session: OTHER_SESSION, outside: 'src/catalog/CatalogListQuery.java', decision: 'allow' },
+  { name: 'another session, inside the gated run', session: OTHER_SESSION, target: 'implementation/spec.md', decision: 'deny', because: "the gated run's own task directory" },
+  { name: 'no session id in the payload, a shell', session: null, tool: 'bash', decision: 'deny', because: 'the payload carries no session id' },
+];
+
+function scopeTarget(testCase, cwd) {
+  if (testCase.outside) return `${cwd}/${testCase.outside}`;
+  const run = `${cwd}/${PENDING_RUN}`;
+  return testCase.target === '.' ? run : `${run}/${testCase.target}`;
+}
+
+/** A Claude payload for one scope case, with the session id set or removed. */
+function scopePayloadClaude(base, testCase, cwd) {
+  const payload = testCase.tool
+    ? { ...base, tool_name: testCase.tool, tool_input: { command: 'echo hi' } }
+    : claudeWrite(base, scopeTarget(testCase, cwd));
+  if (testCase.session === null) delete payload.session_id;
+  else payload.session_id = testCase.session;
+  return payload;
+}
+
+function scopePayloadCopilot(testCase, cwd) {
+  const payload = { timestamp: 1787680000000, cwd, toolName: testCase.tool ?? 'create' };
+  payload.toolArgs = testCase.tool
+    ? JSON.stringify({ command: 'echo hi' })
+    : JSON.stringify({ path: scopeTarget(testCase, cwd), file_text: 'draft\n' });
+  if (testCase.session !== null) payload.sessionId = testCase.session;
+  return payload;
+}
+
+function t48(ctx) {
+  const failures = [];
+  const notes = [];
+  let checks = 0;
+  const { ajv } = loadSchemas(ctx.schemas);
+  const base = payloadOf(fixtureById(ctx, 'synthetic/hook-payloads/claude/engine-owned-write'));
+  const cwd = base.cwd;
+
+  const run = (label, provider, payload, testCase, stateFixture) => {
+    const want = {
+      provider,
+      event: provider === 'claude' ? 'PreToolUse' : 'preToolUse',
+      decision: testCase.decision,
+      exit: 0,
+      stdout: testCase.decision === 'allow' ? 'empty' : 'json',
+    };
+    const out = replay(ctx, payload, {
+      event: want.event,
+      stateFixture,
+      cwdLayout: 'umbrella-run',
+    });
+    checks += checkReplay(ajv, label, want, out, failures);
+    if (!testCase.because) return;
+    // The deny has to say *why this session* is bound: a reason that only
+    // names the node leaves an unrelated session unable to tell whether it
+    // walked into its own gate or someone else's.
+    checks++;
+    const parsed = parseJsonOut(out.stdout);
+    const reason = parsed.ok ? reasonOf(provider, 'deny', parsed.value) : '';
+    if (!reason.includes(testCase.because)) {
+      failures.push(`${label}: the deny does not say why this session is bound — ${firstLine(reason)}`);
+    }
+  };
+
+  for (const testCase of SCOPE_CASES) {
+    run(`claude: ${testCase.name} (${testCase.decision})`, 'claude',
+      scopePayloadClaude(base, testCase, cwd), testCase, PENDING_STATE);
+  }
+  for (const testCase of SCOPE_CASES_COPILOT) {
+    run(`copilot: ${testCase.name} (${testCase.decision})`, 'copilot',
+      scopePayloadCopilot(testCase, cwd), testCase, PENDING_STATE);
+  }
+
+  // A run that records no driver session cannot say whose gate it is, so it
+  // keeps the pre-scope reach: every session under the working directory.
+  const wideCase = {
+    name: 'a run with no driver session, another session, a shell',
+    session: OTHER_SESSION, tool: 'Bash', decision: 'deny',
+    because: 'records no orchestrator.driver.session.id',
+  };
+  run(`claude: ${wideCase.name} (deny)`, 'claude',
+    scopePayloadClaude(base, wideCase, cwd), wideCase, NO_DRIVER_SESSION_STATE);
+
+  // …and it still lets that session write its own source, because the fallback
+  // widens who is bound, never what the seven-file allow-list covers.
+  const wideAllow = { name: 'a run with no driver session, its own state file', session: OTHER_SESSION, target: 'orchestrator-state.yml', decision: 'allow' };
+  run(`claude: ${wideAllow.name} (allow)`, 'claude',
+    scopePayloadClaude(base, wideAllow, cwd), wideAllow, NO_DRIVER_SESSION_STATE);
+
+  notes.push(`${SCOPE_CASES.length} Claude and ${SCOPE_CASES_COPILOT.length} Copilot scope cases replayed`);
+  return { checks, failures, notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -10736,6 +10868,7 @@ const TESTS = [
   { id: 'T45', name: 'prompt-line-timestamps', needs: [], run: t45 },
   { id: 'T46', name: 'extension-contract', needs: ['plugin', 'fixtures'], run: t46 },
   { id: 'T47', name: 'ticket-key-intake', needs: ['plugin', 'fixtures'], run: t47 },
+  { id: 'T48', name: 'gate-scope', needs: ['plugin', 'fixtures'], run: t48 },
 ];
 
 // ---------------------------------------------------------------------------

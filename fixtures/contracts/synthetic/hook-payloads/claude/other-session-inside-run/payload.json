@@ -1,6 +1,6 @@
 {
-  "session_id": "019260a2-2233-7d44-9e55-6f7788990011",
-  "transcript_path": "/home/dev/.claude/projects/-home-dev-work-repo-alpha/019260a2-2233-7d44-9e55-6f7788990011.jsonl",
+  "session_id": "019260a7-4455-7e66-8f77-0a1b2c3d4e5f",
+  "transcript_path": "/home/dev/.claude/projects/-home-dev-work-repo-alpha/019260a7-4455-7e66-8f77-0a1b2c3d4e5f.jsonl",
   "cwd": "/home/dev/work/repo-alpha",
   "permission_mode": "default",
   "hook_event_name": "PreToolUse",
@@ -9,5 +9,5 @@
     "file_path": "/home/dev/work/repo-alpha/.maister/umbrella/runs/019260a2-1122-7c33-8d44-5e6677889900/implementation/spec.md",
     "content": "draft"
   },
-  "tool_use_id": "toolu_01SynTheticReplayFixture01"
+  "tool_use_id": "toolu_01SynTheticReplayFixture02"
 }

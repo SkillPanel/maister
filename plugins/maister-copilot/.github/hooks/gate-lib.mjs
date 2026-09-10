@@ -182,7 +182,8 @@ export function scanState(text) {
   // a prototype swap: the node vanishes from `Object.keys` — the map every
   // caller counts — while the write that put it there reported success.
   const out = {
-    gatePending: null, hasWorkflow: false, hasNodes: false, hasTask: false, nodes: Object.create(null),
+    gatePending: null, driverSession: null,
+    hasWorkflow: false, hasNodes: false, hasTask: false, nodes: Object.create(null),
   };
   let section = null;
   // The column the current block's direct children sit at, set by the first of
@@ -211,6 +212,10 @@ export function scanState(text) {
     const key = /^([A-Za-z0-9_-]+):/.exec(line.trimStart());
 
     if (section === 'orchestrator') {
+      if (key?.[1] === 'driver' && isChild) {
+        out.driverSession = readDriverSession(line.slice(indent + 'driver:'.length));
+        continue;
+      }
       if (key?.[1] !== 'gate_pending') continue;
       if (!isChild) {
         throw new Error('gate_pending must be on one line, as a direct child of orchestrator:');
@@ -236,6 +241,28 @@ export function scanState(text) {
     out.nodes[entry[1]] = parseFlowMap(entry[2], `workflow.nodes.${entry[1]}`);
   }
   return out;
+}
+
+/**
+ * The driver's session id out of the E1 `driver:` line, or null.
+ *
+ * Read leniently, and deliberately so. The one-line form is frozen for
+ * `gate_pending` and for `workflow.nodes` entries and for nothing else, so a
+ * `driver:` written as a block map is a valid state file — it must cost the
+ * scoping, never fail the session closed. An id that cannot be read is null,
+ * and null is the wide fallback: the run then binds every session under the
+ * working directory, exactly as it did before the scope rule existed.
+ */
+function readDriverSession(rest) {
+  try {
+    const driver = parseFlowMap(rest, 'driver');
+    const session = driver.session;
+    if (typeof session !== 'string' || !session.trimStart().startsWith('{')) return null;
+    const id = parseFlowMap(session, 'driver.session').id;
+    return typeof id === 'string' && id !== '' ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 function parsePending(rest) {
@@ -356,7 +383,7 @@ export function pendingSet(runs) {
     }
     if (scanned.hasWorkflow && (!scanned.hasNodes || !scanned.hasTask)) awaited = true;
 
-    if (awaited) pending.push({ ...run, nodes: [...nodes], scanned });
+    if (awaited) pending.push({ ...run, nodes: [...nodes], driverSession: scanned.driverSession, scanned });
   }
   return pending;
 }
@@ -382,6 +409,59 @@ export function unansweredRequests(runDir) {
     if (UNANSWERED.test(text)) nodes.push(name.slice(0, -REQUEST_SUFFIX.length));
   }
   return nodes;
+}
+
+// ---------------------------------------------------------------------------
+// scope — which sessions one pending gate binds
+// ---------------------------------------------------------------------------
+
+/**
+ * The calling session's id, in either vocabulary: `session_id` on Claude,
+ * `sessionId` on Copilot (§ H1). Null when the payload carries neither, which
+ * is the wide fallback rather than an error.
+ *
+ * Claude's subagents share the parent's `session_id` and are told apart by
+ * `agent_id`/`agent_type` instead, so a blocked driver cannot step around its
+ * own gate by spawning one. Copilot's subagents are issued a fresh `sessionId`,
+ * so there a subagent reads as another session — it is still denied inside the
+ * gated run's directory by the path rule, and the residual is recorded in
+ * ADR-0007.
+ */
+export function sessionIdOf(payload) {
+  if (!isObject(payload)) return null;
+  const id = typeof payload.session_id === 'string' && payload.session_id !== ''
+    ? payload.session_id
+    : typeof payload.sessionId === 'string' ? payload.sessionId : '';
+  return id === '' ? null : id;
+}
+
+/**
+ * Whether `target` lies inside `runDir`. Both sides are resolved first, so a
+ * run reached through a symlinked task tree compares equal either way.
+ */
+export function withinRun(runDir, target) {
+  const root = resolvePath(runDir);
+  const file = resolvePath(target);
+  return file === root || file.startsWith(root + path.sep);
+}
+
+/**
+ * Why a pending run binds the calling session, or null when identity alone does
+ * not bind it:
+ *
+ *   'driver'     — the caller is the session the run recorded as its driver
+ *   'no-session' — the payload carries no session id
+ *   'no-driver'  — the run records no `orchestrator.driver.session.id`
+ *
+ * The last two are the fail-closed fallback. Unable to establish *whose* gate
+ * this is, the hook keeps the behaviour it had before the scope rule and binds
+ * every session under the working directory; the deny reason says which of the
+ * two it was, because both are fixable at the writer rather than at the hook.
+ */
+export function bindingOf(run, sessionId) {
+  if (!sessionId) return 'no-session';
+  if (!run.driverSession) return 'no-driver';
+  return run.driverSession === sessionId ? 'driver' : null;
 }
 
 // ---------------------------------------------------------------------------

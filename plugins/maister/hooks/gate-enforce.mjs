@@ -3,8 +3,17 @@
  *
  * Registered on the mutating tools in `hooks.json` and on every tool through
  * the `--settings` template, this hook is the thing that makes a gate real: a
- * session that has asked the operator a question cannot keep working on the
- * tree until the answer is recorded.
+ * session that has asked the operator a question cannot keep working until the
+ * answer is recorded.
+ *
+ * **Whose work it stops.** A pending gate binds the session that asked it and
+ * the gated run's own task directory — nothing else. Concretely a call is
+ * denied when the caller is the run's recorded driver, or when it writes inside
+ * the run's directory; a call from another session, outside that directory, is
+ * allowed even though it shares the working directory. Where the hook cannot
+ * establish whose gate it is — a payload with no session id, or a run with no
+ * `driver.session.id` — it falls back to binding every session under `cwd`, the
+ * behaviour it had before the scope rule, and says so in the deny reason.
  *
  * What it never does: answer `allow`. An allow is silence and exit 0, so the
  * terminal user's own permission prompt still fires. And it never fails open —
@@ -13,6 +22,7 @@
  */
 
 import {
+  bindingOf,
   detectProvider,
   emitDeny,
   failClosed,
@@ -21,8 +31,10 @@ import {
   pendingSet,
   readPayload,
   resolvePath,
+  sessionIdOf,
   traceWriter,
   whitelist,
+  withinRun,
 } from './gate-lib.mjs';
 
 import path from 'node:path';
@@ -34,13 +46,27 @@ const TARGET_CAP = 200;
  * The instruction the model reads instead of its tool result. Written as a way
  * out of the block, not as an error: the way out is to record the decision.
  */
-function policyDenyReason(nodes, runDirs, tool, target, agentType) {
-  const heading = nodes.length ? nodes.join(', ') : runDirs.map(dir => path.basename(dir)).join(', ');
+/**
+ * Why each bound run binds *this* call — the sentence that tells a session
+ * whose gate it has walked into, and whether identity or a path put it there.
+ */
+const BOUND_BECAUSE = {
+  driver: run => `this session is the driver of ${run} (orchestrator.driver.session.id matches the calling session)`,
+  path: run => `this call writes inside ${run}, the gated run's own task directory`,
+  'no-session': run => `the payload carries no session id, so ${run} binds every session under this working directory`,
+  'no-driver': run => `${run} records no orchestrator.driver.session.id, so it binds every session under this working directory`,
+};
+
+function policyDenyReason(bound, tool, target, agentType) {
+  const nodes = [...new Set(bound.flatMap(run => run.nodes))];
+  const heading = nodes.length ? nodes.join(', ') : bound.map(run => path.basename(run.runDir)).join(', ');
   const node = nodes[0] ?? '<node>';
   const blocked = target ? `${tool} ${clip(target)}` : tool;
   const agent = agentType ? ` [agent: ${agentType}]` : '';
+  const because = bound.map(run => BOUND_BECAUSE[run.why](path.basename(run.runDir))).join('; ');
   return (
     `GATE PENDING (${heading}): an operator decision is awaited. `
+    + `Bound here because ${because}. `
     // All seven allow-listed names, spelled out: a reason that lists four of
     // them teaches the model that the other three are forbidden, and it then
     // routes around them instead of writing its own temp file or gate index.
@@ -97,20 +123,33 @@ try {
   const pending = pendingSet(runs);
   if (pending.length === 0) allow(null);
 
-  const nodes = [...new Set(pending.flatMap(run => run.nodes))];
   const targets = tooling.kind === 'paths' ? tooling.targets : [];
+  const absolute = targets.map(target => resolvePath(path.resolve(payload.cwd, target)));
+  const sessionId = sessionIdOf(payload);
+
+  // Which of the pending runs is this call's business. A run binds the session
+  // that asked its question, and it binds anything written inside its own task
+  // directory; a call from another session, outside it, is not what the gate is
+  // for. An opaque call — a shell, an MCP server — cannot be placed against a
+  // directory at all, so identity is the only thing that can bind it.
+  const bound = [];
+  for (const run of pending) {
+    const identity = bindingOf(run, sessionId);
+    const inside = absolute.some(target => withinRun(run.runDir, target));
+    if (identity || inside) bound.push({ ...run, why: identity ?? 'path' });
+  }
+  if (bound.length === 0) allow(targets.join(' ') || null);
 
   if (tooling.kind === 'paths') {
     const allowed = new Set();
-    for (const run of pending) for (const file of whitelist(run.runDir, run.nodes)) allowed.add(file);
-    const absolute = targets.map(target => resolvePath(path.resolve(payload.cwd, target)));
+    for (const run of bound) for (const file of whitelist(run.runDir, run.nodes)) allowed.add(file);
     // Every path of the call must be engine-owned: one foreign file in a
     // multi-file patch denies the whole patch.
     if (absolute.every(target => allowed.has(target))) allow(targets.join(' '));
   }
 
   const target = tooling.kind === 'paths' ? targets.join(' ') : tooling.target ?? '';
-  const reason = policyDenyReason(nodes, pending.map(run => run.runDir), tooling.tool, target, agentType);
+  const reason = policyDenyReason(bound, tooling.tool, target, agentType);
   emitDeny(provider, reason);
   trace({ decision: 'deny', exit: 0, target: target || null, reason });
   process.exit(0);

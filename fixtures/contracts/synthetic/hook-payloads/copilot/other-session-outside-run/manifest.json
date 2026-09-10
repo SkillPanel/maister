@@ -1,0 +1,31 @@
+{
+  "id": "copilot-other-session-outside-run",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "copilot",
+      "event": "preToolUse",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "empty",
+      "state_fixture": "synthetic/gate/pending",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "A shell from a session that is not the pending run's driver. An opaque call cannot be placed against a directory, so identity is the only thing that could bind it, and this session is not the one that asked - it allows. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+}

@@ -1,0 +1,31 @@
+{
+  "id": "copilot-other-session-inside-run",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-08-25T23:18:06Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "copilot",
+      "event": "preToolUse",
+      "decision": "deny",
+      "exit": 0,
+      "stdout": "json",
+      "state_fixture": "synthetic/gate/pending",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "create from a foreign session, targeting a file inside the gated run's own task directory that is not on the allow-list: denied by the path rule, exactly as it would be for the driver. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+}
