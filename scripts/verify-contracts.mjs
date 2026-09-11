@@ -7068,6 +7068,17 @@ const VARIANT_SUBSTITUTIONS = [
     apply: text => text.split('CLAUDE.md').join('.github/copilot-instructions.md'),
   },
   { scope: 'all', sed: "s/AskUserQuestion/ask_user/g", apply: text => text.split('AskUserQuestion').join('ask_user') },
+  {
+    // The plugin-root variable, one name per provider vocabulary. Claude Code
+    // exports `CLAUDE_PLUGIN_ROOT`; Copilot CLI exports no plugin-directory
+    // variable at all, so the variant names its own and its install notes ask
+    // the operator to export it. Skills only — `hooks.json` is a Claude surface
+    // the variant does not inherit, and no `.mjs` is rewritten: the runtime
+    // reads both spellings at call time.
+    scope: 'skills',
+    sed: "s/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g",
+    apply: text => text.split('CLAUDE_PLUGIN_ROOT').join('MAISTER_PLUGIN_ROOT'),
+  },
 ];
 
 /**
@@ -10567,6 +10578,8 @@ function t45(ctx) {
  */
 const RESOLUTION_FIXTURE = 'synthetic/target-resolution';
 const UMBRELLA_SKILL = 'skills/umbrella';
+/** Where the Copilot variant's install notes are authored, before the build stages them. */
+const COPILOT_HOOK_NOTES_REL = 'platforms/copilot-cli/hooks/README.md';
 const EXTENDING_GUIDE_REL = 'docs/extending.md';
 const EXTENDING_LINKED_FROM = ['README.md', 'docs/workflows.md'];
 /** The three extension points, each exactly one second-level heading. */
@@ -10759,6 +10772,62 @@ async function t46(ctx) {
   t.check('the planner declares driver awareness in neither form', () => {
     const text = fs.readFileSync(path.join(ctx.pluginRoot, PLANNER_SKILL_REL), 'utf8');
     must(!declaresDriverAware(text), `${PLANNER_SKILL_REL} carries driver_aware: true, so a chain can dispatch the planner`);
+  });
+
+  // -- the exec forms resolve in both provider vocabularies -----------------
+  //
+  // Four skills tell an agent to run `node <plugin root>/skills/…`. The root is
+  // named by a variable, and there is exactly one variable per provider: Claude
+  // Code exports `CLAUDE_PLUGIN_ROOT`, Copilot CLI exports no plugin-directory
+  // variable at all, so the emitted variant names its own and the install notes
+  // ask for it. The build renames it; what is checked here is that both trees
+  // are internally consistent, because the failure this closes was not a
+  // crash — a skill said something literally false on one provider and the
+  // agent worked the directory out and substituted a path, which is the
+  // guessing the whole exec form exists to avoid.
+  const EXEC_SKILLS = [UMBRELLA_SKILL, ENGINE, 'skills/chain-planner', 'skills/mockup-studio'];
+  const ROOT_ANCHOR = /The plugin root is this plugin's own directory/;
+  for (const [label, root, want, forbid] of [
+    ['the plugin source', ctx.pluginRoot, 'CLAUDE_PLUGIN_ROOT', 'MAISTER_PLUGIN_ROOT'],
+    ['the emitted variant', path.join(ctx.repoRoot, VARIANT_REL), 'MAISTER_PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
+  ]) {
+    t.check(`every exec form in ${label} names one plugin-root variable, and says what it is`, () => {
+      let seen = 0;
+      for (const skill of EXEC_SKILLS) {
+        const dir = path.join(root, skill);
+        must(isDir(dir), `${skill}: absent from ${label}`);
+        const files = fs.readdirSync(dir, { recursive: true })
+          .filter(name => String(name).endsWith('.md'))
+          .map(name => path.join(dir, String(name)));
+        for (const file of files) {
+          const text = fs.readFileSync(file, 'utf8');
+          if (!text.includes('_PLUGIN_ROOT')) continue;
+          seen++;
+          must(text.includes(`\${${want}}`), `${skill}: no \${${want}} exec form`);
+          must(!text.includes(forbid), `${skill}: names ${forbid}, which is not this build's variable`);
+          must(ROOT_ANCHOR.test(text),
+            `${skill}: spells the variable without saying what it names, so an unset one leaves the agent guessing`);
+        }
+      }
+      must(seen >= 5, `only ${seen} exec-form file(s) found in ${label} — the sweep is looking in the wrong place`);
+    });
+  }
+
+  t.check('the runtime resolves both spellings, so no skill can name a variable its own code ignores', () => {
+    for (const rel of [`${ENGINE}/scripts/lib/graph.mjs`, `${UMBRELLA_SKILL}/scripts/lib/envelope.mjs`,
+      `${UMBRELLA_SKILL}/scripts/lib/seed.mjs`]) {
+      const text = fs.readFileSync(path.join(ctx.pluginRoot, rel), 'utf8');
+      must(/process\.env\.CLAUDE_PLUGIN_ROOT \|\| process\.env\.MAISTER_PLUGIN_ROOT/.test(text),
+        `${rel}: reads only one plugin-root spelling`);
+    }
+  });
+
+  t.check('the Copilot install notes ask for the variable that variant\'s skills name', () => {
+    const notes = path.join(ctx.repoRoot, COPILOT_HOOK_NOTES_REL);
+    must(isFile(notes), `${COPILOT_HOOK_NOTES_REL}: absent`);
+    const text = fs.readFileSync(notes, 'utf8');
+    must(/export MAISTER_PLUGIN_ROOT=/.test(text), 'the notes never show the export');
+    must(text.includes('.claude-plugin/plugin.json'), 'the notes never say which directory to point it at');
   });
 
   const guide = path.join(ctx.repoRoot, EXTENDING_GUIDE_REL);

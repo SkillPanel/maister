@@ -169,6 +169,11 @@ One script, five verbs, one exit-code table — `0` success, `1` the input was r
 node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs <verb> [flags]
 ```
 
+The plugin root is this plugin's own directory — the one holding
+`.claude-plugin/plugin.json` — and the variable naming it is set in the session
+environment. Use it as written; do not work the directory out and substitute a
+path of your own.
+
 | Verb | Flags | Gives |
 |---|---|---|
 | `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found |

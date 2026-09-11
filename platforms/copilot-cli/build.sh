@@ -72,6 +72,20 @@ find "$OUT" -name "*.md" | while read f; do
   sedi 's/AskUserQuestion/ask_user/g' "$f"
 done
 
+# 8. Rename the plugin-root variable in every exec form.
+#    CLAUDE_PLUGIN_ROOT is a Claude Code variable and is absent from this CLI's
+#    environment, which exposes only its own four — so a skill telling an agent
+#    to run `node ${CLAUDE_PLUGIN_ROOT}/...` here is stating something false and
+#    leaves the agent to work the directory out and substitute a path. The
+#    variant names its own variable instead, and .github/hooks/README.md says
+#    how to export it. Skills and their references only: hooks.json is a Claude
+#    surface this variant does not inherit, and no .mjs is rewritten — the
+#    runtime code reads the variable at call time and already falls back to its
+#    own module location.
+find "$OUT/skills" -name "*.md" | while read f; do
+  sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
+done
+
 # The shared write primitives are a plugin-root library, not a skill's script:
 # the engine's state writer and the umbrella writer both import them from
 # ../../../../lib/canonical.mjs. `cp -r` above carries the directory across and

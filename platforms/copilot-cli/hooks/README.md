@@ -26,6 +26,29 @@ script through `node` explicitly, so nothing depends on a shebang or an executab
 `$COPILOT_PROJECT_DIR` is the git root Copilot resolved for the session — the CLI sets
 it in the hook's environment (alongside `COPILOT_CLI_BINARY_VERSION` and `COPILOT_CLI`).
 
+## The plugin root — one variable to export
+
+The skills in this variant spell the plugin's own directory as
+`${MAISTER_PLUGIN_ROOT}` in every exec form — the `node <root>/skills/…` lines the
+umbrella, the workflow engine, the chain planner and the mockup studio ask an agent to
+run. Copilot CLI exports no plugin-directory variable of its own; the four it does
+export name the session and the CLI build, not where a plugin was loaded from. So the
+instruction resolves only if the variable is in the environment, and an agent that finds
+it unset has to work the directory out and substitute an absolute path — which one proof
+session did, correctly, on an instruction that was literally false.
+
+Export it once, pointing at the directory holding `.claude-plugin/plugin.json` — the same
+directory `--plugin-dir` names:
+
+```bash
+export MAISTER_PLUGIN_ROOT=/absolute/path/to/maister-copilot
+```
+
+The variant's own runtime reads it too, so the path a skill tells an agent to run and
+the path the runtime resolves from are one answer rather than two. The Claude Code build
+needs nothing here: its host exports `${CLAUDE_PLUGIN_ROOT}`, which is the same
+directory under the name that build's skills use.
+
 ## Installing — repository hooks
 
 The shipped file is a **template**: Copilot resolves hooks from the consumer's own

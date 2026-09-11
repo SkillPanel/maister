@@ -889,7 +889,12 @@ function isFile(target) {
  * yields a leading-slash path no `fs` call can stat.
  */
 function pluginRoot() {
-  const declared = process.env.CLAUDE_PLUGIN_ROOT;
+  // Two spellings, one value. `CLAUDE_PLUGIN_ROOT` is the host's; the Copilot
+  // variant's skills name `MAISTER_PLUGIN_ROOT`, because that CLI exports no
+  // plugin-directory variable of its own and its install notes ask the
+  // operator for this one. Reading both here keeps the instruction a skill
+  // gives and the path this runtime resolves from being two different answers.
+  const declared = process.env.CLAUDE_PLUGIN_ROOT || process.env.MAISTER_PLUGIN_ROOT;
   if (declared) return declared;
   const here = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(here, '..', '..', '..', '..');

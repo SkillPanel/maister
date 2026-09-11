@@ -38,8 +38,13 @@ The planner owns no validator. Its oracle is the umbrella runtime's `validate`
 verb, reached exactly as that skill reaches it:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs validate --root <root> --definition <draft>
+node ${MAISTER_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs validate --root <root> --definition <draft>
 ```
+
+The plugin root is this plugin's own directory — the one holding
+`.claude-plugin/plugin.json` — and the variable naming it is set in the session
+environment. Use it as written; do not work the directory out and substitute a
+path of your own.
 
 The exec form belongs here and nowhere a user reads. The plugin's command
 reference documents the slash command and names no script — a user types

@@ -32,6 +32,9 @@ validate:
 	@echo "Checking gate markers are not nested inside code spans..."
 	@! grep -rnF '`→ **MANDATORY GATE** — fires ' plugins/maister/skills/ 2>/dev/null || (echo "FAIL: gate marker nested inside a code span" && exit 1)
 	@! grep -nF '→ Pause' plugins/maister/skills/orchestrator-framework/references/orchestrator-creation-checklist.md 2>/dev/null || (echo "FAIL: superseded transition marker in the orchestrator checklist" && exit 1)
+	@echo "Checking the plugin-root variable is renamed for this CLI's vocabulary..."
+	@! grep -rn 'CLAUDE_PLUGIN_ROOT' plugins/maister-copilot/skills/ --include="*.md" 2>/dev/null || (echo "FAIL: a Claude-only plugin-root variable survives in the emitted skills" && exit 1)
+	@test $$(grep -rl 'MAISTER_PLUGIN_ROOT' plugins/maister-copilot/skills/ --include="*.md" 2>/dev/null | wc -l) -ge 5 || (echo "FAIL: the emitted skills name no plugin-root variable" && exit 1)
 	@echo "Checking the generated schemas and the hook registrations..."
 	@node scripts/verify-contracts.mjs --only=T01,T24
 	@echo "Checking the hooks take no Python dependency..."
