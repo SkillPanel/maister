@@ -57,3 +57,17 @@ Two of the findings accepted when the contracts were frozen, revisited against w
 
 The beacon stays out of `hooks.json` for its own reason, unchanged and now written down: it classifies a session for the approval relay and writes a marker file outside the project. Registering it plugin-wide would produce those files for every terminal user, none of whom asked for chain mode, and the consequence recorded above — that they accumulate until something prunes them — is the reason not to.
 
+### Amendment 2026-09-11 — argument-prefix denies, re-probed
+
+The shipped autonomy guidance says an argument-prefix rule such as `Bash(git push:*)` is advisory rather than an enforcement mechanism, and lists the ways command text can slip past it. That came from one observation on a machine with an accumulated profile, and it was never clear whether the finding was about the provider or about that machine. Re-probed, because a tier-enforcement decision should not rest on an unexamined measurement.
+
+**What was run.** Four `claude -p` calls against provider build 2.1.268, each granting the shell broadly and denying one argument prefix, in a throwaway repository whose only remote is unreachable. The result is read off the session's own denial record, not off the model's narration. Arms: the literal denied command; a control using a command no local hook rewrites; that control as a compound `cd . && <denied>`; and that control with a doubled space.
+
+**What it found.** The text-shape evasions the guidance listed no longer work. The doubled space is normalized and denied; the compound command is decomposed and denied part by part. The control's prefix rule **bound** — the denial is recorded with the exact command as its input.
+
+The literal `git push origin HEAD` arm, on the same machine and in the same invocation shape, was **not** denied: no denial was recorded and the command ran, failing only on the unreachable remote. The difference between the two is that this machine carries a `PreToolUse` hook that rewrites `git` commands and does not touch the control's. That is what isolates the cause: not prefix matching, but a hook changing the command before the rule sees it.
+
+**What it settles.** The guidance is about the operator's machine, not about the provider. A prefix rule is not inert — it binds, including against the evasions the sentence named. It remains unusable as enforcement, because what it depends on is a property of the machine a spawner cannot see, and because this is a behaviour measured at one build rather than anything guaranteed. The shipped sentence is narrowed to say that, with the rewrite named as the decisive gap.
+
+**Limitation, stated because it bounds the claim.** The probe ran on the authoring machine's own profile rather than a clean one: a fresh home reports the CLI as not logged in, and authenticating it needs an interactive step. The control arm is what substitutes for the clean profile — same machine, same profile, same call, one command the local hook rewrites and one it does not — and it isolates the rewrite without removing it. What is still unmeasured is a profile carrying no hooks at all, where the expectation from these results is that every arm binds.
+

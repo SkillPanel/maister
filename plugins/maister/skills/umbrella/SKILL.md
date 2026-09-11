@@ -371,13 +371,25 @@ routes around a denial that should never have fired, which is the reflex the
 whole design exists to avoid provoking.
 
 **Do not enforce a shell atom with an argument pattern.** A rule of the shape
-`Bash(git push:*)` reads like the atom and is not equivalent to it. It matches a
-prefix of the command text, so it is defeated by a flag before the subcommand, a
-doubled space, a compound `cd x && git push`, a variable, a pipe — and by any
-`PreToolUse` hook that rewrites the command before it is judged, which is a
-common local setup rather than an exotic one. An argument pattern was observed
-failing to stop a push during this runtime's own live acceptance. Treat it as
-advisory; put the enforcement in the tool list or the hook.
+`Bash(git push:*)` reads like the atom and is not equivalent to it. It matches
+the command text, and the decisive gap is what can change that text before it is
+judged: **a `PreToolUse` hook that rewrites the command defeats the rule
+entirely**, and a command-rewriting hook is a common local setup rather than an
+exotic one. An argument pattern was observed failing to stop a push during this
+runtime's own live acceptance, on a machine carrying exactly such a hook.
+
+Re-probed since, and the result is worth knowing precisely because it is
+narrower than the original wording. Against a current provider build the
+text-shape evasions no longer work: a doubled space is normalized and denied, and
+a compound `cd x && <denied>` is decomposed and denied part by part. On the same
+machine and in the same invocation, a prefix rule over a command no hook touches
+**bound**, while the same rule over a command the local hook rewrites did not —
+which is what isolates the cause to the rewrite rather than to the matching.
+
+So the rule is not inert, and it is still not an enforcement mechanism. What it
+depends on is a property of the operator's machine that a spawner cannot see,
+and it is a behaviour measured at one version rather than anything guaranteed.
+Treat it as advisory; put the enforcement in the tool list or the hook.
 
 **The consequence of skipping this** is a run whose autonomy tier is decorative:
 every envelope, ledger entry and seed still says `attended`, the worker still
