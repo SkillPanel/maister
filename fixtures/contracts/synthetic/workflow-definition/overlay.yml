@@ -1,20 +1,38 @@
-# Overlay over builtin:development - the eject-free customization path.
+# An overlay over the built-in development workflow — the eject-free
+# customization path — and the smallest one that exercises every operation the
+# graph admits, against node ids the base actually declares.
+#
+# Two shapes are absent rather than forgotten, and both were present here once,
+# which is the reason for the note:
+#
+#   tune: provider   is illegal on this graph. A provider may only be chosen
+#                    for a node that carries dir, and no development node does
+#                    - the workflow has no dispatch nodes, exactly as the
+#                    research workflow has none.
+#   disable: a node  leaves a dangling reference. Removing ui-mockups or
+#   another node's   spec-audit rewires their approvals, but three later nodes
+#   with: names      still interpolate ${ui-mockups.artifacts…} and
+#                    ${spec-audit.artifacts…}, which the reference check errors
+#                    on, correctly. user-docs is the one disabled here because
+#                    nothing reads its outputs.
+#
+# What remains is tune on the whitelist, add attached through needs, and two
+# profiles - one disabling only the node it just added, the other re-tuning the
+# node the base overlay tuned.
 extends: builtin:development
 version: 1
 add:
   security-review:
-    uses: skill:reviews-code
-    needs: [implement]
+    uses: agent:code-reviewer
+    needs: [verification]
     on: success
 tune:
-  implement:
-    provider: copilot
-  verify:
+  verification:
     optional: true
-disable: [generate-mockups, user-docs]
+disable: [user-docs]
 profiles:
   fast:
-    disable: [security-review, audit-spec]
+    disable: [security-review]
   paranoid:
     tune:
-      verify: {optional: false}
+      verification: {optional: false}

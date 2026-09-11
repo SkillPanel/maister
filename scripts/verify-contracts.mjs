@@ -3998,6 +3998,21 @@ const RESERVED_KEY_WARNINGS = [
 const RESEARCH = 'research';
 
 /**
+ * Every overlay the repository ships, resolved against the base it declares.
+ *
+ * The list is written here rather than discovered because an overlay is named
+ * by its content, not by its extension: `research-tuned.overlay.yml` and a bare
+ * `overlay.yml` are both overlays, and a definition named `*.overlay.yml` is
+ * not. Adding a fixture without a row here leaves it standalone-validated only,
+ * which is exactly the gap that let one ship naming four node ids no base
+ * declares.
+ */
+const OVERLAY_FIXTURES = [
+  'synthetic/workflow-definition/overlay.yml',
+  'synthetic/workflow-overlay/research-tuned/research-tuned.overlay.yml',
+];
+
+/**
  * One row per definition shipped under `workflows/`, keyed by its file stem.
  *
  * The walk below reads that directory and looks every file up here. A file with
@@ -4489,6 +4504,76 @@ async function t29(ctx) {
     }
     checks++;
     if (overlaid.graph_hash !== hash) failures.push(`${label}: hashes to ${overlaid.graph_hash}, not the pinned graph`);
+  }
+
+  // -- every shipped overlay resolves onto the base it declares -------------
+  //
+  // Standalone validation checks an overlay's *shape*: it resolves no
+  // reference and never applies the overlay to anything, so an overlay naming
+  // node ids no base declares passes it. One shipped fixture did, on four ids
+  // at once, while also adding a node whose target named a command rather than
+  // a skill and tuning a provider onto a node with no dispatch directory —
+  // three defects in one file, none reachable by any check, in the kind of file
+  // a reader copies. Every overlay fixture is now resolved against the built-in
+  // its own `extends` names, with the errors and the unresolved-reference
+  // warnings both held empty.
+  for (const overlay of OVERLAY_FIXTURES) {
+    const file = path.join(ctx.fixtures, ...overlay.split('/'));
+    checks++;
+    if (!isFile(file)) {
+      failures.push(`${overlay}: the overlay fixture is absent`);
+      continue;
+    }
+    const declared = /^extends:\s*(\S+)\s*$/m.exec(fs.readFileSync(file, 'utf8'))?.[1] ?? null;
+    checks++;
+    const base = declared === null ? null
+      : definitions.find(each => each.name === declared.replace(/^builtin:/, ''))?.file ?? null;
+    if (!base) {
+      failures.push(`${overlay}: extends ${JSON.stringify(declared)}, which is not a shipped built-in`);
+      continue;
+    }
+    const applied = resolved(`${overlay} onto ${declared}`, `--definition=${base}`, `--overlay=${file}`);
+    if (!applied) continue;
+    checks++;
+    if (applied.warnings.length) {
+      failures.push(`${overlay}: resolves with warnings — ${JSON.stringify(applied.warnings)}`);
+    }
+    // Every profile it declares, too: a profile is another route through the
+    // same operations, and the fast profile of the fixture that carried the
+    // defects disabled two ids the base never had.
+    const profiles = Object.keys(parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS)?.profiles ?? {});
+    for (const profile of profiles) {
+      const route = resolved(`${overlay} onto ${declared} --profile=${profile}`,
+        `--definition=${base}`, `--overlay=${file}`, `--profile=${profile}`);
+      if (!route) continue;
+      checks++;
+      if (route.warnings.length) {
+        failures.push(`${overlay} --profile=${profile}: resolves with warnings — ${JSON.stringify(route.warnings)}`);
+      }
+    }
+  }
+
+  // -- provider implies dir, on the resolved node ---------------------------
+  //
+  // The schema conditional that backs B1's implication judges a definition as
+  // authored, so it never sees a provider an overlay *tuned* onto a node that
+  // carries none — which is how the fixture above shipped one. The runner
+  // states the rule itself, and this is the tune that proves it.
+  {
+    const base = definitions.find(each => each.name === RESEARCH)?.file ?? null;
+    const file = path.join(tempDir('overlay-provider'), 'provider-without-dir.overlay.yml');
+    fs.writeFileSync(file, ['extends: builtin:research', 'version: 1', 'tune:',
+      '  completion:', '    provider: copilot', ''].join('\n'), 'utf8');
+    const out = run('resolve', `--definition=${base}`, `--overlay=${file}`);
+    checks++;
+    if (out.report?.ok !== false) {
+      failures.push('a provider tuned onto a node with no dir was accepted');
+    } else {
+      checks++;
+      if (!out.report.errors.some(error => error.path === 'nodes.completion.provider')) {
+        failures.push(`the provider error is not located at the node: ${JSON.stringify(out.report.errors)}`);
+      }
+    }
   }
 
   // The newer-format document degrades rather than being trimmed: the two keys

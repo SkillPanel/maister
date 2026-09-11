@@ -960,6 +960,19 @@ function optionEffect(option) {
  * engine would silently skip.
  */
 function checkNodeShape(node, id, at, file, errors) {
+  // `provider -> dir`, on the *resolved* node. B1's implication is backed by a
+  // schema conditional, which judges a definition as authored and therefore
+  // never sees a provider an overlay tuned onto a node that carries no
+  // directory — a node with nowhere to dispatch to, and a choice with nothing
+  // to apply it to. One shipped overlay fixture did exactly that, and no check
+  // in the repository could reach it. Stated here because this is the one place
+  // that reads the node a run would actually execute.
+  if (node.provider !== undefined && node.provider !== null
+    && (typeof node.dir !== 'string' || node.dir === '')) {
+    fail(errors, file, `${at}.provider`,
+      'a provider may only be chosen for a node that carries dir: a node with no directory dispatches nowhere, '
+      + 'so there is nothing for the choice to apply to', id);
+  }
   if (node.type !== undefined && node.type !== 'gate') {
     fail(errors, file, `${at}.type`, `type is a closed enum whose only member is "gate"; "${node.type}" is not`, id);
     return;

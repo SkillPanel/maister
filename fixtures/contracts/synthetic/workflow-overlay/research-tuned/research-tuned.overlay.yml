@@ -4,9 +4,12 @@
 # Two of the four operations are unavailable here, which is why they are absent
 # rather than forgotten:
 #
-#   tune: provider   is schema-illegal on this graph. A provider may only be
-#                    chosen for a node that carries dir, and no research node
-#                    does - the workflow has no dispatch nodes.
+#   tune: provider   is illegal on this graph. A provider may only be chosen
+#                    for a node that carries dir, and no research node does -
+#                    the workflow has no dispatch nodes. The schema says so for
+#                    a definition as authored; the runner now says so for the
+#                    resolved node, which is the only place a tuned provider
+#                    can be seen at all.
 #   disable: on the  leaves a dangling reference. Removing solution-generation
 #   conditional      rewires solution-convergence.needs to the removed node's
 #   nodes            own needs but leaves its with value pointing at an
