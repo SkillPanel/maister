@@ -3724,23 +3724,35 @@ function t27(ctx) {
   }
 
   // -- the archive ----------------------------------------------------------
-  const distDir = path.join(ctx.repoRoot, 'dist');
-  if (!isDir(distDir)) {
-    notes.push('no dist/ — archive assertions skipped; run `make tarball` (CI builds it after `make test`, so this is the CI path)');
-    return { checks, failures, notes };
-  }
-  const archives = fs.readdirSync(distDir)
-    .filter(n => n.endsWith('.tar.gz'))
-    .map(n => ({ name: n, full: path.join(distDir, n), mtime: fs.statSync(path.join(distDir, n)).mtimeMs }))
-    .sort((a, b) => b.mtime - a.mtime);
+  //
+  // Built here, into a throwaway directory, rather than read out of the
+  // repository's `dist/`. That directory is git-ignored, so what it holds is
+  // whatever a person last ran; the row used to take the newest `*.tar.gz` in
+  // it by modification time, with nothing tying that file to the checkout being
+  // tested. In practice it meant a hand-run `make tarball` before every suite
+  // run - done by hand in at least four separate sessions - and a months-old
+  // archive from an earlier release would have satisfied it just as well.
+  //
+  // Building it makes the row prove the tree in hand, needs no preparation on a
+  // clean checkout, and leaves nothing behind for the next run to find.
+  const distDir = tempDir('tarball');
+  const built = runBounded(process.execPath,
+    [path.join(ctx.repoRoot, 'scripts', 'build-tarball.mjs'), `--dist=${distDir}`],
+    { encoding: 'utf8', cwd: ctx.repoRoot, maxBuffer: 16 * 1024 * 1024 });
   checks++;
-  if (!archives.length) {
-    failures.push('dist/ exists but holds no *.tar.gz — `make tarball` produced no archive');
+  if (built.status !== 0) {
+    failures.push(`the archive would not build: ${(built.stderr ?? '').trim().split('\n').pop() || `exit ${built.status}`}`);
     return { checks, failures, notes };
   }
-  const archive = archives[0];
+  const archives = fs.readdirSync(distDir).filter(n => n.endsWith('.tar.gz'));
+  checks++;
+  if (archives.length !== 1) {
+    failures.push(`the build produced ${archives.length} archives, expected exactly one`);
+    return { checks, failures, notes };
+  }
+  const archive = { name: archives[0], full: path.join(distDir, archives[0]) };
   const tag = archive.name.replace(/\.tar\.gz$/, '');
-  notes.push(`archive under test: dist/${archive.name}`);
+  notes.push(`archive under test: ${archive.name}, built from this checkout`);
 
   // Checksum sidecar, in `shasum -a 256 -c` form. This is a gate, not a report:
   // the archive is listed, extracted and executed only once it verifies, so a
@@ -3748,32 +3760,32 @@ function t27(ctx) {
   const sidecar = `${archive.full}.sha256`;
   checks++;
   if (!isFile(sidecar)) {
-    failures.push(`dist/${archive.name}.sha256: missing — the archive is not opened`);
+    failures.push(`${archive.name}.sha256: missing — the archive is not opened`);
     return { checks, failures, notes };
   }
   const line = fs.readFileSync(sidecar, 'utf8').trim();
   const m = /^([0-9a-f]{64})\s{2}(\S+)$/.exec(line);
   checks++;
   if (!m) {
-    failures.push(`dist/${archive.name}.sha256: ${JSON.stringify(line)} is not \`<hex>  <filename>\` — the archive is not opened`);
+    failures.push(`${archive.name}.sha256: ${JSON.stringify(line)} is not \`<hex>  <filename>\` — the archive is not opened`);
     return { checks, failures, notes };
   }
   checks++;
   if (m[2] !== archive.name) {
-    failures.push(`dist/${archive.name}.sha256: names ${m[2]}, expected ${archive.name} — the archive is not opened`);
+    failures.push(`${archive.name}.sha256: names ${m[2]}, expected ${archive.name} — the archive is not opened`);
     return { checks, failures, notes };
   }
   checks++;
   const actual = crypto.createHash('sha256').update(fs.readFileSync(archive.full)).digest('hex');
   if (actual !== m[1]) {
-    failures.push(`dist/${archive.name}.sha256: records ${m[1]}, the archive hashes to ${actual} — the archive is not opened`);
+    failures.push(`${archive.name}.sha256: records ${m[1]}, the archive hashes to ${actual} — the archive is not opened`);
     return { checks, failures, notes };
   }
 
   const listed = runBounded('tar', ['-tzf', archive.full], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   checks++;
   if (listed.status !== 0) {
-    failures.push(`tar -tzf dist/${archive.name} exited ${listed.status}: ${(listed.stderr ?? '').trim().split('\n')[0]}`);
+    failures.push(`tar -tzf ${archive.name} exited ${listed.status}: ${(listed.stderr ?? '').trim().split('\n')[0]}`);
     return { checks, failures, notes };
   }
   const entries = listed.stdout.split('\n').map(s => s.trim()).filter(Boolean);
@@ -3781,7 +3793,7 @@ function t27(ctx) {
   for (const want of TARBALL_ENTRIES) {
     checks++;
     if (!entries.some(e => e.startsWith(`${tag}/${want}`))) {
-      failures.push(`dist/${archive.name}: no entry under ${tag}/${want}`);
+      failures.push(`${archive.name}: no entry under ${tag}/${want}`);
     }
   }
 
@@ -3793,57 +3805,69 @@ function t27(ctx) {
   checks++;
   const pluginEntries = entries.filter(e => e.startsWith(`${tag}/plugins/`));
   if (pluginEntries.length) {
-    failures.push(`dist/${archive.name}: the tarball carries a plugin tree — ${pluginEntries.slice(0, 3).join(', ')}`);
+    failures.push(`${archive.name}: the tarball carries a plugin tree — ${pluginEntries.slice(0, 3).join(', ')}`);
   }
 
   // The staging dir is what was archived; a mismatch means files were dropped.
   const staging = path.join(distDir, tag);
   checks++;
   if (!isDir(staging)) {
-    failures.push(`dist/${tag}/: staging directory is missing — the entry count cannot be cross-checked`);
+    failures.push(`${tag}/: staging directory is missing — the entry count cannot be cross-checked`);
   } else {
     checks++;
     const staged = walkFiles(staging).length;
     if (fileEntries.length !== staged) {
-      failures.push(`dist/${archive.name}: ${fileEntries.length} file entries, dist/${tag}/ holds ${staged}`);
+      failures.push(`${archive.name}: ${fileEntries.length} file entries, ${tag}/ holds ${staged}`);
     }
 
     const versionFile = path.join(staging, 'VERSION');
     checks++;
     if (!isFile(versionFile)) {
-      failures.push(`dist/${tag}/VERSION: missing`);
+      failures.push(`${tag}/VERSION: missing`);
     } else {
       let version = null;
       checks++;
       try {
         version = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
       } catch (err) {
-        failures.push(`dist/${tag}/VERSION: does not parse — ${err.message.split('\n')[0]}`);
+        failures.push(`${tag}/VERSION: does not parse — ${err.message.split('\n')[0]}`);
       }
       if (version) {
         for (const key of ['tag', 'git_sha', 'plugin_version', 'built_at', 'fixture_count', 'schema_count']) {
           checks++;
           if (version[key] === undefined || version[key] === null || version[key] === '') {
-            failures.push(`dist/${tag}/VERSION: ${key} is missing`);
+            failures.push(`${tag}/VERSION: ${key} is missing`);
           }
         }
         checks++;
-        if (version.tag !== tag) failures.push(`dist/${tag}/VERSION: tag is ${JSON.stringify(version.tag)}, expected ${JSON.stringify(tag)}`);
+        if (version.tag !== tag) failures.push(`${tag}/VERSION: tag is ${JSON.stringify(version.tag)}, expected ${JSON.stringify(tag)}`);
+        // The archive describes the checkout it was built from, and this row
+        // only speaks for the checkout it is running in. An archive stamped
+        // with any other commit is a different tree's evidence, so it is
+        // refused rather than read - which is the whole of what kept a stale
+        // build believable before the row started building its own.
+        checks++;
+        const head = runBounded('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', cwd: ctx.repoRoot });
+        if (head.status !== 0) {
+          notes.push('git rev-parse HEAD is unavailable, so the archive is not held to a commit');
+        } else if (String(version.git_sha) !== head.stdout.trim()) {
+          failures.push(`${tag}/VERSION: git_sha is ${JSON.stringify(version.git_sha)}, and this checkout is at ${head.stdout.trim()}`);
+        }
         checks++;
         if (!A6_TIMESTAMP.test(String(version.built_at ?? ''))) {
-          failures.push(`dist/${tag}/VERSION: built_at ${JSON.stringify(version.built_at ?? null)} is not an A6 timestamp`);
+          failures.push(`${tag}/VERSION: built_at ${JSON.stringify(version.built_at ?? null)} is not an A6 timestamp`);
         }
         const manifest = path.join(ctx.repoRoot, 'plugins/maister/.claude-plugin/plugin.json');
         if (isFile(manifest)) {
           checks++;
           const declared = readJson(manifest).version;
           if (version.plugin_version !== declared) {
-            failures.push(`dist/${tag}/VERSION: plugin_version ${JSON.stringify(version.plugin_version)} ≠ plugin.json ${JSON.stringify(declared)}`);
+            failures.push(`${tag}/VERSION: plugin_version ${JSON.stringify(version.plugin_version)} ≠ plugin.json ${JSON.stringify(declared)}`);
           }
         }
         checks++;
         if (version.schema_count !== fs.readdirSync(ctx.schemas).filter(n => n.endsWith('.schema.json')).length) {
-          failures.push(`dist/${tag}/VERSION: schema_count ${JSON.stringify(version.schema_count)} ≠ the number of shipped schemas`);
+          failures.push(`${tag}/VERSION: schema_count ${JSON.stringify(version.schema_count)} ≠ the number of shipped schemas`);
         }
       }
     }
@@ -3857,13 +3881,13 @@ function t27(ctx) {
     checks++;
     const versionDoc = isFile(path.join(staging, 'VERSION')) ? readJson(path.join(staging, 'VERSION')) : {};
     if (versionDoc.lib_count !== TARBALL_LIB.length) {
-      failures.push(`dist/${tag}/VERSION: lib_count ${JSON.stringify(versionDoc.lib_count)} ≠ the ${TARBALL_LIB.length} staged modules`);
+      failures.push(`${tag}/VERSION: lib_count ${JSON.stringify(versionDoc.lib_count)} ≠ the ${TARBALL_LIB.length} staged modules`);
     }
     for (const relative of TARBALL_LIB) {
       const staged = path.join(staging, ...relative.split('/'));
       checks++;
       if (!isFile(staged)) {
-        failures.push(`dist/${tag}/${relative}: not staged`);
+        failures.push(`${tag}/${relative}: not staged`);
         continue;
       }
       const text = fs.readFileSync(staged, 'utf8');
@@ -3872,7 +3896,7 @@ function t27(ctx) {
         if (spec.startsWith('node:')) continue;
         checks++;
         if (!spec.startsWith('./') || !isFile(path.join(staging, 'lib', spec.slice(2)))) {
-          failures.push(`dist/${tag}/${relative}: imports ${spec}, which the flattened archive cannot resolve`);
+          failures.push(`${tag}/${relative}: imports ${spec}, which the flattened archive cannot resolve`);
         }
       }
     }
@@ -3899,14 +3923,14 @@ function t27(ctx) {
     const untar = runBounded('tar', ['-xzf', archive.full, '-C', extractRoot], { encoding: 'utf8', timeout: ARCHIVE_TIMEOUT_MS });
     checks++;
     if (untar.status !== 0) {
-      failures.push(`tar -xzf dist/${archive.name} exited ${untar.status}: ${(untar.stderr ?? '').trim().split('\n')[0]}`);
+      failures.push(`tar -xzf ${archive.name} exited ${untar.status}: ${(untar.stderr ?? '').trim().split('\n')[0]}`);
       return { checks, failures, notes };
     }
     const root = path.join(extractRoot, tag);
     const runner = path.join(root, 'scripts', 'verify-contracts.mjs');
     checks++;
     if (!isFile(runner)) {
-      failures.push(`dist/${archive.name}: the extracted archive has no scripts/verify-contracts.mjs`);
+      failures.push(`${archive.name}: the extracted archive has no scripts/verify-contracts.mjs`);
       return { checks, failures, notes };
     }
     const run = runBounded(process.execPath, [

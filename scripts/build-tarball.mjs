@@ -140,13 +140,20 @@ const utcStamp = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const opts = { tag: DEFAULT_TAG };
+  const opts = { tag: DEFAULT_TAG, dist: null };
   for (const arg of argv) {
     const [key, ...rest] = arg.split('=');
     const value = rest.join('=');
     switch (key) {
       case '--tag':
         opts.tag = value;
+        break;
+      // Where the staging directory and the archive are written. Defaults to
+      // the repository's own `dist/`; the contract suite points it at a
+      // throwaway directory so the row proves a build of the checkout in hand
+      // rather than whatever happens to be sitting in `dist/` from last time.
+      case '--dist':
+        opts.dist = value;
         break;
       case '--help':
       case '-h':
@@ -161,13 +168,13 @@ function parseArgs(argv) {
 
 const opts = parseArgs(process.argv.slice(2));
 if (opts.help) {
-  console.log('usage: node scripts/build-tarball.mjs [--tag=<tag>]');
+  console.log('usage: node scripts/build-tarball.mjs [--tag=<tag>] [--dist=<dir>]');
   process.exit(0);
 }
 if (!TAG_FORM.test(opts.tag)) die(`--tag=${JSON.stringify(opts.tag)} is not a plain tag name`);
 
 const tag = opts.tag;
-const distDir = path.join(REPO_ROOT, 'dist');
+const distDir = opts.dist ? path.resolve(opts.dist) : path.join(REPO_ROOT, 'dist');
 const staging = path.join(distDir, tag);
 
 const schemaSrc = requirePath(SCHEMA_DIR, 'dir');
