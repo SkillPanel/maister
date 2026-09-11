@@ -37,12 +37,23 @@ instruction resolves only if the variable is in the environment, and an agent th
 it unset has to work the directory out and substitute an absolute path — which one proof
 session did, correctly, on an instruction that was literally false.
 
-Export it once, pointing at the directory holding `.claude-plugin/plugin.json` — the same
-directory `--plugin-dir` names:
+Export it once, pointing at the directory holding `.claude-plugin/plugin.json`. Where that is
+depends on how the plugin was installed, and only one of the three is the path `--plugin-dir`
+names — which is why saying "the directory you passed to `--plugin-dir`" left the primary
+install path with no answer at all:
 
 ```bash
+# installed from a marketplace: ~/.copilot/installed-plugins/<marketplace>/<plugin>/
+export MAISTER_PLUGIN_ROOT=~/.copilot/installed-plugins/maister-plugins/maister-copilot
+
+# installed straight from a repository: the same tree, under _direct/<source>/
+export MAISTER_PLUGIN_ROOT=~/.copilot/installed-plugins/_direct/<source>
+
+# a local checkout: the directory passed to --plugin-dir
 export MAISTER_PLUGIN_ROOT=/absolute/path/to/maister-copilot
 ```
+
+`copilot plugin list` names what is installed; the tree above is where the CLI puts it.
 
 The variant's own runtime reads it too, so the path a skill tells an agent to run and
 the path the runtime resolves from are one answer rather than two. The Claude Code build

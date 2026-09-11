@@ -7282,8 +7282,14 @@ const VARIANT_SUBSTITUTIONS = [
  * `.github/hooks/` — and `plugin.json` is rewritten by two `sed` passes of its
  * own, asserted below by what those passes must have produced rather than by
  * byte equality. Everything else is either a byte copy or replayable markdown.
+ *
+ * `README.md` is the variant's install surface and has no counterpart in the
+ * source tree: the source plugin is installed through a host that exports its
+ * own plugin-root variable, and this one is not, so the variant has to say
+ * where its files landed. It is authored beside the build and copied in, which
+ * is why it appears in the variant and not in the source.
  */
-const VARIANT_UNCOMPARED = ['hooks/', '.github/', '.claude-plugin/plugin.json'];
+const VARIANT_UNCOMPARED = ['hooks/', '.github/', '.claude-plugin/plugin.json', 'README.md'];
 
 /** Files a fresh build would copy byte for byte: the generator's `sed` never leaves `.md`. */
 const variantRewrites = rel => rel.endsWith('.md');
@@ -10895,6 +10901,10 @@ const RESOLUTION_FIXTURE = 'synthetic/target-resolution';
 const UMBRELLA_SKILL = 'skills/umbrella';
 /** Where the Copilot variant's install notes are authored, before the build stages them. */
 const COPILOT_HOOK_NOTES_REL = 'platforms/copilot-cli/hooks/README.md';
+/** The variant's own install surface, authored here and staged into the variant by the build. */
+const COPILOT_VARIANT_README_REL = 'platforms/copilot-cli/README.md';
+/** Where that CLI puts an installed plugin — the answer its own install path never gives. */
+const COPILOT_INSTALL_TREE = '.copilot/installed-plugins';
 /** The user-facing command reference, and the only place a slash command is documented. */
 const COMMAND_REFERENCE_REL = 'docs/commands.md';
 const EXTENDING_GUIDE_REL = 'docs/extending.md';
@@ -11195,12 +11205,38 @@ async function t46(ctx) {
     }
   });
 
-  t.check('the Copilot install notes ask for the variable that variant\'s skills name', () => {
-    const notes = path.join(ctx.repoRoot, COPILOT_HOOK_NOTES_REL);
-    must(isFile(notes), `${COPILOT_HOOK_NOTES_REL}: absent`);
-    const text = fs.readFileSync(notes, 'utf8');
-    must(/export MAISTER_PLUGIN_ROOT=/.test(text), 'the notes never show the export');
-    must(text.includes('.claude-plugin/plugin.json'), 'the notes never say which directory to point it at');
+  // Every surface that asks for the export must also say where to point it, on
+  // every path an operator can arrive by. Asking for the variable while
+  // describing only the directory `--plugin-dir` names left the primary install
+  // path - a marketplace install, where the CLI chooses the directory - being
+  // asked for a value nothing had told the operator. So the marketplace tree is
+  // required beside the export wherever the export appears.
+  const INSTALL_SURFACES = [
+    [COPILOT_HOOK_NOTES_REL, 'the hook install notes'],
+    ['README.md', 'the repository README'],
+    [COPILOT_VARIANT_README_REL, "the variant's own README"],
+  ];
+  t.check('every install surface asks for the variable and says where each install path puts it', () => {
+    for (const [rel, label] of INSTALL_SURFACES) {
+      const file = path.join(ctx.repoRoot, rel);
+      must(isFile(file), `${rel}: absent — ${label} is where an operator is told about the export`);
+      const text = fs.readFileSync(file, 'utf8');
+      must(/export MAISTER_PLUGIN_ROOT=/.test(text), `${rel}: never shows the export`);
+      must(text.includes(COPILOT_INSTALL_TREE),
+        `${rel}: asks for the variable without saying where a marketplace install puts the plugin`);
+    }
+    // And the notes keep the sentence that names the directory by what it
+    // holds, which is the only spelling that is true on every path.
+    const notes = fs.readFileSync(path.join(ctx.repoRoot, COPILOT_HOOK_NOTES_REL), 'utf8');
+    must(notes.includes('.claude-plugin/plugin.json'), 'the notes never say which directory to point it at');
+  });
+
+  t.check("the build emits the variant's own README", () => {
+    const emitted = path.join(ctx.repoRoot, VARIANT_REL, 'README.md');
+    const authored = path.join(ctx.repoRoot, COPILOT_VARIANT_README_REL);
+    must(isFile(emitted), `${VARIANT_REL}/README.md: absent — the build no longer stages the variant's install surface`);
+    must(fs.readFileSync(emitted, 'utf8') === fs.readFileSync(authored, 'utf8'),
+      `${VARIANT_REL}/README.md has drifted from ${COPILOT_VARIANT_README_REL} — it is generated, so edit the source`);
   });
 
   const guide = path.join(ctx.repoRoot, EXTENDING_GUIDE_REL);

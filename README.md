@@ -35,6 +35,19 @@ After installing, restart Claude Code (`/exit` and relaunch) to ensure the plugi
 
 On GitHub Copilot CLI, install the `maister-copilot` variant with `copilot plugin install` — from a registered marketplace (`copilot plugin marketplace add SkillPanel/maister`, then `copilot plugin install maister-copilot@maister-plugins`) or straight from the repository subdirectory (`copilot plugin install SkillPanel/maister:plugins/maister-copilot`). To run a local checkout instead, load it with `copilot --plugin-dir /path/to/maister/plugins/maister-copilot`; add `--add-dir` for the same path when the checkout sits outside your working directory, which grants file access to it. `--add-dir` on its own does not load a plugin.
 
+**Then export the plugin root.** Copilot CLI exports no plugin-directory variable of its own, and four of the variant's skills tell an agent to run a script under the plugin's own directory. With the variable unset those instructions do not resolve, and the agent works the path out and substitutes one — the guessing the variable exists to remove. Point it at the directory holding `.claude-plugin/plugin.json`, which is a different place on each install path:
+
+```bash
+# installed from a marketplace — <marketplace> is the one you added, e.g. maister-plugins
+export MAISTER_PLUGIN_ROOT=~/.copilot/installed-plugins/<marketplace>/maister-copilot
+# installed straight from the repository, without a marketplace
+export MAISTER_PLUGIN_ROOT=~/.copilot/installed-plugins/_direct/<source>
+# running a local checkout — the same path you passed to --plugin-dir
+export MAISTER_PLUGIN_ROOT=/path/to/maister/plugins/maister-copilot
+```
+
+`copilot plugin list` names what is installed. Put the export in your shell profile: it is read at spawn time and there is no flag for it. On Claude Code nothing is needed here — that host exports the same directory under its own name.
+
 ### Initial project setup
 
 Initialize your project to auto-detect coding standards and generate project documentation:
@@ -149,10 +162,11 @@ There is no flag for it — the variable has to be in the environment. Hooks und
 
 **Checking that they are live.** The beacon writes one marker per session to `$MAISTER_BEACON_DIR`, or to `~/.maister-cockpit/beacons/` when that is unset — never inside your project. No marker means the hooks are not running here: Node missing, files not installed, or the Copilot variable not passed through.
 
-**Environment variables.** Both are optional and read by the hooks at spawn time; neither has a flag.
+**Environment variables.** All are read at spawn time and none has a flag. Only the first is required, and only on Copilot CLI.
 
 | Variable | Effect |
 |---|---|
+| `MAISTER_PLUGIN_ROOT` | **Copilot CLI only, and required there.** The directory holding the variant's `.claude-plugin/plugin.json` — see [Installation](#installation) for where each install path puts it. The variant's skills spell the plugin's own directory with it, and its runtime reads it too, so the path a skill names and the path the runtime resolves are one answer. Claude Code exports the equivalent itself. |
 | `MAISTER_BEACON_DIR` | Where the liveness marker for the session is written. Default `~/.maister-cockpit/beacons/`, falling back to a temp directory when home is unwritable. Never the working directory — a per-session file in a tracked tree would show up in every `git status`. |
 | `MAISTER_GATE_TRACE` | Path to a file that gets one JSON line per hook decision (tool, decision, reason, exit, timing). Off by default; this is the first thing to turn on when a gate allows or denies something you did not expect. |
 

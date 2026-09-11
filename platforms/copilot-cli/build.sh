@@ -86,6 +86,16 @@ find "$OUT/skills" -name "*.md" | while read f; do
   sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
 done
 
+# The variant's own install surface, staged after every substitution rather than
+# before. Copilot CLI chooses where a marketplace install lands, so the one
+# thing an operator cannot work out for themselves -- the directory to point the
+# plugin-root variable at -- has to be written down in the tree they installed.
+# It is copied last because the prefix pass rewrites `maister:` wherever it
+# appears, and this file's install commands legitimately contain it: run earlier,
+# that pass turned `copilot plugin install SkillPanel/maister:plugins/...` into a
+# command that does not exist.
+cp "$ROOT/platforms/copilot-cli/README.md" "$OUT/README.md"
+
 # The shared write primitives are a plugin-root library, not a skill's script:
 # the engine's state writer and the umbrella writer both import them from
 # ../../../../lib/canonical.mjs. `cp -r` above carries the directory across and
