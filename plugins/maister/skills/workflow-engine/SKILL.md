@@ -1,7 +1,7 @@
 ---
 name: maister:workflow-engine
 description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as an orchestrated run. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session or suspends on them according to the run's driver, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator; not a workflow a user starts directly.
-user-invocable: true
+user-invocable: false
 ---
 
 # Workflow Engine
@@ -13,8 +13,10 @@ model holding a file open.
 
 **This is machinery, not a feature.** A user reaches a workflow through that workflow's
 own command, and that command's orchestrator hands the run here with a workflow name.
-There is no engine command and no engine entry point of its own. Nothing in a user's
-mental model needs the word "engine" in it.
+There is no engine command and no engine entry point of its own — which is what
+`user-invocable: false` in the frontmatter above says, so the declaration and this
+paragraph cannot disagree. Nothing in a user's mental model needs the word "engine" in
+it.
 
 **The gate mode follows the run's driver.** With no driver block, or one whose `kind` is
 `terminal`, the engine asks its gates in session and answers them in the same turn. With

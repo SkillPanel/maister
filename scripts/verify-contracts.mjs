@@ -10638,6 +10638,8 @@ const RESOLUTION_FIXTURE = 'synthetic/target-resolution';
 const UMBRELLA_SKILL = 'skills/umbrella';
 /** Where the Copilot variant's install notes are authored, before the build stages them. */
 const COPILOT_HOOK_NOTES_REL = 'platforms/copilot-cli/hooks/README.md';
+/** The user-facing command reference, and the only place a slash command is documented. */
+const COMMAND_REFERENCE_REL = 'docs/commands.md';
 const EXTENDING_GUIDE_REL = 'docs/extending.md';
 const EXTENDING_LINKED_FROM = ['README.md', 'docs/workflows.md'];
 /** The three extension points, each exactly one second-level heading. */
@@ -10830,6 +10832,52 @@ async function t46(ctx) {
   t.check('the planner declares driver awareness in neither form', () => {
     const text = fs.readFileSync(path.join(ctx.pluginRoot, PLANNER_SKILL_REL), 'utf8');
     must(!declaresDriverAware(text), `${PLANNER_SKILL_REL} carries driver_aware: true, so a chain can dispatch the planner`);
+  });
+
+  // -- what a skill declares, what its own prose says, and what is documented -
+  //
+  // Three statements about the same fact, and each pair of them disagreed
+  // somewhere. `user-invocable: true` is what makes a slash command exist, so
+  // a skill carrying it while its own prose calls itself machinery has two
+  // answers and the frontmatter wins silently; a skill carrying it with no row
+  // in the command reference has a command nobody is told about. Both happened,
+  // in two skills each, which is why this is a rule rather than two edits.
+  //
+  // The default is reachable: five skills omit the key and are documented, so
+  // an absent declaration is read as `true` rather than as undecided. What the
+  // lint forbids is a contradiction in either direction.
+  const DENIES_INVOCATION = /not\s+(?:directly\s+)?user-invocable/i;
+  t.check('every skill agrees with its own prose and with the command reference about being invocable', () => {
+    const skillsDir = path.join(ctx.pluginRoot, 'skills');
+    const reference = fs.readFileSync(path.join(ctx.repoRoot, COMMAND_REFERENCE_REL), 'utf8');
+    const names = fs.readdirSync(skillsDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory() && isFile(path.join(skillsDir, entry.name, 'SKILL.md')))
+      .map(entry => entry.name).sort();
+    must(names.length >= 15, `only ${names.length} skills found — the sweep is looking in the wrong place`);
+
+    for (const name of names) {
+      const text = fs.readFileSync(path.join(skillsDir, name, 'SKILL.md'), 'utf8');
+      const frontmatter = text.split('\n---\n')[0];
+      const declared = /^user-invocable:\s*(\S+)\s*$/m.exec(frontmatter)?.[1] ?? null;
+      must(declared === null || declared === 'true' || declared === 'false',
+        `${name}: user-invocable is ${JSON.stringify(declared)}, which is neither true nor false`);
+      const reachable = declared !== 'false';
+      // The command reference's own heading form, so a mention in prose is not
+      // mistaken for a documented command.
+      const documented = new RegExp(`^### \`/maister:${name}\\b`, 'm').test(reference);
+
+      if (reachable) {
+        must(documented,
+          `${name}: user-invocable ${declared === null ? 'defaults to true' : 'is true'}, so the slash command exists, but ${COMMAND_REFERENCE_REL} documents no such command`);
+        must(!DENIES_INVOCATION.test(text),
+          `${name}: the frontmatter makes a slash command exist while the skill's own prose denies it`);
+      } else {
+        must(!documented,
+          `${name}: user-invocable is false, so there is no slash command, but ${COMMAND_REFERENCE_REL} documents one`);
+        must(!text.includes(`/maister:${name}`),
+          `${name}: user-invocable is false while the prose spells /maister:${name} as something to run`);
+      }
+    }
   });
 
   // -- the exec forms resolve in both provider vocabularies -----------------

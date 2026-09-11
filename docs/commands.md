@@ -117,6 +117,26 @@ Design output can feed directly into development: `/maister:development .maister
 **Task directory**: `.maister/tasks/product-design/`
 **Resume phases**: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `convergence`, `specification`, `prototyping`, `handoff`
 
+### `/maister:mockup-studio "<screen or feature>"`
+
+Generates UI mockups for one screen or feature, on its own rather than as a step inside
+another workflow. It finds the project's design language first — standards, design
+system, component library, whatever design skills are installed — and binds the mockups
+to it by real token and component names, so what you see is what the codebase can
+actually build.
+
+Two formats. The default renders HTML and CSS in a browser through a local visual
+companion, which is the one worth having for anything visual. Where there is no browser
+to open, it falls back to terminal ASCII, which shows layout and placement and nothing
+about style.
+
+Between rounds it asks what to change and re-renders, so a screen converges in the
+session rather than in a handoff. The development and product-design workflows call the
+same command at their mockup step, so a mockup made here and one made inside a workflow
+are the same artifact.
+
+**Task directory**: `.maister/tasks/mockups/`
+
 ---
 
 ## Reviews & Audits
