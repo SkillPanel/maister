@@ -4703,6 +4703,30 @@ async function t30(ctx) {
   checks++;
   if (!isFile(entry)) return { checks, failures: [`${ENGINE}/scripts/workflow.mjs is absent`] };
 
+  // -- the writer's structural self-check is declared, not merely true -------
+  //
+  // `write-state` holds the document it wrote to duplicate-key and injection
+  // rules and never to a schema: a consumer checkout carries neither a YAML
+  // package nor a validator. That is a deliberate limit rather than an
+  // oversight, so a caller has to be able to read it without opening the
+  // source — which is what this pins. Both halves are asserted, because the
+  // statement is only useful if it also says what the caller must do instead.
+  const engineSkill = path.join(engine, 'SKILL.md');
+  checks++;
+  if (!isFile(engineSkill)) {
+    failures.push(`${ENGINE}/SKILL.md is absent`);
+  } else {
+    const prose = fs.readFileSync(engineSkill, 'utf8');
+    checks++;
+    if (!/structurally, not against a schema, and that\s+is\s+deliberate/.test(prose)) {
+      failures.push("SKILL.md does not declare the state writer's structural self-check as deliberate");
+    }
+    checks++;
+    if (!/carried forward from the file when a patch omits\s+them/.test(prose)) {
+      failures.push('SKILL.md does not state that the frozen workflow scalars survive a merge');
+    }
+  }
+
   // `gate-lib.mjs` is the acceptance oracle: the writer is the inverse of the
   // reader a consumer's hook actually runs, so the reader judges the writer.
   const { writeState } = await import(pathToFileURL(path.join(engine, 'scripts', 'lib', 'state.mjs')).href);
@@ -4844,6 +4868,61 @@ async function t30(ctx) {
       if (!lines.includes('  phase_summaries:') || !lines.some(l => /^ {4}phase-1:$/.test(l))
         || !lines.some(l => /^ {6}summary: /.test(l))) {
         failures.push('a nested block did not gain two spaces per level');
+      }
+
+      // -- the frozen scalars survive a later workflow patch that omits them --
+      //
+      // A re-freeze that rewrites only `nodes` is the ordinary shape of a
+      // second `workflow:` patch, and the block is re-emitted whole. The six
+      // scalars beside `nodes:` are carried forward from the file rather than
+      // dropped with the rest of it, because a run whose `graph_hash` vanished
+      // has lost the one thing that proves the frozen graph against the
+      // definition it came from — and the envelope refuses to dispatch it.
+      const held = write(indented, {
+        workflow: {
+          nodes: {
+            'research-foundation': { kind: 'task', status: 'completed', needs: [] },
+            'foundation-approval': { kind: 'gate', status: 'pending', needs: ['research-foundation'] },
+          },
+        },
+      });
+      checks++;
+      if (!held.ok) {
+        failures.push(`a workflow patch carrying only nodes was refused: ${JSON.stringify(held.errors)}`);
+      } else {
+        const after = fs.readFileSync(indented, 'utf8').split('\n');
+        checks++;
+        const scalarLine = key => after.find(line => line.startsWith(`  ${key}:`))?.slice(`  ${key}:`.length).trim() ?? null;
+        const carried = Object.entries({
+          source: 'builtin:research',
+          overlays: '[]',
+          profile: 'default',
+          graph_hash: `sha256:${'a'.repeat(64)}`,
+          grammar_version: '1',
+          name: 'research',
+        }).filter(([key, want]) => (scalarLine(key) ?? '').replace(/^"|"$/g, '') !== want);
+        if (carried.length) {
+          failures.push(`a workflow merge dropped or changed ${carried.map(([key]) => key).join(', ')}`);
+        }
+        // The control: a patch that *does* name a scalar replaces it, so the
+        // carry-forward cannot be an emitter that ignores the patch.
+        const replaced = write(indented, {
+          workflow: {
+            graph_hash: `sha256:${'b'.repeat(64)}`,
+            nodes: { 'research-foundation': { kind: 'task', status: 'completed', needs: [] } },
+          },
+        });
+        checks++;
+        const text = fs.readFileSync(indented, 'utf8');
+        if (!replaced.ok || !text.includes(`sha256:${'b'.repeat(64)}`)
+          || text.includes(`sha256:${'a'.repeat(64)}`)) {
+          failures.push('a workflow patch naming graph_hash did not replace the held value');
+        }
+        // And `name` survives, so `contextBlock` still resolves after a merge.
+        checks++;
+        if (!/^ {2}name: "?research"?$/m.test(text)) {
+          failures.push('the workflow name did not survive a patch that named another scalar');
+        }
       }
     }
 

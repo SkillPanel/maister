@@ -206,6 +206,21 @@ re-issue that finds its own identical, still-unanswered request file — the sha
 that window leaves — adopts it and finishes the marker rather than refusing, keeping the
 gate askable. A file that is answered, or that spells a different question, still refuses.
 
+**`write-state` checks the document it wrote structurally, not against a schema, and that
+is deliberate.** It re-reads the candidate through the enforcement hook's own reader, then
+holds it to the rules a line-oriented writer can state for itself: no duplicate key at any
+column, no top-level block that neither the prior file nor this patch introduced, and a
+task, a workflow and a non-empty node map present. What it cannot do is validate against
+the contract schemas — a consumer checkout carries no YAML package and no schema validator,
+and a check that only ran where this repository's own tests run would be checking the one
+place that needs it least. So a document can be contract-invalid and still be written: the
+schemas are the suite's instrument, and the gate they back is the compatibility suite, not
+this verb. Two things follow for a caller. Send values in the shapes the register declares
+rather than relying on a refusal to catch a wrong one; and where a value must survive, send
+it or leave it out — the six scalars beside `workflow.nodes`, `graph_hash` among them, are
+carried forward from the file when a patch omits them rather than dropped with the rest of
+the block.
+
 The patch arrives on stdin so no quoting has to survive a shell — Windows without a POSIX
 shell is a supported target. An unknown version degrades **the same way in every verb** —
 `validate`, `resolve` and `diagram` alike short-circuit on it, render what they recognise,

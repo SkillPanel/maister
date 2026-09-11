@@ -608,6 +608,17 @@ function splitTopLevel(body) {
  * behaviour the callers want (a workflow block is installed once, from the
  * resolved graph) and it is stated here rather than left to be discovered.
  *
+ * **The six frozen scalars are the exception**, and they are carried forward
+ * from the document verbatim when the patch omits them. `graph_hash` is why:
+ * it is what makes the frozen graph in state verifiable against the definition
+ * it came from, and the envelope refuses to dispatch a run whose state records
+ * none. A later patch that rewrites only `nodes` — the ordinary shape of a
+ * re-freeze — would otherwise erase the run's identity silently rather than
+ * fail, removing the check instead of failing it. Carried forward as the
+ * *bytes* on the line rather than through the value emitter: `overlays` is a
+ * flow sequence, and re-encoding a value this writer never parsed would quote
+ * a sequence into a string.
+ *
  * Both key loops below emit `  ${key}:` raw, so both run the block-key guard
  * first. Without it a key carrying a newline did not produce a bad-looking
  * file: it produced further lines at the emitter's own column — a second
@@ -628,7 +639,11 @@ function applyWorkflow(doc, workflow, now, changed) {
 
   const lines = ['workflow:'];
   for (const key of WORKFLOW_KEYS) {
-    if (!Object.hasOwn(workflow, key)) continue;
+    if (!Object.hasOwn(workflow, key)) {
+      const held = doc.locate(['workflow', key]);
+      if (held && held.inline !== '') lines.push(`  ${key}: ${held.inline}`);
+      continue;
+    }
     assertBlockKey(key);
     lines.push(`  ${key}: ${flow(workflow[key], `workflow.${key}`)}`);
   }
