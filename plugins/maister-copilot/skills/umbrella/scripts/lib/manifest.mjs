@@ -668,9 +668,21 @@ export function validate(root, { definitions = [] } = {}) {
   }
 
   for (const file of definitions) {
-    const definition = readDefinition(file);
+    // Anchored before it is opened, the way the envelope anchors a run's
+    // source. `--root` is resolved and every other lookup runs from it, but a
+    // `--definition` used to be read exactly as typed — so a relative path
+    // resolved against the caller's working directory and the prose companion,
+    // which is found by swapping the extension on that same string, was looked
+    // for there too. Fine for a driver, which runs at the root; a trap by hand,
+    // where a chain named the way the manifest names it resolves nowhere and
+    // its `direct:` nodes report no implementation.
+    const target = definitionPath(base, file);
+    const definition = readDefinition(target);
     if (definition.doc === null) {
-      errors.push(...definition.errors);
+      // Located by the path the caller typed, not the one this resolved to: a
+      // report naming a path nobody wrote is a report about someone else's
+      // file.
+      errors.push(...definition.errors.map((entry) => ({ ...entry, file })));
       continue;
     }
     // The workspace is the project a `skill:` or `agent:` target is first
@@ -687,9 +699,24 @@ export function validate(root, { definitions = [] } = {}) {
   // rules it was judged by are identical either way, and the flag is what lets
   // a caller say so rather than infer it from the path.
   const home = generatedHome(base);
-  const judged = definitions.map((file) => ({ file, generated: contains(home, path.resolve(file)) }));
+  const judged = definitions.map((file) => ({ file, generated: contains(home, definitionPath(base, file)) }));
 
   return { ok: errors.length === 0, root: base, manifest: relative(base, manifestPath), definitions: judged, errors, warnings, resolved };
+}
+
+/**
+ * Where a `--definition` really is. Workspace-relative first, then as typed, so
+ * a chain named the way the manifest and every report name it — relative to the
+ * workspace root — resolves from any working directory, while a path a caller
+ * typed relative to their own cwd still works. An absolute path is itself.
+ *
+ * Only the read is anchored. Every report keeps the caller's own spelling, so
+ * a fixed definition is the file they were told about.
+ */
+function definitionPath(base, file) {
+  if (path.isAbsolute(file)) return file;
+  const candidates = [path.resolve(base, file), path.resolve(file)];
+  return candidates.find(isFile) ?? candidates[0];
 }
 
 // ---------------------------------------------------------------------------

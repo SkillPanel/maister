@@ -9934,10 +9934,14 @@ async function t41(ctx) {
       `${PLANNER_REFERENCE_REL}: missing — the skill defers the plan-time rules to it`);
   });
 
-  // The published pair, judged by the oracle the planner itself uses. The
-  // validator reads the definition path as given and re-anchors nothing, but
-  // the pair is copied into the workspace anyway, because that is where a
-  // published chain lives and the companion is found by extension swap.
+  // The published pair, judged by the oracle the planner itself uses. It is
+  // copied into the workspace because that is where a published chain lives
+  // and the companion is found by swapping the extension on the definition's
+  // path — so the second check below names the definition the way the manifest
+  // names it, relative to the workspace root, from a working directory that is
+  // not the root. That used to resolve nowhere: the validator read the path as
+  // given and re-anchored nothing, which was invisible to a driver running at
+  // the root and a trap to anyone validating by hand.
   const fixtureDir = path.join(ctx.fixtures, PLANNED_CHAIN_FIXTURE);
   const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
   await t.checkAsync('the planned pair validates clean, with an empty report', async () => {
@@ -9966,6 +9970,30 @@ async function t41(ctx) {
         must(warning.file === path.join(root, '.maister', 'umbrella.yml'),
           `a warning names ${warning.file}, not the manifest: it would be reported as the chain's defect`);
       }
+      // Every `direct:` node resolves through the prose companion beside the
+      // definition, so a companion that was not found is what a lost anchor
+      // looks like in the report.
+      const direct = judged.resolved.filter(entry => entry.from === 'companion');
+      must(direct.length > 0, 'the planned pair resolves no node through its companion — the check proves nothing');
+
+      // The same pair, named as the manifest names it, from a subdirectory.
+      const relativeName = path.join('.maister', 'workflows', `${PLANNED_CHAIN_STEM}.yml`);
+      const elsewhere = path.join(root, 'projects', PLANNED_CHAIN_MEMBERS[0]);
+      const cwd = process.cwd();
+      let fromBelow;
+      try {
+        process.chdir(elsewhere);
+        fromBelow = validate(root, { definitions: [relativeName] });
+      } finally {
+        process.chdir(cwd);
+      }
+      equalJson(fromBelow.errors, [], 'a workspace-relative definition validated from a subdirectory was rejected');
+      equalJson(fromBelow.resolved.filter(entry => entry.from === 'companion').length, direct.length,
+        'the companion resolved from a subdirectory');
+      // The report names what the caller typed, so the path in it is the path
+      // they can act on.
+      must(fromBelow.definitions.every(entry => entry.file === relativeName),
+        `the report re-spelled the definition path: ${JSON.stringify(fromBelow.definitions)}`);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
