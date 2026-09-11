@@ -10724,9 +10724,11 @@ function t44(ctx) {
   }
 
   const covered = new Map(members.map(m => [m, []]));
+  const synthetic = new Set();
   for (const fx of byVerdict(ctx, 'valid')) {
     const type = runFixtureType(fx);
     if (type === null) continue;
+    if (fx.manifest.synthetic === true) synthetic.add(fx.id);
     checks++;
     if (!covered.has(type)) {
       failures.push(`${fx.id}: records workflow type ${JSON.stringify(type)}, which is not an enum member`);
@@ -10740,7 +10742,17 @@ function t44(ctx) {
     if (ids.length === 0) {
       failures.push(`${type}: an enum member with no valid run fixture — sample one under fixtures/contracts/valid/runs/${type}-<slug>/`);
     } else {
-      notes.push(`${type}: ${ids.join(', ')}`);
+      // Covered, and by what. A hand-built fixture proves the schema accepts a
+      // shape someone typed; only a sampled one proves the shape a writer
+      // produces. The row cannot insist on sampled — a new enum member has no
+      // real run to sample the day it lands — but a member covered only by
+      // synthetic fixtures is a standing debt, and it used to be recorded
+      // nowhere but in a note string inside the fixture itself. Saying it on
+      // every run puts it where the next person to sample a run will see it.
+      const sampled = ids.filter(id => !synthetic.has(id));
+      notes.push(sampled.length
+        ? `${type}: ${ids.join(', ')}`
+        : `${type}: ${ids.join(', ')} — synthetic only, still to be re-sampled from a real run`);
     }
   }
   return { checks, failures, notes };

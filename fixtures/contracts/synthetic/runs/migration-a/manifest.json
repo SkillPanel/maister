@@ -24,5 +24,5 @@
   ],
   "strict_a2": true,
   "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
-  "notes": "Synthesized from migration/SKILL.md:311-348: the 8-field migration_context (no phase_summaries, per drift #3) plus the top-level external_research block, which is core-optional typed. No real >= 2.2.3 migration run existed at freeze time."
+  "notes": "Synthesized from migration/SKILL.md:311-348: the 8-field migration_context (no phase_summaries, per drift #3) plus the top-level external_research block, which is core-optional typed. No real >= 2.2.3 migration run existed at freeze time. Re-checked 2026-09-11 against every run on the authoring machine: no migration run exists anywhere, real or otherwise, so there is nothing to re-sample from. The fixture stays synthetic until one is made at the current version. The suite says so on every run rather than leaving it in this note."
 }
