@@ -7467,8 +7467,27 @@ const SEED_FIXTURE_DIR = path.join('synthetic', 'worker-seed');
  * section that would otherwise be pinned by nothing — another target scheme,
  * or, for the `workflow:` branch, a second definition, since that branch is
  * written once and renders for every definition a chain can name.
+ *
+ * The `attended.` stem is there for a different reason: it is the only one that
+ * renders the relayed tier. Every other stem dispatches at a tier whose
+ * permissions either reach a pull request outright or cannot reach one at all,
+ * and those are the two close-out branches the goldens pinned. The third —
+ * required, but through an operator approving a held command — is the branch a
+ * defect shipped in once, and it was pinned by nothing. It is also the only
+ * branch that changes the identity section, which tells a relayed worker not to
+ * route around a held command.
  */
-const SEED_FIXTURE_STEMS = ['', 'workflow-target.', 'workflow-target-development.'];
+const SEED_FIXTURE_STEMS = ['', 'workflow-target.', 'workflow-target-development.', 'attended.'];
+
+/**
+ * Tiers the goldens do not render, each against the tier whose golden already
+ * carries the same prompt. `auto-medium` widens `auto-low`'s permissions
+ * without reaching a pull request, so it takes the same close-out branch and the
+ * same identity line; the only difference in the rendered prompt is the tier's
+ * own name. The check below proves that claim rather than trusting it, so an
+ * edit that makes the two diverge fails here instead of shipping unpinned.
+ */
+const SEED_TIER_EXEMPT = new Map([['auto-medium', 'auto-low']]);
 
 /**
  * Every refusal the umbrella runtime names. The set is closed by design — the
@@ -8539,6 +8558,38 @@ workflow:
         'buildSeed is not pure once the plugin root is an argument');
       must(!renderSeed(buildSeed(build('dev-beta'), { siblings: 3, pluginRoot: '/elsewhere' })).includes(root),
         'the plugin root is not actually being read from the argument');
+    });
+
+    // Which tiers the golden corpus actually renders. Without this the stems
+    // are a list someone maintains by remembering to: the attended branch went
+    // unpinned through a whole contract freeze because nothing ever said which
+    // tiers were covered, and the tier that shipped a defect was the one absent.
+    // A tier with no golden is either given one or written down here with the
+    // reason, and the reason has to be that it renders nothing another tier's
+    // golden does not already carry.
+    t.check('every autonomy tier is rendered by a golden seed, or its absence is accounted for', () => {
+      const dir = path.join(ctx.fixtures, SEED_FIXTURE_DIR);
+      const rendered = new Set(SEED_FIXTURE_STEMS.map(stem => parseYaml(
+        fs.readFileSync(path.join(dir, `${stem}envelope.yml`), 'utf8'), YAML_OPTS,
+      ).autonomy));
+      const missing = AUTONOMY_TIERS.filter(tier => !rendered.has(tier) && !SEED_TIER_EXEMPT.has(tier));
+      equalJson(missing, [],
+        'an autonomy tier no golden seed renders: add a stem for it, or account for it beside the others');
+      // And the exemptions are held to their own claim: an exempt tier must
+      // render a prompt some covered tier's golden already carries, or the
+      // exemption is stale and the tier needs a stem after all.
+      const root = '/opt/maister/plugins/maister';
+      const promptsByTier = new Map(SEED_FIXTURE_STEMS.map((stem) => {
+        const envelope = parseYaml(fs.readFileSync(path.join(dir, `${stem}envelope.yml`), 'utf8'), YAML_OPTS);
+        return [envelope.autonomy, { envelope, prompt: renderSeed(buildSeed(envelope, { siblings: 3, pluginRoot: root })) }];
+      }));
+      for (const [tier, why] of SEED_TIER_EXEMPT) {
+        const twin = promptsByTier.get(why);
+        must(twin !== undefined, `${tier} is exempted against ${why}, which no golden renders`);
+        const asExempt = renderSeed(buildSeed({ ...twin.envelope, autonomy: tier }, { siblings: 3, pluginRoot: root }));
+        must(asExempt.replaceAll(tier, why) === twin.prompt,
+          `${tier} no longer renders as ${why} does, so its exemption is stale — it needs a golden of its own`);
+      }
     });
 
     t.check('the golden seed fixture is the descriptor renderSeed turns into the golden prompt', () => {
