@@ -389,8 +389,13 @@ function renderManifest({ umbrellaId, members }) {
   // an empty flow sequence is the only spelling of "no people yet" that reads
   // back. An operator adding one writes the block form the reader accepts.
   lines.push('people: []');
-  lines.push('routing:');
-  lines.push('  tiers: {}');
+  // `routing:` is deliberately not scaffolded. Its one key is reserved (§ R):
+  // it parses, warns and carries no behaviour, so writing it hands every fresh
+  // workspace a warning about a key the scaffolder itself put there, with no
+  // node to blame. A workspace that never starts from a clean report teaches
+  // its operator to read past the warning stream, which is the opposite of
+  // what the stream is for. An operator who wants the key writes it, and is
+  // warned then — which is the warning doing its job.
   lines.push(`knowledge: ${scalar(`${KNOWLEDGE_DIR}/`, 'knowledge')}`);
   lines.push('defaults:');
   lines.push('  autonomy: attended');

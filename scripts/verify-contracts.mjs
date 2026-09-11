@@ -7546,7 +7546,25 @@ async function t35(ctx) {
 
       const judged = validate(root, { definitions: [] });
       must(judged.ok, `validate rejected a fresh workspace: ${JSON.stringify(judged.errors)}`);
+      // A freshly scaffolded, untouched workspace reads clean. The scaffolder
+      // used to write `routing: {tiers: {}}`, whose one key is reserved, so
+      // every proof run opened on a warning about a key the scaffolder itself
+      // had put there and every one had to explain it away. An empty report is
+      // what makes a later warning mean something.
+      equalJson(judged.warnings, [], 'the warning stream');
+    });
+
+    t.check('a reserved manifest key an operator writes is still warned about, with no node to blame', () => {
+      const root = workspace('init-reserved-by-hand');
+      gitDir(root, 'projects', 'auth');
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+      const file = path.join(root, '.maister', 'umbrella.yml');
+      fs.appendFileSync(file, 'routing:\n  tiers: {}\n', 'utf8');
+
+      const judged = validate(root, { definitions: [] });
+      must(judged.ok, `a reserved key was treated as an error: ${JSON.stringify(judged.errors)}`);
       equalJson(judged.warnings.map(w => w.message), ['reserved-key:routing.tiers'], 'the warning stream');
+      must(judged.warnings[0].node === null, 'a manifest warning named a node');
     });
 
     t.check('validate reports a dir: naming an undeclared member as an error carrying file, node, path and message', () => {
@@ -7569,7 +7587,13 @@ async function t35(ctx) {
       }
       must(dirErrors[0].node === 'ship', `the error names node ${dirErrors[0].node}`);
       must(judged.warnings.some(w => w.message === 'reserved-key:foreach'), 'the graph warning stream was not merged');
-      must(judged.warnings.some(w => w.message === 'reserved-key:routing.tiers'), 'the manifest warning stream was not merged');
+      // The manifest half of the merged stream, provoked rather than scaffolded:
+      // `init` no longer writes a reserved key, so one is written here to prove
+      // the two streams still arrive together.
+      fs.appendFileSync(path.join(root, '.maister', 'umbrella.yml'), 'routing:\n  tiers: {}\n', 'utf8');
+      const merged = validate(root, { definitions: [definition] });
+      must(merged.warnings.some(w => w.message === 'reserved-key:foreach'), 'the graph warning stream was lost');
+      must(merged.warnings.some(w => w.message === 'reserved-key:routing.tiers'), 'the manifest warning stream was not merged');
     });
 
     // The validate-side capability check. Nothing in the fixture tree exercises
@@ -9681,10 +9705,10 @@ function t40(ctx) {
  * The last checks are the output, not the prose. A checked-in definition and
  * companion pair, the shape the loop publishes, is run through the workspace
  * runtime's own `validate` against a workspace staged the way the
- * umbrella-runtime test stages one. It must be accepted with exactly the one
- * warning a freshly scaffolded manifest always carries — the workspace's
- * reserved-key advisory, not the chain's — because "the pair validates clean"
- * is the planner's whole contract and nothing else in the suite asserts it.
+ * umbrella-runtime test stages one. It must be accepted with an empty report —
+ * a freshly scaffolded workspace carries no advisory of its own any more, so
+ * any warning here is the chain's — because "the pair validates clean" is the
+ * planner's whole contract and nothing else in the suite asserts it.
  * The third published file, `<stem>.plan.md`, no validator judges at all, so
  * its four required headings are pinned here against the skill that requires
  * them — both directions, so renaming the requirement without renaming the
@@ -9714,8 +9738,8 @@ const PLANNED_CHAIN_FIXTURE = path.join('synthetic', 'planned-chain');
 const PLANNED_CHAIN_STEM = 'docs-refresh';
 /** The members the fixture chain dispatches into, staged as clones under the members root. */
 const PLANNED_CHAIN_MEMBERS = ['docs-site', 'repo-alpha'];
-/** A freshly scaffolded manifest carries exactly this one advisory, and the chain adds none. */
-const PLANNED_CHAIN_WARNINGS = ['reserved-key:routing.tiers'];
+/** A freshly scaffolded workspace reports nothing, and a planned chain adds nothing to it. */
+const PLANNED_CHAIN_WARNINGS = [];
 /**
  * The plan file's four required headings, in the order the skill requires them.
  * It is the third of the three files the planner publishes and the only one no
@@ -9807,7 +9831,7 @@ async function t41(ctx) {
   // published chain lives and the companion is found by extension swap.
   const fixtureDir = path.join(ctx.fixtures, PLANNED_CHAIN_FIXTURE);
   const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
-  await t.checkAsync('the planned pair validates clean, with only the workspace\'s own advisory', async () => {
+  await t.checkAsync('the planned pair validates clean, with an empty report', async () => {
     must(isDir(fixtureDir), `${PLANNED_CHAIN_FIXTURE}: the planned-chain fixture is absent`);
     must(isFile(path.join(scripts, 'umbrella.mjs')), `${UMBRELLA_SCRIPTS}/umbrella.mjs is absent`);
     const { init, validate } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
@@ -9828,7 +9852,7 @@ async function t41(ctx) {
       // `ok` is `errors.length === 0`, so asserting both would be asserting once.
       equalJson(judged.errors, [], 'the planned pair was rejected');
       equalJson(judged.warnings.map(w => w.message), PLANNED_CHAIN_WARNINGS,
-        'the warning stream — a planned chain adds nothing to the scaffolded manifest\'s advisory');
+        'the warning stream — a planned chain adds nothing to a clean workspace');
       for (const warning of judged.warnings) {
         must(warning.file === path.join(root, '.maister', 'umbrella.yml'),
           `a warning names ${warning.file}, not the manifest: it would be reported as the chain's defect`);
@@ -9925,7 +9949,7 @@ async function t42(ctx) {
       const judged = validate(root, { definitions: [top, generated] });
       equalJson(judged.errors, [], 'the pair was rejected from one of the two homes');
       equalJson(judged.warnings.map(w => w.message), PLANNED_CHAIN_WARNINGS,
-        'the warning stream — the home adds nothing to the scaffolded manifest\'s advisory');
+        'the warning stream — the home adds nothing to a clean workspace');
       equalJson(judged.definitions, [{ file: top, generated: false }, { file: generated, generated: true }],
         'the report\'s definitions list');
 
