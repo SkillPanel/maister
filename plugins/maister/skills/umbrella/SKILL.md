@@ -146,10 +146,24 @@ directory together with its `generated/` subdirectory — the home of the chains
 the planner publishes for one ticket. That subdirectory gets an ignore file of
 two lines, `*` and `!.gitignore`, so ticket-derived text is never committed by
 default; the file is written only when absent, and a later `--force` leaves an
-edited one alone. Its write scope is
-a hard boundary: without `--scaffold` it writes nothing outside the framework
-directory, and every target it declines to write is named in the report with a
-reason rather than passing silently. With `--scaffold` it will additionally
+edited one alone.
+
+It also adds one ignore rule for the directory a dispatch worktree lands in,
+`.worktrees/`, in the two places a worktree can make a status dirty: the
+workspace root's own `.gitignore`, and each member's `.git/info/exclude` — the
+member's, because that is where the worktree is actually created, and the
+exclude file rather than the member's `.gitignore`, because a member is
+somebody's project and a workspace tool has no business committing a line to a
+tracked file of theirs. The rule is appended, never written over: an ignore
+file keeps every byte it had, gains the line exactly once however often `init`
+runs, and is reported as preserved when it already carried it. A member whose
+git entry is a *file* is a worktree of a repository kept outside the workspace;
+its exclude file is left alone and named in the report.
+
+Its write scope is a hard boundary, and those two ignore rules are its one
+declared exception: without `--scaffold` it writes nothing else outside the
+framework directory, and every target it declines to write is named in the
+report with a reason rather than passing silently. With `--scaffold` it will additionally
 create a knowledge-directory README and a root guidance stub, but only where
 neither already exists — it never rewrites a file it did not author. A second
 `init` over an existing manifest refuses unless `--force` is given, and even

@@ -107,6 +107,25 @@ const WORKFLOWS_DIR = 'workflows';
 const GENERATED_DIR = 'generated';
 export const GENERATED_IGNORE = '*\n!.gitignore\n';
 
+/**
+ * The directory a dispatch worktree lands in, and the ignore rule for it.
+ *
+ * `envelope.mjs` names a worktree `.worktrees/<run-id>-<node>` *inside the
+ * member checkout*, so the repository whose status goes dirty is the member's,
+ * not the workspace's. Nothing wrote a rule for it, and every dispatching
+ * umbrella therefore showed a directory nobody means to commit, once per
+ * dispatched node, in the working copy the worker is looking at.
+ *
+ * The member's rule goes into `.git/info/exclude` rather than its `.gitignore`:
+ * a member is somebody's project, its `.gitignore` is a tracked file, and a
+ * workspace tool has no business committing a line to it. The exclude file is
+ * per-clone, untracked and exactly what it is for. The workspace root gets the
+ * `.gitignore` line instead, for the layout where the workspace is itself one
+ * repository holding its members.
+ */
+export const WORKTREE_DIR = '.worktrees';
+export const WORKTREE_IGNORE = `${WORKTREE_DIR}/`;
+
 /** Where a workspace's coordinated runs keep their state, and the file that holds it. */
 const RUNS_DIR = ['umbrella', 'runs'];
 const STATE_FILE = 'orchestrator-state.yml';
@@ -484,6 +503,23 @@ export function init(root, { membersRoot = null, force = false, scaffold = false
       created.push(relative(base, file));
     }
 
+    // The worktree rule, in the two places a dispatch worktree can make a
+    // status dirty. Appended rather than written, and only when the line is not
+    // already there, so an operator's own ignore file keeps every byte it had
+    // and a second `init` adds nothing. Neither is governed by `--force`: this
+    // adds a line, it never replaces a file.
+    for (const target of ignoreTargets(base, found.members)) {
+      if (target.reason !== null) {
+        preserved.push(target.at);
+        continue;
+      }
+      // `created` means the rule was added — to a new file or to one that was
+      // already there — and `preserved` means it was already present and
+      // nothing was written. A file that gains a line has not been preserved,
+      // and saying so would hide the one write `init` makes outside `.maister`.
+      (appendRule(target.file, WORKTREE_IGNORE, base) ? created : preserved).push(target.at);
+    }
+
     const skipped = [];
     for (const target of scaffoldTargets()) {
       const decision = scaffoldDecision(base, target, scaffold);
@@ -511,6 +547,68 @@ export function init(root, { membersRoot = null, force = false, scaffold = false
   } catch (err) {
     return refused(err);
   }
+}
+
+/**
+ * Where the worktree rule goes, and where it deliberately does not.
+ *
+ * The workspace root's own `.gitignore`, and each member's
+ * `.git/info/exclude`. A member whose `.git` is a *file* is itself a worktree
+ * of a repository kept elsewhere; its exclude file lives in that repository's
+ * directory, which is outside the workspace, so it is reported as left alone
+ * rather than reached into.
+ */
+function ignoreTargets(base, members) {
+  const targets = [{
+    file: path.join(base, '.gitignore'),
+    at: '.gitignore',
+    existed: exists(path.join(base, '.gitignore')),
+    reason: null,
+  }];
+  for (const member of members) {
+    const git = path.join(base, member.path, '.git');
+    let directory = false;
+    try {
+      directory = fs.statSync(git).isDirectory();
+    } catch {
+      directory = false;
+    }
+    const file = path.join(git, 'info', 'exclude');
+    targets.push({
+      file,
+      at: relative(base, file),
+      existed: exists(file),
+      reason: directory ? null : 'git-directory-elsewhere',
+    });
+  }
+  return targets;
+}
+
+/**
+ * Add one line to an ignore file, or leave it exactly as it is. True when the
+ * line was added.
+ *
+ * Read, decide, then write the whole file through the shared publish path —
+ * never an append in place, because a half-written ignore file is a repository
+ * whose worktrees are suddenly tracked. A file that does not end in a newline
+ * gains one first, so the rule does not land on the end of somebody's last
+ * line.
+ */
+function appendRule(file, rule, base) {
+  let text = '';
+  if (exists(file)) {
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch (err) {
+      throw new Refusal(CODES.unwritable,
+        `${relative(base, file)} could not be read, so the worktree ignore rule cannot be added without losing what is in it: ${err.message}`);
+    }
+    if (text.split('\n').some((line) => line.trim() === rule)) return false;
+  }
+  const separator = text === '' || text.endsWith('\n') ? '' : '\n';
+  makeDirectory(path.dirname(file), base);
+  write(file, `${text}${separator}${rule}\n`, base);
+  return true;
 }
 
 /**

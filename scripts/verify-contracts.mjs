@@ -7584,13 +7584,18 @@ async function t35(ctx) {
 
     // -- init: the write scope ----------------------------------------------
 
-    t.check('init without --scaffold writes nothing outside .maister/ and names both skipped targets', () => {
+    t.check('init without --scaffold writes only .maister/ and the two ignore rules, and names both skipped targets', () => {
       const root = workspace('init-scope');
       gitDir(root, 'projects', 'auth');
       const before = fs.readdirSync(root).sort();
       const report = init(root, { membersRoot: null, force: false, scaffold: false });
       must(report.ok, `init refused: ${JSON.stringify(report.errors)}`);
-      equalJson(fs.readdirSync(root).sort(), [...before, '.maister'].sort(), 'the root gained more than .maister');
+      // `.gitignore` at the root is the one deliberate exception to the write
+      // scope, and it is a line added to a file rather than a file replaced.
+      // Its sibling goes into each member's `.git/info/exclude`, which is where
+      // a dispatch worktree actually lands and so where the status goes dirty.
+      equalJson(fs.readdirSync(root).sort(), [...before, '.maister', '.gitignore'].sort(),
+        'the root gained something other than .maister and the ignore rule');
       equalJson(report.skipped.map(s => [s.path, s.reason]),
         [['knowledge/README.md', 'scaffold-not-requested'], ['CLAUDE.md', 'scaffold-not-requested']],
         'the skipped targets');
@@ -7603,6 +7608,59 @@ async function t35(ctx) {
         'the ledger index was not initialized empty');
       must(fs.readFileSync(path.join(root, '.maister/umbrella/ledger/ledger.log'), 'utf8') === '',
         'the ledger log was not initialized empty');
+    });
+
+    t.check('a scaffolded workspace ignores a dispatch worktree, in the member and at the root', () => {
+      const root = workspace('init-worktree-ignore');
+      const member = path.join(root, 'projects', 'auth');
+      // A real repository, because the claim is about what `git status` says.
+      // No commit is needed: an untracked directory shows either way.
+      fs.mkdirSync(member, { recursive: true });
+      const git = (cwd, ...args) => runBounded('git', args, { cwd, encoding: 'utf8' });
+      must(git(member, 'init', '-q', '.').status === 0, 'git init failed — the check cannot judge a status');
+      fs.writeFileSync(path.join(member, 'README.md'), '# auth\n', 'utf8');
+      must(git(member, 'add', '-A').status === 0, 'git add failed');
+      must(git(member, '-c', 'user.email=t@example.invalid', '-c', 'user.name=t',
+        'commit', '-qm', 'first').status === 0, 'git commit failed');
+      must(git(member, 'status', '--porcelain').stdout.trim() === '', 'the member started dirty');
+
+      const report = init(root, { membersRoot: null, force: false, scaffold: false });
+      must(report.ok, `init refused: ${JSON.stringify(report.errors)}`);
+      const exclude = path.join('projects', 'auth', '.git', 'info', 'exclude');
+      must(report.created.includes(exclude), `the member's exclude file is not in the created list: ${JSON.stringify(report.created)}`);
+      must(report.created.includes('.gitignore'), 'the root ignore rule is not in the created list');
+
+      // The dispatch, named exactly as the envelope names it.
+      const runId = '019260a2-1122-7c33-8d44-5e6677889900';
+      const worktree = worktreeOf({ manifest: {}, runId, node: 'dev-beta' });
+      must(worktree === '.worktrees/019260a2-1122-7c33-8d44-5e6677889900-dev-beta',
+        `the worktree is named ${worktree}, which the ignore rule does not cover`);
+      fs.mkdirSync(path.join(member, worktree), { recursive: true });
+      fs.writeFileSync(path.join(member, worktree, 'scratch.txt'), 'work\n', 'utf8');
+      equalJson(git(member, 'status', '--porcelain').stdout.trim(), '',
+        'a dispatch worktree left the member repository dirty');
+
+      // A second init adds nothing, and an operator's own content survives.
+      const bytes = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
+      const second = init(root, { membersRoot: null, force: true, scaffold: false });
+      must(second.ok, `the second init refused: ${JSON.stringify(second.errors)}`);
+      equalJson(fs.readFileSync(path.join(root, '.gitignore'), 'utf8'), bytes,
+        'a second init rewrote the ignore file');
+      must(second.preserved.includes('.gitignore'), 'the second init did not report the ignore file as preserved');
+    });
+
+    t.check('an ignore file an operator already wrote keeps every byte and gains the rule once', () => {
+      const root = workspace('init-ignore-append');
+      gitDir(root, 'projects', 'auth');
+      const own = 'node_modules/\n*.log';
+      fs.writeFileSync(path.join(root, '.gitignore'), own, 'utf8');
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+      const after = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
+      must(after.startsWith(own), `the operator's own rules were rewritten: ${JSON.stringify(after)}`);
+      // The file had no trailing newline, so the rule must not land on the end
+      // of the last line an operator wrote.
+      must(after.split('\n').filter(line => line.trim() === '.worktrees/').length === 1,
+        `the rule is not present exactly once: ${JSON.stringify(after)}`);
     });
 
     t.check('init --scaffold creates the two targets once and rewrites neither on a second run', () => {
