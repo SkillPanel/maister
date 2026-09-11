@@ -11302,6 +11302,252 @@ function t48(ctx) {
   return { checks, failures, notes };
 }
 
+// ---------------------------------------------------------------------------
+// T49 — an overlay run, and the node-id freeze the overlay contract rests on
+// ---------------------------------------------------------------------------
+
+/**
+ * The overlay route, proved twice: once by executing it, once across releases.
+ *
+ * Everything about overlays was true as a *document*. An overlay validated, it
+ * resolved, its shape was pinned and its two routes hashed. Nothing had ever
+ * run one — so the claim that a run shows an added node in the position its
+ * `needs` puts it rested on the resolver's output and on no state file at all.
+ * The last check here executes the route: resolve a built-in under an overlay,
+ * freeze it, and advance node by node through the real state writer until the
+ * added node reads `completed`, then hold the result to the run fixture
+ * checked in beside it.
+ *
+ * The first two are the freeze. The node-id set of a built-in is a public API —
+ * a rename is a deprecation carrying an alias for at least two releases —
+ * because every user overlay attaches to those ids and a rename silently
+ * unresolves all of them. Nothing enforced it. The published set is written out
+ * here, deliberately apart from `WORKFLOW_PINS`: a rename forces its author to
+ * edit those pins to get the grammar runner green again, and if the same list
+ * were also the freeze, that one edit would bless the rename. Two lists means
+ * the second edit is a decision somebody has to make on purpose.
+ *
+ * There is a cross-release arm too, and today it skips. The suite is asked to
+ * resolve the overlay fixtures against the previous released tag's definitions,
+ * but no released tag carries the engine — the built-ins landed after the
+ * newest one — so the arm reads the tag, finds no definitions, and says so in a
+ * note rather than passing silently. It starts working by itself on the first
+ * tag that ships them.
+ */
+
+/**
+ * The published node-id set of each built-in, in declaration order.
+ *
+ * Changing a line here is a deprecation, not an edit: a renamed id keeps an
+ * alias for at least two releases, and until then both spellings belong in this
+ * list. Adding a node is additive and is an ordinary change.
+ */
+const FROZEN_NODE_IDS = {
+  research: ['research-foundation', 'foundation-approval', 'optional-phases-decision', 'solution-generation',
+    'solution-convergence', 'convergence-approval', 'high-level-design', 'design-approval', 'completion'],
+  development: ['intake', 'codebase-analysis', 'gap-analysis', 'gap-approval', 'tdd-red', 'tdd-red-approval',
+    'ui-mockups', 'mockup-approval', 'specification', 'specification-approval', 'spec-audit', 'spec-audit-approval',
+    'planning', 'planning-approval', 'implementation', 'implementation-approval', 'tdd-green', 'tdd-green-approval',
+    'verification-options', 'verification', 'verification-approval', 'e2e-verification', 'e2e-approval',
+    'user-docs', 'docs-approval', 'finalization'],
+  plan: ['standards-discovery', 'plan', 'plan-approval', 'handoff'],
+};
+
+/** The run this test drives, and the fixture it must reproduce. */
+const OVERLAY_RUN_FIXTURE = path.join('synthetic', 'runs', 'research-overlaid', 'orchestrator-state.yml');
+const OVERLAY_RUN_BASE = 'research';
+const OVERLAY_RUN_OVERLAY = path.join('synthetic', 'workflow-overlay', 'research-tuned', 'research-tuned.overlay.yml');
+const OVERLAY_RUN_ADDED = 'deep-review';
+
+async function t49(ctx) {
+  const t = checker();
+  const engine = path.join(ctx.pluginRoot, ENGINE);
+  const workflows = path.join(engine, 'workflows');
+  const lib = name => pathToFileURL(path.join(engine, 'scripts', 'lib', `${name}.mjs`)).href;
+  const { readDefinition } = await import(lib('definition'));
+  const { resolve: resolveOverlaid } = await import(lib('graph'));
+  const { writeState } = await import(lib('state'));
+
+  t.check('every built-in declares the node ids the freeze publishes, and declares no fewer', () => {
+    for (const [name, frozen] of Object.entries(FROZEN_NODE_IDS)) {
+      const file = path.join(workflows, `${name}.yml`);
+      must(isFile(file), `workflows/${name}.yml is absent, so its published node ids resolve to nothing`);
+      const graph = resolveOverlaid({ definition: readDefinition(file), overlays: [], profile: null });
+      must(graph.ok, `workflows/${name}.yml does not resolve: ${JSON.stringify(graph.errors)}`);
+      const declared = new Set(graph.nodes.map(node => node.id));
+      const gone = frozen.filter(id => !declared.has(id));
+      must(gone.length === 0,
+        `builtin:${name} no longer declares ${gone.join(', ')}. The node-id set is a public API: a rename is a `
+        + 'deprecation that keeps an alias for at least two releases, so add the new id beside the old one here '
+        + 'and keep both in the definition, rather than replacing the line.');
+    }
+  });
+
+  t.check('every node id an overlay fixture names is one the freeze publishes', () => {
+    for (const overlay of OVERLAY_FIXTURES) {
+      const file = path.join(ctx.fixtures, ...overlay.split('/'));
+      must(isFile(file), `${overlay}: absent`);
+      const doc = parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS) ?? {};
+      const base = String(doc.extends ?? '').replace(/^builtin:/, '');
+      const frozen = FROZEN_NODE_IDS[base];
+      must(Array.isArray(frozen), `${overlay}: extends ${JSON.stringify(doc.extends)}, which the freeze does not cover`);
+      // Ids the overlay itself adds are its own, at every level it adds them.
+      const added = new Set();
+      const bodies = [doc, ...Object.values(doc.profiles ?? {})];
+      for (const body of bodies) for (const id of Object.keys(body?.add ?? {})) added.add(id);
+      const known = id => frozen.includes(id) || added.has(id);
+      for (const body of bodies) {
+        for (const id of (Array.isArray(body?.disable) ? body.disable : [])) {
+          must(known(id), `${overlay}: disables "${id}", which neither the freeze publishes nor the overlay adds`);
+        }
+        for (const id of Object.keys(body?.tune ?? {})) {
+          must(known(id), `${overlay}: tunes "${id}", which neither the freeze publishes nor the overlay adds`);
+        }
+        for (const node of Object.values(body?.add ?? {})) {
+          for (const need of (Array.isArray(node?.needs) ? node.needs : [])) {
+            must(known(need),
+              `${overlay}: an added node needs "${need}", which neither the freeze publishes nor the overlay adds`);
+          }
+        }
+      }
+    }
+  });
+
+  t.check('the overlay fixtures resolve against the previous released tag, where that tag ships the built-ins', () => {
+    const tags = runBounded('git', ['tag', '--list', '--sort=-v:refname'], { cwd: ctx.repoRoot, encoding: 'utf8' });
+    const previous = tags.status === 0
+      ? (String(tags.stdout ?? '').split('\n').map(line => line.trim()).filter(Boolean)[0] ?? null)
+      : null;
+    if (previous === null) {
+      t.notes.push('no released tag is readable here, so the cross-release arm did not run');
+      return;
+    }
+    const staged = tempDir('overlay-freeze');
+    let shipped = 0;
+    for (const name of Object.keys(FROZEN_NODE_IDS)) {
+      const at = `${previous}:plugins/maister/${ENGINE}/workflows/${name}.yml`;
+      const show = runBounded('git', ['show', at], { cwd: ctx.repoRoot, encoding: 'utf8' });
+      if (show.status !== 0) continue;
+      fs.writeFileSync(path.join(staged, `${name}.yml`), show.stdout, 'utf8');
+      shipped++;
+    }
+    if (shipped === 0) {
+      t.notes.push(`${previous} ships no workflow definition, so the cross-release arm did not run — `
+        + 'it starts by itself on the first tag that ships one');
+      return;
+    }
+    for (const overlay of OVERLAY_FIXTURES) {
+      const file = path.join(ctx.fixtures, ...overlay.split('/'));
+      const doc = parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS) ?? {};
+      const base = String(doc.extends ?? '').replace(/^builtin:/, '');
+      const was = path.join(staged, `${base}.yml`);
+      if (!isFile(was)) continue;
+      const graph = resolveOverlaid({
+        definition: readDefinition(was),
+        overlays: [readDefinition(file)],
+        profile: null,
+      });
+      must(graph.ok,
+        `${overlay} no longer resolves against builtin:${base} as ${previous} shipped it: ${JSON.stringify(graph.errors)}`);
+    }
+    t.notes.push(`${shipped} definition(s) from ${previous} resolved against the shipped overlays`);
+  });
+
+  t.check('an overlay-added node completes in the position its needs puts it', () => {
+    const definition = path.join(workflows, `${OVERLAY_RUN_BASE}.yml`);
+    const overlay = path.join(ctx.fixtures, OVERLAY_RUN_OVERLAY);
+    must(isFile(definition) && isFile(overlay), 'the definition or the overlay is absent');
+    const graph = resolveOverlaid({
+      definition: readDefinition(definition),
+      overlays: [readDefinition(overlay)],
+      profile: null,
+    });
+    must(graph.ok, `the overlay route does not resolve: ${JSON.stringify(graph.errors)}`);
+
+    const order = graph.nodes.map(node => node.id);
+    must(order.includes(OVERLAY_RUN_ADDED),
+      `the overlay no longer adds ${OVERLAY_RUN_ADDED} — the run would prove nothing about an added node`);
+    must(!FROZEN_NODE_IDS[OVERLAY_RUN_BASE].includes(OVERLAY_RUN_ADDED),
+      `${OVERLAY_RUN_ADDED} is a published id of the base, so a run reaching it proves nothing about an overlay`);
+
+    const state = path.join(tempDir('overlay-run'), 'orchestrator-state.yml');
+    fs.copyFileSync(path.join(ctx.fixtures, CHAIN_TEMPLATE_STATE), state);
+    const wrote = patch => {
+      const result = writeState({ state, patch });
+      must(result.ok, `the writer refused: ${JSON.stringify(result.errors)}`);
+    };
+
+    const nodes = {};
+    for (const node of graph.nodes) {
+      nodes[node.id] = { kind: node.type === 'gate' ? 'gate' : 'task', status: 'pending', needs: node.needs ?? [] };
+    }
+    wrote({
+      task: { title: 'Rate limiting for the public API', status: 'in_progress' },
+      workflow: {
+        source: `builtin:${OVERLAY_RUN_BASE}`,
+        overlays: ['.maister/workflows/research.overlay.yml'],
+        profile: 'default',
+        graph_hash: `sha256:${graph.graph_hash}`,
+        grammar_version: 1,
+        name: OVERLAY_RUN_BASE,
+        nodes,
+      },
+    });
+
+    // Advance in declaration order, which is dependency order — asserted rather
+    // than assumed, so a graph that stopped being topologically ordered fails
+    // here instead of quietly executing a node before what it needs.
+    const done = new Set();
+    for (const node of graph.nodes) {
+      for (const need of node.needs ?? []) {
+        must(done.has(need), `${node.id} was advanced before ${need} completed`);
+      }
+      wrote({ nodes: { [node.id]: { status: 'running' } } });
+      wrote({ nodes: { [node.id]: { status: 'completed' } } });
+      done.add(node.id);
+    }
+    wrote({
+      node_summaries: {
+        completion: { summary: 'Research complete; the report and the decision log are handed off.' },
+        [OVERLAY_RUN_ADDED]: {
+          summary: 'Reviewed the completed research against the questions it set out to answer.',
+          decisions: [
+            {
+              decision: 'The token-bucket recommendation stands',
+              rationale: 'the burst allowance is the requirement the alternatives drop',
+            },
+            'One open question is carried into design rather than closed here',
+          ],
+        },
+      },
+      task: { status: 'completed' },
+    });
+
+    // The claim, read back off the file rather than off the graph.
+    const lines = fs.readFileSync(state, 'utf8').split('\n');
+    const at = id => lines.findIndex(line => line.trim().startsWith(`${id}:`));
+    const self = at(OVERLAY_RUN_ADDED);
+    must(self >= 0, `the run state carries no ${OVERLAY_RUN_ADDED} entry`);
+    must(/status: completed/.test(lines[self]), `${OVERLAY_RUN_ADDED} did not complete: ${lines[self]}`);
+    const needs = /needs: \[([^\]]*)\]/.exec(lines[self])?.[1] ?? '';
+    must(needs.trim() !== '', `${OVERLAY_RUN_ADDED} lost its needs, so it is in no position at all`);
+    for (const need of needs.split(',').map(each => each.trim()).filter(Boolean)) {
+      must(at(need) >= 0 && at(need) < self, `${OVERLAY_RUN_ADDED} is written before ${need}, which its needs names`);
+    }
+    must(order.indexOf(OVERLAY_RUN_ADDED) === order.length - 1,
+      `${OVERLAY_RUN_ADDED} is not last in the frozen order: ${order.join(' -> ')}`);
+
+    // And the checked-in run is this run, so the fixture cannot drift from what
+    // driving the route produces today.
+    const clock = text => text.replace(/"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"/g, '"<at>"');
+    const region = text => clock(text.slice(text.indexOf('\nworkflow:')));
+    equalJson(region(lines.join('\n')), region(fs.readFileSync(path.join(ctx.fixtures, OVERLAY_RUN_FIXTURE), 'utf8')),
+      `${OVERLAY_RUN_FIXTURE} is not what driving the overlay route produces today`);
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -11369,6 +11615,7 @@ const TESTS = [
   { id: 'T46', name: 'extension-contract', needs: ['plugin', 'fixtures'], run: t46 },
   { id: 'T47', name: 'ticket-key-intake', needs: ['plugin', 'fixtures'], run: t47 },
   { id: 'T48', name: 'gate-scope', needs: ['plugin', 'fixtures'], run: t48 },
+  { id: 'T49', name: 'overlay-run-and-node-freeze', needs: ['plugin', 'fixtures'], run: t49 },
 ];
 
 // ---------------------------------------------------------------------------

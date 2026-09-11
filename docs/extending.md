@@ -113,6 +113,14 @@ and `add` introduces new nodes with their own `needs`. Named `profiles` let one 
 alternatives, selected by name when the graph is resolved. The result is validated as a whole, so an overlay that disables
 a node another node still needs is an error, never a silent gap.
 
+**The node ids you attach to are a public API.** An overlay names nodes of the built-in —
+in `needs`, in `disable`, in `tune` — so a rename in a built-in would unresolve every
+overlay in every project at once, silently and all on the same upgrade. Renaming one is
+therefore a deprecation, not an edit: the old id keeps working alongside the new one for
+at least two releases, which is time to move. Two rules follow for you. Attach to ids you
+can read in the built-in rather than to positions, and validate after an upgrade — a
+definition that resolves is an overlay that still applies.
+
 **An eject copies the built-in into your workspace and shadows it entirely.** Take one when the
 change is larger than an overlay expresses well — a different gate, a reordered phase — and keep in
 mind that an ejected definition no longer follows the plugin's updates to that workflow. Its prose

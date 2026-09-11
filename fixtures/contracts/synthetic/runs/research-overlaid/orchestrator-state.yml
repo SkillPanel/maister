@@ -1,0 +1,43 @@
+orchestrator:
+  started_phase: null
+  completed_phases: []
+  failed_phases: []
+  options: {html_output: true}
+  created: "2026-08-24T09:00:00Z"
+  updated: "2026-08-24T14:05:11Z"
+  task_path: ".maister/tasks/research/2026-08-24-public-api-rate-limiting"
+  driver: {kind: cockpit, cwd: /home/dev/work/repo-alpha, session: {id: 019260a2-2233-7d44-9e55-6f7788990011, name: chain-widget, provider: claude, model: claude-opus-4-6, status: running}}
+  gate_pending: null
+
+task:
+  title: "Rate limiting for the public API"
+  status: completed
+
+workflow:
+  source: "builtin:research"
+  overlays: [.maister/workflows/research.overlay.yml]
+  profile: default
+  graph_hash: "sha256:47f78ff9e971ee66d0cc932870ff890727030b255f11cd5d3af8d01c432e2c5c"
+  grammar_version: 1
+  name: research
+  nodes:
+    research-foundation: {kind: task, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: []}
+    foundation-approval: {kind: gate, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [research-foundation]}
+    optional-phases-decision: {kind: task, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [foundation-approval]}
+    solution-generation: {kind: task, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [optional-phases-decision]}
+    solution-convergence: {kind: task, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [solution-generation]}
+    convergence-approval: {kind: gate, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [solution-convergence]}
+    high-level-design: {kind: task, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [convergence-approval]}
+    design-approval: {kind: gate, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [high-level-design]}
+    completion: {kind: task, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [design-approval]}
+    deep-review: {kind: task, status: completed, started: "2026-08-24T14:05:11Z", completed: "2026-08-24T14:05:11Z", needs: [completion]}
+
+node_summaries:
+  completion:
+    summary: Research complete; the report and the decision log are handed off.
+  deep-review:
+    summary: Reviewed the completed research against the questions it set out to answer.
+    decisions:
+      - decision: The token-bucket recommendation stands
+        rationale: the burst allowance is the requirement the alternatives drop
+      - One open question is carried into design rather than closed here

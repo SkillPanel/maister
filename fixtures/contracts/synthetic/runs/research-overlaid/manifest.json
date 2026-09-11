@@ -1,0 +1,22 @@
+{
+  "id": "research-overlaid",
+  "contracts": [
+    "A1",
+    "B1",
+    "B2",
+    "B3"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": "2.3.0-beta.12",
+  "sampled_at": "2026-09-11T00:00:00Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "notes": "A run of a built-in under an overlay, driven through the state writer rather than written by hand: the graph is resolved from the shipped research workflow plus the research-tuned overlay, frozen, and then advanced one node at a time to completion. It exists because the overlay route had never been executed - the overlay was validated, resolved and hash-pinned as a document, so the claim that a run shows an added node rested on the resolver's output and on no state file at all. deep-review is the node the overlay adds; it is completed, and it sits last, after the completion node its needs names. workflow.overlays records the overlay the run was frozen with, and graph_hash is the overlay route's own pinned hash, so a rename in the built-in moves the hash and this file stops agreeing with the definition it names."
+}
