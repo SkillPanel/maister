@@ -16,8 +16,8 @@
  * `workflow:` target may come from a workspace eject, and a `skill:` or
  * `agent:` target from a plugin installed later or a project this definition
  * is not being validated in, so all three warn when the name is found nowhere
- * — for a skill or an agent, nowhere in the project, this plugin or any
- * installed plugin (`RESOLUTION_ORDER`). The trade-off the relaxation buys
+ * — for a skill or an agent, nowhere in the project, the operator's own
+ * directories, this plugin or any installed plugin (`RESOLUTION_ORDER`). The trade-off the relaxation buys
  * is that a typo in a skill or agent name is no longer caught by `validate`; it
  * surfaces at run time instead, when the node it names is reached. Decidable
  * checks on those names stay errors regardless of whether the target exists:
@@ -92,6 +92,7 @@ export const TARGET_REF = /^(?:[a-z][a-z0-9-]*:)?[a-z][a-z0-9-]*$/;
  * can be checked against the order the code actually applies.
  *
  *   project    the consumer project's own `.claude/` and `.github/` trees
+ *   user       the operator's own skills and agents, under each host's home
  *   plugin     this plugin's root
  *   installed  every other plugin installed on the machine
  *
@@ -99,7 +100,7 @@ export const TARGET_REF = /^(?:[a-z][a-z0-9-]*:)?[a-z][a-z0-9-]*$/;
  * namespace is this plugin's own name, otherwise the installed plugin of that
  * name — and never the project.
  */
-export const RESOLUTION_ORDER = ['project', 'plugin', 'installed'];
+export const RESOLUTION_ORDER = ['project', 'user', 'plugin', 'installed'];
 
 /**
  * The prefix a built-in workflow is named with. Both `builtin:<name>` and a bare
@@ -392,6 +393,22 @@ function claudeConfigDir() {
   return declared ? path.resolve(declared) : path.join(os.homedir(), '.claude');
 }
 
+/**
+ * The operator's own skill and agent directories, one per host, both swept
+ * whatever host is running - for the same reason the project's two layouts are.
+ *
+ * They sit between the project and this plugin because that is where the hosts
+ * themselves put them, and the engine does not perform the lookup that finally
+ * runs a target: it hands a `skill:` target to the host's Skill tool by name,
+ * and the host resolves it. Searching them after the plugin would mean reading
+ * a skill's `driver_aware:` declaration off the plugin's copy while the host
+ * executed the operator's - the validator judging one file and the run
+ * executing another. Second place makes the two answers one answer.
+ */
+function userHomes() {
+  return [claudeConfigDir(), path.join(os.homedir(), '.copilot')];
+}
+
 /** This plugin's own name, read off its manifest; null when the root has none. */
 function pluginName(root) {
   try {
@@ -524,9 +541,10 @@ function splitTarget(written) {
 
 /**
  * Find the file behind a `skill:` or `agent:` target, searching the project,
- * then this plugin, then the installed plugins — `RESOLUTION_ORDER` — and
- * returning `{at, from}` for the first hit, or null when the name is found
- * nowhere. `from` is one of the three words in that list.
+ * then the operator's own directories, then this plugin, then the installed
+ * plugins — `RESOLUTION_ORDER` — and returning `{at, from}` for the first hit,
+ * or null when the name is found nowhere. `from` is one of the words in that
+ * list.
  *
  * A namespaced target — `acme-tools:review` — is looked for only in the plugin
  * it names: this one when the namespace is this plugin's own name, else the
@@ -560,6 +578,7 @@ export function locateTarget(scheme, written, { project = null } = {}) {
   }
 
   return hit(project ?? projectRoot(), 'project', true)
+    ?? userHomes().reduce((found, home) => found ?? hit(home, 'user', false), null)
     ?? hit(self, 'plugin', false)
     ?? installedPlugins(self).reduce((found, plugin) => found ?? hit(plugin.root, 'installed', false), null);
 }

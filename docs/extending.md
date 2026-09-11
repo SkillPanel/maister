@@ -57,21 +57,28 @@ hand: describe the work to `/maister:chain-planner` and review what it writes.
 ## Your own skills and agents as nodes
 
 A node that reads `uses: skill:review` or `uses: agent:inspector` names a skill or an agent by
-its bare name, and the engine looks for the file behind that name in three places.
+its bare name, and the engine looks for the file behind that name in four places.
 
-**Resolution order:** the project first, then this plugin, then the installed plugins — the first
-hit wins.
+**Resolution order:** the project first, then your own, then this plugin, then the installed plugins — the first hit wins.
 
 | Place | Skills | Agents |
 |---|---|---|
 | The project | `.claude/skills/<name>/SKILL.md`, or `.github/skills/<name>/SKILL.md` | `.claude/agents/<name>.md`, or `.github/agents/<name>.md` (also `<name>.agent.md`) |
+| Your own | `~/.claude/skills/<name>/SKILL.md`, or `~/.copilot/skills/<name>/SKILL.md` | `~/.claude/agents/<name>.md`, or `~/.copilot/agents/<name>.md` (also `<name>.agent.md`) |
 | This plugin | its `skills/<name>/SKILL.md` | its `agents/<name>.md` |
 | Installed plugins | `skills/<name>/SKILL.md` under each install | `agents/<name>.md` under each install |
 
 The project is whatever the host declares as the project directory, or the directory the workflow
 is run from; in a workspace it is the workspace root, so a skill kept beside your chain files is
 found first. Both hosts' layouts are searched whatever host is running, so a project opened under
-Claude Code and under Copilot CLI resolves the same names. Installed plugins are found through each
+Claude Code and under Copilot CLI resolves the same names.
+
+Your own directories sit above this plugin deliberately. The engine does not perform the lookup
+that finally runs a target — it hands the name to the host, and the host resolves it, putting your
+own skills ahead of a plugin's. Searching them later here would mean this engine reading a skill's
+declaration off one file while the host ran another. So a skill of yours named like one of this
+plugin's replaces it everywhere a definition names it bare, which is the point; name the plugin
+explicitly, as below, where you mean the plugin's. Installed plugins are found through each
 host's own install tree — Claude Code's plugin cache and its index of installs, Copilot CLI's
 installed-plugins directory — so a skill from any plugin you have installed is a legal target.
 
@@ -87,8 +94,8 @@ anything else, including a path, is refused as an error rather than warned about
 chain will run in may still provide the name — a plugin installed later, a project the file is not
 being validated in. The cost is that a typo surfaces when the node is reached rather than at
 validation, so read the warnings. To see what *did* resolve, and where, read the report's `resolved`
-list: one entry per target, naming the node, the target as written, which of the three places
-answered (`project`, `plugin` or `installed`) and the file it found. A skill you meant to come from
+list: one entry per target, naming the node, the target as written, which of the four places
+answered (`project`, `user`, `plugin` or `installed`) and the file it found. A skill you meant to come from
 your project that shows up as `plugin` is the shadowing case caught early.
 
 **How the node runs.** The engine hands a `skill:` target to the host's Skill tool and an `agent:`

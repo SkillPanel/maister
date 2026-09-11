@@ -1,7 +1,10 @@
 # A definition whose targets come from every place the resolution order
 # searches: the project's own skills and agents under .claude/ and .github/,
-# the plugin root, the installed plugins of both hosts - by namespace where the
-# author says which plugin they mean - and two names found nowhere. The suite
+# the operator's own skills and agents under each host's home, the plugin root,
+# the installed plugins of both hosts - by namespace where the author says which
+# plugin they mean - and two names found nowhere. One node deliberately names a
+# skill this plugin also ships, so what is pinned is the place that answers
+# rather than the name. The suite
 # stages this tree as a project and a home directory and pins, per node, where
 # each target resolved; the two unresolved ones are the pinned warning set.
 name: extension
@@ -42,6 +45,15 @@ nodes:
     needs: [review]
   agent-packaged:
     uses: agent:acme-tools:inspector
+    needs: [review]
+  personal:
+    uses: skill:personal-review
+    needs: [review]
+  outranks-plugin:
+    uses: skill:quick-bugfix
+    needs: [review]
+  agent-personal:
+    uses: agent:personal-agent
     needs: [review]
   missing:
     uses: skill:nowhere-at-all

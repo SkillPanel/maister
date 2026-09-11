@@ -10865,7 +10865,8 @@ function t45(ctx) {
  * against a staged environment rather than against this machine.
  *
  * **Resolution.** A `skill:` or `agent:` target is looked for in the project,
- * then in this plugin, then in every installed plugin, first hit winning — the
+ * then in the operator's own directories under each host's home, then in this
+ * plugin, then in every installed plugin, first hit winning — the
  * `RESOLUTION_ORDER` the graph module exports — and a namespaced target is
  * looked for only in the plugin it names. The fixture is a whole environment:
  * a project carrying skills and agents under both hosts' layouts, and a home
@@ -10905,7 +10906,9 @@ const EXTENSION_POINTS = [
   'Overlays and eject over the built-ins',
 ];
 /** The words the guide's one resolution-order sentence must carry, per place. */
-const RESOLUTION_WORDS = { project: 'project', plugin: 'this plugin', installed: 'installed plugins' };
+const RESOLUTION_WORDS = {
+  project: 'project', user: 'your own', plugin: 'this plugin', installed: 'installed plugins',
+};
 /** What a driver-aware skill must do, as the guide has to spell it. */
 const DRIVER_AWARE_DUTIES = [/driver\.kind/, /cockpit/, /dispatch/, /`gate-request`/, /`write-state`/];
 /** The closed shapes the guide must say need a contract change. */
@@ -10927,6 +10930,14 @@ const RESOLVED_PINS = {
   'agent-local': ['project', 'project/.claude/agents/local-agent.md'],
   'agent-copilot': ['project', 'project/.github/agents/copilot-agent.agent.md'],
   'agent-packaged': ['installed', 'acme-tools/1.0.0/agents/inspector.md'],
+  // The operator's own place, and the two things worth pinning about it: that a
+  // name only they provide resolves there at all, and that a name this plugin
+  // also ships resolves to theirs rather than to the plugin's. The second is
+  // the whole of the precedence decision — without it the place could sit
+  // anywhere in the order and the fixture would look identical.
+  personal: ['user', 'home/.claude/skills/personal-review/SKILL.md'],
+  'outranks-plugin': ['user', 'home/.claude/skills/quick-bugfix/SKILL.md'],
+  'agent-personal': ['user', 'home/.copilot/agents/personal-agent.md'],
 };
 
 async function t46(ctx) {
@@ -10989,7 +11000,7 @@ async function t46(ctx) {
   };
   const suffix = (file) => file.split(path.sep).join('/');
 
-  t.check('the exported resolution order is the three documented places, in order', () => {
+  t.check('the exported resolution order is the documented places, in order', () => {
     equalJson(RESOLUTION_ORDER, Object.keys(RESOLUTION_WORDS), 'RESOLUTION_ORDER');
     equalJson(['review', 'acme-tools:review', 'a:b:c', 'Bad', 'a/b', '../x', ':x', 'x:'].map((name) => TARGET_REF.test(name)),
       [true, true, false, false, false, false, false, false], 'TARGET_REF admits one namespace and nothing else');
