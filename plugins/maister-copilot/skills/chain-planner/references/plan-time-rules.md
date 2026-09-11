@@ -42,7 +42,7 @@ stops.
 
 ---
 
-## 2. Four rules no prose a planner reads carries
+## 2. Five rules no prose a planner reads carries
 
 ### 2.1 The `when:` form: exactly one reference, optionally negated
 
@@ -114,7 +114,33 @@ in the definition schema — `options` under `$defs/node` in
 sentence a planner reads while drafting a gate, which is precisely why drafts
 fail on it.
 
-### 2.3 Value-output names are `[a-z_]+`
+### 2.3 A gate's summary is serialized like a state value, so it is one line
+
+A gate's `ask` is frozen into the graph hash, so it cannot say anything that
+depends on the run: whatever the run worked out - which member was selected, how
+many checks failed, which route is about to be taken - reaches the operator only
+through the **summary** the suspending call carries.
+
+That summary goes through the same canonical serializer as a state write. It
+refuses a quote, a newline or a carriage return outright (`value-not-flow-safe`)
+rather than escaping them, and it refuses **the whole call**: the request file is
+not written, the marker is not set, and the run keeps going instead of
+suspending. There is no partial gate.
+
+A multi-line summary template is the natural thing to draft - a heading, then a
+bullet per finding - and it is the shape that fails. One chain shipped exactly
+that and found it only by running the recipe against the runtime. So:
+
+- One line, no quotes, no newlines. Separate findings with a dash or a
+  semicolon, not a line break.
+- Say the numbers rather than laying them out. `3 of 7 checks failed; docs-site
+  untouched` is a summary; a table is not.
+- Long is worse than terse, but long is not what breaks it. A quote breaks it.
+
+Section 3.3 is the same rule for per-run text reaching a worker, for the same
+reason and through the same emitter.
+
+### 2.4 Value-output names are `[a-z_]+`
 
 Node ids are hyphenated (`NODE_ID` in `graph.mjs`, and `$defs/node_id` in
 `common.schema.json`). Value output names are **not**: they are lowercase letters
@@ -139,7 +165,7 @@ Artifact names are free-form and only checked for existence when something
 interpolates them (`checkInterpolations` in `graph.mjs`, through
 `referenceProblem`).
 
-### 2.4 A node id that is a reserved word warns
+### 2.5 A node id that is a reserved word warns
 
 Reserved keys match by **dotted-path suffix** (`RESERVED_PATHS` and
 `scanReserved` in `graph.mjs`).
@@ -355,6 +381,21 @@ stops at a gate asking about work it did not do. This is the rule most worth
 checking twice before publishing, because a review of the definition reads
 correctly — the mistake only appears in a run.
 
+**One deliberate exception, and it has to be written down.** Sometimes the gate
+asking about work that did not happen is the point: a routing gate whose whole
+job is to report which way the run went should fire on the no-target route too,
+or a chain that selected nothing ends silently and the operator never learns it
+selected nothing. An unguarded closing gate is the only way to say that — the
+grammar has no way to write "always ask, even when the stretch was skipped" — so
+a chain that needs it leaves the guard off on purpose and **says so in the prose
+companion, in that node's own section**. Without the sentence the definition is
+indistinguishable from the mistake above, and the next reader corrects it.
+
+Note what the gate can then show: a skipped node contributes no artifact, so the
+request lists one fewer than a full run would, and the summary (2.3) is where the
+run says a no-target route was taken. A grammar that could express the intent
+directly is a contract change, not something a chain can ask for today.
+
 ### 4.2 Prose sections are keyed by exact heading equality
 
 An inline node's step text lives in the companion `.md` beside the definition,
@@ -518,19 +559,21 @@ you. Run it against the draft before publishing.
    than an input? (2.1, 4.4)
 2. Are gate options a **map**, with exactly one `continue` and at least one
    `stop`? (2.2)
-3. Are value names `[a-z_]+` and node ids hyphenated? (2.3)
-4. Is any node named after a reserved word? (2.4)
-5. Does every `dir:` node name a declared member, a driver-capable target, and
+3. Is every gate summary one line, with no quote and no newline in it? (2.3)
+4. Are value names `[a-z_]+` and node ids hyphenated? (2.4)
+5. Is any node named after a reserved word? (2.5)
+6. Does every `dir:` node name a declared member, a driver-capable target, and
    its own `provider:` — and does its autonomy tier resolve somewhere along the
    node/member/`defaults` chain? (3.1, 3.5)
-6. Does any `with:` value contain `${`? If so, it will vanish. (3.2)
-7. Is the per-run text carried by the statement, on one short physical line, and
+7. Does any `with:` value contain `${`? If so, it will vanish. (3.2)
+8. Is the per-run text carried by the statement, on one short physical line, and
    is the `with:` map small enough that a wide wave still renders inside the
    seed's line budget? (3.3, 3.4)
-8. Does the guard repeat on every node of each conditional stretch, the closing
-   gate included? (4.1)
-9. Does the companion carry one heading per inline node, equal to the node id?
-   (4.2)
-10. Is every `string` value output genuinely open-ended? (4.3)
-11. Does the definition stay inside the reader's subset — no block scalars, no
+9. Does the guard repeat on every node of each conditional stretch, the closing
+   gate included — or, where a gate is deliberately unguarded so that a skipped
+   stretch is still reported, does the companion say so? (4.1)
+10. Does the companion carry one heading per inline node, equal to the node id?
+    (4.2)
+11. Is every `string` value output genuinely open-ended? (4.3)
+12. Does the definition stay inside the reader's subset — no block scalars, no
     anchors? (5)

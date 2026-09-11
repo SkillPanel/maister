@@ -9619,6 +9619,41 @@ async function t38(ctx) {
         'a node the frozen graph does not carry was accepted');
     });
 
+    // A gate's question is frozen into the graph hash, so anything a run worked
+    // out reaches the operator only through the summary - and the summary goes
+    // through the same canonical emitter as a state value, which refuses a
+    // quote, a newline or a carriage return rather than escaping them. The
+    // natural draft of a summary is multi-line, a heading and a bullet per
+    // finding, and it is refused whole: no request file, no index, no marker,
+    // and the run carries on instead of suspending. One chain shipped exactly
+    // that and caught it only by executing the recipe against the runtime.
+    t.check('a summary the canonical emitter refuses takes the whole suspend with it', () => {
+      const REFUSED_SUMMARIES = {
+        'a multi-line template': 'Checks run:\n- docs-site affected\n- api unchanged',
+        'a quoted phrase': 'The survey found "docs_affected" true for one member.',
+        'a carriage return': 'One member selected.\rNone skipped.',
+      };
+      for (const [name, summary] of Object.entries(REFUSED_SUMMARIES)) {
+        const dir = runDir(GATE_RUNNING_FIXTURE);
+        const file = stateOf(dir);
+        const before = read(file);
+        const request = same();
+        request.context.summary = summary;
+
+        const result = gateRequest({ state: file, request });
+        must(result.ok === false, `${name}: the suspend was accepted, so an unemittable summary reached a state file`);
+        must(/value-not-flow-safe|flow/i.test(JSON.stringify(result.errors)),
+          `${name}: refused, but not as a flow-safety problem — ${JSON.stringify(result.errors)}`);
+
+        // The whole call, not part of it. A request file with no marker leaves
+        // the gate unaskable; a marker with no request file wedges the run.
+        must(!isDir(path.join(dir, 'gates')) || !isFile(path.join(dir, 'gates', 'approve.request.yml')),
+          `${name}: the request file was written by a refused call`);
+        must(read(file) === before, `${name}: the refused call still changed the state file`);
+        must(scanState(read(file)).gatePending === null, `${name}: a refused call left a pending marker`);
+      }
+    });
+
     t.check('a re-issue that finds its own unanswered request file finishes the suspend instead of refusing', () => {
       // The window a kill between the request file and the marker leaves. There
       // is no shell to clear the file with — the run is already pending on rule
