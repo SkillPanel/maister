@@ -47,6 +47,34 @@ Applies when editing skills, agents, commands, hooks, or references under `plugi
 - **Agent**: `agents/<name>.md` with `name`, `description`, `tools` frontmatter. Read-only unless it must write. If it truly needs destructive Bash, add it to the `case` whitelist in `hooks/block-destructive-commands.sh` — default is *not* whitelisted.
 - **Hook**: script alongside `hooks/hooks.json`, registered there with a `${CLAUDE_PLUGIN_ROOT}`-anchored path. Node hooks (`*.mjs`) use the exec form — `command: node` with the script path in `args` — so nothing depends on a shebang or an executable bit. Shell hooks (`*.sh`) are invoked as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/<name>.sh"` for the same reason. The Copilot variant does not inherit `hooks.json`: its hook configs are authored under `platforms/copilot-cli/hooks/` and emitted by the build.
 
+## Adding a refusal to the umbrella runtime
+
+A refusal is a closed set with four carriers, and the suite checks all four. Add one and you
+meet them as a red suite unless you know them in advance, so here they are:
+
+1. **A raise site in the source.** `throw new Refusal('<code>', '<message>')` somewhere under
+   `skills/umbrella/scripts/lib/`. The suite sweeps those files for the codes they manufacture
+   and holds that set equal to its own list, in both directions — so a code cannot escape the
+   list by being added only to the code, and the list cannot name a code nothing raises.
+2. **An entry in that list.** The runtime test's refusal list is the register; a new code goes
+   in it.
+3. **A recovery row in the shipped skill**, in the refusal table for its subsystem, with a
+   minimum length — a recovery too short to tell an operator what to do is not a recovery. A
+   code raised *after* its mutation has already been published owes more: its row must say the
+   entry landed, so nobody re-issues the op and applies the change twice.
+4. **A live provocation.** The runtime test must actually make the runtime raise it, through
+   the real writers, and record that it did. A code that cannot be provoked portably is listed
+   as platform-gated with the reason and reported as a note — never silently dropped.
+
+**The fifth carrier is prose only, and no check reads it.** Each module header lists the codes
+that module owns. One entry there is raised by the shared value emitter rather than by the
+module, and is named in the list without ever being thrown or caught locally; the sibling case
+is a dispatch refusal whose message is composed for an operator reading a validation report
+rather than quoted as a code. Keep those lists true by hand — nothing will tell you.
+
+The message is user-facing text, so it follows the prose rules above: say what happened, what
+landed, and what to do, not which function raised it.
+
 ## Delegation (skills that orchestrate)
 
 Skill tool for skills, Task tool for agents — never a skill via Task (`subagent_type` will fail). Skills that spawn subagents must run in the main agent. The companion-agent pattern (e.g. `docs-operator` preloading `docs-manager`) works only for skills that spawn **no** subagents. Canonical: `orchestrator-patterns.md` § 1.

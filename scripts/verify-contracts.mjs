@@ -7495,6 +7495,27 @@ const SEED_FIXTURE_STEMS = ['', 'workflow-target.', 'workflow-target-development
  */
 const SEED_TIER_EXEMPT = new Map([['auto-medium', 'auto-low']]);
 
+/** Where a contributor adding a refusal reads what it owes, and the section that says so. */
+const AUTHORING_RULES_REL = '.claude/rules/plugin-authoring.md';
+const REFUSAL_RULES_HEADING = '## Adding a refusal to the umbrella runtime';
+
+/**
+ * What that section has to say, one entry per carrier this file enforces. The
+ * patterns are deliberately about the obligation rather than about wording, so
+ * the section can be rewritten without the check becoming a spelling test - but
+ * a carrier dropped from the prose fails, which is the drift worth catching.
+ */
+const REFUSAL_OBLIGATIONS = [
+  ['a raise site in the runtime source', /raise site/i],
+  ['that the code is swept out of the source and matched both ways', /both directions/i],
+  ['an entry in the closed list', /list/i],
+  ['a recovery row in the shipped skill', /recovery row/i],
+  ['that a post-publish recovery says the mutation landed', /re-issue|landed/i],
+  ['a live provocation through the real writers', /provocation|provoke/i],
+  ['that an unprovokable code is platform-gated with a reason, never dropped', /platform-gated/i],
+  ['the fifth carrier that no check reads', /prose only|no check reads/i],
+];
+
 /**
  * Every refusal the umbrella runtime names. The set is closed by design — the
  * SKILL documents a recovery for each — so the test asserts coverage of the
@@ -8598,7 +8619,27 @@ workflow:
       }
     });
 
-    t.check('the golden seed fixture is the descriptor renderSeed turns into the golden prompt', () => {
+      // The four obligations, written down where someone adding a refusal reads
+    // them. Every one of them is enforced by a check in this file, and until
+    // now the only way to learn them was to add a refusal and watch the suite
+    // go red in four places - a contract discoverable exclusively by violating
+    // it. The document is held to the machinery so the two cannot drift: it has
+    // to name each carrier, and it has to admit the fifth, which no check reads.
+    t.check('the authoring rules state the four obligations a new refusal carries', () => {
+      const rules = path.join(ctx.repoRoot, AUTHORING_RULES_REL);
+      must(isFile(rules), `${AUTHORING_RULES_REL}: absent — the refusal obligations are written down nowhere`);
+      const text = fs.readFileSync(rules, 'utf8');
+      const heading = text.indexOf(REFUSAL_RULES_HEADING);
+      must(heading >= 0, `${AUTHORING_RULES_REL}: there is no ${REFUSAL_RULES_HEADING} section`);
+      const rest = text.slice(heading + REFUSAL_RULES_HEADING.length);
+      const next = rest.search(/\n## /);
+      const section = next < 0 ? rest : rest.slice(0, next);
+      for (const [what, pattern] of REFUSAL_OBLIGATIONS) {
+        must(pattern.test(section), `${AUTHORING_RULES_REL}: the section never states ${what}`);
+      }
+    });
+
+  t.check('the golden seed fixture is the descriptor renderSeed turns into the golden prompt', () => {
       const dir = path.join(ctx.fixtures, SEED_FIXTURE_DIR);
       // The unprefixed stem is a `skill:` target and the two `workflow-target`
       // stems are `workflow:` ones, for two different definitions. What the
