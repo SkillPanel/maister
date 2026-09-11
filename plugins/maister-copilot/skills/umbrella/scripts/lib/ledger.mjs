@@ -339,18 +339,14 @@ function loggedCreations(p) {
  * one-line flow maps, `constraints` and `followups` as one-line flow sequences
  * of flow maps, `closeout` as a block map whose values are flow.
  *
- * **Why the sequences are not block sequences of flow maps**, which is how the
- * frozen fixture `synthetic/ledger-entry/d-0142.yml` spells them. Step 2 of the
+ * **Why the sequences are one-line flow sequences**, which is not how the frozen
+ * fixture `synthetic/ledger-entry/d-0142.yml` spells them. Step 2 of the
  * mutating sequence reads the entry back with the engine's `readDefinition`,
- * and that reader refuses a mapping opened on a sequence dash — a guard whose
- * `ENTRY` test also matches a *flow* map on a dash, so `- {kind: merge_after}`
- * is rejected along with `- kind: merge_after`. An entry emitted in the
- * fixture's spelling would therefore be unreadable by the very library that
- * wrote it, and the second op against it would refuse
- * `ledger-entry-unreadable`. A read-mutate-write loop that cannot read its own
- * output is not a style question, so the emission takes the spelling both
- * halves agree on. The fixture is unchanged and still valid C3; reconciling the
- * two is a reader change in `definition.mjs`, which this module does not own.
+ * so the emission has to be a shape that reader accepts. It once accepted
+ * neither spelling on a dash, which is why this one was chosen; the reader has
+ * since been widened and reads both, so the choice is now a style one and is
+ * kept because a one-line entry diffs as one changed line. The fixture is
+ * unchanged, still valid C3, and now reads back through the same reader.
  *
  * The key order is fixed here rather than taken from the object, so an entry
  * rewritten by the daemon and one rewritten by the engine are the same document

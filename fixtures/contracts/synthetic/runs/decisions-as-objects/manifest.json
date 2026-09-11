@@ -1,0 +1,21 @@
+{
+  "id": "decisions-as-objects",
+  "contracts": [
+    "A1",
+    "B2",
+    "B3"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": "2.3.0-beta.12",
+  "sampled_at": "2026-09-11T00:00:00Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "notes": "Emitted by the state writer rather than written by hand, which is the point of it. A node summary's decisions list carries both frozen object shapes and a bare string, and the writer spells an object entry as a block mapping opened on a sequence dash. That construct was legal to the schema, emitted by the writer and refused by the definition reader the rest of the runtime reads state through, so a run's summaries were unreadable to the collision guard that has to know which chain a run names. Both halves round-trip it now, and the suite reads this file through the writer's reader, the runtime's reader and a real YAML parser, holding the three to the same document."
+}

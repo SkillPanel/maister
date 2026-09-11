@@ -43,8 +43,35 @@ const ENTRY = /^("(?:[^"\\]|\\.)*"|'(?:[^'])*'|[^:#]+?)\s*:(?:\s+(.*))?$/;
 /** A block sequence entry, in both its inline and its nested-block forms. */
 const SEQUENCE_ENTRY = /^-(?:\s+(.*))?$/;
 
-/** A value that opens a flow collection, and so is one inline value, not a block. */
-const OPENS_FLOW = /^[[{]/;
+/**
+ * The two forms of a mapping key at the start of a sequence entry's own text.
+ *
+ * They exist because `ENTRY` cannot be asked this question. Its bare-key branch
+ * is `[^:#]+?`, which happily matches *inside* a double-quoted scalar, so
+ * `- "The work: add the column"` reads as a key `"The work` — a prose line
+ * turned into a one-entry mapping, or, before the dash form was accepted at
+ * all, a refusal on an ordinary quoted string. The quoted branch is tested only
+ * when the text actually opens with a quote, and the bare branch only when it
+ * opens with none, so a colon inside a scalar can never be mistaken for the
+ * separator.
+ */
+const QUOTED_KEY = /^("(?:[^"\\]|\\.)*"|'(?:[^'])*')\s*:(?:\s|$)/;
+const BARE_KEY = /^[^:#"'\s][^:#]*?\s*:(?:\s|$)/;
+
+/**
+ * Whether a sequence entry's text opens a block mapping on the dash, rather
+ * than carrying one inline value. Everything that introduces a scalar or a flow
+ * collection answers false here and is read by `parseInline`, which is also
+ * where each construct outside the subset raises its own named error — so this
+ * predicate never has to reject anything, only classify.
+ */
+function opensBlockMap(rest) {
+  if (rest === undefined) return false;
+  const first = rest[0];
+  if (first === '{' || first === '[' || first === '&' || first === '*'
+    || first === '!' || first === '|' || first === '>') return false;
+  return (first === '"' || first === "'") ? QUOTED_KEY.test(rest) : BARE_KEY.test(rest);
+}
 
 // ---------------------------------------------------------------------------
 // entry points
@@ -207,18 +234,29 @@ function parseSequence(cursor, indent, path) {
     const entry = SEQUENCE_ENTRY.exec(line.body);
     if (!entry) break;
     const child = `${path}.${list.length}`;
-    // A *block* mapping opened on the dash line is legal YAML and is deliberately
-    // not accepted: admitting it would mean carrying a second indentation rule
-    // for the sake of a shape no definition uses. Rejecting is the honest
-    // answer, not a silent misread.
+    // A *block* mapping opened on the dash line — `- decision: …` with the rest
+    // of its keys beneath — carries the one indentation rule the rest of this
+    // reader does not need: the mapping's column is the dash's, plus whatever
+    // separated the dash from the first key. It is accepted because the
+    // documents this reader is pointed at use it. The state writer emits it for
+    // every object in a list, and four shipped fixture families are written in
+    // it; refusing meant one half of the runtime wrote documents the other half
+    // could not read, and the collision guard that reads run state could not
+    // tell which chain an unreadable run named.
     //
     // A *flow* collection on the dash — `- {kind: merge_after, ref: d-0139}` —
     // is a different shape entirely: one inline value, no second indentation
-    // rule, and `parseInline` already reads it. It has to be excluded from the
-    // guard explicitly because `ENTRY`'s `[^:#]+?` branch matches the braces
-    // too, so the guard rejected shipped frozen fixtures that spell it this way.
-    if (entry[1] !== undefined && !OPENS_FLOW.test(entry[1]) && ENTRY.test(entry[1])) {
-      throw new SubsetError(child, line.number, 'a mapping opened on a sequence dash is outside the accepted subset');
+    // rule, and `parseInline` already reads it. So is a quoted scalar that
+    // happens to carry a colon, which is why the classification goes through
+    // `opensBlockMap` rather than through `ENTRY`.
+    if (opensBlockMap(entry[1])) {
+      const column = line.indent + (line.body.length - entry[1].length);
+      // The dash line is rewritten as the mapping's own first line and handed
+      // to `parseMap` at that column, so duplicate-key detection and every
+      // other mapping rule apply to it exactly as they do anywhere else.
+      cursor.lines[cursor.at] = { number: line.number, indent: column, body: entry[1] };
+      list.push(parseMap(cursor, column, child));
+      continue;
     }
     cursor.at++;
     list.push(parseValue(cursor, indent, child, entry[1], line));

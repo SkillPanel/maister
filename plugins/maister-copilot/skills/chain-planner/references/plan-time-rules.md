@@ -450,9 +450,10 @@ publishing:
 ## 5. The reader accepts a subset of YAML
 
 The definition reader is a small hand-written subset, not a full YAML parser. It
-takes block maps and sequences, flow maps and sequences **closed on one line**,
-single- and double-quoted scalars, bare scalars, comments, and the usual
-scalars — `null`, `~`, `true`, `false`, numbers.
+takes block maps and sequences — including a block mapping opened on a sequence
+dash — flow maps and sequences **closed on one line**, single- and
+double-quoted scalars, bare scalars, comments, and the usual scalars — `null`,
+`~`, `true`, `false`, numbers.
 
 Everything else stops the read with one located error. The refusals a planner is
 most likely to author:
@@ -465,8 +466,6 @@ most likely to author:
 - **multi-document markers** and a document not starting at column 0;
 - **tags**, a duplicate key in one mapping, a multi-line quoted scalar, a flow
   collection left open across lines;
-- **a block mapping opened on a sequence dash** — `- key: value` is refused,
-  while a flow map on the dash is fine;
 - **tabs in indentation**, and any escape outside `\n \t \r \\ \" \/` — there is
   no `\uXXXX`.
 

@@ -4666,6 +4666,14 @@ async function t29(ctx) {
 // ---------------------------------------------------------------------------
 
 const CHAIN_TEMPLATE_STATE = path.join('synthetic', 'gate', 'chain-template', 'orchestrator-state.yml');
+/**
+ * A state the writer itself emitted, carrying all three frozen decision shapes
+ * — the two object forms and a bare string. It is checked in rather than only
+ * emitted here so the spelling outlives a build that stops producing it, and
+ * because the reader that used to refuse it is the one the umbrella reads run
+ * state through.
+ */
+const OBJECT_DECISION_STATE = path.join('synthetic', 'runs', 'decisions-as-objects', 'orchestrator-state.yml');
 const WIDE_INDENT_STATE_FILE = path.join(WIDE_INDENT_STATE, 'orchestrator-state.yml');
 
 /** A flow-map position tolerates none of these, and the writer must say so. */
@@ -4730,6 +4738,7 @@ async function t30(ctx) {
   // `gate-lib.mjs` is the acceptance oracle: the writer is the inverse of the
   // reader a consumer's hook actually runs, so the reader judges the writer.
   const { writeState } = await import(pathToFileURL(path.join(engine, 'scripts', 'lib', 'state.mjs')).href);
+  const { parseDefinition } = await import(pathToFileURL(path.join(engine, 'scripts', 'lib', 'definition.mjs')).href);
   const { scanState } = await import(pathToFileURL(path.join(ctx.pluginRoot, GATE_LIB)).href);
 
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-contracts-state-'));
@@ -4846,7 +4855,22 @@ async function t30(ctx) {
           'foundation-approval': { kind: 'gate', status: 'pending', needs: ['research-foundation'] },
         },
       },
-      node_summaries: { 'research-foundation': { summary: 'a prose line', artifacts: { report: 'a/b.md' } } },
+      node_summaries: {
+        'research-foundation': {
+          summary: 'a prose line',
+          artifacts: { report: 'a/b.md' },
+          // B3 permits a decision entry to be an object, and this is the shape
+          // the writer emits for one: a block mapping opened on the sequence
+          // dash. It is written here so the two-reader block below judges the
+          // writer's own output on it — the construct the runtime reader used
+          // to refuse, which made a run's summaries unreadable to the guard
+          // that reads run state.
+          decisions: [
+            { decision: 'freeze the graph before the first node', rationale: 'a re-resolve mid-run is a different graph' },
+            'a bare string entry, the other frozen shape',
+          ],
+        },
+      },
       phase_summaries: { 'phase-1': { summary: 'a prose line', decision_areas: [{ area: 'x', chosen: 'y' }] } },
       context: { question: 'what shape should the engine take' },
       task: { status: 'in_progress' },
@@ -5037,6 +5061,67 @@ async function t30(ctx) {
       else if (!isObject(parsed.workflow?.nodes) || !isObject(parsed.orchestrator) || !isObject(parsed.task)) {
         failures.push(`${rel(file)}: the parsed document is missing workflow.nodes, orchestrator or task`);
       }
+
+      // The fourth reader, and the one the rest of the runtime uses. The
+      // umbrella reads run state through the definition reader — the collision
+      // guard's whole judgement rests on it — so a document this writer accepts
+      // has to be a document that reader accepts, agreeing with the suite's
+      // parser about what it says rather than merely not throwing. It did not:
+      // the writer emits a block mapping on a sequence dash for every object in
+      // a list, and the reader refused exactly that, which left a chain's run
+      // states unreadable to the runtime that wrote them.
+      checks++;
+      const runtime = parseDefinition(text, file);
+      if (runtime.doc === null) {
+        failures.push(`${rel(file)}: the runtime reader refuses the writer's own output — ${runtime.errors[0]?.message}`);
+      } else {
+        checks++;
+        const seen = JSON.parse(JSON.stringify(runtime.doc));
+        if (JSON.stringify(seen) !== JSON.stringify(parsed)) {
+          failures.push(`${rel(file)}: the runtime reader and a real YAML parser disagree about the emitted file`);
+        }
+      }
+    }
+
+    // -- the frozen fixture of the writer's object-decision spelling ---------
+    //
+    // The checks above judge texts this run emitted; this judges the one that
+    // is checked in, so the shape survives a build that stops emitting it. B3
+    // permits a decision entry to be an object and the writer spells one as a
+    // block mapping opened on a sequence dash. Three readers are held to the
+    // same document: the hook's, which is what the gate enforcement runs; the
+    // runtime's, which is what the collision guard reads run state through and
+    // which used to refuse this file outright; and a real YAML parser.
+    const frozen = path.join(ctx.fixtures, OBJECT_DECISION_STATE);
+    checks++;
+    if (!isFile(frozen)) {
+      failures.push(`${OBJECT_DECISION_STATE} is absent`);
+    } else {
+      const text = fs.readFileSync(frozen, 'utf8');
+      checks++;
+      if (!/^ +- decision: /m.test(text)) {
+        failures.push(`${OBJECT_DECISION_STATE} no longer carries an object decision on a sequence dash`);
+      }
+      const runtime = parseDefinition(text, frozen);
+      checks++;
+      if (runtime.doc === null) {
+        failures.push(`${OBJECT_DECISION_STATE}: the runtime reader refuses it — ${runtime.errors[0]?.message}`);
+      } else {
+        checks++;
+        if (JSON.stringify(JSON.parse(JSON.stringify(runtime.doc))) !== JSON.stringify(parseYaml(text, YAML_OPTS))) {
+          failures.push(`${OBJECT_DECISION_STATE}: the runtime reader and a real YAML parser disagree`);
+        }
+        checks++;
+        const decisions = runtime.doc.node_summaries?.['research-foundation']?.decisions;
+        if (!Array.isArray(decisions) || decisions.length !== 3
+          || decisions[0]?.decision !== 'Token bucket over a sliding window'
+          || decisions[0]?.rationale !== 'a burst allowance is a product requirement, and a window has none'
+          || typeof decisions[2] !== 'string') {
+          failures.push(`${OBJECT_DECISION_STATE}: the runtime reader did not read the three frozen decision shapes back`);
+        }
+      }
+      checks++;
+      try { scanState(text); } catch (err) { failures.push(`${OBJECT_DECISION_STATE}: the hook reader threw ${err.message}`); }
     }
 
     // -- the refusal paths: one reproduced critical and four warnings --------
@@ -7209,7 +7294,7 @@ const SEED_FIXTURE_STEMS = ['', 'workflow-target.', 'workflow-target-development
 const UMBRELLA_REFUSALS = [
   'umbrella-root-unusable', 'umbrella-member-unreadable', 'umbrella-members-root-outside',
   'umbrella-manifest-exists', 'umbrella-unwritable', 'umbrella-temp-exists',
-  'umbrella-chain-open', 'umbrella-chain-missing',
+  'umbrella-chain-open', 'umbrella-chain-missing', 'umbrella-run-unreadable',
   'dispatch-node-incomplete', 'dispatch-autonomy-unknown', 'dispatch-autonomy-unresolved',
   'dispatch-graph-drifted', 'dispatch-envelope-exists', 'dispatch-unwritable', 'dispatch-temp-exists',
   'dispatch-workflow-not-driver-capable', 'dispatch-run-unresolved', 'dispatch-closeout-impossible',
@@ -7365,6 +7450,7 @@ const RUNTIME_READ_FIXTURES = [
   path.join('synthetic', 'dispatch-envelope', 'dev-beta.envelope.yml'),
   path.join('synthetic', 'umbrella-manifest', 'umbrella.yml'),
   path.join('synthetic', 'ledger-entry', 'd-0142.yml'),
+  path.join('synthetic', 'worker-seed', 'seed.yml'),
 ];
 
 /** A clone: a `.git` directory inside it. */
@@ -7394,7 +7480,7 @@ async function t35(ctx) {
   const { buildEnvelope, writeEnvelope, worktreeOf, driverCapable, envelope: envelopeVerb } = await lib('envelope.mjs');
   const { buildSeed, renderSeed, seed: seedVerb, SEED_SECTIONS, SEED_LINE_CAP } = await lib('seed.mjs');
   const led = await lib('ledger.mjs');
-  const { readDefinition } = await lib('definition.mjs');
+  const { readDefinition, parseDefinition } = await lib('definition.mjs');
   const { resolve: resolveGraph } = await import(
     pathToFileURL(path.join(ctx.pluginRoot, ENGINE, 'scripts', 'lib', 'graph.mjs')).href);
 
@@ -7766,19 +7852,38 @@ async function t35(ctx) {
       must(isFile(path.join(home, `${stem}.yml`)), 'a refused or kept prune still deleted the chain');
 
       // Every run closed: a dry run reports the deletion and makes none; the
-      // real run deletes all three files and nothing else. An unreadable state
-      // is warned about, never a reason to hold a chain back - it cannot
-      // dispatch either.
+      // real run deletes all three files and nothing else.
       runState('r-open', 'stopped', generated);
       runState('r-gated', 'completed', generated);
+
+      // But first, the guard fails closed on a run nobody can read. Its
+      // `workflow.source` is unknown, so which chain it names is unknown, and a
+      // guard that cannot tell holds back the chain it should hold back only by
+      // luck. A sweep keeps every generated chain and says why; a prune by name
+      // refuses. Neither deletes anything, and the state is named either way,
+      // because repairing or removing it is the recovery.
       const broken = path.join(root, '.maister', 'umbrella', 'runs', 'r-broken');
       fs.mkdirSync(broken, { recursive: true });
       fs.writeFileSync(path.join(broken, 'orchestrator-state.yml'), 'not: [a\n  mapping', 'utf8');
+      report = prune(root, { name: null, dryRun: false });
+      must(report.ok, `a sweep over an unreadable run refused: ${JSON.stringify(report.errors)}`);
+      equalJson(report.pruned, [], 'a sweep deleted a chain while a run was unreadable');
+      equalJson(report.kept, [{ name: stem, reason: 'run-unreadable', runs: [] }], 'the kept list with an unreadable run');
+      equalJson(report.warnings.map(w => w.code), ['run-state-unreadable'], 'the unreadable state is warned about');
+      must(report.warnings[0].message.includes('held back'),
+        'the warning does not say the chains were held back');
+      refusedWith('pruning by name while a run is unreadable', 'umbrella-run-unreadable',
+        prune(root, { name: stem, dryRun: false }));
+      for (const ext of ['yml', 'md', 'plan.md']) {
+        must(isFile(path.join(home, `${stem}.${ext}`)), `${stem}.${ext} was deleted while a run was unreadable`);
+      }
+      fs.rmSync(broken, { recursive: true, force: true });
+
       report = prune(root, { name: null, dryRun: true });
       must(report.ok && report.dry_run === true, `the dry run refused: ${JSON.stringify(report.errors)}`);
       equalJson(report.pruned.map(p => [p.name, p.runs]), [[stem, ['r-gated', 'r-open']]], 'the dry run\'s decision');
       must(isFile(path.join(home, `${stem}.yml`)), 'a dry run deleted the chain');
-      equalJson(report.warnings.map(w => w.code), ['run-state-unreadable'], 'the unreadable state is warned about');
+      equalJson(report.warnings, [], 'a readable workspace warned about a run');
       report = prune(root, { name: null, dryRun: false });
       must(report.ok, `prune refused: ${JSON.stringify(report.errors)}`);
       equalJson(report.pruned.map(p => p.files.sort()),
@@ -8394,7 +8499,9 @@ workflow:
 
       const unreadable = newLedger('ledger-unreadable');
       const other = led.createEntry({ ledger: unreadable, actor: 'engine', args: {} }).entry.dispatch_id;
-      fs.writeFileSync(entryFile(unreadable, other), 'nodes:\n  - kind: merge_after\n    ref: d-1\n', 'utf8');
+      // An anchor, not a block mapping on a dash: the reader takes the dash form
+      // now, and an entry provoked with a shape it accepts proves nothing.
+      fs.writeFileSync(entryFile(unreadable, other), 'version: 1\nchain: &held {}\n', 'utf8');
       refusedWith('an entry outside the reader subset', 'ledger-entry-unreadable',
         led.updateStatus({ ledger: unreadable, dispatch_id: other, actor: 'engine', args: { status: 'blocked' } }));
 
@@ -8630,10 +8737,11 @@ workflow:
     t.check('every shipped fixture the runtime reads back parses through the runtime reader too', () => {
       // The suite parses fixtures with the `yaml` package and Ajv; the runtime
       // parses them with `definition.mjs`. The two disagreed for a long time
-      // and only the suite's opinion was tested. `synthetic/worker-seed/seed.yml`
-      // is deliberately not on this list: it opens a block mapping on a sequence
-      // dash, which the reader refuses for the reason the guard exists, and
-      // nothing reads a seed descriptor back at runtime.
+      // and only the suite's opinion was tested — four fixture families, the
+      // seed descriptor among them, were written in a shape the reader refused
+      // outright. The reader now takes a block mapping opened on a sequence
+      // dash, so every fixture the runtime reads is on this list and the two
+      // readers are held to the same document rather than to the same verdict.
       for (const relative of RUNTIME_READ_FIXTURES) {
         const file = path.join(ctx.fixtures, relative);
         must(isFile(file), `${relative}: the fixture is missing`);
@@ -8642,9 +8750,10 @@ workflow:
         equalJson(JSON.parse(JSON.stringify(read.doc)), parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS),
           `${relative}: the runtime reader and the suite reader disagree`);
       }
-      const seedFixture = path.join(ctx.fixtures, SEED_FIXTURE_DIR, 'seed.yml');
-      const refused = readDefinition(seedFixture);
-      must(refused.doc === null, 'the worker-seed fixture is no longer a block mapping on a dash — move it onto the list above');
+      // A shape genuinely outside the subset still stops the read, so the
+      // widening above cannot be mistaken for the reader having given up.
+      const outside = parseDefinition('version: 1\nnote: &anchor value\n', 'anchored.yml');
+      must(outside.doc === null, 'the reader accepted an anchor');
     });
 
     // -- the recovery guard --------------------------------------------------

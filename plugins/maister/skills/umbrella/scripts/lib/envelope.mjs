@@ -818,15 +818,15 @@ export function writeEnvelope({ run, envelope: document }) {
  * line instead of escaping it, and that refusal is the contract.
  *
  * `inputs` is emitted as a one-line flow sequence — `[{path: …, role: …}]` —
- * and deliberately not as the block sequence of flow maps the shipped C2
- * fixture is written in. The reader every module in this runtime is required to
- * read YAML through refuses a mapping opened on a sequence dash outright, so
- * the block form would produce an envelope the `seed` verb could not read back
- * two seconds after publishing it. The parsed shape is identical either way;
- * only the spelling differs, and this is the spelling that round-trips. The
- * same gap makes the shipped `dispatch-envelope`, `umbrella-manifest` and
- * `worker-seed` fixtures unreadable by that reader — recorded here because it
- * is wider than this module and is not this module's to fix.
+ * and not as the block sequence of flow maps the shipped C2 fixture is written
+ * in. The reader every module in this runtime is required to read YAML through
+ * once refused a mapping opened on a sequence dash outright, so the block form
+ * would have produced an envelope the `seed` verb could not read back two
+ * seconds after publishing it — and the same gap made the shipped
+ * `dispatch-envelope`, `umbrella-manifest` and `worker-seed` fixtures
+ * unreadable by that reader. The reader has since been widened and reads both.
+ * The parsed shape is identical either way; this spelling is kept because an
+ * envelope that occupies one line per key diffs as one changed line.
  */
 function emit(document) {
   const lines = [

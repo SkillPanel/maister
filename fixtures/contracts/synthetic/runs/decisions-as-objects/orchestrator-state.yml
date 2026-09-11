@@ -1,0 +1,46 @@
+orchestrator:
+  started_phase: null
+  completed_phases: []
+  failed_phases: []
+  options: {html_output: true}
+  created: "2026-08-24T09:00:00Z"
+  updated: "2026-08-24T11:42:07Z"
+  task_path: ".maister/umbrella/runs/019260a2-1122-7c33-8d44-5e6677889900"
+  driver: {kind: cockpit, cwd: /home/dev/work/repo-alpha, session: {id: 019260a2-2233-7d44-9e55-6f7788990011, name: chain-widget, provider: claude, model: claude-opus-4-6, status: running}}
+  gate_pending: null
+
+task:
+  title: "Token-bucket rate limiting"
+  status: completed
+
+workflow:
+  source: "builtin:research"
+  overlays: []
+  profile: default
+  graph_hash: "sha256:8c806c4d0000000000000000000000000000000000000000000000000000dead"
+  grammar_version: 1
+  name: research
+  nodes:
+    research-foundation: {kind: task, status: completed, completed: "2026-08-24T11:42:07Z", needs: []}
+    foundation-approval: {kind: gate, status: completed, completed: "2026-08-24T11:42:07Z", needs: [research-foundation]}
+    completion: {kind: task, status: completed, completed: "2026-08-24T11:42:07Z", needs: [foundation-approval]}
+
+node_summaries:
+  research-foundation:
+    summary: Surveyed three rate-limiting families and settled on a token bucket at the edge.
+    decisions:
+      - decision: Token bucket over a sliding window
+        rationale: a burst allowance is a product requirement, and a window has none
+      - decision: Enforce at the edge, not per service
+        rationale: null
+      - Shed load with 429 and a Retry-After, never by queueing
+    risks:
+      - The bucket is per node until the shared store lands
+    artifacts:
+      - path: outputs/research-report.md
+        label: Research report
+        html: outputs/research-report.html
+  completion:
+    summary: Findings handed off.
+    decisions:
+      - No follow-up research is needed

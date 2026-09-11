@@ -708,11 +708,17 @@ export function validate(root, { definitions = [] } = {}) {
  * directory. A run that is not terminal, or that holds a pending gate, may
  * still dispatch, and a chain such a run names is kept.
  *
- * Why an unreadable run state does not block. Dispatch reads the state before
- * it reads the definition, and refuses on a state it cannot read — so a run
- * whose state is unreadable cannot reach the chain file either. It is reported
- * as a warning rather than silently skipped, because an operator should know
- * one run could not be judged.
+ * Why an unreadable run state blocks everything. A run whose state cannot be
+ * read is a run whose `workflow.source` cannot be read either, so there is no
+ * telling which chain it names — and a guard that cannot tell holds back the
+ * chain it should have held back only by luck. It used to be argued the other
+ * way, that dispatch refuses on a state it cannot read and so the chain file is
+ * never opened; that is an argument about one run's future, not about whether
+ * the file is still the record of a live one, and it made the guard fail open
+ * on exactly the case it exists for. So a sweep that meets an unreadable state
+ * keeps every generated chain, and a `--name` prune refuses. Both say which
+ * state could not be read, because the recovery is to repair or remove that
+ * file, and neither deletes anything first.
  *
  * Why a chain no run ever named is kept by default. The window between a
  * planner publishing a generated chain and an operator starting it is exactly
@@ -741,6 +747,24 @@ export function prune(root, { name = null, dryRun = false } = {}) {
           `${relative(base, home)}/${stem}.yml is not a generated chain this workspace holds${stems.length ? `; the generated chains are ${stems.join(', ')}` : '; it holds none'}. A stem is lowercase letters, digits and hyphens, and only the generated home is ever pruned — a reusable chain of that name is left alone. Nothing was deleted.`);
       }
       targets = [stem];
+    }
+
+    // Fail closed, before any target is judged: one unreadable state is enough,
+    // because the chain it names is unknown and could be any of them.
+    if (runs.warnings.length > 0) {
+      const named = runs.warnings.map((warning) => warning.path).join(', ');
+      if (name !== null) {
+        throw new Refusal('umbrella-run-unreadable',
+          `${named} could not be read, so which chain that run names is unknown and no chain can be shown to be unused. Repair or remove the unreadable state, then prune again. Nothing was deleted.`);
+      }
+      return {
+        ok: true,
+        root: base,
+        dry_run: dryRun,
+        pruned: [],
+        kept: targets.map((stem) => ({ name: stem, reason: 'run-unreadable', runs: [] })),
+        warnings: runs.warnings,
+      };
     }
 
     const pruned = [];
@@ -808,7 +832,7 @@ function readRuns(base) {
       warnings.push({
         code: 'run-state-unreadable',
         path: relative(base, stateFile),
-        message: `${relative(base, stateFile)} could not be read (${read.errors.map((each) => each.message).join('; ') || 'not a mapping'}), so which chain it names is unknown; it cannot dispatch from an unreadable state either, so nothing was held back for it.`,
+        message: `${relative(base, stateFile)} could not be read (${read.errors.map((each) => each.message).join('; ') || 'not a mapping'}), so which chain it names is unknown and every generated chain is held back until it is repaired or removed.`,
       });
       continue;
     }
