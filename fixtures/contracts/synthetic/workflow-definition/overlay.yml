@@ -1,5 +1,5 @@
-# An overlay over the built-in development workflow — the eject-free
-# customization path — and the smallest one that exercises every operation the
+# An overlay over the built-in development workflow - the eject-free
+# customization path - and the smallest one that exercises every operation the
 # graph admits, against node ids the base actually declares.
 #
 # Two shapes are absent rather than forgotten, and both were present here once,
@@ -11,8 +11,8 @@
 #                    research workflow has none.
 #   disable: a node  leaves a dangling reference. Removing ui-mockups or
 #   another node's   spec-audit rewires their approvals, but three later nodes
-#   with: names      still interpolate ${ui-mockups.artifacts…} and
-#                    ${spec-audit.artifacts…}, which the reference check errors
+#   with: names      still interpolate ${ui-mockups.artifacts...} and
+#                    ${spec-audit.artifacts...}, which the reference check errors
 #                    on, correctly. user-docs is the one disabled here because
 #                    nothing reads its outputs.
 #

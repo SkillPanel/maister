@@ -226,14 +226,14 @@ function identityLines({ document, chain, target }) {
     `You are dispatch ${oneLine(document.dispatch_id)} of run ${oneLine(chain.run_id)}, node ${oneLine(chain.node)}.`,
     `Member ${oneLine(target.member)}, checked out at ${checkout}${target.worktree ? `, worktree ${where}` : ''}.`,
     root === null
-      ? `Work in ${where}. The paths below are relative to the workspace root — the directory holding the member checkouts — and never to your own working directory. The one exception is the read-only inputs under \`# task\`, which are as the dispatching run named them and are anchored to nothing here.`
+      ? `Work in ${where}. The paths below are relative to the workspace root - the directory holding the member checkouts - and never to your own working directory. The one exception is the read-only inputs under \`# task\`, which are as the dispatching run named them and are anchored to nothing here.`
       : `Work in ${where}. Every path below is absolute except the read-only inputs under \`# task\`, which are as the dispatching run named them; write nothing outside that directory except through the outbox verb named below.`,
     document.autonomy === RELAYED
       // "Wait for that decision" was the wording here too, and it contradicts
       // what `# closeout` now says. A held command is not a pause a turn can
       // sit through; it is the end of the turn. Both sections have to say so,
       // or the worker picks whichever it read last.
-      ? `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake. At this tier a denial is relayed to an operator rather than final: never route around a held command — report it and end the turn, as \`# closeout\` describes.`
+      ? `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake. At this tier a denial is relayed to an operator rather than final: never route around a held command - report it and end the turn, as \`# closeout\` describes.`
       : `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake.`,
   ];
 }
@@ -278,7 +278,7 @@ function taskLines({ document, workflow, pluginRoot }) {
     // are stated: which skill runs a definition, the bare name to run it by,
     // and the order the name is looked up in — the last so that a member-side
     // ejection visibly wins rather than being shadowed by the shipped file.
-    lines.push(`Run the \`${definition}\` workflow definition with the workflow-engine skill, invoked by that name — that skill is how a dispatched worker runs a definition; do not go looking for a command.`);
+    lines.push(`Run the \`${definition}\` workflow definition with the workflow-engine skill, invoked by that name - that skill is how a dispatched worker runs a definition; do not go looking for a command.`);
     lines.push(`Resolve \`${definition}\` by that bare name, first hit winning, in this order: \`.maister/workflows/${definition}.yml\` (an eject, which shadows the built-in entirely), then \`.maister/workflows/generated/${definition}.yml\` (a generated chain, complete in itself), then \`.maister/workflows/${definition}.overlay.yml\` (an overlay merged over the built-in), then the built-in shipped with the plugin.`);
     // Neutral about the input's *name* on purpose. C2's `statement` is a
     // generic free-text carrier of what the work is; each definition names its
@@ -295,7 +295,7 @@ function taskLines({ document, workflow, pluginRoot }) {
       ? `Run ${oneLine(workflow.uses)}.`
       : 'Run the workflow named by your dispatch.');
   }
-  lines.push('You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state — E1 requires the cwd beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run with one call to the engine\'s gate-request verb, never by writing the gate files yourself:');
+  lines.push('You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state - E1 requires the cwd beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run with one call to the engine\'s gate-request verb, never by writing the gate files yourself:');
   lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml>`);
   lines.push('with the request as JSON on stdin. It writes the request file, the gate index and the pending marker together; there is no second write and the run is already suspended once it returns. Then print `GATE-PENDING: ` followed by that gate\'s own node id as the last line of the turn, and stop. Never ask a question in session.');
   const args = mapOf(workflow.with);
@@ -349,7 +349,7 @@ function outboxLines(document, pluginRoot) {
     `Report through the outbox verb, never by writing a file under the outbox path yourself:`,
     `  node ${script(pluginRoot)} outbox --outbox=${anchor(root, outboxRootOf(document))} --dispatch-id=${oneLine(document.dispatch_id)} --type=<type>`,
     `with the message body as JSON on stdin. Types: ${MESSAGE_TYPES.join(', ')}; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade. Messages are append-only and the writer never rewrites one.`,
-    'If the outbox cannot be written the verb hands you a line to print instead: `DISPATCH-RESULT: <grade> <summary>` for a closeout, `DISPATCH-FOLLOWUP: <summary>` for a followup. Print it as the last line of your turn — it is the only form in which the message survives.',
+    'If the outbox cannot be written the verb hands you a line to print instead: `DISPATCH-RESULT: <grade> <summary>` for a closeout, `DISPATCH-FOLLOWUP: <summary>` for a followup. Print it as the last line of your turn - it is the only form in which the message survives.',
     'The other three types have no such line: run the same write again once the path is writable, or fold what it carried into the closeout summary.',
   ];
 }
@@ -376,11 +376,11 @@ function closeoutLines({ closeout, autonomy }) {
     // now ends the turn the way every other unfinished dispatch ends, on a
     // followup and a frozen marker. Both already exist; only the instruction
     // connecting them to a fired relay was absent.
-    lines.push('If it is held, do not wait inside this turn — an approval cannot arrive in one. Write a followup message naming the held command and what is left to do, print `DISPATCH-FOLLOWUP: ` followed by that summary as the last line, and end the turn. The close-out, carrying the pull request URL, belongs to a later turn.');
+    lines.push('If it is held, do not wait inside this turn - an approval cannot arrive in one. Write a followup message naming the held command and what is left to do, print `DISPATCH-FOLLOWUP: ` followed by that summary as the last line, and end the turn. The close-out, carrying the pull request URL, belongs to a later turn.');
   } else if (closeout.pr_required === true) {
     lines.push('A pull request is required before close-out; open it and put its URL in the closeout message.');
   } else {
-    lines.push('No pull request is required — your tier can never open one. Say in the closeout what a reviewer has to open and merge.');
+    lines.push('No pull request is required - your tier can never open one. Say in the closeout what a reviewer has to open and merge.');
   }
   lines.push(`Grade the run ${listOf(Array.isArray(closeout.grade) && closeout.grade.length ? closeout.grade.map(oneLine) : ['success', 'partial', 'failed'])}.`);
   lines.push('The closeout message carries the grade, a summary of what changed, and what a reviewer must check.');
@@ -437,7 +437,7 @@ export function renderSeed(descriptor) {
   const rendered = prompt.split('\n').length;
   if (rendered > cap) {
     throw new Refusal('seed-over-cap',
-      `the seed renders ${rendered} lines and the cap is ${cap}. It is not truncated: the sections that would be cut are closeout and siblings, which are exactly the instructions a worker must not be missing. Shorten the section content instead — the levers are the statement of the work, the with: arguments and the read-only inputs the dispatching node declares, since every other line is fixed prose.`);
+      `the seed renders ${rendered} lines and the cap is ${cap}. It is not truncated: the sections that would be cut are closeout and siblings, which are exactly the instructions a worker must not be missing. Shorten the section content instead - the levers are the statement of the work, the with: arguments and the read-only inputs the dispatching node declares, since every other line is fixed prose.`);
   }
   return prompt;
 }
@@ -574,7 +574,7 @@ function outboxRootOf(document) {
   return outbox;
 }
 
-/** "success, partial or failed" — an English list, from a frozen enum. */
+/** "success, partial or failed" - an English list, from a frozen enum. */
 function listOf(values) {
   if (values.length <= 1) return values.join('');
   return `${values.slice(0, -1).join(', ')} or ${values[values.length - 1]}`;

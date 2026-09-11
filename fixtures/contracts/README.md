@@ -54,12 +54,19 @@ path while replacing its org segments. `source` carries a provenance alias
 (`<repo-alias>/<workflow>/<dated-dir>`), never an original absolute path. Set
 `pseudonymized: true`. Fixture bytes are ASCII-only.
 
-The pre-pass, run over the whole tree before staging. It must print nothing:
+The pre-pass runs as part of the suite, over every fixture file (this README
+excepted -- it necessarily spells the tokens it tells you to scan for):
 
 ```bash
-LC_ALL=C grep -rEn --exclude=README.md \
-  'devskiller|mapskiller|DEV-[0-9]|SKP-[0-9]|/Users/|boost|accommodation|dac_|[^\x00-\x7F]' \
-  fixtures/contracts/
+make test
 ```
 
-Extend the token list with any identifier the new source repository introduces.
+It reports the first offending character with its code point, line and column,
+and it refuses the provenance tokens above by name. Extend that token list with
+any identifier a new source repository introduces; it lives beside the check.
+
+It used to be a `grep` one-liner published here and run by hand. It never
+passed: the character class it used relies on GNU escape handling, so on macOS
+it matched nearly every line and a clean tree looked filthy. A scan that is red
+before you start is one nobody runs, which is how nine files acquired
+typographic dashes with the rule in force the whole time.

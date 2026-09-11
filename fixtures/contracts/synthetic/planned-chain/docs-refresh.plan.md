@@ -1,10 +1,10 @@
-# Plan — docs-refresh
+# Plan - docs-refresh
 
 ## The task, as given
 
 Survey what the change touches across the workspace, get it approved, then build
-the API change in repo-alpha and refresh the documentation site if — and only if
-— the survey found the documentation is affected.
+the API change in repo-alpha and refresh the documentation site if - and only if
+- the survey found the documentation is affected.
 
 ## The nodes
 
@@ -13,7 +13,7 @@ the API change in repo-alpha and refresh the documentation site if — and only 
 | `survey` | An inline node that reads both members and records `docs_affected` as a `bool` value output. | The branch downstream has to be decided by work the chain did, not by a flag the person starting the run had to remember. |
 | `survey-approval` | A gate: one `continue`, one `stop`. | Nothing reaches a member repository before a person has read the survey. |
 | `build-api` | Dispatches `skill:development` into `repo-alpha`, with its own `provider:`. | The API change is the work; it is named explicitly rather than fanned out, because the member set is known here. |
-| `update-docs` | Dispatches `workflow:plan` into `docs-site`, guarded. | The documentation site is touched only when the survey said it is affected, and what it needs is a plan to review rather than an edit made blind — so this node dispatches a built-in workflow where `build-api` dispatches a skill. |
+| `update-docs` | Dispatches `workflow:plan` into `docs-site`, guarded. | The documentation site is touched only when the survey said it is affected, and what it needs is a plan to review rather than an edit made blind - so this node dispatches a built-in workflow where `build-api` dispatches a skill. |
 | `close-out` | An inline node summarizing what each dispatched node changed. | A reviewer reads one place rather than two branches. |
 
 Both dispatching nodes carry `provider: claude` explicitly: a member with no
@@ -26,7 +26,7 @@ One guard, on one node.
 
 | Guard | Where its boolean comes from |
 |---|---|
-| `update-docs` — `${survey.values.docs_affected}` | `survey`, which declares `docs_affected: bool` and sits inside `update-docs`'s needs closure through `survey-approval` and `build-api`. |
+| `update-docs` - `${survey.values.docs_affected}` | `survey`, which declares `docs_affected: bool` and sits inside `update-docs`'s needs closure through `survey-approval` and `build-api`. |
 
 The guarded stretch is one node long, so no guard is repeated. Had `update-docs`
 been followed by a second documentation node or a closing gate, each of those
@@ -37,7 +37,7 @@ downstream, so a stretch does not inherit its first node's condition.
 
 - **One node over "every member that has documentation".** The grammar has no
   fan-out construct, so this was authored as an explicit node per known target
-  instead — here a single one, `update-docs`. That is why the member set has to
+  instead - here a single one, `update-docs`. That is why the member set has to
   be known at plan time.
 - **A `when:` reading two conditions.** A guard is exactly one reference,
   optionally negated; there is no expression language. The conjunction would

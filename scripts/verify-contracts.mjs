@@ -1486,6 +1486,45 @@ function t01(ctx) {
 // T02 — manifest integrity
 // ---------------------------------------------------------------------------
 
+/**
+ * The pre-pass, as code. It was published as a shell one-liner for people to
+ * run before staging, and it was never green: a `grep -E` spelling `[^\x00-\x7F]`
+ * relies on GNU escape handling, so on the platform this repository is
+ * developed on the class matched almost every line and the whole tree came back
+ * as a hit. A scan that cries wolf on a clean checkout teaches everyone to skip
+ * it, which is how nine files acquired typographic dashes with the rule in
+ * force the whole time.
+ *
+ * Two halves, both of them properties of the corpus rather than of any one
+ * fixture, which is why they ride the walk T02 already does over every file.
+ *
+ *   **ASCII-only.** Fixtures are compared byte-for-byte against what a writer
+ *   produces, are read by two providers on three platforms, and travel through
+ *   argv and environment variables on the way. A smart quote or an em dash in
+ *   one is a portability hazard with no upside.
+ *
+ *   **No provenance tokens.** Nothing sampled from a real repository keeps its
+ *   origin. The list is the corpus README's, extended per source repository.
+ */
+const FIXTURE_PROVENANCE_TOKENS =
+  /devskiller|mapskiller|DEV-[0-9]|SKP-[0-9]|\/Users\/|boost|accommodation|dac_/;
+
+/**
+ * Every non-ASCII character in `text`, as `{line, column, code}`. Exported
+ * shape rather than a boolean so a report can name where to look; a caller
+ * asserting only that a clean file scans empty is the common case.
+ */
+function scanFixtureBytes(text) {
+  const found = [];
+  text.split('\n').forEach((line, index) => {
+    for (let column = 0; column < line.length; column += 1) {
+      const code = line.codePointAt(column);
+      if (code > 0x7f) found.push({ line: index + 1, column: column + 1, code });
+    }
+  });
+  return found;
+}
+
 function t02(ctx) {
   const failures = [];
   let checks = 0;
@@ -1522,6 +1561,35 @@ function t02(ctx) {
   for (const file of present) {
     checks++;
     if (!listed.has(file)) failures.push(`no manifest lists ${path.relative(ctx.fixtures, file)}`);
+  }
+
+  // The pre-pass over every fixture file. The corpus README is out of scope for
+  // the same reason it is not listed by a manifest: it is documentation about
+  // the tree, and it necessarily spells the provenance tokens it tells you to
+  // scan for.
+  for (const file of present) {
+    const where = path.relative(ctx.fixtures, file);
+    const text = fs.readFileSync(file, 'utf8');
+    checks++;
+    const nonAscii = scanFixtureBytes(text);
+    if (nonAscii.length) {
+      const first = nonAscii[0];
+      failures.push(`${where}: fixture bytes are ASCII-only — U+${first.code.toString(16).toUpperCase().padStart(4, '0')} at line ${first.line}, column ${first.column}${nonAscii.length > 1 ? ` (and ${nonAscii.length - 1} more)` : ''}`);
+    }
+    checks++;
+    const token = text.match(FIXTURE_PROVENANCE_TOKENS);
+    if (token) failures.push(`${where}: carries the provenance token "${token[0]}" — pseudonymize it`);
+  }
+
+  // The scanner's own negative: a fixture that is meant to be red has to come
+  // back red, or a green tree proves only that nothing is being read.
+  checks++;
+  if (!scanFixtureBytes('an em dash — here').length) {
+    failures.push('the fixture byte scan passed a deliberately dashed string');
+  }
+  checks++;
+  if (scanFixtureBytes('plain ascii - here').length) {
+    failures.push('the fixture byte scan reported an ASCII string');
   }
   return { checks, failures };
 }

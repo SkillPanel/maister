@@ -6,10 +6,10 @@ Autonomy tier auto-low; the permissions it grants are already in force, so a ref
 
 # task
 The work: Add the widget owner column behind the existing rollout flag.
-Run the `development` workflow definition with the workflow-engine skill, invoked by that name — that skill is how a dispatched worker runs a definition; do not go looking for a command.
+Run the `development` workflow definition with the workflow-engine skill, invoked by that name - that skill is how a dispatched worker runs a definition; do not go looking for a command.
 Resolve `development` by that bare name, first hit winning, in this order: `.maister/workflows/development.yml` (an eject, which shadows the built-in entirely), then `.maister/workflows/generated/development.yml` (a generated chain, complete in itself), then `.maister/workflows/development.overlay.yml` (an overlay merged over the built-in), then the built-in shipped with the plugin.
 The line above beginning `The work:` is the free-text statement your dispatch carried, and it is the whole of what the work is. Bind it to whichever input the definition declares for that: the definition names the input, the dispatch does not.
-You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state — E1 requires the cwd beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run with one call to the engine's gate-request verb, never by writing the gate files yourself:
+You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state - E1 requires the cwd beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run with one call to the engine's gate-request verb, never by writing the gate files yourself:
   node /opt/maister/plugins/maister/skills/workflow-engine/scripts/workflow.mjs gate-request --state=<your own orchestrator-state.yml>
 with the request as JSON on stdin. It writes the request file, the gate index and the pending marker together; there is no second write and the run is already suspended once it returns. Then print `GATE-PENDING: ` followed by that gate's own node id as the last line of the turn, and stop. Never ask a question in session.
 Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. If one does not resolve, send a blocked message rather than guessing:
@@ -19,11 +19,11 @@ Inputs from the dispatching run, read-only and spelled as that run named them ra
 Report through the outbox verb, never by writing a file under the outbox path yourself:
   node /opt/maister/plugins/maister/skills/umbrella/scripts/umbrella.mjs outbox --outbox=/workspaces/widget/.maister/umbrella/outbox --dispatch-id=d-0144 --type=<type>
 with the message body as JSON on stdin. Types: status, followup, artifact, closeout, blocked; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade. Messages are append-only and the writer never rewrites one.
-If the outbox cannot be written the verb hands you a line to print instead: `DISPATCH-RESULT: <grade> <summary>` for a closeout, `DISPATCH-FOLLOWUP: <summary>` for a followup. Print it as the last line of your turn — it is the only form in which the message survives.
+If the outbox cannot be written the verb hands you a line to print instead: `DISPATCH-RESULT: <grade> <summary>` for a closeout, `DISPATCH-FOLLOWUP: <summary>` for a followup. Print it as the last line of your turn - it is the only form in which the message survives.
 The other three types have no such line: run the same write again once the path is writable, or fold what it carried into the closeout summary.
 
 # closeout
-No pull request is required — your tier can never open one. Say in the closeout what a reviewer has to open and merge.
+No pull request is required - your tier can never open one. Say in the closeout what a reviewer has to open and merge.
 Grade the run success, partial or failed.
 The closeout message carries the grade, a summary of what changed, and what a reviewer must check.
 
