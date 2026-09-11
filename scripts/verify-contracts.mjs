@@ -10908,6 +10908,9 @@ const COPILOT_INSTALL_TREE = '.copilot/installed-plugins';
 /** The user-facing command reference, and the only place a slash command is documented. */
 const COMMAND_REFERENCE_REL = 'docs/commands.md';
 const EXTENDING_GUIDE_REL = 'docs/extending.md';
+/** The per-workflow reference, and the only place internal skills are listed. */
+const WORKFLOW_REFERENCE_REL = 'docs/workflows.md';
+const INTERNAL_SKILLS_HEADING = '## Internal Skills';
 const EXTENDING_LINKED_FROM = ['README.md', 'docs/workflows.md'];
 /** The three extension points, each exactly one second-level heading. */
 const EXTENSION_POINTS = [
@@ -11104,6 +11107,33 @@ async function t46(ctx) {
       `a project skill was reported unresolved: ${JSON.stringify(report.warnings)}`);
     equalJson(report.resolved.map((entry) => [entry.node, entry.from]).sort(),
       [['capable', 'project'], ['incapable', 'project']], 'where the workspace validator found the two skills');
+  });
+
+  // The internal-skills table, held to the tree it describes. It listed two
+  // skills that do not exist - one of them an agent, one of them nothing at all
+  // - and omitted five that do, because it was a list maintained by hand
+  // against a directory that kept changing. The skills themselves already say
+  // whether they are machinery, in the same frontmatter key the command
+  // reference is checked against, so the table has a source of truth and the
+  // only question is whether it agrees with it.
+  t.check('the internal-skills table names exactly the skills that declare themselves machinery', () => {
+    const skillsDir = path.join(ctx.pluginRoot, 'skills');
+    const internal = fs.readdirSync(skillsDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory() && isFile(path.join(skillsDir, entry.name, 'SKILL.md')))
+      .filter(entry => /^user-invocable:\s*false\s*$/m.test(
+        fs.readFileSync(path.join(skillsDir, entry.name, 'SKILL.md'), 'utf8').split('\n---\n')[0]))
+      .map(entry => entry.name).sort();
+    must(internal.length > 0, 'no skill declares itself machinery — the sweep is looking in the wrong place');
+
+    const text = fs.readFileSync(path.join(ctx.repoRoot, WORKFLOW_REFERENCE_REL), 'utf8');
+    const heading = text.indexOf(INTERNAL_SKILLS_HEADING);
+    must(heading >= 0, `${WORKFLOW_REFERENCE_REL}: there is no ${INTERNAL_SKILLS_HEADING} section`);
+    const rest = text.slice(heading + INTERNAL_SKILLS_HEADING.length);
+    const next = rest.search(/\n## /);
+    const section = next < 0 ? rest : rest.slice(0, next);
+    const named = [...section.matchAll(/^\|\s*\*\*([a-z][a-z0-9-]*)\*\*\s*\|/gm)].map(m => m[1]).sort();
+    equalJson(named, internal,
+      `${WORKFLOW_REFERENCE_REL}: the internal-skills table and the skills declaring themselves machinery disagree`);
   });
 
   t.check('the planner declares driver awareness in neither form', () => {

@@ -48,6 +48,17 @@ export MAISTER_PLUGIN_ROOT=/path/to/maister/plugins/maister-copilot
 
 `copilot plugin list` names what is installed. Put the export in your shell profile: it is read at spawn time and there is no flag for it. On Claude Code nothing is needed here — that host exports the same directory under its own name.
 
+**Two directory flags, and only one of them loads a plugin.** Both hosts have them and they are easy to confuse:
+
+| Flag | What it does |
+|---|---|
+| `--plugin-dir <path>` | Loads the plugin at that path. This is the one that makes the workflows available. |
+| `--add-dir <path>` | Grants file access to that directory, and picks up any `.claude/skills` or `.claude/agents` it contains — which a plugin directory does not have, because a plugin's skills live in its own `skills/`. It loads no plugin. |
+
+Pointing only `--add-dir` at a checkout starts a session that can read the files and has none of the workflows: asking for one reports the skill as not found. Pass `--plugin-dir`, and add `--add-dir` for the same path as well when the checkout sits outside your working directory.
+
+**Checking what loaded.** `claude plugin list` and `copilot plugin list` report a plugin loaded from a directory alongside the installed ones. The skill listing is the narrower answer — it is the session's own view, so read it inside the session rather than expecting an external command to confirm discovery.
+
 ### Initial project setup
 
 Initialize your project to auto-detect coding standards and generate project documentation:
