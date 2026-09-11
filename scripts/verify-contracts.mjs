@@ -3973,8 +3973,8 @@ const ENGINE = 'skills/workflow-engine';
  * hash lives in its `WORKFLOW_PINS` row below; these two belong to routes over
  * a definition rather than to definitions, so they stay named constants.
  */
-const TUNED_GRAPH_HASH = '47f78ff9e971ee66d0cc932870ff890727030b255f11cd5d3af8d01c432e2c5c';
-const TUNED_LEAN_GRAPH_HASH = 'fe8336c0bb1a99fd9730d9fa9a31bb839392a82ee10fbae63a6d647eac6681d8';
+const TUNED_GRAPH_HASH = 'sha256:47f78ff9e971ee66d0cc932870ff890727030b255f11cd5d3af8d01c432e2c5c';
+const TUNED_LEAN_GRAPH_HASH = 'sha256:fe8336c0bb1a99fd9730d9fa9a31bb839392a82ee10fbae63a6d647eac6681d8';
 
 /**
  * `richtext.yml`'s pinned warning set. Neither `workflow:research` nor
@@ -4043,7 +4043,7 @@ const OVERLAY_FIXTURES = [
  */
 const WORKFLOW_PINS = {
   development: {
-    hash: '7332851263e5ea3428795fc45c22651395701c48b8b602d3d03e525bba95f869',
+    hash: 'sha256:7332851263e5ea3428795fc45c22651395701c48b8b602d3d03e525bba95f869',
     twin: 'development-builtin.yml',
     nodes: [
       'intake', 'codebase-analysis', 'gap-analysis', 'gap-approval', 'tdd-red', 'tdd-red-approval',
@@ -4060,7 +4060,7 @@ const WORKFLOW_PINS = {
     ],
   },
   plan: {
-    hash: '9fa47c2bcc7830faa9bb8064d228d7a3181a860d0da25a8ea268c1c877990598',
+    hash: 'sha256:9fa47c2bcc7830faa9bb8064d228d7a3181a860d0da25a8ea268c1c877990598',
     twin: 'plan-builtin.yml',
     nodes: ['standards-discovery', 'plan', 'plan-approval', 'handoff'],
     edits: [
@@ -4073,7 +4073,7 @@ const WORKFLOW_PINS = {
     ],
   },
   research: {
-    hash: '8c806c4ddc046e9b35911e918f46e2b69acdbe5431efd9c3dcee8125918c8b61',
+    hash: 'sha256:8c806c4ddc046e9b35911e918f46e2b69acdbe5431efd9c3dcee8125918c8b61',
     twin: 'research-builtin.yml',
     nodes: [
       'research-foundation', 'foundation-approval', 'optional-phases-decision', 'solution-generation',
@@ -4139,6 +4139,13 @@ async function t29(ctx) {
   const { readDefinition, parseDefinition } = await import(lib('definition'));
   const { resolve: resolveGraph } = await import(lib('graph'));
   const { render } = await import(lib('diagram'));
+
+  // Read off the schema rather than restated here: the resolver's output and
+  // the state block that receives it are held to one pattern, so widening the
+  // contract cannot leave this walk asserting the old spelling.
+  const graphHashPattern = new RegExp(
+    readJson(path.join(ctx.schemas, 'workflow-state.schema.json')).properties.graph_hash.pattern,
+  );
 
   const synthetic = path.join(ctx.fixtures, 'synthetic', 'workflow-definition');
   const tuned = path.join(ctx.fixtures, 'synthetic', 'workflow-overlay', 'research-tuned');
@@ -4385,6 +4392,15 @@ async function t29(ctx) {
       checks++;
       if (graph.graph_hash !== pin.hash) {
         failures.push(`the shipped ${name} definition hashes to ${graph.graph_hash}, not the pinned graph`);
+      }
+      // The hash the resolver prints is the hash a freeze writes into state, so
+      // it is held to the state block's own pattern rather than to a spelling
+      // repeated here. A bare digest satisfies every other assertion in this
+      // walk and is refused by B2 the moment a stricter reader than ours reads
+      // the file it lands in.
+      checks++;
+      if (!graphHashPattern.test(graph.graph_hash)) {
+        failures.push(`the shipped ${name} definition emits ${graph.graph_hash}, which the workflow block's graph_hash does not accept`);
       }
     }
 
@@ -4741,8 +4757,8 @@ async function t29(ctx) {
   }
 
   notes.push(`${definitions.length} shipped definition(s) walked: ${definitions
-    .map(each => `${each.name} ${(graphs.get(each.name)?.graph_hash ?? '—').slice(0, 8)}…`).join(', ')}`);
-  notes.push(`${Object.values(WORKFLOW_PINS).filter(pin => pin.twin).length} synthetic twin(s) compared; the two overlay routes hash to ${TUNED_GRAPH_HASH.slice(0, 8)}… and ${TUNED_LEAN_GRAPH_HASH.slice(0, 8)}…`);
+    .map(each => `${each.name} ${(graphs.get(each.name)?.graph_hash ?? '-').slice(7, 15)}...`).join(', ')}`);
+  notes.push(`${Object.values(WORKFLOW_PINS).filter(pin => pin.twin).length} synthetic twin(s) compared; the two overlay routes hash to ${TUNED_GRAPH_HASH.slice(7, 15)}... and ${TUNED_LEAN_GRAPH_HASH.slice(7, 15)}...`);
   return { checks, failures, notes };
 }
 
@@ -8096,7 +8112,7 @@ workflow:
   source: ".maister/workflows/chain.yml"
   overlays: []
   profile: null
-  graph_hash: "sha256:${baseline.graph_hash}"
+  graph_hash: "${baseline.graph_hash}"
   grammar_version: 1
   nodes:
     research:   {kind: task, status: completed, needs: []}
@@ -10270,7 +10286,7 @@ workflow:
   source: "${GENERATED_HOME}${GENERATED_CHAIN_STEM}.yml"
   overlays: []
   profile: null
-  graph_hash: "sha256:${hashOf(generated)}"
+  graph_hash: "${hashOf(generated)}"
   grammar_version: 1
   nodes:
     analyze:           {kind: task, status: completed, needs: []}
@@ -11487,7 +11503,7 @@ async function t49(ctx) {
         source: `builtin:${OVERLAY_RUN_BASE}`,
         overlays: ['.maister/workflows/research.overlay.yml'],
         profile: 'default',
-        graph_hash: `sha256:${graph.graph_hash}`,
+        graph_hash: graph.graph_hash,
         grammar_version: 1,
         name: OVERLAY_RUN_BASE,
         nodes,

@@ -1299,9 +1299,16 @@ function topological(nodes) {
  * The graph's identity. Provenance is excluded by construction: nothing outside
  * the canonical node list reaches this function, so there is no field to forget
  * to strip.
+ *
+ * **The digest carries its `sha256:` prefix from here**, because this is the
+ * only place one is produced and the state block that records it accepts no
+ * other spelling. Emitting the bare hex and asking every freeze caller to
+ * re-spell it on the way in is what produced two different answers from one
+ * instruction: the value now travels from the resolver into state unchanged,
+ * and a caller that writes what it was handed is right by construction.
  */
 function hashNodes(nodes) {
-  return createHash('sha256').update(JSON.stringify(nodes), 'utf8').digest('hex');
+  return `sha256:${createHash('sha256').update(JSON.stringify(nodes), 'utf8').digest('hex')}`;
 }
 
 // ---------------------------------------------------------------------------

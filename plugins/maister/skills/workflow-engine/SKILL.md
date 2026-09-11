@@ -111,6 +111,11 @@ Validate, then resolve, then write the resolved graph into `orchestrator-state.y
 graph, never the file on disk, so an edit to a definition mid-run changes nothing until the
 next run.
 
+**Copy `graph_hash` through exactly as `resolve` printed it.** It is the only value the freeze
+carries straight from the resolver into state, and it arrives already in the spelling the
+state block accepts. Reformatting it — adding a prefix it already has, or stripping the one
+it needs — produces a run whose recorded identity no longer matches the graph it is running.
+
 **The freeze patch must carry `workflow.name`** — the bare name, after the prefix strip. The
 writer derives the run's per-workflow context block from it, so a later write to `context` or
 `phase_summaries` with no name recorded is refused with `state-context-block-unknown` rather
@@ -179,7 +184,7 @@ path of your own.
 | Verb | Flags | Gives |
 |---|---|---|
 | `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found |
-| `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph, its `graph_hash`, and `tracker_key` — the input the freeze reads for `task.key`, or null |
+| `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |

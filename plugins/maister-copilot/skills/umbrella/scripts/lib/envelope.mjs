@@ -678,10 +678,12 @@ function definitionPath({ source, run }) {
 }
 
 /**
- * The comparison the whole module exists to make. The resolver returns a bare
- * digest and the state records it with its `sha256:` prefix, so both sides are
- * normalized before they are compared rather than one side being reformatted
- * into the other's spelling at the call site.
+ * The comparison the whole module exists to make. Resolver and state now agree
+ * on one spelling - the prefixed form, produced where the digest is - so the
+ * two sides arrive comparable. Both are still normalized before comparing, for
+ * the states written while the resolver emitted a bare digest: those files are
+ * on disk, their runs are resumable, and refusing them over a prefix would be
+ * reporting drift that never happened.
  */
 function assertGraphUnchanged({ state, resolved }) {
   const frozen = digest(mapOf(state.workflow).graph_hash);
@@ -696,6 +698,7 @@ function assertGraphUnchanged({ state, resolved }) {
   }
 }
 
+/** Either spelling reduced to the digest itself. See `assertGraphUnchanged`. */
 function digest(value) {
   if (typeof value !== 'string' || value === '') return null;
   return value.startsWith('sha256:') ? value.slice('sha256:'.length) : value;
