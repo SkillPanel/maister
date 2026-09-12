@@ -1,0 +1,23 @@
+{
+  "id": "two-context-blocks",
+  "contracts": [
+    "A1"
+  ],
+  "verdict": "invalid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-alpha/migrations/2026-09-12-rosterbook-cjs-to-esm",
+  "writer_version": "2.3.0-beta.15",
+  "sampled_at": "2026-09-12T14:33:41Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "expect": {
+    "error_path": "",
+    "error_keyword": "oneOf"
+  },
+  "notes": "The only invalid fixture sampled from a real run rather than built to fail, and the reason it exists is that the run was not wrong. A1 admits exactly one per-workflow context block, or none; this run carries task_context alongside migration_context because its own orchestrator's Phase 1 directs it to write task_context.clarifications_resolved, and the register lists that key among the known optional ones. So the writer obeyed its instructions and produced a document the schema refuses. These are the bytes of the run whose edited copy is valid/runs/migration-cjs-to-esm - the same state with those two lines removed by hand - and this fixture is what keeps the conflict failing out loud instead of living only in that fixture's note. The pin is oneOf at the root rather than the first required message Ajv happens to emit: required names whichever sibling branch is reported first and would move if a sixth context type were added, while oneOf is the rule itself. Delete this fixture when the conflict is resolved - if A1 widens to admit task_context beside a per-workflow block, the shape stops being invalid and this directory is the thing that must go with it."
+}
