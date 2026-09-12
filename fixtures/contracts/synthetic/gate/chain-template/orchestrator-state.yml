@@ -2,7 +2,7 @@ orchestrator:
   started_phase: null
   completed_phases: []
   failed_phases: []
-  options: {html_output: true}
+  options: {html_output: true, inputs: {ticket: ALPHA-42, rollout_scope: beta-only}}
   created: "2026-08-24T09:00:00Z"
   updated: "2026-08-24T09:00:00Z"
   task_path: ".maister/umbrella/runs/019260a2-1122-7c33-8d44-5e6677889900"

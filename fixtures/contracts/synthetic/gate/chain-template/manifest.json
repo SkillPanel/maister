@@ -25,5 +25,5 @@
   ],
   "strict_a2": true,
   "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
-  "notes": "Seed state of a chain run, adapted from the spike kit template (kit/state.template.yml). A chain-run state has none of the five per-workflow context keys. gate_pending is the one-line literal null, every workflow.nodes entry is one line, node_summaries is an empty map, and the E1 driver carries cwd and model. task.status is in_progress: the template wrote running, which is a B2 node status and not in the A1 task_status enum. Also the eval seed."
+  "notes": "Seed state of a chain run, adapted from the spike kit template (kit/state.template.yml). A chain-run state has none of the five per-workflow context keys. gate_pending is the one-line literal null, every workflow.nodes entry is one line, node_summaries is an empty map, and the E1 driver carries cwd and model. task.status is in_progress: the template wrote running, which is a B2 node status and not in the A1 task_status enum. orchestrator.options carries the run's inputs beside html_output, which is where the freeze records the values a chain was started with: the four resume lines carry none, so a re-driven driver reads them here or nowhere. Also the eval seed."
 }

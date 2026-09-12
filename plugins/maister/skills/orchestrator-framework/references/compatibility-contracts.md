@@ -91,7 +91,7 @@ Three layers, and only the first is strict.
 **Core key rules**:
 - `orchestrator.next_phase` is `string | null`. The writer form is a phase id (`phase-N`); a sentence in that field is read and reported.
 - `orchestrator.type` is the workflow-type enum of five (§ 3.1). `orchestrator.skipped_phases` is an `object<string,string>` — phase id to reason.
-- `orchestrator.options` is an **open map**. The keys every orchestrator shares are `html_output`, `mockup_format` and `sequential`; the rest belong to one orchestrator each and are listed in its own skill definition.
+- `orchestrator.options` is an **open map**. The keys every orchestrator shares are `html_output`, `mockup_format` and `sequential`; the rest belong to one orchestrator each and are listed in its own skill definition. The workflow engine's is `inputs` — the values a chain run was started with, written at freeze, so a resumed driver has a source for them that no resume line carries.
 - `task.key` is an optional string carrying a tracker id. T1 adopts it as the intake key.
 - `project_context` is top-level, `{project_doc_paths[], project_context_summary}`. `related_tasks[]` entries are `{path, relation}`.
 - The variants that nest `task_context` under `orchestrator:`, or `project_context` under `task_context`, are read and reported (`task-context-nested-under-orchestrator`) rather than refused.

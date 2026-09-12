@@ -12369,6 +12369,142 @@ async function t53(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+
+// ---------------------------------------------------------------------------
+// T54 — a chain's inputs survive every resume
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a resumed driver's inputs come from.
+ *
+ * A start brief carries a chain's inputs once. The four C5 resume lines carry
+ * none — a run id, at most a reason or a steer, a measured `at=`, and that is
+ * the whole shape, frozen at `contracts-v4`. So a re-driven or crash-resumed
+ * driver had no source for its own inputs unless the run had recorded them, and
+ * one chain worked around exactly that by persisting them into its own run
+ * options at run start.
+ *
+ * The engine now records them at freeze, under `orchestrator.options.inputs` —
+ * an A1 open map whose keys belong to the workflow that owns them, so nothing
+ * frozen moves and the resume lines stay where they are. This test drives the
+ * real state writer, because the round trip is the whole claim: a value that
+ * does not survive the writes a resume makes is not persisted, it is merely
+ * written once.
+ */
+const CHAIN_INPUTS = { ticket: 'ALPHA-42', rollout_scope: 'beta-only' };
+const CHAIN_INPUTS_FIXTURE = path.join('synthetic', 'gate', 'chain-template');
+
+async function t54(ctx) {
+  const t = checker();
+  const engine = path.join(ctx.pluginRoot, ENGINE, 'scripts', 'lib');
+
+  await t.checkAsync('the freeze writes the inputs, and the writes a resume makes leave them standing', async () => {
+    const { writeState } = await import(pathToFileURL(path.join(engine, 'state.mjs')).href);
+    const dir = tempDir('chain-inputs');
+    try {
+      const file = path.join(dir, 'orchestrator-state.yml');
+      // Started with no workflow block and no inputs, the way a run is before
+      // it freezes.
+      fs.writeFileSync(file, [
+        'orchestrator:',
+        '  started_phase: null',
+        '  completed_phases: []',
+        '  failed_phases: []',
+        '  created: "2026-09-12T09:00:00Z"',
+        '  updated: "2026-09-12T09:00:00Z"',
+        '  task_path: ".maister/umbrella/runs/019260a2-1122-7c33-8d44-5e6677889900"',
+        '  gate_pending: null',
+        '',
+        'task:',
+        '  title: "Widget rollout chain"',
+        '  status: in_progress',
+        '',
+      ].join('\n'), 'utf8');
+
+      // The freeze: the workflow block, the tracker key and the inputs in one call.
+      const frozen = writeState({
+        state: file,
+        patch: {
+          task: { key: CHAIN_INPUTS.ticket },
+          orchestrator: { options: { inputs: CHAIN_INPUTS } },
+          workflow: {
+            name: 'widget-rollout',
+            source: '.maister/workflows/generated/widget-rollout.yml',
+            overlays: [],
+            profile: null,
+            graph_hash: 'sha256:3f1c9a77b25e04d8c6a1fb03e97d5428ba6c0f19d4e7a2358c9b0d61f4a82e07',
+            grammar_version: 1,
+            nodes: { research: { kind: 'task', status: 'pending', needs: [] } },
+          },
+        },
+      });
+      must(frozen.ok, `the freeze patch was refused: ${JSON.stringify(frozen.errors)}`);
+      const afterFreeze = readState(fs.readFileSync(file, 'utf8')).data;
+      equalJson(afterFreeze?.orchestrator?.options?.inputs, CHAIN_INPUTS,
+        'the inputs the freeze recorded');
+      must(afterFreeze?.task?.key === CHAIN_INPUTS.ticket,
+        'the tracker key written in the same call was lost');
+
+      // Two writes a resume makes: a node begins, and later a gate suspends the
+      // run. Neither mentions options, so neither may disturb it — `options` is
+      // a merged map, and a write that replaced it would erase the inputs.
+      const started = writeState({
+        state: file,
+        patch: { nodes: { research: { kind: 'task', status: 'running', started: '2026-09-12T09:06:00Z', needs: [] } } },
+      });
+      must(started.ok, `the resume's first write was refused: ${JSON.stringify(started.errors)}`);
+      const suspended = writeState({
+        state: file,
+        patch: {
+          orchestrator: { options: { html_output: true } },
+          task: { status: 'in_progress' },
+        },
+      });
+      must(suspended.ok, `a later options write was refused: ${JSON.stringify(suspended.errors)}`);
+
+      const resumed = readState(fs.readFileSync(file, 'utf8')).data;
+      equalJson(resumed?.orchestrator?.options?.inputs, CHAIN_INPUTS,
+        'the inputs a resumed driver reads back after two further writes');
+      must(resumed?.orchestrator?.options?.html_output === true,
+        'the key written beside the inputs was lost, so options is not merging');
+      must(resumed?.task?.key === CHAIN_INPUTS.ticket, 'the tracker key did not survive the resume writes');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  t.check('the chain-run fixture models a run that recorded its inputs', () => {
+    const file = path.join(ctx.fixtures, CHAIN_INPUTS_FIXTURE, 'orchestrator-state.yml');
+    must(isFile(file), `${CHAIN_INPUTS_FIXTURE}/orchestrator-state.yml: missing`);
+    const read = readState(fs.readFileSync(file, 'utf8')).data;
+    equalJson(read?.orchestrator?.options?.inputs, CHAIN_INPUTS,
+      `${CHAIN_INPUTS_FIXTURE}: the inputs the fixture records`);
+  });
+
+  t.check('the engine tells a resumed driver to read them from the state, not from the line', () => {
+    const file = path.join(ctx.pluginRoot, ENGINE_SKILL_REL);
+    must(isFile(file), `${ENGINE_SKILL_REL}: missing`);
+    const text = fs.readFileSync(file, 'utf8');
+    must(text.includes('orchestrator.options.inputs'),
+      `${ENGINE_SKILL_REL}: never names the key the freeze writes, so nothing tells a driver where to look`);
+    must(/reads? (?:its|their) inputs from the state/i.test(text) || /reads those off `orchestrator\.options\.inputs`/.test(text),
+      `${ENGINE_SKILL_REL}: does not say a resumed driver reads its inputs from the state`);
+  });
+
+  // The four resume lines are frozen at contracts-v4, and this fix must not have
+  // widened one. T45 holds their shape; this holds the negative the fix invites.
+  t.check('no resume line grew an inputs field', () => {
+    const markers = readJson(path.join(ctx.schemas, 'markers.schema.json'));
+    for (const [name, def] of Object.entries(markers.$defs ?? {})) {
+      if (!name.startsWith('prompt_') || name === 'prompt_line') continue;
+      must(!/inputs/.test(String(def.pattern ?? '')),
+        `${name} carries an inputs field: widening a frozen contracts-v4 shape belongs to the next contract round`);
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -12441,6 +12577,7 @@ const TESTS = [
   { id: 'T51', name: 'provider-resolution', needs: ['plugin'], run: t51 },
   { id: 'T52', name: 'member-dir-spelling', needs: ['plugin', 'fixtures'], run: t52 },
   { id: 'T53', name: 'envelope-ticket', needs: ['plugin', 'fixtures'], run: t53 },
+  { id: 'T54', name: 'chain-input-persistence', needs: ['plugin', 'fixtures'], run: t54 },
 ];
 
 // ---------------------------------------------------------------------------

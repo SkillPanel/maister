@@ -138,6 +138,25 @@ decision is made from the state the first time it is read, so a key written late
 written after a duplicate epic already exists. The validator holds the mark to one input and
 to `type: string`, so the value the freeze reads is unambiguous.
 
+**The freeze patch carries the run's supplied inputs, under `orchestrator.options.inputs`.**
+A start brief carries a chain's inputs once. The four resume lines carry none — each is a run
+id, at most a reason or a steer, and a measured `at=`, and that is the whole of the contract —
+so a re-driven or crash-resumed driver has no source for its own inputs unless the run recorded
+them. One chain worked around it by persisting them into its own run options at run start;
+every chain that did not lost its inputs on the first re-drive.
+
+So the engine records them, not the message that woke it: the same `write-state` call that
+installs the `workflow:` block writes the supplied values into `orchestrator.options.inputs`,
+a map of input name to the value the run was started with. `options` is an open map whose keys
+belong to the workflow that owns them, so this adds no key to any closed shape and the resume
+lines do not move. A run started with no inputs writes no key.
+
+**A resumed driver reads its inputs from the state, never from the line that woke it.** The
+line says which run and when; it never carried a value and is not going to. Read
+`orchestrator.options.inputs` off the state at Step 1 and treat it as the run's own record —
+it is, because the run wrote it. A run frozen before the engine recorded them has no key, and
+that is a run whose inputs are genuinely unknown: say so rather than guessing one.
+
 If `validate` rejects the definition, stop with `RUN-FAILED:` carrying the validator's first
 error. A definition that does not validate cannot be executed part-way.
 
@@ -460,6 +479,11 @@ node the turn begins — on a re-drive and a steer no less than on an answer. A 
 no `at=` is below the contract: print `RUN-FAILED: prompt-line-unstamped`, write nothing, and
 leave the run where it was. Inventing a time there is what puts a midnight timestamp into a
 run's permanent record, and a fabricated stamp is worse than a refused turn.
+
+**None of the four carries a value, so none of them carries the run's inputs.** A resumed
+driver reads those off `orchestrator.options.inputs`, which the freeze wrote — see Step 4.
+Re-deriving an input from the line, the run directory's name or a task description is inventing
+one, and an invented input is the same class of defect as an invented timestamp.
 
 Under a pending gate the whole tool surface is denied, the shell included, so the state
 writer is unreachable and the decision is recorded with editor tools on the allow-listed
