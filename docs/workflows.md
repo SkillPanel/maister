@@ -2,6 +2,16 @@
 
 Maister provides six workflow types, each with phases tailored to its needs. All workflows pause between phases for your review and input.
 
+A run started from the cockpit, or dispatched into another repository, has nobody sitting in the
+session — so it asks nothing there. The pauses between phases still happen: each one suspends the
+run and waits for you to answer it from outside. The smaller questions a phase asks along the way
+cannot wait like that, so each one takes a stated default instead: a clarification goes unasked
+and the analysis stands, an opt-in and a decision take what the phase recommends, a revise-or-accept
+loop accepts what it has, and a phase that has run out of recovery attempts fails rather than
+guessing. Every default a run takes is written onto that phase's summary, beside its decisions, so
+the run's dashboard and its state both show which questions were answered for you and what the
+answer was — and the next pause is where you change any of it.
+
 ## Development Workflow
 
 The unified development workflow handles features, enhancements, and bug fixes through a 14-phase adaptive pipeline. Phases activate or skip based on task type.
