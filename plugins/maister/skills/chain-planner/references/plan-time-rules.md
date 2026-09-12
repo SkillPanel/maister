@@ -453,7 +453,10 @@ whose value is the ticket the run was started from. The engine reads it off the
 `resolve` report (`tracker_key`, the marked input's name or null) and writes that
 input's supplied value into `task.key` in the freeze patch, which is what makes
 the cockpit's tracker mirror adopt the existing ticket as the run's parent
-instead of opening a fresh epic beside it. The checker holds it to one input per
+instead of opening a fresh epic beside it. The same key reaches every dispatch
+envelope the run builds, as the envelope's own `ticket` — the field a chain
+matches on to find what it has already dispatched for a ticket, instead of
+grepping the statement a person was meant to read. The checker holds it to one input per
 definition and to `type: string`; everything else about it is inert, and the mark
 reaches no node, so adding it to a published chain does not move its graph hash.
 It needs no schema change either — B1's input shape does not close its

@@ -290,7 +290,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
     },
     outbox: `.maister/umbrella/outbox/${dispatchId}/`,
     branch: overrides.branch ?? branchOf({ manifest, runId, node, member, dispatchId }),
-    ticket: overrides.ticket ?? null,
+    ticket: overrides.ticket ?? ticketOf(state),
     closeout_contract: {
       pr_required: prRequired,
       grade: [...GRADES],
@@ -481,6 +481,30 @@ function closeoutPrOf({ node, autonomy, overrides }) {
 /** C2's absolute workspace root, or null when the caller named none. */
 function rootOf(root) {
   return typeof root === 'string' && root !== '' ? path.resolve(root) : null;
+}
+
+/**
+ * The ticket this run was started from, or null.
+ *
+ * `task.key` is where the freeze writes the value of an input marked
+ * `tracker_key: true` (§ A1), so a chain planned from a ticket already records
+ * which ticket it is — and every envelope the run builds can carry it without a
+ * new field, a new override or a second place to keep the answer. An explicit
+ * override still wins, because a caller dispatching on behalf of a different
+ * ticket is saying so.
+ *
+ * Why it is worth carrying at all: without it a chain looking for its own
+ * earlier dispatches for a ticket has to grep the statements, which is prose,
+ * written for a person, and not a key anything should match on.
+ *
+ * The run's `task.key` and the envelope's `ticket` stay two fields rather than
+ * one: the run's is the intake the tracker mirror adopts, and the envelope's is
+ * what a dispatch is about. They agree here because nothing yet makes them
+ * differ, and an override is how they are allowed to.
+ */
+function ticketOf(state) {
+  const key = mapOf(state?.task).key;
+  return typeof key === 'string' && key !== '' ? key : null;
 }
 
 /**

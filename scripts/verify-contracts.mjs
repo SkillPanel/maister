@@ -12127,7 +12127,7 @@ async function t51(ctx) {
  * chain's own graph. Shared by the provider and ticket checks, which each need a
  * real dispatch and differ only in what they read off it.
  */
-function providerEnvelope({ buildEnvelope, run, manifest, definition, graphHash, taskKey = null, node = 'plan' }) {
+function providerEnvelope({ buildEnvelope, run, manifest, definition, graphHash, taskKey = null, node = 'plan', overrides = {} }) {
   const runId = '019260a2-1122-7c33-8d44-5e6677889900';
   const runDir = path.join(run, '.maister', 'umbrella', 'runs', runId);
   fs.mkdirSync(runDir, { recursive: true });
@@ -12159,7 +12159,7 @@ function providerEnvelope({ buildEnvelope, run, manifest, definition, graphHash,
     '    build: {kind: task, status: pending, needs: [plan], dir: api}',
     '',
   ].join('\n'), 'utf8');
-  return buildEnvelope({ run: runDir, node, manifest, dispatchId: 'd-0001' });
+  return buildEnvelope({ run: runDir, node, manifest, dispatchId: 'd-0001', overrides });
 }
 
 
@@ -12272,6 +12272,103 @@ async function t52(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+
+// ---------------------------------------------------------------------------
+// T53 — an envelope carries the ticket its chain was planned from
+// ---------------------------------------------------------------------------
+
+/**
+ * Finding a chain's own earlier dispatches for a ticket, without reading prose.
+ *
+ * A planner-generated chain set no ticket override, so every envelope's `ticket`
+ * stayed null and a chain looking for what it had already dispatched for a
+ * ticket had to grep the statements — prose, written for a person, and not a key
+ * anything should match on. One chain's intake did exactly that. It worked, and
+ * it should not have been necessary.
+ *
+ * `task.key` is where the freeze writes a `tracker_key: true` input's value, so
+ * the answer was already on disk; the envelope reads it. This test does the
+ * lookup the issue asks for: two dispatches for one ticket, found by the field
+ * and never by the statement.
+ */
+const ENVELOPE_TICKET = 'ALPHA-42';
+
+async function t53(ctx) {
+  const t = checker();
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+  const { ajv } = loadSchemas(ctx.schemas);
+  const validates = (ref, doc) => {
+    const validator = ajv.getSchema(schemaKey(ref));
+    must(validator, `no schema registered at ${ref}`);
+    must(validator(doc), `does not validate against ${ref}: ${ajv.errorsText(validator.errors)}`);
+  };
+
+  await t.checkAsync('every envelope of a ticketed run carries the ticket, and an override still wins', async () => {
+    const { buildEnvelope } = await import(pathToFileURL(path.join(scripts, 'lib', 'envelope.mjs')).href);
+    const engine = path.join(ctx.pluginRoot, ENGINE, 'scripts', 'lib');
+    const { readDefinition } = await import(pathToFileURL(path.join(engine, 'definition.mjs')).href);
+    const { resolve: resolveGraphOf } = await import(pathToFileURL(path.join(engine, 'graph.mjs')).href);
+
+    const run = tempDir('envelope-ticket');
+    try {
+      const definition = path.join(run, 'chain.yml');
+      fs.writeFileSync(definition, [
+        'version: 1', 'name: chain',
+        'inputs:', '  ticket: {type: string, required: true, tracker_key: true}', 'nodes:',
+        '  plan:', '    uses: workflow:research', '    dir: api', '    provider: claude', '    needs: []',
+        '  build:', '    uses: workflow:development', '    dir: api', '    provider: claude', '    needs: [plan]', '',
+      ].join('\n'), 'utf8');
+      const graphHash = resolveGraphOf({ definition: readDefinition(definition), overlays: [], profile: null }).graph_hash;
+      const manifest = { version: 1, members: { api: { path: 'projects/api', kind: 'repo' } }, defaults: { autonomy: 'attended', worktree: false } };
+      const of = (node, overrides) => providerEnvelope({
+        buildEnvelope, run: tempDir(`envelope-ticket-${node}`), manifest, definition, graphHash,
+        taskKey: ENVELOPE_TICKET, node, overrides,
+      });
+
+      const first = of('plan');
+      const second = of('build');
+      must(first.ticket === ENVELOPE_TICKET, `the first envelope carries ${JSON.stringify(first.ticket)}`);
+      must(second.ticket === ENVELOPE_TICKET, `the second envelope carries ${JSON.stringify(second.ticket)}`);
+      validates('dispatch-envelope.schema.json', first);
+
+      // The lookup the issue asks for: an earlier dispatch for a ticket, found
+      // by the field. `statement` is null on both, so a grep over the prose
+      // would find nothing — which is the point.
+      const dispatched = [first, second].filter(doc => doc.ticket === ENVELOPE_TICKET).map(doc => doc.chain.node);
+      equalJson(dispatched, ['plan', 'build'], 'the dispatches found for the ticket, by the envelope field alone');
+      must([first, second].every(doc => doc.statement === null || !String(doc.statement).includes(ENVELOPE_TICKET)),
+        'the ticket also reached the statement, so the check could be passing on prose');
+
+      // A run recording no key carries null rather than the workflow's name or
+      // an empty string.
+      const unticketed = providerEnvelope({
+        buildEnvelope, run: tempDir('envelope-ticket-none'), manifest, definition, graphHash, node: 'plan',
+      });
+      must(unticketed.ticket === null, `an unticketed run carries ${JSON.stringify(unticketed.ticket)}`);
+
+      // An explicit override outranks the run's key: a caller dispatching on
+      // behalf of another ticket is saying so.
+      const overridden = of('plan', { ticket: 'BETA-7' });
+      must(overridden.ticket === 'BETA-7', `the override was ignored: ${JSON.stringify(overridden.ticket)}`);
+    } finally {
+      fs.rmSync(run, { recursive: true, force: true });
+    }
+  });
+
+  t.check('the shipped envelope fixture exercises the field', () => {
+    const dir = path.join(ctx.fixtures, 'synthetic', 'dispatch-envelope');
+    must(isDir(dir), 'synthetic/dispatch-envelope: absent');
+    const ticketed = fs.readdirSync(dir)
+      .filter(name => name.endsWith('.envelope.yml'))
+      .map(name => ({ name, doc: parseYaml(fs.readFileSync(path.join(dir, name), 'utf8'), YAML_OPTS) }))
+      .filter(entry => typeof entry.doc?.ticket === 'string' && entry.doc.ticket !== '');
+    must(ticketed.length > 0,
+      'no envelope fixture carries a ticket, so the field ships unexercised by the corpus');
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -12343,6 +12440,7 @@ const TESTS = [
   { id: 'T50', name: 'verdict-counts', needs: ['plugin', 'fixtures'], run: t50 },
   { id: 'T51', name: 'provider-resolution', needs: ['plugin'], run: t51 },
   { id: 'T52', name: 'member-dir-spelling', needs: ['plugin', 'fixtures'], run: t52 },
+  { id: 'T53', name: 'envelope-ticket', needs: ['plugin', 'fixtures'], run: t53 },
 ];
 
 // ---------------------------------------------------------------------------

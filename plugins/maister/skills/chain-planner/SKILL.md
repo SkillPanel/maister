@@ -248,7 +248,11 @@ by the person who reads it.
 is planned from is a tracker ticket, declare the input that carries its key as
 `ticket: {type: string, required: true, tracker_key: true}`. The mark is what
 makes the run's `task.key` the ticket, and so what makes the tracker mirror adopt
-that ticket as the run's parent instead of opening a fresh epic beside it. At
+that ticket as the run's parent instead of opening a fresh epic beside it — and
+what makes every dispatch envelope the run builds carry the ticket too, so a
+chain finds its own earlier dispatches for a ticket by matching a field rather
+than by grepping a statement. One mark, both consequences; nothing else to
+declare. At
 most one input per definition carries the mark and it must be `type: string`;
 the checker rejects a second one and a non-string one. Details and the reason it
 needs no schema change: `references/plan-time-rules.md` § 4.4.

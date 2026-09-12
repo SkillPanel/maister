@@ -1,0 +1,16 @@
+version: 1
+dispatch_id: d-0207
+chain: {run_id: 019260a4-5566-7d77-8e88-99aabbccddee, node: plan-alpha, umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607}
+target: {member: repo-alpha, path: projects/repo-alpha, worktree: .worktrees/019260a4-5566-7d77-8e88-99aabbccddee-plan-alpha}
+provider: claude
+session: {name: "ticket-alpha-42-rollout/0207/plan-alpha", substrate: p}
+workflow: {uses: workflow:plan, with: {autonomy: attended}}
+inputs: []
+autonomy: attended
+permissions:
+  allow: ["shell(git:*)", "write"]
+  deny:  ["shell(git push)", "shell(gh pr merge)"]
+outbox: .maister/umbrella/outbox/d-0207/
+branch: feature/019260a4-5566-7d77-8e88-99aabbccddee-plan-alpha
+ticket: ALPHA-42
+closeout_contract: {pr_required: true, grade: [success, partial, failed]}

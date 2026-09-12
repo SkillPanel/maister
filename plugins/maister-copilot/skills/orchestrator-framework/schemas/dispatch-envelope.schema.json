@@ -73,7 +73,10 @@
       "type": "string"
     },
     "branch": { "type": ["string", "null"] },
-    "ticket": { "type": ["string", "null"] },
+    "ticket": {
+      "description": "The tracker id this dispatch is about. Resolved override, then the run's task.key, and null when the run records neither.",
+      "type": ["string", "null"]
+    },
     "closeout_contract": {
       "type": "object",
       "properties": {

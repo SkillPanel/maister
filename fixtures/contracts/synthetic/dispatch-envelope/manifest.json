@@ -13,7 +13,11 @@
     {
       "path": "dev-beta.envelope.yml",
       "schema": "dispatch-envelope.schema.json#"
+    },
+    {
+      "path": "plan-alpha.envelope.yml",
+      "schema": "dispatch-envelope.schema.json#"
     }
   ],
-  "notes": "The envelope the engine writes before spawning a dir: node worker. autonomy attended is the tier that denies push, merge and PR creation, which is what the permissions block renders. outbox is the only cross-directory write the worker is granted."
+  "notes": "The envelope the engine writes before spawning a dir: node worker. autonomy attended is the tier that denies push, merge and PR creation, which is what the permissions block renders. outbox is the only cross-directory write the worker is granted. The two documents differ in what a dispatch is about: one carries no ticket, because its run records none; the other carries the ticket its run was started from, which is how a chain finds its own earlier dispatches for a ticket without reading a statement."
 }
