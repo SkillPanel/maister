@@ -3233,7 +3233,7 @@ const HOOK_CONFIGS = [
     file: 'platforms/claude-code/gate-hooks.settings.json',
     vocabulary: 'claude',
     token: SETTINGS_ROOT_TOKEN,
-    events: ['PreToolUse', 'SessionStart'],
+    events: ['PreToolUse', 'Stop', 'SessionStart'],
   },
   {
     file: 'platforms/copilot-cli/hooks/maister-gates.json',
@@ -3452,7 +3452,8 @@ function t24(ctx) {
   // the hook is read-only and idempotent, so the second run reaches the same
   // decision. Every other overlap is a hook that runs twice for no reason — and
   // for the stop nudge that is two blocks and two reasons on one stop, which is
-  // why the nudge is registered in `hooks.json` alone.
+  // why the nudge is registered in the chain-mode template alone and must not
+  // be added to `hooks.json` beside it.
   const settings = path.join(ctx.repoRoot, 'platforms/claude-code/gate-hooks.settings.json');
   if (isFile(plugin) && isFile(settings)) {
     const pairs = file => new Set(claudeEntries(readJson(file))
