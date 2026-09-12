@@ -12162,6 +12162,116 @@ function providerEnvelope({ buildEnvelope, run, manifest, definition, graphHash,
   return buildEnvelope({ run: runDir, node, manifest, dispatchId: 'd-0001' });
 }
 
+
+// ---------------------------------------------------------------------------
+// T52 — a dispatch target is a member name, in one spelling
+// ---------------------------------------------------------------------------
+
+/**
+ * `dir:` names the key the manifest uses, and nothing else.
+ *
+ * The validator used to accept a member's path beside its name, so a path-form
+ * target validated clean and was refused when the node was dispatched — the
+ * member reaches `branchOf`, and a path carries a separator no branch segment
+ * may. The two ends are asserted together here, because the point of the change
+ * is that they now agree: what validation accepts is what dispatch can build.
+ */
+async function t52(ctx) {
+  const t = checker();
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+
+  await t.checkAsync('a member path as a dispatch target fails validation; the member name passes', async () => {
+    const { init, validate } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const root = tempDir('member-dir-spelling');
+    try {
+      gitDir(root, 'projects', 'api');
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+      const chain = (target) => {
+        const file = path.join(root, '.maister', 'workflows', 'chain.yml');
+        fs.writeFileSync(file, [
+          'version: 1', 'name: chain', 'nodes:',
+          '  plan:', '    uses: workflow:research', `    dir: ${target}`, '    provider: claude', '',
+        ].join('\n'), 'utf8');
+        return file;
+      };
+
+      const byName = validate(root, { definitions: [chain('api')] });
+      equalJson(byName.errors, [], 'the member name was rejected');
+
+      const byPath = validate(root, { definitions: [chain('projects/api')] });
+      must(byPath.ok === false, 'a member path validated clean, so the refusal still waits for dispatch');
+      equalJson(byPath.errors.map(e => [e.node, e.path]), [['plan', 'nodes.plan.dir']],
+        'the located error for a path-form target');
+      // Told apart from a member that is simply not there, because the recovery
+      // differs: the same member under the wrong key, versus no such member.
+      must(/rather than its name/.test(byPath.errors[0].message),
+        `a path is reported as an unknown member: ${byPath.errors[0].message}`);
+      must(/branch/.test(byPath.errors[0].message),
+        `the recovery does not say why a path cannot be the target: ${byPath.errors[0].message}`);
+
+      const typo = validate(root, { definitions: [chain('apii')] });
+      must(typo.ok === false, 'an undeclared member validated clean');
+      must(!/rather than its name/.test(typo.errors[0].message),
+        `an undeclared member is reported as a path: ${typo.errors[0].message}`);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.checkAsync('the dispatch end refuses the same spelling, so the two ends agree', async () => {
+    const { buildEnvelope } = await import(pathToFileURL(path.join(scripts, 'lib', 'envelope.mjs')).href);
+    // The predicate the envelope holds the member to, driven through a member
+    // whose name is a path: if this ever stopped refusing, the validator could
+    // go back to accepting one.
+    const run = tempDir('member-dir-dispatch');
+    try {
+      const manifest = { version: 1, members: { 'projects/api': { path: 'projects/api', kind: 'repo', default_provider: 'claude' } } };
+      const definition = path.join(run, 'chain.yml');
+      fs.writeFileSync(definition, [
+        'version: 1', 'name: chain', 'nodes:',
+        '  plan:', '    uses: workflow:research', '    dir: projects/api', '    provider: claude', '',
+      ].join('\n'), 'utf8');
+      const engine = path.join(ctx.pluginRoot, ENGINE, 'scripts', 'lib');
+      const { readDefinition } = await import(pathToFileURL(path.join(engine, 'definition.mjs')).href);
+      const { resolve: resolveGraphOf } = await import(pathToFileURL(path.join(engine, 'graph.mjs')).href);
+      const graphHash = resolveGraphOf({ definition: readDefinition(definition), overlays: [], profile: null }).graph_hash;
+      let refusal = null;
+      try {
+        providerEnvelope({ buildEnvelope, run, manifest, definition, graphHash });
+      } catch (err) {
+        refusal = err;
+      }
+      must(refusal !== null, 'the envelope built a dispatch into a member whose name is a path');
+      must(refusal.code === 'dispatch-node-incomplete',
+        `the refusal is ${JSON.stringify(refusal.code)}, not dispatch-node-incomplete`);
+      must(/branch segment/.test(refusal.message), `the refusal does not name the branch rule: ${refusal.message}`);
+    } finally {
+      fs.rmSync(run, { recursive: true, force: true });
+    }
+  });
+
+  t.check('the corpus models no path-form dispatch target', () => {
+    // A fixture spelling a target the validator refuses is a fixture teaching
+    // the refused form.
+    const offenders = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.ya?ml$/.test(entry.name)) {
+          for (const line of fs.readFileSync(full, 'utf8').split('\n')) {
+            if (/^\s*dir:\s*[^\s#]*\//.test(line)) offenders.push(`${path.relative(ctx.fixtures, full)}: ${line.trim()}`);
+          }
+        }
+      }
+    };
+    walk(ctx.fixtures);
+    equalJson(offenders, [], 'fixtures spelling a dispatch target as a path');
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -12232,6 +12342,7 @@ const TESTS = [
   { id: 'T49', name: 'overlay-run-and-node-freeze', needs: ['plugin', 'fixtures'], run: t49 },
   { id: 'T50', name: 'verdict-counts', needs: ['plugin', 'fixtures'], run: t50 },
   { id: 'T51', name: 'provider-resolution', needs: ['plugin'], run: t51 },
+  { id: 'T52', name: 'member-dir-spelling', needs: ['plugin', 'fixtures'], run: t52 },
 ];
 
 // ---------------------------------------------------------------------------

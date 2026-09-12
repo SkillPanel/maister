@@ -17,5 +17,5 @@ nodes:
   rollout:
     uses: workflow:development
     needs: [approve]
-    dir: projects/repo-beta
+    dir: repo-beta
     provider: claude

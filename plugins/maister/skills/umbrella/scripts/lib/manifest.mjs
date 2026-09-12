@@ -1221,21 +1221,36 @@ function checkNullableInteger(holder, key, fail, prefix = '') {
  * interpolated `dir:` is left alone — what it resolves to is decided at
  * dispatch time, from a value this stage does not have.
  *
- * A member's path is accepted beside its name. The manifest keys members by
- * name, so the name is the spelling to prefer, but a path is unambiguous and
- * rejecting one would be reporting a defect where there is none.
+ * Only a member's **name** is accepted. A path used to be accepted beside it, on
+ * the argument that the manifest keys members by name but a path is unambiguous,
+ * so rejecting one would report a defect where there was none. There was a
+ * defect: the member reaches `branchOf`, whose output a worker hands to git, so
+ * the envelope builder holds it to a legal branch segment — which a path is not,
+ * because it carries a separator. A path-form target therefore validated clean
+ * and was refused when the node was dispatched. Accepting it here did not make
+ * it work; it moved the refusal from the cheapest moment to the most expensive
+ * one.
+ *
+ * The planner emits names, so no generated chain ever reached it. A hand-written
+ * one did, and now hears about it from the validator.
  */
 function checkMemberDirs(doc, file, members, errors) {
   if (!isMap(doc) || !isMap(doc.nodes)) return;
   for (const [id, node] of Object.entries(doc.nodes)) {
     if (!isMap(node) || typeof node.dir !== 'string' || node.dir === '') continue;
     if (node.dir.includes('${')) continue;
-    if (members.names.has(node.dir) || members.paths.has(node.dir)) continue;
+    if (members.names.has(node.dir)) continue;
+    // A path is told apart from a typo, because the recovery differs: one is
+    // the same member under the wrong key, the other is a member that is not
+    // there.
+    const named = members.paths.has(node.dir)
+      ? `, which is the path of a member this workspace declares rather than its name — a dir: names the key the manifest uses, because the member reaches the branch a worker hands to git and a path is not a legal branch segment`
+      : '';
     errors.push({
       file,
       node: id,
       path: `nodes.${id}.dir`,
-      message: `"${node.dir}" is not a member this workspace declares; the members are ${[...members.names].join(', ') || 'none'}`,
+      message: `"${node.dir}" is not a member this workspace declares${named}; the members are ${[...members.names].join(', ') || 'none'}`,
     });
   }
 }
