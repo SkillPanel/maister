@@ -321,7 +321,8 @@ other variant and is a defect, not a style choice.
 
 A `direct:` node's prose is the node's body: its steps, its fan-outs, its self-checks, the
 questions it asks inline, and how many times it may be re-driven. Read the section before
-executing the node, not after it fails.
+executing the node, not after it fails. Whether those inline questions are asked at all
+follows the run's driver — see *In-node questions*.
 
 ### Recording an outcome
 
@@ -336,6 +337,13 @@ schemes:
 | Budget exhausted, the operator chose to retry, and it then succeeded | `completed` | satisfies `needs` |
 | Budget exhausted, the operator chose to skip | `skipped` | satisfies `needs`; declared boolean outputs default false, declared string outputs to null |
 | Hard failure with no operator path | `failed` | satisfies nothing by default; the run stops with `RUN-FAILED` |
+
+**The two budget-exhausted rows need an operator, so they need a driver.** Asking whether to
+retry or to skip is itself an in-node question, and under a `cockpit` or `dispatch` driver
+nobody is there to answer it: the node is recorded `failed` and the run stops with
+`RUN-FAILED`, which is the last row rather than either of the two above. That is not a dead
+end — a re-drive is what an operator reaches such a run with, and it carries the context the
+question would have gathered. See *In-node questions* for the rule and what it records.
 
 **A node that did not produce its declared artifacts has not completed.** Before recording
 a node `completed`, check that every path the node declares under `outputs.artifacts` exists
@@ -528,6 +536,68 @@ A stop option ends the run, and ends it completely:
 
 A stopped run is a legitimate outcome, not a failure. Do not print `RUN-FAILED` for one, and
 never re-ask a gate the operator has already answered.
+
+---
+
+## In-node questions
+
+A gate is not the only question a run asks. A node's prose may ask its own — a clarification,
+an opt-in that decides whether a later stretch runs, a decision between approaches, or a loop
+that offers a second pass — and those questions are in the node because the graph cannot say
+them. They follow the same driver, and only the driver:
+
+| `orchestrator.driver.kind` | An in-node question is |
+|---|---|
+| absent, or `terminal` | asked in session, exactly as the node prose describes it |
+| `cockpit`, `dispatch` | **never asked**; the node takes the default its own prose names, and records that it did |
+
+**Why a default rather than a suspension.** Suspending is gate-shaped: the request document
+carries a node id, a kind, a question and its options (`gate.schema.json` declares the shape),
+and there is no request kind for a question asked inside a node. So a non-terminal run has two
+honest outcomes and no third — take the stated default, or fail. Asking anyway is the defect
+this rule exists to prevent: nobody is in the session, and a session hint saying to continue
+without asking is not an answer either.
+
+**Every in-node question names its default, in its own node prose.** The prose that asks is
+also what says what is taken when nobody can be asked, so a reader never has to infer one. The
+families and what each takes:
+
+| The question | What a non-terminal run takes |
+|---|---|
+| A clarification | nothing is asked; the analysis or the delegate's own answers stand, and the node writes its artifact and sets its flag as a run with nothing to ask already does |
+| An opt-in | the recommended option |
+| A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is named in the context line printed before the next gate, which the node prose identifies |
+| A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
+| An exhausted recovery budget | the node is recorded `failed`, per *Recording an outcome* |
+
+**What is recorded.** One entry per defaulted question on that node's summary `decisions`
+list, as a plain string:
+
+```
+defaulted: audit-opt-in -> the recommended option, run the audit
+```
+
+The id is the one the node prose names, and the text after the arrow is the default actually
+taken — not the option that was recommended in the abstract, the one this run used. A node
+that asked nothing because it had nothing to ask records nothing: there was no question to
+default. Nothing else changes — the entry is an ordinary decision item, it reaches the
+dashboard the way every other decision does, and no new state key is involved.
+
+**A run started under a driver has its inputs.** The first question in a workflow is usually
+"what is the task?" or "what is the question?", and under a non-terminal driver it is never
+reached: the start brief supplies the inputs and the freeze persists them under
+`orchestrator.options.inputs` (see Step 4). If one is nevertheless missing, print
+`RUN-FAILED: <code>` and stop. Inventing a task description is the documented failure mode,
+and defaulting is not a licence to invent one.
+
+**Two things this rule never defaults past.** It settles who answers, not what may be waived:
+
+- An unresolved critical verification issue is not proceeded past. The default fixes what is
+  fixable and carries the remainder into the following gate's context, where an operator sees
+  it and answers.
+- A decision the node owes is still *resolved* rather than skipped. A defaulted decision is a
+  resolved one and satisfies a node's own completeness self-check; an unasked, unrecorded,
+  unresolved one does not, and a node must not be marked complete with one outstanding.
 
 ---
 

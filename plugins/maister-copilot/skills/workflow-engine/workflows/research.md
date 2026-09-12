@@ -14,6 +14,12 @@ that the run asks eight further questions beyond its three gates, and the
 generated diagram does not show them either. Anyone reasoning about how
 interactive this workflow is must read this file, not the graph.
 
+**Every question asked inside a node names its default here.** Under a `cockpit`
+or `dispatch` driver nobody is in the session, so none of them is asked: each
+takes the default its own section states and the node records that it did. The
+rule, the recording shape and what is never defaulted past belong to the engine
+skill, which states them once; this file only says what each question takes.
+
 **Retry budgets are prose here on purpose.** They must never be written into
 `with:`, which is an unconstrained free-form object — `max_attempts` sitting
 there would read like a grammar feature while being inert data the engine never
@@ -118,6 +124,11 @@ what make a re-entered run cheap instead of destructive.
 operator for it. Nothing downstream is meaningful without one, and inventing a
 question is the documented failure mode.
 
+**Default under a non-terminal driver** (`research-question`): none, because the
+question is never reached — the start brief supplied it and the freeze persisted
+it. A non-terminal run that has no research question is `RUN-FAILED`, never a
+run with an invented one.
+
 ### Step 1 — initialize (inline)
 
 *Writes* `planning/research-brief.md`. *Resume check*: if the brief exists, go
@@ -190,6 +201,12 @@ patterns and falling back to a mixed methodology; step 3 three attempts,
 retrying only the failed gatherers and continuing with the categories that
 succeeded; step 4 two attempts, requesting targeted re-gathering for the gaps.
 
+**Default under a non-terminal driver** (`question-clarification`): none. Step 1
+cannot ask an absent operator to clarify an unclear question, and it must not
+guess one, so an unclear question exhausts the step's single attempt and the
+node is recorded `failed`. A re-drive carrying the clarification is the route
+back in.
+
 **Phase summary key**: `phase-1`. Mirror this node's summary into
 `research_context.phase_summaries.phase-1`, with `node: research-foundation` on
 the entry.
@@ -232,6 +249,15 @@ both answers continue the run: a gate's effect vocabulary is continue or stop
 with exactly one continue, and neither answer here stops anything. A "no" makes
 the guarded nodes skip, and a skip satisfies everything downstream.
 
+**Default under a non-terminal driver** (`brainstorm-opt-in`): the
+recommendation this node computed from the synthesis — the same judgement that
+would have been interpolated into the question text. It is recorded as the
+node's brainstorming output exactly as an answer would be, and a supplied flag
+still settles it without a default being taken at all.
+
+**Default under a non-terminal driver** (`design-opt-in`): the computed design
+recommendation, by the same rule, recorded as the node's design output.
+
 **Recovery budget**: one attempt — re-evaluate the recommendation when the
 synthesis reads unclearly.
 
@@ -256,6 +282,12 @@ supply the rest. `output_path` is exact — the delegate must write to
 That retry-or-skip question is the third of the in-node questions, and it exists
 because re-driving a failed node needs a construct the grammar reserves without
 implementing.
+
+**Default under a non-terminal driver** (`brainstormer-retry`): none — neither
+retry nor skip. With the budget exhausted and nobody to ask, the node is
+recorded `failed` rather than silently skipped, because a skipped brainstorming
+stretch satisfies everything downstream and would hide the failure from every
+later reader. A re-drive is the operator's route back in.
 
 This node ends with no gate: it continues straight into convergence.
 
@@ -312,8 +344,9 @@ The protocol:
    output.
 4. Record the chosen approach per decision area.
 
-**What the summary entry carries.** Beside `summary`, this node's phase entry
-carries two keys and no others: `decision_areas`, a list whose every element has
+**What the summary entry carries.** Beside `summary` and the `decisions` list
+every summary may carry, this node's phase entry carries two keys and no others:
+`decision_areas`, a list whose every element has
 exactly `area` (the decision area's name), `alternatives_count` (how many
 alternatives were presented for it) and `chosen_approach` (the alternative the
 operator picked); and `deferred_ideas`, the ideas parked rather than decided.
@@ -326,10 +359,22 @@ entry written without that key costs the operator the whole area again.
 > and output the full detail first. And does this call contain exactly one
 > question about exactly one area? If it carries more, STOP and split it.
 
-> **GATE CHECK**: verify that a question was asked for EVERY decision area. If
-> any area was skipped for any reason — a missing file, a failed read — STOP and
-> resolve it. Do not mark this node complete without convergence on all areas.
+> **GATE CHECK**: verify that EVERY decision area was resolved — asked and
+> answered in a terminal run, defaulted and recorded under a non-terminal one,
+> and in both cases present in `decision_areas`. An area a non-terminal run
+> could not default is recorded as open, never dropped. If any area was skipped
+> for any reason — a missing file, a failed read — STOP and resolve it. Do not
+> mark this node complete without convergence on all areas.
 > Never paper over a missed gate by updating state.
+
+**Default under a non-terminal driver** (`convergence-decisions`): each area
+takes the alternative this node recommends for it, and "Need more info" is never
+taken — there is nobody to present the deeper analysis to. Every area is still
+worked in full: the alternatives are presented, the recommendation is reasoned,
+and `chosen_approach` is written for every element of `decision_areas`, so a
+resumed run re-asks nothing and the following gate shows the operator the whole
+combination. An area with no recommendation is not guessed at — it is recorded
+with `chosen_approach` unset and named in the context line before the gate.
 
 This node's one declared output is the identifier of the converged approach.
 Do not confuse it with the per-area chosen approaches recorded in the summary
@@ -364,6 +409,12 @@ question *"Any architectural constraints or preferences?"*. The answer feeds the
 delegate and decides nothing about the flow, which is why it is asked here
 rather than at a gate.
 
+**Default under a non-terminal driver** (`design-constraints`): none is
+supplied, and the delegate is invoked on the convergence output and the research
+report alone. This is the cheapest question in the run to default: its answer
+feeds a prompt and decides nothing about the flow, so an absent one costs the
+design nothing a stated constraint would have added.
+
 **Part B — design generation (delegate).**
 
 > **ANTI-PATTERN**: Do NOT generate architecture diagrams or decision records
@@ -377,6 +428,11 @@ from the delegate's context entirely rather than passing empty values, and say
 that the design input is the research report's recommendations.
 
 > **SELF-CHECK**: after the Task tool returns, verify that both `outputs/high-level-design.md` and `outputs/decision-log.md` exist. If missing: **STOP. Do NOT proceed to Part C.** Re-invoke the designer with corrected context. If the second attempt also fails, ask the operator whether to retry or to skip the design stretch.
+
+**Default under a non-terminal driver** (`designer-retry`): none — neither retry
+nor skip. The budget is exhausted and nobody is there, so the node is recorded
+`failed` rather than skipped, for the same reason the brainstormer's retry
+question is: a skip satisfies everything downstream and would hide the failure.
 
 **Part C — summary (inline).** Read both artifacts and present an executive
 summary: the architecture style and its key components, how many decisions were

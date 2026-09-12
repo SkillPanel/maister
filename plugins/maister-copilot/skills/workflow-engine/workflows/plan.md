@@ -14,6 +14,12 @@ here because neither host's planning agent is expressible as a target.
 one provider hands the work to a built-in subagent and the other to a plugin
 agent, and the generated diagram does not show it either.
 
+**No node here asks an in-node question.** `plan-approval` is this workflow's
+whole operator surface, and a gate follows the driver rule the engine skill
+states. Every question asked inside a node would owe a stated default there, so
+a node added later that asks one names its default beside the prose that asks —
+without it, a run under a `cockpit` or `dispatch` driver has nothing to take.
+
 **This workflow has no user surface.** There is no `plan` orchestrator skill and
 no `/maister-quick-plan`-style command for it, and therefore no `SKILL.md` twin
 for a parity checklist to hold this definition in step with. This file is not

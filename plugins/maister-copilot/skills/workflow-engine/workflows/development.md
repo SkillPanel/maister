@@ -15,6 +15,12 @@ see that the run asks ten further questions beyond its eleven gates, and the
 generated diagram does not show them either. Anyone reasoning about how
 interactive this workflow is must read this file, not the graph.
 
+**Every question asked inside a node names its default here.** Under a `cockpit`
+or `dispatch` driver nobody is in the session, so none of them is asked: each
+takes the default its own section states and the node records that it did. The
+rule, the recording shape and what is never defaulted past belong to the engine
+skill, which states them once; this file only says what each question takes.
+
 **Recovery budgets are prose here on purpose.** They must never be written into
 `with:`, which is an unconstrained free-form object — an attempts key sitting
 there would read like a grammar feature while being inert data the engine never
@@ -197,6 +203,11 @@ the operator for it. Nothing downstream is meaningful without one, and inventing
 a task description is the documented failure mode. This is the first of the ten
 in-node questions.
 
+**Default under a non-terminal driver** (`task-description`): none, because the
+question is never reached — the start brief supplied the description and the
+freeze persisted it. A non-terminal run that has no description is
+`RUN-FAILED`, never a run with an invented one.
+
 1. **Capture the clock** — read the wall clock through the shell rather than
    from context. Every timestamp written this turn uses that one value; a
    date-only or midnight-stamped value is the documented failure mode.
@@ -299,6 +310,11 @@ Save the answers to `analysis/clarifications.md`, then set
 still writes the file and still sets the flag: it resolved the clarifications by
 having none to ask.
 
+**Default under a non-terminal driver** (`clarifications`): none is asked, and
+the analysis's own answers stand. The file is written and the flag set exactly
+as they are for a run that had nothing to ask, and what the analysis could not
+settle is named in the file as unsettled rather than guessed at.
+
 **There is no gate after this node.** It auto-continues into gap analysis.
 
 **Recovery budget**: 2 attempts — expand the search patterns on the second, and
@@ -359,6 +375,12 @@ is a node question and not the gate. Save the outcome to
 `analysis/scope-clarifications.md`, and record
 `task_context.scope_expanded` — true when a decision widened the work beyond
 what the invocation described, false when none did.
+
+**Default under a non-terminal driver** (`scope-decisions`): each decision takes
+the option the analyzer recommended. A decision the analyzer left without a
+recommendation is not guessed at: it stays open, is written to
+`analysis/scope-clarifications.md` as open, and is named in the context line
+printed before `gap-approval`, which is where an operator reaches it.
 
 **Seed the optional-verification defaults** from the characteristics: a UI-heavy
 task seeds both browser tests and user documentation on; a task that creates new
@@ -465,6 +487,11 @@ ask again. **Attempt budget: 3 revise rounds.** After the third, present what
 exists and continue to the gate; the gate's stop option remains the route out
 for an operator who wants none of it.
 
+**Default under a non-terminal driver** (`mockup-accept`): accept as rendered.
+No revise round is taken, the node continues straight to the gate, and
+`mockup-approval` — answered from outside — is where an operator who wants
+changes says so.
+
 **Print the gallery pointer immediately before the gate fires.** The gate's own
 question is authoring-time constant — it is covered by the graph hash, so it
 cannot interpolate anything — and this is the compensating behaviour, which is a
@@ -527,6 +554,12 @@ was asked to `analysis/technical-clarifications.md`, then set
 `task_context.tech_clarified` to true. A run that skipped this part still sets
 it: it settled the technical questions by having none to ask.
 
+**Default under a non-terminal driver** (`technical-questions`): the recommended
+approach is the chosen one, and the specification is written against it. When no
+approach is recommended, none is invented: the choice stays open, is written to
+`analysis/technical-clarifications.md` as open, and is named in the context line
+printed before `specification-approval`.
+
 **Part B — requirements gathering (inline).** Ask the specification questions,
 with the count adapted to how much the invocation already said: a brief
 description earns six to eight questions, a standard one four to six, a detailed
@@ -538,6 +571,13 @@ yet. Save the whole round to `analysis/requirements.md` — the initial
 description, the questions and answers, the similar features found, the
 functional requirements, the reuse opportunities, the scope boundaries and the
 technical considerations.
+
+**Default under a non-terminal driver** (`specification-requirements`): the
+assumptions stand as framed. They are already written to be confirmable, so an
+unconfirmed one is recorded in `analysis/requirements.md` and carried into the
+specification as a stated assumption rather than as settled fact — which is what
+`specification-approval` puts in front of an operator. This round is not one of
+the ten: its answers confirm assumptions rather than decide the flow.
 
 **Part C — specification creation (delegate).**
 
@@ -567,6 +607,11 @@ This is asked here rather than as a gate because it decides *whether a phase
 runs*, which is exactly what a `when` guard expresses, and because both answers
 continue the run. A declining answer makes the audit stretch skip, and a skip
 satisfies everything downstream.
+
+**Default under a non-terminal driver** (`audit-opt-in`): the recommended
+option, so the audit runs. The bool and `orchestrator.options.spec_audit_enabled`
+are recorded exactly as an answered question records them, and a supplied audit
+input still settles it without a default being taken at all.
 
 **Executive summary before the gate.** Read `implementation/spec.md` and
 extract: the specification title, the scope boundaries — what is included and
@@ -791,8 +836,20 @@ Then ask three questions — the seventh, eighth and ninth of the ten:
 
 **Skip a question whose answer was already supplied.** The browser-tests and
 user-docs inputs are tri-state: absent means ask, and `yes` or `no` means the
-flag settled it. The seeds `gap-analysis` wrote from the task characteristics
-are defaults for the recommendation, not answers.
+flag settled it. In a terminal run the seeds `gap-analysis` wrote from the task
+characteristics are defaults for the recommendation, not answers — an operator
+is there, and the operator answers.
+
+**Default under a non-terminal driver** (`standard-verifications`): the
+pre-selected set, which is all four reviews.
+
+**Default under a non-terminal driver** (`browser-tests`): the recommendation
+this node just printed, which is the seed `gap-analysis` wrote — on for a
+UI-heavy task, off otherwise. With nobody to answer, the recommendation is the
+answer, and it is recorded as this node's `browser_tests_enabled` output.
+
+**Default under a non-terminal driver** (`user-docs`): the recommendation, by
+the same rule, recorded as `user_docs_enabled`.
 
 All three are asked here rather than at a gate because every answer continues
 the run. A "no" makes the guarded stretch skip, and a skip satisfies everything
@@ -852,10 +909,19 @@ report standing. Then ask whether to re-run the verification; a yes re-invokes
 the verifier and returns to the breakdown. Both answers continue the run, which is
 why this is a node question rather than a gate.
 
+**Default under a non-terminal driver** (`verification-fix-loop`): fix every
+fixable issue, re-verify once, then continue to the gate. The re-run follows the
+same rule as an answered one — `fixes_applied` recorded and `reverify_count`
+raised before the verifier is re-invoked — and one re-verification is the whole
+budget, because a loop nobody can stop is not a loop. An issue that remains
+critical after it is **not** proceeded past: it is named in the context line
+printed before `verification-approval`, which is where an operator answers.
+
 **Exit conditions**: no critical issue remains; or the operator explicitly chose
 to proceed as-is; or the budget below is exhausted, at which point ask once
 whether to proceed with the known issues or to stop. **Never proceed past an
-unresolved critical issue without an explicit answer saying so.**
+unresolved critical issue without an explicit answer saying so** — a gate
+answered from outside is such an answer; a default is not.
 
 > **GATE CHECK**: the canonical report and its companion must carry the *final*
 > post-fix verdict before this node completes. A report still showing the
