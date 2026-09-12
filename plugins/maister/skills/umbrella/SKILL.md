@@ -214,7 +214,10 @@ status is terminal and whose gate marker is clear dispatches nothing again. So
 such run has closed. A chain no run ever named is kept by a sweep — the moment
 between publishing and starting is exactly when a sweep would otherwise
 delete it — and removed only when `--name` spells its stem. `--name` on a
-chain an open run names is a refusal, not a wait. Only the generated home is
+chain an open run names is a refusal, not a wait, and the refusal is where the
+release route is stated: a parked run is not terminal and does not become
+terminal on its own, so the chain it names is held until someone answers its gate
+or stops it. Only the generated home is
 ever a candidate: a reusable chain at the top of the workflow directory is
 never touched, whatever `--name` says. `--dry-run` reports every decision and
 deletes nothing. The cockpit calls the same verb after a run closes, so there
@@ -418,7 +421,7 @@ tool because the script said no is the drift this whole design removes.
 | `umbrella-member-unreadable` | A candidate member could not be read at all. This is distinct from an unresolved symlink, which is reported and survived; an unreadable candidate stops the scan because a partial member list would silently drop work. Fix permissions and re-run. |
 | `umbrella-unwritable` | The target could not be written. A caller defect only if the path was wrong; otherwise an environment problem. Fix it and re-run. |
 | `umbrella-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. **Do not delete it**: wait a minute and re-run. A temp older than a minute is a crashed writer's leftover and the next write reclaims it itself. |
-| `umbrella-chain-open` | The chain `--name` spells is named by a run that has not closed, and a run that may still dispatch reads the definition when it does. Let the run finish or stop it, then prune again; a sweep without `--name` keeps such a chain and reports it as `run-open` instead of refusing. Nothing was deleted. |
+| `umbrella-chain-open` | The chain `--name` spells is named by a run that has not closed, and a run that may still dispatch reads the definition when it does. The refusal names each holding run, its state file, and the gate it is parked on where it is parked on one — which is the usual case, because a dispatch-and-park chain ends parked and never becomes terminal on its own. Release it one of two ways: **answer the pending gate with its stop option**, which closes the run, or **set `task.status` to `stopped`** in the run's own state. Then prune again. A sweep without `--name` keeps such a chain and reports it as `run-open` instead of refusing, so leaving it costs nothing. Nothing was deleted. |
 | `umbrella-run-unreadable` | A run's state file could not be read, so which chain that run names is unknown and no chain can be shown to be unused. The guard fails closed: nothing was deleted, and a sweep without `--name` keeps every generated chain and reports each as `run-unreadable` instead of refusing. Repair the state file the report names, or remove the run directory if the run is genuinely gone, then prune again. |
 | `umbrella-chain-missing` | No generated chain of that stem exists — the report lists the ones that do. A stem is lowercase letters, digits and hyphens, never a path, and only the generated home is ever pruned: a reusable chain of that name at the top of the workflow directory is left alone by design. Nothing was deleted. |
 | `value-not-flow-safe` | A value cannot go on a one-line entry, and the runtime refuses rather than escaping it. Shorten or simplify the value the report names; repeating the write unchanged will loop. |

@@ -916,12 +916,13 @@ export function prune(root, { name = null, dryRun = false } = {}) {
     for (const stem of targets) {
       const file = path.join(home, `${stem}.yml`);
       const naming = runs.entries.filter((run) => run.file !== null && samePath(run.file, file));
-      const open = naming.filter((run) => !run.closed).map((run) => run.id);
+      const holding = naming.filter((run) => !run.closed);
+      const open = holding.map((run) => run.id);
       const ids = naming.map((run) => run.id);
       if (open.length > 0) {
         if (name !== null) {
           throw new Refusal('umbrella-chain-open',
-            `${relative(base, file)} is named by ${open.length === 1 ? 'a run that has' : 'runs that have'} not closed (${open.join(', ')}), and a run that may still dispatch reads the definition when it does. Let the run finish, or stop it, then prune again. Nothing was deleted.`);
+            `${relative(base, file)} is named by ${open.length === 1 ? 'a run that has' : 'runs that have'} not closed (${holding.map(describeHold).join('; ')}), and a run that may still dispatch reads the definition when it does. Release it one of two ways: answer the pending gate with its stop option, which closes the run; or set task.status to stopped in the run's own state. Then prune again. A sweep — prune with no --name — keeps this chain and deletes the rest, so nothing is lost by leaving it. Nothing was deleted.`);
         }
         kept.push({ name: stem, reason: 'run-open', runs: ids });
         continue;
@@ -939,6 +940,23 @@ export function prune(root, { name = null, dryRun = false } = {}) {
   } catch (err) {
     return refused(err);
   }
+}
+
+/**
+ * One run that is holding a chain back, in the words an operator can act on.
+ *
+ * The run id alone was true and not actionable: it said which run, not what that
+ * run is waiting for or where its record is. The ordinary end state of a
+ * dispatch-and-park chain is a run parked on a gate with its worker never
+ * started, which is not terminal and never becomes terminal on its own — so
+ * "let the run finish" was advice about something that was not going to happen,
+ * and the gate node is the thing someone has to answer.
+ */
+function describeHold(run) {
+  const where = run.state ? ` at ${run.state}` : '';
+  return run.gate === null
+    ? `${run.id}${where}, running`
+    : `${run.id}${where}, parked at the gate "${run.gate}"`;
 }
 
 /** `<root>/.maister/workflows/generated`, the one directory `prune` ever deletes from. */
@@ -987,6 +1005,11 @@ function readRuns(base) {
       id,
       file: sourceFile(base, run, source),
       closed: CLOSED_STATUSES.includes(status) && (pending === null || pending === undefined),
+      // The gate a run is parked on, when it is parked on one. Carried so the
+      // by-name refusal can name the release route rather than only the run:
+      // answering that gate is what most runs holding a name are waiting for.
+      gate: isMap(pending) && typeof pending.node === 'string' ? pending.node : null,
+      state: relative(base, stateFile),
     });
   }
   return { entries, warnings };

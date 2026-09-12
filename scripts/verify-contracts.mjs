@@ -12505,6 +12505,116 @@ async function t54(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+
+// ---------------------------------------------------------------------------
+// T55 — the refusal that holds a generated chain names the way out of it
+// ---------------------------------------------------------------------------
+
+/**
+ * A parked, never-started run holds a generated chain name, and says how to
+ * release it.
+ *
+ * Pruning by name refuses while any run naming the chain has not closed, and the
+ * ordinary end state of a dispatch-and-park chain — parked on its dispatch gate
+ * with the worker never started — is not terminal and does not become terminal
+ * on its own. Such a run genuinely may still dispatch and re-read the definition,
+ * so it keeps holding the name; what it owed was a recovery. "Let the run finish"
+ * was advice about something that was not going to happen.
+ *
+ * Provoked over the real writer, as a refusal must be: a workspace, a generated
+ * chain, and a run whose state names it and carries a pending gate.
+ */
+const PRUNE_HOLD_STEM = 'ticket-alpha-42-rollout';
+const PRUNE_HOLD_RUN = '019260a2-1122-7c33-8d44-5e6677889900';
+const PRUNE_HOLD_GATE = 'dispatch-approve';
+
+async function t55(ctx) {
+  const t = checker();
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+
+  await t.checkAsync('a by-name prune of a chain a parked run names refuses, naming the run, its gate and both ways out', async () => {
+    const { init, prune } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const root = tempDir('prune-release-route');
+    try {
+      gitDir(root, 'projects', 'api');
+      must(init(root, { membersRoot: null, force: false, scaffold: true }).ok, 'init refused');
+      const home = path.join(root, '.maister', 'workflows', 'generated');
+      fs.mkdirSync(home, { recursive: true });
+      const chain = path.join(home, `${PRUNE_HOLD_STEM}.yml`);
+      fs.writeFileSync(chain, ['version: 1', `name: ${PRUNE_HOLD_STEM}`, 'nodes:',
+        '  plan:', '    uses: direct:plan', '    needs: []', ''].join('\n'), 'utf8');
+
+      // A run parked on its dispatch gate, worker never started: in_progress with
+      // a pending marker, which is neither of the two things `closed` needs.
+      const runDir = path.join(root, '.maister', 'umbrella', 'runs', PRUNE_HOLD_RUN);
+      fs.mkdirSync(runDir, { recursive: true });
+      fs.writeFileSync(path.join(runDir, 'orchestrator-state.yml'), [
+        'orchestrator:',
+        '  started_phase: plan',
+        '  completed_phases: []',
+        '  failed_phases: []',
+        '  created: "2026-09-12T09:00:00Z"',
+        '  updated: "2026-09-12T09:20:00Z"',
+        `  task_path: ".maister/umbrella/runs/${PRUNE_HOLD_RUN}"`,
+        `  gate_pending: {node: ${PRUNE_HOLD_GATE}, request: gates/${PRUNE_HOLD_GATE}.request.yml, since: "2026-09-12T09:20:00Z"}`,
+        '',
+        'task:',
+        '  title: "Ticket rollout"',
+        '  status: in_progress',
+        '',
+        'workflow:',
+        `  name: ${PRUNE_HOLD_STEM}`,
+        `  source: ".maister/workflows/generated/${PRUNE_HOLD_STEM}.yml"`,
+        '  overlays: []',
+        '  profile: null',
+        '  graph_hash: "sha256:3f1c9a77b25e04d8c6a1fb03e97d5428ba6c0f19d4e7a2358c9b0d61f4a82e07"',
+        '  grammar_version: 1',
+        '  nodes:',
+        '    plan: {kind: task, status: suspended, needs: []}',
+        '',
+      ].join('\n'), 'utf8');
+
+      const refused = prune(root, { name: PRUNE_HOLD_STEM });
+      must(refused.ok === false, 'the by-name prune deleted a chain a parked run names');
+      const error = refused.errors?.[0] ?? {};
+      must(error.code === 'umbrella-chain-open', `the refusal is ${JSON.stringify(error.code)}`);
+      const message = String(error.message);
+      must(message.includes(PRUNE_HOLD_RUN), `the refusal does not name the holding run: ${message}`);
+      must(message.includes(PRUNE_HOLD_GATE), `the refusal does not name the gate it is parked at: ${message}`);
+      must(/orchestrator-state\.yml/.test(message), `the refusal does not name the run's state file: ${message}`);
+      must(/stop option/.test(message), `the refusal does not offer the gate's stop option: ${message}`);
+      must(/task\.status/.test(message) && /stopped/.test(message),
+        `the refusal does not offer stopping the run: ${message}`);
+      must(/Nothing was deleted/.test(message), `the refusal does not say nothing was deleted: ${message}`);
+      must(isFile(chain), 'the chain was deleted despite the refusal');
+
+      // The sweep keeps it and says why, so leaving the run alone costs nothing
+      // — which is what makes the refusal a recovery rather than a dead end.
+      const swept = prune(root, {});
+      must(swept.ok, `the sweep refused: ${JSON.stringify(swept.errors)}`);
+      equalJson(swept.kept.map(entry => [entry.name, entry.reason]), [[PRUNE_HOLD_STEM, 'run-open']],
+        'the sweep\'s kept list');
+      equalJson(swept.pruned, [], 'the sweep deleted something');
+      must(isFile(chain), 'the sweep deleted the chain the by-name form refused to');
+
+      // And once the gate is answered and the run closes, the same call succeeds:
+      // the route the refusal names is the route that works.
+      const state = path.join(runDir, 'orchestrator-state.yml');
+      fs.writeFileSync(state, fs.readFileSync(state, 'utf8')
+        .replace(/ {2}gate_pending: \{[^\n]*\}/, '  gate_pending: null')
+        .replace('status: in_progress', 'status: stopped'), 'utf8');
+      const released = prune(root, { name: PRUNE_HOLD_STEM });
+      must(released.ok, `the prune still refused after the run closed: ${JSON.stringify(released.errors)}`);
+      equalJson(released.pruned.map(entry => entry.name), [PRUNE_HOLD_STEM], 'what the released prune deleted');
+      must(!isFile(chain), 'the chain survived a prune that reported deleting it');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -12578,6 +12688,7 @@ const TESTS = [
   { id: 'T52', name: 'member-dir-spelling', needs: ['plugin', 'fixtures'], run: t52 },
   { id: 'T53', name: 'envelope-ticket', needs: ['plugin', 'fixtures'], run: t53 },
   { id: 'T54', name: 'chain-input-persistence', needs: ['plugin', 'fixtures'], run: t54 },
+  { id: 'T55', name: 'prune-release-route', needs: ['plugin'], run: t55 },
 ];
 
 // ---------------------------------------------------------------------------
