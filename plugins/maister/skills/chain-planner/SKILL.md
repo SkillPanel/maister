@@ -204,7 +204,7 @@ and avoid the reserved words (§ 2.5).
 
 ### What it writes, and nothing else
 
-Three files, all under one directory: `<root>/.maister/workflows/` by default,
+Four files, all under one directory: `<root>/.maister/workflows/` by default,
 `<root>/.maister/workflows/generated/` with `--generated`:
 
 | File | What it carries |
@@ -212,10 +212,12 @@ Three files, all under one directory: `<root>/.maister/workflows/` by default,
 | `<name>.yml` | the definition |
 | `<name>.md` | the prose companion — one section per inline node, keyed by the node id |
 | `<name>.plan.md` | the reasoning a dry-run reviewer reads |
+| `<name>.outcome.yml` | the terminal marker — written on **either** ending, success or refusal |
 
 It writes nothing under a member directory, nothing into another workspace, and
 nothing outside the framework directory. It starts no run and edits no run's
-frozen definition.
+frozen definition. The first three land together or not at all; the fourth lands
+either way, which is the whole of its job.
 
 **The generated home is created on first use when the workspace predates it.**
 The workspace scaffold verb creates `.maister/workflows/generated/` with an
@@ -293,7 +295,61 @@ file would.
 
 Publication happens once, at the end, and only on a clean ending: all three
 files, or none of them. A publish over an existing `<name>.yml` is refused
-unless `--force` was given.
+unless `--force` was given. The terminal marker is written after that, whichever
+way it went.
+
+### The terminal marker
+
+**Write `<name>.outcome.yml` on every ending, and write it last.** The planner
+runs as a session, so nothing holds an exit status for it: three distinct endings
+— published, refused, budget spent — all present as the same silence to anything
+watching. The marker is what makes a refusal as legible as a success, and it
+reuses the per-attempt stem the other three files already share, so a watcher
+looks for it exactly as it looks for the published chain: proved absent first,
+then appearing.
+
+It is one YAML document:
+
+```yaml
+version: 1
+outcome: published
+at: "2026-09-12T14:08:31Z"
+name: docs-refresh
+files: [docs-refresh.yml, docs-refresh.md, docs-refresh.plan.md]
+```
+
+and on the other ending:
+
+```yaml
+version: 1
+outcome: refused
+at: "2026-09-12T14:09:02Z"
+name: docs-refresh
+reason: {code: name-collides, message: "docs-refresh.yml is already in .maister/workflows/. Publish under a different stem with --name STEM, or over the existing files with --force."}
+```
+
+- `outcome` is `published` or `refused`, and nothing else. A budget spent with
+  errors remaining is `refused`, because nothing was published and that is what
+  the word is about.
+- `at` is measured when the ending happens, in the timestamp form the rest of the
+  framework uses — never formatted from a guess and never midnight.
+- `files` lists the three names on a publish, relative to the marker's own
+  directory, and is absent on a refusal.
+- `reason` carries the refusal's code and its message on a refusal, and is absent
+  on a publish. The message is the one the user was given: a marker whose reason
+  is shorter than the recovery is a marker that loses the recovery.
+
+**Write it last, and write it once.** Last, because its appearance is the signal
+that everything else has landed; once, because a watcher that sees it twice has
+no way to tell which ending it is reading.
+
+**On a refusal it is the only thing that lands** — the scratch directory is gone
+and no chain was published — which is what the narrowed claim at the top of this
+file admits. Under `--draft-to` it lands beside the draft, in the directory the
+caller named.
+
+Nothing here reads it back. Folding it into what a watcher does is the cockpit's
+own work, and it does not wait on this.
 
 ### Warnings
 

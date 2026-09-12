@@ -1,0 +1,12 @@
+# The same marker on the other ending: nothing was published, and this file is
+# the only thing that landed.
+#
+# `files` is absent because there are none, and `reason` carries the code and the
+# message the user was given - the whole message, because a reason shorter than
+# the recovery is a marker that loses the recovery. This one is the name
+# collision, which names both ways out.
+version: 1
+outcome: refused
+at: "2026-09-12T14:09:02Z"
+name: widget-rollout
+reason: {code: name-collides, message: "widget-rollout.yml is already in .maister/workflows/generated/. Publish under a different stem with --name STEM, or over the existing files with --force. A derived stem repeats, so two operators planning one task reach this by design."}

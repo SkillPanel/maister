@@ -1,0 +1,15 @@
+# The terminal marker a planner writes when its loop ends clean.
+#
+# It is the last of the four files and the only one that lands on either ending,
+# which is what makes a refusal as legible as a success to anything watching: the
+# planner runs as a session, so nothing holds an exit status for it and three
+# distinct endings otherwise present as the same silence.
+#
+# The stem is the chain's own, so a watcher looks for the marker exactly as it
+# looks for the published chain - proved absent first, then appearing - and
+# `files` names the three that landed beside it, relative to this directory.
+version: 1
+outcome: published
+at: "2026-09-12T14:08:31Z"
+name: docs-refresh
+files: [docs-refresh.yml, docs-refresh.md, docs-refresh.plan.md]

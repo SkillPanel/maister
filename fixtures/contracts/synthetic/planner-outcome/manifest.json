@@ -1,0 +1,23 @@
+{
+  "id": "planner-outcome",
+  "contracts": [
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-12T14:09:02Z",
+  "files": [
+    {
+      "path": "docs-refresh.outcome.yml",
+      "schema": null
+    },
+    {
+      "path": "widget-rollout.outcome.yml",
+      "schema": null
+    }
+  ],
+  "notes": "One marker per ending. The planner runs as a session, so nothing holds an exit status for it and published, refused and budget-spent all present as the same silence; the marker is written last on either ending, reusing the chain's own stem, so a watcher finds it the way it finds the published chain. Cited against A6, which is the one register shape it does carry - its at is a measured A6 timestamp and the lint reaches it. No schema judges the rest of it: it is not a contract shape, and a lint holds its shape instead. The refused document carries no files list and the published one carries no reason, which is the difference the outcome word already states."
+}

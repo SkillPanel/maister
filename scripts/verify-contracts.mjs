@@ -12813,6 +12813,94 @@ function treeDigest(dir) {
   return out;
 }
 
+
+// ---------------------------------------------------------------------------
+// T57 — the planner's terminal marker, one document per ending
+// ---------------------------------------------------------------------------
+
+/**
+ * Making a refusal as legible as a success.
+ *
+ * The planner runs as a session, so nothing holds an exit status for it and three
+ * distinct endings — published, refused, budget spent — all present as the same
+ * silence to anything watching. The marker is a file written last on either
+ * ending, reusing the stem the other three files already share, so a watcher
+ * looks for it exactly as it looks for the published chain: proved absent first,
+ * then appearing.
+ *
+ * It is not a contract shape and no schema judges it; this lint is its shape. The
+ * cockpit half is separate work and nothing here reads the marker back.
+ */
+const PLANNER_MARKER_FIXTURE = path.join('synthetic', 'planner-outcome');
+const PLANNER_MARKER_OUTCOMES = ['published', 'refused'];
+/** A reason shorter than this is not carrying the recovery the user was given. */
+const PLANNER_MARKER_REASON_FLOOR = 60;
+
+async function t57(ctx) {
+  const t = checker();
+  const dir = path.join(ctx.fixtures, PLANNER_MARKER_FIXTURE);
+
+  t.check('one marker fixture per ending, and the two differ only where the outcome says they do', () => {
+    must(isDir(dir), `${PLANNER_MARKER_FIXTURE}: absent — the marker ships unexercised`);
+    const docs = fs.readdirSync(dir)
+      .filter(name => name.endsWith('.outcome.yml'))
+      .map(name => ({ name, doc: parseYaml(fs.readFileSync(path.join(dir, name), 'utf8'), YAML_OPTS) }));
+    equalJson(docs.map(entry => entry.doc?.outcome).sort(), [...PLANNER_MARKER_OUTCOMES].sort(),
+      'the outcomes the fixtures model — one document per ending, no more and no fewer');
+
+    for (const { name, doc } of docs) {
+      must(doc?.version === 1, `${name}: version is ${JSON.stringify(doc?.version)}`);
+      // The stem is the chain's own, which is what lets a watcher find the marker
+      // by the name it already knows.
+      const stem = name.slice(0, -'.outcome.yml'.length);
+      must(doc?.name === stem, `${name}: names the chain ${JSON.stringify(doc?.name)}, not its own stem ${stem}`);
+      // Measured, in the A6 form, and never midnight. T09 lints the corpus for
+      // this; asserted here too, because the marker's whole value to a watcher is
+      // that it says when.
+      must(typeof doc?.at === 'string' && A6_TIMESTAMP.test(doc.at), `${name}: at is ${JSON.stringify(doc?.at)}`);
+      must(!MIDNIGHT.test(doc.at), `${name}: at is midnight, so it was formatted rather than measured`);
+
+      if (doc.outcome === 'published') {
+        must(Array.isArray(doc.files) && doc.files.length === 3,
+          `${name}: a publish names its three files, not ${JSON.stringify(doc.files)}`);
+        for (const file of doc.files) {
+          must(String(file).startsWith(`${stem}.`),
+            `${name}: names ${JSON.stringify(file)}, which is not of the marker's own stem`);
+          must(!String(file).includes('/'),
+            `${name}: names ${JSON.stringify(file)} with a separator — the files sit beside the marker`);
+        }
+        must(doc.reason === undefined, `${name}: a publish carries a reason`);
+      } else {
+        must(doc.files === undefined, `${name}: a refusal names files, of which there are none`);
+        must(typeof doc.reason?.code === 'string' && doc.reason.code !== '',
+          `${name}: a refusal carries no code: ${JSON.stringify(doc.reason)}`);
+        must(typeof doc.reason?.message === 'string'
+          && doc.reason.message.length >= PLANNER_MARKER_REASON_FLOOR,
+          `${name}: the reason's message is shorter than ${PLANNER_MARKER_REASON_FLOOR} characters, so the marker lost the recovery the user was given`);
+      }
+    }
+  });
+
+  t.check(`${PLANNER_SKILL_REL} requires the marker on both endings, written last`, () => {
+    const text = fs.readFileSync(path.join(ctx.pluginRoot, PLANNER_SKILL_REL), 'utf8');
+    must(/<name>\.outcome\.yml/.test(text),
+      `${PLANNER_SKILL_REL}: never names the marker file, so nothing tells the planner to write one`);
+    must(/on\s+(?:every|either)\s+ending/i.test(text),
+      `${PLANNER_SKILL_REL}: does not require the marker on both endings — a marker only on success is what the silence already was`);
+    must(/write it last/i.test(text),
+      `${PLANNER_SKILL_REL}: does not say the marker is written last, so its appearance is not a signal`);
+    for (const outcome of PLANNER_MARKER_OUTCOMES) {
+      must(text.includes(outcome), `${PLANNER_SKILL_REL}: never spells the outcome \`${outcome}\` the fixtures carry`);
+    }
+    // The narrowed claim: on a refusal the marker is the one thing that lands, so
+    // "writes nothing on a refusal" cannot stand unqualified beside it.
+    must(!/writes nothing on a refusal/i.test(text),
+      `${PLANNER_SKILL_REL}: still claims it writes nothing on a refusal, which the marker contradicts`);
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -12888,6 +12976,7 @@ const TESTS = [
   { id: 'T54', name: 'chain-input-persistence', needs: ['plugin', 'fixtures'], run: t54 },
   { id: 'T55', name: 'prune-release-route', needs: ['plugin'], run: t55 },
   { id: 'T56', name: 'planner-draft-isolation', needs: ['plugin', 'fixtures'], run: t56 },
+  { id: 'T57', name: 'planner-outcome-marker', needs: ['plugin', 'fixtures'], run: t57 },
 ];
 
 // ---------------------------------------------------------------------------
