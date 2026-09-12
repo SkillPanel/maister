@@ -1,0 +1,29 @@
+{
+  "id": "run-written-tldr",
+  "contracts": [
+    "A5"
+  ],
+  "verdict": "invalid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-alpha/migrations/2026-09-12-rosterbook-cjs-to-esm",
+  "writer_version": "2.3.0-beta.15",
+  "sampled_at": "2026-09-12T14:33:41Z",
+  "files": [
+    {
+      "path": "target-state-plan.md",
+      "schema": null,
+      "truncated": true
+    },
+    {
+      "path": "clarifications.md",
+      "schema": null,
+      "truncated": true
+    }
+  ],
+  "expect": {
+    "error_path": "/TL;DR",
+    "error_keyword": "a5-tldr-line-count"
+  },
+  "notes": "Two artifacts a real run wrote, both over the 1-5 line bound: eight non-blank TL;DR lines in the target-state plan and six in the clarifications. The sibling tldr-six-lines already pins the lint and is hand-built, which proves the check fires on a document someone typed; these are the bytes of a writer that was following its instructions, and nothing in those instructions mentions a length. The orchestrators' Artifact Summary Contract requires the block and its four headings; the bound lives in the register, which no subagent reads. Two of that run's three artifacts breached it, so the rule holds today where a writer happens to be terse rather than because anything holds it there. Both files are absent from valid/runs/migration-cjs-to-esm for this reason and live here instead of being reworded, because rewording sampled prose to fit a rule is how the breach stops being visible. Truncated after their summary block, like every artifact sampled from that run. Delete this fixture with the bound if the bound goes; keep it if the length moves into the writers, where it becomes the case that proves they were told."
+}

@@ -19,5 +19,5 @@
     "error_path": "/TL;DR",
     "error_keyword": "a5-tldr-line-count"
   },
-  "notes": "The TL;DR block holds six non-empty lines. A5 allows one to five: the block is the operator-visible summary and stops being one past five lines."
+  "notes": "The TL;DR block holds six non-empty lines. A5 allows one to five: the block is the operator-visible summary and stops being one past five lines. Hand-built, so it proves the lint fires; the sibling run-written-tldr carries the same breach in bytes a real writer produced, which is the part this one cannot show."
 }
