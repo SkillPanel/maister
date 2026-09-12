@@ -123,20 +123,54 @@ one paragraph produce one file name. Run it in order:
 Then four cases decide what happens to it:
 
 - **Empty, or shorter than two characters** — refuse and ask for `--name`. Two
-  is the floor rather than one because node ids derived from the stem are held
-  to a longer minimum than file names are, so a one-letter stem is a legal file
-  name that yields an illegal node id.
+  is the floor because that is B1's floor for the identifiers in the file —
+  `^[a-z][a-z0-9-]{1,40}$`, two characters at minimum — and a stem the grammar
+  would reject as an identifier is a stem to refuse before anything is drafted.
 - **Begins with a digit** — prefix it so it starts with a letter rather than
   dropping the digit, which would silently change what the name says.
 - **Collides** with a built-in workflow name, with a file already under
   `.maister/workflows/`, or with one under `.maister/workflows/generated/` —
   refuse, whichever home the draft is bound for: the engine looks a name up
-  across both, so a collision in either shadows. The user names it; the planner
-  never disambiguates by appending a number, because a chain called `<task>-2`
-  tells a later reader nothing about how it differs from `<task>`.
+  across both, so a collision in either shadows. The planner never disambiguates
+  by appending a number, because a chain called `<task>-2` tells a later reader
+  nothing about how it differs from `<task>`.
+
+  **Name both ways out in the message, every time**: `--name STEM` to publish
+  under a different stem, or `--force` to publish over the files that are there.
+  Neither is guessable from a refusal that only says the name is taken, and a
+  shared workspace meets this by design rather than by accident — the stem is
+  derived from the task paragraph by an algorithm, so two operators planning one
+  task derive one name and the second of them is refused. Say that too, so the
+  collision reads as the guard working rather than as a defect.
 - **Otherwise** — the stem satisfies `/^[a-z][a-z0-9-]*$/` and is at least two
   characters. A `--name` given explicitly is held to the same two rules; it
   skips the derivation, not the check.
+
+### Node identifiers are chosen, not derived
+
+The chain name is derived: the algorithm above turns one paragraph into one stem,
+and three sessions reading the same paragraph produce the same file name
+character for character. **Node identifiers are not.** They follow the
+decomposition — which nodes exist at all, and what each one is for — and the
+decomposition is a judgement this skill makes rather than a function of the text.
+Three sessions planning one paragraph have produced the same chain name and
+different node identifiers, and that is the expected result, not a defect to fix
+by hashing the paragraph: a scheme that stabilized only the spelling would
+advertise a stability the planner cannot deliver, because the set of nodes would
+still differ.
+
+So **nothing downstream may use a node identifier as a reference that holds
+across runs.** Not a report keyed on one, not a tracker row, not a comparison of
+two plannings of one task. Within a single chain an identifier is exactly a
+reference — it is what `needs:`, a guard and the prose companion's headings all
+match on, by exact equality — and that is its whole scope. The references that do
+hold across runs are the **chain name**, which is derived, and the **run id**,
+which the engine mints; name those when something outside one chain needs to
+point at work.
+
+Choose identifiers for the reader, then, since nothing else constrains them: name
+the node for what it does, keep the hyphenated charset (§ 2.4 of the reference),
+and avoid the reserved words (§ 2.5).
 
 ### What it reads
 
@@ -302,8 +336,8 @@ Every row writes nothing. Say that first, then the recovery.
 | **A dispatch names a member the manifest does not declare.** | List the members the manifest does declare, with their paths, so the intended one can be named or added. A member name is not a repository name and not a path — it is the key the manifest uses, and a `dir:` accepts only that key. A path is refused: the member reaches the branch a worker hands to git, and a path carries a separator no branch segment may. |
 | **A dispatch target cannot honour a driver.** | Name the target the task implied and say why it cannot be dispatched: dispatched work runs with no one to answer a question, so the target has to be one that suspends at a gate instead of asking. Then list the driver-capable alternatives **as discovered** — never the engine, which is the runner rather than a target — or drop the dispatch and run the step in the coordinating repository. |
 | **`--name` is empty, too short, or off the charset.** | Say which of the three, quote what was derived or given, and ask for `--name` explicitly. The stem is lowercase letters, digits and hyphens, starts with a letter, and is at least two characters. |
-| **`<name>` collides with a built-in workflow name.** | A workspace definition of that name shadows the built-in one wherever the built-in is named, so the collision is not cosmetic. Ask for a different stem; do not append a number. |
-| **`<name>.yml` already exists in the target home and `--force` was not given.** | This is the guard working. Decide deliberately: a different stem, or `--force`. And check first whether a run of that chain is in flight — a run freezes its graph, so republishing over the definition it froze drifts the graph out from under it, and the next dispatch of that run is refused rather than silently running the new shape. |
+| **`<name>` collides with a built-in workflow name.** | A workspace definition of that name shadows the built-in one wherever the built-in is named, so the collision is not cosmetic. Ask for a different stem with `--name STEM`; do not append a number. `--force` is not an option here — there is no file to publish over, and shadowing a built-in is not something to force past. |
+| **`<name>.yml` already exists in the target home and `--force` was not given.** | This is the guard working, and the message names both ways out: `--name STEM` to publish under a different stem, or `--force` to publish over the files that are there. Say which files exist, and say why two operators reach this on one task — the stem is derived, so one paragraph yields one name. And check first whether a run of that chain is in flight: a run freezes its graph, so republishing over the definition it froze drifts the graph out from under it, and the next dispatch of that run is refused rather than silently running the new shape. |
 
 ---
 

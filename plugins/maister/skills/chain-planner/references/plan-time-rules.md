@@ -161,6 +161,14 @@ phase`, never `research_phase`. Two charsets, one file, adjacent lines. Getting
 them the wrong way round produces an error at the outputs path that reads like a
 type problem.
 
+**And nothing derives a node id.** The charset is a constraint, not a derivation:
+two plannings of one paragraph yield the same chain name and may yield different
+node ids, because the ids follow the decomposition and the decomposition is a
+judgement. A node id is a reference **inside one definition** — `needs:`, a guard
+and the companion's headings all match on it by exact equality — and it is not a
+reference outside one. Nothing downstream may treat it as stable across runs; the
+chain name and the run id are what hold.
+
 Artifact names are free-form and only checked for existence when something
 interpolates them (`checkInterpolations` in `graph.mjs`, through
 `referenceProblem`).

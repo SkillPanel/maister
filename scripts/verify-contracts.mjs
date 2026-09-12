@@ -10233,6 +10233,8 @@ const PLANNER_SLASH_FORM = '/maister:chain-planner';
 const PLANNER_HINT_FLAGS = ['--name', '--root', '--generated'];
 /** The sentence that bounds the draft-validate loop. */
 const PLANNER_BOUNDED_LOOP = /at most three passes/;
+/** Both ways out of a name collision. A refusal naming one of them is half a recovery. */
+const PLANNER_COLLISION_FLAGS = ['--name', '--force'];
 /**
  * The driver literal, spelled here as `DRIVER_RULE` spells it in
  * `skills/umbrella/scripts/lib/envelope.mjs`. Keeping the two in step is the
@@ -10330,6 +10332,59 @@ async function t41(ctx) {
   t.check(`${PLANNER_REFERENCE_REL} is present`, () => {
     must(isFile(path.join(ctx.pluginRoot, PLANNER_REFERENCE_REL)),
       `${PLANNER_REFERENCE_REL}: missing — the skill defers the plan-time rules to it`);
+  });
+
+  // The collision refusal, which a shared workspace meets by design: the stem is
+  // derived from the paragraph, so two operators planning one task derive one
+  // name. Neither way out is guessable from "that name is taken", so both are
+  // required in the message rather than only in a recovery column.
+  t.check(`${PLANNER_SKILL_REL} names both ways out of a name collision`, () => {
+    const text = fs.readFileSync(skillFile, 'utf8');
+    const collisions = text.split('\n').filter(line => /collide|already exists in the target home/i.test(line));
+    must(collisions.length > 0, 'the skill states no collision case at all');
+    for (const flag of PLANNER_COLLISION_FLAGS) {
+      must(text.includes(flag), `the skill never names \`${flag}\``);
+    }
+    // The **recovery** half of the refusal row, not its title. The title already
+    // says "--force was not given", so reading the whole row would let the check
+    // pass on the condition rather than on the way out of it.
+    const rows = text.split('\n').filter(line => /already exists in the target home/.test(line));
+    must(rows.length > 0, 'the refusal table no longer carries the existing-file row');
+    for (const row of rows) {
+      const recovery = row.split('|').slice(2).join('|');
+      must(recovery.trim() !== '', `the existing-file refusal row carries no recovery: ${row.slice(0, 120)}…`);
+      for (const flag of PLANNER_COLLISION_FLAGS) {
+        must(recovery.includes(flag),
+          `the existing-file refusal's recovery does not name \`${flag}\`: ${recovery.slice(0, 140)}…`);
+      }
+    }
+    // And the derivation case carries them too, because that is where the planner
+    // is told what to print.
+    const derivation = text.split('\n\n').filter(block => /\*\*Collides\*\*|Name both ways out/.test(block));
+    must(derivation.some(block => PLANNER_COLLISION_FLAGS.every(flag => block.includes(flag))),
+      'no paragraph of the derivation case names both ways out, so the message requirement is unstated');
+    must(/derived/.test(text) && /two operators/i.test(text),
+      'the skill does not say why a shared workspace collides by design, so the refusal reads as a defect');
+  });
+
+  // Node identifiers: chosen, not derived. Three proof sessions produced one
+  // chain name and three different identifier sets for one paragraph, which is
+  // the expected result — so the record says so, and says what may not key on one.
+  t.check('the planner records that node identifiers are not a stable reference', () => {
+    for (const rel of [PLANNER_SKILL_REL, PLANNER_REFERENCE_REL]) {
+      const text = fs.readFileSync(path.join(ctx.pluginRoot, rel), 'utf8');
+      must(/chosen, not derived|nothing derives a node id/i.test(text),
+        `${rel}: does not record that node identifiers are not derived`);
+      must(/across runs/.test(text),
+        `${rel}: does not say the identifier is not a reference across runs`);
+      must(/chain name/.test(text) && /run id/.test(text),
+        `${rel}: names no stable alternative, so a reader is told "not this" and nothing else`);
+    }
+    // And the false claim the old floor rested on is gone: nothing derived a
+    // node id from the stem, so nothing was held to a longer minimum.
+    const skill = fs.readFileSync(skillFile, 'utf8');
+    must(!/node ids derived from the stem/.test(skill),
+      `${PLANNER_SKILL_REL}: still claims node ids are derived from the stem`);
   });
 
   // The published pair, judged by the oracle the planner itself uses. It is
