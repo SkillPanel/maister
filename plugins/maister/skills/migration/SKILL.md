@@ -20,7 +20,7 @@ Before doing anything else, settle this policy now and do not re-litigate it at 
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
-Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1. The questions this workflow asks *inside* a phase follow the same driver: § 2.2 states what a non-terminal run takes instead of asking, and every one of them names its default below.
 
 ### Step 1: Load Framework Patterns
 
@@ -120,6 +120,9 @@ Use for:
 2. Update state with analysis results
 3. Direct - use AskUserQuestion for max 5 critical clarifying questions about migration scope, target system, and constraints
 4. Save clarifications to `analysis/clarifications.md`
+
+**Default under a non-terminal driver** (`clarifications`): none is asked, and the current-state analysis's own answers stand. The file is written and `clarifications_resolved` set exactly as they are for a run with nothing to ask, and what the analysis could not settle about scope, target system or constraints is recorded in the file as unsettled rather than guessed at.
+
 **Output**: `analysis/current-state-analysis.md`, `analysis/clarifications.md`
 **State**: Update task_context with current system info, `task_context.clarifications_resolved`
 
@@ -163,6 +166,8 @@ AskUserQuestion - Display executive summary before asking. Extract from gap anal
    - Existing code/config to preserve
    - Frame as confirmable assumptions: "I assume X, is that correct?"
 2. Save gathered requirements to `analysis/requirements.md`
+
+**Default under a non-terminal driver** (`specification-requirements`): the assumptions stand as framed. They are written to be confirmable, so an unconfirmed one is recorded in `analysis/requirements.md` and carried into the specification as a stated assumption rather than as settled fact. Rollback expectations and downtime tolerance are the two an operator most needs to see, so name them in the executive summary before this phase's exit gate whatever else the round covered.
 
 **Part B — Specification Creation (subagent)**:
 3. Task tool - `maister:specification-creator` subagent
@@ -274,6 +279,8 @@ AskUserQuestion - Display executive summary before asking. Extract from verifica
 7. Max 3 iterations
 
 **Data Safety Critical**: HALT on any data integrity issue - never auto-fix data problems. Always present data issues to user with rollback option.
+
+**Default under a non-terminal driver** (`verification-fix-loop`): fix every fixable issue, re-verify once, then continue to the gate -- **except a data integrity issue, which is never fixed and never proceeded past**. The data-safety rule above is not a preference the driver may override: with nobody to present the rollback option to, the phase halts and the run fails, so an operator reaches it with the migration's state intact rather than with an automated repair already applied to their data. A non-data issue still critical after the single re-verification is named in the executive summary before this phase's exit gate.
 
 **Exit Conditions**:
 - ✅ No critical issues remain → Proceed to Phase 8

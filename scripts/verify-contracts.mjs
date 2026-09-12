@@ -13044,6 +13044,34 @@ const INNODE_QUESTIONS = [
       'convergence-decisions', 'design-constraints', 'designer-retry', 'question-clarification',
     ],
   },
+  // The three orchestrators with no engine definition of their own. They read
+  // the framework rule like everyone else, so it binds them; before this list
+  // existed it bound them to a default none of them named.
+  {
+    path: 'skills/migration/SKILL.md',
+    ids: ['clarifications', 'specification-requirements', 'verification-fix-loop'],
+  },
+  {
+    path: 'skills/performance/SKILL.md',
+    ids: [
+      'clarifications', 'profiling-data', 'optimization-priorities', 'audit-opt-in',
+      'standard-verifications', 'verification-fix-loop',
+    ],
+  },
+  // The longest list in the plugin, and the one worth reading before changing:
+  // this workflow's questions are the work rather than overhead around it, so a
+  // run that defaults all twelve produces a draft nobody shaped. The skill says
+  // so in as many words, and that sentence is pinned below.
+  {
+    path: 'skills/product-design/SKILL.md',
+    ids: [
+      'additional-context', 'characteristics-confirmation', 'context-corrections',
+      'problem-exploration', 'problem-refinement', 'persona-exploration', 'persona-refinement',
+      'convergence-decisions', 'direction-refinement', 'specification-sections',
+      'prototype-iteration', 'brief-approval',
+    ],
+    states: /draft brief assembled without review/,
+  },
 ];
 
 /**
@@ -13101,6 +13129,10 @@ function t58(ctx) {
       if (definition.absent) {
         must(definition.absent.test(text),
           `${definition.path}: no longer says it asks no in-node question, so its empty list is a silence rather than a claim`);
+      }
+      if (definition.states) {
+        must(definition.states.test(text),
+          `${definition.path}: no longer says what a fully defaulted run of it actually produces — the one thing a reader of ${definition.ids.length} defaults most needs told`);
       }
     });
   }

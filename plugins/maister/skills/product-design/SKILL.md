@@ -20,7 +20,9 @@ Before doing anything else, settle this policy now and do not re-litigate it at 
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
-Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1. The questions this workflow asks *inside* a phase follow the same driver: § 2.2 states what a non-terminal run takes instead of asking, and every one of them names its default below.
+
+**Say plainly what that costs here.** This workflow is collaborative by design: its exploration questions and refinement loops are not overhead around the work, they *are* the work. A run under a `cockpit` or `dispatch` driver takes every one of those defaults, so what it produces is a **draft brief assembled without review** -- the gates are the only place an operator shapes it. Record that in the artifacts rather than leaving it to be inferred: a brief that does not say it was never reviewed reads exactly like one that was.
 
 ### Step 1: Load Framework Patterns
 
@@ -222,12 +224,16 @@ digraph product_design_orchestrator {
    - **URLs**: Collect URLs via AskUserQuestion (one question, user provides list). Store in `design_context.collected_urls`.
    - **Mini-research**: Collect research topics via AskUserQuestion. Store in `design_context.research_topics`.
 
+**Default under a non-terminal driver** (`additional-context`): no additional context, and the run proceeds on what the invocation and the project documentation already supply. The three collectors above are unreachable in any case -- dropping files into `context/` and waiting for confirmation needs somebody at the keyboard -- so the URL and research-topic lists stay empty rather than half-gathered. Anything a chain wants read has to be in the start brief or in the repository.
+
 7. Present detected characteristics with rationale for user confirmation:
 
 AskUserQuestion — "I detected these design characteristics. Please confirm or correct:" with options:
    - "Correct, proceed with these"
    - "Override: [list characteristic corrections]"
    - "Let me explain my thinking"
+
+**Default under a non-terminal driver** (`characteristics-confirmation`): the detected characteristics stand as detected, with no override. They decide which phases run, so record the rationale for each in the phase summary -- the Phase 0 exit gate is where an operator sees what the run decided about itself and corrects it.
 
 8. Apply any user overrides to characteristics
 
@@ -288,6 +294,8 @@ AskUserQuestion — "I detected these design characteristics. Please confirm or 
 
 6. AskUserQuestion — "Context synthesis complete. Key findings: [2-3 bullet summary]. Any corrections or additions before we explore the problem space?"
 
+**Default under a non-terminal driver** (`context-corrections`): none; the synthesis stands as written. The Phase 1 exit gate carries the same key findings, so an operator corrects them there rather than here.
+
 **Output**: `analysis/design-context.md`
 **State**: Update `phase_summaries.context_synthesis`
 
@@ -320,6 +328,8 @@ Read `analysis/design-context.md` for full context (not just state summary) — 
 
 2. After each answer, synthesize understanding before asking the next question. Show the user their previous answer was heard and integrated.
 
+**Default under a non-terminal driver** (`problem-exploration`): no exploration question is asked, and the draft problem statement is derived from the design context, the invocation and the project documentation alone. Say so in the draft: a problem statement built without the operator's answers is a proposal, and marking it as one is the difference between a gate an operator reads carefully and a gate they wave through.
+
 3. After exploration, transition to convergence mode and present a draft problem statement:
 
 > "Based on our exploration, here's what I think we've established..."
@@ -335,6 +345,8 @@ AskUserQuestion — with options:
    - "Change the success criteria"
    - "Rethink the approach"
    - "Let me explain my thinking"
+
+**Default under a non-terminal driver** (`problem-refinement`): approve and continue -- no refinement round is taken, and `refinement_iterations.phase_2` stays at zero. The Phase 2 exit gate is the operator's route back, and its stop option is how an unacceptable problem statement ends the run.
 
 5. If revision requested: incorporate feedback, present complete revised draft, re-ask. Track `refinement_iterations.phase_2`. After soft cap (2 for simple, 3 for standard/complex): shift options to encourage approval.
 
@@ -363,6 +375,8 @@ AskUserQuestion — "Problem space explored." Read `orchestrator.next_phase` fro
 
 AskUserQuestion — one question at a time about user types and their needs
 
+**Default under a non-terminal driver** (`persona-exploration`): no exploration question is asked, and the persona cards are drafted from the design context and the problem statement alone. Mark them as drafted rather than confirmed, for the reason the problem statement is marked.
+
 2. After sufficient exploration, **transition to convergence**:
 
 > "Based on what you've described, let me draft persona cards..."
@@ -377,6 +391,8 @@ AskUserQuestion — with options:
    - "Add another persona"
    - "Remove a persona"
    - "Let me explain my thinking"
+
+**Default under a non-terminal driver** (`persona-refinement`): approve and continue, with `refinement_iterations.phase_3` at zero. The Phase 3 exit gate is where an operator changes them.
 
 5. Track `refinement_iterations.phase_3`. Apply soft cap.
 
@@ -456,6 +472,8 @@ Task tool - `maister:solution-brainstormer` subagent
    d. AskUserQuestion — alternatives as options (mark recommended with "(Recommended)") + "Need more info" + "Let me explain my thinking"
    e. Record choice, move to next area
 
+**Default under a non-terminal driver** (`convergence-decisions`): each area takes the alternative recommended at (c), and neither "Need more info" nor the explain-my-thinking option is taken -- there is nobody to present the deeper analysis to. Every area is still worked in full: the alternatives are presented, the recommendation is reasoned, and the choice is recorded for every area, so the Phase 5 exit gate shows the operator the whole direction. An area with no recommendation is recorded as open rather than guessed at.
+
 > **SELF-CHECK before each AskUserQuestion**: Did you output the full alternatives with pros/cons for THIS area? If you only showed a recommendation line, STOP and output the full detail.
 
 3. After all areas resolved, present a brief summary of the chosen direction
@@ -467,6 +485,8 @@ AskUserQuestion — with options:
    - "Refine the direction (adjust choices)"
    - "Explore more (re-generate alternatives)" -> returns to Phase 4
    - "Let me explain my thinking"
+
+**Default under a non-terminal driver** (`direction-refinement`): approve the direction and continue. Neither refine nor explore-more is taken, so the run never returns to Phase 4 -- a back-edge nobody chose is a loop with no exit -- and `refinement_iterations.phase_5` stays at zero.
 
 5. Track `refinement_iterations.phase_5`. If "Explore more" selected, return to Phase 4 for fresh brainstorming (reset Phase 5 iteration count).
 
@@ -526,6 +546,8 @@ AskUserQuestion — with options:
    - "Rethink this section"
    - "Let me explain my thinking"
 
+**Default under a non-terminal driver** (`specification-sections`): every section is approved as drafted and appended to `analysis/feature-spec.md` in the same order. The section depth principle above is what carries the weight instead of the loop: a section drafted for an absent operator is still written to the depth a developer could implement from, and a section that cannot reach that depth without an answer says which answer it needs rather than being padded to look finished.
+
 4. Track `refinement_iterations.phase_6_sections.[section_name]`. Apply soft cap per section.
 
 5. **On approval: IMMEDIATELY append the approved section to `analysis/feature-spec.md`**. This makes the file the source of truth, not the conversation context. Do NOT wait until all sections are done to write.
@@ -573,6 +595,8 @@ Mockup generation is owned by the `mockup-studio` skill — it runs design-resou
 - `output_subdir`: `analysis/mockups`
 - `format`: `html` when `options.visual_enabled` is true, else `ascii` (so `mockup_format: ascii` / `--no-visual` force ASCII)
 - `iteration`: `full` (multi-round interactive refinement — add/revise screens, re-POST)
+
+**Default under a non-terminal driver** (`prototype-iteration`): pass `single` instead of `full`, so the studio generates once and returns. Its `full` loop asks the operator to approve or revise each screen, and under a driver there is nobody to ask -- the Phase 7 exit gate carries approve-or-revise for the whole set, which is the same route the development workflow's mockup phase takes.
 - `emit_index_rows`: `false`
 - `context`: feature spec sections from Phase 6, selected approach from Phase 5, design context from Phase 1, persona workflows from Phase 3 (if greenfield). Tell it to generate **user-facing wireframes for the feature's actual screens** (e.g. "Add New Allergy Form", "Prescribing Alert Modal") — never generic placeholders or technical diagrams.
 
@@ -637,6 +661,8 @@ AskUserQuestion — with options:
    - "Revise a section"
    - "Add missing information"
    - "Let me explain my thinking"
+
+**Default under a non-terminal driver** (`brief-approval`): approve the brief. This is the last question in the run and the one to be most careful about: the brief is what a development run is built from, so record in it that every refinement round was defaulted and which sections were never confirmed by an operator. A brief that does not say it was assembled without review reads exactly like one that was reviewed.
 
 5. **Shut down visual companion server** (if it was used): `curl -s -X POST http://localhost:[port]/shutdown`
 

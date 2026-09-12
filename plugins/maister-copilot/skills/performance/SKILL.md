@@ -20,7 +20,7 @@ Before doing anything else, settle this policy now and do not re-litigate it at 
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
-Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1. The questions this workflow asks *inside* a phase follow the same driver: § 2.2 states what a non-terminal run takes instead of asking, and every one of them names its default below.
 
 ### Step 1: Load Framework Patterns
 
@@ -113,6 +113,8 @@ Use for:
 1. Skill tool - `maister-codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use ask_user for max 5 critical clarifying questions about performance concerns, hotspots, and optimization goals
+
+**Default under a non-terminal driver** (`clarifications`): none is asked, and the analysis's own answers stand. The file is written and `clarifications_resolved` set exactly as they are for a run with nothing to ask, and what the analysis could not settle about hotspots or goals is recorded as unsettled rather than guessed at.
 4. Save clarifications to `analysis/clarifications.md`
 **Output**: `analysis/codebase-analysis.md`, `analysis/clarifications.md`
 **State**: Update `performance_context.phase_summaries.codebase_analysis`, `task_context.clarifications_resolved`
@@ -136,6 +138,8 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
    - Question: "Do you have profiling data to provide (flame graphs, APM screenshots, slow query logs)?"
    - Options: "Yes, let me add files to analysis/user-profiling-data/" | "No, proceed with static analysis only"
 3. If user chooses to add files, wait for them, then proceed
+
+**Default under a non-terminal driver** (`profiling-data`): no profiling data, and the run proceeds on static analysis alone. Waiting for files nobody can drop is the one thing this question must not do under a driver -- the wait never ends. Say in the phase summary that the analysis was static-only, because a bottleneck list built without profiling data otherwise reads the same as one built with it.
 
 **ANTI-PATTERN — DO NOT DO THIS:**
 - ❌ "Let me analyze the bottlenecks myself..." — STOP. Delegate to bottleneck-analyzer.
@@ -172,6 +176,8 @@ ask_user - "Performance analysis complete. [N] bottlenecks identified ([P0 count
    - Performance targets? (specific response time goals, if known)
 3. Save gathered requirements to `analysis/requirements.md` with: performance issue description, bottleneck analysis summary, optimization priorities, constraints, targets
 
+**Default under a non-terminal driver** (`optimization-priorities`): the analyzer's own priorities stand -- every P0 and P1 bottleneck it identified, with no constraint and no numeric target beyond what the invocation already supplied. An invented performance target is the failure mode here: a target nobody set becomes an acceptance criterion the specification is written against.
+
 **Part B — Specification Creation (subagent)**:
 
 📋 **Standards Discovery**: Read `.maister/docs/INDEX.md` before creating spec.
@@ -207,6 +213,8 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 **Skip if**: Simple optimization (1-3 changes)
 
 ask_user to decide - "Run specification audit?"
+
+**Default under a non-terminal driver** (`audit-opt-in`): the run-if criteria above decide it -- audit when more than five optimizations are planned or the specification runs past fifty lines, skip for a simple one-to-three-change optimization. The criteria are the recommendation, so with nobody to ask they are the answer, and `options.spec_audit_enabled` records it either way.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -290,6 +298,8 @@ ask_user with sequential single-select - "Which additional verification checks?"
   - "Code review" (recommended)
   - "Production readiness check"
 
+**Default under a non-terminal driver** (`standard-verifications`): the recommended selection -- code review on, production readiness off. Reality check and pragmatic review are always enabled and are not part of this question.
+
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ask_user - "Options selected. Continue to Phase 8?"
@@ -321,6 +331,8 @@ ask_user - "Options selected. Continue to Phase 8?"
 4. After fixes: set `skip_test_suite: false` (code changed, tests must re-run)
 5. ask_user — "Re-run verification to check fixes?" with options: "Yes, re-run verification" / "No, proceed to next phase"
 6. If re-run → re-invoke `maister-implementation-verifier` → return to Step 2
+
+**Default under a non-terminal driver** (`verification-fix-loop`): fix every fixable issue, re-verify once, then continue to the gate. One re-verification is the whole budget -- a loop nobody can stop is not a loop -- and `skip_test_suite` is cleared before it exactly as an answered round clears it. An issue still critical afterwards is not proceeded past: it is named in the executive summary before this phase's exit gate, which is where an operator answers.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
