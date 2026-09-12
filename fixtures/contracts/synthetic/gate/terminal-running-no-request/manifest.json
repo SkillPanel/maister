@@ -1,0 +1,22 @@
+{
+  "id": "terminal-running-no-request",
+  "contracts": [
+    "A1",
+    "B2",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-12T00:00:00Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "notes": "The sibling of running-no-request with driver.kind terminal and nothing else changed: a gate node running while gates/approve.request.yml does not exist. Under a terminal driver that is the correct shape, not a defect - the question is asked and answered inside one turn and no request file is ever written - so the stop nudge must allow the stop. It is the state the nudge was replayed against on 2026-09-11 to show that a plugin-wide registration would block a correct terminal run; the fix makes the nudge read the driver, and this fixture is what holds it to that."
+}

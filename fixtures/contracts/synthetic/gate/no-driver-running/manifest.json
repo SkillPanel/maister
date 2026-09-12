@@ -1,0 +1,22 @@
+{
+  "id": "no-driver-running",
+  "contracts": [
+    "A1",
+    "B2",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-12T00:00:00Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "notes": "A run with no orchestrator.driver key at all and a gate node running with no request file. driver is core-optional, so this is the shape a run started by a plain session carries, and it is the other half of the nudge's silent branch: an absent driver is read exactly as terminal is. It also pins the lenient read - the nudge must reach this decision without the driver line existing, never by failing the session closed."
+}

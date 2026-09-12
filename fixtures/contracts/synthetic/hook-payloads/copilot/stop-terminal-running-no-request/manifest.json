@@ -1,0 +1,31 @@
+{
+  "id": "copilot-stop-terminal-running-no-request",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-12T00:00:00Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_agentstop"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "copilot",
+      "event": "agentStop",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "empty",
+      "state_fixture": "synthetic/gate/terminal-running-no-request",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "The same running gate node with no request file, under a terminal driver. No request file is ever written there - the question is asked and answered inside one turn - so the absence is correct and the nudge allows the stop with empty stdout. This is the case that makes the nudge registrable for every session rather than for chain mode alone; without the driver branch the hook blocks here, which is what was replayed on 2026-09-11. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd to that mount point."
+}

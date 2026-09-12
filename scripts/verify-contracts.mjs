@@ -2954,7 +2954,22 @@ function t20(ctx) {
 // ---------------------------------------------------------------------------
 
 const STOP_EVENTS = { claude: 'Stop', copilot: 'agentStop' };
-const STOP_CASES = ['stop-running-no-request', 'stop-running-with-request', 'stop-active-flag', 'stop-corrupt-state'];
+/**
+ * Only the first case blocks. The two driver cases are the ones that let the
+ * nudge be registered for every session: a `terminal` driver and an absent
+ * driver both reach a running gate with no request file legitimately (ADR-0009
+ * writes no request file and no marker there), so a block on either would stop
+ * a correct terminal run. The cockpit case above them is unchanged, and the
+ * pair is what keeps the branch from being deleted as dead code.
+ */
+const STOP_CASES = [
+  'stop-running-no-request',
+  'stop-running-with-request',
+  'stop-active-flag',
+  'stop-corrupt-state',
+  'stop-terminal-running-no-request',
+  'stop-no-driver-running',
+];
 
 function t21(ctx) {
   const failures = [];
@@ -3218,7 +3233,7 @@ const HOOK_CONFIGS = [
     file: 'platforms/claude-code/gate-hooks.settings.json',
     vocabulary: 'claude',
     token: SETTINGS_ROOT_TOKEN,
-    events: ['PreToolUse', 'Stop', 'SessionStart'],
+    events: ['PreToolUse', 'SessionStart'],
   },
   {
     file: 'platforms/copilot-cli/hooks/maister-gates.json',
@@ -3425,6 +3440,29 @@ function t24(ctx) {
         checks++;
         if (!new RegExp(`^(?:${matcher})$`).test(tool)) failures.push(`hooks.json: the gate matcher does not match ${tool} — ${matcher}`);
       }
+    }
+  }
+
+  // Nothing deduplicates identical hook entries: a chain-mode session loads the
+  // plugin *and* the template, and the gate hook registered in both is measured
+  // firing twice per call (`eval/README.md`, where the latency figures are
+  // deduplicated by `tool_use_id` for exactly that reason). That is tolerable
+  // for the gate hook and only for it: the template registers `PreToolUse` with
+  // no matcher at all, which is strictly broader than the plugin's matcher, and
+  // the hook is read-only and idempotent, so the second run reaches the same
+  // decision. Every other overlap is a hook that runs twice for no reason — and
+  // for the stop nudge that is two blocks and two reasons on one stop, which is
+  // why the nudge is registered in `hooks.json` alone.
+  const settings = path.join(ctx.repoRoot, 'platforms/claude-code/gate-hooks.settings.json');
+  if (isFile(plugin) && isFile(settings)) {
+    const pairs = file => new Set(claudeEntries(readJson(file))
+      .map(({ event, entry }) => `${event} ${path.basename(String(claudeScriptOf(entry) ?? ''))}`));
+    const shared = [...pairs(plugin)].filter(pair => pairs(settings).has(pair)).sort();
+    const allowed = [`PreToolUse ${path.basename(GATE_HOOK)}`];
+    checks++;
+    if (shared.join(', ') !== allowed.join(', ')) {
+      failures.push(`hooks.json and the chain-mode template register the same hook twice for [${shared.join(', ')}], `
+        + `expected [${allowed.join(', ')}] — a doubly-registered hook runs twice per event`);
     }
   }
 
@@ -10019,7 +10057,7 @@ async function t38(ctx) {
 const GATE_CARRIERS = [
   { path: 'hooks/skill-invocation-reminder.sh', driver: true },
   { path: 'hooks/post-compact-reminder.sh', driver: true },
-  { path: 'hooks/gate-stop-nudge.mjs' },
+  { path: 'hooks/gate-stop-nudge.mjs', driver: true },
   { path: 'skills/development/SKILL.md', driver: true },
   { path: 'skills/research/SKILL.md', driver: true },
   { path: 'skills/migration/SKILL.md', driver: true },
@@ -10058,10 +10096,15 @@ const ONE_CALL = /(?:\b(?:one|a single|single)\b[^.\n]{0,60}`?gate-request`?|`?g
 
 /**
  * The driver qualification, required of the carriers that state the branch rule
- * itself. The stop nudge, the register's E2 rules and the worker seed carry the
- * sequence without restating the branch — the nudge only ever fires inside a
- * driver-suspended run, and the seed's worker is told its driver outright — so
- * they are held to the sequence and not to this.
+ * itself. The register's E2 rules and the worker seed carry the sequence without
+ * restating the branch — the seed's worker is told its driver outright — so they
+ * are held to the sequence and not to this.
+ *
+ * The stop nudge used to be exempt on the grounds that it only ever fired inside
+ * a driver-suspended run. That was a property of *where it was registered*, not
+ * of the hook: registered for every session it fired in terminal runs too, and
+ * blocked them. It now reads the driver itself, so it is held to the branch like
+ * any other carrier — and a revert to the unconditional block fails here.
  */
 const DRIVER_CLAUSES = [
   { name: 'names driver.kind', re: /driver\.kind/ },

@@ -1,0 +1,31 @@
+{
+  "id": "claude-stop-no-driver-running",
+  "contracts": [
+    "H1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-12T00:00:00Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/claude_stop"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "claude",
+      "event": "Stop",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "empty",
+      "state_fixture": "synthetic/gate/no-driver-running",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "The same running gate node with no request file, in a run that records no driver at all. An absent driver is read exactly as a terminal one: nothing is suspending the run, so there is no request file to owe and the nudge allows the stop with empty stdout. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd to that mount point."
+}

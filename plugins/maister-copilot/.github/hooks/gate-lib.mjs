@@ -182,7 +182,7 @@ export function scanState(text) {
   // a prototype swap: the node vanishes from `Object.keys` — the map every
   // caller counts — while the write that put it there reported success.
   const out = {
-    gatePending: null, driverSession: null,
+    gatePending: null, driverSession: null, driverKind: null,
     hasWorkflow: false, hasNodes: false, hasTask: false, nodes: Object.create(null),
   };
   let section = null;
@@ -213,7 +213,9 @@ export function scanState(text) {
 
     if (section === 'orchestrator') {
       if (key?.[1] === 'driver' && isChild) {
-        out.driverSession = readDriverSession(line.slice(indent + 'driver:'.length));
+        const driver = readDriver(line.slice(indent + 'driver:'.length));
+        out.driverSession = driver.session;
+        out.driverKind = driver.kind;
         continue;
       }
       if (key?.[1] !== 'gate_pending') continue;
@@ -244,24 +246,32 @@ export function scanState(text) {
 }
 
 /**
- * The driver's session id out of the E1 `driver:` line, or null.
+ * The driver's kind and session id out of the E1 `driver:` line, both null when
+ * the line does not yield them.
  *
  * Read leniently, and deliberately so. The one-line form is frozen for
  * `gate_pending` and for `workflow.nodes` entries and for nothing else, so a
  * `driver:` written as a block map is a valid state file — it must cost the
- * scoping, never fail the session closed. An id that cannot be read is null,
- * and null is the wide fallback: the run then binds every session under the
- * working directory, exactly as it did before the scope rule existed.
+ * scoping and the kind, never fail the session closed. An id that cannot be
+ * read is null, and null is the wide fallback for scope: the run then binds
+ * every session under the working directory, exactly as it did before the scope
+ * rule existed. A kind that cannot be read is null too, and there null is the
+ * *narrow* fallback — the stop nudge stays silent on it, the same way it stays
+ * silent on `terminal` — because an unreadable kind is indistinguishable from a
+ * run nobody is driving, and blocking a stop on a guess traps the session.
  */
-function readDriverSession(rest) {
+function readDriver(rest) {
+  const out = { kind: null, session: null };
   try {
     const driver = parseFlowMap(rest, 'driver');
+    if (typeof driver.kind === 'string' && driver.kind !== '') out.kind = driver.kind;
     const session = driver.session;
-    if (typeof session !== 'string' || !session.trimStart().startsWith('{')) return null;
+    if (typeof session !== 'string' || !session.trimStart().startsWith('{')) return out;
     const id = parseFlowMap(session, 'driver.session').id;
-    return typeof id === 'string' && id !== '' ? id : null;
+    if (typeof id === 'string' && id !== '') out.session = id;
+    return out;
   } catch {
-    return null;
+    return out;
   }
 }
 

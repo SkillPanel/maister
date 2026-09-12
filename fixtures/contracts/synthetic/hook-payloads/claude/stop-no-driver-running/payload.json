@@ -1,0 +1,9 @@
+{
+  "session_id": "019260a6-6666-7a22-8b33-c4d5e6f70816",
+  "transcript_path": "/home/dev/.claude/projects/-home-dev-work-repo-alpha/019260a6-6666-7a22-8b33-c4d5e6f70816.jsonl",
+  "cwd": "/home/dev/work/repo-alpha",
+  "permission_mode": "default",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Research complete; this run records no driver."
+}

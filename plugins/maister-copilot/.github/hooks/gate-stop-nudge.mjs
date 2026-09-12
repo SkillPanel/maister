@@ -9,6 +9,16 @@
  * A stop is never failed closed. Blocking a stop on a problem the model cannot
  * fix would trap the session, so every read or parse problem here allows the
  * stop and leaves a note on stderr.
+ *
+ * Only a suspending run is nudged, and that is what makes the hook registrable
+ * for every session rather than for chain mode alone. A run whose
+ * `orchestrator.driver.kind` is `cockpit` or `dispatch` answers its gates across
+ * a turn boundary, so the request file is the whole protocol and its absence is
+ * the defect above. A run whose driver kind is absent or `terminal` asks and
+ * answers inside one turn and writes no request file and no marker at all by
+ * design (ADR-0009): there the missing file is correct, the model has nothing to
+ * fix, and the nudge stays silent. An unreadable kind is treated as the silent
+ * branch too — it cannot be told apart from a run nobody is driving.
  */
 
 import fs from 'node:fs';
@@ -25,6 +35,13 @@ import {
 } from './gate-lib.mjs';
 
 const REQUEST_DIR = 'gates';
+
+/**
+ * The driver kinds that suspend a run at a gate, and so owe a request file.
+ * An allow-list rather than a `!== 'terminal'` test: a kind added later starts
+ * outside it, and acquires a block only when someone argues for one.
+ */
+const SUSPENDING_KINDS = new Set(['cockpit', 'dispatch']);
 
 function blockReason(node) {
   return (
@@ -60,6 +77,7 @@ try {
   for (const run of findStates(payload.cwd)) {
     const scanned = scanState(fs.readFileSync(run.stateFile, 'utf8'));
     if (!scanned.hasWorkflow) continue;
+    if (!SUSPENDING_KINDS.has(scanned.driverKind)) continue;
     for (const [node, entry] of Object.entries(scanned.nodes)) {
       if (entry.kind !== 'gate' || entry.status !== 'running') continue;
       if (fs.existsSync(path.join(run.runDir, REQUEST_DIR, `${node}.request.yml`))) continue;

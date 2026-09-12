@@ -336,7 +336,7 @@ RESUME      run=<run_id> at=<ts>
 |---|---|---|
 | Version floor | 2.1.233 | 1.0.80 |
 | Events | `PreToolUse`, `Stop`, `SessionStart` | `preToolUse`, `agentStop`, `sessionStart` |
-| Registration | `--settings <file>` on every spawn and resume; nothing persists in the session | `.github/hooks/<name>.json` in the repository, or `~/.copilot/hooks/` which always fires |
+| Registration | the plugin's `hooks.json` (`PreToolUse`, `Stop`) for every session, plus `--settings <file>` on every spawn and resume for what only chain mode needs; nothing persists in the session | `.github/hooks/<name>.json` in the repository, or `~/.copilot/hooks/` which always fires |
 | Enablement | none required | `GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true` or `COPILOT_ALLOW_ALL=true` **in the environment** — a flag does not count |
 | Payload keys | `session_id`, `transcript_path`, `cwd`, `permission_mode`, `hook_event_name`, `tool_name`, `tool_input`, plus `tool_use_id`, `prompt_id`, `agent_id`, `agent_type` | `sessionId`, `timestamp`, `cwd`, `toolName`, `toolArgs` (**a JSON string**) |
 | Stop payload adds | `stop_hook_active`, `last_assistant_message` | `transcriptPath`, `stopReason`, `stop_hook_active` |
@@ -352,7 +352,7 @@ RESUME      run=<run_id> at=<ts>
 - **A state file with no `orchestrator:` block never gates** (§ E2): it is below the floor, so it is an inventory row rather than a run, and a gate can be pending only in a run.
 - **The session id is what scopes a gate, and only that.** `session_id` (Claude) / `sessionId` (Copilot) is matched against the pending run's `driver.session.id` to decide whether the caller is the one that asked (§ E2). Claude's subagents carry the parent's `session_id` and are told apart by `agent_id`/`agent_type` instead, so a driver cannot step around its own gate by spawning one; Copilot issues a subagent a fresh `sessionId`, so there a subagent reads as another session and is held only by the path rule. Nothing else keys on the id: runs are keyed on `cwd` and the run directory, as they always were.
 - **Default-deny unknown tool names** while a gate is pending. Models route around single-tool denies, so the match list is "everything that is not explicitly allowed".
-- **A stop is never failed closed.** A stop hook blocks only for "a gate node is running with no request file", respects the provider's repeat-block cap and its active flag, and otherwise allows.
+- **A stop is never failed closed.** A stop hook blocks only for "a gate node is running with no request file **in a run whose `orchestrator.driver.kind` is `cockpit` or `dispatch`**", respects the provider's repeat-block cap and its active flag, and otherwise allows. An absent, `terminal` or unreadable driver kind never blocks: there the question is asked and answered inside one turn and no request file is written at all (§ E2), so its absence is the correct state. That qualification is what lets the nudge be registered for every session rather than for chain mode alone.
 - **Beacon required.** The daemon trusts a driver session only after that session's start hook has written its liveness beacon. The beacon lives outside the consumer tree.
 - Payload keys are provider-owned and additive. The floors pin what the captures prove; a provider adding a key is not a contract change.
 
