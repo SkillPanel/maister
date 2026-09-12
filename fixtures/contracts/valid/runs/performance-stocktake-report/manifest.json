@@ -1,0 +1,44 @@
+{
+  "id": "performance-stocktake-report",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A5",
+    "A6"
+  ],
+  "verdict": "valid",
+  "synthetic": false,
+  "pseudonymized": true,
+  "source": "repo-alpha/performance/2026-09-12-stocktake-report-slow",
+  "writer_version": "2.3.0-beta.15",
+  "sampled_at": "2026-09-12T14:30:47Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "analysis/codebase-analysis.md",
+      "schema": null,
+      "truncated": true
+    },
+    {
+      "path": "analysis/performance-analysis.md",
+      "schema": null,
+      "truncated": true
+    },
+    {
+      "path": "analysis/clarifications.md",
+      "schema": null,
+      "truncated": true
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "The first real performance run at or above the floor, which the synthetic performance fixture was standing in for. A terminal-mode run stopped at its first mandatory gate, so phase-1 and phase-2 are done and the specification summary is still null: performance_context is populated rather than merely present (bottlenecks_identified 6, the four bottleneck_priorities counters, and phase_summaries for codebase_analysis and bottleneck_analysis carrying decision/rationale objects, risk strings and artifact entries), and verification_context is present and empty, which is what a run that has not verified anything writes. Artifacts sit at the A4 performance layout (analysis/) and each opens with the A5 summary block; all three are truncated after their first body section. dashboard-data.js is strict JSON. One thing this fixture does NOT prove, stated because its validating is luck rather than contract: the performance orchestrator's own prose tells it to write task_context.clarifications_resolved beside performance_context, and A1 freezes exactly one per-workflow context block - this run happened to record its unasked clarifications in the artifacts instead, so the collision never fired. A migration run sampled the same day obeyed the equivalent instruction and was refused by the schema; the conflict is filed, not fixed here. Nothing here came from a real repository - the task is an invented local problem in a scratch project (a stocktake report that re-reads its catalogue inside a loop), so the only pseudonymization is the source alias above; no absolute path, user name or ticket id appears in the sampled bytes. Em dashes and the minus, sigma, section and middle-dot glyphs of the analysis prose were replaced with ASCII, the middle dot with * where it multiplied."
+}
