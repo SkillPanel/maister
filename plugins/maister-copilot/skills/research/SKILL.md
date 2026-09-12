@@ -59,7 +59,7 @@ Before doing anything else, settle this policy now and do not re-litigate it at 
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
-Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1. The questions this workflow asks *inside* a phase follow the same driver: § 2.2 states what a non-terminal run takes instead of asking, and every one of them names its default below.
 
 ### Step 1: Load Framework Patterns
 
@@ -175,6 +175,8 @@ This phase executes 4 sequential steps. On resume, check existing artifacts to s
 **Resume check**: If `planning/research-brief.md` exists, skip to Step 2
 
 1. Parse research question (from command or prompt user)
+
+   **Default under a non-terminal driver** (`research-question`): none, because the prompt is never reached -- the start brief supplied the question. A non-terminal run without one is `RUN-FAILED`, never a run with an invented question.
 2. Classify research type (auto-detect from keywords or use `--type` flag)
 3. Determine scope (included, excluded, constraints)
 4. Define success criteria
@@ -269,6 +271,10 @@ ask_user - "Research foundation complete (initialized, planned, gathered, synthe
    - Options: "Yes, generate design" / "No, skip design"
 6. Update state: set `brainstorming_enabled` and `design_enabled`
 
+**Default under a non-terminal driver** (`brainstorm-opt-in`): the recommendation computed at step 2 -- the same judgement the question text interpolates. It is recorded as `brainstorming_enabled` exactly as an answer would be, and a supplied flag still settles it without a default being taken at all.
+
+**Default under a non-terminal driver** (`design-opt-in`): the recommendation computed at step 3, by the same rule, recorded as `design_enabled`.
+
 → If brainstorming enabled: continue to Phase 3
 → If brainstorming disabled AND design enabled: skip to Phase 5
 → If both disabled: skip to Phase 6
@@ -298,6 +304,8 @@ ask_user - "Research foundation complete (initialized, planned, gathered, synthe
 - `project_doc_paths` (from state)
 
 > **SELF-CHECK**: After Task tool returns, verify `outputs/solution-exploration.md` exists and contains alternatives. If missing: **STOP. Do NOT proceed to Phase 4 or Phase 5.** Re-invoke the brainstormer with corrected context (ensure `output_path` is `outputs/solution-exploration.md`). If second attempt also fails, use ask_user to report the failure and ask whether to retry or skip brainstorming.
+
+**Default under a non-terminal driver** (`brainstormer-retry`): none -- neither retry nor skip. With the budget exhausted and nobody to ask, the phase fails rather than skipping silently, because a skipped brainstorming stretch satisfies everything downstream and would hide the failure from every later reader.
 
 → **AUTO-CONTINUE**
 
@@ -338,7 +346,9 @@ ask_user - "Research foundation complete (initialized, planned, gathered, synthe
 3. After all areas resolved, present a brief summary of the chosen combination
 4. Update state with chosen approaches per decision area
 
-> **GATE CHECK**: Verify that ask_user was called for EACH decision area. If any decision area was skipped for any reason (e.g., output file missing, read failure), STOP and resolve before continuing. Do NOT mark Phase 4 complete without user convergence on all decision areas.
+> **GATE CHECK**: Verify that EACH decision area was resolved -- asked and answered in a terminal run, defaulted and recorded under a non-terminal one, and in both cases carrying its chosen approach in state. An area a non-terminal run could not default is recorded as open, never dropped. If any decision area was skipped for any reason (e.g., output file missing, read failure), STOP and resolve before continuing. Do NOT mark Phase 4 complete without convergence on all decision areas.
+
+**Default under a non-terminal driver** (`convergence-decisions`): each area takes the alternative this phase recommends for it, and "Need more info" is never taken -- there is nobody to present the deeper analysis to. Every area is still worked in full: the alternatives are presented, the recommendation is reasoned, and the chosen approach is written to state for every area, so a resumed run re-asks nothing and the exit gate shows the operator the whole combination. An area with no recommendation is not guessed at -- it is recorded as open and named in the summary before the gate.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -364,6 +374,8 @@ ask_user - "Brainstorming complete. Continue to high-level design?"
 2. If Phase 4 was skipped: use research report recommendations as design input
 3. ask_user for any design preferences or constraints (e.g., "Any architectural constraints or preferences?")
 
+   **Default under a non-terminal driver** (`design-constraints`): none is supplied, and the designer runs on the convergence output and the research report alone. This is the cheapest question in the run to default: its answer feeds a prompt and decides nothing about the flow.
+
 **Part B — Design Generation (Subagent)**:
 
 > **ANTI-PATTERN**: Do NOT generate C4 architecture diagrams or ADRs inline. The solution-designer agent has specialized architecture and MADR documentation capabilities.
@@ -380,6 +392,8 @@ ask_user - "Brainstorming complete. Continue to high-level design?"
 - `project_doc_paths` (from state)
 
 > **SELF-CHECK**: After Task tool returns, verify both `outputs/high-level-design.md` and `outputs/decision-log.md` exist. If missing: **STOP. Do NOT proceed to Part C.** Re-invoke the designer with corrected context. If second attempt also fails, use ask_user to report the failure and ask whether to retry or skip design.
+
+**Default under a non-terminal driver** (`designer-retry`): none -- neither retry nor skip. The phase fails, for the same reason the brainstormer's retry question does.
 
 **Part C — Summary (Direct)**:
 3. Read `outputs/high-level-design.md` and `outputs/decision-log.md`
@@ -506,6 +520,8 @@ The normative layout and naming rules are `../orchestrator-framework/references/
 | Phase | Max Attempts | Strategy |
 |-------|--------------|----------|
 | 1 (Step 1) | 1 | Prompt user for clarification if question unclear |
+
+**Default under a non-terminal driver** (`question-clarification`): none. Step 1 cannot ask an absent operator to clarify an unclear question and must not guess one, so the single attempt is exhausted and the phase fails. A re-drive carrying the clarification is the route back in.
 | 1 (Step 2) | 2 | Expand search patterns, use fallback mixed methodology |
 | 1 (Step 3) | 3 | Retry failed agents only, continue with successful categories |
 | 1 (Step 4) | 2 | Request targeted re-gathering for gaps |

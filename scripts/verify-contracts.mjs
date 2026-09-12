@@ -12976,7 +12976,13 @@ async function t57(ctx) {
  * prose is held to — a `defaulted:` line naming an id no question owns is a
  * summary nobody can trace back.
  */
-const INNODE_RULE_CARRIER = 'skills/workflow-engine/SKILL.md';
+const INNODE_RULE_CARRIERS = [
+  // The engine reads its own skill; a prose orchestrator reads the framework
+  // reference at init and never opens the engine's. One rule, two readerships,
+  // and a carrier that drops it leaves its half of the plugin with none.
+  'skills/workflow-engine/SKILL.md',
+  'skills/orchestrator-framework/references/orchestrator-patterns.md',
+];
 
 /** The marker each question carries, and the id it declares. */
 const INNODE_MARKER = /\*\*Default under a non-terminal driver\*\*\s*\(`([a-z][a-z0-9-]*)`\):((?:[^\n]|\n(?!\n))*)/g;
@@ -13018,6 +13024,26 @@ const INNODE_QUESTIONS = [
     ids: [],
     absent: /No node here asks an in-node question/,
   },
+  // The prose twins. They ask the same questions in the same order and are not
+  // held to the same list: the twin's mockup phase has no revise loop (its gate
+  // carries approve-or-revise) and neither twin asks for a task description,
+  // while both ask the requirements round the definitions leave uncounted. A
+  // list per file is what lets the two interpreters differ honestly instead of
+  // one of them carrying a default for a question it never asks.
+  {
+    path: 'skills/development/SKILL.md',
+    ids: [
+      'clarifications', 'scope-decisions', 'technical-questions', 'specification-requirements',
+      'audit-opt-in', 'standard-verifications', 'browser-tests', 'user-docs', 'verification-fix-loop',
+    ],
+  },
+  {
+    path: 'skills/research/SKILL.md',
+    ids: [
+      'research-question', 'brainstorm-opt-in', 'design-opt-in', 'brainstormer-retry',
+      'convergence-decisions', 'design-constraints', 'designer-retry', 'question-clarification',
+    ],
+  },
 ];
 
 /**
@@ -13045,17 +13071,18 @@ const INNODE_RECORDED = /defaulted: ([a-z][a-z0-9-]*) ->/g;
 
 function t58(ctx) {
   const t = checker();
-  const ruleFile = path.join(ctx.pluginRoot, INNODE_RULE_CARRIER);
-
-  t.check(`${INNODE_RULE_CARRIER} states the in-node question rule`, () => {
-    must(isFile(ruleFile), `${INNODE_RULE_CARRIER}: the carrier is missing`);
-    const text = fs.readFileSync(ruleFile, 'utf8');
-    must(/##+ In-node questions/.test(text),
-      `${INNODE_RULE_CARRIER}: has no in-node questions section, so the rule is stated nowhere a run reads it`);
-    for (const { name, re } of INNODE_RULE_CLAUSES) {
-      must(re.test(text), `${INNODE_RULE_CARRIER}: the rule no longer ${name}`);
-    }
-  });
+  for (const carrier of INNODE_RULE_CARRIERS) {
+    const ruleFile = path.join(ctx.pluginRoot, carrier);
+    t.check(`${carrier} states the in-node question rule`, () => {
+      must(isFile(ruleFile), `${carrier}: the carrier is missing`);
+      const text = fs.readFileSync(ruleFile, 'utf8');
+      must(/##?\s*(?:2\.2\s+)?In-node questions/i.test(text),
+        `${carrier}: has no in-node questions section, so the rule is stated nowhere its readers reach it`);
+      for (const { name, re } of INNODE_RULE_CLAUSES) {
+        must(re.test(text), `${carrier}: the rule no longer ${name}`);
+      }
+    });
+  }
 
   const declared = new Set(INNODE_QUESTIONS.flatMap(f => f.ids));
 

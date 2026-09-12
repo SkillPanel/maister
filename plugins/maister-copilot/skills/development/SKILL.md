@@ -58,7 +58,7 @@ Before doing anything else, settle this policy now and do not re-litigate it at 
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
-Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1.
+Full framework rule: `../orchestrator-framework/references/orchestrator-patterns.md` § 2 and § 2.1. The questions this workflow asks *inside* a phase follow the same driver: § 2.2 states what a non-terminal run takes instead of asking, and every one of them names its default below.
 
 ### Step 1: Load Framework Patterns
 
@@ -172,6 +172,8 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 2. Update state with analysis results
 3. Direct - use ask_user for max 5 critical clarifying questions
 4. Save clarifications to `analysis/clarifications.md`
+
+**Default under a non-terminal driver** (`clarifications`): none is asked, and the analysis's own answers stand. The file is written and `clarifications_resolved` set exactly as they are for a run with nothing to ask, and what the analysis could not settle is recorded in the file as unsettled rather than guessed at.
 **Output**: `analysis/codebase-analysis.md`, `analysis/clarifications.md`
 **State**: Update `task_context.risk_level`, `phase_summaries.codebase_analysis`, `task_context.clarifications_resolved`
 
@@ -196,6 +198,8 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 - If `decisions_needed.critical` OR `decisions_needed.important` is non-empty:
   - MUST use `ask_user` — every decision is its own single-select question with its own option set (never flattened into a single question's option list). Critical decisions: one call each with full context. Important decisions: may be grouped as up to 4 separate questions within one call (orchestrator-patterns.md § 3 Decision Gate Pattern)
 - If both are empty: Note "No scope decisions needed" in state
+
+**Default under a non-terminal driver** (`scope-decisions`): each decision takes the option the gap-analyzer recommended. A decision it left without a recommendation is not guessed at — it stays open, is recorded as open, and is named in the executive summary printed before the Phase 2 exit gate, which is where an operator reaches it.
 
 **SELF-CHECK** before continuing: "Did the gap-analyzer return `decisions_needed` items? If yes, did I invoke `ask_user`? If I skipped this, STOP and go back."
 
@@ -295,6 +299,8 @@ ask_user - "UI mockups complete — review the live gallery at [companion URL] (
 
 **Skip technical clarification if**: Simple task, risk_level = low, no multiple approaches detected
 
+**Default under a non-terminal driver** (`technical-questions`): the recommended approach is the chosen one, and it is what specification-creator is given. When no approach is recommended, none is invented: the choice stays open, is recorded in `analysis/technical-clarifications.md` as open, and is named in the executive summary before the Phase 5 exit gate.
+
 **Part B — Requirements Gathering (inline)**:
 3. Direct - use ask_user for specification requirements:
    - Adaptive question count based on description length:
@@ -311,6 +317,8 @@ ask_user - "UI mockups complete — review the live gallery at [companion URL] (
    - If user provides new mockups during this phase: place them in `analysis/design-context/mockups/`, regenerate `INDEX.md`
    - If not found and non-UI task: skip visual asset processing
 5. Save gathered requirements to `analysis/requirements.md` with: initial description, Q&A from all rounds, similar features identified, visual assets and insights, functional requirements summary, reusability opportunities, scope boundaries, technical considerations
+
+**Default under a non-terminal driver** (`specification-requirements`): the assumptions stand as framed. They are written to be confirmable, so an unconfirmed one is recorded in `analysis/requirements.md` and carried into the specification as a stated assumption rather than as settled fact — which is what the Phase 5 exit gate puts in front of an operator.
 
 **Part C — Specification Creation (subagent)**:
 
@@ -348,6 +356,8 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 **Recommended**: Always. Present spec audit as the recommended default. User can skip if they choose.
 
 ask_user - "Run specification audit? (Recommended)" with "Yes, run audit (Recommended)" as first option
+
+**Default under a non-terminal driver** (`audit-opt-in`): the recommended option, so the audit runs. It is recorded exactly as an answered question records it, and a supplied `--audit` value still settles it without a default being taken at all.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -468,6 +478,12 @@ Options: "Code review (Recommended)", "Pragmatic review (Recommended)", "Reality
 
 **Q3** (SKIP if `options.user_docs_enabled: false` and no `--user-docs` flag): ask_user — "Generate user documentation?" Options: "Yes (Recommended)", "No, skip".
 
+**Default under a non-terminal driver** (`standard-verifications`): the pre-selected set, which is all four reviews.
+
+**Default under a non-terminal driver** (`browser-tests`): the recommendation this phase just printed, which is the setting Phase 2's task characteristics seeded. With nobody to answer, the recommendation is the answer.
+
+**Default under a non-terminal driver** (`user-docs`): the recommendation, by the same rule.
+
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
 ---
@@ -514,11 +530,13 @@ Verification Results:
    - "No, proceed to next phase"
 6. Update `verification_context.reverify_count`
 
+**Default under a non-terminal driver** (`verification-fix-loop`): fix every fixable issue, re-verify once, then continue to the gate. The re-run records `fixes_applied` and raises `reverify_count` exactly as an answered one does, and one re-verification is the whole budget — a loop nobody can stop is not a loop. An issue still critical after it is **not** proceeded past: it is named in the executive summary before this phase's exit gate, which is where an operator answers.
+
 **Exit conditions**:
 - No critical issues remain → proceed
 - User explicitly chooses "Skip fixes, proceed as-is" or "No, proceed to next phase" → proceed with issues logged
 - Max 3 iterations reached → ask_user: "Proceed with known issues?" / "Stop workflow"
-- **MUST NOT proceed with unresolved critical issues unless user explicitly approves**
+- **MUST NOT proceed with unresolved critical issues unless user explicitly approves** — a gate answered from outside is such an approval; a default is not
 
 **⚠️ POST-VERIFICATION CONTINUATION** — After issue resolution completes:
 1. **Canonical report check**: `verification/implementation-verification.md` + `.html` MUST reflect the FINAL post-fix verdict before leaving this phase. If fixes were applied and the canonical report still shows the pre-fix state (regardless of whether re-checks were run via the full verifier skill or individual subagents writing `*-reverify.md` side files), re-invoke `maister-implementation-verifier` (or have it recompile Phase 3) so the report and companion are rewritten with a "Fix & Re-Verification History" section. A stale pre-fix report is a phase-exit violation.

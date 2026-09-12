@@ -77,11 +77,38 @@ Your session may include reminders telling you to "work without stopping for cla
 
 Decide this policy at orchestrator entry. Do NOT re-evaluate it at each gate. Re-litigating the rule at each gate is the documented failure mode that produced this section — a model that read this rule, then weighed it against a competing session-reminder at every gate, and lost every time.
 
-- "Work without stopping" / "minimize clarifying questions" applies ONLY to your discretionary clarifications, never to `→ MANDATORY GATE` workflow checkpoints.
+- "Work without stopping" / "minimize clarifying questions" applies ONLY to your discretionary clarifications in a terminal run, never to `→ MANDATORY GATE` workflow checkpoints.
 - A user who said "approve" to ten prior gates was being patient, not setting policy. Each gate is a fresh question.
 - No permission mode, session-reminder, prior-session pattern, or "this task is simple" judgment exempts you from firing `AskUserQuestion` at `→ MANDATORY GATE`.
 
 If you ever find yourself reasoning "the user has been approving everything / told me to continue / set auto-mode, so I can skip this gate," that reasoning is the failure mode. STOP and fire the gate.
+
+### 2.2 In-node questions under a non-terminal driver
+
+A gate is not the only question a phase asks. A phase may ask its own — a clarification, an opt-in deciding whether a later phase runs, a decision between approaches, or a loop offering another pass — and those are *not* gates: they carry no `→ MANDATORY GATE` marker, every answer continues the run, and no request file exists for them. They follow the same driver the gates do:
+
+| `orchestrator.driver.kind` | A question a phase asks inside itself is |
+|---|---|
+| absent, or `terminal` | asked in session, exactly as the phase describes it |
+| `cockpit`, `dispatch` | **never asked**; the phase takes the default its own prose names, and records that it did |
+
+**Why a default and not a suspension.** Suspending is gate-shaped: a request carries a node id, a kind, a question and its options, and there is no request kind for a question asked inside a phase. A run under a driver therefore has two honest outcomes and no third — take the stated default, or fail. Asking anyway is the defect this rule prevents: nobody is in the session to answer.
+
+**Every such question names its default, in the phase that asks it.** What each family takes:
+
+| The question | What a non-terminal run takes |
+|---|---|
+| A clarification | nothing is asked; the analysis or the delegate's own answers stand, and the phase writes its artifact and sets its flag as a run with nothing to ask already does |
+| An opt-in | the recommended option |
+| A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is named in the executive summary printed before the next gate |
+| A loop offering another pass | the accept-as-is exit — the following gate is the operator's route back |
+| An exhausted recovery budget | the phase fails rather than choosing retry or skip on the operator's behalf |
+
+**What is recorded.** One entry per defaulted question on that phase's summary `decisions` list, as a plain string — `defaulted: <question-id> -> <default taken>` — where the id is the one the phase prose names and the text after the arrow is the default this run actually used. A phase that asked nothing because it had nothing to ask records nothing. The entry is an ordinary decision item and reaches the dashboard the way every other decision does (§ 4, § 8).
+
+**A run started under a driver has its inputs**, so a task description or research question is never invented: if one is genuinely missing, stop with `RUN-FAILED` rather than inventing one.
+
+**Two things this never defaults past.** It settles who answers, not what may be waived: an unresolved critical issue is not proceeded past — the default fixes what is fixable and carries the remainder into the following gate (§ 6 Exit Conditions holds unchanged) — and a decision the phase owes is still *resolved* rather than skipped, since a defaulted decision satisfies a completeness self-check and an unasked, unrecorded one does not.
 
 ### Phase Entry Checks
 
