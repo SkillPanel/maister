@@ -1,0 +1,124 @@
+orchestrator:
+  started_phase: null
+  completed_phases: []
+  failed_phases: []
+  options: {html_output: true, spec_audit_enabled: true, e2e_enabled: true, user_docs_enabled: true}
+  created: "2026-09-10T08:00:00Z"
+  updated: "2026-09-12T17:48:18Z"
+  task_path: ".maister/tasks/development/2026-09-10-retry-schedule"
+  driver: {kind: cockpit, cwd: /home/dev/work/repo-alpha, session: {id: 019260c4-3344-7e55-8f66-112233445566, name: chain-retry-schedule, provider: claude, model: claude-opus-4-6, status: running}}
+  gate_pending: null
+
+task:
+  title: "Configurable retry schedule for the delivery worker"
+  status: completed
+
+workflow:
+  source: "builtin:development"
+  overlays: []
+  profile: default
+  graph_hash: "sha256:3f21ab77c0de41558bb90a4d228d7a3181a860d0da25a8ea268c1c8779901234"
+  grammar_version: 1
+  name: development
+  nodes:
+    intake: {kind: task, status: completed, completed: "2026-09-10T08:02:11Z", needs: []}
+    codebase-analysis: {kind: task, status: completed, completed: "2026-09-10T08:19:40Z", needs: [intake]}
+    gap-analysis: {kind: task, status: completed, completed: "2026-09-10T08:34:05Z", needs: [codebase-analysis]}
+    gap-approval: {kind: gate, status: completed, completed: "2026-09-10T09:05:18Z", needs: [gap-analysis]}
+    ui-mockups: {kind: task, status: completed, completed: "2026-09-10T09:28:52Z", needs: [gap-approval]}
+    specification: {kind: task, status: completed, completed: "2026-09-10T10:02:37Z", needs: [ui-mockups]}
+    verification-options: {kind: task, status: completed, completed: "2026-09-10T11:40:09Z", needs: [specification]}
+    verification: {kind: task, status: completed, completed: "2026-09-10T12:11:26Z", needs: [verification-options]}
+    verification-approval: {kind: gate, status: completed, completed: "2026-09-10T12:28:03Z", needs: [verification]}
+    finalization: {kind: task, status: completed, completed: "2026-09-10T12:31:44Z", needs: [verification-approval]}
+
+node_summaries:
+  intake:
+    status: completed
+    summary: "Task directory and state created from the start brief; the task description arrived with the run's inputs, so no question was reached."
+    decisions: []
+    risks: []
+    artifacts: []
+  codebase-analysis:
+    status: completed
+    summary: "Nine files and the delivery worker's retry path analyzed; two questions the analysis could not settle are recorded as unsettled in analysis/clarifications.md."
+    decisions:
+      - "defaulted: clarifications -> none asked, the analysis's own answers stand"
+    risks: []
+    artifacts:
+      - path: analysis/clarifications.md
+        label: Clarifications
+        html: null
+  gap-analysis:
+    status: completed
+    summary: Three gaps and two scope decisions; the analyzer recommended both, and neither widened the work beyond the invocation.
+    decisions:
+      - "defaulted: scope-decisions -> the analyzer's recommendation on both decisions; none left open"
+    risks: []
+    artifacts:
+      - path: analysis/scope-clarifications.md
+        label: Scope clarifications
+        html: null
+  gap-approval:
+    status: completed
+    summary: "Gate answered from the cockpit: continue."
+    decisions:
+      - decision: continue
+        rationale: the operator approved the gap analysis from outside the session
+    risks: []
+    artifacts: []
+  ui-mockups:
+    status: completed
+    summary: Four screens rendered and presented to the gate as rendered; no revise round was taken.
+    decisions:
+      - "defaulted: mockup-accept -> accept as rendered, no revise round"
+    risks: []
+    artifacts:
+      - path: design/mockups/index.html
+        label: Mockup gallery
+        html: null
+  specification:
+    status: completed
+    summary: Specification written against the recommended approach, with the unconfirmed requirement assumptions carried into it as stated assumptions.
+    decisions:
+      - "defaulted: technical-questions -> the recommended approach, a bounded exponential backoff"
+      - "defaulted: specification-requirements -> the assumptions stand as framed, recorded as assumptions in the spec"
+      - "defaulted: audit-opt-in -> the recommended option, run the audit"
+    risks: []
+    artifacts:
+      - path: implementation/spec.md
+        label: Specification
+        html: null
+  verification-options:
+    status: completed
+    summary: "Verification plan printed and settled from the recommendations: all four reviews, browser verification on, user documentation on."
+    decisions:
+      - "defaulted: standard-verifications -> the pre-selected set, all four reviews"
+      - "defaulted: browser-tests -> the recommendation, on"
+      - "defaulted: user-docs -> the recommendation, on"
+    risks: []
+    artifacts: []
+  verification:
+    status: completed
+    summary: Two fixable warnings fixed and the verifier re-run once; no critical issue remained for the gate to weigh.
+    decisions:
+      - "defaulted: verification-fix-loop -> fix all fixable, re-verify once, then the gate"
+    risks: []
+    artifacts:
+      - path: verification/verification-report.md
+        label: Verification report
+        html: null
+  verification-approval:
+    status: completed
+    summary: "Gate answered from the cockpit: continue."
+    decisions:
+      - decision: continue
+        rationale: the operator accepted the post-fix verdict from outside the session
+    risks: []
+    artifacts: []
+  finalization:
+    status: completed
+    summary: Run closed with every in-node question defaulted and recorded; nothing was asked in session.
+    decisions: []
+    risks: []
+    artifacts: []

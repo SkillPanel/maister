@@ -1,0 +1,21 @@
+{
+  "id": "defaulted-questions",
+  "contracts": [
+    "A1",
+    "B3",
+    "E1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": "2.3.0-beta.16",
+  "sampled_at": "2026-09-12T00:00:00Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    }
+  ],
+  "notes": "A development run under a cockpit driver that reached finalization without asking anything. Every question its nodes ask inside themselves took the default its node prose names, and each one is recorded as a plain decision entry on that node's summary -- the shape a defaulted question is recorded in, which needs no key the summary did not already have. Emitted by the state writer rather than written by hand, so the recorded form is the one a real run would publish. The gate answers beside them are the contrast: a gate under this driver is still answered from outside, and only the in-node questions are defaulted."
+}

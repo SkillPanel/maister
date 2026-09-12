@@ -12945,6 +12945,163 @@ async function t57(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T58 — a stated default for every question a node asks inside itself
+// ---------------------------------------------------------------------------
+
+/**
+ * A gate under a `cockpit` or `dispatch` driver suspends the run and is answered
+ * from outside. The questions a node asks *inside itself* have no such route —
+ * a gate request carries a node id, a kind, a question and its options, and
+ * there is no request kind for an in-node question — so under a non-terminal
+ * driver each one either takes a stated default or the run fails. That rule is
+ * only real while two things hold, and neither is visible to a schema.
+ *
+ * The first is that the rule exists somewhere a run reads. It is stated once, in
+ * the engine's own skill, beside the gate rule it parallels; a definition file
+ * that restated it would be the drift the gate sequence already taught us to
+ * avoid.
+ *
+ * The second is that every question actually names its default. That is what a
+ * count cannot prove and a list can: the ids below are the register, held equal
+ * to what the prose carries in both directions, so a question added without a
+ * default fails here rather than reaching a cockpit run with nothing to take,
+ * and an id renamed in the prose without being renamed here fails too. `plan.md`
+ * asks none and its list is empty on purpose — an empty list is a claim, and it
+ * breaks the moment a question is added there.
+ *
+ * The fixture is the third leg: a run that reached finalization under a cockpit
+ * driver with every default recorded. It proves the recorded form is writable
+ * and readable, and it holds the recording shape to the same id register the
+ * prose is held to — a `defaulted:` line naming an id no question owns is a
+ * summary nobody can trace back.
+ */
+const INNODE_RULE_CARRIER = 'skills/workflow-engine/SKILL.md';
+
+/** The marker each question carries, and the id it declares. */
+const INNODE_MARKER = /\*\*Default under a non-terminal driver\*\*\s*\(`([a-z][a-z0-9-]*)`\):((?:[^\n]|\n(?!\n))*)/g;
+
+/**
+ * The shortest default that says anything. A marker with an id and an empty
+ * clause reads as compliant to a grep and tells a run nothing, which is the
+ * failure this minimum exists to catch.
+ */
+const INNODE_DEFAULT_MIN = 20;
+
+/**
+ * Every question the shipped definitions ask inside a node, in the order the
+ * prose asks them. The ids are subject-named, never positional: the prose's own
+ * "the fifth of the ten" numbering is narrative and renumbers itself whenever a
+ * question moves, which is exactly what an id must not do.
+ */
+const INNODE_QUESTIONS = [
+  {
+    path: 'skills/workflow-engine/workflows/development.md',
+    ids: [
+      'task-description', 'clarifications', 'scope-decisions', 'mockup-accept',
+      'technical-questions', 'specification-requirements', 'audit-opt-in',
+      'standard-verifications', 'browser-tests', 'user-docs', 'verification-fix-loop',
+    ],
+  },
+  {
+    path: 'skills/workflow-engine/workflows/research.md',
+    ids: [
+      'research-question', 'question-clarification', 'brainstorm-opt-in', 'design-opt-in',
+      'brainstormer-retry', 'convergence-decisions', 'design-constraints', 'designer-retry',
+    ],
+  },
+  {
+    // No question, and the file says so. The sentence is what a future addition
+    // has to argue with, and the empty list is what fails if one is added
+    // without a default.
+    path: 'skills/workflow-engine/workflows/plan.md',
+    ids: [],
+    absent: /No node here asks an in-node question/,
+  },
+];
+
+/**
+ * The clauses the rule itself owes. Together they are the difference between a
+ * rule a run can follow and a paragraph about drivers: which branch it is in,
+ * that the question is not asked in the other, what is taken instead, what is
+ * written down, and the one case that fails rather than defaults.
+ */
+const INNODE_RULE_CLAUSES = [
+  { name: 'names driver.kind', re: /driver\.kind/ },
+  { name: 'names the terminal branch', re: /absent,? or `?terminal`?/i },
+  { name: 'names the suspending branch', re: /cockpit/ },
+  { name: 'says the question is never asked', re: /never asked/i },
+  { name: 'names the recording shape', re: /defaulted: [^\n]*->/ },
+  { name: 'records onto the summary decisions list', re: /summary\s+`decisions`\s+list/ },
+  { name: 'takes the recommended option for an opt-in', re: /the recommended option/i },
+  { name: 'fails rather than defaults on an exhausted budget', re: /exhausted recovery budget/i },
+  { name: 'refuses an invented task description', re: /RUN-FAILED/ },
+];
+
+/** The run that reached finalization with nobody in the session. */
+const INNODE_FIXTURE = path.join('synthetic', 'runs', 'defaulted-questions');
+/** Every `defaulted:` line the fixture's summaries carry, with the id it names. */
+const INNODE_RECORDED = /defaulted: ([a-z][a-z0-9-]*) ->/g;
+
+function t58(ctx) {
+  const t = checker();
+  const ruleFile = path.join(ctx.pluginRoot, INNODE_RULE_CARRIER);
+
+  t.check(`${INNODE_RULE_CARRIER} states the in-node question rule`, () => {
+    must(isFile(ruleFile), `${INNODE_RULE_CARRIER}: the carrier is missing`);
+    const text = fs.readFileSync(ruleFile, 'utf8');
+    must(/##+ In-node questions/.test(text),
+      `${INNODE_RULE_CARRIER}: has no in-node questions section, so the rule is stated nowhere a run reads it`);
+    for (const { name, re } of INNODE_RULE_CLAUSES) {
+      must(re.test(text), `${INNODE_RULE_CARRIER}: the rule no longer ${name}`);
+    }
+  });
+
+  const declared = new Set(INNODE_QUESTIONS.flatMap(f => f.ids));
+
+  for (const definition of INNODE_QUESTIONS) {
+    const file = path.join(ctx.pluginRoot, definition.path);
+    t.check(`${definition.path} names a default for every question it asks in a node`, () => {
+      must(isFile(file), `${definition.path}: the definition's node prose is missing`);
+      const text = fs.readFileSync(file, 'utf8');
+      const found = [...text.matchAll(INNODE_MARKER)];
+      equalJson(found.map(m => m[1]), definition.ids,
+        `${definition.path}: the questions naming a default, in prose order — a question added without one leaves a cockpit run with nothing to take, and a renamed id is a record nothing can be traced through`);
+      for (const [, id, clause] of found) {
+        must(clause.trim().length >= INNODE_DEFAULT_MIN,
+          `${definition.path}: \`${id}\` declares a default of ${JSON.stringify(clause.trim())}, which names nothing a run could take`);
+      }
+      if (definition.absent) {
+        must(definition.absent.test(text),
+          `${definition.path}: no longer says it asks no in-node question, so its empty list is a silence rather than a claim`);
+      }
+    });
+  }
+
+  t.check(`${INNODE_FIXTURE} reached finalization under a cockpit driver with nothing asked`, () => {
+    const stateFile = path.join(ctx.fixtures, INNODE_FIXTURE, 'orchestrator-state.yml');
+    must(isFile(stateFile), `${INNODE_FIXTURE}: the fixture run is missing`);
+    const text = fs.readFileSync(stateFile, 'utf8');
+    must(/driver: \{kind: cockpit/.test(text),
+      `${INNODE_FIXTURE}: is not under a cockpit driver, so it proves nothing about a run with nobody in the session`);
+    must(/gate_pending: null/.test(text),
+      `${INNODE_FIXTURE}: still holds a pending gate, so it did not reach finalization`);
+    must(/status: completed/.test(text.split('\nworkflow:')[0]),
+      `${INNODE_FIXTURE}: the run did not complete`);
+    must(/^  finalization:/m.test(text),
+      `${INNODE_FIXTURE}: carries no finalization summary, so nothing shows the run reaching the end`);
+    const recorded = [...text.matchAll(INNODE_RECORDED)].map(m => m[1]);
+    must(recorded.length > 0,
+      `${INNODE_FIXTURE}: records no defaulted question, which is the whole thing it exists to show`);
+    for (const id of recorded) {
+      must(declared.has(id),
+        `${INNODE_FIXTURE}: records \`${id}\`, which no shipped question declares — the id register and the recorded form have drifted apart`);
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -13021,6 +13178,7 @@ const TESTS = [
   { id: 'T55', name: 'prune-release-route', needs: ['plugin'], run: t55 },
   { id: 'T56', name: 'planner-draft-isolation', needs: ['plugin', 'fixtures'], run: t56 },
   { id: 'T57', name: 'planner-outcome-marker', needs: ['plugin', 'fixtures'], run: t57 },
+  { id: 'T58', name: 'in-node-question-defaults', needs: ['plugin', 'fixtures'], run: t58 },
 ];
 
 // ---------------------------------------------------------------------------
