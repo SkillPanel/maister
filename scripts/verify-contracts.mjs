@@ -10236,6 +10236,12 @@ const PLANNER_BOUNDED_LOOP = /at most three passes/;
 /** Both ways out of a name collision. A refusal naming one of them is half a recovery. */
 const PLANNER_COLLISION_FLAGS = ['--name', '--force'];
 /**
+ * The scratch directory the draft lands in, spelled as the skill spells it.
+ * Pinned because "a temporary directory" is what it replaced, and a provider
+ * whose file tool verifies paths denies a write there whatever the grant says.
+ */
+const PLANNER_SCRATCH_FORM = '<target home>/.<name>.draft/';
+/**
  * The driver literal, spelled here as `DRIVER_RULE` spells it in
  * `skills/umbrella/scripts/lib/envelope.mjs`. Keeping the two in step is the
  * point: this test is only meaningful while it names the same string the
@@ -10365,6 +10371,26 @@ async function t41(ctx) {
       'no paragraph of the derivation case names both ways out, so the message requirement is unstated');
     must(/derived/.test(text) && /two operators/i.test(text),
       'the skill does not say why a shared workspace collides by design, so the refusal reads as a defect');
+  });
+
+  // The scratch location, named rather than left to the session. "A temporary
+  // directory" assumed a writable path one of the two providers does not grant:
+  // its file tool verifies the path against the directories the session was
+  // given, so a blanket tool grant does not reach it, and a session that meets
+  // the denial drafts wherever it can — which was its own session-state
+  // directory. Both providers grant a write under the working directory.
+  t.check(`${PLANNER_SKILL_REL} names a scratch location both providers grant`, () => {
+    const text = fs.readFileSync(skillFile, 'utf8');
+    must(!/(?:in|into) a temporary directory/.test(text),
+      `${PLANNER_SKILL_REL}: still says only "a temporary directory", which one provider denies`);
+    must(text.includes(PLANNER_SCRATCH_FORM),
+      `${PLANNER_SKILL_REL}: does not spell the scratch directory as \`${PLANNER_SCRATCH_FORM}\``);
+    // Inside the workflow home, which is what keeps "writes nothing outside
+    // .maister/workflows/" true and makes the publish a rename in one directory.
+    must(/\.maister\/workflows\/\.[^\s`]*draft/.test(text) || /workflows\/generated\/\.[^\s`]*draft/.test(text),
+      `${PLANNER_SKILL_REL}: the scratch directory is not shown inside the workflow home`);
+    must(/remove it on both endings/i.test(text),
+      `${PLANNER_SKILL_REL}: does not require the draft directory to be removed, so a refusal leaves a half-chain behind`);
   });
 
   // Node identifiers: chosen, not derived. Three proof sessions produced one

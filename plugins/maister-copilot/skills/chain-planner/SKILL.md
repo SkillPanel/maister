@@ -26,9 +26,11 @@ if it worked. `references/plan-time-rules.md` § 4.1 is where the absent
 constructs are named and where the consequence that catches drafts is worked
 through; this file states it nowhere else, so there is one copy to keep true.
 
-**It writes nothing on a refusal, and says so first.** Every row of the refusal
-table below leaves the workspace byte-for-byte as it was, because the loop
-drafts into a temporary directory and publishes only at the end.
+**It leaves the workspace's chain set as it was on a refusal, and says so
+first.** Every row of the refusal table below ends with no chain published,
+because the loop drafts into a scratch directory and publishes only at the end.
+The scratch directory and the outcome marker are the two things that do land
+under `.maister/`, and both are accounted for below.
 
 ---
 
@@ -53,7 +55,7 @@ recorded.
 
 | A user types | What runs |
 |---|---|
-| `/maister-chain-planner "<task>"` | the loop below: derive the stem, draft into a temporary directory, validate the draft against the current working directory, publish into `<cwd>/.maister/workflows/` |
+| `/maister-chain-planner "<task>"` | the loop below: derive the stem, draft into the scratch directory, validate the draft against the current working directory, publish into `<cwd>/.maister/workflows/` |
 | `/maister-chain-planner "<task>" --name STEM` | the same, with the derivation skipped — `STEM` is used as given and still held to the charset and length rules |
 | `/maister-chain-planner "<task>" --root DIR` | the same against `DIR` as the workspace root |
 | `/maister-chain-planner "<task>" --generated` | the same, published into `<root>/.maister/workflows/generated/` — the home of chains authored for one ticket or one run rather than kept for reuse |
@@ -230,12 +232,34 @@ An ignore file already there is left alone, whatever it says.
 
 ### The draft-validate-publish loop
 
-The pair is drafted **side by side in a temporary directory** — both files, same
-stem, differing only by extension, because the prose companion is found by
-swapping the extension of the definition's own path. The draft is validated
-there, against `--root`; the validator uses the definition path as given and
-re-anchors nothing, so a draft outside the workspace validates exactly as the
-published file would.
+**The scratch directory is named, and it is inside the target home**:
+
+```
+<target home>/.<name>.draft/
+```
+
+— so `.maister/workflows/.docs-refresh.draft/` for a reusable chain, and
+`.maister/workflows/generated/.docs-refresh.draft/` for a generated one. Not a
+system temporary directory, which is the trap this replaced: one of the two
+supported providers refuses a write there even under a blanket tool grant,
+because its file tool verifies the path against the directories the session was
+given rather than asking about the tool. No grant flag makes that go away, and a
+session that meets it drafts wherever it can — which was its own session-state
+directory, a location nothing else can find. Both providers grant a write under
+the working directory, and the draft sitting beside its destination makes
+publication a rename inside one directory. The leading dot keeps it
+non-contractual, so nothing enumerating the workflow home reads it as a chain.
+
+**Remove it on both endings**, success and refusal alike: a draft left behind is
+a half-chain in the home a reviewer browses. The outcome marker is what records
+that the attempt happened; the draft directory is not.
+
+The pair is drafted **side by side** in there — both files, same stem, differing
+only by extension, because the prose companion is found by swapping the
+extension of the definition's own path. The draft is validated where it lies,
+against `--root`; the validator uses the definition path as given and re-anchors
+nothing, so a draft outside its eventual home validates exactly as the published
+file would.
 
 Publication happens once, at the end, and only on a clean ending: all three
 files, or none of them. A publish over an existing `<name>.yml` is refused
@@ -353,7 +377,8 @@ Every row writes nothing. Say that first, then the recovery.
 - **It does not disambiguate a name.** A collision is a question for whoever
   named the task, not a suffix.
 - **It does not write outside `.maister/workflows/`** under the root it was
-  given — the generated home is a subdirectory of it — and it never writes into
-  a member repository.
+  given — the generated home and the scratch directory are both inside it — and
+  it never writes into a member repository. Nothing it writes reaches a system
+  temporary directory, a home directory or a session-state directory.
 - **It does not delete a generated chain.** That is the workspace runtime's
   `prune` verb, once the chain's runs have closed.
