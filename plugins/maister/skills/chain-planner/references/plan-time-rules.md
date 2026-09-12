@@ -530,10 +530,13 @@ Warnings are bare strings from a three-word vocabulary —
 `reserved-key:<path>`, `unresolved-reference:<node>:<target>` and
 `undecidable-value-type:<path>` — and warnings alone never fail a validate.
 
-**The verdict carries no counts.** There is no node count and no gate count
-anywhere in it; the "valid — N nodes, N gates" line a reviewer sees is computed
-by the caller from the resolved node list. A planner reporting counts computes
-them itself.
+**The verdict counts the graph it judged.** Each row of `definitions` carries
+`counts: {nodes, gates}` for that definition — counted after overlays and the
+profile were applied, so the numbers describe what would run rather than the base
+a reader happens to be looking at. Quote them; do not recount. Two producers
+counting one document independently is how a report and the panel beside it come
+to disagree. An overlay judged on its own shape has no graph to count and reports
+`counts: null`, which is not zero.
 
 An unresolved `skill:` or `agent:` reference warns rather than errors, because
 such a target may be provided by an environment the static check cannot see —

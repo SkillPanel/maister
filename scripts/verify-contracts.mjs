@@ -11872,6 +11872,90 @@ async function t49(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+
+// ---------------------------------------------------------------------------
+// T50 — the validator verdict carries node and gate counts
+// ---------------------------------------------------------------------------
+
+/**
+ * The two numbers every validation report states, counted by the tool that
+ * judged the graph.
+ *
+ * They used to be computed by whoever was quoting the verdict — the planner's
+ * success report states "N nodes, N gates" and the cockpit's validation panel
+ * states them too, so two producers were counting independently off one
+ * document and nothing held them equal. The counts are pinned here as literals
+ * rather than recomputed from the fixture, because a check that counts the same
+ * file the same way twice proves only that it is self-consistent.
+ */
+const VERDICT_COUNTS = { nodes: 5, gates: 1 };
+
+async function t50(ctx) {
+  const t = checker();
+  const fixtureDir = path.join(ctx.fixtures, PLANNED_CHAIN_FIXTURE);
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+
+  await t.checkAsync('the verdict counts the fixture chain\'s nodes and gates', async () => {
+    must(isDir(fixtureDir), `${PLANNED_CHAIN_FIXTURE}: the planned-chain fixture is absent`);
+    const { init, validate } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const root = tempDir('verdict-counts');
+    try {
+      for (const member of PLANNED_CHAIN_MEMBERS) gitDir(root, 'projects', member);
+      const started = init(root, { membersRoot: null, force: false, scaffold: false });
+      must(started.ok, `init refused: ${JSON.stringify(started.errors)}`);
+      const workflows = path.join(root, '.maister', 'workflows');
+      for (const ext of ['yml', 'md']) {
+        fs.copyFileSync(
+          path.join(fixtureDir, `${PLANNED_CHAIN_STEM}.${ext}`),
+          path.join(workflows, `${PLANNED_CHAIN_STEM}.${ext}`),
+        );
+      }
+      const definition = path.join(workflows, `${PLANNED_CHAIN_STEM}.yml`);
+      const judged = validate(root, { definitions: [definition] });
+      equalJson(judged.errors, [], 'the planned pair was rejected, so the counts describe nothing');
+      equalJson(judged.definitions.map(entry => entry.counts), [VERDICT_COUNTS],
+        'the counts the verdict reports for the fixture chain');
+
+      // A reader finds the counts on the row of the definition they belong to,
+      // not in a summary beside the report: a validate of two definitions has
+      // two answers.
+      const second = `${PLANNED_CHAIN_STEM}-twin.yml`;
+      fs.copyFileSync(definition, path.join(workflows, second));
+      fs.copyFileSync(
+        path.join(fixtureDir, `${PLANNED_CHAIN_STEM}.md`),
+        path.join(workflows, `${PLANNED_CHAIN_STEM}-twin.md`),
+      );
+      const pair = validate(root, { definitions: [definition, path.join(workflows, second)] });
+      equalJson(pair.definitions.map(entry => entry.counts), [VERDICT_COUNTS, VERDICT_COUNTS],
+        'each definition carries its own counts');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.checkAsync('an overlay judged on its own shape counts nothing rather than zero', async () => {
+    const engine = path.join(ctx.pluginRoot, ENGINE);
+    const { validate: validateGraph } = await import(pathToFileURL(path.join(engine, 'scripts', 'lib', 'graph.mjs')).href);
+    const standalone = validateGraph({ definition: null, overlays: [], profile: null, mode: 'standalone' });
+    must(standalone.counts === null,
+      `standalone mode reports ${JSON.stringify(standalone.counts)}: an overlay with no base to count against would state a fact about a document nobody read`);
+  });
+
+  t.check('the planner is told the verdict carries them, and quotes rather than computes', () => {
+    for (const rel of [PLANNER_SKILL_REL, PLANNER_REFERENCE_REL]) {
+      const file = path.join(ctx.pluginRoot, rel);
+      must(isFile(file), `${rel}: missing`);
+      const text = fs.readFileSync(file, 'utf8');
+      must(!/verdict carries no counts/i.test(text),
+        `${rel}: still says the verdict carries no counts, so a planner reading it computes its own`);
+      must(!/computed by the planner/i.test(text),
+        `${rel}: still tells the planner to compute the counts itself`);
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -11940,6 +12024,7 @@ const TESTS = [
   { id: 'T47', name: 'ticket-key-intake', needs: ['plugin', 'fixtures'], run: t47 },
   { id: 'T48', name: 'gate-scope', needs: ['plugin', 'fixtures'], run: t48 },
   { id: 'T49', name: 'overlay-run-and-node-freeze', needs: ['plugin', 'fixtures'], run: t49 },
+  { id: 'T50', name: 'verdict-counts', needs: ['plugin', 'fixtures'], run: t50 },
 ];
 
 // ---------------------------------------------------------------------------

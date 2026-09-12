@@ -738,11 +738,16 @@ function refused(err) {
  * seven are workflow-definition keys and are already warned about by the
  * engine's graph checker in the same `reserved-key:<suffix>` vocabulary; this
  * merges the two streams into one report instead of restating either.
+ *
+ * Each `definitions[]` row carries its own node and gate counts, so the numbers
+ * a reviewer reads on a validation report come from the tool that judged the
+ * graph rather than from whoever was quoting it.
  */
 export function validate(root, { definitions = [] } = {}) {
   const errors = [];
   const warnings = [];
   const resolved = [];
+  const counted = new Map();
 
   let base;
   try {
@@ -789,6 +794,7 @@ export function validate(root, { definitions = [] } = {}) {
     errors.push(...report.errors.map((entry) => locate(entry, file)));
     warnings.push(...report.warnings.map((entry) => locate(entry, file)));
     resolved.push(...report.resolved.map((entry) => ({ file, ...entry })));
+    counted.set(file, report.counts ?? null);
     if (members !== null) checkMemberDirs(definition.doc, file, members, errors);
     checkDriverCapable(definition.doc, file, errors);
   }
@@ -796,8 +802,18 @@ export function validate(root, { definitions = [] } = {}) {
   // Each definition is reported as generated or not, by where it sits: the
   // rules it was judged by are identical either way, and the flag is what lets
   // a caller say so rather than infer it from the path.
+  //
+  // Its node and gate counts ride the same row rather than a summary beside it,
+  // because a validate of several definitions has several answers and a single
+  // pair of numbers would silently describe whichever one was counted last. A
+  // definition that could not be read is counted `null`, which is the honest
+  // answer and not zero.
   const home = generatedHome(base);
-  const judged = definitions.map((file) => ({ file, generated: contains(home, definitionPath(base, file)) }));
+  const judged = definitions.map((file) => ({
+    file,
+    generated: contains(home, definitionPath(base, file)),
+    counts: counted.get(file) ?? null,
+  }));
 
   return { ok: errors.length === 0, root: base, manifest: relative(base, manifestPath), definitions: judged, errors, warnings, resolved };
 }
