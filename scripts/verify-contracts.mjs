@@ -12696,6 +12696,123 @@ async function t55(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+
+// ---------------------------------------------------------------------------
+// T56 — a draft can be validated without the workspace being written to
+// ---------------------------------------------------------------------------
+
+/**
+ * Seeing a chain before it exists.
+ *
+ * The planner published into the workspace by construction: there was no
+ * no-publish mode, so the dogfood against a real multi-member workspace had to be
+ * run against a hand-built read-only mirror — the manifest and the existing chain
+ * files copied so the collision check saw the true name set — to leave the
+ * workspace untouched. Anyone wanting to look at a chain before it existed had to
+ * build that mirror themselves.
+ *
+ * Two halves, and both are asserted. The prose half is `--draft-to`: the flag,
+ * the no-publish clause, and the collision check still reading the real set. The
+ * executable half is the property the flag rests on — the oracle judges a
+ * definition wherever it lies, against a `--root` it does not write to — driven
+ * twice, with the workspace's chain directory compared byte for byte across both
+ * runs. If anyone ever anchors the definition read to the root, or has `validate`
+ * write anything, this is what goes red.
+ */
+const PLANNER_DRAFT_FLAG = '--draft-to';
+
+async function t56(ctx) {
+  const t = checker();
+  const skillFile = path.join(ctx.pluginRoot, PLANNER_SKILL_REL);
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+
+  t.check(`${PLANNER_SKILL_REL} offers a draft-only mode that publishes nothing`, () => {
+    must(isFile(skillFile), `${PLANNER_SKILL_REL}: missing`);
+    const text = fs.readFileSync(skillFile, 'utf8');
+    const frontmatter = text.split('\n---\n')[0];
+    must(frontmatter.includes(PLANNER_DRAFT_FLAG),
+      `argument-hint does not name \`${PLANNER_DRAFT_FLAG}\`, so the mode is undiscoverable`);
+    must(text.includes(PLANNER_DRAFT_FLAG), `${PLANNER_SKILL_REL}: never states what \`${PLANNER_DRAFT_FLAG}\` does`);
+    must(/published nowhere|does not publish|publishes nothing/i.test(text),
+      `${PLANNER_SKILL_REL}: does not say the draft mode publishes nothing`);
+    must(/collision\s+check\s+still\s+reads\s+the\s+real\s+name\s+set/i.test(text),
+      `${PLANNER_SKILL_REL}: does not keep the collision check on the real name set — a draft that cannot see a collision is the mirror by hand again`);
+    // Whitespace-tolerant: the prose is hard-wrapped, so the claim spans lines.
+    must(/leaves\s+the\s+workspace's\s+chain\s+directory\s+exactly\s+as\s+it\s+was,\s+both\s+times/.test(text),
+      `${PLANNER_SKILL_REL}: does not claim the property the test asserts, so the two are not about the same thing`);
+  });
+
+  await t.checkAsync('the oracle judges a draft outside the workspace, twice, and writes nothing there', async () => {
+    const fixtureDir = path.join(ctx.fixtures, PLANNED_CHAIN_FIXTURE);
+    must(isDir(fixtureDir), `${PLANNED_CHAIN_FIXTURE}: the planned-chain fixture is absent`);
+    const { init, validate } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const root = tempDir('planner-draft-isolation');
+    const draft = tempDir('planner-draft-out');
+    try {
+      for (const member of PLANNED_CHAIN_MEMBERS) gitDir(root, 'projects', member);
+      must(init(root, { membersRoot: null, force: false, scaffold: true }).ok, 'init refused');
+      const workflows = path.join(root, '.maister', 'workflows');
+
+      // A chain already published, so the name set the collision check reads is
+      // not empty — a draft has to be told about a collision it would have hit.
+      fs.writeFileSync(path.join(workflows, 'already-there.yml'),
+        ['version: 1', 'name: already-there', 'nodes:', '  only:', '    uses: direct:only', '    needs: []', ''].join('\n'), 'utf8');
+
+      // The draft, outside the workspace's chain directory entirely.
+      for (const ext of ['yml', 'md']) {
+        fs.copyFileSync(
+          path.join(fixtureDir, `${PLANNED_CHAIN_STEM}.${ext}`),
+          path.join(draft, `${PLANNED_CHAIN_STEM}.${ext}`),
+        );
+      }
+      const definition = path.join(draft, `${PLANNED_CHAIN_STEM}.yml`);
+
+      const before = treeDigest(workflows);
+      const first = validate(root, { definitions: [definition] });
+      const second = validate(root, { definitions: [definition] });
+      const after = treeDigest(workflows);
+
+      equalJson(first.errors, [], 'the draft was rejected on the first pass');
+      equalJson(second.errors, [], 'the draft was rejected on the second pass');
+      equalJson(second.definitions, first.definitions, 'two validates of one draft disagreed');
+      equalJson(after, before,
+        'the workspace chain directory changed across two validates of a draft outside it');
+
+      // The name set really is the workspace's, read from `--root` and not from
+      // wherever the draft happens to sit.
+      must(isFile(path.join(workflows, 'already-there.yml')),
+        'the published chain the collision check reads was removed');
+      // And the draft is still where the caller put it, unmoved.
+      for (const ext of ['yml', 'md']) {
+        must(isFile(path.join(draft, `${PLANNED_CHAIN_STEM}.${ext}`)),
+          `the draft's .${ext} was moved or deleted by a validate`);
+      }
+      must(!isFile(path.join(workflows, `${PLANNED_CHAIN_STEM}.yml`)),
+        'validating a draft published it into the workspace');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(draft, { recursive: true, force: true });
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+/** Every file under `dir`, as `relative path -> sha256`, so two trees compare by content. */
+function treeDigest(dir) {
+  const out = {};
+  const walk = (at) => {
+    if (!isDir(at)) return;
+    for (const entry of fs.readdirSync(at, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = path.join(at, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else out[path.relative(dir, full)] = crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex');
+    }
+  };
+  walk(dir);
+  return out;
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -12770,6 +12887,7 @@ const TESTS = [
   { id: 'T53', name: 'envelope-ticket', needs: ['plugin', 'fixtures'], run: t53 },
   { id: 'T54', name: 'chain-input-persistence', needs: ['plugin', 'fixtures'], run: t54 },
   { id: 'T55', name: 'prune-release-route', needs: ['plugin'], run: t55 },
+  { id: 'T56', name: 'planner-draft-isolation', needs: ['plugin', 'fixtures'], run: t56 },
 ];
 
 // ---------------------------------------------------------------------------

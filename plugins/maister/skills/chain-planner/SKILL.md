@@ -1,7 +1,7 @@
 ---
 name: maister:chain-planner
 description: Turns a one-paragraph task description into a validated multi-repository chain. Reads the workspace manifest for its members, their providers and its defaults, decides which nodes exist and how they depend on one another, and drafts the definition together with the prose companion that carries its inline steps. The draft is proved with the workspace's own validator before anything is published — three files land under `.maister/workflows/` only after the loop ends clean, and a run that will not validate is reported rather than written. For a user this is `/maister:chain-planner "<task>"`, run from inside the workspace; the derived file stem, every refusal and every warning are reported in plain language, and the chain is then reviewed in the cockpit's dry-run before any run starts. It authors only constructs the grammar actually has, and it starts nothing. With `--generated` the chain is published for one ticket into the generated home, `.maister/workflows/generated/`, where it is ignored by git and pruned once its run closes.
-argument-hint: "\"<task>\" [--name STEM] [--root DIR] [--generated] [--force]"
+argument-hint: "\"<task>\" [--name STEM] [--root DIR] [--generated] [--force] [--draft-to DIR]"
 user-invocable: true
 ---
 
@@ -60,6 +60,7 @@ recorded.
 | `/maister:chain-planner "<task>" --root DIR` | the same against `DIR` as the workspace root |
 | `/maister:chain-planner "<task>" --generated` | the same, published into `<root>/.maister/workflows/generated/` — the home of chains authored for one ticket or one run rather than kept for reuse |
 | `/maister:chain-planner "<task>" --force` | the same, permitted to publish over files of that stem that already exist |
+| `/maister:chain-planner "<task>" --draft-to DIR` | the same loop, drafted into `DIR` and **published nowhere** — the workspace's chain directory is not written to at all |
 | `/maister:chain-planner` | one AskUserQuestion for the task text, then as above |
 
 `--force` and `--generated` are bare booleans, as `--force` is on the workspace
@@ -230,6 +231,35 @@ spelled exactly as the scaffold verb spells it — these two lines and no others
 
 An ignore file already there is left alone, whatever it says.
 
+### Drafting without publishing
+
+`--draft-to DIR` runs the whole loop and stops before the publish: the three
+files land in `DIR`, the draft is validated there, the report says what it says,
+and **nothing is written under `<root>/.maister/workflows/`** — not the chain, not
+the scratch directory, not the generated home. `DIR` is created if it is not
+there; a caller who names a directory with files of that stem in it already is
+refused the same way a publish is, because overwriting a draft someone is reading
+is the same mistake as overwriting a chain.
+
+**The collision check still reads the real name set.** That is the point of the
+flag rather than an aside: the reason the dogfood had to build a read-only mirror
+of a real workspace by hand was that seeing a chain before it exists meant
+copying the manifest and the existing chain files so the check saw the true
+names. So a draft is told about a collision it *would* have hit — against the
+built-ins, against `<root>/.maister/workflows/` and against its generated home —
+and reports it as a warning about the eventual publish rather than as a refusal,
+because there is no publish to refuse. Everything else the planner reads, it
+still reads from `--root`: the members, their providers, the defaults, the
+driver-capable set.
+
+`--generated` still decides which home the name is checked against, and which
+path the report names as where the chain *would* go. `--force` is meaningless
+here and is reported as ignored rather than silently dropped — there is nothing
+to publish over.
+
+The outcome marker is written beside the draft, in `DIR`, as it would be beside a
+published chain. A draft is an attempt, and an attempt has an outcome.
+
 ### The draft-validate-publish loop
 
 **The scratch directory is named, and it is inside the target home**:
@@ -336,7 +366,10 @@ Plain language, never the raw JSON unless the user asks for it:
 - **the definition's path relative to the workspace root, first** — for a
   generated chain, `.maister/workflows/generated/<name>.yml` — so a chain whose
   node invoked this skill can carry it onward as a declared `string` value, and
-  then the other two paths;
+  then the other two paths. **Under `--draft-to` the paths are the draft's, and
+  the report says nothing was published** before it says anything else: a caller
+  who reads a path and a clean verdict and nothing about publication will treat a
+  draft as a chain;
 - **the node count and the gate count, quoted from the verdict** — the validator
   reports them per definition, so the numbers on the report are the ones the
   oracle produced rather than a second count taken here;
@@ -369,6 +402,9 @@ Every row writes nothing. Say that first, then the recovery.
 
 - **It does not start anything.** No run, no dispatch, no worker. The chain it
   writes is reviewed in the cockpit's dry-run and started there.
+- **It does not publish under `--draft-to`.** A draft is a file to read, in the
+  directory the caller named. Planning twice with that flag leaves the
+  workspace's chain directory exactly as it was, both times.
 - **It does not validate anything itself.** One oracle, invoked as above. A
   second opinion written here would be a second grammar to keep in step.
 - **It does not repair a workspace.** A missing manifest, a member that is not
