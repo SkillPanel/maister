@@ -13071,6 +13071,18 @@ const INNODE_QUESTIONS = [
       'prototype-iteration', 'brief-approval',
     ],
     states: /draft brief assembled without review/,
+    statesWhy: 'no longer says what a run that defaults every one of them produces, which is the one thing its reader most needs told',
+  },
+  // Not an orchestrator: a skill an orchestrator invokes, with no run state of
+  // its own. It is on this list because its refinement loop is an in-node
+  // question like any other, and because it is the one carrier that has to go
+  // looking for the driver -- it reads the caller's state file rather than its
+  // own, so the clause naming that read is pinned with the id.
+  {
+    path: 'skills/mockup-studio/SKILL.md',
+    ids: ['mockup-refinement'],
+    states: /read `orchestrator\.driver\.kind` from the caller's/,
+    statesWhy: "no longer says it reads the driver off the *caller's* state file — it has none of its own, so a rule that does not say where to look is a rule nothing can follow",
   },
 ];
 
@@ -13131,8 +13143,7 @@ function t58(ctx) {
           `${definition.path}: no longer says it asks no in-node question, so its empty list is a silence rather than a claim`);
       }
       if (definition.states) {
-        must(definition.states.test(text),
-          `${definition.path}: no longer says what a fully defaulted run of it actually produces — the one thing a reader of ${definition.ids.length} defaults most needs told`);
+        must(definition.states.test(text), `${definition.path}: ${definition.statesWhy}`);
       }
     });
   }
