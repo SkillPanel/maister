@@ -37,12 +37,15 @@
  * `provider`. B1's implication runs `provider → dir`, not the converse:
  * a node that names a provider must name a directory, but a `dir:` node with no
  * `provider:` is a perfectly valid document — while C2 *requires* `provider`.
- * The chain is therefore node → `members.<member>.default_provider` → refuse
- * `dispatch-node-incomplete` naming the member, so an operator is told which
- * manifest entry to fix. C1's `defaults` block carries `autonomy` and
- * `worktree` only and is deliberately **not** consulted: a repo-wide default
- * provider is a decision nobody has taken, and inventing one here would take it
- * silently.
+ * The chain is node → `members.<member>.default_provider` →
+ * `defaults.provider` → refuse `dispatch-node-incomplete` naming all three, so
+ * an operator is told every place the key could go. The workspace default is
+ * read only when an operator wrote it; the scaffolder does not emit it, because
+ * a scaffolded provider would be exactly the silently-taken decision this chain
+ * used to stop short of. What keeps the last step from being reached at all is
+ * the validator: a dispatching node whose provider resolves nowhere is a
+ * validation error, so the clean-validate-then-refuse-at-dispatch trap this
+ * chain used to leave open has no path left.
  *
  * `autonomy`. B1 declares no `autonomy` property at all — a node carries
  * `uses`, `type`, `needs`, `with`, `outputs`, `when`, `dir`, `provider`, `ask`,
@@ -245,7 +248,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
 
   assertDriverCapable({ node, uses: defined.uses ?? null });
 
-  const provider = resolveProvider({ node, member, defined, recorded, entry });
+  const provider = resolveProvider({ node, member, defined, recorded, entry, manifest });
   const autonomy = resolveAutonomy({ node, member, defined, entry, manifest });
   const runId = runIdOf({ state, run });
 
@@ -481,11 +484,24 @@ function rootOf(root) {
 }
 
 /**
- * Node → member default. The manifest's `defaults` block is not a step in this
- * chain, on purpose: see the module header.
+ * Node → the frozen node entry → member default → the manifest's `defaults`
+ * block, which is the same four-level shape autonomy resolves down.
+ *
+ * Reaching the workspace default is a change from the original chain, which
+ * stopped at the member. The argument for stopping there was that a repo-wide
+ * default provider is a decision nobody has taken and inventing one here would
+ * take it silently — true of an invented default, and not true of a key an
+ * operator wrote. Nothing is read when `defaults.provider` is absent, and the
+ * scaffolder still does not write it, so a workspace that has not taken the
+ * decision resolves exactly as it did before.
+ *
+ * The refusal below is now the last line rather than the first: a dispatching
+ * node whose provider resolves nowhere is a validation error
+ * (`checkNodeProviders` in `manifest.mjs`), so a chain reaching this throw has
+ * been changed since it was validated.
  */
-function resolveProvider({ node, member, defined, recorded, entry }) {
-  const candidates = [defined.provider, recorded.provider, entry.default_provider];
+function resolveProvider({ node, member, defined, recorded, entry, manifest }) {
+  const candidates = [defined.provider, recorded.provider, entry.default_provider, mapOf(manifest?.defaults).provider];
   for (const candidate of candidates) {
     if (candidate === undefined || candidate === null) continue;
     if (!PROVIDERS.includes(candidate)) {
@@ -495,7 +511,7 @@ function resolveProvider({ node, member, defined, recorded, entry }) {
     return candidate;
   }
   throw new Refusal('dispatch-node-incomplete',
-    `the node "${node}" declares no provider: and the member "${member}" declares no default_provider — set one on either`);
+    `the node "${node}" declares no provider:, the member "${member}" declares no default_provider and the manifest declares no defaults.provider — set one of the three`);
 }
 
 /**

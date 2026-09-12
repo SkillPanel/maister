@@ -75,7 +75,8 @@
       "type": "object",
       "properties": {
         "autonomy": { "$ref": "#/$defs/autonomy" },
-        "worktree": { "type": "boolean" }
+        "worktree": { "type": "boolean" },
+        "provider": { "$ref": "#/$defs/provider" }
       }
     }
   },
@@ -84,13 +85,17 @@
       "description": "Permission preset per dispatch. The attended tier always pauses on push, merge and pull-request creation.",
       "enum": ["attended", "auto-low", "auto-medium", "auto-high"]
     },
+    "provider": {
+      "description": "Which coding agent runs a dispatched node. Resolved node, then member, then the workspace default; a node whose provider resolves nowhere is a validation error.",
+      "enum": ["claude", "copilot"]
+    },
     "member": {
       "type": "object",
       "required": ["path"],
       "properties": {
         "path": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/rel_path" },
         "kind": { "type": "string" },
-        "default_provider": { "enum": ["claude", "copilot"] },
+        "default_provider": { "$ref": "#/$defs/provider" },
         "autonomy": {
           "description": "Per-member permission tier. Absent means the umbrella default applies.",
           "$ref": "#/$defs/autonomy"

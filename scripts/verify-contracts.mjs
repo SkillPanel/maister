@@ -8004,11 +8004,14 @@ async function t35(ctx) {
       must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
       const definition = path.join(root, '.maister', 'workflows', 'chain.yml');
       fs.writeFileSync(definition, [
+        // Every dispatching node carries a provider, because a node that
+        // resolves none is now a validation error of its own and this check is
+        // about capability, not about provider resolution (T51 is).
         'version: 1', 'name: chain', 'nodes:',
-        '  plan:', '    uses: workflow:research', '    dir: auth',
-        '  build:', '    uses: skill:development', '    dir: auth', '    needs: [plan]',
-        '  ship:', '    uses: skill:quick-dev', '    dir: auth', '    needs: [build]', '',
-        '  hand:', '    uses: skill:partner-orchestrator', '    dir: auth', '    needs: [build]', '',
+        '  plan:', '    uses: workflow:research', '    dir: auth', '    provider: claude',
+        '  build:', '    uses: skill:development', '    dir: auth', '    provider: claude', '    needs: [plan]',
+        '  ship:', '    uses: skill:quick-dev', '    dir: auth', '    provider: claude', '    needs: [build]', '',
+        '  hand:', '    uses: skill:partner-orchestrator', '    dir: auth', '    provider: claude', '    needs: [build]', '',
       ].join('\n'), 'utf8');
 
       const judged = validate(root, { definitions: [definition] });
@@ -10482,7 +10485,11 @@ async function t42(ctx) {
       equalJson(judged.errors, [], 'the pair was rejected from one of the two homes');
       equalJson(judged.warnings.map(w => w.message), PLANNED_CHAIN_WARNINGS,
         'the warning stream — the home adds nothing to a clean workspace');
-      equalJson(judged.definitions, [{ file: top, generated: false }, { file: generated, generated: true }],
+      // The same chain from two homes: the counts are a function of the graph,
+      // so they must not differ by where the file sits any more than the hash does.
+      const counts = { nodes: 4, gates: 1 };
+      equalJson(judged.definitions,
+        [{ file: top, generated: false, counts }, { file: generated, generated: true, counts }],
         'the report\'s definitions list');
 
       // The hash is a function of the resolved graph, never of the path.
@@ -11173,8 +11180,8 @@ async function t46(ctx) {
     must(scaffolded?.ok === true, `init refused: ${JSON.stringify(scaffolded)}`);
     const file = path.join(root, '.maister', 'workflows', 'dispatch-check.yml');
     fs.writeFileSync(file, ['name: dispatch-check', 'version: 1', 'inputs:', '  brief: {type: path, required: true}', 'nodes:',
-      '  capable:', '    uses: skill:driver-aware-runner', '    dir: api', '    needs: []',
-      '  incapable:', '    uses: skill:local-review', '    dir: api', '    needs: []', ''].join('\n'), 'utf8');
+      '  capable:', '    uses: skill:driver-aware-runner', '    dir: api', '    provider: claude', '    needs: []',
+      '  incapable:', '    uses: skill:local-review', '    dir: api', '    provider: claude', '    needs: []', ''].join('\n'), 'utf8');
     const report = withEnv(() => validateWorkspace(root, { definitions: [file] }));
     must(report.ok === false, 'the incapable node was not reported');
     equalJson(report.errors.map((error) => error.path), ['nodes.incapable.uses'], 'the located errors');
@@ -11956,6 +11963,205 @@ async function t50(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+
+// ---------------------------------------------------------------------------
+// T51 — a dispatching node's provider resolves, or validation says so
+// ---------------------------------------------------------------------------
+
+/**
+ * The clean-validate trap, closed from both ends.
+ *
+ * Every proof run and the dogfood had to write `provider:` on every dispatching
+ * node, because a chain without one validated *cleanly* and then refused at
+ * dispatch — the most expensive moment to learn it, with the graph frozen and a
+ * worktree possibly already made. Two changes together are what remove the trap:
+ * resolution now reaches the workspace's own `defaults.provider`, so a workspace
+ * that has taken the decision needs the key nowhere else; and the validator
+ * refuses a dispatching node whose provider resolves nowhere, so the refusal
+ * cannot wait for dispatch.
+ *
+ * Both halves are exercised here against the live libraries, because either one
+ * alone leaves half the complaint standing: reading the default without the
+ * validator check leaves the trap open for a workspace with no default at all,
+ * and the check without the default leaves the per-node boilerplate in place.
+ */
+const PROVIDER_CHAIN_NODES = [
+  '  plan:', '    uses: workflow:research', '    dir: api', '    needs: []',
+  '  build:', '    uses: workflow:development', '    dir: api', '    needs: [plan]', '',
+];
+
+async function t51(ctx) {
+  const t = checker();
+  const scripts = path.join(ctx.pluginRoot, UMBRELLA_SCRIPTS);
+
+  /**
+   * A workspace holding one member and one chain whose nodes name no provider,
+   * with `extra` appended to the manifest.
+   */
+  const stage = (init, tag, extra) => {
+    const root = tempDir(tag);
+    gitDir(root, 'projects', 'api');
+    const started = init(root, { membersRoot: null, force: false, scaffold: false });
+    must(started.ok, `init refused: ${JSON.stringify(started.errors)}`);
+    // `defaults:` is the last block the scaffolder writes, so an extra key is
+    // appended into it. A second `defaults:` beside it would be a duplicate key,
+    // which the reader refuses before any of this is reached.
+    if (extra) fs.appendFileSync(path.join(root, '.maister', 'umbrella.yml'), extra, 'utf8');
+    const definition = path.join(root, '.maister', 'workflows', 'chain.yml');
+    fs.writeFileSync(definition, ['version: 1', 'name: chain', 'nodes:', ...PROVIDER_CHAIN_NODES].join('\n'), 'utf8');
+    return { root, definition };
+  };
+
+  await t.checkAsync('a node with no provider anywhere is a validation error, not a dispatch refusal', async () => {
+    const { init, validate } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const { root, definition } = stage(init, 'provider-absent', null);
+    try {
+      const judged = validate(root, { definitions: [definition] });
+      must(judged.ok === false, 'a chain whose nodes resolve no provider validated clean — the trap is still armed');
+      equalJson(judged.errors.map(e => e.path), ['nodes.plan.provider', 'nodes.build.provider'],
+        'the located provider errors, one per dispatching node');
+      // The recovery names all three levels, in resolution order, so an operator
+      // picks the one they meant rather than the one the message happened to
+      // mention.
+      for (const error of judged.errors) {
+        for (const where of ['provider:', 'default_provider', 'defaults.provider']) {
+          must(error.message.includes(where), `the recovery does not name ${where}: ${error.message}`);
+        }
+        must(!/dispatch-[a-z-]+/.test(error.message),
+          `a validate report quotes a dispatch refusal code: ${error.message}`);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.checkAsync('the workspace default satisfies validation and reaches the envelope', async () => {
+    const { init, validate } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const { buildEnvelope } = await import(pathToFileURL(path.join(scripts, 'lib', 'envelope.mjs')).href);
+    const { root, definition } = stage(init, 'provider-default', '  provider: copilot\n');
+    try {
+      const judged = validate(root, { definitions: [definition] });
+      equalJson(judged.errors, [], 'a chain omitting provider: was rejected despite a workspace default');
+
+      // The same default, read by the dispatch side off the same key.
+      const manifest = {
+        version: 1,
+        members: { api: { path: 'projects/api', kind: 'repo' } },
+        defaults: { autonomy: 'auto-low', worktree: false, provider: 'copilot' },
+      };
+      // The state has to carry the definition's real graph hash, or the envelope
+      // refuses the drift before it resolves a provider at all.
+      const engine = path.join(ctx.pluginRoot, ENGINE, 'scripts', 'lib');
+      const { readDefinition } = await import(pathToFileURL(path.join(engine, 'definition.mjs')).href);
+      const { resolve: resolveGraphOf } = await import(pathToFileURL(path.join(engine, 'graph.mjs')).href);
+      const graphHash = resolveGraphOf({ definition: readDefinition(definition), overlays: [], profile: null }).graph_hash;
+      must(typeof graphHash === 'string', 'the chain did not resolve, so no hash could be frozen');
+
+      const run = tempDir('provider-default-run');
+      try {
+        const built = providerEnvelope({ buildEnvelope, run, manifest, definition, graphHash });
+        must(built.provider === 'copilot',
+          `the envelope resolved the provider ${JSON.stringify(built.provider)} rather than the workspace default`);
+        // A member default still outranks it, and a node still outranks both.
+        const byMember = providerEnvelope({
+          buildEnvelope, run: tempDir('provider-member-run'), definition, graphHash,
+          manifest: { ...manifest, members: { api: { path: 'projects/api', kind: 'repo', default_provider: 'claude' } } },
+        });
+        must(byMember.provider === 'claude',
+          `the workspace default overrode the member's: ${JSON.stringify(byMember.provider)}`);
+      } finally {
+        fs.rmSync(run, { recursive: true, force: true });
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.checkAsync('an out-of-enum workspace default is a manifest error', async () => {
+    const { init, validate } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const { root, definition } = stage(init, 'provider-unknown', '  provider: cursor\n');
+    try {
+      const judged = validate(root, { definitions: [definition] });
+      const located = judged.errors.filter(e => e.path === 'defaults.provider');
+      must(located.length === 1, `expected one defaults.provider error, got ${JSON.stringify(judged.errors)}`);
+      must(located[0].file.endsWith(path.join('.maister', 'umbrella.yml')),
+        `the error names ${located[0].file}, not the manifest`);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.checkAsync('the scaffolded manifest still does not write a provider default', async () => {
+    // A scaffolded value nobody chose is a fiction, which is the same reason
+    // `routing:` is not scaffolded. The key is read when an operator writes it.
+    const { init } = await import(pathToFileURL(path.join(scripts, 'lib', 'manifest.mjs')).href);
+    const root = tempDir('provider-scaffold');
+    try {
+      gitDir(root, 'projects', 'api');
+      must(init(root, { membersRoot: null, force: false, scaffold: false }).ok, 'init refused');
+      const text = fs.readFileSync(path.join(root, '.maister', 'umbrella.yml'), 'utf8');
+      must(!/^\s+provider:/m.test(text),
+        'the scaffolder writes a provider default, which takes the decision for the operator');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  t.check('the plan-time rules no longer defend the omission', () => {
+    const file = path.join(ctx.pluginRoot, PLANNER_REFERENCE_REL);
+    must(isFile(file), `${PLANNER_REFERENCE_REL}: missing`);
+    const text = fs.readFileSync(file, 'utf8');
+    must(!/deliberately not consulted for a provider/.test(text),
+      `${PLANNER_REFERENCE_REL}: still says the defaults block is not consulted for a provider`);
+    must(/defaults\.provider/.test(text),
+      `${PLANNER_REFERENCE_REL}: never names defaults.provider, so the fourth level is undocumented`);
+    must(/validat\w+/i.test(text) && !/validates perfectly and refuses at dispatch/.test(text),
+      `${PLANNER_REFERENCE_REL}: still describes the trap as live`);
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+/**
+ * One envelope for a two-node chain, built off a state frozen against that
+ * chain's own graph. Shared by the provider and ticket checks, which each need a
+ * real dispatch and differ only in what they read off it.
+ */
+function providerEnvelope({ buildEnvelope, run, manifest, definition, graphHash, taskKey = null, node = 'plan' }) {
+  const runId = '019260a2-1122-7c33-8d44-5e6677889900';
+  const runDir = path.join(run, '.maister', 'umbrella', 'runs', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  const state = path.join(runDir, 'orchestrator-state.yml');
+  fs.writeFileSync(state, [
+    'orchestrator:',
+    '  started_phase: plan',
+    '  completed_phases: []',
+    '  failed_phases: []',
+    '  created: "2026-09-12T09:00:00Z"',
+    '  updated: "2026-09-12T09:05:00Z"',
+    `  task_path: ".maister/umbrella/runs/${runId}"`,
+    '  gate_pending: null',
+    '',
+    'task:',
+    '  title: "Provider chain"',
+    '  status: in_progress',
+    ...(taskKey === null ? [] : [`  key: "${taskKey}"`]),
+    '',
+    'workflow:',
+    '  name: chain',
+    `  source: "${definition}"`,
+    '  overlays: []',
+    '  profile: null',
+    `  graph_hash: "${graphHash}"`,
+    '  grammar_version: 1',
+    '  nodes:',
+    '    plan:  {kind: task, status: pending, needs: [], dir: api}',
+    '    build: {kind: task, status: pending, needs: [plan], dir: api}',
+    '',
+  ].join('\n'), 'utf8');
+  return buildEnvelope({ run: runDir, node, manifest, dispatchId: 'd-0001' });
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -12025,6 +12231,7 @@ const TESTS = [
   { id: 'T48', name: 'gate-scope', needs: ['plugin', 'fixtures'], run: t48 },
   { id: 'T49', name: 'overlay-run-and-node-freeze', needs: ['plugin', 'fixtures'], run: t49 },
   { id: 'T50', name: 'verdict-counts', needs: ['plugin', 'fixtures'], run: t50 },
+  { id: 'T51', name: 'provider-resolution', needs: ['plugin'], run: t51 },
 ];
 
 // ---------------------------------------------------------------------------

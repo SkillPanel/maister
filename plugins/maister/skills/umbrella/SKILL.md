@@ -427,7 +427,7 @@ tool because the script said no is the drift this whole design removes.
 
 | Refusal | Response |
 |---|---|
-| `dispatch-node-incomplete` | The node names no member directory, or names one the manifest does not declare, or no provider resolves for it. The report names which. Fix the definition or the manifest — this is a caller defect and re-sending will not change it. |
+| `dispatch-node-incomplete` | The node names no member directory, or names one the manifest does not declare, or no provider resolves for it. The report names which. Fix the definition or the manifest — this is a caller defect and re-sending will not change it. A provider that resolves nowhere is also a `validate` error at `nodes.<id>.provider`, so reaching it here means the chain changed after it was validated: run `validate` again before editing. |
 | `dispatch-graph-drifted` | The definition has changed since the run froze its graph. The frozen graph is the contract, and an envelope built from a changed definition would dispatch work the run never planned. Either restore the definition, or start a new run against the new one. Never force past this. |
 | `dispatch-autonomy-unresolved` | No autonomy tier is set on the node, on the member, or as a workspace default. A scaffolded workspace always has the default, so this is a hand-written manifest failing loudly on purpose. Declare a tier. |
 | `dispatch-autonomy-unknown` | A tier was found but is outside the frozen vocabulary. The envelope would be invalid the moment it landed. Correct the spelling at the level the report names. |

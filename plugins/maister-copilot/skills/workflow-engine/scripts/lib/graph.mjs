@@ -209,14 +209,35 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   }
 
   if (mode === 'standalone') {
-    return { report: { ok: errors.length === 0, errors, warnings, resolved, degraded: [] }, graph: null };
+    // No base to build a graph from, so there is nothing to count. `null` rather
+    // than zeroes: a caller that renders "0 nodes" for an overlay judged on its
+    // own shape would be stating a fact about a document nobody looked at.
+    return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: null, degraded: [] }, graph: null };
   }
 
   for (const overlay of overlays) checkOverlayBase(overlay, definition, errors);
   scanReserved(definition?.doc, warnings);
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) checkGraph(graph, errors, warnings, resolved, project);
-  return { report: { ok: errors.length === 0, errors, warnings, resolved, degraded: [] }, graph };
+  return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
+}
+
+/**
+ * How many nodes the judged graph has, and how many of them are gates.
+ *
+ * Counted off the graph the report was made about, so the numbers describe the
+ * document after overlays and the profile were applied rather than the base a
+ * reader happens to be looking at. A reviewer's "valid - N nodes, N gates" line
+ * used to be computed by whoever was quoting the verdict, which made the two
+ * numbers on a report the only ones no tool had produced.
+ *
+ * A graph that could not be built counts nothing, and says so with `null`.
+ */
+function countsOf(graph) {
+  if (!graph) return null;
+  let gates = 0;
+  for (const node of graph.nodes.values()) if (node?.type === 'gate') gates += 1;
+  return { nodes: graph.nodes.size, gates };
 }
 
 /**
@@ -266,9 +287,10 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
 
   const { report, graph } = inspect({ definition, overlays, profile, mode: 'resolved', project });
   if (!report.ok) {
-    // Where each target resolved is `validate`'s finding to report; this verb's
-    // output is the graph and its identity, and its shape does not move here.
-    const { resolved: _resolved, ...judged } = report;
+    // Where each target resolved, and how many nodes and gates it holds, are
+    // `validate`'s findings to report; this verb's output is the graph and its
+    // identity, and its shape does not move here.
+    const { resolved: _resolved, counts: _counts, ...judged } = report;
     return { ...judged, ...provenance, degraded, graph_hash: null, nodes: [] };
   }
 

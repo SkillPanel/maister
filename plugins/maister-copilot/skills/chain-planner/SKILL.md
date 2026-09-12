@@ -275,8 +275,9 @@ Plain language, never the raw JSON unless the user asks for it:
   generated chain, `.maister/workflows/generated/<name>.yml` — so a chain whose
   node invoked this skill can carry it onward as a declared `string` value, and
   then the other two paths;
-- **the node count and the gate count, computed by the planner** — the verdict
-  carries neither, so a report that quotes the validator has no counts to quote;
+- **the node count and the gate count, quoted from the verdict** — the validator
+  reports them per definition, so the numbers on the report are the ones the
+  oracle produced rather than a second count taken here;
 - a node-by-node reading: what each node does, where it dispatches, what guards
   it;
 - every warning with its file, node and path, and whose file it is;

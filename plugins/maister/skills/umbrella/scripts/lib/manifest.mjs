@@ -795,7 +795,10 @@ export function validate(root, { definitions = [] } = {}) {
     warnings.push(...report.warnings.map((entry) => locate(entry, file)));
     resolved.push(...report.resolved.map((entry) => ({ file, ...entry })));
     counted.set(file, report.counts ?? null);
-    if (members !== null) checkMemberDirs(definition.doc, file, members, errors);
+    if (members !== null) {
+      checkMemberDirs(definition.doc, file, members, errors);
+      checkNodeProviders(definition.doc, file, members, errors);
+    }
     checkDriverCapable(definition.doc, file, errors);
   }
 
@@ -1025,9 +1028,12 @@ function locate(entry, file) {
  * dependencies at all. A validator that only worked where the tests run would
  * be checking the one place that needs it least.
  *
- * Returns the set of member names and paths, or null when `members` itself did
- * not hold up — the later `dir:` check needs to know the difference between "no
- * members declared" and "the members map could not be read".
+ * Returns the member names and paths, each member's `default_provider` and the
+ * workspace `defaults.provider`, or null when `members` itself did not hold up —
+ * the later `dir:` check needs to know the difference between "no members
+ * declared" and "the members map could not be read". The two provider levels
+ * ride along because the node check that reads them has no second chance to
+ * open the manifest.
  */
 function checkManifest(doc, file, errors, warnings) {
   const fail = (dotted, message) => errors.push({ file, node: null, path: dotted, message });
@@ -1049,7 +1055,7 @@ function checkManifest(doc, file, errors, warnings) {
   } else if (!isMap(doc.members)) {
     fail('members', 'members must be a mapping from member name to its entry');
   } else {
-    members = { names: new Set(), paths: new Set() };
+    members = { names: new Set(), paths: new Set(), providers: new Map() };
     for (const [name, entry] of Object.entries(doc.members)) {
       const at = `members.${name}`;
       if (!isMap(entry)) {
@@ -1062,6 +1068,8 @@ function checkManifest(doc, file, errors, warnings) {
       if (Object.hasOwn(entry, 'kind') && typeof entry.kind !== 'string') fail(`${at}.kind`, 'kind is a string');
       if (Object.hasOwn(entry, 'default_provider') && !PROVIDERS.includes(entry.default_provider)) {
         fail(`${at}.default_provider`, `default_provider is one of ${PROVIDERS.join(', ')}`);
+      } else if (Object.hasOwn(entry, 'default_provider')) {
+        members.providers.set(name, entry.default_provider);
       }
       if (Object.hasOwn(entry, 'autonomy') && !AUTONOMY.includes(entry.autonomy)) {
         fail(`${at}.autonomy`, `autonomy is one of ${AUTONOMY.join(', ')}`);
@@ -1136,6 +1144,11 @@ function checkManifest(doc, file, errors, warnings) {
       }
       if (Object.hasOwn(doc.defaults, 'worktree') && typeof doc.defaults.worktree !== 'boolean') {
         fail('defaults.worktree', 'worktree is true or false');
+      }
+      if (Object.hasOwn(doc.defaults, 'provider') && !PROVIDERS.includes(doc.defaults.provider)) {
+        fail('defaults.provider', `provider is one of ${PROVIDERS.join(', ')}`);
+      } else if (members !== null && Object.hasOwn(doc.defaults, 'provider')) {
+        members.defaultProvider = doc.defaults.provider;
       }
     }
   }
@@ -1223,6 +1236,44 @@ function checkMemberDirs(doc, file, members, errors) {
       node: id,
       path: `nodes.${id}.dir`,
       message: `"${node.dir}" is not a member this workspace declares; the members are ${[...members.names].join(', ') || 'none'}`,
+    });
+  }
+}
+
+/**
+ * Every dispatching node resolves a provider somewhere.
+ *
+ * The third reference the graph checker cannot judge, and the one that used to
+ * be nobody's: C2 requires a provider on every envelope, B1 makes `provider:`
+ * optional on a node, and the resolution chain that closes the gap
+ * (`resolveProvider` in `envelope.mjs`) reads two things this stage can also
+ * read — the member's `default_provider` and the workspace's
+ * `defaults.provider`. Before this check, a chain with none of the three
+ * validated perfectly and refused at dispatch, which is the most expensive
+ * moment to learn it: the run has frozen its graph, a worktree may exist, and
+ * the operator is reading a mid-run refusal rather than a validation report.
+ *
+ * An interpolated `dir:` is left alone for the same reason the member check
+ * leaves it alone — which member it names is decided at dispatch from a value
+ * this stage does not have, so its provider cannot be resolved here either.
+ *
+ * The message names all three places the key can go, in resolution order, so an
+ * operator picks the level they meant rather than the one the error happened to
+ * mention.
+ */
+function checkNodeProviders(doc, file, members, errors) {
+  if (!isMap(doc) || !isMap(doc.nodes)) return;
+  if (members.defaultProvider !== undefined) return;
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    if (!isMap(node) || typeof node.dir !== 'string' || node.dir === '') continue;
+    if (node.dir.includes('${')) continue;
+    if (node.provider !== undefined && node.provider !== null) continue;
+    if (members.providers.has(node.dir)) continue;
+    errors.push({
+      file,
+      node: id,
+      path: `nodes.${id}.provider`,
+      message: `the node dispatches into "${node.dir}" and resolves no provider: set provider: on the node, default_provider on members.${node.dir}, or defaults.provider on the workspace`,
     });
   }
 }

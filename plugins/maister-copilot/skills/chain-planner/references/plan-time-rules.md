@@ -329,27 +329,35 @@ five prompts.
 
 ### 3.5 Provider and autonomy resolve down a chain, and refuse at the end of it
 
-Both resolve, neither defaults silently.
+Both resolve down the same four levels, and neither defaults silently.
 
 **Provider** (`resolveProvider` in `envelope.mjs`): the node's own `provider:`, then the run
-state's, then the member's `default_provider` in the manifest. Nothing found is
-`dispatch-node-incomplete`. Note what is *not* in the chain: the manifest's
-`defaults` block is deliberately not consulted for a provider.
+state's, then the member's `default_provider` in the manifest, then the manifest's
+`defaults.provider`. Nothing found is `dispatch-node-incomplete`.
 
 **Autonomy** (`resolveAutonomy` in `envelope.mjs`): `with.autonomy`, then the member's, then
 `defaults.autonomy`. Nothing found is `dispatch-autonomy-unresolved`; a value
 outside the four-tier enum is `dispatch-autonomy-unknown`.
 
-Autonomy is the safer of the two, because a scaffolded manifest always carries
-`defaults.autonomy`. Provider is not: a member with no `default_provider` and a
-node with no `provider:` is a chain that validates perfectly and refuses at
-dispatch. **Write `provider:` on every dispatching node** unless the manifest
-demonstrably carries the member default — it costs one line and removes a
-mid-run refusal.
+The difference between them is what a fresh workspace carries. A scaffolded
+manifest always writes `defaults.autonomy`; it deliberately writes no
+`defaults.provider`, because a provider nobody chose is a decision taken on an
+operator's behalf. So a workspace that has not written the key resolves a
+provider only from a node or a member — and **that is now a validation error
+rather than a dispatch refusal**: a dispatching node whose provider resolves at
+none of the levels is reported at `nodes.<id>.provider` with all three places it
+could be set. A chain cannot validate clean and then refuse at dispatch for want
+of a provider.
 
-`provider:` on a base node is unvalidated by the graph checker; only an overlay
-tune checks it against the two known values (`checkOps` in `graph.mjs`). A typo in a
-provider name is therefore a dispatch-time refusal, not a validate-time error.
+Which means `provider:` on every dispatching node is one option among three, not
+a defence. Write it where nodes genuinely differ; write `defaults.provider` once
+where they do not.
+
+`provider:` on a base node is unvalidated against the enum by the graph checker;
+only an overlay tune checks it against the two known values (`checkOps` in
+`graph.mjs`). A typo in a provider name is therefore still a dispatch-time
+refusal, not a validate-time error — the workspace validator judges whether a
+provider *resolves*, not whether the spelling is one the runtime knows.
 
 ---
 
@@ -530,10 +538,13 @@ Warnings are bare strings from a three-word vocabulary —
 `reserved-key:<path>`, `unresolved-reference:<node>:<target>` and
 `undecidable-value-type:<path>` — and warnings alone never fail a validate.
 
-**The verdict carries no counts.** There is no node count and no gate count
-anywhere in it; the "valid — N nodes, N gates" line a reviewer sees is computed
-by the caller from the resolved node list. A planner reporting counts computes
-them itself.
+**The verdict counts the graph it judged.** Each row of `definitions` carries
+`counts: {nodes, gates}` for that definition — counted after overlays and the
+profile were applied, so the numbers describe what would run rather than the base
+a reader happens to be looking at. Quote them; do not recount. Two producers
+counting one document independently is how a report and the panel beside it come
+to disagree. An overlay judged on its own shape has no graph to count and reports
+`counts: null`, which is not zero.
 
 An unresolved `skill:` or `agent:` reference warns rather than errors, because
 such a target may be provided by an environment the static check cannot see —
