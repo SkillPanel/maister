@@ -239,6 +239,32 @@ the member's, then the workspace default; an autonomy value outside the frozen
 tier vocabulary is refused rather than written, because the envelope would be
 invalid the moment it landed.
 
+The close-out contract is derived from the autonomy tier — a pull request is
+required wherever the tier can reach one, counting `attended`'s approval relay —
+and a node may **declare** it instead, as `closeout_contract.pr_required` in the
+node's `with:` map, beside `autonomy` and `statement` which travel the same way:
+
+```yaml
+  dev-beta:
+    uses: skill:development
+    dir: repo-beta
+    with:
+      autonomy: attended
+      closeout_contract:
+        pr_required: false
+```
+
+A chain is where this is known. `attended` reaches a pull request through the
+relay, so a chain whose members push to a remote with no host — a local bare
+repository, an air-gapped mirror — had its workers told to open one anyway, and
+each of those dispatches raised an approval nobody could satisfy. A node that
+declares nothing still derives exactly as before. A declaration is not a route
+around the reachability rule: a declared `true` the tier can never reach is
+refused, and so is a value that is neither `true` nor `false`, because a
+close-out lowered by a typo is the defect the field exists to remove. A stdin
+override outranks the node, since a caller dispatching by hand is answering for
+that dispatch.
+
 **`seed`** — after the envelope, to render the prompt the worker starts from. It
 is a pure function of the envelope, so its output is reproducible and testable.
 The section set and their order are frozen and the prompt is capped; the wording
@@ -430,14 +456,14 @@ tool because the script said no is the drift this whole design removes.
 
 | Refusal | Response |
 |---|---|
-| `dispatch-node-incomplete` | The node names no member directory, or names one the manifest does not declare, or no provider resolves for it. The report names which. Fix the definition or the manifest — this is a caller defect and re-sending will not change it. A provider that resolves nowhere is also a `validate` error at `nodes.<id>.provider`, so reaching it here means the chain changed after it was validated: run `validate` again before editing. |
+| `dispatch-node-incomplete` | The node names no member directory, or names one the manifest does not declare, or no provider resolves for it, or its `with:` map states a `closeout_contract.pr_required` that is neither `true` nor `false`. The report names which. Fix the definition or the manifest — this is a caller defect and re-sending will not change it. A provider that resolves nowhere is also a `validate` error at `nodes.<id>.provider`, so reaching it here means the chain changed after it was validated: run `validate` again before editing. |
 | `dispatch-graph-drifted` | The definition has changed since the run froze its graph. The frozen graph is the contract, and an envelope built from a changed definition would dispatch work the run never planned. Either restore the definition, or start a new run against the new one. Never force past this. |
 | `dispatch-autonomy-unresolved` | No autonomy tier is set on the node, on the member, or as a workspace default. A scaffolded workspace always has the default, so this is a hand-written manifest failing loudly on purpose. Declare a tier. |
 | `dispatch-autonomy-unknown` | A tier was found but is outside the frozen vocabulary. The envelope would be invalid the moment it landed. Correct the spelling at the level the report names. |
 | `dispatch-workflow-not-driver-capable` | The node dispatches into a member but names a workflow that cannot run under a driver — it would ask a question no one is there to answer. Point `uses:` at an orchestrator skill or a `workflow:`, or drop the `dir:` and run the step in the coordinating repository. Nothing was written. |
 | `dispatch-run-unresolved` | The node would be dispatched into a per-run worktree, but no run id resolves, and a worktree named after nothing would be shared by every run of the chain. Point `--run` at the run directory whose basename is the run id, or record the run's task path in its state, or set `defaults.worktree: false` to work in the member checkout itself. Nothing was written. |
 | `dispatch-permissions-override-unsupported` | The dispatch carries a `permissions` override. Permissions belong to the autonomy tier and to nothing else: each tier renders one fixed allow and deny list, and a per-dispatch override would hand a worker permissions its tier never granted. The field is refused rather than ignored, because a discarded security override leaves the caller believing it was applied. Drop `permissions` from the override document and dispatch the node at the tier whose permissions you mean. Nothing was written. |
-| `dispatch-closeout-impossible` | The node's close-out override demands a pull request while its autonomy tier can never open one — the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the override and let the tier decide what close-out means. Nothing was written. |
+| `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. Nothing was written. |
 | `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. If the dispatch really is being redone, it is a new dispatch. |
 | `dispatch-unwritable` | The dispatch directory could not be written. Fix the path or its permissions, then re-run. |
 | `dispatch-temp-exists` | Another writer holds the temp twin. Wait a minute and re-run; delete nothing. |

@@ -1,0 +1,17 @@
+# The honoured half: the node declared its close-out contract in with: and the
+# envelope published what it declared, against a tier whose derivation would
+# have said otherwise.
+version: 1
+dispatch_id: d-0313
+chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-beta, umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607}
+target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/019260a2-1122-7c33-8d44-5e6677889900-dev-beta}
+provider: copilot
+session: {name: "widget-rollout/0313/dev-beta", substrate: p}
+workflow: {uses: workflow:development, with: {closeout_contract: {pr_required: false}}}
+inputs: []
+autonomy: attended
+permissions:
+  allow: ["shell(git:*)", "write"]
+  deny:  ["shell(git push)", "shell(gh pr create)"]
+outbox: .maister/umbrella/outbox/d-0313/
+closeout_contract: {pr_required: false, grade: [success, partial, failed]}

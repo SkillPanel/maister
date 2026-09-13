@@ -556,6 +556,32 @@ function lintCloseoutReachable(doc) {
 }
 
 /**
+ * C2: a close-out contract the dispatching node stated has to be the one the
+ * envelope publishes. `workflow.with.closeout_contract.pr_required` is the
+ * chain author's answer, carried into the envelope beside the contract it
+ * produced; a document where the two disagree is one whose declaration was
+ * dropped somewhere between the definition and the worker -- which is what
+ * every runtime older than the declarative field did, silently.
+ *
+ * Silently is the word that matters. A worker handed a pull request its chain
+ * never asked for raises an approval nobody can satisfy, and nothing in the
+ * document says why. `envelope.mjs`'s `closeoutPrOf` honours or refuses the
+ * declaration at build time; this reads documents already on disk, so an
+ * envelope written by an older runtime is caught where it lands.
+ */
+function lintCloseoutDeclaration(doc) {
+  if (!isObject(doc) || !isObject(doc.closeout_contract) || !isObject(doc.workflow)) return [];
+  const declared = isObject(doc.workflow.with) ? doc.workflow.with.closeout_contract : null;
+  if (!isObject(declared) || typeof declared.pr_required !== 'boolean') return [];
+  if (declared.pr_required === doc.closeout_contract.pr_required) return [];
+  return [{
+    instancePath: '/closeout_contract/pr_required',
+    keyword: 'closeout-declaration-ignored',
+    message: `the node declared pr_required: ${declared.pr_required} and the envelope published ${JSON.stringify(doc.closeout_contract.pr_required)}`,
+  }];
+}
+
+/**
  * B1: every `${…}` reference inside a `with` value names a declared node or
  * `inputs`. Reference resolution is runner logic, so the schema — which treats
  * `with` as an open object — has nothing to say about it.
@@ -773,7 +799,8 @@ function runnerLints(fx, { a5 = false, crossCheck = false } = {}) {
     } else if (base === 'gate.schema.json' && ref.includes('request')) {
       errors.push(...lintGateOptionIds(parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS)));
     } else if (base === 'dispatch-envelope.schema.json') {
-      errors.push(...lintCloseoutReachable(parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS)));
+      const doc = parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS);
+      errors.push(...lintCloseoutReachable(doc), ...lintCloseoutDeclaration(doc));
     } else if (ext === '.js') {
       dashboard = readDashboardData(fs.readFileSync(file, 'utf8')).data;
       errors.push(...lintNotMidnight(dashboard));
@@ -1718,7 +1745,7 @@ const RUNNER_KEYWORDS = new Set([
   'phase-status-cross-check', 'not_midnight', 'e2-one-line-form', 'b2-one-line-form',
   'a5-tldr-line-count', 'a5-block-position', 'dag-cycle', 'gate-option-id-unique',
   'gate-exactly-one-continue', 'reference-unknown-node', 'direct-missing-section',
-  'closeout-unreachable',
+  'closeout-unreachable', 'closeout-declaration-ignored',
 ]);
 
 function t04(ctx) {
@@ -7745,6 +7772,29 @@ nodes:
     uses: skill:quick-dev
     needs: [research]
     dir: repo-alpha
+  dev-declared:
+    uses: skill:development
+    needs: [research]
+    dir: repo-beta
+    provider: copilot
+    with:
+      autonomy: attended
+      closeout_contract:
+        pr_required: false
+  dev-overreach:
+    uses: skill:development
+    needs: [research]
+    dir: repo-alpha
+    with:
+      closeout_contract:
+        pr_required: true
+  dev-illegible:
+    uses: skill:development
+    needs: [research]
+    dir: docs-site
+    with:
+      closeout_contract:
+        pr_required: "false"
   plan-beta:
     uses: workflow:plan
     needs: [research]
@@ -8498,6 +8548,42 @@ workflow:
         must(!/do not wait inside this turn/.test(text),
           `the ${tier} seed carries the relay instruction, but that tier has no operator to relay to`);
       }
+    });
+
+    // The close-out contract is also the chain's to state. An override reaches
+    // only whoever typed the dispatch; a chain author who knows the run ends
+    // against a remote with no host has nowhere else to say so, and the tier
+    // derivation would hand that worker a pull request it cannot open.
+    t.check('a dispatch node declares its own close-out contract, and an unreachable declaration is refused', () => {
+      const declared = build('dev-declared');
+      must(declared.autonomy === 'attended', `the declaring node resolved autonomy ${declared.autonomy}`);
+      must(declared.closeout_contract.pr_required === false,
+        'the node declaration was ignored and the tier derivation won');
+
+      // The control, pinned so the change stays additive: the same tier on a
+      // node that declares nothing still derives exactly as it did.
+      must(build('dev-beta').closeout_contract.pr_required === true,
+        'a node declaring nothing no longer derives its close-out from its tier');
+
+      // A declaration is not a way around A15. It meets the same reachability
+      // rule an override does, read off the built deny list.
+      throwsWith('a node declaring a pull request its tier can never open',
+        'dispatch-closeout-impossible', () => build('dev-overreach'));
+
+      // Nor a way to be misread: a value that is not a boolean is refused
+      // rather than quietly read as "no pull request".
+      throwsWith('a node declaring a non-boolean close-out contract',
+        'dispatch-node-incomplete', () => build('dev-illegible'));
+
+      // The stdin path is unchanged, and still outranks the node.
+      must(build('dev-declared', { overrides: { closeout_contract: { pr_required: true } } })
+        .closeout_contract.pr_required === true,
+        'an override no longer outranks the node declaration');
+
+      // The published envelope keeps the declaration beside the contract it
+      // produced, which is what the corpus lint reads back off disk.
+      equalJson(declared.workflow.with.closeout_contract, { pr_required: false },
+        'the declaration did not survive into workflow.with');
     });
 
     t.check('a definition mutated under a frozen graph_hash refuses dispatch-graph-drifted', () => {

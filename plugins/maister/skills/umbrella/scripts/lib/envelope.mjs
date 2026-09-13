@@ -259,7 +259,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const session = mapOf(overrides.session);
   const statement = statementOf({ defined, overrides });
   const permissions = permissionsOf(autonomy);
-  const prRequired = closeoutPrOf({ node, autonomy, permissions, overrides });
+  const prRequired = closeoutPrOf({ node, defined, autonomy, permissions, overrides });
 
   return {
     version: VERSION,
@@ -501,25 +501,61 @@ function assertNoPermissionsOverride(overrides) {
 }
 
 /**
- * Whether a pull request is required, derived from the tier rather than
- * asserted.
+ * Whether a pull request is required: declared where the chain says so, and
+ * otherwise derived from the tier rather than asserted.
  *
  * A hard-coded `true` shipped two of the four tiers a close-out contract they
  * were forbidden to satisfy: the seed said "open a pull request" while the
  * permissions denied `gh pr create` and no operator could lift the denial. So
- * the answer is what the tier can reach — its allow list, widened by the
- * approval relay `attended` has — and an override that contradicts it is
- * refused rather than honoured: a caller who means it has to widen the tier.
+ * the derived answer is what the tier can reach — its allow list, widened by
+ * the approval relay `attended` has.
+ *
+ * The derivation alone is not enough, because reachable is not the same as
+ * wanted. `attended` reaches a pull request through the relay, so a chain whose
+ * members push to a remote with no host — a local bare repository, an air-gapped
+ * mirror — had its workers told to open one anyway, and every such dispatch
+ * raised an approval nobody could satisfy. The chain is where that is known, so
+ * the node's `with:` map is where it can now be said, alongside `autonomy` and
+ * `statement` which travel the same way. An override still outranks a node,
+ * because a caller dispatching by hand is answering for this dispatch.
+ *
+ * Wherever it comes from, the declaration meets the same reachability rule: a
+ * declared `true` the tier can never reach is refused, so declaring is not a
+ * route around the check an override already faces. A declaration that is not a
+ * boolean is refused too rather than read as `false` — a close-out silently
+ * lowered by a typo is the defect this field exists to remove.
  */
-function closeoutPrOf({ node, autonomy, permissions, overrides }) {
+function closeoutPrOf({ node, defined, autonomy, permissions, overrides }) {
   const permitted = closeoutReachable({ autonomy, permissions });
-  const declared = mapOf(overrides.closeout_contract).pr_required;
-  if (declared === undefined || declared === null) return permitted;
-  if (declared === true && !permitted) {
+  const declared = closeoutDeclaration({ node, defined, overrides });
+  if (declared === null) return permitted;
+  if (declared && !permitted) {
     throw new Refusal('dispatch-closeout-impossible',
-      `the override requires a pull request for the node "${node}" while the autonomy tier "${autonomy}" can never open one — it denies ${CAN.prCreate} and has no operator to approve it — so the worker would be told to do what its own permissions forbid. Dispatch at a tier that permits it, or drop the override and let the tier decide.`);
+      `a pull request is required for the node "${node}" while the autonomy tier "${autonomy}" can never open one — it denies ${CAN.prCreate} and has no operator to approve it — so the worker would be told to do what its own permissions forbid. Dispatch at a tier that permits it, or drop the declaration and let the tier decide.`);
   }
-  return declared === true;
+  return declared;
+}
+
+/**
+ * The close-out contract someone stated, or null when nobody did.
+ *
+ * The chain is read in order of who is answering for this dispatch: the stdin
+ * override first, then the node's own `with:` map.
+ */
+function closeoutDeclaration({ node, defined, overrides }) {
+  const chain = [
+    ['the dispatch override', mapOf(overrides.closeout_contract).pr_required],
+    [`the with: map of the node "${node}"`, mapOf(mapOf(defined.with).closeout_contract).pr_required],
+  ];
+  for (const [where, value] of chain) {
+    if (value === undefined || value === null) continue;
+    if (typeof value !== 'boolean') {
+      throw new Refusal('dispatch-node-incomplete',
+        `${where} sets closeout_contract.pr_required to ${JSON.stringify(value)}, which is neither true nor false — a close-out contract nobody can read is one the worker cannot keep, so it is refused rather than guessed at. Write the field as a YAML boolean, or remove it and let the autonomy tier decide what close-out means.`);
+    }
+    return value;
+  }
+  return null;
 }
 
 /** C2's absolute workspace root, or null when the caller named none. */

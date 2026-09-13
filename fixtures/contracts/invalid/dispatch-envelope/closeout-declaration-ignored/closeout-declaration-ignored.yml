@@ -1,0 +1,20 @@
+# Invalid: the dispatching node declared its close-out contract and the
+# envelope published the opposite. The chain says no pull request is wanted --
+# these members push to a bare remote with no host, so there is nothing to open
+# one against -- and the tier derivation overwrote it, which is what a runtime
+# older than the declarative field does. The worker is then told to open a
+# request the chain never asked for.
+version: 1
+dispatch_id: d-0312
+chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-beta, umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607}
+target: {member: repo-beta, path: projects/repo-beta, worktree: .worktrees/019260a2-1122-7c33-8d44-5e6677889900-dev-beta}
+provider: copilot
+session: {name: "widget-rollout/0312/dev-beta", substrate: p}
+workflow: {uses: workflow:development, with: {closeout_contract: {pr_required: false}}}
+inputs: []
+autonomy: attended
+permissions:
+  allow: ["shell(git:*)", "write"]
+  deny:  ["shell(git push)", "shell(gh pr create)"]
+outbox: .maister/umbrella/outbox/d-0312/
+closeout_contract: {pr_required: true, grade: [success, partial, failed]}
