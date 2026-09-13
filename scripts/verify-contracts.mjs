@@ -12173,27 +12173,51 @@ async function t49(ctx) {
     }
   });
 
-  t.check('the overlay fixtures resolve against the previous released tag, where that tag ships the built-ins', () => {
-    const tags = runBounded('git', ['tag', '--list', '--sort=-v:refname'], { cwd: ctx.repoRoot, encoding: 'utf8' });
-    const previous = tags.status === 0
-      ? (String(tags.stdout ?? '').split('\n').map(line => line.trim()).filter(Boolean)[0] ?? null)
-      : null;
+  // What the cross-release arm actually did, so the checks below can assert on
+  // it rather than on a note a reader has to eyeball. A skip is honest only
+  // when this checkout genuinely has no earlier contracts tag to compare with.
+  const arm = { tag: null, staged: null, shipped: 0, resolved: 0 };
+
+  t.check('the overlay fixtures resolve against the previous contracts tag, where that tag ships the built-ins', () => {
+    // A release tag is not a contracts tag: `vX.Y.Z` ships no workflow
+    // definition, so picking the newest tag of any kind made the arm skip
+    // forever in a full checkout and compare a tag against itself in the
+    // shallow one CI cuts at the tag being pushed. Only `contracts-v*` counts,
+    // and never the one HEAD carries.
+    const listed = runBounded('git', ['tag', '--list', 'contracts-v*', '--sort=-v:refname'],
+      { cwd: ctx.repoRoot, encoding: 'utf8' });
+    const here = runBounded('git', ['tag', '--points-at', 'HEAD'], { cwd: ctx.repoRoot, encoding: 'utf8' });
+    const lines = proc => (proc.status === 0 ? String(proc.stdout ?? '') : '')
+      .split('\n').map(line => line.trim()).filter(Boolean);
+    const own = new Set(lines(here));
+    const previous = lines(listed).find(tag => !own.has(tag)) ?? null;
     if (previous === null) {
-      t.notes.push('no released tag is readable here, so the cross-release arm did not run');
+      t.notes.push('no earlier contracts-v* tag is readable here, so the cross-release arm did not run');
       return;
     }
+    arm.tag = previous;
+    // A definition is its `.yml` and the `.md` beside it: every `direct:` node
+    // resolves against a section of that companion, so a `.yml` staged alone
+    // is not the definition the tag shipped — it is a definition with its
+    // implementations removed, and every `direct:` node fails the lint. Stage
+    // the pair or stage neither, and nothing else.
     const staged = tempDir('overlay-freeze');
-    let shipped = 0;
+    arm.staged = staged;
     for (const name of Object.keys(FROZEN_NODE_IDS)) {
-      const at = `${previous}:plugins/maister/${ENGINE}/workflows/${name}.yml`;
-      const show = runBounded('git', ['show', at], { cwd: ctx.repoRoot, encoding: 'utf8' });
-      if (show.status !== 0) continue;
-      fs.writeFileSync(path.join(staged, `${name}.yml`), show.stdout, 'utf8');
-      shipped++;
+      const at = ext => `${previous}:plugins/maister/${ENGINE}/workflows/${name}.${ext}`;
+      const definition = runBounded('git', ['show', at('yml')], { cwd: ctx.repoRoot, encoding: 'utf8' });
+      if (definition.status !== 0) continue;
+      const companion = runBounded('git', ['show', at('md')], { cwd: ctx.repoRoot, encoding: 'utf8' });
+      must(companion.status === 0,
+        `${previous} ships workflows/${name}.yml without workflows/${name}.md — a definition and its prose `
+        + 'companion travel together, and every direct: node of that definition names a section of the companion');
+      fs.writeFileSync(path.join(staged, `${name}.yml`), definition.stdout, 'utf8');
+      fs.writeFileSync(path.join(staged, `${name}.md`), companion.stdout, 'utf8');
+      arm.shipped++;
     }
-    if (shipped === 0) {
-      t.notes.push(`${previous} ships no workflow definition, so the cross-release arm did not run — `
-        + 'it starts by itself on the first tag that ships one');
+    if (arm.shipped === 0) {
+      t.notes.push(`${previous} ships no workflow definition beside its prose companion, so the cross-release arm `
+        + 'did not run — it starts by itself on the first contracts tag that ships one');
       return;
     }
     for (const overlay of OVERLAY_FIXTURES) {
@@ -12209,8 +12233,64 @@ async function t49(ctx) {
       });
       must(graph.ok,
         `${overlay} no longer resolves against builtin:${base} as ${previous} shipped it: ${JSON.stringify(graph.errors)}`);
+      arm.resolved++;
     }
-    t.notes.push(`${shipped} definition(s) from ${previous} resolved against the shipped overlays`);
+    t.notes.push(`${arm.shipped} definition(s) from ${previous} resolved against ${arm.resolved} shipped overlay(s)`);
+  });
+
+  t.check('the cross-release arm ran, wherever an earlier contracts tag is readable', () => {
+    // The arm spent its life skipping — the note said so and nothing failed —
+    // which is how a broken comparison reached a tag push undetected. A skip is
+    // now a claim this check has to agree with.
+    if (arm.tag === null) {
+      const all = runBounded('git', ['tag', '--list', 'contracts-v*'], { cwd: ctx.repoRoot, encoding: 'utf8' });
+      const here = runBounded('git', ['tag', '--points-at', 'HEAD'], { cwd: ctx.repoRoot, encoding: 'utf8' });
+      const names = proc => new Set((proc.status === 0 ? String(proc.stdout ?? '') : '')
+        .split('\n').map(line => line.trim()).filter(Boolean));
+      const own = names(here);
+      const other = [...names(all)].filter(tag => !own.has(tag));
+      must(other.length === 0,
+        `the arm compared against nothing though ${other.join(', ')} is here to compare against — `
+        + 'it is selecting the wrong tag again');
+      return;
+    }
+    must(arm.shipped > 0, `${arm.tag} was selected but no definition was staged from it`);
+    must(arm.resolved > 0, `${arm.shipped} definition(s) were staged from ${arm.tag} but no overlay resolved against one`);
+  });
+
+  t.check('a definition staged without its prose companion is what the direct: lint rejects', () => {
+    // The CI failure, reproduced deliberately: the same tag, the same overlay,
+    // the `.md` withheld. It pins the mechanism, so dropping the companion from
+    // the staging above cannot go back to passing quietly.
+    if (arm.tag === null || arm.shipped === 0) {
+      t.notes.push('no staged definition to withhold a companion from, so the lint case did not run');
+      return;
+    }
+    const alone = tempDir('overlay-freeze-alone');
+    let proved = 0;
+    for (const overlay of OVERLAY_FIXTURES) {
+      const file = path.join(ctx.fixtures, ...overlay.split('/'));
+      const doc = parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS) ?? {};
+      const base = String(doc.extends ?? '').replace(/^builtin:/, '');
+      const paired = path.join(arm.staged, `${base}.yml`);
+      if (!isFile(paired)) continue;
+      const orphan = path.join(alone, `${base}.yml`);
+      fs.copyFileSync(paired, orphan);
+      must(!isFile(path.join(alone, `${base}.md`)), `${base}.md reached the companion-less directory`);
+      const graph = resolveOverlaid({
+        definition: readDefinition(orphan),
+        overlays: [readDefinition(file)],
+        profile: null,
+      });
+      must(!graph.ok,
+        `builtin:${base} resolved with no prose companion beside it, so the direct: lint no longer guards the `
+        + 'staging and a companion-less stage would pass');
+      const complaints = (graph.errors ?? []).filter(each => /prose companion carries no section/.test(each?.message ?? ''));
+      must(complaints.length > 0,
+        `builtin:${base} failed for some other reason than its missing companion: ${JSON.stringify(graph.errors)}`);
+      proved++;
+    }
+    must(proved > 0, 'no staged built-in backs an overlay fixture, so the lint case proved nothing');
   });
 
   t.check('an overlay-added node completes in the position its needs puts it', () => {

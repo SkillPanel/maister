@@ -14,6 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The suite's cross-release arm resolves the shipped overlays against
+          # the previous contracts tag. A shallow checkout carries only the tag
+          # being pushed, so the arm would have nothing to compare with here —
+          # the one place the comparison is worth making.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
