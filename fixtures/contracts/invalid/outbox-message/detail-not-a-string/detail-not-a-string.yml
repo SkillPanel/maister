@@ -1,0 +1,11 @@
+# Invalid: detail is declared ["string","null"] by C4, and this one is a mapping.
+# Observed live -- a worker composed its close-out this way, the outbox verb
+# serialised it and reported ok, and the ingest that reads the schema refused it,
+# so the run held an unreported close-out. The writer now refuses it first.
+version: 1
+type: closeout
+dispatch_id: d-0142
+at: 2026-09-11T09:42:17Z
+grade: success
+summary: "Owner column shipped behind the existing flag."
+detail: {commits: [abc1234, def5678], tests: all green}

@@ -22,8 +22,9 @@
  *   blocked    — `reason`
  *   closeout   — `grade`
  *
- * The body is checked against that table *before* the filesystem is touched, so
- * a malformed message costs no directory, no descriptor and no sequence number.
+ * The body is checked against that table — and every field it declares against
+ * the type C4 gives it — *before* the filesystem is touched, so a malformed
+ * message costs no directory, no descriptor and no sequence number.
  *
  * DEGRADED BEHAVIOUR, AND WHY IT COVERS ONLY TWO TYPES. When the outbox cannot
  * be written the information in the message is about to be lost, and C5's
@@ -52,6 +53,7 @@
  *
  *   outbox-type-invalid     the type is not one of C4's five
  *   outbox-message-invalid  the body fails the type's conditional requirement,
+ *                           gives a field C4 declares the wrong type,
  *                           contradicts the flags, or claims a writer-owned key
  *   outbox-sequence-taken   the candidate name stayed taken for every attempt
  *   outbox-unwritable       the directory could not be created, the exclusive
@@ -92,6 +94,56 @@ const PROSE = new Set(['summary', 'reason', 'detail']);
 
 /** C4's grade enum, borrowed from the dispatch envelope it closes out. */
 const GRADES = ['success', 'partial', 'failed'];
+
+/** The type predicates C4's `properties` are spelled with, with their wording. */
+const TEXT = { expected: 'a string or null', accepts: v => v === null || typeof v === 'string' };
+const LIST = { expected: 'an array', accepts: Array.isArray };
+const MAP = { expected: 'an object', accepts: v => v !== null && typeof v === 'object' && !Array.isArray(v) };
+const oneOf = values => ({
+  expected: `one of ${values.join(', ')}`,
+  accepts: value => values.includes(value),
+});
+const listOf = values => ({
+  expected: `an array of ${values.join(', ')}`,
+  accepts: value => Array.isArray(value) && value.every(item => values.includes(item)),
+});
+
+/**
+ * The type C4 gives each field it declares, mirroring the `properties` block of
+ * `outbox-message.schema.json` — the schema the *reader* enforces.
+ *
+ * This table exists because the writer used to check only the conditional
+ * requirements: a `detail` carrying a mapping was spelled into the file, the
+ * verb reported `ok: true`, and the cockpit's ingest then refused the message as
+ * `/detail type: must be string,null`. The worker cannot see that consumer, so a
+ * dispatch was told it had reported when it had not. A writer that does not
+ * check what it writes against the schema its reader enforces is a writer that
+ * can lie to its caller.
+ *
+ * Only *declared* fields are typed. C4 leaves `additionalProperties` open, so an
+ * unknown key still passes: refusing one would make this writer stricter than
+ * the contract, and the reader that has to accept it.
+ *
+ * `version`, `at`, `type` and `dispatch_id` are absent on purpose — the first
+ * two are refused outright as writer-owned, and the second two are held to the
+ * invocation's own values a few lines above.
+ */
+const DECLARED = {
+  phase: TEXT,
+  note: TEXT,
+  to: oneOf(['parent', 'sibling']),
+  addressee: MAP,
+  summary: TEXT,
+  detail: TEXT,
+  path: TEXT,
+  role: TEXT,
+  reason: TEXT,
+  needs: listOf(['permission', 'decision', 'input']),
+  grade: oneOf(GRADES),
+  prs: LIST,
+  commits: LIST,
+  artifacts: LIST,
+};
 
 /** The envelope fields this writer owns; a body may not carry them. */
 const WRITER_OWNED = ['version', 'at'];
@@ -256,6 +308,15 @@ function assertBody({ dispatchId, type, body }) {
     }
   }
 
+  for (const [key, rule] of Object.entries(DECLARED)) {
+    if (!Object.hasOwn(body, key) || body[key] === undefined) continue;
+    if (rule.accepts(body[key])) continue;
+    throw new Refusal('outbox-message-invalid',
+      `/${key} is ${describe(body[key])}, but contract C4 declares it ${rule.expected}. `
+      + 'The reader validates against that schema and would refuse the message after it was written, '
+      + `so it is refused here instead. Correct ${key} and run the same write again; nothing was written.`);
+  }
+
   const flags = { type, dispatch_id: dispatchId };
   for (const key of ECHOED) {
     if (Object.hasOwn(body, key) && body[key] !== flags[key]) {
@@ -287,6 +348,14 @@ function assertBody({ dispatchId, type, body }) {
     rest.push([key, value]);
   }
   return rest;
+}
+
+/** What a rejected value is, in the vocabulary `DECLARED` states its type in. */
+function describe(value) {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'an array';
+  if (typeof value === 'object') return 'an object';
+  return `the ${typeof value} ${JSON.stringify(value)}`;
 }
 
 /** Present enough to satisfy a conditional requirement: not absent, not blank. */

@@ -9027,6 +9027,57 @@ workflow:
       must(fs.readFileSync(first, 'utf8') === sentinel, 'an earlier message was rewritten');
     });
 
+    // #131. The verb composes a message and writes it; the cockpit's ingest is what validates it.
+    // A body carrying a declared field at the wrong type was serialised without complaint, reported
+    // `ok: true`, and then refused downstream at a consumer the worker cannot see — so a dispatch
+    // was told it had reported when it had not. The writer must check what it writes against the
+    // schema the reader enforces, and name the field path when it refuses.
+    t.check('refuses a body whose declared field is the wrong type, naming the path, and writes nothing', () => {
+      const root = workspace('outbox-typed');
+
+      // The shape observed live: `detail` as a mapping where C4 types it ["string","null"].
+      const { proc, report } = outboxWrite(root, 'closeout', {
+        grade: 'success',
+        summary: 'Owner column shipped behind the existing flag.',
+        detail: { commits: ['abc1234'], tests: 'all green' },
+      });
+
+      must(proc.status !== 0 || report?.ok === false,
+        `a wrongly-typed field was accepted: exited ${proc.status}, reported ${JSON.stringify(report)}`);
+      const said = `${String(proc.stderr ?? '')}${JSON.stringify(report ?? {})}`;
+      must(/detail/.test(said), `the refusal never named the field: ${said.trim().split('\n')[0]}`);
+
+      const dir = path.join(root, 'd-0142');
+      const written = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+      must(written.length === 0, `a refused message was written anyway: ${written.join(', ')}`);
+
+      // The control: the same type with a well-typed body still writes, so the refusal above is
+      // the field and not a verb that stopped writing altogether.
+      const ok = outboxWrite(workspace('outbox-typed-ok'), 'closeout', {
+        grade: 'success',
+        summary: 'Owner column shipped behind the existing flag.',
+        detail: 'Two commits, tests green.',
+      });
+      must(ok.proc.status === 0 && ok.report?.ok === true,
+        `a well-typed close-out was refused: ${JSON.stringify(ok.report)}`);
+
+      // The second control, and the one that bounds the fix: C4 does not close
+      // `additionalProperties`, so a key the contract never declares is not an
+      // error. Without this the refusal above is free to become "anything I do
+      // not recognise", which is a stricter writer than the reader it writes for
+      // — and an additive contract's whole point is that the next version's
+      // field can be written before this reader has heard of it.
+      const extra = outboxWrite(workspace('outbox-typed-extra'), 'closeout', {
+        grade: 'success',
+        summary: 'Owner column shipped behind the existing flag.',
+        rollout_ticket: 'OPS-8814',
+      });
+      must(extra.proc.status === 0 && extra.report?.ok === true,
+        `an undeclared key was refused, so the writer is stricter than C4: ${JSON.stringify(extra.report)}`);
+      must(/rollout_ticket: OPS-8814/.test(fs.readFileSync(extra.report.written, 'utf8')),
+        'the undeclared key was accepted but never written');
+    });
+
     t.check('closeout and followup degrade onto their frozen dispatch line while the other three refuse', () => {
       const unwritable = name => {
         const root = workspace(name);

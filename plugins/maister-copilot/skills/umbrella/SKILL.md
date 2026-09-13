@@ -484,7 +484,7 @@ instruction and "re-issue" is not.
 | Refusal | Response |
 |---|---|
 | `outbox-type-invalid` | The message type is outside the five. A caller defect. |
-| `outbox-message-invalid` | The body is missing the field its type requires. The report names the field. Fix the body and re-send. |
+| `outbox-message-invalid` | The body is missing the field its type requires, or gives a field C4 declares the wrong type (`detail` as a mapping rather than a string is the one seen in the wild). The report names the field. A key C4 does not declare is not an error — the contract is additive. Fix the body and re-send. |
 | `outbox-sequence-taken` | The next sequence kept being claimed by another writer across several attempts. Unlike the lock codes this one means genuine contention rather than a stale file: re-issue once the burst subsides. |
 | `outbox-unwritable` | The directory could not be created, or the exclusive open failed for a reason other than the name being taken, or the file could not be flushed — in which case the partial file is removed before refusing. Retry once the path is writable, or fold what the message carried into the eventual close-out summary. |
 | `outbox-unreadable` | The dispatch directory exists but cannot be listed, so no sequence can be chosen. Fix permissions and re-issue. |
