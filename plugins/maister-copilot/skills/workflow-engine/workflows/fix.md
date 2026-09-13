@@ -174,6 +174,14 @@ and the failure must be the defect rather than a broken test.
 ran and failed for the stated reason. A test that errors on its own setup has
 proved nothing.
 
+**Where the value goes, exactly.** Through the engine's `write-state` verb, onto
+this node's own entry under `values:` — `values: {red_proven: true}` — and
+nowhere else. It is the one declared value in either of these two definitions
+that anything reads back: `fix` is guarded on it, and a guard resolves against a
+completed node's `values` map. Recorded as a bare key beside `status:` instead,
+it validates (the node entry is an open shape) and the guard then finds nothing,
+which is a skipped `fix` on a defect that *was* proved.
+
 **When the test passes, the defect is not reproducible as described.**
 
 > The reproduction test passes — the expected behaviour already works under
