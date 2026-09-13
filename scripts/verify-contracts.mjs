@@ -521,6 +521,40 @@ function lintGateContinue(doc) {
   return errors;
 }
 
+/** The atom that opens a pull request, spelled as the tier table spells it. */
+const PR_CREATE_ATOM = 'shell(gh pr create)';
+/** The one tier whose denials are answered by a person rather than final. */
+const RELAYED_TIER = 'attended';
+
+/**
+ * C2: a close-out contract has to be reachable inside the envelope that carries
+ * it. `pr_required: true` while `permissions.deny` names the atom that opens a
+ * pull request hands the worker a contract its own permissions forbid, and the
+ * worker meets it at close-out with nothing left to do but fail it.
+ *
+ * The criterion is the envelope's own `permissions.deny` -- the list the worker
+ * actually obeys -- rather than the tier preset it was rendered from, so an
+ * envelope whose permissions were widened after the fact is still judged by
+ * what it says. `attended` is exempt because there a denial is a relay point:
+ * the worker pauses, an operator approves, and the request is opened.
+ *
+ * `envelope.mjs`'s `closeoutPrOf` refuses the same shape at build time. This
+ * reads documents already on disk, which is where an envelope written by an
+ * older runtime or by hand arrives; the T35 check below holds the two verdicts
+ * to each other so they cannot drift apart.
+ */
+function lintCloseoutReachable(doc) {
+  if (!isObject(doc) || !isObject(doc.closeout_contract) || !isObject(doc.permissions)) return [];
+  if (doc.closeout_contract.pr_required !== true) return [];
+  if (doc.autonomy === RELAYED_TIER) return [];
+  if (!Array.isArray(doc.permissions.deny) || !doc.permissions.deny.includes(PR_CREATE_ATOM)) return [];
+  return [{
+    instancePath: '/closeout_contract/pr_required',
+    keyword: 'closeout-unreachable',
+    message: `a pull request is required while permissions.deny names ${PR_CREATE_ATOM} at autonomy "${doc.autonomy}", where a denial is final`,
+  }];
+}
+
 /**
  * B1: every `${…}` reference inside a `with` value names a declared node or
  * `inputs`. Reference resolution is runner logic, so the schema — which treats
@@ -738,6 +772,8 @@ function runnerLints(fx, { a5 = false, crossCheck = false } = {}) {
         ...lintDirectSection(doc, file));
     } else if (base === 'gate.schema.json' && ref.includes('request')) {
       errors.push(...lintGateOptionIds(parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS)));
+    } else if (base === 'dispatch-envelope.schema.json') {
+      errors.push(...lintCloseoutReachable(parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS)));
     } else if (ext === '.js') {
       dashboard = readDashboardData(fs.readFileSync(file, 'utf8')).data;
       errors.push(...lintNotMidnight(dashboard));
@@ -1682,6 +1718,7 @@ const RUNNER_KEYWORDS = new Set([
   'phase-status-cross-check', 'not_midnight', 'e2-one-line-form', 'b2-one-line-form',
   'a5-tldr-line-count', 'a5-block-position', 'dag-cycle', 'gate-option-id-unique',
   'gate-exactly-one-continue', 'reference-unknown-node', 'direct-missing-section',
+  'closeout-unreachable',
 ]);
 
 function t04(ctx) {
@@ -7586,7 +7623,8 @@ const UMBRELLA_REFUSALS = [
   'umbrella-chain-open', 'umbrella-chain-missing', 'umbrella-run-unreadable',
   'dispatch-node-incomplete', 'dispatch-autonomy-unknown', 'dispatch-autonomy-unresolved',
   'dispatch-graph-drifted', 'dispatch-envelope-exists', 'dispatch-unwritable', 'dispatch-temp-exists',
-  'dispatch-workflow-not-driver-capable', 'dispatch-run-unresolved', 'dispatch-closeout-impossible',
+  'dispatch-workflow-not-driver-capable', 'dispatch-run-unresolved',
+  'dispatch-permissions-override-unsupported', 'dispatch-closeout-impossible',
   'seed-envelope-invalid', 'seed-over-cap',
   'ledger-locked', 'ledger-entry-missing', 'ledger-entry-exists', 'ledger-entry-unreadable',
   'ledger-op-unknown', 'ledger-args-invalid', 'ledger-status-illegal', 'ledger-unwritable',
@@ -7766,7 +7804,8 @@ async function t35(ctx) {
 
   const lib = name => import(pathToFileURL(path.join(scripts, 'lib', name)).href);
   const { init, validate, discover, prune } = await lib('manifest.mjs');
-  const { buildEnvelope, writeEnvelope, worktreeOf, driverCapable, envelope: envelopeVerb } = await lib('envelope.mjs');
+  const { buildEnvelope, writeEnvelope, worktreeOf, driverCapable, closeoutReachable,
+    envelope: envelopeVerb } = await lib('envelope.mjs');
   const { buildSeed, renderSeed, seed: seedVerb, SEED_SECTIONS, SEED_LINE_CAP } = await lib('seed.mjs');
   const led = await lib('ledger.mjs');
   const { readDefinition, parseDefinition } = await lib('definition.mjs');
@@ -8542,6 +8581,103 @@ workflow:
           : section)),
       };
       throwsWith('a descriptor rendering past the cap', 'seed-over-cap', () => renderSeed(fat));
+    });
+
+    // #62, half one. A `permissions` override reached `buildEnvelope` and was
+    // dropped without a word: the builder renders the tier's preset and never
+    // reads the field. A caller handed a discarded security override is worse
+    // off than one whose call is refused, because the envelope comes back
+    // looking as though the request was honoured. So the field is refused.
+    t.check('refuses a permissions override rather than discarding it', () => {
+      const bare = build('dev-docs');
+      must(bare.permissions.deny.length > 0, 'the control envelope carries no deny list to override');
+
+      throwsWith('a permissions override that widens the deny list',
+        'dispatch-permissions-override-unsupported',
+        () => build('dev-docs', {
+          overrides: { permissions: { deny: [...bare.permissions.deny, PR_CREATE_ATOM] } },
+        }));
+
+      // Refused for being present, not for disagreeing. An override that merely
+      // repeats what the tier already says is still a caller setting
+      // permissions, and honouring that one would turn the refusal into a diff
+      // check whose answer depends on the tier table it is meant to protect.
+      throwsWith('a permissions override that repeats the tier',
+        'dispatch-permissions-override-unsupported',
+        () => build('dev-docs', { overrides: { permissions: bare.permissions } }));
+
+      // The control: an override of a field the builder does read is still
+      // honoured, and leaves the tier's permissions exactly as they were.
+      const other = build('dev-docs', { overrides: { statement: 'a statement, not a permission' } });
+      must(other.statement === 'a statement, not a permission', 'an override the builder reads was lost');
+      equalJson(other.permissions, bare.permissions, 'an unrelated override changed the permissions');
+    });
+
+    // #62, half two. `closeoutPrOf` asked `PERMISSIONS[autonomy].allow` whether
+    // a pull request was reachable -- a second reading of the tier table, beside
+    // the one the envelope is built from. What the worker obeys is the envelope's
+    // own `permissions.deny`, so that is what the contract has to be checked
+    // against. The two agree today; the point is that they cannot stop agreeing
+    // in silence, and that a document already on disk can be judged at all.
+    t.check("the close-out contract is checked against the envelope's own deny list", () => {
+      const at = autonomy => build('dev-docs', {
+        manifest: { ...T35_MANIFEST, defaults: { ...T35_MANIFEST.defaults, autonomy } },
+      });
+      // The rule is the runtime's, exported so the corpus reader and the
+      // builder cannot each keep their own answer. Held both ways on every
+      // tier: the builder never emits what the rule calls unreachable, and the
+      // reader's verdict is the rule's.
+      must(typeof closeoutReachable === 'function',
+        'envelope.mjs exports no closeoutReachable, so the reader and the builder judge separately');
+      for (const tier of AUTONOMY_TIERS) {
+        const doc = at(tier);
+        equalJson(lintCloseoutReachable(doc), [],
+          `${tier}: the corpus lint rejects an envelope the builder itself emitted`);
+        must(doc.closeout_contract.pr_required === closeoutReachable(doc),
+          `${tier}: the emitted contract and the rule read of the emitted permissions disagree`);
+      }
+
+      // The pair #62's acceptance asks for, read off the corpus rather than
+      // built here: one contradictory, one not. Both are `auto-high`, the one
+      // tier that reaches a pull request outright -- so a denial there is final,
+      // where `attended`'s is relayed to an operator who approves it.
+      const pair = [
+        [path.join(ctx.fixtures, 'invalid', 'dispatch-envelope', 'closeout-denies-its-own-atom',
+          'closeout-denies-its-own-atom.yml'), false],
+        [path.join(ctx.fixtures, 'synthetic', 'dispatch-envelope', 'auto-high.envelope.yml'), true],
+      ];
+      for (const [file, sound] of pair) {
+        must(isFile(file), `${file} is absent, so the pair proves nothing`);
+        const doc = parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS);
+        validates('dispatch-envelope.schema.json', doc);
+        must(doc.autonomy === 'auto-high' && doc.closeout_contract.pr_required === true,
+          `${path.basename(file)}: the pair member is not an auto-high dispatch requiring a pull request`);
+        const errors = lintCloseoutReachable(doc);
+        must(closeoutReachable(doc) === sound,
+          `${path.basename(file)}: the runtime rule and the corpus lint disagree about the pair`);
+        if (sound) {
+          equalJson(errors, [], `${path.basename(file)}: the sound half of the pair was rejected`);
+        } else {
+          must(errors.length === 1 && errors[0].keyword === 'closeout-unreachable'
+            && errors[0].instancePath === '/closeout_contract/pr_required',
+            `${path.basename(file)}: the contradiction was not located -- ${JSON.stringify(errors)}`);
+        }
+      }
+
+      // The two halves differ by the atom and nothing else, so the verdict is
+      // attributable to it rather than to some other difference between them.
+      const [bad, good] = pair.map(([file]) => parseYaml(fs.readFileSync(file, 'utf8'), YAML_OPTS));
+      must(bad.permissions.deny.includes(PR_CREATE_ATOM) && !good.permissions.deny.includes(PR_CREATE_ATOM),
+        'the pair does not differ by the pull-request atom');
+
+      // And the exemption is the tier, not the atom: the shipped attended
+      // fixture denies the same command and is sound, because there the denial
+      // is relayed rather than final.
+      const relayed = parseYaml(fs.readFileSync(
+        path.join(ctx.fixtures, 'synthetic', 'dispatch-envelope', 'dev-beta.envelope.yml'), 'utf8'), YAML_OPTS);
+      equalJson(lintCloseoutReachable({ ...bad, autonomy: RELAYED_TIER }), [],
+        'the relayed tier was refused a denial it answers with an operator');
+      must(relayed.autonomy === RELAYED_TIER, 'the shipped C2 fixture stopped being attended');
     });
 
     t.check('the SKILL names every permission atom the tiers emit, and says who enforces them', () => {

@@ -1,0 +1,19 @@
+# Invalid: the close-out contract requires a pull request while the envelope's
+# own permissions deny the command that opens one, at a tier where a denial is
+# final. attended denies the same atom and is sound, because there the denial is
+# relayed to an operator who approves it; auto-high has no one to relay to, so
+# the worker would be handed a contract its own permissions forbid.
+version: 1
+dispatch_id: d-0311
+chain: {run_id: 019260a2-1122-7c33-8d44-5e6677889900, node: dev-docs, umbrella_id: 019260a3-7788-7e99-8a11-b2c3d4e5f607}
+target: {member: docs-site, path: projects/docs-site, worktree: .worktrees/019260a2-1122-7c33-8d44-5e6677889900-dev-docs}
+provider: claude
+session: {name: "widget-rollout/0311/dev-docs", substrate: p}
+workflow: {uses: workflow:development, with: {}}
+inputs: []
+autonomy: auto-high
+permissions:
+  allow: ["shell(git:*)", "write"]
+  deny:  ["shell(gh pr create)", "shell(gh pr merge)"]
+outbox: .maister/umbrella/outbox/d-0311/
+closeout_contract: {pr_required: true, grade: [success, partial, failed]}

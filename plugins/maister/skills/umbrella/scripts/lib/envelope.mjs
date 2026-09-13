@@ -76,7 +76,8 @@
  * The refusal set is closed: `dispatch-node-incomplete`,
  * `dispatch-graph-drifted`, `dispatch-autonomy-unresolved`,
  * `dispatch-autonomy-unknown`, `dispatch-workflow-not-driver-capable`,
- * `dispatch-run-unresolved`, `dispatch-closeout-impossible`,
+ * `dispatch-run-unresolved`, `dispatch-permissions-override-unsupported`,
+ * `dispatch-closeout-impossible`,
  * `dispatch-envelope-exists`, `dispatch-unwritable`, `dispatch-temp-exists`,
  * and `value-not-flow-safe` from the shared emitter. Each is documented with
  * its recovery in `SKILL.md`.
@@ -217,6 +218,7 @@ export function envelope({ run, node, ledger, root, overrides = {} }) {
  * before a single field is read out of it.
  */
 export function buildEnvelope({ run, node, manifest, root = null, definition = null, dispatchId, overrides = {} }) {
+  assertNoPermissionsOverride(overrides);
   const state = readState(run);
   const resolved = definition ?? resolveFromState({ state, run });
   assertGraphUnchanged({ state, resolved });
@@ -256,7 +258,8 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const worktree = worktreeOf({ manifest, runId, node });
   const session = mapOf(overrides.session);
   const statement = statementOf({ defined, overrides });
-  const prRequired = closeoutPrOf({ node, autonomy, overrides });
+  const permissions = permissionsOf(autonomy);
+  const prRequired = closeoutPrOf({ node, autonomy, permissions, overrides });
 
   return {
     version: VERSION,
@@ -284,10 +287,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
     statement,
     workspace_root: rootOf(root),
     autonomy,
-    permissions: {
-      allow: [...PERMISSIONS[autonomy].allow],
-      deny: [...PERMISSIONS[autonomy].deny],
-    },
+    permissions,
     outbox: `.maister/umbrella/outbox/${dispatchId}/`,
     branch: overrides.branch ?? branchOf({ manifest, runId, node, member, dispatchId }),
     ticket: overrides.ticket ?? ticketOf(state),
@@ -439,7 +439,26 @@ function statementOf({ defined, overrides }) {
 }
 
 /**
- * Whether the tier can end its run in a pull request.
+ * The permissions block one tier renders, as its own value.
+ *
+ * Built before the contract that has to be reachable inside it, so the two are
+ * derived from one object rather than from two readings of the same table.
+ */
+function permissionsOf(autonomy) {
+  return {
+    allow: [...PERMISSIONS[autonomy].allow],
+    deny: [...PERMISSIONS[autonomy].deny],
+  };
+}
+
+/**
+ * Whether the envelope can end its run in a pull request.
+ *
+ * The criterion is the envelope's own `permissions.deny` — the list the worker
+ * obeys — and not the tier preset it was rendered from. Reading the allow list
+ * of `PERMISSIONS[autonomy]` instead asked a second copy of the answer, so a
+ * deny list that stopped matching its tier would have been published with a
+ * contract the worker could not keep and nothing would have said so.
  *
  * A deny is not always a dead end. `attended` means an operator is present and
  * approves the denied action, so `shell(gh pr create)` on that tier's deny list
@@ -448,13 +467,38 @@ function statementOf({ defined, overrides }) {
  * `auto-low` is read-only plus tests and `auto-medium` adds edits and commits
  * but never leaves the worktree — so under either a pull request genuinely
  * cannot be opened at all. `auto-high` allows it outright.
+ *
+ * Exported because the compatibility suite reads envelopes already on disk and
+ * has to reach the same verdict this module does; two judges, one rule.
  */
-function canOpenPr(autonomy) {
-  return autonomy === RELAYED || PERMISSIONS[autonomy].allow.includes(CAN.prCreate);
+export function closeoutReachable({ autonomy, permissions }) {
+  if (autonomy === RELAYED) return true;
+  return !(mapOf(permissions).deny ?? []).includes(CAN.prCreate);
 }
 
 /** The one tier whose denials are answered by a person rather than final. */
 const RELAYED = 'attended';
+
+/**
+ * Permissions are the tier's, and a caller asking for others is told so.
+ *
+ * The field was read by nothing and dropped by everything: an envelope built
+ * from a `permissions` override came back carrying the preset, looking as
+ * though the override had been applied. A discarded security-relevant input is
+ * worse than a refused one, because the caller has no way to see it happened —
+ * so the field is refused for being present rather than for disagreeing. An
+ * override that merely repeats the tier is refused too: honouring that one
+ * would make the answer depend on a comparison with the table the refusal
+ * exists to keep authoritative.
+ *
+ * Widening or narrowing what a worker may do is a tier decision; a caller who
+ * means it dispatches at a tier that says so.
+ */
+function assertNoPermissionsOverride(overrides) {
+  if (mapOf(overrides).permissions === undefined) return;
+  throw new Refusal('dispatch-permissions-override-unsupported',
+    `the dispatch carries a "permissions" override, and permissions are the autonomy tier's alone — every tier renders a fixed allow and deny list, and honouring a per-dispatch override would hand a worker permissions its tier never granted. Remove overrides.permissions and dispatch at the tier whose permissions you mean.`);
+}
 
 /**
  * Whether a pull request is required, derived from the tier rather than
@@ -467,8 +511,8 @@ const RELAYED = 'attended';
  * approval relay `attended` has — and an override that contradicts it is
  * refused rather than honoured: a caller who means it has to widen the tier.
  */
-function closeoutPrOf({ node, autonomy, overrides }) {
-  const permitted = canOpenPr(autonomy);
+function closeoutPrOf({ node, autonomy, permissions, overrides }) {
+  const permitted = closeoutReachable({ autonomy, permissions });
   const declared = mapOf(overrides.closeout_contract).pr_required;
   if (declared === undefined || declared === null) return permitted;
   if (declared === true && !permitted) {
