@@ -1,0 +1,53 @@
+{
+  "id": "fix-retry-after-header",
+  "contracts": [
+    "A1",
+    "A2",
+    "A4",
+    "A5",
+    "A6",
+    "B2",
+    "B3",
+    "E1",
+    "E2"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": "2.3.0-beta.19",
+  "sampled_at": "2026-09-13T11:04:52Z",
+  "files": [
+    {
+      "path": "orchestrator-state.yml",
+      "schema": "orchestrator-state.schema.json#"
+    },
+    {
+      "path": "dashboard-data.js",
+      "schema": "dashboard-data.schema.json#"
+    },
+    {
+      "path": "gates/index.yml",
+      "schema": "gate.schema.json#/$defs/index"
+    },
+    {
+      "path": "gates/fix-approval.request.yml",
+      "schema": "gate.schema.json#/$defs/request"
+    },
+    {
+      "path": "implementation/tdd-red-gate.md",
+      "schema": null
+    },
+    {
+      "path": "implementation/work-log.md",
+      "schema": null
+    },
+    {
+      "path": "verification/verification-report.md",
+      "schema": null
+    }
+  ],
+  "strict_a2": true,
+  "dashboard_html_md5": "c45365ee20c4875a63fd063d977aff41",
+  "notes": "The first fix-typed run: a chain-only workflow:fix node dispatched under the cockpit driver, and the run the fix type dir exists for. Its six nodes (standards-discovery, reproduce, fix, verify, fix-approval, close-out) live under the frozen workflow: block with node_summaries beside it, the fix-approval gate is answered via file by the dispatching operator, and close-out carries the declared fix_outcome. What it pins that the change fixture cannot: reproduce declares red_proven, the value the fix node is guarded on, recorded true here because the reproduction failed for the stated reason - a run whose red was never proved records false and shows fix skipped instead. Artifacts keep the A4 layout across both registered subdirectories: implementation/tdd-red-gate.md opens with the A5 summary block, implementation/work-log.md is on the A5 exempt list and carries none, and verification/verification-report.md is A5-registered and opens with one. The close-out is the branch where no pull request is required. Synthetic rather than sampled: the run it describes is the shape a dispatched fix run writes, built to the same schemas the sampled runs are held to, with no absolute path belonging to anyone."
+}

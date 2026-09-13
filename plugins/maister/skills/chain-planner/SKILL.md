@@ -198,9 +198,11 @@ and avoid the reserved words (§ 2.5).
   chain running the runner inside the run.
 - `references/plan-time-rules.md` — the rules the validator does not report in
   time to help.
-- `skills/workflow-engine/workflows/development.{yml,md}`, `research.{yml,md}`
-  and `plan.{yml,md}` — the three shipped pairs, as worked examples of the
-  shape.
+- `skills/workflow-engine/workflows/development.{yml,md}`, `research.{yml,md}`,
+  `plan.{yml,md}`, `change.{yml,md}` and `fix.{yml,md}` — the five shipped
+  pairs, as worked examples of the shape. The last three are the chain-only
+  ones, and the closest examples of what a dispatched node's target looks
+  like.
 
 ### What it writes, and nothing else
 
@@ -447,7 +449,7 @@ Every row writes nothing. Say that first, then the recovery.
 | **No members declared** — the manifest is there and declares none. | Nothing can be dispatched, so the chain would be gates and inline nodes only, entirely inside the coordinating repository. Say so, and ask whether that is what was meant. If members were expected, the workspace init command registers them; a member is a checkout under the workspace or its members root. |
 | **The task needs fan-out, routing, or a loop** — one node over an unknown set, a choice of branch decided at run time, or a repeat-until. | Say what the chain would need, and why it cannot be written — `references/plan-time-rules.md` § 4.1 carries the reason. Then offer the shape that does exist: explicit nodes, one per known target, each behind its own guard — which is the reason the member set has to be known at plan time. |
 | **A dispatch names a member the manifest does not declare.** | List the members the manifest does declare, with their paths, so the intended one can be named or added. A member name is not a repository name and not a path — it is the key the manifest uses, and a `dir:` accepts only that key. A path is refused: the member reaches the branch a worker hands to git, and a path carries a separator no branch segment may. |
-| **A dispatch target cannot honour a driver.** | Name the target the task implied and say why it cannot be dispatched: dispatched work runs with no one to answer a question, so the target has to be one that suspends at a gate instead of asking. Then list the driver-capable alternatives **as discovered** — never the engine, which is the runner rather than a target — or drop the dispatch and run the step in the coordinating repository. |
+| **A dispatch target cannot honour a driver.** | Name the target the task implied and say why it cannot be dispatched: dispatched work runs with no one to answer a question, so the target has to be one that suspends at a gate instead of asking. Then list the driver-capable alternatives **as discovered** — never the engine, which is the runner rather than a target — or drop the dispatch and run the step in the coordinating repository. The built-in definitions are always among the alternatives, and are usually the right one when the refused target was a quick command: `workflow:plan` for work that is deciding how, `workflow:change` for one bounded change, `workflow:fix` for a defect with a reproduction. |
 | **`--name` is empty, too short, or off the charset.** | Say which of the three, quote what was derived or given, and ask for `--name` explicitly. The stem is lowercase letters, digits and hyphens, starts with a letter, and is at least two characters. |
 | **`<name>` collides with a built-in workflow name.** | A workspace definition of that name shadows the built-in one wherever the built-in is named, so the collision is not cosmetic. Ask for a different stem with `--name STEM`; do not append a number. `--force` is not an option here — there is no file to publish over, and shadowing a built-in is not something to force past. |
 | **`<name>.yml` already exists in the target home and `--force` was not given.** | This is the guard working, and the message names both ways out: `--name STEM` to publish under a different stem, or `--force` to publish over the files that are there. Say which files exist, and say why two operators reach this on one task — the stem is derived, so one paragraph yields one name. And check first whether a run of that chain is in flight: a run freezes its graph, so republishing over the definition it froze drifts the graph out from under it, and the next dispatch of that run is refused rather than silently running the new shape. |

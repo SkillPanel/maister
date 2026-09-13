@@ -253,6 +253,15 @@ Three consequences worth carrying:
   is a `workflow:` target, and the engine suspends — so this is guidance about
   which target fits work of that shape, not an entry in a list of capable
   targets. Discover the set as above; this only says what to reach for.
+- **Work that is one bounded change is dispatched as `workflow:change`, and a
+  defect with a reproduction as `workflow:fix`.** Those are the implementation
+  analogues of the bullet above: a node whose share of the chain is to make one
+  change and prove it, or to reproduce a defect as a failing test and fix it,
+  has a built-in definition sized for it. Reach for them before a full
+  development workflow, which asks its own questions and is the wrong shape for
+  a scoped ticket. Both pass the capability check for the same ordinary reason —
+  they are `workflow:` targets — so, again, this is about which target fits the
+  work rather than about which targets exist.
 
 Since the validate-side check landed, a `dir:` node whose target cannot honour a
 driver is a located error at that node's `uses` path — the same shape as the

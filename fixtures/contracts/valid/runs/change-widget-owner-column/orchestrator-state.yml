@@ -1,0 +1,93 @@
+orchestrator:
+  started_phase: close-out
+  completed_phases: [standards-discovery, change, verify, change-approval, close-out]
+  failed_phases: []
+  created: "2026-09-12T09:14:22Z"
+  updated: "2026-09-12T09:41:06Z"
+  task_path: .maister/tasks/change/2026-09-12-widget-owner-column
+  gate_pending: null
+  options: {html_output: true}
+  task_ids: {}
+  driver: {kind: cockpit, cwd: /home/dev/work/proof-ws/widget-api/.worktrees/019260c7-0001-7c00-8a00-0123456789ab-change-api}
+
+task:
+  title: "Show the owner column in the widget list response"
+  description: "Show the owner column in the widget list response"
+  status: completed
+
+workflow:
+  source: /home/dev/work/plugin-copy/plugins/maister/skills/workflow-engine/workflows/change.yml
+  overlays: []
+  profile: null
+  graph_hash: "sha256:57e8595970fc416a9ed03a021cf1ce2c4fe8efbb5dab3230767b25d76b2e0029"
+  grammar_version: 1
+  name: change
+  nodes:
+    standards-discovery: {kind: task, status: completed, started: "2026-09-12T09:14:30Z", completed: "2026-09-12T09:15:48Z", needs: []}
+    change: {kind: task, status: completed, started: "2026-09-12T09:15:48Z", completed: "2026-09-12T09:27:11Z", needs: [standards-discovery], values: {work_log: implementation/work-log.md}}
+    verify: {kind: task, status: completed, started: "2026-09-12T09:27:11Z", completed: "2026-09-12T09:31:52Z", needs: [change], values: {report: verification/verification-report.md}}
+    change-approval: {kind: gate, status: completed, started: "2026-09-12T09:31:52Z", completed: "2026-09-12T09:38:40Z", needs: [verify]}
+    close-out: {kind: task, status: completed, started: "2026-09-12T09:38:40Z", completed: "2026-09-12T09:41:06Z", needs: [change-approval], values: {change_outcome: closed-out}}
+
+node_summaries:
+  standards-discovery:
+    status: completed
+    summary: "Read the member's docs index and the two standards it names for this area; the API response-shape rules and the migration rules both apply to this change."
+    decisions:
+      - decision: Read the index at the conventional path
+        rationale: no docs_index input was supplied and .maister/docs/INDEX.md is present in widget-api
+    risks: []
+    artifacts: []
+    icon_hint: analysis
+  change:
+    status: completed
+    summary: "Added the owner column to the widget list projection and to the serializer, behind the existing rollout flag, with one test covering the flag on and off."
+    decisions:
+      - decision: Project the column rather than joining the owner record
+        rationale: the list endpoint is paginated and a join per row is the N+1 the response-shape standard names
+      - decision: Keep the change behind the existing rollout flag
+        rationale: the flag already gates this endpoint's shape, so a second switch would be a second thing to retire
+    risks:
+      - The flag's default is off in every environment, so nothing observes the new column until it is turned on.
+    artifacts:
+      - path: implementation/work-log.md
+        label: Work log
+        html: null
+    icon_hint: code
+  verify:
+    status: completed
+    summary: "Full suite run: 142 passed, 0 failed. The two new assertions cover the flag on and off; nothing else moved."
+    decisions:
+      - decision: Run the whole suite rather than the touched file
+        rationale: the serializer is shared, so a regression would surface outside the file the change touched
+    risks: []
+    artifacts:
+      - path: verification/verification-report.md
+        label: Verification report
+        html: null
+    icon_hint: verify
+  change-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-closeout. The change and its verification stand and the run proceeds to close-out."
+    decisions:
+      - decision: continue-to-closeout
+        rationale: the dispatching operator accepted the change and the green suite and chose to continue
+    risks: []
+    artifacts: []
+    icon_hint: verify
+  close-out:
+    status: completed
+    summary: "Committed the two touched files on the dispatch branch and pushed it. No pull request: the dispatch declared pr_required false, so the close-out message names the branch a reviewer opens instead."
+    decisions:
+      - decision: No pull request opened
+        rationale: the dispatch node declared closeout_contract.pr_required false and the seed's close-out section says so
+    risks: []
+    artifacts: []
+    icon_hint: done
+
+project_context:
+  project_doc_paths:
+    - .maister/docs/INDEX.md
+    - .maister/docs/standards/backend/api.md
+    - .maister/docs/standards/backend/database.md
+  project_context_summary: "widget-api carries a docs index naming five standards files. Two are relevant here: the API response-shape rules (pagination, no per-row joins) and the database rules (additive columns, no destructive migrations). Both were read and both are satisfied by the change."

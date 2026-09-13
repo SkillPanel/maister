@@ -462,11 +462,13 @@ Implement a task directly — exactly as the main agent normally would, no plann
 
 **When to use**: Task is clear, no architectural decisions needed, you know what needs doing.
 
+This command is for work you drive yourself; a bounded change that a chain dispatches into another repository goes to the chain-only `change` workflow instead (see [Workflow Details](workflows.md)).
+
 ### `/maister:quick-plan [task description]`
 
 Works exactly like Claude Code's built-in plan mode, with standards enforcement folded in. While planning, it reads INDEX.md and the specific matched standard files (INDEX.md alone is not enough), and the plan must reference the applicable standards and include a Standards Compliance Checklist (verified after implementation) before exiting plan mode.
 
-This command is for planning you drive yourself; scoped plan work that a chain dispatches into another repository goes to the chain-only `plan` workflow instead (see [Workflow Details](workflows.md)).
+This command is for planning you drive yourself; scoped plan work that a chain dispatches into another repository goes to the chain-only `plan` workflow instead — as bounded changes go to `change` and reproducible defects to `fix` (see [Workflow Details](workflows.md)).
 
 ### `/maister:quick-bugfix [bug description]`
 
@@ -475,3 +477,5 @@ Lightweight TDD-driven bug fix without a full orchestrator workflow. Analyzes th
 **When to use**: Simple, isolated bugs where you can quickly identify the root cause. If the bug is too complex (multiple files, unclear root cause, architectural impact), the skill suggests escalating to `/maister:development`.
 
 No task directory created — works directly in your codebase.
+
+This command is for work you drive yourself; a reproducible defect that a chain dispatches into another repository goes to the chain-only `fix` workflow instead (see [Workflow Details](workflows.md)).

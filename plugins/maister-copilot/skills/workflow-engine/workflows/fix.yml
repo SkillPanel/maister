@@ -1,0 +1,100 @@
+# The fix workflow, as a graph.
+#
+# `change.yml`'s spine with the discipline a defect owes: the reproduction comes
+# first and the fix is guarded on it. Five nodes named for what they do and one
+# for what it approves — reproduce the defect as a failing test, fix it and prove
+# the test green, verify, ask once whether that stands, close out.
+#
+# The one guard in either definition is here. `reproduce` declares
+# `red_proven`, and `fix` runs only when it is true: a reproduction that cannot
+# be made to fail is a defect nobody has demonstrated, and writing a fix for it
+# would be writing a change nothing measures. When the guard is false `fix` is
+# skipped, `verify` is still ready — a `needs` entry is satisfied by a skipped
+# predecessor — and the gate is where an operator decides what happens next.
+#
+# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
+# completed or a skipped predecessor but never by a stopped one, which is what
+# makes the gate's stop option actually end the run: `close-out` is never ready
+# after a stop, and it is the only thing left.
+#
+# This definition is chain-only. It has no orchestrator skill and no slash
+# command, and therefore no `SKILL.md` twin for a parity checklist to hold it in
+# step with: it is reached as `workflow:fix` from a chain node that carries a
+# `dir:`, and nowhere else. That is why `statement` is the required input — it is
+# the one thing the dispatch envelope carries as free text, and the worker's seed
+# hands it over as the statement of the work for this definition to bind. For a
+# fix run that statement is the defect: what was expected, and what happens
+# instead.
+#
+# Target names are bare on purpose. Resolution is rooted at the plugin root and
+# the provider prefix is applied at invocation, so this one file is correct
+# under every generated variant without a rewrite.
+#
+# The node prose lives beside this file in `fix.md`, one section per node id.
+# Every `direct:` node is executed from its section there.
+name: fix
+version: 1
+inputs:
+  statement: {type: string, required: true}
+  # A documentation index a caller already knows about, so a run that was
+  # dispatched from a member whose index is not at the conventional path can
+  # skip discovery instead of guessing. Absent means discover.
+  docs_index: {type: path, required: false}
+nodes:
+  standards-discovery:
+    uses: direct:standards-discovery
+    needs: []
+    with:
+      docs_index: "${inputs.docs_index}"
+
+  reproduce:
+    uses: direct:reproduce
+    needs: [standards-discovery]
+    with:
+      statement: "${inputs.statement}"
+    outputs:
+      artifacts:
+        red_gate: implementation/tdd-red-gate.md
+      values:
+        red_proven: bool
+
+  fix:
+    uses: direct:fix
+    needs: [reproduce]
+    when: "${reproduce.values.red_proven}"
+    with:
+      statement: "${inputs.statement}"
+      red_gate: "${reproduce.artifacts.red_gate}"
+    outputs:
+      artifacts:
+        work_log: implementation/work-log.md
+
+  verify:
+    uses: direct:verify
+    needs: [fix]
+    with:
+      work_log: "${fix.artifacts.work_log}"
+    outputs:
+      artifacts:
+        report: verification/verification-report.md
+
+  fix-approval:
+    type: gate
+    needs: [verify]
+    ask: "Fix verified. Continue to close-out?"
+    options:
+      continue-to-closeout: continue
+      stop-before-closeout: stop
+
+  close-out:
+    uses: direct:close-out
+    needs: [fix-approval]
+    with:
+      work_log: "${fix.artifacts.work_log}"
+      report: "${verify.artifacts.report}"
+    outputs:
+      # An enum rather than a bare `string`: a declared `string` is undecidable
+      # to the static check and warns, and a shipped definition resolves with
+      # exactly zero warnings.
+      values:
+        fix_outcome: {enum: [closed-out, stopped-before-closeout]}

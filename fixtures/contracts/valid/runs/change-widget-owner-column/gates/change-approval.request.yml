@@ -1,0 +1,20 @@
+version: 1
+run_id: 019260c7-0001-7c00-8a00-0123456789ab
+node: change-approval
+kind: gate
+asked_at: "2026-09-12T09:38:40Z"
+question: "Change verified. Continue to close-out?"
+context:
+  summary: "The owner column is projected in the widget list response and serialized behind the existing rollout flag; two files touched, one test added covering the flag on and off. The full suite is green at 142 passed, 0 failed, and nothing outside the touched files moved. Nothing was left open: no failures were carried, and the change stayed inside the statement."
+  artifacts:
+    - implementation/work-log.md
+    - verification/verification-report.md
+options:
+  - {id: continue-to-closeout, label: "Continue to close-out", effect: continue, description: "Commit the work on the dispatch branch, push it, and report the close-out.", recommended: true}
+  - {id: stop-before-closeout, label: "Stop before close-out", effect: stop, description: "End the run here; close-out never becomes ready and the work stays in the worktree, uncommitted."}
+multi_select: false
+answer:
+  option: continue-to-closeout
+  answered_by: dispatching-operator
+  at: "2026-09-12T09:38:40Z"
+  via: file

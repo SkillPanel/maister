@@ -34,16 +34,17 @@ freezes into the task's state and executes. Both interpreters produce the same t
 
 `/maister:development` runs the definition — it ships as `builtin:development`, with a diagram
 generated from it (regenerate that diagram, never edit it). Research runs on the engine by
-default too, and a third definition ships without a command of its own — the chain-only
-`plan` workflow described below, which the engine runs when a chain dispatches it.
+default too, and three further definitions ship without a command of their own — the chain-only
+`plan`, `change` and `fix` workflows described below, which the engine runs when a chain
+dispatches them.
 
 Definitions resolve eject → generated → overlay → built-in, and the first hit wins: an eject at
 `.maister/workflows/<name>.yml`, then a generated chain at `.maister/workflows/generated/<name>.yml`,
 then an overlay at `.maister/workflows/<name>.overlay.yml`, then the shipped built-in. So a project
 can eject a shipped graph into its own workspace, or lay an overlay over it, without patching the
-plugin. That route reaches a workflow wherever the engine executes it — research, development and
-the chain-only `plan` today, so ejecting or overlaying `builtin:development` takes effect on the
-next run. A generated chain — one the planner published for a single ticket — is complete in itself
+plugin. That route reaches a workflow wherever the engine executes it — research, development and the
+three chain-only definitions today, so ejecting or overlaying `builtin:development` takes effect
+on the next run. A generated chain — one the planner published for a single ticket — is complete in itself
 and is never overlaid or ejected; it is resolved by name like any other and deleted by the
 workspace's `prune` command once its runs have closed. Writing a chain of your own, naming your
 own skills and agents from its nodes, and what an overlay may change are covered in
@@ -295,28 +296,50 @@ Resume phases: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `c
 
 ## Chain-Only Workflows
 
-Not every workflow type has a command. The `plan` workflow is reachable only from a chain: a
-node that reads `uses: workflow:plan` with a `dir:` naming a member dispatches a worker into that
+Not every workflow type has a command. Three of them are reachable only from a chain: a node
+that reads `uses: workflow:<name>` with a `dir:` naming a member dispatches a worker into that
 repository, and the worker runs the definition there. There is nothing to type, and nothing to
 resume by hand.
 
-It exists for scoped work that needs a plan rather than an implementation — the case a chain hits
-when a ticket's next step is "decide how", not "build it". Four nodes: discover the project's
-standards, write the plan, pause at an approval gate, then hand off. Stopping at the gate ends the
-run with the plan as its deliverable; continuing records the plan path and the outcome in the run's
-own state. Either way the plan file is written into the member's task directory inside the dispatch's own
-worktree. A dispatched run's declared values do not cross back into the chain that dispatched it,
-so a follower node must never be guarded on the outcome. How a follower obtains the plan file is
-not defined at this version: the run directory is named at run time, and a follower's inputs are
-static literals, so nothing shipped routes that path from a dispatched run's artifact into a
-follower's input. Today the plan is a deliverable a human, a reviewer or the daemon collects.
+They exist for the scoped work a chain hits when a ticket's next step is smaller than a full
+development run — "decide how", "make this one change", "fix this one defect". Each takes the
+dispatch's free-text statement as its subject, discovers the project's standards first, pauses
+at exactly one approval gate, and writes into the member's task directory inside the dispatch's
+own worktree.
 
-Its runs land in `.maister/tasks/plan/<YYYY-MM-DD-slug>/` with the same task root every other
-workflow writes — state, dashboard, gate files — so a plan run is visible to the cockpit and its
-gate is answerable there like any other. Its one subdirectory is `implementation/`, holding
-`plan.md`.
+| Workflow | For | Nodes |
+|---|---|---|
+| `plan` | deciding *how* a member will do something, without doing it | discover standards, write the plan, approve, hand off |
+| `change` | one bounded change, made and proved | discover standards, make the change with its test, verify, approve, close out |
+| `fix` | a defect that can be reproduced | discover standards, reproduce as a failing test, fix, verify, approve, close out |
 
-For plan work you drive yourself, use `/maister:quick-plan`.
+`fix` is `change` with the reproduction in front of it, and the reproduction is load-bearing: the
+fix step is guarded on the failing test actually having failed. When it never went red, the fix
+is skipped, verification still runs, and the approval is where that is decided — a defect nobody
+has demonstrated does not get a fix written for it in the dark.
+
+**How each ends.** Stopping at the approval ends the run with whatever it has produced so far,
+uncommitted, for whoever comes next. Continuing lets the last node finish: `plan` records the
+plan path and the outcome, while `change` and `fix` commit the work on the dispatch's branch and
+push it. Whether a pull request follows is not the workflow's decision — it comes from the
+dispatch's own close-out contract, so a chain whose members have no host to open one against
+simply ends on a commit and a push.
+
+**What does not cross back.** A dispatched run's declared values do not reach the chain that
+dispatched it, so a follower node must never be guarded on one. What the chain gets is the outbox
+message — a grade and a summary — and, for `change` and `fix`, a pushed branch. How a follower
+obtains a plan file is not defined at this version: the run directory is named at run time and a
+follower's inputs are static literals, so nothing shipped routes that path automatically. Today
+these outputs are collected by a human, a reviewer or the daemon.
+
+Runs land in `.maister/tasks/plan/`, `.maister/tasks/change/` and `.maister/tasks/fix/` under
+`<YYYY-MM-DD-slug>/`, with the same task root every other workflow writes — state, dashboard, gate
+files — so each is visible to the cockpit and its gate is answerable there like any other. `plan`
+writes into `implementation/`; `change` and `fix` write into `implementation/` and `verification/`.
+
+For work you drive yourself, the typed equivalents are `/maister:quick-plan`, `/maister:quick-dev`
+and `/maister:quick-bugfix`. They are deliberately thinner: no task directory, no state and no
+gate, which is also why a chain cannot dispatch them.
 
 ---
 
@@ -331,7 +354,9 @@ All workflows create structured directories in `.maister/tasks/`:
 ├── migrations/            # Migrations
 ├── research/              # Research
 ├── product-design/        # Product design
-└── plan/                  # Chain-only plan runs
+├── plan/                  # Chain-only plan runs
+├── change/                # Chain-only bounded-change runs
+└── fix/                   # Chain-only defect-fix runs
 ```
 
 Each task folder follows the pattern `YYYY-MM-DD-task-name/` and always starts with the same three files:
@@ -353,6 +378,8 @@ What sits beside them depends on the workflow:
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
 | **plan** | `implementation/` (the plan) |
+| **change** | `implementation/` (work log), `verification/` (verification report) |
+| **fix** | `implementation/` (reproduction, work log), `verification/` (verification report) |
 
 A run that hands work out to another repository also writes a `dispatch/` directory beside
 those, holding one envelope per dispatched node.

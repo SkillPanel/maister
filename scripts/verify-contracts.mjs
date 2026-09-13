@@ -4267,6 +4267,37 @@ const WORKFLOW_PINS = {
         'plan_outcome: {enum: [approved, plan-only]}', 'plan_outcome: {enum: [approved, draft-only]}'],
     ],
   },
+  change: {
+    hash: 'sha256:57e8595970fc416a9ed03a021cf1ce2c4fe8efbb5dab3230767b25d76b2e0029',
+    twin: 'change-builtin.yml',
+    nodes: ['standards-discovery', 'change', 'verify', 'change-approval', 'close-out'],
+    edits: [
+      ['an edited gate question',
+        'ask: "Change verified', 'ask: "Change made'],
+      ['a renamed continue option',
+        'continue-to-closeout: continue', 'proceed-to-closeout: continue'],
+      ['a retyped outcome value',
+        'change_outcome: {enum: [closed-out, stopped-before-closeout]}',
+        'change_outcome: {enum: [closed-out, abandoned]}'],
+    ],
+  },
+  fix: {
+    hash: 'sha256:81b4ce9dedfe6968ef66b9835a3c590a7260524b5abab223caf3870e38285d63',
+    twin: 'fix-builtin.yml',
+    nodes: ['standards-discovery', 'reproduce', 'fix', 'verify', 'fix-approval', 'close-out'],
+    edits: [
+      ['an edited gate question',
+        'ask: "Fix verified', 'ask: "Fix made'],
+      ['a renamed continue option',
+        'continue-to-closeout: continue', 'proceed-to-closeout: continue'],
+      // The guard is the one thing this definition has that its sibling does not,
+      // so the hash has to move when its sense changes. The probe negates it
+      // rather than re-pointing it: a guard naming an undeclared value fails to
+      // resolve, and this check needs an edit that is still a legal definition.
+      ['a negated guard',
+        'when: "${reproduce.values.red_proven}"', 'when: "!${reproduce.values.red_proven}"'],
+    ],
+  },
   research: {
     hash: 'sha256:8c806c4ddc046e9b35911e918f46e2b69acdbe5431efd9c3dcee8125918c8b61',
     twin: 'research-builtin.yml',
@@ -13297,6 +13328,18 @@ const INNODE_QUESTIONS = [
     ids: [],
     absent: /No node here asks an in-node question/,
   },
+  // The two chain-only implementation definitions. Each asks the fix-and-verify
+  // loop from the `verify` section the two files share, so the id appears in
+  // both lists; `fix.md` asks one more, in the node the whole definition turns
+  // on -- what to do when the reproduction refuses to go red.
+  {
+    path: 'skills/workflow-engine/workflows/change.md',
+    ids: ['verification-fix-loop'],
+  },
+  {
+    path: 'skills/workflow-engine/workflows/fix.md',
+    ids: ['reproduction-not-red', 'verification-fix-loop'],
+  },
   // The prose twins. They ask the same questions in the same order and are not
   // held to the same list: the twin's mockup phase has no revise loop (its gate
   // carries approve-or-revise) and neither twin asks for a task description,
@@ -13445,6 +13488,302 @@ function t58(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+
+// ---------------------------------------------------------------------------
+// T59 — the two implementation workflows, and the user surface they have none of
+// ---------------------------------------------------------------------------
+
+/**
+ * `change` and `fix` are the chain-only definitions a chain dispatches to *make*
+ * something: one bounded change, proved and closed out, and the same spine with
+ * the reproduce-first discipline. Like `plan` they have no orchestrator skill,
+ * no slash command and no section in the command reference, so neither of the
+ * parity checklists that hold a definition and its prose twin together fits
+ * them. T43 makes those assertions for `plan`; this test makes them for the two
+ * that shipped beside it, and adds the one property `plan` cannot have.
+ *
+ * That property is the last check here: the two definitions were written as one
+ * spine, and the sections their companions share are duplicated rather than
+ * factored out. Duplication is only honest while something compares the copies,
+ * so the shared sections are held byte-equal. A reader who edits the fix-and-
+ * verify loop in one file and not the other fails here rather than shipping two
+ * workflows that answer the same question differently.
+ *
+ * Everything else mirrors T43, per definition: it validates and resolves with an
+ * empty warning list; its node ids and its gate's whole option map are pinned as
+ * public API, because a chain frozen against either graph names the gate and
+ * answers it with one of those ids, so a rename is a deprecation and not an
+ * edit; its prose companion carries the front sections and one section per node,
+ * in order; it has no user alias by four negatives; and its prose names the
+ * driver rule literal, without which a dispatched run has nothing telling it how
+ * to answer its gate.
+ *
+ * What this test deliberately does *not* assert is a provider branch. `plan`
+ * has one because neither host's planning agent is nameable as a target; these
+ * two delegate to nothing and run inline, so there is no branch to state and a
+ * check for one would be a check for prose nobody should write.
+ */
+const IMPL_WORKFLOWS = {
+  change: {
+    nodes: ['standards-discovery', 'change', 'verify', 'change-approval', 'close-out'],
+    gate: 'change-approval',
+    /** Each option id and the verdict it carries. */
+    options: { 'continue-to-closeout': 'continue', 'stop-before-closeout': 'stop' },
+    headings: [
+      'Run-scoped context', 'Phase summary keys', 'Icon hints', 'Embedded mode',
+      'standards-discovery', 'change', 'verify', 'change-approval', 'close-out',
+    ],
+  },
+  fix: {
+    nodes: ['standards-discovery', 'reproduce', 'fix', 'verify', 'fix-approval', 'close-out'],
+    gate: 'fix-approval',
+    options: { 'continue-to-closeout': 'continue', 'stop-before-closeout': 'stop' },
+    headings: [
+      'Run-scoped context', 'Phase summary keys', 'Icon hints', 'Embedded mode',
+      'standards-discovery', 'reproduce', 'fix', 'verify', 'fix-approval', 'close-out',
+    ],
+  },
+};
+
+/**
+ * The sections written once and copied into both companions. They are the spine
+ * the two definitions share: what reaches a delegate, where a summary lands, how
+ * the standards are discovered, what verification runs and what finishing means.
+ * The node sections that are *not* here are the ones the discipline differs in.
+ */
+const IMPL_SHARED_SECTIONS = [
+  'Run-scoped context', 'Phase summary keys', 'standards-discovery', 'verify', 'close-out',
+];
+
+/** The three spellings a command file would reach one of these workflows by. */
+const implAliasSpellings = name => [
+  new RegExp(`builtin:${name}\\b`),
+  new RegExp(`workflow:${name}\\b`),
+  new RegExp(`/maister:${name}(?![\\w-])`),
+];
+
+/** Second-level headings, in order, with the code spans stripped. */
+function proseHeadings(text) {
+  return text.split('\n')
+    .filter(line => line.startsWith('## '))
+    .map(line => line.slice(3).replace(/`/g, '').trim());
+}
+
+/** One `## ` section's body, by heading, or null when there is no such section. */
+function proseSection(text, heading) {
+  const lines = text.split('\n');
+  const at = lines.findIndex(line => line.startsWith('## ')
+    && line.slice(3).replace(/`/g, '').trim() === heading);
+  if (at < 0) return null;
+  const rest = lines.slice(at + 1);
+  const end = rest.findIndex(line => line.startsWith('## '));
+  return rest.slice(0, end < 0 ? rest.length : end).join('\n').trim();
+}
+
+async function t59(ctx) {
+  const t = checker();
+  const engine = path.join(ctx.pluginRoot, ENGINE);
+  const lib = name => pathToFileURL(path.join(engine, 'scripts', 'lib', `${name}.mjs`)).href;
+  const { readDefinition } = await import(lib('definition'));
+  const { resolve: resolveGraph } = await import(lib('graph'));
+
+  const prose = new Map();
+
+  for (const [name, pin] of Object.entries(IMPL_WORKFLOWS)) {
+    const definitionRel = `${ENGINE}/workflows/${name}.yml`;
+    const proseRel = `${ENGINE}/workflows/${name}.md`;
+    const definitionFile = path.join(ctx.pluginRoot, definitionRel);
+    const proseFile = path.join(ctx.pluginRoot, proseRel);
+
+    t.check(`${name}: the definition is present`, () => {
+      must(isFile(definitionFile), `${definitionRel}: the definition is absent`);
+    });
+    if (!isFile(definitionFile)) continue;
+
+    const graph = resolveGraph({
+      definition: readDefinition(definitionFile), overlays: [], profile: null, degraded: [],
+    });
+
+    t.check(`${name}: resolves with no error and no warning`, () => {
+      equalJson(graph.errors, [], `${definitionRel} was rejected`);
+      equalJson(graph.warnings, [],
+        `${definitionRel} resolves with a warning — a shipped definition carries none`);
+    });
+
+    t.check(`${name}: resolves to its pinned nodes, in canonical order`, () => {
+      equalJson(graph.nodes.map(n => n.id), pin.nodes,
+        'the node ids — public API from first release, so a rename is a deprecation and not an edit');
+    });
+
+    t.check(`${name}: the ${pin.gate} gate offers exactly its two pinned options`, () => {
+      const gate = graph.nodes.find(n => n.id === pin.gate);
+      must(gate, `${pin.gate}: the gate node is gone`);
+      must(gate.type === 'gate', `${pin.gate} is typed ${JSON.stringify(gate.type)}, not gate`);
+      equalJson(gate.options, pin.options,
+        'the gate option map — the id a chain answers with, and the verdict that answer carries');
+    });
+
+    t.check(`${name}: the prose companion carries the front sections and one section per node, in order`, () => {
+      must(isFile(proseFile),
+        `${proseRel}: the prose companion is absent — every direct: node resolves against it`);
+      equalJson(proseHeadings(fs.readFileSync(proseFile, 'utf8')), pin.headings,
+        'the prose companion\'s second-level headings; a node section is keyed off the direct: target name');
+    });
+    if (!isFile(proseFile)) continue;
+    prose.set(name, fs.readFileSync(proseFile, 'utf8'));
+
+    // -- the four negatives: this workflow has no user surface --------------
+    t.check(`${name}: skills/${name}/ is not a directory`, () => {
+      must(!isDir(path.join(ctx.pluginRoot, 'skills', name)),
+        `skills/${name}/ exists — a chain-only workflow has no orchestrator skill, and one there is a second half nothing keeps in step`);
+    });
+
+    t.check(`${name}: commands/${name}.md is not a file`, () => {
+      must(!isFile(path.join(ctx.pluginRoot, 'commands', `${name}.md`)),
+        `commands/${name}.md exists — this workflow is reached from a chain node, never from a slash command`);
+    });
+
+    t.check(`${name}: no SKILL.md names builtin:${name}`, () => {
+      const skillsDir = path.join(ctx.pluginRoot, 'skills');
+      must(isDir(skillsDir), 'skills/ is absent');
+      const named = fs.readdirSync(skillsDir)
+        .map(each => ({ each, file: path.join(skillsDir, each, 'SKILL.md') }))
+        .filter(row => isFile(row.file) && fs.readFileSync(row.file, 'utf8').includes(`builtin:${name}`))
+        .map(row => `skills/${row.each}/SKILL.md`);
+      equalJson(named, [],
+        `a skill names builtin:${name} the way skills/development/SKILL.md names its own: that skill is the user surface this workflow has none of`);
+    });
+
+    t.check(`${name}: no command file names the workflow`, () => {
+      const commandsDir = path.join(ctx.pluginRoot, 'commands');
+      must(isDir(commandsDir), 'commands/ is absent');
+      // A sweep, not an inventory: pinning the directory as an exact file list
+      // would turn red the day an unrelated command ships.
+      const named = [];
+      for (const file of fs.readdirSync(commandsDir).filter(each => each.endsWith('.md')).sort()) {
+        const text = fs.readFileSync(path.join(commandsDir, file), 'utf8');
+        for (const spelling of implAliasSpellings(name)) {
+          if (spelling.test(text)) named.push(`commands/${file} names ${String(spelling)}`);
+        }
+      }
+      equalJson(named, [], `a command file reaches the ${name} workflow, so it has a user surface after all`);
+    });
+
+    t.check(`${name}: the prose names the driver rule literal`, () => {
+      must(prose.get(name).includes(PLAN_DRIVER_LITERAL),
+        `${proseRel}: never spells ${JSON.stringify(PLAN_DRIVER_LITERAL)}, so a dispatched run has nothing telling it how to answer its gate`);
+    });
+  }
+
+  // -- the spine: the shared sections are one text, copied ------------------
+  t.check('the shared prose sections are byte-equal in both companions', () => {
+    must(prose.size === 2, 'one of the two companions was not read, so the copies cannot be compared');
+    const drifted = [];
+    for (const heading of IMPL_SHARED_SECTIONS) {
+      const left = proseSection(prose.get('change'), heading);
+      const right = proseSection(prose.get('fix'), heading);
+      if (left === null || right === null) {
+        drifted.push(`${heading}: absent from ${left === null ? 'change.md' : 'fix.md'}`);
+      } else if (left !== right) {
+        drifted.push(`${heading}: the two copies differ`);
+      }
+    }
+    equalJson(drifted, [],
+      'a section the two definitions share was edited in one companion and not the other — they are duplicated on purpose, and this is what makes the duplication honest');
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+// ---------------------------------------------------------------------------
+// T60 — the parity checklists for the two implementation workflows
+// ---------------------------------------------------------------------------
+
+/**
+ * `change` and `fix` have no prose twin inside the plugin, but they do mirror a
+ * shipped command each — `quick-dev` and `quick-bugfix` — and those commands are
+ * staying. Where the two surfaces overlap they must not disagree, and where they
+ * differ the difference must be a decision somebody wrote down rather than an
+ * omission. The checklists are that record.
+ *
+ * Like the research one they are verification evidence rather than shipped
+ * documentation: they carry task context, nothing in the plugin reads them, and
+ * the generated variant's rewrite pass would mangle the strings they quote. So
+ * they live beside the run they were written for, under the in-repo task tree,
+ * and this test is gated on that tree being present.
+ *
+ * What is pinned is the section set and the row count of each — enough that a
+ * checklist cannot quietly lose the half that was inconvenient, and little
+ * enough that rewording a row is not a suite failure.
+ */
+const IMPL_CHECKLIST_DIR = '.maister/tasks/development/2026-09-13-change-and-fix-definitions/verification';
+
+const IMPL_CHECKLISTS = [
+  {
+    file: 'change-parity-checklist.md',
+    mirrors: 'quick-dev',
+    sections: [
+      ['Standards discovery', 5],
+      ['Implementation', 5],
+      ['Verification', 4],
+      ['Operator surface', 4],
+      ['Close-out', 3],
+    ],
+  },
+  {
+    file: 'fix-parity-checklist.md',
+    mirrors: 'quick-bugfix',
+    sections: [
+      ['Standards discovery', 5],
+      ['Reproduction', 6],
+      ['Fix', 5],
+      ['Verification', 4],
+      ['Operator surface', 4],
+      ['Close-out', 3],
+    ],
+  },
+];
+
+/** Every row of a checklist section is a table row, so the count is countable. */
+function checklistRows(text, heading) {
+  const body = proseSection(text, heading);
+  if (body === null) return null;
+  return body.split('\n')
+    .filter(line => line.trim().startsWith('|'))
+    .filter(line => !/^\s*\|[\s|:-]+\|\s*$/.test(line))
+    .length - 1; // the header row
+}
+
+function t60(ctx) {
+  const t = checker();
+  for (const checklist of IMPL_CHECKLISTS) {
+    const rel = path.posix.join(IMPL_CHECKLIST_DIR, checklist.file);
+    const file = path.join(ctx.repoRoot, rel);
+    t.check(`${checklist.file} is present`, () => {
+      must(isFile(file),
+        `${rel}: absent — the definition and the command it mirrors have nothing holding them in step`);
+    });
+    if (!isFile(file)) continue;
+    const text = fs.readFileSync(file, 'utf8');
+
+    t.check(`${checklist.file} names the command it mirrors`, () => {
+      must(text.includes(checklist.mirrors),
+        `${rel}: never names ${checklist.mirrors}, so what it is a parity checklist *against* is not stated in it`);
+    });
+
+    t.check(`${checklist.file} carries its pinned sections, each with its row count`, () => {
+      const wrong = [];
+      for (const [heading, count] of checklist.sections) {
+        const rows = checklistRows(text, heading);
+        if (rows === null) wrong.push(`${heading}: the section is absent`);
+        else if (rows !== count) wrong.push(`${heading}: ${rows} rows, expected ${count}`);
+      }
+      equalJson(wrong, [], `${rel}: the section set and its row counts`);
+    });
+  }
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -13522,6 +13861,8 @@ const TESTS = [
   { id: 'T56', name: 'planner-draft-isolation', needs: ['plugin', 'fixtures'], run: t56 },
   { id: 'T57', name: 'planner-outcome-marker', needs: ['plugin', 'fixtures'], run: t57 },
   { id: 'T58', name: 'in-node-question-defaults', needs: ['plugin', 'fixtures'], run: t58 },
+  { id: 'T59', name: 'implementation-workflow-surface', needs: ['plugin', 'fixtures'], run: t59 },
+  { id: 'T60', name: 'change-fix-parity-checklists', needs: ['plugin', 'in-repo'], run: t60 },
 ];
 
 // ---------------------------------------------------------------------------

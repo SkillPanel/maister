@@ -28,7 +28,7 @@ prose companion `.maister/workflows/<name>.md` beside it. A node is one entry un
 | `direct:<name>` | The engine itself, following the section of that name in the prose companion |
 | `skill:<name>` | A skill, invoked by the host's Skill tool |
 | `agent:<name>` | An agent, invoked by the host's Task tool |
-| `workflow:<name>` | Another workflow definition — dispatched into a member when the node carries `dir:` |
+| `workflow:<name>` | Another workflow definition — dispatched into a member when the node carries `dir:`. Three ship for exactly this: `plan` for deciding how, `change` for one bounded change, `fix` for a reproducible defect |
 
 A gate is a node with `type: gate`, a question under `ask:` and its answers under `options:`,
 exactly one of which continues the run and at least one of which stops it. Nodes declare their
@@ -192,7 +192,9 @@ and a plan file that explains every node. It is bounded on purpose:
 - **It offers dispatch targets it discovered.** Which skills can be dispatched is read off the skill
   files by the rule above, through the same resolution order — so a skill of your own that declares
   `driver_aware: true` is offered where a `dir:` node needs a target, and one that does not is
-  never emitted there.
+  never emitted there. The three chain-only built-ins are always available beside whatever it
+  found, and are what it reaches for when a node's share of the work is to plan something, to make
+  one bounded change, or to fix a defect that can be reproduced.
 - **It refuses a name a built-in already uses**, because a workspace definition of that name would
   shadow the built-in wherever the built-in is named.
 - **It starts nothing.** Review the plan file, run the dry run in the cockpit, then start the chain.

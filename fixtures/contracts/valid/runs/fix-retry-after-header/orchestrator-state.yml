@@ -1,0 +1,108 @@
+orchestrator:
+  started_phase: close-out
+  completed_phases: [standards-discovery, reproduce, fix, verify, fix-approval, close-out]
+  failed_phases: []
+  created: "2026-09-12T14:03:51Z"
+  updated: "2026-09-12T14:38:29Z"
+  task_path: .maister/tasks/fix/2026-09-12-retry-after-header
+  gate_pending: null
+  options: {html_output: true}
+  task_ids: {}
+  driver: {kind: cockpit, cwd: /home/dev/work/proof-ws/widget-api/.worktrees/019260c8-0002-7c00-8a00-0123456789ab-fix-api}
+
+task:
+  title: "Rate-limited responses omit the Retry-After header"
+  description: "Rate-limited responses omit the Retry-After header"
+  status: completed
+
+workflow:
+  source: /home/dev/work/plugin-copy/plugins/maister/skills/workflow-engine/workflows/fix.yml
+  overlays: []
+  profile: null
+  graph_hash: "sha256:81b4ce9dedfe6968ef66b9835a3c590a7260524b5abab223caf3870e38285d63"
+  grammar_version: 1
+  name: fix
+  nodes:
+    standards-discovery: {kind: task, status: completed, started: "2026-09-12T14:04:02Z", completed: "2026-09-12T14:05:19Z", needs: []}
+    reproduce: {kind: task, status: completed, started: "2026-09-12T14:05:19Z", completed: "2026-09-12T14:14:44Z", needs: [standards-discovery], values: {red_proven: true, red_gate: implementation/tdd-red-gate.md}}
+    fix: {kind: task, status: completed, started: "2026-09-12T14:14:44Z", completed: "2026-09-12T14:24:07Z", needs: [reproduce], values: {work_log: implementation/work-log.md}}
+    verify: {kind: task, status: completed, started: "2026-09-12T14:24:07Z", completed: "2026-09-12T14:29:33Z", needs: [fix], values: {report: verification/verification-report.md}}
+    fix-approval: {kind: gate, status: completed, started: "2026-09-12T14:29:33Z", completed: "2026-09-12T14:36:10Z", needs: [verify]}
+    close-out: {kind: task, status: completed, started: "2026-09-12T14:36:10Z", completed: "2026-09-12T14:38:29Z", needs: [fix-approval], values: {fix_outcome: closed-out}}
+
+node_summaries:
+  standards-discovery:
+    status: completed
+    summary: "Read the member's docs index and the two standards relevant to a rate-limit response: the API error-shape rules and the HTTP header conventions."
+    decisions:
+      - decision: Read the index at the conventional path
+        rationale: no docs_index input was supplied and .maister/docs/INDEX.md is present in widget-api
+    risks: []
+    artifacts: []
+    icon_hint: analysis
+  reproduce:
+    status: completed
+    summary: "Red proven. A request over the limit returns 429 with no Retry-After header; the new test asserts the header is present and carries the bucket's seconds-to-refill, and it failed for that reason."
+    decisions:
+      - decision: Assert the header value, not only its presence
+        rationale: a header present with a wrong value is the same outage for a client that backs off on it, and the header conventions standard fixes the unit as whole seconds
+      - decision: Trace before writing the test
+        rationale: the 429 is raised in two places and only one of them was the one the statement describes
+    risks:
+      - The limiter also raises 429 from the burst path, which this reproduction does not cover.
+    artifacts:
+      - path: implementation/tdd-red-gate.md
+        label: Reproduction
+        html: null
+    icon_hint: verify
+  fix:
+    status: completed
+    summary: "Root cause confirmed: the deny branch built the response from the error body helper, which sets no headers. The branch now sets Retry-After from the bucket's refill estimate, and the reproduction test is green."
+    decisions:
+      - decision: Set the header in the deny branch rather than in the error helper
+        rationale: the helper serves every error shape and Retry-After is meaningful for exactly one of them
+      - decision: Round the refill estimate up to whole seconds
+        rationale: the header conventions standard fixes the unit, and rounding down tells a client to retry while it is still limited
+    risks: []
+    artifacts:
+      - path: implementation/work-log.md
+        label: Work log
+        html: null
+    icon_hint: code
+  verify:
+    status: completed
+    summary: "Full suite run: 143 passed, 0 failed. The reproduction test is green and the three other limiter tests are unchanged."
+    decisions:
+      - decision: Run the whole suite rather than the limiter tests
+        rationale: the error helper is shared by every endpoint, so a regression would surface outside the limiter
+    risks: []
+    artifacts:
+      - path: verification/verification-report.md
+        label: Verification report
+        html: null
+    icon_hint: verify
+  fix-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-closeout. The reproduction was proved, the fix addresses the traced cause and the suite is green."
+    decisions:
+      - decision: continue-to-closeout
+        rationale: the dispatching operator accepted the red-to-green transition and the green suite and chose to continue
+    risks: []
+    artifacts: []
+    icon_hint: verify
+  close-out:
+    status: completed
+    summary: "Committed the two touched files on the dispatch branch and pushed it. No pull request: the dispatch declared pr_required false, so the close-out message names the branch a reviewer opens instead."
+    decisions:
+      - decision: No pull request opened
+        rationale: the dispatch node declared closeout_contract.pr_required false and the seed's close-out section says so
+    risks: []
+    artifacts: []
+    icon_hint: done
+
+project_context:
+  project_doc_paths:
+    - .maister/docs/INDEX.md
+    - .maister/docs/standards/backend/api.md
+    - .maister/docs/standards/backend/http-headers.md
+  project_context_summary: "widget-api carries a docs index naming five standards files. Two are relevant here: the API error-shape rules and the HTTP header conventions, which fix Retry-After as whole seconds. Both were read and both are satisfied by the fix."

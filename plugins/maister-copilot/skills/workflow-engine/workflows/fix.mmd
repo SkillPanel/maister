@@ -1,0 +1,18 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: fix
+%% graph_hash: sha256:81b4ce9dedfe6968ef66b9835a3c590a7260524b5abab223caf3870e38285d63
+
+flowchart TD
+  n_standards_discovery["standards-discovery<br/>direct:standards-discovery"]
+  n_reproduce["reproduce<br/>direct:reproduce"]
+  n_fix{"fix<br/>direct:fix<br/>when: ${reproduce.values.red_proven}"}
+  n_verify["verify<br/>direct:verify"]
+  n_fix_approval{{"fix-approval<br/>gate<br/>Fix verified. Continue to close-out?<br/>continue-to-closeout: continue, stop-before-closeout: stop"}}
+  n_close_out["close-out<br/>direct:close-out"]
+  n_standards_discovery --> n_reproduce
+  n_reproduce --> n_fix
+  n_fix --> n_verify
+  n_verify --> n_fix_approval
+  n_fix_approval --> n_close_out
+  class n_fix_approval gate
+  class n_fix conditional
