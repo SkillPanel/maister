@@ -80,7 +80,13 @@ export const SEED_SECTIONS = Object.freeze(['identity', 'task', 'outbox', 'close
 export const SEED_LINE_CAP = 60;
 
 /** The `with:` keys the envelope reads as control rather than as arguments. */
-const CONTROL_ARGS = new Set(['autonomy', 'statement', 'task']);
+// `closeout_contract` joins them for the same reason the other three are here:
+// it travels in `with:` but is a directive to the dispatch runtime, not an
+// argument to the definition. It is already read into the envelope's own
+// close-out contract, which is what `# closeout` renders from, so leaving it in
+// this set produced a second, useless line - `closeout_contract = 1 keys` -
+// telling a worker to bind a value no definition declares.
+const CONTROL_ARGS = new Set(['autonomy', 'statement', 'task', 'closeout_contract']);
 
 /** C4's message types, named here because the outbox section teaches them. */
 const MESSAGE_TYPES = ['status', 'followup', 'artifact', 'closeout', 'blocked'];
