@@ -670,6 +670,42 @@ Anything else is an error rather than a silent no-op. The set is pinned against 
 contract by the repository's own suite: a block the contract defines that the writer cannot
 reach is a test failure, not something to work around with an editor tool.
 
+### One write per moment
+
+**A patch may carry every block at once, and a moment that changes several things is one
+write, not one write per thing.** The vocabulary above is a per-invocation union: the writer
+applies every key present in a single pass, and `nodes`, `node_summaries` and
+`phase_summaries` are maps, so any number of entries ride in one patch. A run that issues a
+write per field is paying a process, a whole-file rename and — on a terminal session — an
+operator's attention for each one.
+
+What "a moment" means, and there are four of them:
+
+- **A node starts.** One patch: the node's `status: running`, and the `orchestrator` scalars
+  the start moves.
+- **A node ends.** One patch: the node's status, its `node_summaries` entry, the
+  `phase_summaries` key the node prose names when it mirrors one, and the `orchestrator`
+  scalars the outcome moves. Splitting these is not only three writes instead of one — the
+  writer mirrors a node's status onto its summary only when the `nodes` patch is in the
+  **same** call, so a split loses the mirror as well.
+- **A ready-set walk skips nodes.** Every node a false guard skips goes in one patch, with
+  their summaries, however many there are.
+- **A run ends.** The closing node's outcome and `task.status` are one patch; a stop option is
+  likewise one patch carrying `task.status: stopped` and every unexecuted node. `run-complete`
+  follows it and publishes nothing, so it is not a write and never merges with one.
+
+That leaves two writes around a node — one before the delegation and one after — which is the
+floor, because the delegation happens between them and its outcome is what the second one
+records.
+
+**Three writes stand alone, and each has its own reason:**
+
+| The write | Why it cannot join anything |
+|---|---|
+| the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key` and `orchestrator.options.inputs` (Step 4) |
+| `gate-request` | one invocation, three writes, in the order § E2 fixes — a run is pending from the moment its request file lands, so a second shell call against it is denied |
+| the empty patch on gate resume | the shell becomes reachable only the instant `gate_pending` goes null, which is what that write re-validates (*Driver-suspended mode — resume*) |
+
 ### When a write is refused
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
