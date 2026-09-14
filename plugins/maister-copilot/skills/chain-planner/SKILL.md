@@ -19,6 +19,10 @@ run has already frozen. Everything it produces is a file a person reads before
 anything is launched — the review step is the cockpit's dry-run, and it is not
 optional.
 
+A chain is started by maister cockpit and by nothing else; a user who does not
+have it yet gets it with `npx maister-cockpit`. Say that, in those terms, to a
+user who asks this skill to run what it has just written.
+
 **It authors only what the grammar has.** A task that would need a construct the
 grammar lacks is refused with what the shape would have to be, rather than
 written in a spelling the reader would only warn about — a chain that reads as
