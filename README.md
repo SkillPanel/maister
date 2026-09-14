@@ -22,7 +22,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 - [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.80+ with the `maister-copilot` variant)
 - `jq` on `PATH` — used by the destructive-command guard
-- Node.js 20 or newer — the plugin registers its gate hook for every session, so Node is required wherever the plugin is installed, not only in chain mode; without it a terminal session prints a non-blocking hook error on each mutating tool call and loses nothing else (a terminal operator answers gates in-session, so there is nothing there to enforce), while chain-mode gate enforcement, `make test`, `make eval` and HTML mockups need it outright
+- Node.js 20 or newer — the plugin registers its gate hook for every session, so Node is required wherever the plugin is installed, not only in chain mode; without it the hook is simply silent — an absent interpreter at `PreToolUse` emits nothing at all, so there is no per-call error to see, and a terminal session loses nothing by it (a terminal operator answers gates in-session, so there is nothing there to enforce). What a session without Node does lose is the workflow engine, which refuses to start by name and says so; chain-mode gate enforcement, `make test`, `make eval` and HTML mockups need it outright
 
 ### Installation
 
