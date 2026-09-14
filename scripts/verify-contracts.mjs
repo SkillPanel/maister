@@ -14103,6 +14103,11 @@ const ENGINE_INVOCATIONS = [
   { name: 'a read verb', command: '<root>/skills/workflow-engine/scripts/workflow.mjs resolve --definition=/tmp/d.yml', node: true, allow: true },
   { name: 'an umbrella verb', command: '<root>/skills/umbrella/scripts/umbrella.mjs ledger --root /tmp/w', node: true, allow: true },
   { name: 'a quoted script path', command: '"<root>/skills/workflow-engine/scripts/workflow.mjs" write-state --state=/tmp/s.yml', node: true, allow: true },
+  // Measured on a real run: a node summary is prose, and prose carries `;`.
+  // Inside single quotes the shell reads none of it, so neither may the hook.
+  { name: 'a patch whose text carries shell punctuation', command: `echo '{"node_summaries":{"intake":{"summary":"state established; no docs | none > zero & done"}}}' | node <root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/s.yml`, node: false, allow: true },
+  { name: 'a substitution in a double-quoted patch', command: 'echo "$(cat /tmp/patch.json)" | node <root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/s.yml', node: false, allow: false },
+  { name: 'an unclosed single quote', command: `echo '{"a":1} | node <root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/s.yml`, node: false, allow: false },
   { name: 'the same script one directory away', command: '/tmp/not-the-plugin/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/s.yml', node: true, allow: false },
   { name: 'a verb the script does not own', command: '<root>/skills/workflow-engine/scripts/workflow.mjs frobnicate --state=/tmp/s.yml', node: true, allow: false },
   { name: 'a script the plugin does not ship', command: '<root>/skills/workflow-engine/scripts/lib/state.mjs write-state', node: true, allow: false },

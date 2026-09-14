@@ -200,6 +200,19 @@ The plugin root is this plugin's own directory — the one holding
 environment. Use it as written; do not work the directory out and substitute a
 path of your own.
 
+**The invocation is the whole command.** No `cd` in front of it, no `set -e`, no
+variable assigned first and used in it, no second command after it, no redirection,
+no substitution — and never several verbs packed into one shell script. The only
+thing that may share the line is the patch or the request document being piped in:
+`echo '<json>' | node …`. This is not style. The enforcement hook recognises this
+plugin's own call and answers it, so the operator is not asked to approve their own
+workflow once per write — and it recognises the call by reading the command, so a
+command doing anything else is not that call and the prompt comes back. Measured
+2026-09-14: a run that wrapped its verbs in shell scripts was recognised **zero**
+times out of seven.
+
+One verb, one call. When a step needs two verbs, that is two calls.
+
 | Verb | Flags | Gives |
 |---|---|---|
 | `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found |

@@ -561,11 +561,14 @@ const ROOT_VARIABLE = /\$\{?(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)\}?/g;
 export function engineInvocation(tooling) {
   if (!tooling || tooling.kind !== 'opaque' || !SHELL_TOOLS.has(tooling.tool)) return null;
   const command = typeof tooling.target === 'string' ? tooling.target.trim() : '';
-  if (!command || COMMAND_POISON.test(command)) return null;
+  const masked = command && maskSingleQuoted(command);
+  if (!masked || COMMAND_POISON.test(masked)) return null;
 
   // At most two stages, and a producer on the left: a pipeline that reaches
   // any further is a command doing more than handing a patch to the writer.
-  const stages = command.split('|').map(stage => stage.trim());
+  // Split where the *masked* text has a pipe, so a `|` inside the patch is not
+  // taken for one.
+  const stages = splitAt(command, masked, '|').map(stage => stage.trim());
   if (stages.length > 2 || stages.some(stage => stage === '')) return null;
   if (stages.length === 2) {
     const producer = tokenize(stages[0]);
@@ -588,6 +591,43 @@ export function engineInvocation(tooling) {
     return verb && verbs.has(verb) ? { root, script: entry, verb } : null;
   }
   return null;
+}
+
+/**
+ * The command with every single-quoted span blanked out, same length, or `null`
+ * when a single quote never closes.
+ *
+ * A shell expands nothing between single quotes — in POSIX shells and in
+ * PowerShell alike — so the punctuation a patch carries there is data and
+ * cannot chain, redirect or substitute anything. A node summary is prose, and
+ * prose carries `;`: measured on a real run, reading the patch's text as shell
+ * turned a plain state write into a command the hook refused to recognise.
+ * Double quotes are left alone, because a substitution still expands inside them.
+ */
+function maskSingleQuoted(command) {
+  let masked = '';
+  let quoted = false;
+  for (const char of command) {
+    if (char === "'") {
+      quoted = !quoted;
+      masked += char;
+    } else {
+      masked += quoted ? '_' : char;
+    }
+  }
+  return quoted ? null : masked;
+}
+
+/** Split `text` wherever `masked` — its same-length twin — holds `separator`. */
+function splitAt(text, masked, separator) {
+  const parts = [];
+  let from = 0;
+  for (let at = masked.indexOf(separator); at !== -1; at = masked.indexOf(separator, at + 1)) {
+    parts.push(text.slice(from, at));
+    from = at + 1;
+  }
+  parts.push(text.slice(from));
+  return parts;
 }
 
 /**

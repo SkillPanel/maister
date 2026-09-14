@@ -131,7 +131,7 @@ allow-listed files, and leaves the cross-run deadlock and its operator recovery 
 engine skill describes them. The register's H1 table gains an Allow response row and the rule
 above; the schemas gain `response_claude_pretooluse_allow` and its Copilot twin; the replay corpus
 gains both providers' `engine-verb-allow` payloads, and `engine-invocation-allow` holds the
-recogniser to thirteen commands — five allowed, eight silent — plus the pending-gate case and a
+recogniser to sixteen commands — six allowed, ten silent, a patch whose single-quoted text carries shell punctuation among the allowed — plus the pending-gate case and a
 check that the hook's verb lists are the ones the two scripts declare for themselves.
 
 ### Amendment 2026-09-14 — Copilot's tool arguments changed shape, and the hook had stopped reading them
