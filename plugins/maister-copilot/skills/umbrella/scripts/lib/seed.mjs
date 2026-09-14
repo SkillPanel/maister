@@ -68,6 +68,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
+import { closeoutReachable } from './envelope.mjs';
 import { bareWorkflowName, TARGET_NAME } from '../../../workflow-engine/scripts/lib/graph.mjs';
 
 /** The format version a seed descriptor declares. */
@@ -201,7 +202,7 @@ export function buildSeed(envelope, { siblings = null, pluginRoot = defaultPlugi
     identity: identityLines({ document, chain, target }),
     task: taskLines({ document, workflow, pluginRoot }),
     outbox: outboxLines(document, pluginRoot),
-    closeout: closeoutLines({ closeout, autonomy: document.autonomy }),
+    closeout: closeoutLines({ closeout, autonomy: document.autonomy, permissions: document.permissions }),
     siblings: siblingLines(siblings),
   };
 
@@ -362,16 +363,32 @@ function outboxLines(document, pluginRoot) {
 
 /**
  * What finishing means, from C2's close-out contract. `pr_required` is derived
- * from the autonomy tier at envelope time, so the two halves of this section
- * cannot contradict each other the way a hard-coded `true` did.
+ * from the autonomy tier at envelope time unless the dispatching chain declared
+ * it, so the two halves of this section cannot contradict each other the way a
+ * hard-coded `true` did.
  *
  * The required case has two readings, because one tier reaches a pull request
  * through a person rather than through its own permissions: under `attended`
  * the deny on `gh pr create` suspends the command for an operator to approve,
  * so telling that worker to "open it" without saying it will pause reads as a
  * failure the moment the command is held.
+ *
+ * So does the *not*-required case, and that is the newer half. A `false` has two
+ * origins: the tier could never reach a pull request and the value was derived
+ * from it, or the tier could and the chain declared `false` anyway. The single
+ * sentence this section used to carry — "your tier can never open one" — is true
+ * of the first and false of the second, and the second is the demo's own
+ * configuration: `attended`, which relays `gh pr create` to an operator, on a
+ * node declaring no pull request is required. A worker reading it there is told
+ * something untrue about its own permissions, which is the last thing a close-out
+ * instruction may be.
+ *
+ * Which origin it was needs no new envelope field: the tier's own reach is a
+ * function of the two fields the envelope already carries, so the same
+ * predicate the envelope builder used to *decide* the value answers here what it
+ * means. C2 does not move, and the seed stays a pure function of the document.
  */
-function closeoutLines({ closeout, autonomy }) {
+function closeoutLines({ closeout, autonomy, permissions }) {
   const lines = [];
   if (closeout.pr_required === true && autonomy === RELAYED) {
     lines.push('A pull request is required before close-out. Your tier denies opening one directly, so the command is held for an operator to approve rather than refused outright.');
@@ -385,6 +402,8 @@ function closeoutLines({ closeout, autonomy }) {
     lines.push('If it is held, do not wait inside this turn - an approval cannot arrive in one. Write a followup message naming the held command and what is left to do, print `DISPATCH-FOLLOWUP: ` followed by that summary as the last line, and end the turn. The close-out, carrying the pull request URL, belongs to a later turn.');
   } else if (closeout.pr_required === true) {
     lines.push('A pull request is required before close-out; open it and put its URL in the closeout message.');
+  } else if (closeoutReachable({ autonomy, permissions })) {
+    lines.push('No pull request is required - the chain dispatching you declared it, though your tier could open one. Do not open one anyway: say in the closeout what a reviewer has to open and merge.');
   } else {
     lines.push('No pull request is required - your tier can never open one. Say in the closeout what a reviewer has to open and merge.');
   }

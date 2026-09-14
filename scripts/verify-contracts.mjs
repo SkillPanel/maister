@@ -7616,8 +7616,19 @@ const SEED_FIXTURE_DIR = path.join('synthetic', 'worker-seed');
  * defect shipped in once, and it was pinned by nothing. It is also the only
  * branch that changes the identity section, which tells a relayed worker not to
  * route around a held command.
+ *
+ * The `declared-no-pr.` stem is the `attended.` envelope again with one field
+ * changed — the close-out contract the dispatching node declared — and it is
+ * here because "no pull request is required" has two origins the goldens used to
+ * conflate. Every other `false` in this directory is derived from a tier that
+ * could never reach a pull request, and the sentence pinned against it said so.
+ * A chain may also declare `false` on a tier that *can* reach one, which is the
+ * demo's own configuration, and there that sentence told the worker something
+ * untrue about its own permissions. Two stems at the same tier and opposite
+ * close-out contracts are what keep the two origins from collapsing back into
+ * one sentence.
  */
-const SEED_FIXTURE_STEMS = ['', 'workflow-target.', 'workflow-target-development.', 'attended.'];
+const SEED_FIXTURE_STEMS = ['', 'workflow-target.', 'workflow-target-development.', 'attended.', 'declared-no-pr.'];
 
 /**
  * Tiers the goldens do not render, each against the tier whose golden already
@@ -8559,6 +8570,22 @@ workflow:
       must(/can never open one/.test(renderSeed(buildSeed(at('auto-low'), { siblings: 1 }))),
         'the auto-low seed does not say a pull request is out of reach');
 
+      // A `false` has two origins and the seed used to explain only one of them.
+      // Derived from a tier that cannot reach a pull request, "your tier can
+      // never open one" is true; declared by a chain on a tier that can, it
+      // tells the worker something untrue about its own permissions — and that
+      // second case is the demo's own configuration, `attended` on a node
+      // declaring the contract. The sentence has to say which it was.
+      const declaredFalse = renderSeed(buildSeed(at('attended', { closeout_contract: { pr_required: false } }), { siblings: 1 }));
+      must(!/can never open one/.test(declaredFalse),
+        'a worker at a relaying tier is still told its tier can never open a pull request, which is false of that tier');
+      must(/declared it/.test(declaredFalse) && /could open one/.test(declaredFalse),
+        'the declared-false seed does not say the chain declared the contract on a tier that could have opened a pull request');
+      // And the derived case keeps its own wording rather than inheriting the
+      // declared one: a tier that genuinely cannot reach a pull request must not
+      // be told a chain decided it.
+      must(!/declared it/.test(renderSeed(buildSeed(at('auto-low'), { siblings: 1 }))),
+        'the auto-low seed now explains its close-out as a declaration, but nothing was declared there');
 
       // A held command ends the turn; it is not a pause a turn can sit
       // through. The seed used to say "wait for that approval", a worker at a
