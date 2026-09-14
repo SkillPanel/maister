@@ -133,3 +133,33 @@ above; the schemas gain `response_claude_pretooluse_allow` and its Copilot twin;
 gains both providers' `engine-verb-allow` payloads, and `engine-invocation-allow` holds the
 recogniser to thirteen commands — five allowed, eight silent — plus the pending-gate case and a
 check that the hook's verb lists are the ones the two scripts declare for themselves.
+
+### Amendment 2026-09-14 — Copilot's tool arguments changed shape, and the hook had stopped reading them
+
+Found while probing the amendment above on a real session rather than a replay, which is the only
+reason it was found at all.
+
+**What was measured.** Copilot CLI 1.0.83, repository hooks, a `preToolUse` payload dumped
+whole. `toolArgs` arrives as an **object** — `{"command": "echo hello-probe", "description": …}` —
+where the 1.0.80 floor this contract was captured from sends it as a JSON string. `apply_patch`
+is the exception and still sends the raw patch text, so the patch reader was never affected.
+
+**What it cost.** `parseArgs` read the string form only, so on that build every Copilot tool call
+reached the predicate with no arguments at all: no command, no path, nothing that could be placed
+against a run. Enforcement did not fail open — an argument-less call is opaque, and an opaque call
+under a pending gate is denied — but everything that depends on *recognising* a call was gone,
+the engine-owned file allow-list included, which is what a Copilot driver needs to record a gate
+answer. The suite could not see it, because the corpus was captured at the floor and replays what
+it captured.
+
+**What changed.** The reader takes either shape. The register's payload-key row says both, the
+schema types `toolArgs` as string or object, and the replay corpus carries the object form beside
+the string form with the two required to decide alike. The floor itself does not move: 1.0.80 is
+still the oldest build the shapes were proven against, and a newer build sending a key in a new
+shape is what this row exists to record.
+
+**The residual, stated because it will recur.** A provider may change a payload shape at any
+release, and a corpus of captures cannot notice on its own — nothing in this repository runs
+against a live provider, by design. This was caught by a probe that existed for another reason.
+The cheap standing answer is that a probe run against a current build should dump one payload per
+event and diff it against the schema, and that is not automated here.

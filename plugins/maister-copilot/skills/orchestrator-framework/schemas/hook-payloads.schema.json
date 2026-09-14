@@ -46,7 +46,7 @@
       }
     },
     "copilot_pretooluse": {
-      "description": "Camel-cased, and the tool arguments arrive as a JSON string rather than an object. A multi-file patch arrives as the raw patch text.",
+      "description": "Camel-cased. The tool arguments arrive as a JSON string at the 1.0.80 floor and as an object from 1.0.83, measured 2026-09-14; readers accept both. A multi-file patch is the exception in both builds - apply_patch sends the raw patch text.",
       "type": "object",
       "required": ["sessionId", "cwd", "toolName", "toolArgs"],
       "properties": {
@@ -54,7 +54,7 @@
         "timestamp": { "description": "Epoch milliseconds in the captures; typed loosely so a later string form still validates.", "type": ["integer", "string"] },
         "cwd": { "$ref": "https://maister.dev/schemas/contracts/common#/$defs/abs_path" },
         "toolName": { "type": "string" },
-        "toolArgs": { "type": "string" }
+        "toolArgs": { "description": "A JSON string at the floor, an object from 1.0.83; apply_patch sends the patch text either way.", "type": ["string", "object"] }
       }
     },
     "copilot_agentstop": {

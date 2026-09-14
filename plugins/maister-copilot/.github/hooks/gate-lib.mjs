@@ -694,9 +694,11 @@ function mapCopilotTool(payload) {
 
   // Every tool but this one sends its arguments as a JSON string; this one
   // sends the patch text itself, and one call may touch several files.
-  const raw = typeof payload.toolArgs === 'string' ? payload.toolArgs : '';
+  const raw = payload.toolArgs;
   if (tool === 'apply_patch') {
-    const patch = parsePatch(raw);
+    // Still the patch text itself at 1.0.83, where every other tool moved to an
+    // object — so this one keeps reading a string and nothing else.
+    const patch = parsePatch(typeof raw === 'string' ? raw : '');
     if (patch.deletes.length) return { tool, kind: 'opaque', target: patch.deletes[0] };
     if (patch.targets.length === 0) return { tool, kind: 'opaque', target: '' };
     return { tool, kind: 'paths', targets: patch.targets };
@@ -713,8 +715,17 @@ function mapCopilotTool(payload) {
   return { tool, kind: 'opaque', target: str(args.path) };
 }
 
-/** A non-object parse result is treated as no arguments at all. */
+/**
+ * A tool's arguments, in either shape this provider has sent them.
+ *
+ * The floor (1.0.80) sends `toolArgs` as a JSON string. Measured 2026-09-14 at
+ * 1.0.83 it is an object for every tool but `apply_patch`, which still sends
+ * the patch text itself. Reading only the string cost the hook every argument
+ * on the newer build — no command, no path, nothing to recognise — so both are
+ * read. A non-object parse result is treated as no arguments at all.
+ */
 function parseArgs(raw) {
+  if (isObject(raw)) return raw;
   try {
     const parsed = JSON.parse(raw);
     return isObject(parsed) ? parsed : {};
