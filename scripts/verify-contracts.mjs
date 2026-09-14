@@ -14190,6 +14190,88 @@ function t63(ctx) {
 const ENGINE_ENTRY = 'skills/workflow-engine/scripts/workflow.mjs';
 const UMBRELLA_ENTRY = 'skills/umbrella/scripts/umbrella.mjs';
 
+// ---------------------------------------------------------------------------
+// T64 — every reference is reachable, and every path leads somewhere
+// ---------------------------------------------------------------------------
+
+/**
+ * A reference path as the instruction files write one: inside backticks,
+ * relative to the file naming it, optionally climbing out of its own skill.
+ * A trailing section marker (`… § 4.1`) is inside the backticks often enough
+ * that it is stripped rather than treated as part of the name.
+ */
+const REFERENCE_TOKEN = /`((?:\.\.\/)*references\/[\w.-]+\.md)(?:\s+§[^`]*)?`/g;
+
+/** The plugin-root variable as the skills spell it, for the executables. */
+const ROOTED_TOKEN = /`[^`]*\$\{CLAUDE_PLUGIN_ROOT\}\/([\w./-]+)/g;
+
+/** The four instruction layers, which is the same corpus `instruction-surface.md` measures. */
+function instructionFiles(pluginRoot) {
+  const files = [];
+  const add = dir => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith('.md')) files.push(path.join(dir, entry.name));
+    }
+  };
+  const skills = path.join(pluginRoot, 'skills');
+  for (const skill of fs.readdirSync(skills)) {
+    const main = path.join(skills, skill, 'SKILL.md');
+    if (isFile(main)) files.push(main);
+    const references = path.join(skills, skill, 'references');
+    if (isDir(references)) add(references);
+  }
+  for (const dir of ['agents', 'commands']) {
+    const target = path.join(pluginRoot, dir);
+    if (isDir(target)) add(target);
+  }
+  return files;
+}
+
+function t64(ctx) {
+  const t = checker();
+  const files = instructionFiles(ctx.pluginRoot);
+  const cited = new Set();
+
+  t.check('every reference path an instruction file names exists', () => {
+    const missing = [];
+    for (const file of files) {
+      const text = fs.readFileSync(file, 'utf8');
+      for (const [, target] of text.matchAll(REFERENCE_TOKEN)) {
+        const resolved = path.resolve(path.dirname(file), target);
+        if (isFile(resolved)) cited.add(resolveReal(resolved));
+        else missing.push(`${rel(file)} → ${target}`);
+      }
+      for (const [, target] of text.matchAll(ROOTED_TOKEN)) {
+        const resolved = path.join(ctx.pluginRoot, target);
+        if (!isFile(resolved)) missing.push(`${rel(file)} → the plugin root's ${target}`);
+      }
+    }
+    must(missing.length === 0, `a path the plugin names is not there: ${missing.join('; ')}`);
+  });
+
+  // The other direction, and the one that rots silently: a reference nothing
+  // points at is text a run can never reach, and it ships all the same.
+  t.check('every reference file is named by something', () => {
+    const orphans = [];
+    for (const file of files) {
+      if (path.basename(path.dirname(file)) !== 'references') continue;
+      if (!cited.has(resolveReal(file))) orphans.push(rel(file));
+    }
+    must(orphans.length === 0, `referenced by nothing: ${orphans.join(', ')}`);
+  });
+
+  t.notes.push(`${files.length} instruction files, ${cited.size} reference paths cited`);
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+const resolveReal = target => {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    return target;
+  }
+};
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -14272,6 +14354,7 @@ const TESTS = [
   { id: 'T61', name: 'closeout-publish-lockstep', needs: ['plugin'], run: t61 },
   { id: 'T62', name: 'closeout-guard', needs: ['plugin', 'fixtures'], run: t62 },
   { id: 'T63', name: 'engine-invocation-allow', needs: ['plugin', 'fixtures'], run: t63 },
+  { id: 'T64', name: 'reference-integrity', needs: ['plugin'], run: t64 },
 ];
 
 // ---------------------------------------------------------------------------

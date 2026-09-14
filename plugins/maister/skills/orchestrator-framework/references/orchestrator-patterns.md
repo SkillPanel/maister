@@ -555,7 +555,7 @@ Selected high-value artifacts get a rich HTML companion written by the **same su
 
 **Rules**:
 - The markdown remains the source of truth for subagent context passing — subagents read md, humans read HTML. The companion adds visual structure (severity badges, matrices, embedded screenshots), never unique content.
-- Companions follow the shared style guide: `references/html-report-style.md` (sibling of this file). Self-contained single file, no external resources, relative links/images only.
+- Companions follow the shared style guide: `html-report-style.md`, the file beside this one. Self-contained single file, no external resources, relative links/images only.
 - Orchestrators pass `html_style_guide_path` (the absolute path of that style guide — it sits next to the patterns file read at initialization) to every companion-writing **agent**, and omit it when `options.html_output` is false; an agent given no path writes only the `.md`. **Skills** that write companions (`implementation-verifier`) receive no such parameter: they resolve the guide themselves and gate on `orchestrator.options.html_output` in state.
 - Register companions in `phase_summaries.[phase].artifacts[].html` so the dashboard (§ 8) links HTML first with md fallback (`html: null` when companions are disabled).
 - Companion generation must never block the workflow: if it fails, keep the md, log the miss, continue.
