@@ -1,0 +1,13 @@
+orchestrator:
+  started_phase: close-out
+  completed_phases: [standards-discovery, reproduce, fix, verify, fix-approval, close-out]
+  failed_phases: []
+  created: "2026-09-14T08:02:11Z"
+  updated: "2026-09-14T08:24:22Z"
+  task_path: .maister/tasks/fix/2026-09-14-half-cent-rounding
+  gate_pending: null
+  driver: {kind: dispatch, cwd: /home/dev/work/proof-ws/widget-api/.worktrees/019260d1-0003-7c00-8a00-0123456789ab-fix-rounding}
+
+task:
+  title: "Half-cent invoice amounts round two different ways"
+  status: completed

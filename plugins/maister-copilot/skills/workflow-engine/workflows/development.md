@@ -1047,6 +1047,16 @@ workflow as a sub-run, so there is no embedded case to guard against.
    pull request and deployment as the project's own process has them. Suggest a
    fresh session for whatever comes next rather than continuing in this one.
 
+**Under a dispatch driver, publish the close-out through the outbox close-out
+verb before this node ends** — the grade and the summary the seed's close-out
+contract asks for, drawn from the executive summary above. A dispatching chain
+has no second way to learn this run is over: a run that finishes and publishes
+nothing leaves the chain waiting forever, with the work done and every local sign
+saying success. The engine refuses a dispatched run that reaches its end with no
+close-out in the outbox (`RUN-FAILED: closeout-unpublished`). Under a terminal
+driver there is no seed and no outbox, and step 4 above is what the operator gets
+instead.
+
 There is no gate after this node. The workflow ends here.
 
 **Recovery budget**: none — this node summarizes and nothing else.

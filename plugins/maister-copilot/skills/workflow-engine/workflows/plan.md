@@ -266,6 +266,16 @@ no follower ever observes, because the gate's stop option ends the run before
 anything downstream is reached. It is carried for the readability of the
 declaration, not for a live consumer.
 
+**Under a dispatch driver, publish the close-out through the outbox close-out
+verb before recording either of them** — the grade and the summary the seed's
+close-out contract asks for. A dispatching chain has no second way to learn this
+run is over: a run that records its outcome and publishes nothing leaves the
+chain waiting forever, with the plan written and every local sign saying success.
+The order is publish, then record; the engine refuses a dispatched run that
+reaches its end with no close-out in the outbox
+(`RUN-FAILED: closeout-unpublished`). Under a terminal driver there is no seed
+and no outbox: say to the operator in session where the plan is instead.
+
 There is no gate after this node. The workflow ends here, and both records are
 read from this run's own state — by an operator, by the dashboard, and by
 anything that opens the task directory afterwards.

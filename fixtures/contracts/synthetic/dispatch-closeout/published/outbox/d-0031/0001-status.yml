@@ -1,0 +1,6 @@
+version: 1
+type: status
+dispatch_id: d-0031
+at: "2026-09-14T11:39:03Z"
+node: fix-approval
+summary: "Reproduced the half-cent split and fixed it behind one shared rounding rule. Suspended at gate fix-approval pending an operator decision; nothing is committed yet."

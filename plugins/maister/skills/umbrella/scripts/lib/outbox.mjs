@@ -178,6 +178,53 @@ const VERSION = 1;
 const MAX_ATTEMPTS = 8;
 
 /**
+ * What a dispatch has already published, newest sequence last.
+ *
+ * The one reader this module offers, and it exists so that nothing outside this
+ * file has to know the shape of `outbox/<dispatch_id>/<seq>-<type>.yml`. The
+ * workflow engine's close-out guard asks this module whether a run published its
+ * close-out; the alternative — a caller globbing that path itself — would put a
+ * second, silent copy of the naming convention in a tree that does not own it,
+ * and the day the convention moved one of the two would keep answering.
+ *
+ * The type comes off the *name* rather than out of the document. The name is
+ * the exclusivity primitive this whole module is built on, it is claimed before
+ * a byte of the body is written, and it cannot disagree with the message it
+ * names. Parsing the YAML to learn a fact the filename already carries would
+ * only add a way to fail.
+ *
+ * A dispatch that has published nothing has no directory — that is the ordinary
+ * state of a worker before its first message, not an error — so an absent
+ * directory reads as an empty list. Every other listing failure is
+ * `outbox-unreadable`, the same code and the same recovery the writer raises
+ * when it cannot choose a sequence number: run again once the path is readable.
+ */
+export function published({ outbox: outboxDir, dispatch_id: dispatchId }) {
+  assertDispatchId(dispatchId);
+  const dir = path.join(path.resolve(outboxDir), dispatchId);
+
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw new Refusal('outbox-unreadable',
+      `the dispatch directory ${dir} exists but could not be listed: ${err.message}, so what this dispatch has published cannot be known. Run again once the directory is readable.`);
+  }
+
+  const messages = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const match = MESSAGE_FILE.exec(entry.name);
+    if (match === null) continue;
+    const seq = Number(match[1]);
+    if (!Number.isSafeInteger(seq)) continue;
+    messages.push({ seq, type: entry.name.slice(match[1].length + 1, -'.yml'.length), file: path.join(dir, entry.name) });
+  }
+  return messages.sort((a, b) => a.seq - b.seq);
+}
+
+/**
  * The `outbox` verb.
  *
  * Synchronous, and returns rather than throws: `umbrella.mjs` calls it inside

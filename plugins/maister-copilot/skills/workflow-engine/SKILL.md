@@ -207,6 +207,7 @@ path of your own.
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
+| `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout; the refusal on stderr |
 
 `gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
 regenerated `gates/index.yml`, **and** the pending marker — `orchestrator.gate_pending` plus
@@ -236,6 +237,16 @@ is not pending, the shell is still available, and the same call can be re-issued
 re-issue that finds its own identical, still-unanswered request file — the shape a kill in
 that window leaves — adopts it and finishes the marker rather than refusing, keeping the
 gate askable. A file that is answered, or that spells a different question, still refuses.
+
+`run-complete` ends a run and, under a dispatch driver, only once the close-out it owes is
+on disk. It takes three flags where the other two state verbs take one, because the outbox
+root and the dispatch id belong to the dispatch rather than to the run: the state file
+records the driver's kind and nothing that would locate an outbox. A dispatched worker
+already holds both — its seed hands them over under exactly these two spellings for the
+outbox verb it publishes with — so pass them through unchanged. Omitting them under a
+dispatch driver is refused the same way an unpublished close-out is: the verb cannot show
+the message landed, and an unprovable close-out is the defect itself. It reads the outbox
+through the umbrella runtime's own reader and never builds one of those paths itself.
 
 **`write-state` checks the document it wrote structurally, not against a schema, and that
 is deliberate.** It re-reads the candidate through the enforcement hook's own reader, then
@@ -279,7 +290,27 @@ option terminate a run: under the default, nothing downstream of a stopped node 
 becomes ready.
 
 Execute ready nodes one at a time, in the order the frozen graph lists them. When nothing
-is pending, set the task status and print `RUN-COMPLETE`.
+is pending, set the task status and end the run through the `run-complete` verb, which
+prints the marker — `RUN-COMPLETE`, or `RUN-FAILED: closeout-unpublished` when a dispatched
+run owes a close-out it never published. Echo that line as the last line of the turn; do not
+type a marker the verb did not give you.
+
+### Ending a dispatched run
+
+**Under `driver.kind: dispatch` a run's close-out publishes through the outbox close-out
+verb** — carrying the grade and the summary the seed's close-out contract asks for — **and
+the closing node records its outcome value only after that publish succeeded.** The outbox
+is the chain's only way to learn a dispatch is over: a run that commits, pushes and records
+`closed-out` without publishing leaves its chain waiting forever with every local sign
+saying success. That is why the `run-complete` verb refuses such a run rather than letting
+it print `RUN-COMPLETE`.
+
+If the outbox cannot be written, the outbox verb hands back a `DISPATCH-RESULT:` line
+instead; that line is then the turn's last line and no `RUN-COMPLETE` is owed. The two are
+alternatives, never a sequence.
+
+Under an absent, `terminal` or `cockpit` driver nothing changes: there is no outbox, because
+nothing dispatched the run, and the verb prints `RUN-COMPLETE` as it always did.
 
 ### Delegation by scheme
 
@@ -675,6 +706,19 @@ write sent before the workflow has a name. Fix the patch and re-run; **re-sendin
 patch, or reaching for an editor tool because the script said no, is the failure mode this
 whole design removes.** A refusal is a correct answer, not an obstacle.
 
+### When the close-out is refused
+
+`run-complete` publishes nothing, so its one refusal is not a write refusal and does not
+belong in the table above. `closeout-unpublished` — exit `1`, the message on stderr, the
+marker `RUN-FAILED: closeout-unpublished` on stdout — says the run is dispatch-driven and
+its outbox holds no close-out for this dispatch, or that the outbox root and the dispatch id
+were not given, so nothing could be checked. **The recovery is the step that was missed, not
+a retry**: publish the close-out through the umbrella runtime's outbox verb with the grade
+and the summary the seed's close-out contract asks for, then run `run-complete` again with
+the same `--outbox` root and `--dispatch-id`. Re-running it unchanged only repeats the
+refusal, and printing `RUN-COMPLETE` by hand restores the exact silence the check exists to
+break: the chain would wait forever on a run that looked finished.
+
 ---
 
 ## Resume
@@ -716,6 +760,9 @@ The engine honours the framework's contracts; it does not restate them. Follow
   delegates, following `html-report-style.md`.
 
 The run's last line is a marker, read by tooling: `RUN-COMPLETE`, or `RUN-FAILED: <reason>`.
+Both come from the `run-complete` verb rather than being typed — that is what makes a
+dispatched run's unpublished close-out a `RUN-FAILED: closeout-unpublished` instead of a
+silence its chain waits on forever.
 The vocabulary and the rule that on-disk state outranks a marker live in
 `../orchestrator-framework/references/compatibility-contracts.md` § 13.
 

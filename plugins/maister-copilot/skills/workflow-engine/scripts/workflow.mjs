@@ -51,6 +51,12 @@ const VERBS = {
   // derived from the state file, so there is no second path a caller could get
   // wrong or point at another run.
   'gate-request': { module: 'gate.mjs', flags: ['state'] },
+  // Three flags, where the other two state verbs take one: the outbox root and
+  // the dispatch id are not derivable from a run directory. They are the
+  // dispatch's, not the run's, and the worker already holds both — its seed
+  // hands them over under exactly these two spellings for the outbox verb it
+  // publishes with.
+  'run-complete': { module: 'complete.mjs', flags: ['state', 'outbox', 'dispatch-id'] },
 };
 
 /** The flags that may be given more than once; every other flag is single-valued. */
@@ -358,12 +364,33 @@ function readStdinJson(what) {
   }
 }
 
+/**
+ * End the run, and under a dispatch driver only once its close-out is on disk.
+ *
+ * Reported unlike the other two state verbs, because what a caller needs from
+ * it is not a list of files but one line to print: the marker is the **last**
+ * line of stdout either way, and the refusal that explains it goes to stderr, so
+ * a turn that ends on this verb ends on a line the C5 vocabulary matches.
+ */
+async function runRunComplete(flags) {
+  if (!flags.state) throw new UsageError('run-complete needs --state');
+  const module = await loadModule(VERBS['run-complete'].module);
+  const judge = entryOf(module, 'runComplete', VERBS['run-complete'].module);
+  const result = judge({ state: flags.state, outbox: flags.outbox, dispatch_id: flags['dispatch-id'] });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  }
+  process.stdout.write(`${result.marker}\n`);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
   diagram: runDiagram,
   'write-state': runWriteState,
   'gate-request': runGateRequest,
+  'run-complete': runRunComplete,
 };
 
 // ---------------------------------------------------------------------------

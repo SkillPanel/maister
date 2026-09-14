@@ -279,14 +279,25 @@ the worktree; this node is what turns those edits into history:
    files this run touched, by path; a dispatched worker shares its checkout with
    nothing, but committing by path is what keeps that true.
 2. Push that branch.
+3. **Under a dispatch driver, publish the close-out through the outbox close-out
+   verb** — the grade and the summary the seed's close-out contract asks for.
+   The order is commit, push, publish, and only then record: the outcome value
+   below is written after the publish succeeded, never before it.
 
-**Everything after the push belongs to the seed, not to this file.** Whether a
-pull request is required, what the grade vocabulary is, and how the close-out
-message reaches the dispatching chain are all stated in the worker's seed, which
-derives them from the dispatch's own close-out contract. Read them there and
-follow them. Restating them here would be a second copy to keep in step, and the
-one that drifted would be this one — the seed is generated per dispatch and this
-file is not.
+**Why the publish is named here rather than left to the seed.** It used to be.
+This section said that how the close-out reaches the dispatching chain is stated
+in the worker's seed and to read it there — and a worker did every other thing
+this node asks, committed, pushed, recorded `closed-out`, and published nothing.
+The seed is one rendering delivered at spawn, many turns before this node; an
+instruction held only by reference did not survive to the last thing the run
+does. The chain has no second channel to learn a dispatch is over, so it waited
+forever while the branch sat pushed on the remote and the worker's own state said
+success. The engine refuses such a run now — `RUN-FAILED: closeout-unpublished`
+— but a node that has to be caught by a guard is a node missing a step.
+
+**What still belongs to the seed**, because it is per-dispatch and this file is
+not: whether a pull request is required, the grade vocabulary to grade against,
+and what a reviewer has to open. Read those there and follow them.
 
 **Under a terminal driver there is no seed**, so there is no close-out contract
 and no outbox. Commit and push as above, then say to the operator in session
@@ -295,7 +306,8 @@ request nobody asked for.
 
 **What is recorded**, through the engine's `write-state` verb — never by editing
 the state file directly — is the outcome value this node declares in the
-definition: `closed-out` when the commit and the push both landed, and
+definition: `closed-out` when the commit and the push both landed — and, under a
+dispatch driver, when the close-out was published too — and
 `stopped-before-closeout` otherwise.
 
 **On the second member of that enum, honestly**: it documents a state no

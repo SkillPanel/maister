@@ -8559,6 +8559,7 @@ workflow:
       must(/can never open one/.test(renderSeed(buildSeed(at('auto-low'), { siblings: 1 }))),
         'the auto-low seed does not say a pull request is out of reach');
 
+
       // A held command ends the turn; it is not a pause a turn can sit
       // through. The seed used to say "wait for that approval", a worker at a
       // relaying tier obeyed it exactly, and its dispatch ended with no
@@ -13864,6 +13865,172 @@ function t60(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T61 — the close-out publish, in prose and in the guard
+// ---------------------------------------------------------------------------
+
+/**
+ * The defect this pair of checks was written for. A dispatched worker ran every
+ * node, suspended at its gate, was re-entered, committed, pushed and recorded
+ * its closing outcome value — and published no close-out message. Its chain
+ * learns a dispatch is over through the outbox and through nothing else, so it
+ * waited forever while the branch sat on the remote and the worker's own state
+ * said success. Nothing timed out and nothing reported a fault.
+ *
+ * The cause was an instruction held by reference. The closing node's prose said
+ * that how the close-out reaches the dispatching chain is stated in the worker's
+ * seed and to read it there — and the seed is one rendering delivered at spawn,
+ * many turns before the last node runs. So there are two halves to hold, and one
+ * check each: the prose names the step, and the engine refuses a run that skipped
+ * it.
+ *
+ * The carriers. Every closing node a chain can dispatch into owes the sentence —
+ * `fix` and `change` because they are what a chain dispatches today, the other
+ * three because a chain may dispatch any built-in and their closing nodes said
+ * nothing about a close-out at all. The engine skill is the carrier for the rule
+ * itself.
+ */
+const CLOSEOUT_CARRIERS = [
+  'skills/workflow-engine/SKILL.md',
+  'skills/workflow-engine/workflows/fix.md',
+  'skills/workflow-engine/workflows/change.md',
+  'skills/workflow-engine/workflows/development.md',
+  'skills/workflow-engine/workflows/research.md',
+  'skills/workflow-engine/workflows/plan.md',
+];
+
+/**
+ * The publish, named as a step under the driver that owes it. Two spellings name
+ * that driver — the field, where the rule itself is stated, and the plain phrase
+ * everywhere else — and what has to follow either of them, close enough to be the
+ * same instruction, is the publish and the channel it goes through.
+ */
+const CLOSEOUT_DRIVER = /dispatch driver|`driver\.kind: dispatch`/gi;
+const CLOSEOUT_PUBLISH_WINDOW = 300;
+const namesThePublish = text => {
+  for (const hit of text.matchAll(CLOSEOUT_DRIVER)) {
+    const after = text.slice(hit.index, hit.index + CLOSEOUT_PUBLISH_WINDOW);
+    if (/\bpublish/i.test(after) && /\boutbox\b/i.test(after)) return true;
+  }
+  return false;
+};
+
+/** The marker the engine refuses with, so a carrier says what skipping it costs. */
+const CLOSEOUT_MARKER = 'RUN-FAILED: closeout-unpublished';
+
+/**
+ * The superseded shape: the close-out deferred to the seed as the only
+ * instruction. It is matched on the deferral itself — "read them there", "stated
+ * in the worker's seed … follow them" — rather than on any mention of the seed,
+ * because a carrier still has to say what the seed owns.
+ */
+const SUPERSEDED_CLOSEOUT_DEFERRALS = [
+  { name: 'the close-out message deferred to the seed as the only instruction',
+    re: /how the close-?out\s+message reaches the dispatching chain[^.]{0,200}\bseed\b/i },
+  { name: 'read them there, with no step of its own',
+    re: /\bRead them there and\s+follow them\b/i },
+];
+
+function t61(ctx) {
+  const t = checker();
+  for (const carrier of CLOSEOUT_CARRIERS) {
+    const file = path.join(ctx.pluginRoot, carrier);
+    t.check(`${carrier} names the close-out publish a dispatched run owes`, () => {
+      must(isFile(file), `${carrier}: the carrier is missing — remove it from the list or restore the file`);
+      const text = fs.readFileSync(file, 'utf8');
+      must(namesThePublish(text),
+        `${carrier}: never says that under a dispatch driver the close-out publishes through the outbox — the instruction the seed alone could not carry to the last node`);
+      must(text.includes(CLOSEOUT_MARKER),
+        `${carrier}: does not name ${CLOSEOUT_MARKER}, so a reader is not told what skipping the publish now costs`);
+      for (const { name, re } of SUPERSEDED_CLOSEOUT_DEFERRALS) {
+        const hit = re.exec(text);
+        must(hit === null, `${carrier}: the superseded deferral survives (${name}) — ${JSON.stringify(hit?.[0] ?? '')}`);
+      }
+    });
+  }
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+// ---------------------------------------------------------------------------
+// T62 — the guard, over the live verb
+// ---------------------------------------------------------------------------
+
+const CLOSEOUT_FIXTURE_DIR = path.join('synthetic', 'dispatch-closeout');
+
+async function t62(ctx) {
+  const t = checker();
+  const module = path.join(ctx.pluginRoot, ENGINE, 'scripts', 'lib', 'complete.mjs');
+  t.checks++;
+  if (!isFile(module)) {
+    return { checks: t.checks, failures: [`${ENGINE}/scripts/lib/complete.mjs is absent — a dispatched run can end in silence`] };
+  }
+  const { runComplete } = await import(pathToFileURL(module).href);
+
+  const dir = path.join(ctx.fixtures, CLOSEOUT_FIXTURE_DIR);
+  const stateOf = side => path.join(dir, side, 'orchestrator-state.yml');
+  const outboxOf = side => path.join(dir, side, 'outbox');
+
+  // The pair, read straight out of the fixture. A guard pinned only by the
+  // failing case passes just as well when it refuses every run.
+  t.check('a dispatched run that published its close-out completes', () => {
+    const result = runComplete({ state: stateOf('published'), outbox: outboxOf('published'), dispatch_id: 'd-0031' });
+    must(result.ok, `the run was refused although its outbox holds a close-out: ${JSON.stringify(result.errors)}`);
+    must(result.marker === 'RUN-COMPLETE', `the marker was ${JSON.stringify(result.marker)}`);
+  });
+
+  t.check('a dispatched run whose closing node published nothing fails', () => {
+    const result = runComplete({ state: stateOf('silent'), outbox: outboxOf('silent'), dispatch_id: 'd-0032' });
+    must(!result.ok, 'a run that published no close-out was allowed to complete — the chain would wait forever');
+    must(result.marker === CLOSEOUT_MARKER, `the marker was ${JSON.stringify(result.marker)}`);
+    must(result.errors[0]?.code === 'closeout-unpublished', `the refusal code was ${JSON.stringify(result.errors[0]?.code)}`);
+    // The recovery has to name the step that was missed, not a retry: re-running
+    // the verb unchanged only repeats the refusal.
+    must(/outbox verb/i.test(result.errors[0]?.message ?? ''),
+      'the refusal does not name the outbox verb that was owed, so it tells an operator nothing to do');
+  });
+
+  // The status message the run wrote at its gate is not a close-out. Without
+  // this, a guard that merely asked whether the dispatch directory is non-empty
+  // would pass the very run that produced the defect.
+  t.check('a status message is not read as a close-out', () => {
+    const messages = fs.readdirSync(path.join(outboxOf('silent'), 'd-0032'));
+    must(messages.length > 0, 'the silent side holds no message at all, so it no longer pins the distinction');
+    must(messages.every(name => !name.endsWith('-closeout.yml')), 'the silent side published a close-out after all');
+  });
+
+  // The drivers that owe nothing. A cockpit run has no outbox because nothing
+  // dispatched it, and a terminal run has neither a seed nor an outbox.
+  t.check('a run under any other driver completes without an outbox', () => {
+    const scratch = tempDir('closeout-driver');
+    try {
+      const source = fs.readFileSync(stateOf('silent'), 'utf8');
+      for (const kind of ['terminal', 'cockpit']) {
+        const file = path.join(scratch, `${kind}.yml`);
+        fs.writeFileSync(file, source.replace('kind: dispatch', `kind: ${kind}`));
+        const result = runComplete({ state: file });
+        must(result.ok && result.marker === 'RUN-COMPLETE',
+          `a ${kind}-driven run was refused a close-out it does not owe: ${JSON.stringify(result.errors)}`);
+      }
+      // And an absent driver block, which E1 reads as terminal.
+      const bare = path.join(scratch, 'no-driver.yml');
+      fs.writeFileSync(bare, source.split('\n').filter(line => !line.includes('driver:')).join('\n'));
+      must(runComplete({ state: bare }).ok, 'a run recording no driver was refused a close-out it does not owe');
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  // The flags are the only route to the coordinates, so omitting them under a
+  // dispatch driver cannot be a pass: the verb would be proving nothing.
+  t.check('a dispatched run that names no outbox is refused rather than waved through', () => {
+    const result = runComplete({ state: stateOf('published') });
+    must(!result.ok && result.marker === CLOSEOUT_MARKER,
+      'a dispatched run with no outbox coordinates completed, so the guard can be skipped by leaving two flags off');
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -13943,6 +14110,8 @@ const TESTS = [
   { id: 'T58', name: 'in-node-question-defaults', needs: ['plugin', 'fixtures'], run: t58 },
   { id: 'T59', name: 'implementation-workflow-surface', needs: ['plugin', 'fixtures'], run: t59 },
   { id: 'T60', name: 'change-fix-parity-checklists', needs: ['plugin', 'in-repo'], run: t60 },
+  { id: 'T61', name: 'closeout-publish-lockstep', needs: ['plugin'], run: t61 },
+  { id: 'T62', name: 'closeout-guard', needs: ['plugin', 'fixtures'], run: t62 },
 ];
 
 // ---------------------------------------------------------------------------
