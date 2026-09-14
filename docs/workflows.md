@@ -60,6 +60,15 @@ MAISTER_WORKFLOW_PROSE=1 /maister:development "..."
 One variable covers every workflow that has a prose twin — its scope is the whole plugin, not a
 single workflow — so while it is set, research runs on prose too.
 
+The engine records every state change by running its own writer, which is a shell command, and no
+permission mode covers the shell — so the plugin's gate hook allows those calls itself rather than
+asking you to approve your own workflow several times per phase. It allows only that: a plain
+`node` invocation of one of the plugin's two runtimes, at a path it has resolved and found inside
+the installed plugin, naming a verb that runtime declares. Anything else — the same command
+somewhere else, an unknown verb, a second command chained on the end — is left to your own
+permission settings untouched, and while a run is waiting on a decision at a gate nothing is
+allowed at all, the writer included.
+
 The two resume flags differ by interpreter. The engine resumes by recomputing which nodes are
 ready from the frozen state, so there is no mid-graph entry point to start from and no attempt
 counter in that state to reset — attempt budgets are node prose. An engine-executed run declines

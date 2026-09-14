@@ -499,6 +499,145 @@ export function whitelist(runDir, nodes) {
   return new Set(allowed.map(resolvePath));
 }
 
+// ---------------------------------------------------------------------------
+// the plugin's own invocations
+// ---------------------------------------------------------------------------
+
+/**
+ * The two scripts this plugin asks a session to run through a shell, and the
+ * verbs each one owns — the same closed lists `workflow.mjs` and `umbrella.mjs`
+ * declare for themselves. A verb outside them is not this plugin's call, and a
+ * script at any other path is not this plugin's script however it is spelled.
+ *
+ * The path is the boundary, never the name: `workflow.mjs` is an ordinary file
+ * name that anything may use, so recognition ends at a resolved path inside a
+ * directory carrying this plugin's own manifest.
+ */
+const ENGINE_ENTRIES = new Map([
+  [
+    'skills/workflow-engine/scripts/workflow.mjs',
+    new Set(['validate', 'resolve', 'diagram', 'write-state', 'gate-request', 'run-complete']),
+  ],
+  [
+    'skills/umbrella/scripts/umbrella.mjs',
+    new Set(['init', 'validate', 'prune', 'envelope', 'seed', 'ledger', 'outbox']),
+  ],
+]);
+
+/** The manifest that says a directory is a plugin root rather than a copy of one. */
+const PLUGIN_MANIFEST = path.join('.claude-plugin', 'plugin.json');
+
+/** The shell tools, in both vocabularies. Only these carry a command to read. */
+const SHELL_TOOLS = new Set(['Bash', 'bash', 'powershell']);
+
+/**
+ * Shell metacharacters that put anything at all beside the invocation being
+ * judged. `|` is absent on purpose: the documented way to hand a patch to the
+ * state writer is `echo '{}' | node …`, and a pipeline is checked stage by
+ * stage below instead.
+ */
+const COMMAND_POISON = /[;&`<>]|\$\(|\|\|/;
+
+/** The only producers a recognised pipeline may carry on its left-hand side. */
+const STDIN_PRODUCERS = new Set(['echo', 'printf']);
+
+/** Both spellings of the plugin-root variable, in both `$VAR` and `${VAR}` forms. */
+const ROOT_VARIABLE = /\$\{?(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)\}?/g;
+
+/**
+ * Whether a tool call is this plugin invoking one of its own runtimes.
+ *
+ * The engine writes every state change through a script, so on a terminal
+ * session each write is a shell call the operator is asked to approve — three
+ * or more per node. Recognising the call is what lets the hook answer for it;
+ * see `emitAllow` for why that answer is the one exception to an allow being
+ * silence.
+ *
+ * Returns `{root, script, verb}` or `null`. Everything it cannot recognise
+ * returns `null` and is left to the caller's own permission flow untouched:
+ * this function never denies anything and never widens what a pending gate
+ * allows.
+ */
+export function engineInvocation(tooling) {
+  if (!tooling || tooling.kind !== 'opaque' || !SHELL_TOOLS.has(tooling.tool)) return null;
+  const command = typeof tooling.target === 'string' ? tooling.target.trim() : '';
+  if (!command || COMMAND_POISON.test(command)) return null;
+
+  // At most two stages, and a producer on the left: a pipeline that reaches
+  // any further is a command doing more than handing a patch to the writer.
+  const stages = command.split('|').map(stage => stage.trim());
+  if (stages.length > 2 || stages.some(stage => stage === '')) return null;
+  if (stages.length === 2) {
+    const producer = tokenize(stages[0]);
+    if (!producer.length || !STDIN_PRODUCERS.has(producer[0]) || producer.some(hasSubstitution)) return null;
+  }
+
+  const tokens = tokenize(stages[stages.length - 1]);
+  if (tokens.length < 3 || tokens[0] !== 'node') return null;
+
+  const script = expandRoot(tokens[1]);
+  if (!script || hasSubstitution(script) || !path.isAbsolute(script)) return null;
+  const resolved = resolvePath(script);
+
+  for (const [entry, verbs] of ENGINE_ENTRIES) {
+    const suffix = path.sep + entry.split('/').join(path.sep);
+    if (!resolved.endsWith(suffix)) continue;
+    const root = resolved.slice(0, -suffix.length);
+    if (!isPluginRoot(root) || !matchesDeclaredRoot(root)) return null;
+    const verb = tokens.slice(2).find(token => !token.startsWith('-'));
+    return verb && verbs.has(verb) ? { root, script: entry, verb } : null;
+  }
+  return null;
+}
+
+/**
+ * Split a command into argv, honouring one level of quoting. A token whose
+ * quotes do not close is returned as written, which then fails the checks
+ * above rather than being silently repaired.
+ */
+function tokenize(text) {
+  const tokens = [];
+  const pattern = /"((?:[^"\\]|\\.)*)"|'([^']*)'|(\S+)/g;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    tokens.push(match[1] ?? match[2] ?? match[3]);
+  }
+  return tokens;
+}
+
+/** Any shell expansion the hook would have to evaluate to know the real path. */
+const hasSubstitution = token => token.includes('$');
+
+/**
+ * Substitute the plugin-root variable from the environment. Two spellings, one
+ * value — the host's and the one the Copilot variant's install notes ask the
+ * operator to export — read exactly as the runtimes themselves read them.
+ */
+function expandRoot(token) {
+  return token.replace(ROOT_VARIABLE, (whole, name) => process.env[name] ?? whole);
+}
+
+/** A directory is a plugin root when it carries a plugin manifest. */
+function isPluginRoot(root) {
+  try {
+    return fs.statSync(path.join(root, PLUGIN_MANIFEST)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Where the environment declares a plugin root, the script has to be inside
+ * *that* one. It is the tighter half of the check and the only half available
+ * on Copilot, where this hook runs from the consumer's own repository and has
+ * no location of its own to derive a root from. With neither variable set —
+ * a session that loaded the plugin without exporting one — the manifest check
+ * above stands alone.
+ */
+function matchesDeclaredRoot(root) {
+  const declared = process.env.CLAUDE_PLUGIN_ROOT || process.env.MAISTER_PLUGIN_ROOT;
+  return declared ? resolvePath(declared) === root : true;
+}
+
 /**
  * `realpath`, extended to paths that do not exist yet: a new file resolves
  * through the deepest ancestor that does, so a symlinked task tree compares
@@ -615,11 +754,43 @@ export function parsePatch(text) {
  * Deny a tool call. Always exit 0: a policy deny is a decision, not a failure,
  * and both providers read the decision off stdout.
  *
- * An allow is never `permissionDecision: allow` — that would answer the
- * terminal user's own permission prompt on their behalf. An allow is silence.
+ * An allow is silence, with one exception: this plugin's own runtimes, which
+ * `emitAllow` answers for. Nothing else is ever answered `allow` — that would
+ * decide the terminal user's own permission prompt on their behalf.
  */
 export function emitDeny(provider, reason) {
   write(1, JSON.stringify(denyBody(provider, reason)));
+}
+
+/**
+ * Allow a call this plugin is making to itself (see `engineInvocation`).
+ *
+ * The invariant everywhere else is that an allow is silence, so that a user's
+ * own permission rules still decide. The exception exists because the engine's
+ * writer *is* the plugin: every state change is a shell call through it, so on
+ * a terminal session an operator is asked to approve their own workflow three
+ * or more times per node, for a call the hook has already verified by path.
+ * Answering it is the only way that prompt goes away without handing state
+ * writing back to the editor tools, which is the corruption the writer exists
+ * to prevent.
+ */
+export function emitAllow(provider, reason) {
+  write(1, JSON.stringify(allowBody(provider, reason)));
+}
+
+/** Why a recognised invocation was allowed, in the shape the deny reasons take. */
+export function engineReason(engine) {
+  return (
+    `ENGINE ALLOW: ${engine.verb} of the plugin's own ${engine.script}, `
+    + `verified at ${engine.root}. This plugin writes every state change through that script, `
+    + 'so the call is its own and is not put to the operator.'
+  );
+}
+
+function allowBody(provider, reason) {
+  const flat = { permissionDecision: 'allow', permissionDecisionReason: reason };
+  if (provider === 'copilot') return flat;
+  return { hookSpecificOutput: { hookEventName: 'PreToolUse', ...flat } };
 }
 
 function denyBody(provider, reason) {

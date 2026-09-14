@@ -15,16 +15,24 @@
  * `driver.session.id` — it falls back to binding every session under `cwd`, the
  * behaviour it had before the scope rule, and says so in the deny reason.
  *
- * What it never does: answer `allow`. An allow is silence and exit 0, so the
- * terminal user's own permission prompt still fires. And it never fails open —
- * everything it cannot decide denies, with the exit code that lets the calling
- * provider show the reason.
+ * **What it answers `allow` for, and nothing else.** An allow is silence and
+ * exit 0, so the terminal user's own permission rules still decide — with one
+ * exception, this plugin invoking its own runtimes. Every state change the
+ * engine makes is a shell call through the plugin's own writer, so without the
+ * exception a terminal operator approves their own workflow several times per
+ * node; `engineInvocation` recognises such a call by resolved path, and only
+ * where no gate binds the caller. Under a pending gate nothing changes: the
+ * shell stays denied. And it never fails open — everything it cannot decide
+ * denies, with the exit code that lets the calling provider show the reason.
  */
 
 import {
   bindingOf,
   detectProvider,
+  emitAllow,
   emitDeny,
+  engineInvocation,
+  engineReason,
   failClosed,
   findStates,
   mapTool,
@@ -108,8 +116,15 @@ try {
     failClosed(provider, 'the payload matches neither provider vocabulary, so no response shape is known', trace);
   }
 
+  // Recognised once, used by every allow below. A call that reaches an allow
+  // has no gate binding it, so answering for the plugin's own runtimes here
+  // cannot widen what a pending gate permits: a bound call never gets this far.
+  const engine = engineInvocation(tooling);
+
   const allow = target => {
-    trace({ decision: 'allow', exit: 0, target: target ?? null, reason: null });
+    const reason = engine ? engineReason(engine) : null;
+    if (reason) emitAllow(provider, reason);
+    trace({ decision: 'allow', exit: 0, target: target ?? null, reason });
     process.exit(0);
   };
 

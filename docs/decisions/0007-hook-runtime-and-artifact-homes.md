@@ -81,3 +81,55 @@ The blocker the amendment above records is removed rather than worked around. `s
 **The driver branch is kept regardless**, because it is not only about plugin-wide registration. The nudge's walk is unscoped by design — it changes nothing on disk — so a chain-mode session reaches every run under `cwd`, and a project that holds both a cockpit chain and an ordinary terminal run would otherwise have its stop blocked on the terminal one. The branch is correct where the hook actually runs; what was withdrawn is the registration, not the behaviour.
 
 The beacon's paragraph above is unaffected. It stays out of `hooks.json` for its own reason — it classifies a session for the approval relay and writes a marker outside the project for every session that loads it — and that reason is untouched by this.
+
+### Amendment 2026-09-14 — the hook answers allow for its own verbs, and for nothing else
+
+The decision above and every amendment since rest on one invariant stated in the hook's own
+header: *an allow is silence and exit 0, so the terminal user's own permission prompt still
+fires.* It was the right default and it stays the default. It acquires exactly one exception
+here, and this records the exception with the shape it takes, because an unwritten exception to a
+stated invariant is how the next reader concludes the invariant is gone.
+
+**What made it necessary.** The invariant was reasoned about while the prose orchestrators wrote
+state with the editor tools, which `acceptEdits` covers. On the workflow engine every state change
+is a `node …/workflow.mjs <verb>` call, three or more per node, and the shell is covered by no
+permission mode — so a terminal operator in `default` or `acceptEdits` is asked to approve their
+own workflow once per write. The editor-tool fallback was considered and rejected on its merits
+(#162): the verb validates every patch against the register, serialises canonically so a frozen
+graph hashes the same everywhere, and is the single writer the enforcement hook recognises — and
+the parity runs measured the defects the editor model produces. Leaving the prompts in place and
+leaving the writer in place are not both available.
+
+**The exception.** `engineInvocation` recognises a call as this plugin invoking one of its own two
+runtimes, and `emitAllow` answers it — `{hookSpecificOutput: {hookEventName, permissionDecision:
+"allow", permissionDecisionReason}}` on Claude, the same without the envelope on Copilot, the
+reason prefixed `ENGINE ALLOW: ` and naming the verb, the script and the verified root. Five
+conditions, all of which must hold: a shell tool; a command carrying none of `;`, `&&`, `||`, `&`,
+a backtick, `$(`, `<` or `>`, and at most one pipe whose left-hand stage is `echo` or `printf`
+with no substitution in it; `node` as the first token; a second token that resolves — after the
+plugin-root variable is expanded from the environment, in either spelling — to
+`skills/workflow-engine/scripts/workflow.mjs` or `skills/umbrella/scripts/umbrella.mjs` inside a
+directory carrying this plugin's `.claude-plugin/plugin.json`, and equal to the declared root
+where one is set; and a first non-flag argument that is a verb that script itself declares.
+Anything else returns nothing and the call reaches the operator's own permission rules exactly as
+before.
+
+**Why the path and not the name.** `workflow.mjs` is an ordinary file name and a command string is
+attacker-shaped text; a rule keyed on the name would allow any file anywhere that happened to be
+called that. The boundary is therefore a resolved path under a directory carrying this plugin's
+own manifest, which is also the only formulation that works on both providers: on Copilot the hook
+runs from the consumer's `.github/hooks/` and has no location of its own to derive a root from, so
+the environment variable its install notes already require is what supplies the root and the
+manifest is what proves it. The metacharacter rule exists for the same reason — a recognised verb
+with `&& rm -rf` after it is not the call that was recognised.
+
+**What does not change.** A pending gate is untouched. The recognition is consulted only where the
+hook was already going to allow, and a bound call never gets there — it falls to `emitDeny` — so
+the shell stays shut on the engine itself while an operator is being asked something. That is what
+keeps the suspend sequence one call (§ E2), keeps the answer recorded with the editor tools on the
+allow-listed files, and leaves the cross-run deadlock and its operator recovery exactly as the
+engine skill describes them. The register's H1 table gains an Allow response row and the rule
+above; the schemas gain `response_claude_pretooluse_allow` and its Copilot twin; the replay corpus
+gains both providers' `engine-verb-allow` payloads, and `engine-invocation-allow` holds the
+recogniser to thirteen commands — five allowed, eight silent — plus the pending-gate case and a
+check that the hook's verb lists are the ones the two scripts declare for themselves.

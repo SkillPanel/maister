@@ -27,5 +27,5 @@
       "cwd_layout": "umbrella-run"
     }
   },
-  "notes": "The run is pending and the target is the pending run's own orchestrator-state.yml, which is on the allow-list. Allow means exit 0 with empty stdout - never permissionDecision allow, which would bypass the terminal user's own permission prompt. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
+  "notes": "The run is pending and the target is the pending run's own orchestrator-state.yml, which is on the allow-list. Allow here means exit 0 with empty stdout: the editor write is left to the terminal user's own permission rules, which acceptEdits already covers. The one allow that carries a body is the plugin recognising its own runtime invocation through the shell - see the engine-verb-allow fixture - and an editor write is never that. The replay harness mounts state_fixture at cwd_layout under a temporary directory and rewrites the payload cwd and every absolute path in the tool input to that mount point; the paths below are written against the canonical layout <cwd>/.maister/umbrella/runs/<run-id>/."
 }

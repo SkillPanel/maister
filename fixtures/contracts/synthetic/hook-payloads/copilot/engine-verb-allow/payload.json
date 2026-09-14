@@ -1,0 +1,7 @@
+{
+  "sessionId": "019260a2-2233-7d44-9e55-6f7788990011",
+  "timestamp": 1787680000000,
+  "cwd": "/home/dev/work/repo-alpha",
+  "toolName": "bash",
+  "toolArgs": "{\"command\":\"node ${MAISTER_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs ledger --root /home/dev/work/repo-alpha\",\"description\":\"Read the chain ledger\"}"
+}

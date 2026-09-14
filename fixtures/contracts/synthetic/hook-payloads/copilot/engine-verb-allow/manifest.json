@@ -1,0 +1,30 @@
+{
+  "id": "copilot-engine-verb-allow",
+  "contracts": [
+    "H1"
+  ],
+  "verdict": "valid",
+  "synthetic": true,
+  "pseudonymized": false,
+  "source": "synthetic",
+  "writer_version": null,
+  "sampled_at": "2026-09-14T19:40:00Z",
+  "files": [
+    {
+      "path": "payload.json",
+      "schema": "hook-payloads.schema.json#/$defs/copilot_pretooluse"
+    }
+  ],
+  "expect": {
+    "replay": {
+      "provider": "copilot",
+      "event": "preToolUse",
+      "decision": "allow",
+      "exit": 0,
+      "stdout": "json",
+      "state_fixture": "synthetic/gate/answered",
+      "cwd_layout": "umbrella-run"
+    }
+  },
+  "notes": "The Claude case's twin on the provider whose skills spell the plugin root with the other variable name, and whose hook runs from the consumer repository rather than from the plugin - so the root comes from the environment and the manifest at it, never from the hook's own location. The body carries no envelope on this provider."
+}

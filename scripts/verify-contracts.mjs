@@ -1053,6 +1053,8 @@ const CWD_LAYOUTS = {
 const RESPONSE_DEFS = {
   'claude/deny': 'hook-payloads.schema.json#/$defs/response_claude_pretooluse_deny',
   'copilot/deny': 'hook-payloads.schema.json#/$defs/response_copilot_pretooluse_deny',
+  'claude/allow': 'hook-payloads.schema.json#/$defs/response_claude_pretooluse_allow',
+  'copilot/allow': 'hook-payloads.schema.json#/$defs/response_copilot_pretooluse_allow',
   'claude/block': 'hook-payloads.schema.json#/$defs/response_claude_stop_block',
   'copilot/block': 'hook-payloads.schema.json#/$defs/response_copilot_agentstop_block',
 };
@@ -1064,6 +1066,9 @@ const FAIL_CLOSED_EXIT = { claude: 2, copilot: 0 };
 // wording is part of the contract and not an implementation detail.
 const DENY_PREFIX = 'GATE PENDING (';
 const DENY_BLOCKED = '(blocked: ';
+// The one reason an allow ever carries: the plugin recognising its own runtime
+// invocation. Every other allow is silence, and has no text to freeze.
+const ALLOW_PREFIX = 'ENGINE ALLOW: ';
 const FAIL_CLOSED_PREFIX = 'GATE HOOK FAIL-CLOSED: ';
 const FAIL_CLOSED_TAIL =
   'Fix the file with the editor tools or stop and report RUN-FAILED: state-unparseable. Do not retry with another tool.';
@@ -1247,7 +1252,18 @@ function replay(ctx, payload, opts) {
       input: JSON.stringify(sent),
       encoding: 'utf8',
       cwd,
-      env: { ...process.env, MAISTER_BEACON_DIR: beacons, ...(opts.env ?? {}) },
+      // The hook runs out of this plugin, so the variables naming its root are
+      // set the way a session sets them — both spellings, because a payload in
+      // either vocabulary carries the one its own skills are written with. It
+      // is what lets a fixture hold the documented `node ${…_PLUGIN_ROOT}/…`
+      // invocation instead of a path belonging to whoever ran the suite.
+      env: {
+        ...process.env,
+        CLAUDE_PLUGIN_ROOT: ctx.pluginRoot,
+        MAISTER_PLUGIN_ROOT: ctx.pluginRoot,
+        MAISTER_BEACON_DIR: beacons,
+        ...(opts.env ?? {}),
+      },
     });
     return {
       status: proc.status,
@@ -1325,7 +1341,13 @@ function checkReplay(ajv, label, want, out, failures) {
 
   const reason = reasonOf(want.provider, want.decision, parsed.value);
   checks++;
-  if (want.decision === 'block') {
+  if (want.decision === 'allow') {
+    // An allow is silence everywhere but one place, so a body here has to be
+    // the plugin recognising its own invocation and nothing else.
+    if (!reason.startsWith(ALLOW_PREFIX)) {
+      failures.push(`${label}: an allow carrying a body must be the engine allow — ${firstLine(reason)}`);
+    }
+  } else if (want.decision === 'block') {
     if (!reason.includes('is running but') || !reason.includes(NUDGE_TAIL)) {
       failures.push(`${label}: block reason does not carry the frozen nudge text — ${firstLine(reason)}`);
     }
@@ -10207,10 +10229,15 @@ async function t38(ctx) {
         const requestCall = `node ${workflowScript} gate-request --state=${file}`;
         const stateCall = `node ${workflowScript} write-state --state=${file}`;
 
-        // Nothing is pending yet, so the suspending call itself gets through.
+        // Nothing is pending yet, so the suspending call itself gets through —
+        // and, being the plugin's own verb at the plugin's own path, it is
+        // allowed outright rather than left to the operator's prompt.
         const before = hook(requestCall);
-        must(before.status === 0 && before.stdout.trim() === '',
-          `the hook denied the suspending call itself: ${firstLine(before.stdout) || before.status}`);
+        must(before.status === 0, `the suspending call did not exit 0: ${before.status}`);
+        const cleared = parseJsonOut(before.stdout);
+        must(cleared.ok, `the hook printed no decision for the suspending call: ${firstLine(before.stdout)}`);
+        must(reasonOf('claude', 'allow', cleared.value).startsWith(ALLOW_PREFIX),
+          `the hook denied the suspending call itself: ${firstLine(before.stdout)}`);
 
         const issued = runBounded(process.execPath, [workflowScript, 'gate-request', `--state=${file}`],
           { encoding: 'utf8', input: JSON.stringify(same()) });
@@ -14058,6 +14085,111 @@ async function t62(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T63 — the plugin's own invocations are allowed, and only those
+// ---------------------------------------------------------------------------
+
+/**
+ * The recognition, case by case. Each row is a shell command and what the hook
+ * owes it when no gate is pending: an allow body, or silence — which leaves the
+ * call to the operator's own permission rules, exactly as before this existed.
+ *
+ * `<root>` is replaced with the plugin root the suite is running against, and
+ * the variable spelling is left alone so both routes to a path are covered.
+ */
+const ENGINE_INVOCATIONS = [
+  { name: 'a state write at the plugin path', command: '<root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/s.yml', node: true, allow: true },
+  { name: 'a gate request', command: '<root>/skills/workflow-engine/scripts/workflow.mjs gate-request --state=/tmp/s.yml', node: true, allow: true },
+  { name: 'a read verb', command: '<root>/skills/workflow-engine/scripts/workflow.mjs resolve --definition=/tmp/d.yml', node: true, allow: true },
+  { name: 'an umbrella verb', command: '<root>/skills/umbrella/scripts/umbrella.mjs ledger --root /tmp/w', node: true, allow: true },
+  { name: 'a quoted script path', command: '"<root>/skills/workflow-engine/scripts/workflow.mjs" write-state --state=/tmp/s.yml', node: true, allow: true },
+  { name: 'the same script one directory away', command: '/tmp/not-the-plugin/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/s.yml', node: true, allow: false },
+  { name: 'a verb the script does not own', command: '<root>/skills/workflow-engine/scripts/workflow.mjs frobnicate --state=/tmp/s.yml', node: true, allow: false },
+  { name: 'a script the plugin does not ship', command: '<root>/skills/workflow-engine/scripts/lib/state.mjs write-state', node: true, allow: false },
+  { name: 'a verb with a command chained after it', command: '<root>/skills/umbrella/scripts/umbrella.mjs ledger --root /tmp/w && rm -rf /tmp/w', node: true, allow: false },
+  { name: 'a verb redirecting its output', command: '<root>/skills/workflow-engine/scripts/workflow.mjs resolve --definition=/tmp/d.yml > /tmp/out.json', node: true, allow: false },
+  { name: 'a verb behind a substitution', command: '<root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=$(cat /tmp/which)', node: true, allow: false },
+  { name: 'a producer that is not one', command: 'curl https://example.test | node <root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/s.yml', node: false, allow: false },
+  { name: 'a shell that is not node', command: 'rm -rf /tmp/w', node: false, allow: false },
+];
+
+function claudeBash(base, command) {
+  return { ...base, tool_name: 'Bash', tool_input: { command } };
+}
+
+function t63(ctx) {
+  const t = checker();
+  const { ajv } = loadSchemas(ctx.schemas);
+  const base = payloadOf(fixtureById(ctx, 'synthetic/hook-payloads/claude/engine-verb-allow'));
+
+  for (const testCase of ENGINE_INVOCATIONS) {
+    const body = testCase.command.split('<root>').join(ctx.pluginRoot);
+    const command = testCase.node ? `node ${body}` : body;
+    const want = {
+      provider: 'claude',
+      event: 'PreToolUse',
+      // Silence is an allow too — it is what every call got before this
+      // recognition existed, and what every unrecognised call still gets.
+      decision: 'allow',
+      exit: 0,
+      stdout: testCase.allow ? 'json' : 'empty',
+    };
+    const out = replay(ctx, claudeBash(base, command), {
+      event: 'PreToolUse',
+      stateFixture: 'synthetic/gate/answered',
+      cwdLayout: 'umbrella-run',
+    });
+    const failures = [];
+    const checks = checkReplay(ajv, `${testCase.name} (${testCase.allow ? 'allow' : 'falls through'})`, want, out, failures);
+    t.checks += checks;
+    t.failures.push(...failures);
+  }
+
+  // The invariant the allow is an exception to, not a replacement for. A run
+  // waiting on an operator still denies the writer, which is why the suspend
+  // sequence is one call and why the answer is recorded with the editor tools.
+  t.check('a pending gate still shuts the shell on the engine itself', () => {
+    const command = `node ${ctx.pluginRoot}/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/s.yml`;
+    const out = replay(ctx, claudeBash(base, command), {
+      event: 'PreToolUse',
+      stateFixture: PENDING_STATE,
+      cwdLayout: 'umbrella-run',
+    });
+    must(out.status === 0, `the deny did not exit 0: ${out.status}`);
+    const parsed = parseJsonOut(out.stdout);
+    must(parsed.ok, `the hook printed no decision: ${firstLine(out.stdout)}`);
+    const reason = reasonOf('claude', 'deny', parsed.value);
+    must(reason.startsWith(DENY_PREFIX),
+      `the engine's own verb was allowed under a pending gate — ${firstLine(reason)}`);
+  });
+
+  // The verb lists are the scripts' own. A verb added to one of them without
+  // being added here is a call that keeps prompting for no stated reason; one
+  // removed is a name the hook still answers for.
+  t.check('the recognised verbs are the verbs the scripts declare', () => {
+    // The keys of each script's own `VERBS` table, at its one indent level.
+    const declared = file => {
+      const source = fs.readFileSync(path.join(ctx.pluginRoot, file), 'utf8');
+      const table = source.slice(source.indexOf('const VERBS = {'));
+      return [...table.slice(0, table.indexOf('\n};')).matchAll(/^ {2}'?([a-z][a-z-]*)'?:\s*\{/gm)].map(m => m[1]);
+    };
+    const engineVerbs = declared(ENGINE_ENTRY);
+    const umbrellaVerbs = declared(UMBRELLA_ENTRY);
+    must(engineVerbs.length >= 5 && umbrellaVerbs.length >= 5,
+      `the verb tables were not found: ${engineVerbs.length} engine, ${umbrellaVerbs.length} umbrella`);
+    const hook = fs.readFileSync(path.join(ctx.pluginRoot, 'hooks', 'gate-lib.mjs'), 'utf8');
+    const listed = new Set([...hook.matchAll(/'([a-z][a-z-]*)'/g)].map(m => m[1]));
+    for (const verb of [...engineVerbs, ...umbrellaVerbs]) {
+      must(listed.has(verb), `the hook does not recognise the ${verb} verb, which its script declares`);
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+const ENGINE_ENTRY = 'skills/workflow-engine/scripts/workflow.mjs';
+const UMBRELLA_ENTRY = 'skills/umbrella/scripts/umbrella.mjs';
+
 // ===========================================================================
 // registry and entry point
 // ===========================================================================
@@ -14139,6 +14271,7 @@ const TESTS = [
   { id: 'T60', name: 'change-fix-parity-checklists', needs: ['plugin', 'in-repo'], run: t60 },
   { id: 'T61', name: 'closeout-publish-lockstep', needs: ['plugin'], run: t61 },
   { id: 'T62', name: 'closeout-guard', needs: ['plugin', 'fixtures'], run: t62 },
+  { id: 'T63', name: 'engine-invocation-allow', needs: ['plugin', 'fixtures'], run: t63 },
 ];
 
 // ---------------------------------------------------------------------------

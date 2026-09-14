@@ -100,6 +100,26 @@
         }
       }
     },
+    "response_claude_pretooluse_allow": {
+      "description": "The one allow that is not silence: the plugin recognising its own runtime invocation by resolved path, so a session is not asked to approve the plugin's own state writes. Every other allow is exit 0 with no stdout, leaving the decision to the caller's own permission rules.",
+      "type": "object",
+      "required": ["hookSpecificOutput"],
+      "properties": {
+        "hookSpecificOutput": {
+          "type": "object",
+          "required": ["hookEventName", "permissionDecision", "permissionDecisionReason"],
+          "properties": {
+            "hookEventName": { "const": "PreToolUse" },
+            "permissionDecision": { "const": "allow" },
+            "permissionDecisionReason": {
+              "description": "Names the verb, the script and the verified plugin root.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
     "response_claude_stop_block": {
       "type": "object",
       "required": ["decision", "reason"],
@@ -114,6 +134,15 @@
       "required": ["permissionDecision"],
       "properties": {
         "permissionDecision": { "const": "deny" },
+        "permissionDecisionReason": { "type": "string" }
+      }
+    },
+    "response_copilot_pretooluse_allow": {
+      "description": "The Claude allow's twin, without the envelope this provider does not use.",
+      "type": "object",
+      "required": ["permissionDecision"],
+      "properties": {
+        "permissionDecision": { "const": "allow" },
         "permissionDecisionReason": { "type": "string" }
       }
     },
