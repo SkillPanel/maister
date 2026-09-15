@@ -15,6 +15,8 @@
     {"check": "state_gate_pending_one_line"},
     {"check": "node_status", "node": "approve", "value": "suspended"},
     {"check": "dashboard_rewritten"},
-    {"check": "denial_count", "op": "eq", "value": 0}
-  ]
+    {"check": "denial_count", "op": "eq", "value": 0, "tool": "^(Write|Edit|MultiEdit|create|edit|apply_patch)$"},
+    {"check": "denial_count", "op": "eq", "value": 0, "advisory": true}
+  ],
+  "notes": "The hard denial check covers write tools only: the engine's own writes are whitelisted while the gate is pending, so a denied write is a hook defect. A shell call the model makes after suspending - a read-only check of its own work - is denied by design once this session is the bound driver, and whether a model makes one is its habit, not the hook's behaviour; that count is advisory, as in adversarial."
 }
