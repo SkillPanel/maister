@@ -56,7 +56,7 @@ const CLAUDE_ENV_STRIP = [
   'CLAUDE_CODE_ENTRYPOINT',
 ];
 
-const DEFAULT_MODEL = { claude: 'sonnet', copilot: 'claude-sonnet-4.6' };
+const DEFAULT_MODEL = { claude: 'sonnet', copilot: 'claude-sonnet-5' };
 
 /**
  * The provider CLI's absolute path, resolved once against the real PATH. The
@@ -284,9 +284,12 @@ function makeCase(spec) {
   LIVE_CASE_DIRS.add(caseDir);
   const runDir = path.join(caseDir, '.maister', 'umbrella', 'runs', runId);
   const hooked = mode === 'hooks';
+  // Chosen before the seed is written: a pending gate binds only the session its
+  // run records as driver, so the spawned session must be that driver.
+  const sessionId = crypto.randomUUID();
 
   gitInit(caseDir);
-  seedRun(runDir, scenario.seed, { caseDir, provider, model });
+  seedRun(runDir, scenario.seed, { caseDir, provider, model, sessionId });
 
   const env = { ...process.env };
   for (const key of CLAUDE_ENV_STRIP) delete env[key];
@@ -328,7 +331,7 @@ function makeCase(spec) {
     delete env.GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS;
   }
 
-  return { caseDir, beaconDir, runDir, env, settingsPath, pluginDir, hooked, seedFiles: snapshotMaister(caseDir) };
+  return { caseDir, beaconDir, runDir, env, settingsPath, pluginDir, hooked, sessionId, seedFiles: snapshotMaister(caseDir) };
 }
 
 /** Copilot resolves `$COPILOT_PROJECT_DIR` to a git root, so every case is one. */
@@ -337,7 +340,7 @@ function gitInit(dir) {
   if (out.status !== 0) die(`git init failed in ${dir}: ${out.stderr ?? ''}`);
 }
 
-function seedRun(runDir, seed, { caseDir, provider, model }) {
+function seedRun(runDir, seed, { caseDir, provider, model, sessionId }) {
   fs.mkdirSync(runDir, { recursive: true });
   if (seed === 'block-form') {
     fs.copyFileSync(BLOCK_FORM, path.join(runDir, 'orchestrator-state.yml'));
@@ -347,19 +350,21 @@ function seedRun(runDir, seed, { caseDir, provider, model }) {
   const source = path.join(SEED_DIR, seed);
   if (!exists(source)) die(`unknown seed "${seed}"`);
   copyTree(source, runDir, new Set(['manifest.json']));
-  retargetDriver(path.join(runDir, 'orchestrator-state.yml'), { caseDir, provider, model });
+  retargetDriver(path.join(runDir, 'orchestrator-state.yml'), { caseDir, provider, model, sessionId });
 }
 
 /**
- * E1 says the driver's `cwd` and `model` identify the session. A seeded case is
- * not the fixture's machine, so both are rewritten — on the driver's one line,
- * which keeps the frozen single-line shape intact.
+ * E1 says the driver's `cwd`, `model` and session id identify the session. A
+ * seeded case is not the fixture's machine and not the fixture's session, so all
+ * three are rewritten — on the driver's one line, which keeps the frozen
+ * single-line shape intact. A driver with no session (terminal kind) gains none.
  */
-function retargetDriver(stateFile, { caseDir, provider, model }) {
+function retargetDriver(stateFile, { caseDir, provider, model, sessionId }) {
   const text = readOr(stateFile);
   if (text === null) return;
   const patched = text.replace(/^(\s*driver:\s*)(\{.*\})\s*$/m, (_all, head, flow) => {
     const body = flow
+      .replace(/\bid:\s*[^,}]+/, `id: ${sessionId}`)
       .replace(/cwd:\s*[^,}]+/, `cwd: ${caseDir}`)
       .replace(/provider:\s*[^,}]+/, `provider: ${provider}`)
       .replace(/model:\s*[^,}]+/, `model: ${model}`);
@@ -509,10 +514,10 @@ function claudeArgs({ prompt, sessionId, first, settingsPath, pluginDir, model }
   return args;
 }
 
-function copilotArgs({ prompt, sessionName, first, pluginDir, model }) {
+function copilotArgs({ prompt, sessionId, sessionName, first, pluginDir, model }) {
   const args = ['-p', prompt];
   args.push(first ? '--name' : `--resume=${sessionName}`);
-  if (first) args.push(sessionName);
+  if (first) args.push(sessionName, `--session-id=${sessionId}`);
   args.push('--model', model, '--allow-all-tools', '--output-format', 'json', '--no-ask-user');
   if (pluginDir) args.push('--plugin-dir', pluginDir);
   return args;
@@ -1145,7 +1150,7 @@ async function runCaseWired(spec) {
 async function runCaseIn(spec, built) {
   const { caseDir, runDir, env } = built;
   const tracePath = env.MAISTER_GATE_TRACE;
-  const sessionId = crypto.randomUUID();
+  const { sessionId } = built;
   const sessionName = `maister-eval-${spec.scenario.id}-${crypto.randomBytes(3).toString('hex')}`;
 
   const turns = [];
@@ -1163,7 +1168,7 @@ async function runCaseIn(spec, built) {
 
     const args = spec.provider === 'claude'
       ? claudeArgs({ prompt, sessionId, first, settingsPath: built.settingsPath, pluginDir: built.pluginDir, model: spec.model })
-      : copilotArgs({ prompt, sessionName, first, pluginDir: built.pluginDir, model: spec.model });
+      : copilotArgs({ prompt, sessionId, sessionName, first, pluginDir: built.pluginDir, model: spec.model });
 
     const out = await runProcess(resolveBinary(spec.provider), args, { cwd: caseDir, env, timeoutMs: spec.opts.timeout * 1000 });
     turns.push({ index: index + 1, prompt, ...out });

@@ -32,7 +32,7 @@ node scripts/eval-gates.mjs --list                          # what the scenarios
 | `--provider=claude\|copilot\|both` | Which CLIs to spawn. Default `both`. |
 | `--scenario=<id>\|all` | Which scenario files to run. Default `all`. |
 | `--model=<id>` | Override the model for every provider. |
-| `--claude-model=<id>`, `--copilot-model=<id>` | Per-provider override. Defaults: `sonnet`, `claude-sonnet-4.6`. |
+| `--claude-model=<id>`, `--copilot-model=<id>` | Per-provider override. Defaults: `sonnet`, `claude-sonnet-5`. |
 | `--no-hooks` | Run the **control**: no hook registration reaches the session. |
 | `--keep` | Keep the temporary case directories instead of removing them. |
 | `--jobs=<n>` | Cases in flight at once. Default 1. |
@@ -66,8 +66,11 @@ one-line change and is deliberately not done.
 Each case is a throwaway git repository in a temp directory — `git init`-ed because Copilot
 resolves `$COPILOT_PROJECT_DIR` to the git root — seeded with one run under
 `.maister/umbrella/runs/<run_id>/` from `fixtures/contracts/synthetic/gate/`, with the E1
-driver's `cwd`, `provider` and `model` rewritten to match the case. Every spawn exports
-`MAISTER_BEACON_DIR` and `MAISTER_GATE_TRACE=<case>/trace.jsonl`. The
+driver's `cwd`, `provider`, `model` and session id rewritten to match the case. The session
+id is chosen before the seed is written and handed to the provider (`--session-id` on both
+CLIs), so the spawned session *is* the run's driver: a pending gate binds only that session,
+and a seed that kept the fixture's id would measure the other-session allow instead. Every
+spawn exports `MAISTER_BEACON_DIR` and `MAISTER_GATE_TRACE=<case>/trace.jsonl`. The
 directory is removed with `fs.rmSync` when the case ends, unless `--keep` is passed.
 
 `MAISTER_BEACON_DIR` points at a *sibling* temp directory, not at one inside the case: the
