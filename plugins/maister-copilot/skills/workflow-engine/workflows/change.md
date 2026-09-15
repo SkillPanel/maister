@@ -280,9 +280,16 @@ the worktree; this node is what turns those edits into history:
    nothing, but committing by path is what keeps that true.
 2. Push that branch.
 3. **Under a dispatch driver, publish the close-out through the outbox close-out
-   verb** — the grade and the summary the seed's close-out contract asks for.
-   The order is commit, push, publish, and only then record: the outcome value
-   below is written after the publish succeeded, never before it.
+   verb** — the grade and the summary the seed's close-out contract asks for,
+   and with them the two fields a follower reads without parsing prose:
+   `commits`, the sha or shas this node just made, and `prs`, the pull request
+   URL when the contract required one and an explicit empty list when it did
+   not. Write that empty list rather than leaving `prs` out: an omitted field
+   and a deliberate none are the same absence to whoever reads the message
+   next. The summary still says all of it in prose — the two are read by
+   different readers. The order is commit, push, publish, and only then record:
+   the outcome value below is written after the publish succeeded, never before
+   it.
 
 **Why the publish is named here rather than left to the seed.** It used to be.
 This section said that how the close-out reaches the dispatching chain is stated
@@ -319,9 +326,10 @@ live consumer.
 dispatched run's declared outputs back into the chain: `${node.values.…}`
 interpolation resolves against the declarations on the chain's own node,
 nothing populates a dispatched node's values, and the return channel is the
-outbox, which carries a grade and a summary. A follower node must not be guarded
-on this run's outcome value. What crosses is the branch: pushed, named by the
-dispatch, and there for whoever reviews it.
+outbox, which carries a grade, a summary, and the commits and pull requests
+published above. A follower node must not be guarded on this run's outcome
+value. What crosses is the branch: pushed, named by the dispatch, and there for
+whoever reviews it.
 
 **Recovery budget**: two attempts. A push that is rejected is not a reason to
 force one — report it and stop, through the outbox under a driver and to the

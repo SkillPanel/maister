@@ -16,7 +16,7 @@ Inputs from the dispatching run, read-only and spelled as that run named them ra
 # outbox
 Report through the outbox verb, never by writing a file under the outbox path yourself:
   node /opt/maister/plugins/maister/skills/umbrella/scripts/umbrella.mjs outbox --outbox=/workspaces/widget/.maister/umbrella/outbox --dispatch-id=d-0151 --type=<type>
-with the message body as JSON on stdin. Types: status, followup, artifact, closeout, blocked; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade. Messages are append-only and the writer never rewrites one.
+with the message body as JSON on stdin. Types: status, followup, artifact, closeout, blocked; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade, commits and prs - prs empty when none was opened. Messages are append-only and the writer never rewrites one.
 If the outbox cannot be written the verb hands you a line to print instead: `DISPATCH-RESULT: <grade> <summary>` for a closeout, `DISPATCH-FOLLOWUP: <summary>` for a followup. Print it as the last line of your turn - it is the only form in which the message survives.
 The other three types have no such line: run the same write again once the path is writable, or fold what it carried into the closeout summary.
 
