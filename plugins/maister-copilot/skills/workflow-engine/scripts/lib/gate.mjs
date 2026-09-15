@@ -44,11 +44,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 // The reader lives beside the hooks because the hooks are its other caller.
-// `unansweredRequests` is imported rather than approximated for the same reason
-// the state writer imports `scanState`: the status this module writes into the
-// index must be the status the hook derives, and a second implementation of
-// "is this request still open" drifts on the first change to either.
-import { scanState, unansweredRequests } from '../../../../hooks/gate-lib.mjs';
+import { scanState } from '../../../../hooks/gate-lib.mjs';
+// The index renderer is shared with the state writer, which closes an entry
+// when a gate is answered. It lives in its own module because this one already
+// points at `state.mjs`, and the other direction would be a cycle.
+import { renderIndex, REQUEST_SUFFIX, INDEX_FILE } from './gate-index.mjs';
 // The marker is written through the state writer rather than beside it: the
 // one-line E2 form, the self-check and the whole-file rename are its rules, and
 // a second speller of `gate_pending` is the drift this plugin exists to avoid.
@@ -64,8 +64,6 @@ const NODE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 
 /** E2: the three kinds, and the frozen suffix the hook scans for. */
 const KINDS = ['gate', 'decision', 'convergence'];
-const REQUEST_SUFFIX = '.request.yml';
-const INDEX_FILE = 'index.yml';
 const STATE_FILE = 'orchestrator-state.yml';
 
 /** `gate-lib.mjs`'s open-request test, restated where the adopt path needs it. */
@@ -75,9 +73,9 @@ const UNANSWERED = /^answer:\s*null\s*$/m;
 const CALLER_KEYS = ['node', 'kind', 'question', 'context', 'options', 'multi_select', 'run_id'];
 const OWNED_KEYS = ['version', 'asked_at', 'answer'];
 
-/** Fixed key order inside a one-line option entry, and inside an index entry. */
+/** Fixed key order inside a one-line option entry. The index entry's own order
+ *  lives with the index renderer. */
 const OPTION_KEYS = ['id', 'label', 'effect', 'description', 'recommended', 'values'];
-const ENTRY_KEYS = ['node', 'request', 'sub_run', 'kind', 'asked_at', 'status'];
 
 /** E2's option effects. `null` means "the authored option said nothing". */
 const EFFECTS = ['continue', 'stop'];
@@ -407,78 +405,6 @@ function renderRequest(doc) {
   lines.push(`multi_select: ${doc.multi_select}`);
   lines.push('answer: null');
   return `${lines.join('\n')}\n`;
-}
-
-/**
- * The gate index, regenerated whole from the request files on disk.
- *
- * Whole rather than appended for the property the contract wants from it: the
- * index is a mirror, so a run whose index was lost or half-written is repaired
- * by the next request rather than accumulating a second wrong answer. The
- * entries are ordered by file name so two regenerations of the same directory
- * produce the same bytes.
- */
-function renderIndex(gates, runDir) {
-  let names;
-  try {
-    names = fs.readdirSync(gates);
-  } catch (err) {
-    throw new Refusal('gate-unwritable', `${gates} cannot be listed, so the gate index cannot be regenerated: ${err.message}`);
-  }
-  let unanswered;
-  try {
-    unanswered = new Set(unansweredRequests(runDir));
-  } catch (err) {
-    throw new Refusal('gate-unwritable', `${gates} cannot be read back, so the gate index cannot be regenerated: ${err.message}`);
-  }
-
-  const lines = ['version: 1'];
-  const entries = names
-    .filter(name => name.endsWith(REQUEST_SUFFIX))
-    .sort()
-    .map(name => {
-      const node = name.slice(0, -REQUEST_SUFFIX.length);
-      const meta = requestMeta(path.join(gates, name));
-      return ordered({
-        node,
-        request: `gates/${name}`,
-        kind: meta.kind,
-        asked_at: meta.asked_at,
-        status: unanswered.has(node) ? 'pending' : 'answered',
-      }, ENTRY_KEYS);
-    });
-  if (!entries.length) return `${lines.concat('entries: []').join('\n')}\n`;
-  lines.push('entries:');
-  for (const entry of entries) lines.push(`  - ${flow(entry, `entries.${entry.node}`)}`);
-  return `${lines.join('\n')}\n`;
-}
-
-/**
- * `kind` and `asked_at` out of an existing request file.
- *
- * Deliberately a two-key top-level scan and not a parser: everything that
- * decides anything — whether the request is open, which node it belongs to —
- * comes from the hook's reader and from the file name. These two are carried
- * into the index as a convenience for a reader that wants one place to look,
- * so a file that does not spell them is mirrored without them rather than
- * refusing a write about another node.
- */
-function requestMeta(file) {
-  const meta = { kind: undefined, asked_at: undefined };
-  let text;
-  try {
-    text = fs.readFileSync(file, 'utf8');
-  } catch (err) {
-    throw new Refusal('gate-unwritable', `${file} cannot be read, so the gate index cannot be regenerated: ${err.message}`);
-  }
-  for (const raw of text.split('\n')) {
-    const line = raw.replace(/\r$/, '');
-    const found = /^(kind|asked_at):(.*)$/.exec(line);
-    if (!found) continue;
-    const value = found[2].trim().replace(/^"(.*)"$/, '$1');
-    if (value !== '' && meta[found[1]] === undefined) meta[found[1]] = value;
-  }
-  return meta;
 }
 
 /** A value with its keys in the frozen order, and the absent ones left out. */

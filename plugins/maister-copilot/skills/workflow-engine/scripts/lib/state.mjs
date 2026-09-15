@@ -63,6 +63,12 @@ import path from 'node:path';
 // emitted plugin tree must therefore carry `hooks/gate-lib.mjs` at this path,
 // whatever else a build does with the hook registrations.
 import { scanState } from '../../../../hooks/gate-lib.mjs';
+// E2 makes `gate_pending: null` the commit point of a decision, so this module
+// is the one that learns a gate was answered. The index has to learn it here
+// too: regenerating it only when the *next* gate is asked left every run's
+// final gate reading `pending` forever. The renderer is a separate module
+// because `gate.mjs` imports this one, and importing it back would be a cycle.
+import { refreshIndex } from './gate-index.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -81,6 +87,9 @@ const COMMIT_CODES = { unwritable: 'state-unwritable', tempExists: 'state-temp-e
 
 /** The only temp name the allow-list knows. Not configurable, by contract. */
 const TMP_NAME = 'orchestrator-state.yml.tmp';
+
+/** Reported among `changed` when a decision closes the run's gate index. */
+const GATE_INDEX = 'gates/index.yml';
 
 /**
  * The A1 core-optional top-level blocks the writer reaches by name.
@@ -269,12 +278,37 @@ export function writeState({ state, patch }) {
     for (const key of apply(doc, patch, changed)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
+    // Before the state commit, so a refusal out of the index leaves the state
+    // file exactly as it was — `writeState`'s standing promise. The index is a
+    // mirror of the request files, which already carry the answer by the time
+    // this write is issued, so refreshing it early is never wrong: it is the
+    // state file that is about to catch up, not the index.
+    if (clearsPending(patch) && refreshIndex(path.dirname(path.resolve(state)))) {
+      changed.push(GATE_INDEX);
+    }
     commit(state, text);
     return { ok: true, changed, errors: [] };
   } catch (err) {
     if (err instanceof Refusal) return { ok: false, changed: [], errors: [{ code: err.code, message: err.message }] };
     throw err;
   }
+}
+
+/**
+ * Does this write record a decision?
+ *
+ * The test is E2's own commit point, and nothing weaker: `gate_pending` present
+ * in the patch and set to the literal null. A patch that sets it to a marker is
+ * a gate being *asked*, and `gate.mjs` regenerates the index itself in that
+ * call; a patch that does not mention it at all leaves whatever was pending
+ * pending, and an index rewritten there would say the same thing it already
+ * says.
+ */
+function clearsPending(patch) {
+  const orchestrator = patch.orchestrator;
+  if (!isPlainObject(orchestrator) || !Object.hasOwn(orchestrator, 'gate_pending')) return false;
+  const value = orchestrator.gate_pending;
+  return value === null || value === undefined;
 }
 
 function checkPatch(patch) {

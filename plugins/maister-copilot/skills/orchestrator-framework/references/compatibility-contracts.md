@@ -300,7 +300,7 @@ A flow map, keys in any order, scalars bare or double-quoted, no nesting. **The 
 - A request carries `version`, `run_id`, `node`, `kind` (`gate|decision|convergence`), `asked_at`, `question`, optional `context`, `options[]` with unique ids, the multi-choice flag, and `answer`. **The multi-choice flag key is spelled only in `gate.schema.json` and in fixtures** — prose everywhere calls it "the multi-choice flag". The suite lints every fixture for hyphenated spellings in key position.
 - Option ids must be unique: an answer records an id, not a label.
 - In terminal mode the gate is asked with the in-session question tool and the request file is optional. In `cockpit` and `dispatch` mode the request file **is** the question and the session ends its turn.
-- `gates/index.yml` lists one entry per request (`node`, `request`, optional `sub_run`, `kind`, `asked_at`, `status`).
+- `gates/index.yml` lists one entry per request (`node`, `request`, optional `sub_run`, `kind`, `asked_at`, `status`). It is a mirror, regenerated whole from the request files beside it — at both of a gate's moments, the `gate-request` that asks it and the `gate_pending: null` that commits its decision. A row closes whether or not another gate follows: an index that only closed a row when the *next* gate was asked would leave every run's final gate reading `pending` after the run had finished, and the index is the one file a chain watches.
 
 ## 13. Coordination contracts (C1-C8)
 

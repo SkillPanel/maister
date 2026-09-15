@@ -5608,7 +5608,11 @@ async function t30(ctx) {
         // writer carries — the hook's reader and the shared write primitives —
         // has to be re-pointed at an absolute URL or the copy will not load.
         .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/lib\/canonical\.mjs'/,
-          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, CANONICAL_LIB)).href));
+          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, CANONICAL_LIB)).href))
+        // …and its one sibling, the gate-index renderer it calls when a write
+        // records a decision.
+        .replace(/'\.\/gate-index\.mjs'/,
+          JSON.stringify(pathToFileURL(path.join(path.dirname(stateSrc), 'gate-index.mjs')).href));
       const patched = src.replace(/^const BLOCK_KEY = .*$/m, 'const BLOCK_KEY = /[\\s\\S]*/;');
       if (patched === src) return null;
       fs.writeFileSync(copy, patched, 'utf8');
@@ -6190,7 +6194,11 @@ async function t30(ctx) {
         // writer carries — the hook's reader and the shared write primitives —
         // has to be re-pointed at an absolute URL or the copy will not load.
         .replace(/'\.\.\/\.\.\/\.\.\/\.\.\/lib\/canonical\.mjs'/,
-          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, CANONICAL_LIB)).href));
+          JSON.stringify(pathToFileURL(path.join(ctx.pluginRoot, CANONICAL_LIB)).href))
+        // …and its one sibling, the gate-index renderer it calls when a write
+        // records a decision.
+        .replace(/'\.\/gate-index\.mjs'/,
+          JSON.stringify(pathToFileURL(path.join(path.dirname(stateSrc), 'gate-index.mjs')).href));
       const patched = src.replace(/^const MERGED_MAPS = new Set\(\[[^\]]*\]\);$/m, 'const MERGED_MAPS = new Set();');
       if (patched === src) return null;
       fs.writeFileSync(copy, patched, 'utf8');
@@ -14797,6 +14805,162 @@ const resolveReal = target => {
 // registry
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// T67 — an answered gate closes its own index entry
+// ---------------------------------------------------------------------------
+
+/**
+ * THE DEFECT THIS CHECK EXISTS FOR. `gates/index.yml` was regenerated in one
+ * place only — the `gate-request` call that asks the *next* gate. So a row read
+ * `answered` as a side effect of a later suspension, and the last gate of every
+ * run stayed `pending` forever: a dispatched `builtin:performance` run that had
+ * run all seventeen nodes, answered `verification-approval`, executed
+ * `finalization` and reached `task.status: completed` still published an index
+ * saying it was waiting on an operator. E2 names the index as the shape a chain
+ * watches, so a follower reading only that file could not tell a finished run
+ * from a suspended one.
+ *
+ * The commit point of a decision is `gate_pending: null` (E2), so that is where
+ * the index has to close, and that is what these rows pin. They are written
+ * against the live engine, not against a copy of its logic: the check imports
+ * `writeState` and reads the bytes it leaves behind.
+ *
+ * The rows deliberately push from both sides. Closing an entry unconditionally
+ * would pass the first row and is just as wrong as never closing one — the
+ * index would then say `answered` about a gate still holding `answer: null` —
+ * so `an unanswered request is still reported pending` is what stops the fix
+ * from being a rubber stamp.
+ */
+
+const GATE_PENDING_FIXTURE = path.join('synthetic', 'gate', 'pending');
+
+/** The answer line a recorded decision leaves in a request file (E2). */
+const RECORDED_ANSWER = 'answer: {option: proceed, at: "2026-08-24T11:02:19Z"}';
+
+async function t67(ctx) {
+  const t = checker();
+  const engine = path.join(ctx.pluginRoot, ENGINE, 'scripts');
+  t.checks++;
+  if (!isFile(path.join(engine, 'lib', 'state.mjs'))) {
+    return { checks: t.checks, failures: [`${ENGINE}/scripts/lib/state.mjs is absent`] };
+  }
+  const { writeState } = await import(pathToFileURL(path.join(engine, 'lib', 'state.mjs')).href);
+
+  const scratch = tempDir('gate-index');
+  let counter = 0;
+  /** A run copied out of the frozen fixture; the fixture itself is never touched. */
+  const runDir = () => {
+    const dir = path.join(scratch, `run-${counter++}`);
+    fs.cpSync(path.join(ctx.fixtures, GATE_PENDING_FIXTURE), dir, { recursive: true });
+    fs.rmSync(path.join(dir, 'manifest.json'), { force: true });
+    return dir;
+  };
+  const stateOf = dir => path.join(dir, 'orchestrator-state.yml');
+  const indexOf = dir => path.join(dir, 'gates', 'index.yml');
+  const read = file => fs.readFileSync(file, 'utf8');
+  /** Record a decision in the request file, the way a driver does before the state write. */
+  const answer = (dir, node) => {
+    const file = path.join(dir, 'gates', `${node}.request.yml`);
+    fs.writeFileSync(file, read(file).replace(/^answer: null$/m, RECORDED_ANSWER));
+  };
+  /** The status the index reports for one node, or null when it carries no row. */
+  const statusOf = (dir, node) => {
+    const row = read(indexOf(dir)).split('\n').find(line => line.includes(`node: ${node},`));
+    if (row === undefined) return null;
+    const found = /status:\s*([a-z-]+)/.exec(row);
+    return found ? found[1] : null;
+  };
+  const clear = file => writeState({ state: file, patch: { orchestrator: { gate_pending: null } } });
+
+  try {
+    t.check('the gate answered last closes its own index entry', () => {
+      const dir = runDir();
+      must(statusOf(dir, 'approve') === 'pending', 'the fixture does not start pending, so this row proves nothing');
+      answer(dir, 'approve');
+
+      const result = clear(stateOf(dir));
+      must(result.ok, `the decision write was refused: ${JSON.stringify(result.errors)}`);
+      must(statusOf(dir, 'approve') === 'answered',
+        'the index still reports the answered gate as pending — a follower cannot tell this run from one waiting on an operator');
+      // Reported, because a caller that has to know which files a verb wrote
+      // cannot discover this one by reading the patch it sent.
+      must(result.changed.includes('gates/index.yml'),
+        `the writer did not report the index among the files it wrote: ${JSON.stringify(result.changed)}`);
+    });
+
+    t.check('an unanswered request is still reported pending', () => {
+      // The other side of the same write. A fix that stamped `answered` on
+      // every clearing write would pass the row above and lie here.
+      const dir = runDir();
+      const result = clear(stateOf(dir));
+      must(result.ok, `the write was refused: ${JSON.stringify(result.errors)}`);
+      must(statusOf(dir, 'approve') === 'pending',
+        'a request still carrying `answer: null` was reported answered, so the index no longer mirrors the request files');
+    });
+
+    t.check('an earlier gate still open is left open', () => {
+      // A run holding two requests, one answered and one not: the index has to
+      // be a mirror of the directory, not a record of the last write.
+      const dir = runDir();
+      const gates = path.join(dir, 'gates');
+      fs.writeFileSync(path.join(gates, 'pick-store.request.yml'),
+        read(path.join(gates, 'approve.request.yml')).replace('node: approve', 'node: pick-store'));
+      answer(dir, 'approve');
+      must(clear(stateOf(dir)).ok, 'the decision write was refused');
+      must(statusOf(dir, 'approve') === 'answered', 'the answered gate was not closed');
+      must(statusOf(dir, 'pick-store') === 'pending', 'a gate still holding `answer: null` was closed with its neighbour');
+    });
+
+    t.check('a write that records no decision leaves the index alone', () => {
+      // The index is a contract shape under a run the enforcement hook is
+      // watching; rewriting it on every state write would put an unrelated
+      // write inside the allow-listed set for no reason, and would churn the
+      // bytes a chain polls.
+      const dir = runDir();
+      const before = read(indexOf(dir));
+      const result = writeState({ state: stateOf(dir), patch: { task: { status: 'in_progress' } } });
+      must(result.ok, `the write was refused: ${JSON.stringify(result.errors)}`);
+      must(read(indexOf(dir)) === before, 'a write that mentioned no gate rewrote the gate index');
+      must(!result.changed.includes('gates/index.yml'), 'a write that mentioned no gate reported the index as written');
+    });
+
+    t.check('a run that never asked a question is not given a gates directory', () => {
+      const dir = runDir();
+      fs.rmSync(path.join(dir, 'gates'), { recursive: true, force: true });
+      const result = clear(stateOf(dir));
+      must(result.ok, `the decision write was refused on a run with no gates directory: ${JSON.stringify(result.errors)}`);
+      must(!isDir(path.join(dir, 'gates')), 'a run that never asked a question was given an empty gates directory');
+      must(!result.changed.includes('gates/index.yml'), 'an index that does not exist was reported as written');
+    });
+
+    // And the shipped fixtures, which are what a consumer reads the shape off.
+    // A run fixture whose state says nothing is pending may not carry a pending
+    // row: that pair is exactly the bytes the defect produced.
+    t.check('no shipped run fixture encodes the stale shape', () => {
+      const runs = path.join(ctx.fixtures, 'valid', 'runs');
+      must(isDir(runs), 'fixtures/contracts/valid/runs is absent');
+      const offenders = [];
+      for (const entry of fs.readdirSync(runs, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const dir = path.join(runs, entry.name);
+        const index = path.join(dir, 'gates', 'index.yml');
+        const state = path.join(dir, 'orchestrator-state.yml');
+        if (!isFile(index) || !isFile(state)) continue;
+        if (!/^\s*gate_pending:\s*(null|~)\s*$/m.test(read(state))) continue;
+        for (const line of read(index).split('\n')) {
+          if (/status:\s*pending/.test(line)) offenders.push(`${entry.name}: ${line.trim()}`);
+        }
+      }
+      must(offenders.length === 0,
+        `a run fixture whose gate_pending is null still carries a pending index row: ${offenders.join('; ')}`);
+    });
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
 /**
  * `needs` gates a test on a tree the runner may not have:
  *   'fixtures' — a non-empty fixture tree (`--fixtures`)
@@ -14874,6 +15038,7 @@ const TESTS = [
   { id: 'T64', name: 'reference-integrity', needs: ['plugin'], run: t64 },
   { id: 'T65', name: 'performance-parity-checklist', needs: ['plugin', 'in-repo'], run: t65 },
   { id: 'T66', name: 'migration-parity-checklist', needs: ['plugin', 'in-repo'], run: t66 },
+  { id: 'T67', name: 'gate-index-closes', needs: ['plugin', 'fixtures'], run: t67 },
 ];
 
 // ---------------------------------------------------------------------------
