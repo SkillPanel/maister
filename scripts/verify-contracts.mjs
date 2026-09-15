@@ -4338,6 +4338,30 @@ const WORKFLOW_PINS = {
         'continue-to-spec-audit: continue', 'proceed-to-spec-audit: continue'],
     ],
   },
+  migration: {
+    hash: 'sha256:58119c1f3d8e524e036ac37188ded3d2e1c64891b155c4669df9d88245473eb8',
+    twin: 'migration-builtin.yml',
+    nodes: [
+      'intake', 'current-state-analysis', 'gap-analysis', 'gap-approval', 'specification',
+      'specification-approval', 'planning', 'planning-approval', 'execution', 'execution-approval',
+      'verification', 'verification-approval', 'issue-resolution', 'resolution-approval',
+      'documentation', 'finalization',
+    ],
+    // The third probe is the guard one, and it is negated rather than
+    // re-pointed for the reason the fix row gives. It negates the guard on
+    // `issue-resolution` only, which is also how this row shows that the two
+    // halves of the repeat are separately inside the hash: the gate keeps the
+    // guard the node no longer carries.
+    edits: [
+      ['an edited gate question',
+        'ask: "Continue to migration strategy', 'ask: "Continue to the migration strategy'],
+      ['a renamed continue option',
+        'continue-to-specification: continue', 'proceed-to-specification: continue'],
+      ['a negated guard',
+        '    when: "${verification.values.issues_to_resolve}"\n    with:',
+        '    when: "!${verification.values.issues_to_resolve}"\n    with:'],
+    ],
+  },
   research: {
     hash: 'sha256:8c806c4ddc046e9b35911e918f46e2b69acdbe5431efd9c3dcee8125918c8b61',
     twin: 'research-builtin.yml',
@@ -12187,6 +12211,10 @@ const FROZEN_NODE_IDS = {
     'specification-approval', 'spec-audit', 'spec-audit-approval', 'planning', 'planning-approval',
     'implementation', 'implementation-approval', 'verification-options', 'verification-options-approval',
     'verification', 'verification-approval', 'finalization'],
+  migration: ['intake', 'current-state-analysis', 'gap-analysis', 'gap-approval', 'specification',
+    'specification-approval', 'planning', 'planning-approval', 'execution', 'execution-approval',
+    'verification', 'verification-approval', 'issue-resolution', 'resolution-approval',
+    'documentation', 'finalization'],
   plan: ['standards-discovery', 'plan', 'plan-approval', 'handoff'],
 };
 
@@ -13497,6 +13525,14 @@ const INNODE_QUESTIONS = [
     path: 'skills/workflow-engine/workflows/fix.md',
     ids: ['reproduction-not-red', 'verification-fix-loop'],
   },
+  // The migration definition. It asks the three its prose twin asks, in the
+  // same order, and the third of them is the one question in the plugin whose
+  // default is a refusal: a data integrity issue is never fixed and never
+  // proceeded past, so the node fails rather than defaulting.
+  {
+    path: 'skills/workflow-engine/workflows/migration.md',
+    ids: ['clarifications', 'specification-requirements', 'verification-fix-loop'],
+  },
   // The performance definition. Its audit runs unconditionally, so the opt-in
   // the development pair asks is absent here rather than defaulted.
   {
@@ -14346,6 +14382,7 @@ const CLOSEOUT_CARRIERS = [
   'skills/workflow-engine/workflows/research.md',
   'skills/workflow-engine/workflows/plan.md',
   'skills/workflow-engine/workflows/performance.md',
+  'skills/workflow-engine/workflows/migration.md',
 ];
 
 /**

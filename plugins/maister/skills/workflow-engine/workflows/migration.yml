@@ -1,0 +1,222 @@
+# The migration workflow, as a graph.
+#
+# Ten nodes named for what they do and six named for what they approve, in one
+# linear chain. Gates serialize the run, so a wider fan-in would buy nothing.
+#
+# Three nodes are guarded. The issue-resolution stretch runs only when the
+# verification node declared that something is left to resolve, and the user
+# guide is written only when the run was asked for one. A skip does not cascade,
+# so the guard of a conditional stretch is repeated on every node of it, its
+# closing gate included: `resolution-approval` carries the same guard as
+# `issue-resolution`, because a gate left unguarded would fire for a stretch
+# that never ran. The documentation node is a stretch of one with no gate after
+# it, so it has nothing to repeat its guard onto.
+#
+# `user_docs` is a real bool rather than the tri-state string the development
+# workflow takes, because neither this definition nor its prose form ever asks
+# about documentation in session: absent means off, exactly as the prose form's
+# seeded `docs_enabled: false` does. Only a declared bool may guard, which is
+# the second reason. `type` stays a string and is never referenced from a `when`
+# clause: the intake node validates it against the four allowed values and the
+# gap analysis declares the closed enum that the later nodes read.
+#
+# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
+# completed or a skipped predecessor but never by a stopped one, which is what
+# makes each gate's stop option actually end the run: nothing after it is ever
+# ready.
+#
+# Target names are bare on purpose. Resolution is rooted at the plugin root and
+# the provider prefix is applied at invocation, so this one file is correct
+# under every generated variant without a rewrite.
+#
+# The node prose lives beside this file in `migration.md`, one section per node
+# id. Every `direct:` node is executed from its section there, and the three
+# operator questions asked inside nodes appear only in that prose — a reader of
+# this file alone cannot see them, and neither can the generated diagram. The
+# per-node recovery budgets live there too, never here: a budget written into
+# `with:` would read like a grammar feature while being inert data the engine
+# never consults.
+name: migration
+version: 1
+inputs:
+  task_description: {type: string, required: true}
+  type: {type: string, required: false}
+  user_docs: {type: bool, required: false, default: false}
+  sequential: {type: bool, required: false, default: false}
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    with:
+      task_description: "${inputs.task_description}"
+      type: "${inputs.type}"
+
+  current-state-analysis:
+    uses: skill:codebase-analyzer
+    needs: [intake]
+    with:
+      task_description: "${inputs.task_description}"
+    outputs:
+      artifacts:
+        analysis: analysis/current-state-analysis.md
+        clarifications: analysis/clarifications.md
+
+  gap-analysis:
+    uses: agent:gap-analyzer
+    needs: [current-state-analysis]
+    with:
+      task_description: "${inputs.task_description}"
+      analysis: "${current-state-analysis.artifacts.analysis}"
+      clarifications: "${current-state-analysis.artifacts.clarifications}"
+      type: "${inputs.type}"
+    outputs:
+      artifacts:
+        target_state: analysis/target-state-plan.md
+      values:
+        # Classified here, or kept unchanged when the invocation supplied it. A
+        # closed enum, so it stays flow-safe, and the declared value rather than
+        # the raw input is what the later nodes read.
+        migration_type: {enum: [code, data, architecture, general]}
+
+  gap-approval:
+    type: gate
+    needs: [gap-analysis]
+    ask: "Continue to migration strategy?"
+    options:
+      continue-to-specification: continue
+      stop-migration: stop
+
+  specification:
+    uses: direct:specification
+    needs: [gap-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      analysis: "${current-state-analysis.artifacts.analysis}"
+      target_state: "${gap-analysis.artifacts.target_state}"
+      migration_type: "${gap-analysis.values.migration_type}"
+    outputs:
+      artifacts:
+        requirements: analysis/requirements.md
+        spec: implementation/spec.md
+        rollback_plan: analysis/rollback-plan.md
+        # The dual-run plan is deliberately not declared: only a dual-run
+        # strategy writes one, and a declared artifact a run may not produce is
+        # a missing file rather than an absent option.
+
+  specification-approval:
+    type: gate
+    needs: [specification]
+    ask: "Continue to implementation planning?"
+    options:
+      continue-to-planning: continue
+      stop-migration: stop
+
+  planning:
+    uses: agent:implementation-planner
+    needs: [specification-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      spec: "${specification.artifacts.spec}"
+      rollback_plan: "${specification.artifacts.rollback_plan}"
+      migration_type: "${gap-analysis.values.migration_type}"
+    outputs:
+      artifacts:
+        plan: implementation/implementation-plan.md
+
+  planning-approval:
+    type: gate
+    needs: [planning]
+    ask: "Continue to execute migration?"
+    options:
+      continue-to-execution: continue
+      stop-migration: stop
+
+  execution:
+    uses: skill:implementation-plan-executor
+    needs: [planning-approval]
+    with:
+      plan: "${planning.artifacts.plan}"
+      spec: "${specification.artifacts.spec}"
+      sequential: "${inputs.sequential}"
+    outputs:
+      artifacts:
+        work_log: implementation/work-log.md
+
+  execution-approval:
+    type: gate
+    needs: [execution]
+    ask: "Continue to verification?"
+    options:
+      continue-to-verification: continue
+      stop-migration: stop
+
+  verification:
+    uses: skill:implementation-verifier
+    needs: [execution-approval]
+    with:
+      spec: "${specification.artifacts.spec}"
+      plan: "${planning.artifacts.plan}"
+      work_log: "${execution.artifacts.work_log}"
+      rollback_plan: "${specification.artifacts.rollback_plan}"
+      migration_type: "${gap-analysis.values.migration_type}"
+    outputs:
+      artifacts:
+        report: verification/implementation-verification.md
+        # Always written after the verifier returns, which is why it is
+        # declared: the four migration-specific checks are recorded there as
+        # ran, passed, failed or not applicable.
+        compatibility: verification/compatibility-test-results.md
+      values:
+        # True when the report carries at least one fixable issue, or any data
+        # integrity issue at all. The second case routes into issue-resolution
+        # so the halt happens in the node that owns it.
+        issues_to_resolve: bool
+
+  verification-approval:
+    type: gate
+    needs: [verification]
+    ask: "Verification complete. Continue?"
+    options:
+      continue-to-issue-resolution: continue
+      stop-migration: stop
+
+  issue-resolution:
+    uses: direct:issue-resolution
+    needs: [verification-approval]
+    when: "${verification.values.issues_to_resolve}"
+    with:
+      report: "${verification.artifacts.report}"
+      compatibility: "${verification.artifacts.compatibility}"
+      spec: "${specification.artifacts.spec}"
+
+  resolution-approval:
+    type: gate
+    needs: [issue-resolution]
+    when: "${verification.values.issues_to_resolve}"
+    ask: "Continue to documentation?"
+    options:
+      continue-to-documentation: continue
+      stop-migration: stop
+
+  documentation:
+    uses: agent:user-docs-generator
+    needs: [resolution-approval]
+    when: "${inputs.user_docs}"
+    with:
+      spec: "${specification.artifacts.spec}"
+      rollback_plan: "${specification.artifacts.rollback_plan}"
+      report: "${verification.artifacts.report}"
+    outputs:
+      artifacts:
+        guide: documentation/migration-guide.md
+
+  # The one node after the guarded stretches that always runs. A dispatched run
+  # has to publish its close-out from a node no guard can skip, which is why
+  # this node exists at all: the prose form has no phase for it.
+  finalization:
+    uses: direct:finalization
+    needs: [documentation]
+    with:
+      task_description: "${inputs.task_description}"
+      report: "${verification.artifacts.report}"
+      work_log: "${execution.artifacts.work_log}"

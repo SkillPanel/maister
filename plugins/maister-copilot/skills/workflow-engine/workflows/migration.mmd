@@ -1,0 +1,38 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: migration
+%% graph_hash: sha256:58119c1f3d8e524e036ac37188ded3d2e1c64891b155c4669df9d88245473eb8
+
+flowchart TD
+  n_intake["intake<br/>direct:intake"]
+  n_current_state_analysis["current-state-analysis<br/>skill:codebase-analyzer"]
+  n_gap_analysis["gap-analysis<br/>agent:gap-analyzer"]
+  n_gap_approval{{"gap-approval<br/>gate<br/>Continue to migration strategy?<br/>continue-to-specification: continue, stop-migration: stop"}}
+  n_specification["specification<br/>direct:specification"]
+  n_specification_approval{{"specification-approval<br/>gate<br/>Continue to implementation planning?<br/>continue-to-planning: continue, stop-migration: stop"}}
+  n_planning["planning<br/>agent:implementation-planner"]
+  n_planning_approval{{"planning-approval<br/>gate<br/>Continue to execute migration?<br/>continue-to-execution: continue, stop-migration: stop"}}
+  n_execution["execution<br/>skill:implementation-plan-executor"]
+  n_execution_approval{{"execution-approval<br/>gate<br/>Continue to verification?<br/>continue-to-verification: continue, stop-migration: stop"}}
+  n_verification["verification<br/>skill:implementation-verifier"]
+  n_verification_approval{{"verification-approval<br/>gate<br/>Verification complete. Continue?<br/>continue-to-issue-resolution: continue, stop-migration: stop"}}
+  n_issue_resolution{"issue-resolution<br/>direct:issue-resolution<br/>when: ${verification.values.issues_to_resolve}"}
+  n_resolution_approval{{"resolution-approval<br/>gate<br/>Continue to documentation?<br/>continue-to-documentation: continue, stop-migration: stop<br/>when: ${verification.values.issues_to_resolve}"}}
+  n_documentation{"documentation<br/>agent:user-docs-generator<br/>when: ${inputs.user_docs}"}
+  n_finalization["finalization<br/>direct:finalization"]
+  n_intake --> n_current_state_analysis
+  n_current_state_analysis --> n_gap_analysis
+  n_gap_analysis --> n_gap_approval
+  n_gap_approval --> n_specification
+  n_specification --> n_specification_approval
+  n_specification_approval --> n_planning
+  n_planning --> n_planning_approval
+  n_planning_approval --> n_execution
+  n_execution --> n_execution_approval
+  n_execution_approval --> n_verification
+  n_verification --> n_verification_approval
+  n_verification_approval --> n_issue_resolution
+  n_issue_resolution --> n_resolution_approval
+  n_resolution_approval --> n_documentation
+  n_documentation --> n_finalization
+  class n_gap_approval,n_specification_approval,n_planning_approval,n_execution_approval,n_verification_approval,n_resolution_approval gate
+  class n_issue_resolution,n_resolution_approval,n_documentation conditional
