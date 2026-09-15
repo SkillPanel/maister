@@ -1,0 +1,290 @@
+orchestrator:
+  started_phase: finalization
+  completed_phases: [intake, current-state-analysis, gap-analysis, gap-approval, specification, specification-approval, planning, planning-approval, execution, execution-approval, verification, verification-approval, issue-resolution, resolution-approval, finalization]
+  failed_phases: []
+  created: "2026-09-15T08:05:04Z"
+  updated: "2026-09-15T10:56:44Z"
+  type: migration
+  task_path: .maister/tasks/migrations/2026-09-15-config-loader-esm
+  gate_pending: null
+  options: {html_output: true, docs_enabled: false, sequential: false}
+  skipped_phases: {documentation: "guard false: the run was not asked for a user guide, so user_docs stayed at its default and options.docs_enabled is false"}
+  task_ids: {}
+  driver: {kind: cockpit, cwd: /home/dev/work/proof-ws/config-service/.worktrees/019260f1-0003-7c00-8a00-0123456789ab-migration}
+
+task:
+  title: "Move the config loader package to ESM"
+  description: "Move the config loader package to ESM"
+  status: completed
+
+workflow:
+  source: /home/dev/work/plugin-copy/plugins/maister/skills/workflow-engine/workflows/migration.yml
+  overlays: []
+  profile: null
+  graph_hash: "sha256:58119c1f3d8e524e036ac37188ded3d2e1c64891b155c4669df9d88245473eb8"
+  grammar_version: 1
+  name: migration
+  nodes:
+    intake: {kind: task, status: completed, started: "2026-09-15T08:05:12Z", completed: "2026-09-15T08:06:40Z", needs: []}
+    current-state-analysis: {kind: task, status: completed, started: "2026-09-15T08:06:40Z", completed: "2026-09-15T08:19:24Z", needs: [intake]}
+    gap-analysis: {kind: task, status: completed, started: "2026-09-15T08:19:24Z", completed: "2026-09-15T08:33:07Z", needs: [current-state-analysis], values: {migration_type: code}}
+    gap-approval: {kind: gate, status: completed, started: "2026-09-15T08:33:07Z", completed: "2026-09-15T08:37:55Z", needs: [gap-analysis]}
+    specification: {kind: task, status: completed, started: "2026-09-15T08:37:55Z", completed: "2026-09-15T08:52:31Z", needs: [gap-approval]}
+    specification-approval: {kind: gate, status: completed, started: "2026-09-15T08:52:31Z", completed: "2026-09-15T08:55:48Z", needs: [specification]}
+    planning: {kind: task, status: completed, started: "2026-09-15T08:55:48Z", completed: "2026-09-15T09:06:19Z", needs: [specification-approval]}
+    planning-approval: {kind: gate, status: completed, started: "2026-09-15T09:06:19Z", completed: "2026-09-15T09:09:02Z", needs: [planning]}
+    execution: {kind: task, status: completed, started: "2026-09-15T09:09:02Z", completed: "2026-09-15T10:01:44Z", needs: [planning-approval]}
+    execution-approval: {kind: gate, status: completed, started: "2026-09-15T10:01:44Z", completed: "2026-09-15T10:05:13Z", needs: [execution]}
+    verification: {kind: task, status: completed, started: "2026-09-15T10:05:13Z", completed: "2026-09-15T10:27:36Z", needs: [execution-approval], values: {issues_to_resolve: true}}
+    verification-approval: {kind: gate, status: completed, started: "2026-09-15T10:27:36Z", completed: "2026-09-15T10:31:20Z", needs: [verification]}
+    issue-resolution: {kind: task, status: completed, started: "2026-09-15T10:31:20Z", completed: "2026-09-15T10:48:55Z", needs: [verification-approval]}
+    resolution-approval: {kind: gate, status: completed, started: "2026-09-15T10:48:55Z", completed: "2026-09-15T10:52:07Z", needs: [issue-resolution]}
+    documentation: {kind: task, status: skipped, started: null, completed: null, needs: [resolution-approval]}
+    finalization: {kind: task, status: completed, started: "2026-09-15T10:52:07Z", completed: "2026-09-15T10:56:44Z", needs: [documentation]}
+
+migration_context:
+  migration_type: code
+  current_system:
+    description: "The config loader ships as a CommonJS package. It reads three JSON files from disk at require time, caches the merged result on the module object, and every service in the repository reaches it through require."
+    technologies: [node, commonjs, json]
+  target_system:
+    description: "The same loader as an ESM package with an explicit entry point, the JSON files read through an import attribute, and the merged config exposed as a named export rather than hung off the module object."
+    technologies: [node, esm, json]
+  migration_strategy:
+    approach: incremental
+    phases:
+      - "Dual-publish the package: the ESM entry point ships beside the existing CommonJS one, so no consumer has to move on the same commit."
+      - "Move the four in-repository consumers to the named import, one commit each."
+      - "Drop the CommonJS entry point once no consumer resolves it."
+  risk_level: medium
+  breaking_changes:
+    - "require() of the package no longer returns the merged config: consumers import the named export instead."
+    - "The merged config is no longer cached on the module object, so a consumer that mutated it now mutates a copy."
+    - "The three JSON files are read through an import attribute, which raises the package's minimum Node version."
+  rollback_plan_created: true
+  dual_run_configured: false
+  clarifications_resolved: true
+  phase_summaries:
+    current_state_analysis:
+      node: current-state-analysis
+      summary: "The loader is one package of four files, and the only place the JSON config is read. Four in-repository consumers reach it through require, and two of them mutate the object they get back. Nothing outside the repository resolves the package."
+      decisions:
+        - decision: Treat the two mutating consumers as the load-bearing part of the move
+          rationale: every other consumer reads the merged config and would not notice the export shape changing, while a mutation against a copy fails silently
+      risks:
+        - "Two consumers mutate the merged config in place. Whether anything depends on that mutation being visible elsewhere is not settled by reading alone."
+      artifacts: []
+    gap_analysis:
+      node: gap-analysis
+      summary: "Classified as a code migration. Three gaps: the entry point, the JSON reads, and the caching behaviour the two mutating consumers rely on. Incremental was recommended over big-bang because the package can dual-publish while its consumers move one at a time."
+      decisions:
+        - decision: Recommend incremental over big-bang
+          rationale: the package can carry both entry points for the length of the run, so no consumer has to move on the commit that moves the package
+        - decision: Leave dual-run unconfigured
+          rationale: dual-run compares two live systems against the same traffic, and a module-system change has no traffic of its own to split
+      risks:
+        - "The minimum Node version moves with the import attribute. Any consumer pinned below it is out of scope here and was not surveyed."
+      artifacts: []
+    specification:
+      node: specification
+      summary: "The specification covers the three gaps and the rollback: the ESM entry point ships beside the CommonJS one, the JSON reads move to an import attribute, and the merged config becomes a named export the consumers copy from. The rollback plan is one revert of the package commit, which the dual entry point makes safe at every step."
+      decisions:
+        - decision: Keep the CommonJS entry point for the whole run
+          rationale: a package that resolves both ways is one a consumer can move to on its own commit, and it is what makes the rollback a single revert
+      risks: []
+      artifacts: []
+    implementation:
+      node: execution
+      summary: "Four task groups in order: the ESM entry point, the JSON import attributes, the four consumers, and the removal of the CommonJS entry point. The suite is green and the merged config values are unchanged."
+      decisions:
+        - decision: Move the two mutating consumers before the other two
+          rationale: they are the only ones whose behaviour actually changes, so a red suite after them points at the mutation rather than at the import
+      risks: []
+      artifacts:
+        - path: implementation/work-log.md
+          label: Work log
+          html: null
+
+verification_context:
+  last_status: passed
+  issues_found: 2
+  fixes_applied:
+    - issue: "The ESM entry point exported the merged config by reference, so a consumer could still mutate the cached object."
+      fix: "The named export returns a structured copy per import site, which is what the specification asked for."
+      node: issue-resolution
+    - issue: "One consumer kept its require() call behind a lazy branch the first verification pass did not reach."
+      fix: "The branch now uses the named import, and an assertion covers it."
+      node: issue-resolution
+  decisions_made:
+    - decision: Re-verify the whole suite rather than the two touched files
+      rationale: the loader is imported by every service in the repository, so a regression would surface outside the files the fixes touched
+  reverify_count: 1
+
+external_research:
+  performed: true
+  category: module-system
+  breaking_changes:
+    - "Import attributes are required to read JSON from ESM, and they raise the package's minimum Node version."
+    - "An ESM named export is a live binding rather than a property on a module object, so the caching behaviour of the CommonJS form does not carry over."
+  migration_guide_url: https://nodejs.org/api/esm.html
+
+project_context:
+  project_doc_paths:
+    - .maister/docs/INDEX.md
+    - .maister/docs/standards/backend/modules.md
+    - .maister/docs/standards/backend/configuration.md
+  project_context_summary: "config-service carries a docs index naming three standards files. Two bear on this run: the module rules (a package declares one entry point per module system and never a bare directory import) and the configuration rules (config is read once and never mutated after load). Both were read, and the second is what the first verification issue was found against."
+
+node_summaries:
+  intake:
+    status: completed
+    summary: "Task directory created under the migrations type directory, with the analysis, implementation, verification and documentation subdirectories. The dashboard was written and opened; the docs index was read and its three paths recorded. No --type flag was passed, so the classification was left to the gap analysis."
+    decisions:
+      - decision: Leave migration_type unset at intake
+        rationale: no --type was supplied, and the gap analysis declares the value the later nodes read
+    risks: []
+    artifacts: []
+    icon_hint: analysis
+  current-state-analysis:
+    status: completed
+    summary: "The loader is one package of four files and the only place the JSON config is read. Four in-repository consumers reach it through require, and two of them mutate the object they get back."
+    decisions:
+      - decision: Read the index at the conventional path
+        rationale: no docs index was supplied as an input and .maister/docs/INDEX.md is present in config-service
+    risks:
+      - "Two consumers mutate the merged config in place. Whether anything depends on that mutation being visible elsewhere is not settled by reading alone."
+    artifacts: []
+    icon_hint: analysis
+  gap-analysis:
+    status: completed
+    summary: "Classified as a code migration. Three gaps: the entry point, the JSON reads, and the caching behaviour. Incremental recommended, dual-run left unconfigured."
+    decisions:
+      - decision: Recommend incremental over big-bang
+        rationale: the package can carry both entry points for the length of the run
+      - decision: Leave dual-run unconfigured
+        rationale: a module-system change has no traffic of its own to split
+    risks:
+      - "The minimum Node version moves with the import attribute. Any consumer pinned below it is out of scope here."
+    artifacts: []
+    icon_hint: analysis
+  gap-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-specification. Three gaps stand, the type is classified as code, and the incremental strategy is accepted."
+    decisions:
+      - decision: continue-to-specification
+        rationale: the operator accepted the classification and the incremental strategy
+    risks: []
+    artifacts: []
+    icon_hint: verify
+  specification:
+    status: completed
+    summary: "The specification covers the three gaps and the rollback: the ESM entry point ships beside the CommonJS one, the JSON reads move to an import attribute, and the merged config becomes a named export the consumers copy from."
+    decisions:
+      - decision: Keep the CommonJS entry point for the whole run
+        rationale: it is what makes the rollback a single revert at every step
+    risks: []
+    artifacts: []
+    icon_hint: spec
+  specification-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-planning."
+    decisions:
+      - decision: continue-to-planning
+        rationale: the operator accepted the scope and the single-revert rollback
+    risks: []
+    artifacts: []
+    icon_hint: verify
+  planning:
+    status: completed
+    summary: "Four task groups, sequential: the ESM entry point, the JSON import attributes, the four consumers, and the removal of the CommonJS entry point. Each group carries its own assertions and a verification command."
+    decisions:
+      - decision: Put the removal of the CommonJS entry point last
+        rationale: a consumer that has not moved yet still resolves the package until the final group runs
+    risks: []
+    artifacts: []
+    icon_hint: plan
+  planning-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-execution."
+    decisions:
+      - decision: continue-to-execution
+        rationale: the operator accepted the four-group plan and its ordering
+    risks: []
+    artifacts: []
+    icon_hint: verify
+  execution:
+    status: completed
+    summary: "Four task groups executed in order. The suite is green and the merged config values are unchanged."
+    decisions:
+      - decision: Move the two mutating consumers before the other two
+        rationale: they are the only ones whose behaviour actually changes
+    risks: []
+    artifacts:
+      - path: implementation/work-log.md
+        label: Work log
+        html: null
+    icon_hint: code
+  execution-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-verification."
+    decisions:
+      - decision: continue-to-verification
+        rationale: the four groups landed with a green suite and the operator chose to continue
+    risks: []
+    artifacts: []
+    icon_hint: verify
+  verification:
+    status: completed
+    summary: "Verification found two fixable issues: the named export handed out the cached object by reference, and one consumer kept a require() call behind a lazy branch. Both are fixable and neither is a data integrity issue, so the run declared issues_to_resolve and carried on to the resolution stretch."
+    decisions:
+      - decision: Declare issues_to_resolve rather than fixing inside verification
+        rationale: a fix written by the verifier is one nothing re-verifies, and the resolution node is the one that owns the fix loop
+    risks: []
+    artifacts:
+      - path: verification/implementation-verification.md
+        label: Verification report
+        html: null
+    icon_hint: verify
+  verification-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-issue-resolution."
+    decisions:
+      - decision: continue-to-issue-resolution
+        rationale: two fixable issues stand and the operator chose to have them resolved in this run
+    risks: []
+    artifacts: []
+    icon_hint: verify
+  issue-resolution:
+    status: completed
+    summary: "Both issues fixed and the suite re-run once: the named export returns a structured copy per import site, and the lazy branch uses the named import with an assertion over it. Re-verification passed clean."
+    decisions:
+      - decision: Copy per import site rather than freeze the cached object
+        rationale: freezing would turn a silent mutation into a thrown error in every consumer, which is a wider change than the specification asked for
+    risks: []
+    artifacts: []
+    icon_hint: code
+  resolution-approval:
+    status: completed
+    summary: "Gate answered by the dispatching operator: continue-to-documentation. Both issues are resolved and re-verification is green."
+    decisions:
+      - decision: continue-to-documentation
+        rationale: the fixes landed and re-verification passed, so the run continues to its closing stretch
+    risks: []
+    artifacts: []
+    icon_hint: verify
+  documentation:
+    status: skipped
+    summary: "Skipped: the guard on this node reads the user_docs input, the run was not asked for a user guide, and options.docs_enabled is false. No guide was written and nothing downstream waits on one, because finalization takes a skipped predecessor as satisfied."
+    decisions: []
+    risks: []
+    artifacts: []
+    icon_hint: docs
+  finalization:
+    status: completed
+    summary: "Committed the touched files on the dispatch branch, pushed it, and printed the close-out: the package resolves as ESM only, four consumers moved, two verification issues found and fixed, and the minimum Node version named as the one thing a consumer outside this repository would have to meet."
+    decisions:
+      - decision: Name the minimum Node version in the close-out
+        rationale: it is the only part of the move that reaches beyond the repository, and a reader of the close-out is the one who has to act on it
+    risks: []
+    artifacts: []
+    icon_hint: done

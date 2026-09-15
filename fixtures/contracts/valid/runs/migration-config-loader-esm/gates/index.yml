@@ -1,0 +1,8 @@
+version: 1
+entries:
+  - {node: gap-approval, request: gates/gap-approval.request.yml, kind: gate, asked_at: "2026-09-15T08:33:07Z", status: answered}
+  - {node: specification-approval, request: gates/specification-approval.request.yml, kind: gate, asked_at: "2026-09-15T08:52:31Z", status: answered}
+  - {node: planning-approval, request: gates/planning-approval.request.yml, kind: gate, asked_at: "2026-09-15T09:06:19Z", status: answered}
+  - {node: execution-approval, request: gates/execution-approval.request.yml, kind: gate, asked_at: "2026-09-15T10:01:44Z", status: answered}
+  - {node: verification-approval, request: gates/verification-approval.request.yml, kind: gate, asked_at: "2026-09-15T10:27:36Z", status: answered}
+  - {node: resolution-approval, request: gates/resolution-approval.request.yml, kind: gate, asked_at: "2026-09-15T10:48:55Z", status: answered}

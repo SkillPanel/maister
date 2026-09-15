@@ -1,0 +1,19 @@
+version: 1
+run_id: 019260f1-0003-7c00-8a00-0123456789ab
+node: execution-approval
+kind: gate
+asked_at: "2026-09-15T10:01:44Z"
+question: "Continue to verification?"
+context:
+  summary: "All four task groups landed in order. The package now resolves as ESM only, the three JSON files are read through an import attribute, the four consumers use the named import, and the CommonJS entry point is gone. The suite is green and the merged config values are unchanged."
+  artifacts:
+    - implementation/work-log.md
+options:
+  - {id: continue-to-verification, label: "Continue to verification", effect: continue, description: "Verify the implementation against the specification, the plan and the rollback plan.", recommended: true}
+  - {id: stop-migration, label: "Stop the run", effect: stop, description: "End the run here; the work stays in the worktree, unverified."}
+multi_select: false
+answer:
+  option: continue-to-verification
+  answered_by: dispatching-operator
+  at: "2026-09-15T10:05:13Z"
+  via: file
