@@ -13952,6 +13952,368 @@ function t60(ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// The shared parity-checklist checker — T65 (performance), T66 (migration)
+// ---------------------------------------------------------------------------
+
+/**
+ * T33 asserts the development checklist. Its constants are development's, and
+ * two more checklists with the same assertion logic is what justifies one
+ * function over a third and fourth copy of it. The shape is T60's: a pin object
+ * per checklist, one test iterating it.
+ *
+ * T33 is deliberately left alone. It carries assertions these two do not need —
+ * icon tables, a twelve-key phase namespace, a `task_context` and options sweep
+ * — and folding it in here would mean generalizing every one of them for a
+ * single caller. What is shared is the nine assertions the two new checklists
+ * have in common, and nothing else.
+ *
+ * Like T33 and T60 this reads a checklist that lives beside the run it was
+ * written for, under the in-repo task tree, so the row is `in-repo` gated and
+ * enforcement is local to a maintainer's checkout.
+ */
+
+/** A gate marker: the first question line after a mandatory-gate line. */
+const GATE_MARKER = /→ \*\*MANDATORY GATE\*\*/;
+
+/** A gate row exempts itself by naming a divergence row that must still exist. */
+const REWRITTEN = /\*\*rewritten\*\*, divergence `([A-Z]?\d+)`/;
+
+/**
+ * The performance checklist, pinned from the file as written rather than the
+ * other way round: the document was authored first and counted, and these
+ * numbers are that count. Pinning first and authoring to the pin would invert
+ * the evidence — the test would assert what it asked for.
+ */
+const PERFORMANCE_CHECKLIST = {
+  workflow: 'performance',
+  rel: '.maister/tasks/development/2026-09-15-performance-migration-definitions/'
+    + 'verification/performance-parity-checklist.md',
+  twin: 'skills/performance/SKILL.md',
+  prose: `${ENGINE}/workflows/performance.md`,
+  definition: `${ENGINE}/workflows/performance.yml`,
+  // 21 sections, 135 rows.
+  sections: [
+    ['Nodes', 18],
+    ['Run-scoped context set', 4],
+    ['Mandatory gate texts', 7],
+    ['Pre-gate executive summaries', 6],
+    ['Stop-path termination', 7],
+    ['In-node questions', 5],
+    ['Artifacts', 13],
+    ['Companion pairs', 3],
+    ['`performance_context` fields', 5],
+    ['Top-level blocks', 2],
+    ['`phase_summaries` keys', 6],
+    ['`orchestrator.options`', 7],
+    ['`node_summaries` keys', 17],
+    ['Auto-recovery', 6],
+    ['Verbatim sentences', 4],
+    ['Operator visibility', 5],
+    ['Initialization', 8],
+    ['Transitions', 3],
+    ['Command flags', 3],
+    ['Embedded mode', 2],
+    ['Accepted divergences', 4],
+  ],
+  totalRows: 135,
+  nodeCount: 17,
+  // The graph-level tail row. The third is this workflow's own: it has no guard
+  // at all, and a `when` appearing anywhere in it is a shape change.
+  tail: [
+    ['the no-`on:` sub-assertion', /`on:`/],
+    ['the flow-safe sub-assertion', /flow-safe/],
+    ['the no-`when` sub-assertion', /no node carries `when`/],
+  ],
+  gates: [
+    'bottleneck-approval', 'specification-approval', 'spec-audit-approval', 'planning-approval',
+    'implementation-approval', 'verification-options-approval', 'verification-approval',
+  ],
+  exemptions: 1,
+  contextBlock: 'performance_context',
+  owners: [
+    ['codebase-analysis', ['codebase_analysis']],
+    ['bottleneck-analysis', ['bottleneck_analysis']],
+    ['specification', ['specification']],
+    ['implementation', ['implementation']],
+  ],
+  budgets: [
+    ['1', 'codebase-analysis', 2],
+    ['2', 'bottleneck-analysis', 2],
+    ['3', 'specification', 2],
+    ['5', 'planning', 2],
+    ['6', 'implementation', 5],
+    ['8', 'verification', 3],
+  ],
+  divergences: 4,
+};
+
+function parityChecklist(ctx, pin) {
+  const t = checker();
+  // The plugin SOURCE tree, never the generated variant: the build rewrites the
+  // in-session question tool's name and strips the plugin prefix, which are the
+  // very strings the verbatim and gate rows compare.
+  const plugin = ctx.pluginRoot;
+  const file = path.join(ctx.repoRoot, pin.rel);
+  t.check(`${pin.workflow}: the checklist is present`, () => {
+    must(isFile(file), `${pin.rel}: absent — the definition and its prose twin have nothing holding them in step`);
+  });
+  if (!isFile(file)) return { checks: t.checks, failures: t.failures, notes: t.notes };
+
+  const text = fs.readFileSync(file, 'utf8');
+  const lines = text.split('\n');
+  const twin = fs.readFileSync(path.join(plugin, pin.twin), 'utf8');
+  const prose = fs.readFileSync(path.join(plugin, pin.prose), 'utf8');
+  const definition = fs.readFileSync(path.join(plugin, pin.definition), 'utf8');
+  const count = (hay, needle) => hay.split(needle).length - 1;
+
+  // A section is a `### ` heading; its rows are the table body rows between it
+  // and the next heading of the same or a higher level.
+  const isSeparator = l => /^\s*\|[\s:|-]+\|\s*$/.test(l);
+  const sections = new Map();
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].startsWith('### ')) continue;
+    let end = i + 1;
+    while (end < lines.length && !/^#{2,3} /.test(lines[end])) end++;
+    sections.set(lines[i].replace(/^#+ /, '').trim(), lines.slice(i + 1, end));
+  }
+  const tableRows = body => body.filter((l, at) => l.trim().startsWith('|') && !isSeparator(l)
+    && !isSeparator(body[at + 1] ?? ''));
+  const cellsOf = row => row.split('|').slice(1, -1).map(c => c.trim());
+  const rowsOf = name => (sections.has(name) ? tableRows(sections.get(name)) : []);
+
+  // -- 1. every section, with its pinned row count and the pinned total -------
+  t.check(`${pin.workflow}: every section carries its pinned row count`, () => {
+    const wrong = [];
+    let rows = 0;
+    for (const [name, want] of pin.sections) {
+      if (!sections.has(name)) { wrong.push(`${name}: the section is absent`); continue; }
+      const got = tableRows(sections.get(name)).length;
+      rows += got;
+      if (got !== want) wrong.push(`${name}: ${got} rows, expected ${want}`);
+    }
+    if (rows !== pin.totalRows) wrong.push(`${rows} rows in total, expected ${pin.totalRows}`);
+    equalJson(wrong, [], `${pin.rel}: the section set and its row counts`);
+  });
+
+  // -- 2. the Nodes rows are the definition's ids, in canonical order ---------
+  const ids = [...definition.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(m => m[1]);
+  const nodeRows = rowsOf('Nodes');
+  t.check(`${pin.workflow}: the Nodes rows name the definition's ids in order`, () => {
+    must(ids.length === pin.nodeCount,
+      `the shipped definition has ${ids.length} nodes, expected ${pin.nodeCount}`);
+    const listed = nodeRows.map(r => (r.split('|')[1] ?? '').replace(/`/g, '').trim());
+    equalJson(listed.slice(0, ids.length), ids, `${pin.rel}: the Nodes rows`);
+  });
+  t.check(`${pin.workflow}: the Nodes tail row carries its graph-level sub-assertions`, () => {
+    const tail = nodeRows[pin.nodeCount] ?? '';
+    const missing = pin.tail.filter(([, probe]) => !probe.test(tail)).map(([label]) => label);
+    equalJson(missing, [], `${pin.rel}: the Nodes tail row is missing`);
+  });
+
+  // -- 3. every section names a source file that exists -----------------------
+  t.check(`${pin.workflow}: every **Where** line names an existing path under the plugin source`, () => {
+    const wrong = [];
+    for (const [name] of pin.sections) {
+      if (!sections.has(name)) continue;
+      const where = sections.get(name).find(l => l.startsWith('**Where**:'));
+      if (!where) { wrong.push(`${name}: no **Where** line`); continue; }
+      const named = [...where.matchAll(/`([^`]+)`/g)].map(m => m[1]).filter(p => p.includes('/'));
+      if (!named.some(p => isFile(path.join(plugin, p)) || isDir(path.join(plugin, p)))) {
+        wrong.push(`${name}: **Where** names no existing path (${named.join(', ')})`);
+      }
+    }
+    equalJson(wrong, [], `${pin.rel}: **Where** lines`);
+  });
+
+  // -- 4. every row is machine-findable, and none is a judgement --------------
+  t.check(`${pin.workflow}: every row names a literal, key, path or count`, () => {
+    const wrong = [];
+    for (const [name] of pin.sections) {
+      if (!sections.has(name)) continue;
+      for (const row of tableRows(sections.get(name))) {
+        const cells = cellsOf(row);
+        if (!/`[^`]+`/.test(row) && !/\b\d+\b/.test(cells.slice(1).join(' '))) {
+          wrong.push(`${name}: row ${JSON.stringify(cells[0])} names no literal, key, path or count`);
+        }
+        const judgement = row.match(JUDGEMENT);
+        if (judgement) wrong.push(`${name}: row ${JSON.stringify(cells[0])} is a judgement ("${judgement[0]}")`);
+      }
+    }
+    equalJson(wrong, [], `${pin.rel}: row content`);
+  });
+
+  // -- the node prose, split into the sections the interpreter reads ----------
+  const proseLines = prose.split('\n').map(l => l.replace(/\r$/, ''));
+  const proseSections = new Map();
+  for (let i = 0; i < proseLines.length; i++) {
+    const head = /^## (.+?)\s*$/.exec(proseLines[i]);
+    if (!head) continue;
+    let end = i + 1;
+    while (end < proseLines.length && !/^## /.test(proseLines[end])) end++;
+    const node = /^`([a-z][a-z0-9-]*)`$/.exec(head[1]);
+    if (node) proseSections.set(node[1], proseLines.slice(i + 1, end).join('\n'));
+  }
+
+  // -- 5. the gate texts, against the twin's normalized marker tails ----------
+  // Normalization is the checklist's own: the FIRST question line after a
+  // mandatory-gate line, and the LAST double-quoted span on it. That excludes
+  // the in-node questions and the fix-loop lines, which carry no marker above.
+  const divergenceIds = new Set(rowsOf('Accepted divergences').map(row => cellsOf(row)[0]));
+  const twinLines = twin.split('\n').map(l => l.replace(/\r$/, ''));
+  const twinQuestions = [];
+  for (let i = 0; i < twinLines.length; i++) {
+    if (!GATE_MARKER.test(twinLines[i])) continue;
+    const at = twinLines.slice(i + 1).findIndex(l => l.startsWith('AskUserQuestion'));
+    if (at < 0) { twinQuestions.push(null); continue; }
+    const quoted = [...twinLines[i + 1 + at].matchAll(/"([^"]*)"/g)].map(m => m[1]);
+    twinQuestions.push(quoted.length ? quoted[quoted.length - 1] : null);
+  }
+  t.check(`${pin.workflow}: the twin carries one gate marker per gate node`, () => {
+    must(twinQuestions.length === pin.gates.length,
+      `${pin.twin}: ${twinQuestions.length} gate markers, expected ${pin.gates.length}`);
+  });
+  const gateRows = rowsOf('Mandatory gate texts');
+  let exempted = 0;
+  pin.gates.forEach((id, index) => {
+    t.check(`${pin.workflow}: ${id} asks what the checklist and the twin pin`, () => {
+      const row = gateRows.find(r => cellsOf(r)[0] === `\`${id}\``);
+      must(row !== undefined, `Mandatory gate texts: no row for ${id}`);
+      const cells = cellsOf(row);
+      const pinned = (cells[1] ?? '').replace(/^`|`$/g, '');
+      const ask = new RegExp(`^ {2}${id}:$[\\s\\S]*?^ {4}ask: "([^"]*)"`, 'm').exec(definition)?.[1] ?? null;
+      must(ask === pinned,
+        `${id}: the definition asks ${JSON.stringify(ask)}, the checklist pins ${JSON.stringify(pinned)}`);
+      const rewritten = REWRITTEN.exec(cells[2] ?? '');
+      if (rewritten) {
+        exempted++;
+        must(divergenceIds.has(rewritten[1]),
+          `${id}: exempted by divergence ${rewritten[1]}, which the Accepted divergences section does not carry`);
+        return;
+      }
+      must(ask === twinQuestions[index],
+        `${id}: asks ${JSON.stringify(ask)}, the prose marker tail is ${JSON.stringify(twinQuestions[index])}`);
+    });
+  });
+  t.check(`${pin.workflow}: exactly the pinned number of gate rows claim an exemption`, () => {
+    must(exempted === pin.exemptions,
+      `${exempted} gate rows claim a divergence exemption, expected ${pin.exemptions}`);
+  });
+
+  // -- 6. the owner pairs, named where the engine reads them, and the sweep ---
+  const owned = new Map(pin.owners);
+  const phaseRows = rowsOf('`phase_summaries` keys');
+  t.check(`${pin.workflow}: the mapping row carries every node-key pair`, () => {
+    const mappingRow = phaseRows.find(row => cellsOf(row)[0] === 'each key named in the node prose');
+    must(mappingRow !== undefined, 'no `phase_summaries` keys row requires the node prose to name each key');
+    must(mappingRow.includes(path.basename(pin.prose)),
+      `the phase-key mapping row does not name ${path.basename(pin.prose)}`);
+    const mapped = new Map();
+    for (const clause of (cellsOf(mappingRow)[2] ?? '').split(';')) {
+      const [, node, keys] = /`([a-z][a-z0-9-]*)`\s*→\s*(.+)$/.exec(clause.trim()) ?? [];
+      if (node) mapped.set(node, [...keys.matchAll(/`([a-z0-9_]+)`/g)].map(m => m[1]));
+    }
+    const missing = [];
+    for (const [node, keys] of pin.owners) {
+      for (const key of keys) if (!(mapped.get(node) ?? []).includes(key)) missing.push(`${node} → ${key}`);
+    }
+    equalJson(missing, [], 'the phase-key mapping row does not map');
+  });
+  for (const [node, keys] of pin.owners) {
+    t.check(`${pin.workflow}: the ${node} prose names the key it owns`, () => {
+      const body = proseSections.get(node);
+      must(body !== undefined, `${pin.prose}: no \`${node}\` section`);
+      const absent = keys.filter(key => !namesPhaseKey(body, key));
+      equalJson(absent, [],
+        `${pin.prose}: the ${node} section names no such phase key, so nothing tells the engine to write it`);
+    });
+  }
+  t.check(`${pin.workflow}: no node claims a phase key it does not own`, () => {
+    const wrong = [];
+    for (const [node, body] of proseSections) {
+      const mine = owned.get(node) ?? [];
+      const claimed = [...keyTokensIn(body, 'phase_summaries')].filter(key => !mine.includes(key));
+      if (claimed.length) {
+        wrong.push(`${node} claims ${claimed.join(', ')}${mine.length ? `, but owns only ${mine.join(', ')}` : ', but mirrors no phase key'}`);
+      }
+    }
+    equalJson(wrong, [], `${pin.prose}: the phase-key sweep`);
+    must(phaseRows.some(row => cellsOf(row)[0] === 'no entry keyed by a node id'),
+      '`phase_summaries` keys: no row forbids an entry keyed by a node id');
+  });
+
+  // -- 7. the recovery budgets, in the prose the interpreter reads ------------
+  // A budget the checklist pins and the owning node's prose does not state is a
+  // budget no run ever applies: deleting the prose line must redden this test.
+  t.check(`${pin.workflow}: every recovery budget is stated by the node that owns it`, () => {
+    const recoveryRows = rowsOf('Auto-recovery');
+    const wrong = [];
+    for (const [phase, node, attempts] of pin.budgets) {
+      const row = recoveryRows.find(r => cellsOf(r)[0] === phase);
+      if (!row) { wrong.push(`no row for prose phase ${phase}`); continue; }
+      const cells = cellsOf(row);
+      if (cells[1] !== `\`${node}\``) wrong.push(`phase ${phase} names ${cells[1]}, expected \`${node}\``);
+      const pinnedCount = (cells[2] ?? '').replace(/`/g, '');
+      if (pinnedCount !== String(attempts)) {
+        wrong.push(`${node} pins ${JSON.stringify(pinnedCount)} attempts, expected ${attempts}`);
+      }
+      const body = proseSections.get(node);
+      const stated = `**Recovery budget**: ${attempts} attempts`;
+      if (body === undefined) wrong.push(`${pin.prose}: no \`${node}\` section to carry the phase ${phase} budget`);
+      else if (!body.includes(stated)) wrong.push(`${pin.prose}: the ${node} section does not state ${JSON.stringify(stated)}`);
+    }
+    equalJson(wrong, [], 'Auto-recovery');
+  });
+  t.check(`${pin.workflow}: the definition carries no budget as data`, () => {
+    const budgetKeys = definition.split('\n').filter(l => /^\s+(max_)?attempts:|^\s+recovery(_budget)?:/.test(l));
+    equalJson(budgetKeys, [], `${pin.definition}: a recovery budget written into the graph`);
+  });
+
+  // -- 8. the verbatim sentences, at counts true in both twins ----------------
+  t.check(`${pin.workflow}: every verbatim sentence occurs at its pinned count in both twins`, () => {
+    const wrong = [];
+    for (const row of rowsOf('Verbatim sentences')) {
+      const cells = cellsOf(row);
+      const quoted = cells[0]?.match(/^`(.+)`$/);
+      if (!quoted || cells.length < 3) { wrong.push(`not a code span with two counts: ${row}`); continue; }
+      const sentence = quoted[1].replace(/\\\|/g, '|');
+      const [wantTwin, wantProse] = [Number(cells[1]), Number(cells[2])];
+      if (!Number.isInteger(wantTwin) || !Number.isInteger(wantProse)) {
+        wrong.push(`non-integer occurrence counts in: ${row}`);
+        continue;
+      }
+      const gotTwin = count(twin, sentence);
+      const gotProse = count(prose, sentence);
+      if (gotTwin !== wantTwin || gotProse !== wantProse) {
+        wrong.push(`${JSON.stringify(sentence.slice(0, 48))}: ${gotTwin}/${gotProse} occurrences, the row pins ${wantTwin}/${wantProse}`);
+      }
+    }
+    equalJson(wrong, [], `${pin.rel}: Verbatim sentences`);
+  });
+
+  // -- 9. the accepted divergences, excluded from the failure verdict ---------
+  t.check(`${pin.workflow}: the accepted divergences are pinned and excluded from the verdict`, () => {
+    must(divergenceIds.size === pin.divergences,
+      `Accepted divergences: ${divergenceIds.size} rows, expected ${pin.divergences}`);
+    must(/do not block a green verdict/i.test((sections.get('Accepted divergences') ?? []).join('\n')),
+      'Accepted divergences: the section does not state that its rows do not block a green verdict');
+  });
+
+  // -- the source-tree rule, and the literals no evidence file may carry ------
+  t.check(`${pin.workflow}: the checklist states the source-tree rule and carries no forbidden literal`, () => {
+    must(/plugins\/maister\//.test(text) && /never the generated variant/i.test(text),
+      `${pin.rel}: the checklist does not state the source-tree rule`);
+    must(!(/multi-?select/i.test(text) || /claude\.md/i.test(text) || text.includes(NESTED_MARKER)
+      || text.includes('\r') || /\b(Claude|Anthropic|Copilot)\b/.test(text)),
+      `${pin.rel}: a forbidden literal, a nested gate marker, a carriage return or a vendor name`);
+  });
+
+  t.notes.push(`${pin.sections.length} sections, ${pin.totalRows} rows, checked against the plugin source tree`);
+  return { checks: t.checks, failures: t.failures, notes: t.notes };
+}
+
+const t65 = ctx => parityChecklist(ctx, PERFORMANCE_CHECKLIST);
+
+// ---------------------------------------------------------------------------
 // T61 — the close-out publish, in prose and in the guard
 // ---------------------------------------------------------------------------
 
@@ -14393,6 +14755,7 @@ const TESTS = [
   { id: 'T62', name: 'closeout-guard', needs: ['plugin', 'fixtures'], run: t62 },
   { id: 'T63', name: 'engine-invocation-allow', needs: ['plugin', 'fixtures'], run: t63 },
   { id: 'T64', name: 'reference-integrity', needs: ['plugin'], run: t64 },
+  { id: 'T65', name: 'performance-parity-checklist', needs: ['plugin', 'in-repo'], run: t65 },
 ];
 
 // ---------------------------------------------------------------------------
