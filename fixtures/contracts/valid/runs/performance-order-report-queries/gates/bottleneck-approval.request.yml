@@ -1,0 +1,18 @@
+version: 1
+run_id: 019260f1-0002-7c00-8a00-0123456789ab
+node: bottleneck-approval
+kind: gate
+asked_at: "2026-09-15T08:34:10Z"
+question: "Performance analysis complete. Continue to specification?"
+context:
+  summary: "Six bottlenecks in the order report endpoint: two P0 - a per-row customer lookup inside the report loop, and a missing index on the orders placed_at column the report filters on - two P1, one P2 and one P3. No profiling data was provided, so the ranking is static: it comes from reading the repository and the report loop rather than from a measurement."
+  artifacts: []
+options:
+  - {id: continue-to-specification, label: "Continue to specification", effect: continue, description: "Write the specification against the ranked findings.", recommended: true}
+  - {id: stop-performance, label: "Stop the run", effect: stop, description: "End the run here; the analysis stands and nothing after it becomes ready."}
+multi_select: false
+answer:
+  option: continue-to-specification
+  answered_by: dispatching-operator
+  at: "2026-09-15T08:39:02Z"
+  via: file

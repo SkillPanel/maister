@@ -1,0 +1,9 @@
+version: 1
+entries:
+  - {node: bottleneck-approval, request: gates/bottleneck-approval.request.yml, kind: gate, asked_at: "2026-09-15T08:34:10Z", status: answered}
+  - {node: specification-approval, request: gates/specification-approval.request.yml, kind: gate, asked_at: "2026-09-15T08:50:27Z", status: answered}
+  - {node: spec-audit-approval, request: gates/spec-audit-approval.request.yml, kind: gate, asked_at: "2026-09-15T09:01:16Z", status: answered}
+  - {node: planning-approval, request: gates/planning-approval.request.yml, kind: gate, asked_at: "2026-09-15T09:13:52Z", status: answered}
+  - {node: implementation-approval, request: gates/implementation-approval.request.yml, kind: gate, asked_at: "2026-09-15T09:58:44Z", status: answered}
+  - {node: verification-options-approval, request: gates/verification-options-approval.request.yml, kind: gate, asked_at: "2026-09-15T10:04:03Z", status: answered}
+  - {node: verification-approval, request: gates/verification-approval.request.yml, kind: gate, asked_at: "2026-09-15T10:24:57Z", status: answered}

@@ -1,0 +1,18 @@
+version: 1
+run_id: 019260f1-0002-7c00-8a00-0123456789ab
+node: specification-approval
+kind: gate
+asked_at: "2026-09-15T08:50:27Z"
+question: "Continue to specification audit?"
+context:
+  summary: "The specification covers three of the six findings: batch the per-row customer lookup, add the placed_at index in its own migration, and cache the currency table for the life of one request. The other three are recorded as out of scope with the reason, and the report response shape does not move."
+  artifacts: []
+options:
+  - {id: continue-to-spec-audit, label: "Continue to the audit", effect: continue, description: "Hand the specification to the auditor before any planning happens.", recommended: true}
+  - {id: stop-performance, label: "Stop the run", effect: stop, description: "End the run here; the specification stands unaudited and nothing after it becomes ready."}
+multi_select: false
+answer:
+  option: continue-to-spec-audit
+  answered_by: dispatching-operator
+  at: "2026-09-15T08:53:41Z"
+  via: file
