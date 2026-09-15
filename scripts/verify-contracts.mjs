@@ -14293,7 +14293,11 @@ function parityChecklist(ctx, pin) {
         wrong.push(`${node} pins ${JSON.stringify(pinnedCount)} attempts, expected ${attempts}`);
       }
       const body = proseSections.get(node);
-      const stated = `**Recovery budget**: ${attempts} attempts`;
+      // A one-attempt budget is written "1 attempt" in the prose, not "1
+      // attempts". Performance has no such budget, so this inflection changes
+      // nothing for T65 and is what lets migration's documentation row be
+      // asserted rather than quietly left out of the pin.
+      const stated = `**Recovery budget**: ${attempts} attempt${attempts === 1 ? '' : 's'}`;
       if (body === undefined) wrong.push(`${pin.prose}: no \`${node}\` section to carry the phase ${phase} budget`);
       else if (!body.includes(stated)) wrong.push(`${pin.prose}: the ${node} section does not state ${JSON.stringify(stated)}`);
     }
@@ -14347,7 +14351,83 @@ function parityChecklist(ctx, pin) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+/**
+ * The migration checklist, pinned the same way round: authored and counted
+ * first, and these numbers are that count. It is the second caller of the
+ * function above, which is what the function was extracted for.
+ *
+ * Three nodes are guarded here where performance has no `when` at all, so the
+ * Nodes tail row's third sub-assertion is a different one: performance asserts
+ * that no node carries `when`, and this one that the guard of a conditional
+ * stretch is repeated onto its closing gate.
+ */
+const MIGRATION_CHECKLIST = {
+  workflow: 'migration',
+  rel: '.maister/tasks/development/2026-09-15-performance-migration-definitions/'
+    + 'verification/migration-parity-checklist.md',
+  twin: 'skills/migration/SKILL.md',
+  prose: `${ENGINE}/workflows/migration.md`,
+  definition: `${ENGINE}/workflows/migration.yml`,
+  // 22 sections, 141 rows.
+  sections: [
+    ['Nodes', 17],
+    ['Guards', 3],
+    ['Run-scoped context set', 4],
+    ['Mandatory gate texts', 6],
+    ['Pre-gate executive summaries', 6],
+    ['Stop-path termination', 6],
+    ['In-node questions', 3],
+    ['Artifacts', 14],
+    ['Companion pairs', 3],
+    ['`migration_context` fields', 10],
+    ['Top-level blocks', 3],
+    ['`phase_summaries` keys', 6],
+    ['`orchestrator.options`', 3],
+    ['`node_summaries` keys', 16],
+    ['Auto-recovery', 7],
+    ['Verbatim sentences', 4],
+    ['Operator visibility', 5],
+    ['Initialization', 8],
+    ['Transitions', 3],
+    ['Command flags', 5],
+    ['Embedded mode', 2],
+    ['Accepted divergences', 7],
+  ],
+  totalRows: 141,
+  nodeCount: 16,
+  tail: [
+    ['the no-`on:` sub-assertion', /`on:`/],
+    ['the flow-safe sub-assertion', /flow-safe/],
+    ['the repeated-guard sub-assertion', /the guard of a conditional stretch is repeated/],
+  ],
+  gates: [
+    'gap-approval', 'specification-approval', 'planning-approval', 'execution-approval',
+    'verification-approval', 'resolution-approval',
+  ],
+  exemptions: 1,
+  contextBlock: 'migration_context',
+  owners: [
+    ['current-state-analysis', ['current_state_analysis']],
+    ['gap-analysis', ['gap_analysis']],
+    ['specification', ['specification']],
+    // The pair no derivation would find: the key is `implementation`, the node
+    // that owns it is `execution`.
+    ['execution', ['implementation']],
+  ],
+  budgets: [
+    ['1', 'current-state-analysis', 2],
+    ['2', 'gap-analysis', 2],
+    ['3', 'specification', 2],
+    ['4', 'planning', 2],
+    ['5', 'execution', 5],
+    ['6', 'verification', 3],
+    ['8', 'documentation', 1],
+  ],
+  divergences: 7,
+};
+
 const t65 = ctx => parityChecklist(ctx, PERFORMANCE_CHECKLIST);
+const t66 = ctx => parityChecklist(ctx, MIGRATION_CHECKLIST);
 
 // ---------------------------------------------------------------------------
 // T61 — the close-out publish, in prose and in the guard
@@ -14793,6 +14873,7 @@ const TESTS = [
   { id: 'T63', name: 'engine-invocation-allow', needs: ['plugin', 'fixtures'], run: t63 },
   { id: 'T64', name: 'reference-integrity', needs: ['plugin'], run: t64 },
   { id: 'T65', name: 'performance-parity-checklist', needs: ['plugin', 'in-repo'], run: t65 },
+  { id: 'T66', name: 'migration-parity-checklist', needs: ['plugin', 'in-repo'], run: t66 },
 ];
 
 // ---------------------------------------------------------------------------
