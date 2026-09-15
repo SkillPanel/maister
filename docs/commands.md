@@ -68,6 +68,7 @@ Starts migration workflow (8 phases) with mandatory rollback planning and risk a
 | Flag | Description |
 |------|-------------|
 | `--type=code\|data\|architecture\|general` | Migration type (affects risk focus) |
+| `--user-docs` | Generate the migration guide in the documentation phase |
 | `--from=PHASE` | Start from or resume at a specific phase |
 | `--reset-attempts` | Reset failed attempt counters (resume) |
 

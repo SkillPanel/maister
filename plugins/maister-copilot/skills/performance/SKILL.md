@@ -95,7 +95,7 @@ Use for:
 | 1 | "Analyze codebase" | "Analyzing codebase" | codebase-analyzer |
 | 2 | "Analyze performance bottlenecks" | "Analyzing performance bottlenecks" | bottleneck-analyzer |
 | 3 | "Gather requirements & create specification" | "Gathering requirements & creating specification" | specification-creator |
-| 4 | "Audit specification" | "Auditing specification" | spec-auditor (conditional) |
+| 4 | "Audit specification" | "Auditing specification" | spec-auditor |
 | 5 | "Plan implementation" | "Planning implementation" | implementation-planner |
 | 6 | "Execute implementation" | "Executing implementation" | implementation-plan-executor |
 | 7 | "Prompt verification options" | "Prompting verification options" | Direct |
@@ -114,10 +114,10 @@ Use for:
 2. Update state with analysis results
 3. Direct - use ask_user for max 5 critical clarifying questions about performance concerns, hotspots, and optimization goals
 
-**Default under a non-terminal driver** (`clarifications`): none is asked, and the analysis's own answers stand. The file is written and `clarifications_resolved` set exactly as they are for a run with nothing to ask, and what the analysis could not settle about hotspots or goals is recorded as unsettled rather than guessed at.
+**Default under a non-terminal driver** (`clarifications`): none is asked, and the analysis's own answers stand. The file is written and `performance_context.clarifications_resolved` set exactly as they are for a run with nothing to ask, and what the analysis could not settle about hotspots or goals is recorded as unsettled rather than guessed at.
 4. Save clarifications to `analysis/clarifications.md`
 **Output**: `analysis/codebase-analysis.md`, `analysis/clarifications.md`
-**State**: Update `performance_context.phase_summaries.codebase_analysis`, `task_context.clarifications_resolved`
+**State**: Update `performance_context.phase_summaries.codebase_analysis`, `performance_context.clarifications_resolved`
 
 Pass `task_type="enhancement"` and the performance-focused description. The codebase-analyzer adaptively selects parallel Explore agents based on task complexity. For performance tasks, the description should guide agents toward: database query patterns, hot code paths, I/O operations, caching layers, connection management, schema/migration files.
 
@@ -200,21 +200,15 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 
 ---
 
-### Phase 4: Specification Audit (Conditional)
+### Phase 4: Specification Audit
 
 > **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 3 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Independent review of optimization specification
 **Execute**: Task tool - `maister-spec-auditor` subagent
 **Output**: `verification/spec-audit.md`
-**State**: Update `options.spec_audit_enabled`
 
-**Run if**: >5 optimizations planned, spec >50 lines, or user requests
-**Skip if**: Simple optimization (1-3 changes)
-
-ask_user to decide - "Run specification audit?"
-
-**Default under a non-terminal driver** (`audit-opt-in`): the run-if criteria above decide it -- audit when more than five optimizations are planned or the specification runs past fifty lines, skip for a simple one-to-three-change optimization. The criteria are the recommendation, so with nobody to ask they are the answer, and `options.spec_audit_enabled` records it either way.
+The audit always runs — there is no opt-in and no size threshold, so every performance specification is reviewed before planning starts.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -266,7 +260,7 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 
 **Execute**: Skill tool - `maister-implementation-plan-executor`
 **Output**: Implemented optimizations, `implementation/work-log.md`
-**State**: Update implementation progress, extract phase_summaries.implementation
+**State**: Update implementation progress, extract `performance_context.phase_summaries.implementation`
 
 **SELF-CHECK**: Did you just invoke the Skill tool with `maister-implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
 
@@ -371,6 +365,7 @@ Performance-specific fields in `orchestrator-state.yml`:
 performance_context:
   bottlenecks_identified: null    # count from bottleneck-analyzer
   user_data_available: false      # whether user provided profiling data
+  clarifications_resolved: false  # set by Phase 1
   bottleneck_priorities:
     p0: 0
     p1: 0
@@ -382,6 +377,7 @@ performance_context:
     codebase_analysis: {key_files: [], summary: null}
     bottleneck_analysis: {bottlenecks: [], summary: null, user_data_incorporated: false}
     specification: {summary: null}
+    implementation: {summary: null}
 
 verification_context:
   last_status: null
@@ -395,7 +391,6 @@ verification_context:
 orchestrator:
   options:
     html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
-    spec_audit_enabled: null
     skip_test_suite: true
     code_review_enabled: true
     pragmatic_review_enabled: true
@@ -426,7 +421,7 @@ The normative layout and naming rules are `../orchestrator-framework/references/
 │   ├── implementation-plan.html       # Phase 5 (HTML companion)
 │   └── work-log.md                    # Phase 6
 └── verification/
-    ├── spec-audit.md                  # Phase 4 (conditional)
+    ├── spec-audit.md                  # Phase 4
     ├── implementation-verification.md # Phase 8
     └── implementation-verification.html # Phase 8 (HTML companion)
 ```

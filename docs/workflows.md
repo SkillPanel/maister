@@ -136,7 +136,7 @@ Static code analysis to detect bottlenecks, followed by standard spec/plan/imple
 | 1 | Codebase analysis + clarifications |
 | 2 | Static performance analysis (N+1 queries, missing indexes, O(n^2) algorithms, blocking I/O, memory leaks) |
 | 3 | Requirements + specification |
-| 4 | Specification audit (conditional) |
+| 4 | Specification audit |
 | 5 | Implementation planning |
 | 6 | Implementation execution |
 | 7 | Verification options |
@@ -163,6 +163,7 @@ Technology, data, and architecture migrations with rollback planning and risk as
 /maister:migration
 /maister:migration "Migrate from REST to GraphQL" --type=code
 ```
+**Flags**: `--type=code|data|architecture|general`, `--user-docs`, `--sequential`, `--from=PHASE`
 
 **Migration types**: `code`, `data`, `architecture`, `general`
 

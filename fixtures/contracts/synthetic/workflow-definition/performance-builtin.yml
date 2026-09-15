@@ -1,0 +1,186 @@
+# The shipped built-in performance workflow, held here as a golden copy.
+#
+# The suite resolves this file and the shipped definition and asserts one
+# graph_hash for both. An edit to either that the other does not receive turns
+# the suite red, which is the whole reason the copy exists.
+#
+# Node prose lives beside a definition, so the copy carries its own companion
+# (performance-builtin.md) with one section per direct: node. The companion is a
+# stub: only the presence of the section is what makes the target resolve.
+#
+# The file warns about nothing. No key anywhere is named after a reserved path,
+# every target resolves, and no when clause exists to name an undeclared value -
+# so the expected warning set is empty and any new warning is a regression.
+#
+# Ten nodes named for what they do and seven named for what they approve, in one
+# linear chain. It is the only golden copy here with no guard anywhere: every
+# phase runs on every run, so nothing is skipped and no gate repeats a guard.
+name: performance
+version: 1
+inputs:
+  task_description: {type: string, required: true}
+  sequential: {type: bool, required: false, default: false}
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    with:
+      task_description: "${inputs.task_description}"
+    outputs:
+      artifacts:
+        # A directory, always created, and its emptiness is the answer to the
+        # profiling-data question rather than a missing artifact.
+        profiling_data: analysis/user-profiling-data
+
+  codebase-analysis:
+    uses: skill:codebase-analyzer
+    needs: [intake]
+    with:
+      task_description: "${inputs.task_description}"
+      task_type: enhancement
+    outputs:
+      artifacts:
+        analysis: analysis/codebase-analysis.md
+        clarifications: analysis/clarifications.md
+
+  bottleneck-analysis:
+    uses: agent:bottleneck-analyzer
+    needs: [codebase-analysis]
+    with:
+      task_description: "${inputs.task_description}"
+      analysis: "${codebase-analysis.artifacts.analysis}"
+      profiling_data: "${intake.artifacts.profiling_data}"
+    outputs:
+      artifacts:
+        performance_analysis: analysis/performance-analysis.md
+
+  bottleneck-approval:
+    type: gate
+    needs: [bottleneck-analysis]
+    ask: "Performance analysis complete. Continue to specification?"
+    options:
+      continue-to-specification: continue
+      stop-performance: stop
+
+  specification:
+    uses: direct:specification
+    needs: [bottleneck-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      analysis: "${codebase-analysis.artifacts.analysis}"
+      performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
+    outputs:
+      artifacts:
+        requirements: analysis/requirements.md
+        spec: implementation/spec.md
+
+  specification-approval:
+    type: gate
+    needs: [specification]
+    ask: "Continue to specification audit?"
+    options:
+      continue-to-spec-audit: continue
+      stop-performance: stop
+
+  spec-audit:
+    uses: agent:spec-auditor
+    needs: [specification-approval]
+    with:
+      spec: "${specification.artifacts.spec}"
+      requirements: "${specification.artifacts.requirements}"
+      performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
+    outputs:
+      artifacts:
+        audit: verification/spec-audit.md
+
+  spec-audit-approval:
+    type: gate
+    needs: [spec-audit]
+    ask: "Continue to implementation planning?"
+    options:
+      continue-to-planning: continue
+      stop-performance: stop
+
+  planning:
+    uses: agent:implementation-planner
+    needs: [spec-audit-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      spec: "${specification.artifacts.spec}"
+      audit: "${spec-audit.artifacts.audit}"
+      performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
+    outputs:
+      artifacts:
+        plan: implementation/implementation-plan.md
+
+  planning-approval:
+    type: gate
+    needs: [planning]
+    ask: "Continue to implementation?"
+    options:
+      continue-to-implementation: continue
+      stop-performance: stop
+
+  implementation:
+    uses: skill:implementation-plan-executor
+    needs: [planning-approval]
+    with:
+      plan: "${planning.artifacts.plan}"
+      spec: "${specification.artifacts.spec}"
+      sequential: "${inputs.sequential}"
+    outputs:
+      artifacts:
+        work_log: implementation/work-log.md
+
+  implementation-approval:
+    type: gate
+    needs: [implementation]
+    ask: "Continue to verification?"
+    options:
+      continue-to-verification-options: continue
+      stop-performance: stop
+
+  verification-options:
+    uses: direct:verification-options
+    needs: [implementation-approval]
+    with:
+      spec: "${specification.artifacts.spec}"
+
+  verification-options-approval:
+    type: gate
+    needs: [verification-options]
+    ask: "Options selected. Continue to Phase 8?"
+    options:
+      continue-to-verification: continue
+      stop-performance: stop
+
+  verification:
+    uses: skill:implementation-verifier
+    needs: [verification-options-approval]
+    with:
+      spec: "${specification.artifacts.spec}"
+      plan: "${planning.artifacts.plan}"
+      work_log: "${implementation.artifacts.work_log}"
+    outputs:
+      artifacts:
+        report: verification/implementation-verification.md
+
+  verification-approval:
+    type: gate
+    needs: [verification]
+    ask: "Continue to finalization?"
+    options:
+      continue-to-finalization: continue
+      stop-performance: stop
+
+  # Nothing invokes this workflow as a sub-run: every reference to it in the
+  # tree hands an operator a next step rather than executing one. So there is
+  # no embedded input, and this node carries no guard.
+  finalization:
+    uses: direct:finalization
+    needs: [verification-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
+      report: "${verification.artifacts.report}"
+      work_log: "${implementation.artifacts.work_log}"

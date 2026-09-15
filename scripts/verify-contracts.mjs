@@ -4320,6 +4320,24 @@ const WORKFLOW_PINS = {
         'when: "${reproduce.values.red_proven}"', 'when: "!${reproduce.values.red_proven}"'],
     ],
   },
+  performance: {
+    hash: 'sha256:ef5b7c63b815ec9ca2575d88d7f58506d36a0c69612dbccb3b45a208ea7aec16',
+    twin: 'performance-builtin.yml',
+    nodes: [
+      'intake', 'codebase-analysis', 'bottleneck-analysis', 'bottleneck-approval', 'specification',
+      'specification-approval', 'spec-audit', 'spec-audit-approval', 'planning', 'planning-approval',
+      'implementation', 'implementation-approval', 'verification-options', 'verification-options-approval',
+      'verification', 'verification-approval', 'finalization',
+    ],
+    // No guard probe: this definition carries no `when` anywhere, so there is
+    // nothing to negate. The two edits below are the pair every pin row has.
+    edits: [
+      ['an edited gate question',
+        'ask: "Performance analysis complete', 'ask: "Performance analysis done'],
+      ['a renamed continue option',
+        'continue-to-spec-audit: continue', 'proceed-to-spec-audit: continue'],
+    ],
+  },
   research: {
     hash: 'sha256:8c806c4ddc046e9b35911e918f46e2b69acdbe5431efd9c3dcee8125918c8b61',
     twin: 'research-builtin.yml',
@@ -12165,6 +12183,10 @@ const FROZEN_NODE_IDS = {
     'planning', 'planning-approval', 'implementation', 'implementation-approval', 'tdd-green', 'tdd-green-approval',
     'verification-options', 'verification', 'verification-approval', 'e2e-verification', 'e2e-approval',
     'user-docs', 'docs-approval', 'finalization'],
+  performance: ['intake', 'codebase-analysis', 'bottleneck-analysis', 'bottleneck-approval', 'specification',
+    'specification-approval', 'spec-audit', 'spec-audit-approval', 'planning', 'planning-approval',
+    'implementation', 'implementation-approval', 'verification-options', 'verification-options-approval',
+    'verification', 'verification-approval', 'finalization'],
   plan: ['standards-discovery', 'plan', 'plan-approval', 'handoff'],
 };
 
@@ -13475,6 +13497,15 @@ const INNODE_QUESTIONS = [
     path: 'skills/workflow-engine/workflows/fix.md',
     ids: ['reproduction-not-red', 'verification-fix-loop'],
   },
+  // The performance definition. Its audit runs unconditionally, so the opt-in
+  // the development pair asks is absent here rather than defaulted.
+  {
+    path: 'skills/workflow-engine/workflows/performance.md',
+    ids: [
+      'clarifications', 'profiling-data', 'optimization-priorities',
+      'standard-verifications', 'verification-fix-loop',
+    ],
+  },
   // The prose twins. They ask the same questions in the same order and are not
   // held to the same list: the twin's mockup phase has no revise loop (its gate
   // carries approve-or-revise) and neither twin asks for a task description,
@@ -13495,9 +13526,10 @@ const INNODE_QUESTIONS = [
       'convergence-decisions', 'design-constraints', 'designer-retry', 'question-clarification',
     ],
   },
-  // The three orchestrators with no engine definition of their own. They read
-  // the framework rule like everyone else, so it binds them; before this list
-  // existed it bound them to a default none of them named.
+  // The migration and performance twins, whose definitions sit above, plus
+  // product-design, which has none. They read the framework rule like every
+  // other carrier, so it binds them; before this list existed it bound them to
+  // a default none of them named.
   {
     path: 'skills/migration/SKILL.md',
     ids: ['clarifications', 'specification-requirements', 'verification-fix-loop'],
@@ -13505,7 +13537,7 @@ const INNODE_QUESTIONS = [
   {
     path: 'skills/performance/SKILL.md',
     ids: [
-      'clarifications', 'profiling-data', 'optimization-priorities', 'audit-opt-in',
+      'clarifications', 'profiling-data', 'optimization-priorities',
       'standard-verifications', 'verification-fix-loop',
     ],
   },
@@ -13940,8 +13972,8 @@ function t60(ctx) {
  *
  * The carriers. Every closing node a chain can dispatch into owes the sentence —
  * `fix` and `change` because they are what a chain dispatches today, the other
- * three because a chain may dispatch any built-in and their closing nodes said
- * nothing about a close-out at all. The engine skill is the carrier for the rule
+ * built-ins because a chain may dispatch any of them and their closing nodes
+ * said nothing about a close-out at all. The engine skill is the carrier for the rule
  * itself.
  */
 const CLOSEOUT_CARRIERS = [
@@ -13951,6 +13983,7 @@ const CLOSEOUT_CARRIERS = [
   'skills/workflow-engine/workflows/development.md',
   'skills/workflow-engine/workflows/research.md',
   'skills/workflow-engine/workflows/plan.md',
+  'skills/workflow-engine/workflows/performance.md',
 ];
 
 /**

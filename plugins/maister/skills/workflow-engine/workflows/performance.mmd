@@ -1,0 +1,39 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: performance
+%% graph_hash: sha256:ef5b7c63b815ec9ca2575d88d7f58506d36a0c69612dbccb3b45a208ea7aec16
+
+flowchart TD
+  n_intake["intake<br/>direct:intake"]
+  n_codebase_analysis["codebase-analysis<br/>skill:codebase-analyzer"]
+  n_bottleneck_analysis["bottleneck-analysis<br/>agent:bottleneck-analyzer"]
+  n_bottleneck_approval{{"bottleneck-approval<br/>gate<br/>Performance analysis complete. Continue to specification?<br/>continue-to-specification: continue, stop-performance: stop"}}
+  n_specification["specification<br/>direct:specification"]
+  n_specification_approval{{"specification-approval<br/>gate<br/>Continue to specification audit?<br/>continue-to-spec-audit: continue, stop-performance: stop"}}
+  n_spec_audit["spec-audit<br/>agent:spec-auditor"]
+  n_spec_audit_approval{{"spec-audit-approval<br/>gate<br/>Continue to implementation planning?<br/>continue-to-planning: continue, stop-performance: stop"}}
+  n_planning["planning<br/>agent:implementation-planner"]
+  n_planning_approval{{"planning-approval<br/>gate<br/>Continue to implementation?<br/>continue-to-implementation: continue, stop-performance: stop"}}
+  n_implementation["implementation<br/>skill:implementation-plan-executor"]
+  n_implementation_approval{{"implementation-approval<br/>gate<br/>Continue to verification?<br/>continue-to-verification-options: continue, stop-performance: stop"}}
+  n_verification_options["verification-options<br/>direct:verification-options"]
+  n_verification_options_approval{{"verification-options-approval<br/>gate<br/>Options selected. Continue to Phase 8?<br/>continue-to-verification: continue, stop-performance: stop"}}
+  n_verification["verification<br/>skill:implementation-verifier"]
+  n_verification_approval{{"verification-approval<br/>gate<br/>Continue to finalization?<br/>continue-to-finalization: continue, stop-performance: stop"}}
+  n_finalization["finalization<br/>direct:finalization"]
+  n_intake --> n_codebase_analysis
+  n_codebase_analysis --> n_bottleneck_analysis
+  n_bottleneck_analysis --> n_bottleneck_approval
+  n_bottleneck_approval --> n_specification
+  n_specification --> n_specification_approval
+  n_specification_approval --> n_spec_audit
+  n_spec_audit --> n_spec_audit_approval
+  n_spec_audit_approval --> n_planning
+  n_planning --> n_planning_approval
+  n_planning_approval --> n_implementation
+  n_implementation --> n_implementation_approval
+  n_implementation_approval --> n_verification_options
+  n_verification_options --> n_verification_options_approval
+  n_verification_options_approval --> n_verification
+  n_verification --> n_verification_approval
+  n_verification_approval --> n_finalization
+  class n_bottleneck_approval,n_specification_approval,n_spec_audit_approval,n_planning_approval,n_implementation_approval,n_verification_options_approval,n_verification_approval gate

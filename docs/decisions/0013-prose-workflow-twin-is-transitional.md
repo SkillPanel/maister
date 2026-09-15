@@ -59,11 +59,13 @@ defect that silently discarded operator-set options, which no static sweep could
   state writing, so on a machine without Node the prose twin is not a preference but the only
   path. Deleting it turns a soft requirement hard, which is the breaking change this ADR says
   needs a deprecation note and a release of its own.
-- **The workflows that are still prose-only.** Two of the four ship a definition — research and
-  development, both now switched over; the other two remain prose-only, and have no engine path
-  at all. While any workflow is prose-only, the prose orchestrators are load-bearing regardless
-  of what the definition-backed ones do, so nothing is saved by deleting a twin whose workflow
-  has already switched over.
+- **The workflows that are not switched over yet.** All four now ship a definition, so none of
+  them is prose-only in the sense of having no engine path. But shipping a definition and
+  running it by default are separate events: a definition-backed workflow keeps running its
+  prose phases until its own entry point flips, and a definition may ship unflipped while its
+  evidence is still being gathered. While any workflow still runs its prose phases by default,
+  the prose orchestrators are load-bearing regardless of what the switched-over ones do, so
+  nothing is saved by deleting a twin whose workflow has already switched over.
 
 Until all three clear, the prose twin stays maintained rather than merely present, and the
 parity checklist stays with it.

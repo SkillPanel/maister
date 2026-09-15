@@ -671,7 +671,7 @@ able to write:
   edited in place afterwards.
 - `context` and `phase_summaries` — written into whichever per-workflow context block the
   run's name resolves to (`task_context` for development, `research_context` for research,
-  and so on); `node_summaries` is its own top-level block, keyed by node id.
+  `performance_context` for performance, `migration_context` for migration); `node_summaries` is its own top-level block, keyed by node id.
 - `project_context`, `related_tasks`, `verification_context`, `external_research` — the four
   optional top-level blocks. Each is written as a **top-level sibling** of `orchestrator:`
   and of the context block, never nested inside either. A mapping is merged key by key, so

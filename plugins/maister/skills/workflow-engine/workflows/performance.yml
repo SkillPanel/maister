@@ -1,0 +1,197 @@
+# The performance workflow, as a graph.
+#
+# Ten nodes named for what they do and seven named for what they approve, in one
+# linear chain. Gates serialize the run, so a wider fan-in would buy nothing.
+#
+# There is no `when` anywhere in this file, and that is the whole shape of it.
+# Every phase of this workflow runs on every run: the specification audit has no
+# opt-in and no size threshold, and the one optional input the workflow takes —
+# profiling data — changes what a node reads rather than whether a node runs. So
+# no stretch is conditional, no gate repeats a guard, and no skip can cascade,
+# because nothing is ever skipped.
+#
+# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
+# completed or a skipped predecessor but never by a stopped one, which is what
+# makes each gate's stop option actually end the run: nothing after it is ever
+# ready.
+#
+# Target names are bare on purpose. Resolution is rooted at the plugin root and
+# the provider prefix is applied at invocation, so this one file is correct
+# under every generated variant without a rewrite.
+#
+# The node prose lives beside this file in `performance.md`, one section per node
+# id. Every `direct:` node is executed from its section there, and the five
+# operator questions asked inside nodes appear only in that prose — a reader of
+# this file alone cannot see them, and neither can the generated diagram. The
+# per-node recovery budgets live there too, never here: a budget written into
+# `with:` would read like a grammar feature while being inert data the engine
+# never consults.
+name: performance
+version: 1
+inputs:
+  task_description: {type: string, required: true}
+  sequential: {type: bool, required: false, default: false}
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    with:
+      task_description: "${inputs.task_description}"
+    outputs:
+      artifacts:
+        # A directory, always created, and its emptiness is the answer to the
+        # profiling-data question rather than a missing artifact.
+        profiling_data: analysis/user-profiling-data
+
+  codebase-analysis:
+    uses: skill:codebase-analyzer
+    needs: [intake]
+    with:
+      task_description: "${inputs.task_description}"
+      task_type: enhancement
+    outputs:
+      artifacts:
+        analysis: analysis/codebase-analysis.md
+        clarifications: analysis/clarifications.md
+
+  bottleneck-analysis:
+    uses: agent:bottleneck-analyzer
+    needs: [codebase-analysis]
+    with:
+      task_description: "${inputs.task_description}"
+      analysis: "${codebase-analysis.artifacts.analysis}"
+      profiling_data: "${intake.artifacts.profiling_data}"
+    outputs:
+      artifacts:
+        performance_analysis: analysis/performance-analysis.md
+
+  bottleneck-approval:
+    type: gate
+    needs: [bottleneck-analysis]
+    ask: "Performance analysis complete. Continue to specification?"
+    options:
+      continue-to-specification: continue
+      stop-performance: stop
+
+  specification:
+    uses: direct:specification
+    needs: [bottleneck-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      analysis: "${codebase-analysis.artifacts.analysis}"
+      performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
+    outputs:
+      artifacts:
+        requirements: analysis/requirements.md
+        spec: implementation/spec.md
+
+  specification-approval:
+    type: gate
+    needs: [specification]
+    ask: "Continue to specification audit?"
+    options:
+      continue-to-spec-audit: continue
+      stop-performance: stop
+
+  spec-audit:
+    uses: agent:spec-auditor
+    needs: [specification-approval]
+    with:
+      spec: "${specification.artifacts.spec}"
+      requirements: "${specification.artifacts.requirements}"
+      performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
+    outputs:
+      artifacts:
+        audit: verification/spec-audit.md
+
+  spec-audit-approval:
+    type: gate
+    needs: [spec-audit]
+    ask: "Continue to implementation planning?"
+    options:
+      continue-to-planning: continue
+      stop-performance: stop
+
+  planning:
+    uses: agent:implementation-planner
+    needs: [spec-audit-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      spec: "${specification.artifacts.spec}"
+      audit: "${spec-audit.artifacts.audit}"
+      performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
+    outputs:
+      artifacts:
+        plan: implementation/implementation-plan.md
+
+  planning-approval:
+    type: gate
+    needs: [planning]
+    ask: "Continue to implementation?"
+    options:
+      continue-to-implementation: continue
+      stop-performance: stop
+
+  implementation:
+    uses: skill:implementation-plan-executor
+    needs: [planning-approval]
+    with:
+      plan: "${planning.artifacts.plan}"
+      spec: "${specification.artifacts.spec}"
+      sequential: "${inputs.sequential}"
+    outputs:
+      artifacts:
+        work_log: implementation/work-log.md
+
+  implementation-approval:
+    type: gate
+    needs: [implementation]
+    ask: "Continue to verification?"
+    options:
+      continue-to-verification-options: continue
+      stop-performance: stop
+
+  verification-options:
+    uses: direct:verification-options
+    needs: [implementation-approval]
+    with:
+      spec: "${specification.artifacts.spec}"
+
+  verification-options-approval:
+    type: gate
+    needs: [verification-options]
+    ask: "Options selected. Continue to Phase 8?"
+    options:
+      continue-to-verification: continue
+      stop-performance: stop
+
+  verification:
+    uses: skill:implementation-verifier
+    needs: [verification-options-approval]
+    with:
+      spec: "${specification.artifacts.spec}"
+      plan: "${planning.artifacts.plan}"
+      work_log: "${implementation.artifacts.work_log}"
+    outputs:
+      artifacts:
+        report: verification/implementation-verification.md
+
+  verification-approval:
+    type: gate
+    needs: [verification]
+    ask: "Continue to finalization?"
+    options:
+      continue-to-finalization: continue
+      stop-performance: stop
+
+  # Nothing invokes this workflow as a sub-run: every reference to it in the
+  # tree hands an operator a next step rather than executing one. So there is
+  # no embedded input, and this node carries no guard.
+  finalization:
+    uses: direct:finalization
+    needs: [verification-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
+      report: "${verification.artifacts.report}"
+      work_log: "${implementation.artifacts.work_log}"
