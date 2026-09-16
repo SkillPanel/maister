@@ -3,7 +3,7 @@
 **Scope**: this repository — the plugin, its generated Copilot variant, the contract register and the gate hooks · **Format**: MADR · **Normative shapes**: `plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md`
 
 ## TL;DR
-Nineteen accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, and ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
+Twenty accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps, and ADR-0020 from reading the five per-workflow context blocks against each other once all five existed. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
 Alternatives are not restated: each ADR states in its own Considered Options why the ones it rejected were rejected.
 
 ## Key Decisions
@@ -24,6 +24,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - A gate suspends or is asked according to the run's driver; a write-order rule, not a wider allow-list, is what keeps the hook untouched (ADR-0017)
 - A dispatch worktree is named for the run and the node, and an unresolvable run id is refused rather than defaulted into a colliding name (ADR-0018)
 - Generated per-ticket chains live in a git-ignored subdirectory of the workflow home, resolve by name like an eject, and are deleted by a runtime verb once their runs close (ADR-0019)
+- The per-workflow context blocks overlap enough to share a thin core, and the factoring is recorded rather than done: typed known keys are what a generic bag would cost (ADR-0020)
 
 ## Index
 
@@ -50,3 +51,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0017](0017-driver-aware-gate-suspension.md) | Driver-aware gate suspension and the resume-path editor exception | Accepted | 2026-08-30 | Amends ADR-0012 (one bounded editor-tool exception on the resume path); supersedes ADR-0001's terminal-mode-only closing sentence |
 | [ADR-0018](0018-per-run-dispatch-worktrees.md) | Dispatch worktrees are named for the run and the node | Accepted | 2026-09-08 | — |
 | [ADR-0019](0019-generated-chain-home.md) | Generated chains live in a subdirectory of the workflow home | Accepted | 2026-09-08 | — |
+| [ADR-0020](0020-context-block-shared-core.md) | The context-block shared core is unblocked, and deferred to its own change | Accepted | 2026-09-16 | — |
