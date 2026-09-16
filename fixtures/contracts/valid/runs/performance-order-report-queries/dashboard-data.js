@@ -73,7 +73,7 @@ window.MAISTER_DATA = {
     {
       "id": "bottleneck-approval",
       "name": "Bottleneck approval",
-      "icon_hint": "verify",
+      "icon_hint": "analysis",
       "status": "completed",
       "started": "2026-09-15T08:34:10Z",
       "completed": "2026-09-15T08:39:02Z",
@@ -114,7 +114,7 @@ window.MAISTER_DATA = {
     {
       "id": "specification-approval",
       "name": "Specification approval",
-      "icon_hint": "verify",
+      "icon_hint": "spec",
       "status": "completed",
       "started": "2026-09-15T08:50:27Z",
       "completed": "2026-09-15T08:53:41Z",
@@ -196,7 +196,7 @@ window.MAISTER_DATA = {
     {
       "id": "planning-approval",
       "name": "Planning approval",
-      "icon_hint": "verify",
+      "icon_hint": "plan",
       "status": "completed",
       "started": "2026-09-15T09:13:52Z",
       "completed": "2026-09-15T09:16:20Z",
@@ -243,7 +243,7 @@ window.MAISTER_DATA = {
     {
       "id": "implementation-approval",
       "name": "Implementation approval",
-      "icon_hint": "verify",
+      "icon_hint": "code",
       "status": "completed",
       "started": "2026-09-15T09:58:44Z",
       "completed": "2026-09-15T10:02:15Z",
@@ -270,7 +270,7 @@ window.MAISTER_DATA = {
       "started": "2026-09-15T10:02:15Z",
       "completed": "2026-09-15T10:04:03Z",
       "skip_reason": null,
-      "summary": "Code review and pragmatic review on; reality check and production check off; the test suite runs. Recorded under the seven option keys.",
+      "summary": "Code review and pragmatic review on, the reality check on as always; production check off; the test suite runs. Recorded under the seven option keys.",
       "decisions": [
         {
           "decision": "Leave the production check off",

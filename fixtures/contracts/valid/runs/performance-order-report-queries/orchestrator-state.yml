@@ -6,7 +6,7 @@ orchestrator:
   updated: "2026-09-15T10:31:40Z"
   task_path: .maister/tasks/performance/2026-09-15-order-report-queries
   gate_pending: null
-  options: {html_output: true, sequential: false, code_review_enabled: true, pragmatic_review_enabled: true, reality_check_enabled: false, production_check_enabled: false, skip_test_suite: false}
+  options: {html_output: true, sequential: false, inputs: {task_description: "Speed up the order report endpoint"}, code_review_enabled: true, pragmatic_review_enabled: true, reality_check_enabled: true, production_check_enabled: false, skip_test_suite: false}
   task_ids: {}
   driver: {kind: cockpit, cwd: /home/dev/work/proof-ws/order-service/.worktrees/019260f1-0002-7c00-8a00-0123456789ab-performance}
 
@@ -14,6 +14,8 @@ task:
   title: "Speed up the order report endpoint"
   description: "Speed up the order report endpoint"
   status: completed
+  tags: [performance]
+  priority: null
 
 workflow:
   source: /home/dev/work/plugin-copy/plugins/maister/skills/workflow-engine/workflows/performance.yml
@@ -137,7 +139,7 @@ node_summaries:
         rationale: the operator accepted the static ranking and chose to continue
     risks: []
     artifacts: []
-    icon_hint: verify
+    icon_hint: analysis
   specification:
     status: completed
     summary: "The specification covers the two P0 findings and the first P1. The remaining three are recorded as out of scope with the reason."
@@ -155,7 +157,7 @@ node_summaries:
         rationale: the operator accepted the scope of three findings and chose to continue
     risks: []
     artifacts: []
-    icon_hint: verify
+    icon_hint: spec
   spec-audit:
     status: completed
     summary: "The auditor read the specification against the analysis and returned no blocking finding. Two clarifications were folded back: the index migration names its table, and the cache is scoped to the request rather than the process."
@@ -191,7 +193,7 @@ node_summaries:
         rationale: the operator accepted the three-group plan and its ordering
     risks: []
     artifacts: []
-    icon_hint: verify
+    icon_hint: plan
   implementation:
     status: completed
     summary: "Three task groups executed in order. The endpoint suite is green and the report response shape is unchanged."
@@ -212,10 +214,10 @@ node_summaries:
         rationale: the three groups landed with a green suite and the operator chose to continue
     risks: []
     artifacts: []
-    icon_hint: verify
+    icon_hint: code
   verification-options:
     status: completed
-    summary: "Code review and pragmatic review on; reality check and production check off; the test suite runs. Recorded under the seven option keys."
+    summary: "Code review and pragmatic review on, the reality check on as always; production check off; the test suite runs. Recorded under the seven option keys."
     decisions:
       - decision: Leave the production check off
         rationale: the change touches one endpoint and one migration inside a service that already ships both, so the deployment surface did not move
