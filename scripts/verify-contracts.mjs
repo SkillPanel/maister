@@ -14035,7 +14035,10 @@ const PERFORMANCE_CHECKLIST = {
   twin: 'skills/performance/SKILL.md',
   prose: `${ENGINE}/workflows/performance.md`,
   definition: `${ENGINE}/workflows/performance.yml`,
-  // 21 sections, 137 rows — two rows added after the dogfood runs (§ Amendments).
+  // 21 sections, 137 rows. Two rows were added after runs A, B and C, and after
+  // run D the context block's negative row MOVED into Accepted divergences —
+  // the operator accepted the open-block drift — so the total is unchanged and
+  // only the two section counts moved (§ Amendments).
   sections: [
     ['Nodes', 18],
     ['Run-scoped context set', 4],
@@ -14045,7 +14048,7 @@ const PERFORMANCE_CHECKLIST = {
     ['In-node questions', 5],
     ['Artifacts', 13],
     ['Companion pairs', 3],
-    ['`performance_context` fields', 6],
+    ['`performance_context` fields', 5],
     ['Top-level blocks', 2],
     ['`phase_summaries` keys', 6],
     ['`orchestrator.options`', 8],
@@ -14057,7 +14060,7 @@ const PERFORMANCE_CHECKLIST = {
     ['Transitions', 3],
     ['Command flags', 3],
     ['Embedded mode', 2],
-    ['Accepted divergences', 4],
+    ['Accepted divergences', 5],
   ],
   totalRows: 137,
   nodeCount: 17,
@@ -14088,7 +14091,7 @@ const PERFORMANCE_CHECKLIST = {
     ['6', 'implementation', 5],
     ['8', 'verification', 3],
   ],
-  divergences: 4,
+  divergences: 5,
 };
 
 function parityChecklist(ctx, pin) {
@@ -14376,7 +14379,10 @@ const MIGRATION_CHECKLIST = {
   twin: 'skills/migration/SKILL.md',
   prose: `${ENGINE}/workflows/migration.md`,
   definition: `${ENGINE}/workflows/migration.yml`,
-  // 22 sections, 143 rows — two rows added after the dogfood runs (§ Amendments).
+  // 22 sections, 143 rows. Two rows were added after the performance dogfood
+  // runs, and the context block's negative row later MOVED into Accepted
+  // divergences with performance's — the rows are shared wording — so the total
+  // is unchanged and only the two section counts moved (§ Amendments).
   sections: [
     ['Nodes', 17],
     ['Guards', 3],
@@ -14387,7 +14393,7 @@ const MIGRATION_CHECKLIST = {
     ['In-node questions', 3],
     ['Artifacts', 14],
     ['Companion pairs', 3],
-    ['`migration_context` fields', 11],
+    ['`migration_context` fields', 10],
     ['Top-level blocks', 3],
     ['`phase_summaries` keys', 6],
     ['`orchestrator.options`', 4],
@@ -14399,7 +14405,7 @@ const MIGRATION_CHECKLIST = {
     ['Transitions', 3],
     ['Command flags', 5],
     ['Embedded mode', 2],
-    ['Accepted divergences', 7],
+    ['Accepted divergences', 8],
   ],
   totalRows: 143,
   nodeCount: 16,
@@ -14431,7 +14437,7 @@ const MIGRATION_CHECKLIST = {
     ['6', 'verification', 3],
     ['8', 'documentation', 1],
   ],
-  divergences: 7,
+  divergences: 8,
 };
 
 const t65 = ctx => parityChecklist(ctx, PERFORMANCE_CHECKLIST);
