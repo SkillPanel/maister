@@ -370,13 +370,17 @@ artifact-writing delegate carries everything earlier phases decided and flagged,
 that passage by hand does not hold — measured across four attended runs, a node composing it
 afresh from an artifact it had already read condensed thirteen items into seven clauses on
 one line — so the passage is not written, it is fetched. Run `prior-context` against the run's
-state file and paste its stdout into the prompt under its own heading, unedited. It renders
+state file **at each consuming delegate** — one call per prompt, in the turn that composes it —
+and paste its stdout into the prompt under its own heading, unedited. It renders
 every `phase_summaries` entry the run has accumulated: the phase key, the node that owns it,
 its summary line, then its decisions and its risks as one bullet each with the count beside
 the heading, so a truncation is visible as a number that disagrees with its own bullets. It
 finds the run's context block itself — every workflow whose context block carries
-`phase_summaries` is served by the same call — and because it only reads, it is safe to run
-as often as a turn needs it. Trimming its output, re-ordering it or summarizing it puts the
+`phase_summaries` is served by the same call. Re-using a rendering produced for an earlier
+delegate is not licensed however recent it looks: a summary written in between makes it stale,
+the prompt records nothing about when it was taken, and a prompt that happens to be current is
+current by timing rather than by construction. The verb reads the run and writes nothing, so
+the extra call costs nothing. Trimming its output, re-ordering it or summarizing it puts the
 composing step back.
 
 A `direct:` node's prose is the node's body: its steps, its fan-outs, its self-checks, the

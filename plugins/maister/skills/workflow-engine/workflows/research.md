@@ -37,7 +37,28 @@ because they belong to the run rather than to a node:
   When it is false, no companion is requested and no dashboard file is written.
 - `project_doc_paths` — discovered by the first node and read from state after.
 - the accumulated `phase_summaries` — the full converged detail of everything
-  decided so far, verbatim, never re-summarized.
+  decided so far, verbatim, never re-summarized. **Fetch this one; do not write
+  it.** The engine's `prior-context` verb takes the run's state file and prints
+  the whole passage — every phase, its decisions and its risks, one bullet each
+  with the count beside the heading. Run it once for each delegate prompt, in the
+  turn that composes that prompt, and paste its output in under its own heading,
+  unedited.
+
+**The prior-phase passage of a delegate prompt is fetched, not composed.** Four
+attended runs measured the same thing: this rule holds where the lift is
+mechanical and happens once, and fails where a node writes the passage afresh
+from an artifact it has already read — thirteen items arrived as seven clauses on
+one line, and nothing in the prompt recorded that they had ever been thirteen. So
+the composing step is gone. Call `prior-context` with the run's state file **at
+each consuming delegate** — one call per prompt, in the turn that composes it —
+paste its stdout into the prompt, and leave it alone: trimming it, re-ordering it
+or tightening it is the same defect by hand. Re-using a rendering produced for an
+earlier delegate is not licensed however recent it looks: a summary written in
+between makes it stale, the prompt records nothing about when it was taken, and a
+prompt that happens to be current is current by timing rather than by
+construction. The verb reads the run and writes nothing, so the extra call costs
+nothing — and what it prints at the moment a prompt is composed is what that
+delegate receives.
 
 Anything node-scoped is in `with:` instead. Every prompt that asks a delegate to
 write an artifact also carries the artifact summary contract, so the summary

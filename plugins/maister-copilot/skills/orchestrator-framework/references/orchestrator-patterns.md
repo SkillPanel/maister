@@ -152,16 +152,16 @@ When a phase ends with `→ **AUTO-CONTINUE**`:
 
 ### Context Passing
 
-All subagent prompts must include context from prior phases:
+All subagent prompts must include context from prior phases, and **that context is
+fetched, not composed**:
 
 ```
 prompt: |
   [Task instructions]
   Task path: [path]
 
-  ## CONTEXT FROM PRIOR PHASES
-  [Key state fields from orchestrator-state.yml]
-  [Summaries of completed phases from phase_summaries]
+  [the stdout of `prior-context --state <task path>/orchestrator-state.yml`,
+   pasted in unedited — it opens with its own heading]
 
   ## RESEARCH CONTEXT (if research_reference exists)
   Research question: [research_reference.research_question]
@@ -177,6 +177,8 @@ prompt: |
 ```
 
 **Why**: Subagents run in isolated context. Without summaries, they must re-parse entire files and miss prior decisions.
+
+**The prior-phase passage is fetched, not composed.** Four attended runs measured the same thing: the rule holds where the lift is mechanical and happens once, and fails where a phase writes the passage afresh from an artifact it has already read — thirteen items arrived as seven clauses on one line, and nothing in the prompt recorded that they had ever been thirteen. So the composing step is gone, and a hand-written `## CONTEXT FROM PRIOR PHASES` block is the superseded shape. The workflow engine's read-only `prior-context` verb takes the run's state file and prints the whole passage — every phase, its decisions and its risks, one bullet each with the count beside the heading, so a truncation shows up as a number that disagrees with its own bullets. It finds the context block itself: every orchestrator whose `[domain]_context` carries `phase_summaries` is served by the same call (`workflow-engine/SKILL.md` § *Executing a node* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — paste its stdout in, and leave it alone: trimming it, re-ordering it or tightening it is the same defect by hand. Re-using a rendering produced for an earlier delegate is not licensed however recent it looks: a summary written in between makes it stale, the prompt records nothing about when it was taken, and a prompt that happens to be current is current by timing rather than by construction. The verb reads the run and writes nothing, so the extra call costs nothing.
 
 ### Context Extraction
 
