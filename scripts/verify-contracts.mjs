@@ -15227,6 +15227,239 @@ function priorSameItem(rendered, stateItem, exact) {
   return exact ? a === b : a.includes(b);
 }
 
+// ---------------------------------------------------------------------------
+// T69 — the prior-context rule is adopted by every file that hands a delegate
+//       prior-phase summaries
+// ---------------------------------------------------------------------------
+
+/**
+ * T68 pins what the verb *renders*. This row pins who *calls* it, which is a
+ * different failure and the one that actually happened: the rule lived as prose
+ * in each definition, two definitions drifted out of it, and nothing was red.
+ *
+ * Membership is read off the files rather than listed here. A definition that
+ * records a keyed write into `<domain>_context.phase_summaries.<key>`
+ * accumulates prior-phase summaries and must wire the call; one that records
+ * none must *declare* the absence. A definition added later that says nothing
+ * at all satisfies neither branch and fails the walk — which is the point, since
+ * the defect this row exists for was an omission that read as a decision.
+ *
+ * The two carriers that are not definitions — the engine skill and the framework
+ * patterns — are named by path, neither living under `workflows/`.
+ */
+
+/** Carriers that are not workflow definitions, and so are not discovered. */
+const PRIOR_CONTEXT_FIXED_CARRIERS = {
+  'engine skill': `${ENGINE}/SKILL.md`,
+  'framework patterns': 'skills/orchestrator-framework/references/orchestrator-patterns.md',
+};
+
+/**
+ * Which side each definition shipped today falls on. This does not bound the
+ * walk — a definition added later is classified by its own content — it pins
+ * the classification of the ones that exist, so a definition that loses every
+ * `phase_summaries` write it used to make is reported as having changed sides
+ * rather than quietly passing as chain-only.
+ */
+const PRIOR_CONTEXT_SIDES = {
+  development: 'carrier', migration: 'carrier', performance: 'carrier', research: 'carrier',
+  change: 'absent', fix: 'absent', plan: 'absent',
+};
+
+/** Prose with its line breaks discounted, so re-wrapping a passage is not a diff. */
+const priorFlat = text => text.replace(/\r\n?/g, '\n').replace(/\s+/g, ' ');
+
+/** A definition writes prior-phase summaries into state. */
+const priorAccumulates = flat => /[a-z_]+_context\.phase_summaries\.[A-Za-z0-9_-]+/.test(flat);
+
+/** A definition says, in as many words, that it accumulates none. */
+const priorDeclaresAbsence = flat => /No accumulated `phase_summaries`/.test(flat);
+
+/**
+ * Everything wrong with one carrier, as a list. Shared by the live assertions
+ * and by the mutation block below, so a mutation is scored by exactly the
+ * predicate the live check uses: a check no mutation can redden asserts nothing.
+ *
+ * Every test runs against the flattened text, so re-wrapping a paragraph — which
+ * an editor does without thinking — never reddens the row and never hides a
+ * deletion either.
+ */
+function priorCarrierProblems(text) {
+  const flat = priorFlat(text);
+  const wrong = [];
+
+  // 1. the mechanism, by name, reading the run's state file.
+  if (!/`prior-context`/.test(flat)) wrong.push('never names the `prior-context` verb');
+  if (!/state file/.test(flat)) wrong.push("never says the verb reads the run's state file");
+
+  // 2. the hardening: the call is bound to the prompt, one per delegate. Bare
+  //    presence of the verb is what the two drifted definitions already had.
+  if (!/at each consuming delegate/.test(flat)) {
+    wrong.push('does not require the call at each consuming delegate');
+  }
+  if (!/one call per prompt/.test(flat)) wrong.push('does not say one call per prompt');
+  if (!/in the turn that composes/.test(flat)) {
+    wrong.push('does not bind the call to the turn that composes the prompt');
+  }
+
+  // 3. a re-used rendering is refused by name, with the reason.
+  if (!/Re-using a rendering produced for an earlier delegate is not licensed/.test(flat)) {
+    wrong.push('does not refuse a rendering re-used from an earlier delegate');
+  }
+  if (!/by timing rather than by construction/.test(flat)) {
+    wrong.push('does not name the timing-versus-construction failure');
+  }
+
+  // 4. the superseded permissive wording is gone. One regex covers both
+  //    spellings it shipped in: the definitions' "call it as often as a turn
+  //    needs it" and the engine skill's "safe to run as often as a turn needs
+  //    it". Either one licenses the stale rendering clause 3 refuses.
+  if (/as often as a turn needs it/.test(flat)) {
+    wrong.push('the superseded "as often as a turn needs it" licence survives');
+  }
+
+  // 5. the passage is fetched, never hand-composed. Any bracketed prompt
+  //    placeholder that names the whole `phase_summaries` block is an offer to
+  //    fill it in by hand — the exact shape that failed on two attended runs —
+  //    unless it names the verb whose stdout goes there. A placeholder naming a
+  //    path *into* the block (`[phase_summaries.research.summary]`) is a scalar
+  //    lift, not the passage, and is left alone.
+  //    The bracket may hold no brace or nested bracket: that keeps the scan on
+  //    prompt-template placeholders and off the JSON and YAML examples these
+  //    files also carry, which mention the field inside structures of their own.
+  for (const hit of flat.match(/\[[^[\]{}]{0,160}phase_summaries(?![.\w])[^[\]{}]{0,160}\]/g) ?? []) {
+    if (!/prior-context/.test(hit)) {
+      wrong.push(`still offers a hand-filled prior-phase placeholder: ${JSON.stringify(hit.slice(0, 60))}`);
+    }
+  }
+  return wrong;
+}
+
+/** A phrase as a regex that tolerates the line wrapping of the shipped prose. */
+const priorWrapped = phrase => new RegExp(phrase.split(' ')
+  .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'));
+
+/**
+ * Each carrier reverted to a shape the rule already shipped in, or to one a
+ * reasonable edit would produce. Every one of them must redden
+ * `priorCarrierProblems`, which is what keeps this row from being a spell-check
+ * over prose nobody may weaken.
+ */
+const PRIOR_CONTEXT_MUTATIONS = [
+  ['the per-delegate binding is dropped back to mere presence',
+    t => t.replace(priorWrapped('**at each consuming delegate**'), 'in the prompt')
+      .replace(priorWrapped('at each consuming delegate'), 'in the prompt')],
+  ['the one-call-per-prompt clause is dropped',
+    t => t.replace(priorWrapped('one call per prompt, in the turn that composes it'),
+      'a call somewhere in the run')],
+  ['the re-use refusal is deleted',
+    t => t.replace(priorWrapped('Re-using a rendering produced for an earlier delegate is not licensed'),
+      'A rendering produced for an earlier delegate may be re-used')],
+  ['the permissive licence is restored',
+    t => t.replace(priorWrapped('The verb reads the run and writes nothing, so the extra call costs nothing'),
+      'It reads the run and writes nothing, so call it as often as a turn needs it')],
+  ['the verb is unnamed again',
+    t => t.replace(/`prior-context`/g, 'the prior-phase passage')],
+  // Not a revert of this change but of the one before it: the placeholder the
+  // framework offered for two years, re-introduced anywhere in the file.
+  ['a hand-filled prior-phase placeholder is put back into a prompt template',
+    t => `${t}\n\n[Summaries of completed phases from phase_summaries]\n`],
+];
+
+async function t69(ctx) {
+  const t = checker();
+  const workflowsDir = path.join(ctx.pluginRoot, ENGINE, 'workflows');
+  const definitions = fs.existsSync(workflowsDir)
+    ? fs.readdirSync(workflowsDir).filter(name => name.endsWith('.md')).sort()
+      .map(name => ({ name: name.slice(0, -'.md'.length), file: path.join(workflowsDir, name) }))
+    : [];
+
+  t.check('the walk found the shipped definitions', () => {
+    must(definitions.length > 0, `${ENGINE}/workflows carries no prose definition to classify`);
+  });
+
+  // -- every shipped definition: wired, or declared absent ------------------
+  const carriers = [];
+  const absent = [];
+  for (const each of definitions) {
+    const text = fs.readFileSync(each.file, 'utf8');
+    const flat = priorFlat(text);
+    const accumulates = priorAccumulates(flat);
+    const declared = priorDeclaresAbsence(flat);
+
+    t.check(`workflows/${each.name}.md: takes a side on prior-phase context`, () => {
+      must(accumulates || declared,
+        'it neither writes into `<domain>_context.phase_summaries.<key>` nor declares "No accumulated `phase_summaries`" — '
+        + 'a definition that says nothing about prior-phase context is an omission reading as a decision');
+      must(!(accumulates && declared),
+        'it declares "No accumulated `phase_summaries`" and writes into `phase_summaries` anyway');
+    });
+    if (accumulates && !declared) carriers.push([`workflows/${each.name}.md`, text]);
+    else if (declared && !accumulates) absent.push([`workflows/${each.name}.md`, text, each.name]);
+
+    const pinned = PRIOR_CONTEXT_SIDES[each.name];
+    if (pinned) {
+      t.check(`workflows/${each.name}.md: is still on the side it shipped on`, () => {
+        const side = accumulates ? 'carrier' : 'absent';
+        must(side === pinned,
+          `it shipped as ${pinned === 'carrier' ? 'a carrier of accumulated summaries' : 'chain-only'} and now reads as the other; `
+          + 'if the change is intended, move its row in PRIOR_CONTEXT_SIDES in the same commit');
+      });
+    }
+  }
+  t.check('the known definitions are all still shipped', () => {
+    const missing = Object.keys(PRIOR_CONTEXT_SIDES).filter(name => !definitions.some(d => d.name === name)).sort();
+    must(missing.length === 0, `PRIOR_CONTEXT_SIDES names definitions workflows/ does not carry: ${missing.join(', ')}`);
+  });
+
+  for (const [label, rel] of Object.entries(PRIOR_CONTEXT_FIXED_CARRIERS)) {
+    const file = path.join(ctx.pluginRoot, rel);
+    t.check(`${label}: present`, () => must(isFile(file), `${rel} is absent, so the rule has no carrier there`));
+    if (isFile(file)) carriers.push([label, fs.readFileSync(file, 'utf8')]);
+  }
+
+  t.check('both kinds of file were found', () => {
+    must(carriers.length >= 3, `only ${carriers.length} carrier(s) were classified — the row proves little`);
+    must(absent.length >= 1, 'no definition declares the absence, so the declaration branch asserted nothing');
+  });
+
+  // -- the carriers carry the rule, in full --------------------------------
+  for (const [label, text] of carriers) {
+    t.check(`${label}: names the verb and binds the call to each consuming delegate`, () => {
+      const wrong = priorCarrierProblems(text);
+      must(wrong.length === 0, wrong.join('; '));
+    });
+  }
+
+  // -- the chain-only definitions declare the absence rather than omitting it
+  for (const [label, text] of absent) {
+    t.check(`${label}: says it accumulates nothing rather than staying silent`, () => {
+      must(!/`prior-context`/.test(priorFlat(text)),
+        'it names the `prior-context` verb although it accumulates nothing for the verb to render');
+    });
+  }
+
+  // -- the assertions above are not a spell-check ---------------------------
+  for (const [label, text] of carriers) {
+    t.check(`${label}: every weakening of the rule reddens the assertions`, () => {
+      const survived = [];
+      for (const [name, mutate] of PRIOR_CONTEXT_MUTATIONS) {
+        const mutated = mutate(text);
+        if (mutated === text) { survived.push(`${name}: the mutation matched nothing to change`); continue; }
+        if (priorCarrierProblems(mutated).length === 0) survived.push(name);
+      }
+      must(survived.length === 0, `mutations the checks do not catch: ${survived.join('; ')}`);
+    });
+  }
+
+  return {
+    checks: t.checks,
+    failures: t.failures,
+    notes: [`${carriers.length} carrier(s) held against ${PRIOR_CONTEXT_MUTATIONS.length} mutations each, `
+      + `${absent.length} definition(s) declaring the absence`],
+  };
+}
+
 /**
  * `needs` gates a test on a tree the runner may not have:
  *   'fixtures' — a non-empty fixture tree (`--fixtures`)
@@ -15306,6 +15539,7 @@ const TESTS = [
   { id: 'T66', name: 'migration-parity-checklist', needs: ['plugin', 'in-repo'], run: t66 },
   { id: 'T67', name: 'gate-index-closes', needs: ['plugin', 'fixtures'], run: t67 },
   { id: 'T68', name: 'prior-context-render', needs: ['plugin', 'fixtures'], run: t68 },
+  { id: 'T69', name: 'prior-context-adoption', needs: ['plugin'], run: t69 },
 ];
 
 // ---------------------------------------------------------------------------
