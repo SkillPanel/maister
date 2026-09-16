@@ -86,6 +86,18 @@ because they belong to the run rather than to a node:
 - the accumulated `phase_summaries` — the full detail of everything decided so
   far, verbatim, never re-summarized.
 
+> **ANTI-PATTERN**: Do NOT re-summarize a summary block, and do NOT hand-write
+> the prior-phase context a delegate is given. `decisions` and `risks` are
+> copied out of the artifact's own Key Decisions and Open Questions / Risks
+> blocks **item for item** — the same count, the same words, the artifact's
+> order — into `phase_summaries`, into `node_summaries` and into the dashboard.
+> Rewriting them in your own words loses the sentence the operator is about to
+> approve at a gate; writing an empty `[]` because the node has already read
+> the artifact loses it outright, and `decisions: []` beside a specification
+> carrying eight of them is the failure this block exists to stop. What a
+> delegate receives as prior context is the `phase_summaries` entries as state
+> carries them, pasted — never a paraphrase of them selected in your own words.
+
 Anything node-scoped is in `with:` instead. Every prompt that asks a delegate to
 write an artifact also carries the artifact summary contract, so the summary
 this workflow lifts into state is one the delegate wrote rather than one the
@@ -94,13 +106,17 @@ engine invented. Three artifacts additionally get an HTML companion when
 verification report — and each companion path is registered under
 `artifacts[].html` on the summary entry that owns it.
 
-**Operator visibility.** Refresh the dashboard when a node starts, **before
-every gate fires** — the operator reviews the finished node's artifacts while
-answering — after every node completes, on every gate decision and at
-finalization. A skipped node is written to the dashboard too, with the reason
-its guard gave, so an operator can tell a stretch that was skipped from one that
-never existed. It is a terse projection of state; never duplicate artifact
-content into it.
+**Operator visibility.** Rewrite `dashboard-data.js` in the same turn as the
+`write-state` call that records the change. **There is no dashboard verb** — no
+verb this workflow calls touches the projection, so it is only ever as fresh as
+the last turn that rewrote it by hand, and a rewrite point with no rewrite
+beside it is a dashboard the operator reads as stale. Five points, and every one
+of them already makes a state write: when a node starts, **before every gate
+fires** — the operator reviews the finished node's artifacts while answering —
+after every node completes, on every gate decision, and at finalization. A
+skipped node is written to the dashboard too, with the reason its guard gave, so
+an operator can tell a stretch that was skipped from one that never existed. It
+is a terse projection of state; never duplicate artifact content into it.
 
 ---
 
@@ -198,7 +214,9 @@ read.
    with a value from the list.
 3. **Create and initialize** the task directory under the `migrations/` type
    directory and its state file, with the task description and an empty
-   `phase_summaries` map under `migration_context`.
+   `phase_summaries` map under `migration_context`. The map is the state writer's to seed — the first write that touches
+   the context block creates it empty — so a node that has nothing to mirror
+   still leaves a reader something to read.
 4. **Create the subdirectories** the later nodes write into — the analysis,
    implementation, verification and documentation directories.
 5. **Read the project configuration** and set `options.html_output` (default true
@@ -208,8 +226,10 @@ read.
    other option lives. When `html_output` is false, skip the dashboard entirely
    — no dashboard asset, no data projection, no browser open. Otherwise copy the
    dashboard asset to the task root, write the initial data projection with
-   every node pending, and open it in the operator's browser by the plain
-   absolute path. On failure print the path; never block.
+   every node pending, and **run the platform opener** on the plain absolute
+   path through the shell — `open "<task path>/dashboard.html"` on macOS,
+   `xdg-open` on Linux, `start ""` on Windows. Never build a `file://` URL; the
+   opener resolves a plain path itself. On failure print the path; never block.
 6. **Print the startup banner** — the task description, the task directory and
    the dashboard path, then say which node runs first.
 7. **Discover the project documentation** — read the documentation index under
@@ -218,6 +238,12 @@ read.
    them as `project_context.project_doc_paths`, a top-level sibling of the
    orchestrator and context blocks and never nested inside either — the state
    writer's patch carries `project_context` as its own key.
+
+> **ANTI-PATTERN**: Do NOT print the dashboard path instead of opening it. The
+> path hint in the banner is a second copy for the operator's scrollback, not
+> the opener — a run whose transcript carries no `open`, `xdg-open` or
+> `start ""` shipped a dashboard nobody ever saw, and every later rewrite of it
+> was written for no reader.
 
 **There is no gate after this node.** It auto-continues into the current-state
 analysis.
@@ -461,6 +487,12 @@ never landed there is an input the run silently ignores. When it is true the
 executor runs one task group at a time instead of dispatching independent groups
 in parallel waves. It defaults to parallel, and a migration whose groups share
 data state is the usual reason to set it.
+
+**An input the operator did not supply is not an absent value.** `sequential`
+declares `default: false`, so an invocation that never names it resolves to
+`false` and lands as `false` — never `null`. `null` is what copying an absent
+input writes rather than reading the default the definition already gives, and
+it is not a value this option has.
 
 **After the skill returns**, reconcile the plan's HTML companion when one exists
 — every group whose steps are all marked done in the document must read as done

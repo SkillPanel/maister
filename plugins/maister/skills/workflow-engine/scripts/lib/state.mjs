@@ -354,6 +354,7 @@ function apply(doc, patch, changed) {
     // name it just wrote.
     const block = contextBlock(doc, patch);
     intended.add(block);
+    seedSummaries(doc, block, changed);
     if (patch.context) applyContext(doc, block, patch.context, changed);
     if (patch.phase_summaries) applySummaries(doc, block, patch.phase_summaries, patch.nodes, 'phase', changed);
   }
@@ -831,6 +832,34 @@ function applyTopLevel(doc, key, value, changed) {
     doc.set([key, name], block(name, item, 2));
     changed.push(`${key}.${name}`);
   }
+}
+
+/**
+ * The empty `phase_summaries` map, written the first time a run's context block
+ * is touched and never again.
+ *
+ * Every built-in definition's intake prose already required it, and three
+ * attended runs of the same definition seeded scalars only — the map was
+ * inserted several nodes later by whichever node first wrote a summary. A rule
+ * stated in the definition, in the framework patterns and in the prose twin,
+ * and missed three times out of three, is not a rule prose is carrying; so the
+ * writer carries it. The map is what a reader of a half-finished run consults
+ * to learn that nothing has been decided yet, and its absence reads instead as
+ * a run that never had the key.
+ *
+ * Seeded for every context block, because every context block carries the map
+ * in practice: the two frozen migration runs under `fixtures/contracts/valid/`
+ * both have one, and `migration.md` requires it at intake in the same words
+ * `performance.md` does. No shape changes — the key was already part of A1 and
+ * an empty object is the value the definitions ask for.
+ *
+ * It is reported among `changed` only when it was actually written, so a caller
+ * cannot read the echo as "the map was re-created" on every later write.
+ */
+function seedSummaries(doc, contextKey, changed) {
+  if (doc.locate([contextKey, 'phase_summaries'])) return;
+  doc.set([contextKey, 'phase_summaries'], block('phase_summaries', {}, 2));
+  changed.push(`${contextKey}.phase_summaries`);
 }
 
 /** Free-form keys under the run's context block, beside `phase_summaries:`. */
