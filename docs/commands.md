@@ -49,13 +49,17 @@ Starts performance optimization with static bottleneck analysis (9 phases) or re
 
 | Flag | Description |
 |------|-------------|
-| `--from=PHASE` | Start from or resume at a specific phase |
-| `--reset-attempts` | Reset failed attempt counters (resume) |
+| `--from=PHASE` | Prose phases only — see below |
+| `--reset-attempts` | Prose phases only — see below |
 
 You can optionally provide profiling data (flame graphs, APM screenshots) — the workflow creates a directory for these.
 
+**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:performance` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume an engine run by passing the task path alone.
+
+The prose phases remain, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and they do take `--from=PHASE` — so a mid-workflow re-entry is a real route, on that path. The variable is global to every workflow that has a prose twin, so while it is set development and research move onto prose as well.
+
 **Task directory**: `.maister/tasks/performance/`
-**Resume phases**: `analysis`, `specification`, `planning`, `implementation`, `verification`
+**Resume phases** (prose only): `analysis`, `specification`, `planning`, `implementation`, `verification`
 
 ---
 

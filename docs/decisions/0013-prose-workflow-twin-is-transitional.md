@@ -33,22 +33,25 @@ Chosen option: **keep, then retire**. The prose orchestrator stays while the eng
 
 Option 1 loses on the arithmetic above, and it loses worse over time: the second implementation is the one nobody runs, so its checks are the ones that go stale, and every new workflow doubles the bill. Option 2 gives up something real while it is still needed — during rollout the prose path is the known-good escape hatch, and an operator who hits an engine defect unsets the opt-in and gets the previous behaviour back in one step. Option 3 is the worst of both: an unmaintained fallback still looks like a supported path, and the person who discovers otherwise is by definition the person whose machine cannot run the alternative.
 
-**Rollout status: the default has changed over for both definition-backed workflows, and the
-prose has not been deleted.** Research switched first; development followed on the same
-mechanism — one variable, `MAISTER_WORKFLOW_PROSE`, set to a non-empty value, selects the prose
-phases for every workflow that has them. A second variable was deliberately not introduced:
-per-workflow opt-outs would multiply with the definitions, and an operator escaping an engine
-defect wants one switch, not a matrix.
+**Rollout status: the default has changed over for three of the four definition-backed
+workflows, and the prose has not been deleted.** Research switched first, development followed,
+and performance after it — all on the same mechanism: one variable, `MAISTER_WORKFLOW_PROSE`,
+set to a non-empty value, selects the prose phases for every workflow that has them. A second
+variable was deliberately not introduced: per-workflow opt-outs would multiply with the
+definitions, and an operator escaping an engine defect wants one switch, not a matrix.
 
-Retirement is two events, not one, and only the first has happened — now for both workflows.
+Retirement is two events, not one, and only the first has happened — now for three of the four.
 What licensed each was the condition this ADR set: a parity checklist walked green against real
 runs. For research that was a full run exercising both optional stretches, all three gates asked
 and answered in session, and a second run taking a stop option at the first gate. For
 development it was three runs against a twenty-six-node graph — two exercising the guarded
 stretches and the stop path, and a third closing the Skill-tool handover the switch itself
-depends on. Those runs earned their keep in both cases: research's turned up a convergence
-instruction that could not be satisfied as written, and development's turned up a state-writer
-defect that silently discarded operator-set options, which no static sweep could have found.
+depends on. For performance it was five runs, two of them attended, walked against a parity
+checklist until the count of failing rows reached zero. Those runs earned their keep in every
+case: research's turned up a convergence instruction that could not be satisfied as written,
+development's turned up a state-writer defect that silently discarded operator-set options, and
+performance's turned up delegate prompts that re-wrote the prior phases' decisions instead of
+carrying them, which no static sweep could have found.
 
 **What still blocks deleting the prose.** Three things, and none of them is time passing:
 

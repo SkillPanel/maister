@@ -33,8 +33,8 @@ definition — a graph of nodes with declared dependencies and guards — that t
 freezes into the task's state and executes. Both interpreters produce the same task directory.
 
 `/maister:development` runs the definition — it ships as `builtin:development`, with a diagram
-generated from it (regenerate that diagram, never edit it). Research runs on the engine by
-default too, and three further definitions ship without a command of their own — the chain-only
+generated from it (regenerate that diagram, never edit it). Research and performance run on the
+engine by default too, and three further definitions ship without a command of their own — the chain-only
 `plan`, `change` and `fix` workflows described below, which the engine runs when a chain
 dispatches them.
 
@@ -42,8 +42,8 @@ Definitions resolve eject → generated → overlay → built-in, and the first 
 `.maister/workflows/<name>.yml`, then a generated chain at `.maister/workflows/generated/<name>.yml`,
 then an overlay at `.maister/workflows/<name>.overlay.yml`, then the shipped built-in. So a project
 can eject a shipped graph into its own workspace, or lay an overlay over it, without patching the
-plugin. That route reaches a workflow wherever the engine executes it — research, development and the
-three chain-only definitions today, so ejecting or overlaying `builtin:development` takes effect
+plugin. That route reaches a workflow wherever the engine executes it — research, development,
+performance and the three chain-only definitions today, so ejecting or overlaying `builtin:development` takes effect
 on the next run. A generated chain — one the planner published for a single ticket — is complete in itself
 and is never overlaid or ejected; it is resolved by name like any other and deleted by the
 workspace's `prune` command once its runs have closed. Writing a chain of your own, naming your
@@ -58,7 +58,7 @@ MAISTER_WORKFLOW_PROSE=1 /maister:development "..."
 ```
 
 One variable covers every workflow that has a prose twin — its scope is the whole plugin, not a
-single workflow — so while it is set, research runs on prose too.
+single workflow — so while it is set, research and performance run on prose too.
 
 The engine records every state change by running its own writer, which is a shell command, and no
 permission mode covers the shell — so the plugin's gate hook allows those calls itself rather than
@@ -145,13 +145,36 @@ Static code analysis to detect bottlenecks, followed by standard spec/plan/imple
 
 **Optional profiling data**: You can provide runtime profiling data, flame graphs, or APM screenshots. The workflow creates `analysis/user-profiling-data/` for these files.
 
+### Interpreter
+
+This workflow exists twice as well: as the prose phases in the performance skill, and as a
+workflow definition the engine freezes into the task's state and executes. Both interpreters
+produce the same task directory.
+
+`/maister:performance` runs the definition — it ships as `builtin:performance`, and resolves
+eject → generated → overlay → built-in like every other definition, so a project can eject or
+overlay it without patching the plugin.
+
+To run the prose phases instead, set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
+
+```
+MAISTER_WORKFLOW_PROSE=1 /maister:performance "..."
+```
+
+The variable is the same global switch the Development section describes — it selects the prose
+twin for every workflow that has one, not for this workflow alone.
+
 ### Resume
 
 ```
-/maister:performance [task-path] [--from=PHASE] [--reset-attempts]
+/maister:performance [task-path]
 ```
 
-Resume phases: `analysis`, `specification`, `planning`, `implementation`, `verification`
+The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no
+mid-graph entry point and no attempt counter: it declines `--from=PHASE` and `--reset-attempts`
+by name. Both flags apply in full on the prose phases only — see **Interpreter** above.
+
+Resume phases (prose phases only): `analysis`, `specification`, `planning`, `implementation`, `verification`
 
 ---
 

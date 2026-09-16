@@ -8,6 +8,42 @@ user-invocable: true
 
 Static-analysis-first performance optimization workflow. Identifies bottlenecks by reading code, then uses the standard specification/planning/implementation/verification pipeline to fix them.
 
+## Entry Point
+
+This workflow exists twice: as the prose phases in this file, and as a workflow definition
+a graph engine runs. Both produce the same task directory; only the interpreter differs.
+
+**Settle this before Initialization, once per run:**
+
+- **`MAISTER_WORKFLOW_PROSE` is set to a non-empty value in the environment** — run the prose
+  phases below exactly as written, with nothing else changed by the presence of this branch.
+  This is the opt-out: it exists for an install with no script runtime, and so that an
+  operator who hits an engine defect gets the previous behaviour back in one step.
+- **Otherwise — the default** — hand the run over. Invoke the `maister:workflow-engine` skill
+  with the Skill tool, naming the workflow `builtin:performance` and passing the task
+  description, the resume target and the invocation's flags. Hand over `--from=PHASE` and
+  `--reset-attempts` as well rather than dropping them on the way — the graph has no
+  mid-graph entry point and no attempt counter, and the engine surfaces that by naming the
+  flag it declines instead of ignoring it in silence. Say what the prose phases below
+  actually offer in their place: they take the phase flag, so an operator who needs to
+  re-enter mid-workflow has the prose path for it. The engine owns the run from there: it
+  resolves the definition, freezes the resolved graph into state and executes it. Do not
+  also run the phases below.
+
+Read the variable with a Bash call — `node -p "process.env.MAISTER_WORKFLOW_PROSE ?? ''"`,
+which reads the same under zsh, bash, PowerShell and cmd.exe; no value, or an empty one,
+means the engine.
+
+The variable names what it selects rather than what it disables, so no value ever has to be
+read as a double negative — the opt-out is spelled by asking for prose, never by switching an
+engine off. It is one variable for every workflow that has a twin, not one per workflow.
+
+Two rules hold whichever way the branch points. **A task directory that carries no `workflow:` block is
+always resumed by the prose phases**, whatever the variable says — such a directory has no
+frozen graph, so there is nothing for the engine to resume. And the prose phases stay in
+this file now that the default has changed over: they remain the twin the definition is
+measured against, and the path an install without a script runtime still takes.
+
 ## Initialization
 
 **BEFORE executing any phase, you MUST complete these steps:**
