@@ -14035,7 +14035,7 @@ const PERFORMANCE_CHECKLIST = {
   twin: 'skills/performance/SKILL.md',
   prose: `${ENGINE}/workflows/performance.md`,
   definition: `${ENGINE}/workflows/performance.yml`,
-  // 21 sections, 135 rows.
+  // 21 sections, 137 rows — two rows added after the dogfood runs (§ Amendments).
   sections: [
     ['Nodes', 18],
     ['Run-scoped context set', 4],
@@ -14045,10 +14045,10 @@ const PERFORMANCE_CHECKLIST = {
     ['In-node questions', 5],
     ['Artifacts', 13],
     ['Companion pairs', 3],
-    ['`performance_context` fields', 5],
+    ['`performance_context` fields', 6],
     ['Top-level blocks', 2],
     ['`phase_summaries` keys', 6],
-    ['`orchestrator.options`', 7],
+    ['`orchestrator.options`', 8],
     ['`node_summaries` keys', 17],
     ['Auto-recovery', 6],
     ['Verbatim sentences', 4],
@@ -14059,7 +14059,7 @@ const PERFORMANCE_CHECKLIST = {
     ['Embedded mode', 2],
     ['Accepted divergences', 4],
   ],
-  totalRows: 135,
+  totalRows: 137,
   nodeCount: 17,
   // The graph-level tail row. The third is this workflow's own: it has no guard
   // at all, and a `when` appearing anywhere in it is a shape change.
@@ -14376,7 +14376,7 @@ const MIGRATION_CHECKLIST = {
   twin: 'skills/migration/SKILL.md',
   prose: `${ENGINE}/workflows/migration.md`,
   definition: `${ENGINE}/workflows/migration.yml`,
-  // 22 sections, 141 rows.
+  // 22 sections, 143 rows — two rows added after the dogfood runs (§ Amendments).
   sections: [
     ['Nodes', 17],
     ['Guards', 3],
@@ -14387,10 +14387,10 @@ const MIGRATION_CHECKLIST = {
     ['In-node questions', 3],
     ['Artifacts', 14],
     ['Companion pairs', 3],
-    ['`migration_context` fields', 10],
+    ['`migration_context` fields', 11],
     ['Top-level blocks', 3],
     ['`phase_summaries` keys', 6],
-    ['`orchestrator.options`', 3],
+    ['`orchestrator.options`', 4],
     ['`node_summaries` keys', 16],
     ['Auto-recovery', 7],
     ['Verbatim sentences', 4],
@@ -14401,7 +14401,7 @@ const MIGRATION_CHECKLIST = {
     ['Embedded mode', 2],
     ['Accepted divergences', 7],
   ],
-  totalRows: 141,
+  totalRows: 143,
   nodeCount: 16,
   tail: [
     ['the no-`on:` sub-assertion', /`on:`/],
