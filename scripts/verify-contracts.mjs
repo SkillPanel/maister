@@ -14967,6 +14967,266 @@ async function t67(ctx) {
   return { checks: t.checks, failures: t.failures, notes: t.notes };
 }
 
+// ---------------------------------------------------------------------------
+// T68 — the prior-phase context a delegate is handed is complete and lossless
+// ---------------------------------------------------------------------------
+
+/**
+ * The `prior-context` verb exists because prose did not hold. Every
+ * artifact-writing delegate must receive the prior phases' decisions and risks
+ * complete — `N` items in state arriving as `N` distinct items, none dropped
+ * and none merged — and four attended runs measured the rule holding in one
+ * delegate prompt out of three, because a node composing that passage afresh
+ * condenses it. The verb removes the composing step, so this row is what keeps
+ * the removal honest: the rendering is held to the same property the prompts
+ * were held to, over the fixtures, and no reading of the verb's own output is
+ * taken on trust.
+ *
+ * The items are lifted out of each fixture's YAML text here rather than through
+ * the verb's reader, on purpose. A renderer that drops an item because its
+ * reader dropped it would otherwise agree with itself and pass.
+ */
+const PRIOR_CONTEXT_RUNS = [
+  ['valid/runs/performance-order-report-queries', 'performance_context'],
+  ['valid/runs/performance-stocktake-report', 'performance_context'],
+  ['valid/runs/migration-cjs-to-esm', 'migration_context'],
+  ['valid/runs/product-design-a', 'design_context'],
+  ['valid/runs/research-a', 'research_context'],
+  ['valid/runs/dev-complete-a', 'task_context'],
+];
+
+async function t68(ctx) {
+  const t = checker();
+  const entry = path.join(ctx.pluginRoot, ENGINE_ENTRY);
+  let items = 0;
+
+  for (const [run, block] of PRIOR_CONTEXT_RUNS) {
+    const state = path.join(ctx.fixtures, run, 'orchestrator-state.yml');
+    if (!isFile(state)) {
+      t.check(`${run}: present`, () => must(false, `the fixture ${run} carries no state file`));
+      continue;
+    }
+    const phases = priorItemsOf(fs.readFileSync(state, 'utf8'), block);
+    const before = fs.readFileSync(state);
+    const proc = runBounded(process.execPath, [entry, 'prior-context', `--state=${state}`], { encoding: 'utf8' });
+
+    t.check(`${run}: the verb renders the run`, () => {
+      must(proc.status === 0,
+        `prior-context exited ${proc.status} — ${String(proc.stderr ?? '').trim().split('\n')[0] || 'no stderr'}`);
+      must(proc.stdout.includes(`${block}.phase_summaries`),
+        `the output does not say which block it came from; the run carries ${block}`);
+    });
+    if (proc.status !== 0) continue;
+
+    t.check(`${run}: every decision and risk arrives as its own line`, () => {
+      const problems = [];
+      for (const phase of phases) {
+        const section = priorSectionOf(proc.stdout, phase.key);
+        if (section === null) {
+          problems.push(`${phase.key}: no section`);
+          continue;
+        }
+        // Matched one-for-one inside the phase's own section, each line claimed
+        // at most once: a renderer that merged two items into one line cannot
+        // satisfy both of them from that line.
+        const bullets = section.split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2).trim());
+        const taken = new Set();
+        const wanted = [...phase.decisions, ...phase.risks];
+        items += wanted.length;
+        // Two passes, exact before loose: a long line must not be claimed by a
+        // short item that happens to be a substring of it while the item the
+        // line actually carries is then reported missing.
+        const claim = (item, exact) => {
+          const at = bullets.findIndex((b, i) => !taken.has(i) && priorSameItem(b, item, exact));
+          if (at < 0) return false;
+          taken.add(at);
+          return true;
+        };
+        const left = wanted.filter(item => !claim(item, true));
+        for (const item of left) {
+          if (!claim(item, false)) problems.push(`${phase.key}: no line of its own for ${JSON.stringify(item.slice(0, 60))}`);
+        }
+      }
+      must(problems.length === 0, `${problems.length} item(s) did not survive: ${problems.slice(0, 2).join('; ')}`);
+    });
+
+    t.check(`${run}: the printed counts are the state's counts`, () => {
+      const wrong = [];
+      for (const phase of phases) {
+        const section = priorSectionOf(proc.stdout, phase.key) ?? '';
+        for (const [label, expected] of [['Decisions', phase.decisions.length], ['Risks', phase.risks.length]]) {
+          const hit = new RegExp(`^${label} \\((\\d+)\\)`, 'm').exec(section);
+          const printed = hit ? Number(hit[1]) : -1;
+          if (printed !== expected) wrong.push(`${phase.key}: ${label} printed ${printed}, state carries ${expected}`);
+        }
+      }
+      must(wrong.length === 0, wrong.slice(0, 3).join('; '));
+    });
+
+    t.check(`${run}: the verb writes nothing`, () => {
+      must(fs.readFileSync(state).equals(before), 'the state file changed under a read-only verb');
+    });
+  }
+
+  t.check('the fixtures exercised the row', () => {
+    must(items >= 40, `only ${items} decision/risk items were checked — the row proves little`);
+  });
+
+  t.check('a run with no context block is refused rather than rendered empty', () => {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'verify-contracts-prior-'));
+    try {
+      const state = path.join(scratch, 'orchestrator-state.yml');
+      fs.writeFileSync(state, 'orchestrator:\n  version: "1.0"\n', 'utf8');
+      const proc = runBounded(process.execPath, [entry, 'prior-context', `--state=${state}`], { encoding: 'utf8' });
+      must(proc.status === 1, `exited ${proc.status}, expected the refusal exit`);
+      must(String(proc.stderr).startsWith('prior-context-absent:'),
+        `the refusal does not lead with its code: ${JSON.stringify(String(proc.stderr).slice(0, 60))}`);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  return { checks: t.checks, failures: t.failures, notes: [`${items} decision and risk items held across ${PRIOR_CONTEXT_RUNS.length} run fixtures`] };
+}
+
+/**
+ * The decision and risk items a state file's `phase_summaries` carries, read
+ * off the text. Handles the three spellings the fixtures use: block sequences
+ * of scalars, block sequences of mapped items, and one-line flow sequences.
+ */
+function priorItemsOf(text, block) {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const indentOf = l => l.length - l.trimStart().length;
+  let i = lines.indexOf(`${block}:`);
+  if (i < 0) return [];
+  while (i < lines.length && lines[i].trim() !== 'phase_summaries:') i++;
+  if (i >= lines.length) return [];
+  const mapIndent = indentOf(lines[i]);
+  const phases = [];
+  let current = null;
+  let listKey = null;
+  let listIndent = -1;
+  for (i++; i < lines.length; i++) {
+    const body = lines[i].trim();
+    if (body === '') continue;
+    const ind = indentOf(lines[i]);
+    if (ind <= mapIndent) break;
+    if (ind === mapIndent + 2 && body.endsWith(':')) {
+      current = { key: body.slice(0, -1), decisions: [], risks: [] };
+      phases.push(current);
+      listKey = null;
+    } else if (ind === mapIndent + 4 && body.startsWith('- ')) {
+      // One frozen run records a phase as a bare sequence of decisions rather
+      // than as a map. Its items are still items.
+      listKey = 'decisions';
+      listIndent = ind;
+      current.decisions.push(priorItemText(body.replace(/^-\s*/, '')));
+    } else if (ind === mapIndent + 4) {
+      const key = body.split(':')[0];
+      listKey = null;
+      if (key === 'decisions' || key === 'risks') {
+        const inline = /^[a-z_]+:\s*\[(.*)\]\s*$/.exec(body);
+        if (inline) for (const part of priorSplitFlow(inline[1])) current[key].push(priorItemText(part));
+        else {
+          listKey = key;
+          listIndent = ind + 2;
+        }
+      }
+    } else if (listKey && ind === listIndent && body.startsWith('-')) {
+      current[listKey].push(priorItemText(body.replace(/^-\s*/, '')));
+    } else if (listKey && ind > listIndent && current[listKey].length) {
+      // A continuation at the item's own field indent is another field of a
+      // mapped item, so its `key:` is punctuation; anything deeper is the
+      // wrapped text of a block scalar, where a leading word before a colon is
+      // a sentence — `green: a silently vacuous pass` — and must survive.
+      const tail = ind === listIndent + 2 ? priorItemText(body) : priorContinuationText(body);
+      const at = current[listKey].length - 1;
+      if (tail) current[listKey][at] = `${current[listKey][at]} ${tail}`.trim();
+    }
+  }
+  return phases;
+}
+
+/** One item's human text, with YAML punctuation, field names and quotes gone. */
+function priorItemText(body) {
+  let text = body.trim();
+  // A block-scalar marker is punctuation, not text: the item's words are on the
+  // lines that follow and are appended to it by the caller.
+  if (/^[|>][0-9+-]*$/.test(text)) return '';
+  text = text.replace(/:\s*[|>][0-9+-]*$/, ': ');
+  if (text.startsWith('{') && text.endsWith('}')) text = text.slice(1, -1);
+  // Stripped, unquoted, then stripped again: a field name may sit outside the
+  // quotes (`decision: "…"`) or inside them (`- "defaulted: …"`), and the two
+  // sides of the comparison have to shed it the same way whichever it is.
+  const shed = part => part.replace(/^[a-z_]+:\s*/, '')
+    .replace(/^"(.*)"$/s, '$1')
+    .replace(/^'(.*)'$/s, '$1')
+    .replace(/^[a-z_]+:\s*/, '');
+  return text
+    .split(/,\s*(?=[a-z_]+:)/)
+    .map(shed)
+    .join(' ')
+    .trim();
+}
+
+/** A wrapped line of a block scalar: quotes and nothing else are punctuation. */
+function priorContinuationText(body) {
+  const text = body.trim();
+  if (/^[|>][0-9+-]*$/.test(text)) return '';
+  return text.replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1');
+}
+
+function priorSplitFlow(body) {
+  const parts = [];
+  let depth = 0;
+  let quote = null;
+  let start = 0;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (quote) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') depth--;
+    else if (ch === ',' && depth === 0) {
+      parts.push(body.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(body.slice(start));
+  return parts.map(p => p.trim()).filter(Boolean);
+}
+
+/** The lines of one phase's section, up to the next section heading. */
+function priorSectionOf(out, key) {
+  const lines = out.split('\n');
+  const start = lines.findIndex(l => l.startsWith('### ') && l.slice(4).split(' ')[0] === key);
+  if (start < 0) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (lines[i].startsWith('### ')) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(start, end).join('\n');
+}
+
+/** A rendered line and a state item are the same item, punctuation discounted. */
+function priorSameItem(rendered, stateItem, exact) {
+  const norm = s => s.replace(/[`"'\\]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  // Case-sensitive, because the emitter's field names are lowercase and a
+  // recorded risk's own first word may not be: `BLOCKING: …` is text.
+  const a = norm(rendered.replace(/^[a-z_]+:\s*/, '').replace(/\s+—\s+[a-z_]+:\s*/g, ' '));
+  const b = norm(stateItem);
+  // One direction only, and deliberately. `b.includes(a)` would let a rendered
+  // line that carries half of its item stand for the whole of it — an item
+  // whose rationale was dropped is a lost item, not a matched one.
+  return exact ? a === b : a.includes(b);
+}
+
 /**
  * `needs` gates a test on a tree the runner may not have:
  *   'fixtures' — a non-empty fixture tree (`--fixtures`)
@@ -15045,6 +15305,7 @@ const TESTS = [
   { id: 'T65', name: 'performance-parity-checklist', needs: ['plugin', 'in-repo'], run: t65 },
   { id: 'T66', name: 'migration-parity-checklist', needs: ['plugin', 'in-repo'], run: t66 },
   { id: 'T67', name: 'gate-index-closes', needs: ['plugin', 'fixtures'], run: t67 },
+  { id: 'T68', name: 'prior-context-render', needs: ['plugin', 'fixtures'], run: t68 },
 ];
 
 // ---------------------------------------------------------------------------

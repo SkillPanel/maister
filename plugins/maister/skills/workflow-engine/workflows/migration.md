@@ -84,19 +84,31 @@ because they belong to the run rather than to a node:
   When it is false, no companion is requested and no dashboard file is written.
 - `project_doc_paths` — discovered by `intake` and read from state after.
 - the accumulated `phase_summaries` — the full detail of everything decided so
-  far, verbatim, never re-summarized.
+  far, verbatim, never re-summarized. **Fetch this one; do not write it.** The
+  engine's `prior-context` verb takes the run's state file and prints the whole
+  passage — every phase, its decisions and its risks, one bullet each with the
+  count beside the heading. Run it in the turn that composes the prompt and
+  paste its output in under its own heading, unedited.
 
-> **ANTI-PATTERN**: Do NOT re-summarize a summary block, and do NOT hand-write
-> the prior-phase context a delegate is given. `decisions` and `risks` are
-> copied out of the artifact's own Key Decisions and Open Questions / Risks
+> **ANTI-PATTERN**: Do NOT re-summarize a summary block. `decisions` and `risks`
+> are copied out of the artifact's own Key Decisions and Open Questions / Risks
 > blocks **item for item** — the same count, the same words, the artifact's
 > order — into `phase_summaries`, into `node_summaries` and into the dashboard.
 > Rewriting them in your own words loses the sentence the operator is about to
 > approve at a gate; writing an empty `[]` because the node has already read
 > the artifact loses it outright, and `decisions: []` beside a specification
-> carrying eight of them is the failure this block exists to stop. What a
-> delegate receives as prior context is the `phase_summaries` entries as state
-> carries them, pasted — never a paraphrase of them selected in your own words.
+> carrying eight of them is the failure this block exists to stop.
+
+**The prior-phase passage of a delegate prompt is fetched, not composed.** Four
+attended runs measured the same thing: this rule holds where the lift is
+mechanical and happens once, and fails where a node writes the passage afresh
+from an artifact it has already read — thirteen items arrived as seven clauses on
+one line, and nothing in the prompt recorded that they had ever been thirteen. So
+the composing step is gone. Call `prior-context` with the run's state file, paste
+its stdout into the prompt, and leave it alone: trimming it, re-ordering it or
+tightening it is the same defect by hand. It reads the run and writes nothing, so
+call it as often as a turn needs it — and what it prints is what every delegate
+that writes an artifact receives.
 
 Anything node-scoped is in `with:` instead. Every prompt that asks a delegate to
 write an artifact also carries the artifact summary contract, so the summary

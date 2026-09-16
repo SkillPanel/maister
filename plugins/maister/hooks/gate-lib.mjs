@@ -516,7 +516,7 @@ export function whitelist(runDir, nodes) {
 const ENGINE_ENTRIES = new Map([
   [
     'skills/workflow-engine/scripts/workflow.mjs',
-    new Set(['validate', 'resolve', 'diagram', 'write-state', 'gate-request', 'run-complete']),
+    new Set(['validate', 'resolve', 'diagram', 'write-state', 'gate-request', 'run-complete', 'prior-context']),
   ],
   [
     'skills/umbrella/scripts/umbrella.mjs',

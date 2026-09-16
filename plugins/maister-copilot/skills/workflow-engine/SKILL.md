@@ -221,6 +221,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout; the refusal on stderr |
+| `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
 
 `gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
 regenerated `gates/index.yml`, **and** the pending marker — `orchestrator.gate_pending` plus
@@ -362,6 +363,21 @@ a dispatch that refuses there rather than a reference some environment may still
 Resolution is rooted at the plugin root, so one shipped definition is correct under every
 generated variant with no rewrite pass. A prefix written into a definition file breaks the
 other variant and is a defect, not a style choice.
+
+**Prior-phase context is read out of state, never composed.** A prompt for an
+artifact-writing delegate carries everything earlier phases decided and flagged, complete:
+`N` items in state must arrive as `N` distinct items, none dropped and none merged. Writing
+that passage by hand does not hold — measured across four attended runs, a node composing it
+afresh from an artifact it had already read condensed thirteen items into seven clauses on
+one line — so the passage is not written, it is fetched. Run `prior-context` against the run's
+state file and paste its stdout into the prompt under its own heading, unedited. It renders
+every `phase_summaries` entry the run has accumulated: the phase key, the node that owns it,
+its summary line, then its decisions and its risks as one bullet each with the count beside
+the heading, so a truncation is visible as a number that disagrees with its own bullets. It
+finds the run's context block itself — every workflow whose context block carries
+`phase_summaries` is served by the same call — and because it only reads, it is safe to run
+as often as a turn needs it. Trimming its output, re-ordering it or summarizing it puts the
+composing step back.
 
 A `direct:` node's prose is the node's body: its steps, its fan-outs, its self-checks, the
 questions it asks inline, and how many times it may be re-driven. Read the section before

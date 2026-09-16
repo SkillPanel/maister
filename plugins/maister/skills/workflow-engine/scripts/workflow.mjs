@@ -6,14 +6,17 @@
  * Windows checkout with no POSIX shell as it does anywhere else. Zero
  * dependencies, `node:` builtins only, Node >= 20.
  *
- * Five verbs, one contract:
+ * The verbs, one contract:
  *
- *   validate      --definition and/or repeatable --overlay   JSON on stdout
- *   resolve       --definition, --overlay…, --profile        JSON on stdout
- *   diagram       the same, plus optional --out              Mermaid text
- *   write-state   --state, the patch as JSON on stdin        changed paths
- *   gate-request  --state, the request as JSON on stdin      the files written
- *                 (the request file, the gate index and the pending marker)
+ *   validate       --definition and/or repeatable --overlay   JSON on stdout
+ *   resolve        --definition, --overlay…, --profile        JSON on stdout
+ *   diagram        the same, plus optional --out              Mermaid text
+ *   write-state    --state, the patch as JSON on stdin        changed paths
+ *   gate-request   --state, the request as JSON on stdin      the files written
+ *                  (the request file, the gate index and the pending marker)
+ *   prior-context  --state                                    the prior phases'
+ *                  decisions and risks as markdown to paste into a delegate
+ *                  prompt — the one read-only verb over a run
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -57,6 +60,11 @@ const VERBS = {
   // hands them over under exactly these two spellings for the outbox verb it
   // publishes with.
   'run-complete': { module: 'complete.mjs', flags: ['state', 'outbox', 'dispatch-id'] },
+  // The only verb that reads a run and writes nothing. One flag, for
+  // `write-state`'s reason: the context block and its `phase_summaries` are
+  // found inside the state file, so there is nothing else a caller could name
+  // and therefore nothing else a caller could name wrongly.
+  'prior-context': { module: 'prior-context.mjs', flags: ['state'] },
 };
 
 /** The flags that may be given more than once; every other flag is single-valued. */
@@ -384,6 +392,28 @@ async function runRunComplete(flags) {
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
+/**
+ * Print the prior phases' decisions and risks for pasting into a delegate
+ * prompt.
+ *
+ * Unlike every other verb here it publishes nothing, so there is no list of
+ * changed files to report: stdout *is* the result, and it is the bytes a caller
+ * pastes. Exit 1 carries the refusal on stderr in the shape the two state verbs
+ * use, so a caller that has learned one of them reads this one too.
+ */
+async function runPriorContext(flags) {
+  if (!flags.state) throw new UsageError('prior-context needs --state');
+  const module = await loadModule(VERBS['prior-context'].module);
+  const render = entryOf(module, 'priorContext', VERBS['prior-context'].module);
+  const result = render({ state: flags.state });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(result.text);
+  return EXIT.OK;
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
@@ -391,6 +421,7 @@ const RUNNERS = {
   'write-state': runWriteState,
   'gate-request': runGateRequest,
   'run-complete': runRunComplete,
+  'prior-context': runPriorContext,
 };
 
 // ---------------------------------------------------------------------------
