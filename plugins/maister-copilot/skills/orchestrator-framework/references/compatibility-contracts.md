@@ -342,7 +342,7 @@ RESUME      run=<run_id> at=<ts>
 |---|---|---|
 | Version floor | 2.1.233 | 1.0.80 |
 | Events | `PreToolUse`, `Stop`, `SessionStart` | `preToolUse`, `agentStop`, `sessionStart` |
-| Registration | the plugin's `hooks.json` (`PreToolUse`) for every session, plus `--settings <file>` on every spawn and resume for the `Stop` nudge and the beacon; nothing persists in the session | `.github/hooks/<name>.json` in the repository, or `~/.copilot/hooks/` which always fires |
+| Registration | the plugin's `hooks.json` (`PreToolUse`) for every session, plus `--settings <file>` on every spawn and resume for a matcher-free `gate-enforce` copy, the `Stop` nudge and the beacon; nothing persists in the session | `.github/hooks/<name>.json` in the repository, or `~/.copilot/hooks/` which always fires |
 | Enablement | none required | `GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true` or `COPILOT_ALLOW_ALL=true` **in the environment** — a flag does not count |
 | Payload keys | `session_id`, `transcript_path`, `cwd`, `permission_mode`, `hook_event_name`, `tool_name`, `tool_input`, plus `tool_use_id`, `prompt_id`, `agent_id`, `agent_type` | `sessionId`, `timestamp`, `cwd`, `toolName`, `toolArgs` — **a JSON string at the floor, an object from 1.0.83** (measured 2026-09-14); readers accept both, and `apply_patch` sends the raw patch text in either build |
 | Stop payload adds | `stop_hook_active`, `last_assistant_message` | `transcriptPath`, `stopReason`, `stop_hook_active` |
