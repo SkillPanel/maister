@@ -21,15 +21,45 @@ cp -r "$CORE" "$OUT"
 # drop the Claude-shaped hooks directory and emit the Copilot registration plus
 # the scripts it names into .github/hooks/. No sed pass touches .mjs or .json.
 rm -rf "$OUT/hooks"
-mkdir -p "$OUT/.github/hooks"
-cp "$CORE/hooks/"{gate-lib,gate-enforce,gate-stop-nudge,gate-beacon}.mjs "$OUT/.github/hooks/"
-cp "$ROOT/platforms/copilot-cli/hooks/maister-gates.json" "$OUT/.github/hooks/"
-cp "$ROOT/platforms/copilot-cli/hooks/README.md" "$OUT/.github/hooks/"
-# The shared state reader is a library, not a hook registration: the engine's
-# state writer imports it as its self-check oracle. Keep it at the path the
-# shipped source imports, so no .mjs has to be rewritten to resolve.
-mkdir -p "$OUT/hooks"
-cp "$CORE/hooks/gate-lib.mjs" "$OUT/hooks/"
+
+# The hook stage's six source files, across the three stages that read them
+# below (gate-lib.mjs is shared by stage A and stage C, so it is listed once
+# here and copied from twice there). A pro-split tree can ship without any of
+# them; a half-present tree is a broken checkout, not a supported shape.
+hook_sources=(
+  "$CORE/hooks/gate-lib.mjs"
+  "$CORE/hooks/gate-enforce.mjs"
+  "$CORE/hooks/gate-stop-nudge.mjs"
+  "$CORE/hooks/gate-beacon.mjs"
+  "$ROOT/platforms/copilot-cli/hooks/maister-gates.json"
+  "$ROOT/platforms/copilot-cli/hooks/README.md"
+)
+hook_present=0
+hook_missing=()
+for f in "${hook_sources[@]}"; do
+  if [ -f "$f" ]; then
+    hook_present=$((hook_present + 1))
+  else
+    hook_missing+=("$f")
+  fi
+done
+
+if [ "$hook_present" -eq "${#hook_sources[@]}" ]; then
+  mkdir -p "$OUT/.github/hooks"
+  cp "$CORE/hooks/"{gate-lib,gate-enforce,gate-stop-nudge,gate-beacon}.mjs "$OUT/.github/hooks/"
+  cp "$ROOT/platforms/copilot-cli/hooks/maister-gates.json" "$OUT/.github/hooks/"
+  cp "$ROOT/platforms/copilot-cli/hooks/README.md" "$OUT/.github/hooks/"
+  # The shared state reader is a library, not a hook registration: the engine's
+  # state writer imports it as its self-check oracle. Keep it at the path the
+  # shipped source imports, so no .mjs has to be rewritten to resolve.
+  mkdir -p "$OUT/hooks"
+  cp "$CORE/hooks/gate-lib.mjs" "$OUT/hooks/"
+elif [ "$hook_present" -eq 0 ]; then
+  echo "build: no gate hook sources present; skipping the Copilot hook stage" >&2
+else
+  echo "build: gate hook sources are half-present (${hook_present}/${#hook_sources[@]}); missing: ${hook_missing[*]}" >&2
+  exit 1
+fi
 
 # 1. Update plugin.json name and description
 sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"
