@@ -212,6 +212,33 @@ To switch back to stable:
 
 Beta versions may contain features that are not yet fully tested. Use at your own discretion.
 
+## Pro Edition
+
+Need pro features on a private marketplace? Install from the pro channel:
+
+```bash
+# Add the pro marketplace (private — access is granted per customer)
+/plugin marketplace add SkillPanel/maister-pro
+
+# Install the pro plugin
+/plugin install maister@maister-pro
+```
+
+Because both editions use the plugin name `maister`, uninstall the other channel first — free and pro cannot coexist on one machine:
+
+```bash
+/plugin uninstall maister@maister-plugins
+```
+
+To switch back to the free edition:
+
+```bash
+/plugin uninstall maister@maister-pro
+/plugin install maister@maister-plugins
+```
+
+GitHub Copilot CLI follows the same two-command flow with `copilot plugin marketplace add` / `copilot plugin install`, using the plugin-root export described in [Installation](#installation).
+
 ## Best Practices
 
 **Don't use plan mode when starting a workflow.** Planning is a built-in part of every workflow — the orchestrator creates specs, plans, and other files as it goes. Claude Code's plan mode restricts file creation, which conflicts with this. Let the workflow handle planning on its own.
