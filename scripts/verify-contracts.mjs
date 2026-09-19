@@ -15460,6 +15460,110 @@ async function t69(ctx) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// T70 — the engine names its edition when a verb module is absent
+// ---------------------------------------------------------------------------
+
+/**
+ * `loadModule`'s missing-module guard is already correct on every axis that
+ * matters operationally: exit 2, one stderr line, no stack trace, nothing
+ * written to disk (the umbrella's mirror of this same guard, over
+ * `lib/seed.mjs`, is pinned by T35). What it has never said is *why* the
+ * module is missing — so a pro-only verb module absent from an open-repo
+ * build reads as generic breakage ("not present in this build") instead of
+ * as the edition boundary it actually is. Pro packaging depends on operators
+ * reading that boundary correctly from the message itself, with no other
+ * carrier to fall back on; the umbrella has a suite row pinning its half of
+ * this shape, the engine had none, so the wording a later wave depends on was
+ * free to regress silently. This row is that pin.
+ */
+
+/** What the missing-module message must say, independent of exact phrasing. */
+function editionMessageProblems(message) {
+  const wrong = [];
+  if (!/this edition of the plugin/.test(message)) wrong.push('does not name "this edition of the plugin"');
+  if (!/pro edition required/.test(message)) wrong.push('does not say "pro edition required"');
+  return wrong;
+}
+
+// -- the assertions above are not a spell-check ---------------------------
+
+/**
+ * Reverts of the live message toward the wording this row replaces, or toward
+ * a plausible half-edit of it. Every one must still fail `editionMessageProblems`,
+ * which is what keeps the row from being a spell-check over one sentence nobody
+ * may reword.
+ */
+const EDITION_MESSAGE_MUTATIONS = [
+  ['reverts to the pre-edit build-only wording',
+    msg => msg.replace(/is not available in this edition of the plugin \(pro edition required\)/, 'is not present in this build')],
+  ['keeps "pro" but drops the edition name',
+    msg => msg.replace('this edition of the plugin', 'this build')],
+  ['names the edition but drops the pro-edition requirement',
+    msg => msg.replace(/\s*\(pro edition required\)/, '')],
+];
+
+async function t70(ctx) {
+  const t = checker();
+  const scratch = tempDir('engine-edition');
+  const treeRoot = path.join(scratch, 'plugin');
+  fs.cpSync(ctx.pluginRoot, treeRoot, { recursive: true });
+
+  // Loaded through `loadModule`, not the eagerly imported `lib/definition.mjs`
+  // (whose absence dies before `main()` runs, as a raw Node resolution error,
+  // not as this guard) — `prior-context.mjs` is the simplest of the choices:
+  // its verb takes one flag, reads no stdin, and is documented to write
+  // nothing, so a clean run leaves no ambiguity about what "nothing written"
+  // covers.
+  const modulePath = path.join(treeRoot, 'skills', 'workflow-engine', 'scripts', 'lib', 'prior-context.mjs');
+  t.check('the target module is shipped before it is removed', () => {
+    must(isFile(modulePath), `${modulePath} is not shipped, so removing it would prove nothing`);
+  });
+  fs.rmSync(modulePath);
+
+  const snapshot = () => fs.readdirSync(treeRoot, { recursive: true })
+    .filter(p => fs.statSync(path.join(treeRoot, p)).isFile()).sort();
+  const before = snapshot();
+  const statePath = path.join(scratch, 's.yml');
+
+  const entry = path.join(treeRoot, ENGINE_ENTRY);
+  const proc = runBounded(process.execPath, [entry, 'prior-context', '--state', statePath], { encoding: 'utf8' });
+  const stderr = String(proc.stderr ?? '');
+  const stdout = String(proc.stdout ?? '');
+
+  t.check('exits 2', () => must(proc.status === 2, `expected exit 2, got ${proc.status}: ${stderr}`));
+  t.check('exactly one stderr line', () => must(stderr.trim().split('\n').length === 1, `stderr is ${JSON.stringify(stderr)}`));
+  t.check('no stack trace reached stderr', () => must(!/\n\s+at /.test(stderr), `stderr carried a trace: ${JSON.stringify(stderr)}`));
+  t.check('nothing on stdout', () => must(stdout === '', `stdout carried output: ${JSON.stringify(stdout)}`));
+  t.check('no raw module-resolution error surfaced', () =>
+    must(!/ERR_MODULE_NOT_FOUND|Cannot find module/.test(stderr), `the raw import error leaked: ${JSON.stringify(stderr)}`));
+  t.check('the state file was never touched', () => must(!fs.existsSync(statePath), 'a file appeared at the --state path'));
+  t.check('nothing else was written under the tree', () => must(snapshot().join('\u0000') === before.join('\u0000'),
+    'the tree gained or lost a file across a verb documented to write nothing'));
+
+  t.check('the message names the edition and requires the pro edition', () => {
+    const wrong = editionMessageProblems(stderr);
+    must(wrong.length === 0, wrong.join('; '));
+  });
+
+  t.check('every weakening of the wording reddens the assertions', () => {
+    const survived = [];
+    for (const [name, mutate] of EDITION_MESSAGE_MUTATIONS) {
+      const mutated = mutate(stderr);
+      if (mutated === stderr) { survived.push(`${name}: the mutation matched nothing to change`); continue; }
+      if (editionMessageProblems(mutated).length === 0) survived.push(name);
+    }
+    must(survived.length === 0, `mutations the checks do not catch: ${survived.join('; ')}`);
+  });
+
+  return {
+    checks: t.checks,
+    failures: t.failures,
+    notes: [`spawned against a copy of the plugin tree with lib/prior-context.mjs removed; `
+      + `${EDITION_MESSAGE_MUTATIONS.length} wording mutations checked`],
+  };
+}
+
 /**
  * `needs` gates a test on a tree the runner may not have:
  *   'fixtures' — a non-empty fixture tree (`--fixtures`)
@@ -15540,6 +15644,7 @@ const TESTS = [
   { id: 'T67', name: 'gate-index-closes', needs: ['plugin', 'fixtures'], run: t67 },
   { id: 'T68', name: 'prior-context-render', needs: ['plugin', 'fixtures'], run: t68 },
   { id: 'T69', name: 'prior-context-adoption', needs: ['plugin'], run: t69 },
+  { id: 'T70', name: 'edition-named-module-absence', needs: ['plugin'], run: t70 },
 ];
 
 // ---------------------------------------------------------------------------

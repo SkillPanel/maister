@@ -182,7 +182,7 @@ async function loadModule(name) {
   // Resolved through `fileURLToPath` rather than `url.pathname`, which on
   // Windows yields a leading-slash path no `fs` call can stat.
   if (!fs.existsSync(fileURLToPath(specifier))) {
-    throw new Error(`the module lib/${name} is not present in this build, so the verb cannot run`);
+    throw new Error(`the module lib/${name} is not available in this edition of the plugin (pro edition required), so the verb cannot run`);
   }
   try {
     return await import(specifier.href);
