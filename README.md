@@ -224,7 +224,7 @@ Need pro features on a private marketplace? Install from the pro channel:
 /plugin install maister@maister-pro
 ```
 
-Because both editions use the plugin name `maister`, uninstall the other channel first — free and pro cannot coexist on one machine:
+Because both editions use the plugin name `maister`, uninstall the other channel first — nothing stops you installing both, but which one resolves is then undefined:
 
 ```bash
 /plugin uninstall maister@maister-plugins
