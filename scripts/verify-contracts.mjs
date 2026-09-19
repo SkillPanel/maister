@@ -15506,6 +15506,11 @@ const EDITION_MESSAGE_MUTATIONS = [
 async function t70(ctx) {
   const t = checker();
   const scratch = tempDir('engine-edition');
+  // Removed in the `finally` below. `tempDir` does not clean up after itself, and
+  // this row copies the whole plugin tree, so without it every run leaves a
+  // couple of megabytes behind -- unnoticed on an ephemeral CI runner, unbounded
+  // on a developer's machine, which is where `make test` runs most often.
+  try {
   const treeRoot = path.join(scratch, 'plugin');
   fs.cpSync(ctx.pluginRoot, treeRoot, { recursive: true });
 
@@ -15562,6 +15567,9 @@ async function t70(ctx) {
     notes: [`spawned against a copy of the plugin tree with lib/prior-context.mjs removed; `
       + `${EDITION_MESSAGE_MUTATIONS.length} wording mutations checked`],
   };
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 /**
