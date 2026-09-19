@@ -1761,7 +1761,7 @@ function t03(ctx) {
  * here so a contracts bump moves one literal rather than two assertions that
  * can drift apart.
  */
-const EXPECTED_HOOK_VERSION = 'contracts-v2';
+const EXPECTED_HOOK_VERSION = 'contracts-v5';
 
 const RUNNER_KEYWORDS = new Set([
   'phase-status-cross-check', 'not_midnight', 'e2-one-line-form', 'b2-one-line-form',
