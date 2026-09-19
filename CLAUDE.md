@@ -28,6 +28,7 @@ eval/                             # Local gate-hook evaluation harness (`results
 docs/                             # User-facing docs (workflows.md, commands.md)
 docs/decisions/                   # Plugin decision log (ADRs) + index
 README.md                         # User-facing install/usage
+CONTRIBUTING.md                   # Contributor loop (make targets); license inbound=outbound
 ```
 
 ## Hard rules
