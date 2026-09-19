@@ -3,7 +3,7 @@
 **Scope**: this repository — the plugin, its generated Copilot variant, the contract register and the gate hooks · **Format**: MADR · **Normative shapes**: `plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md`
 
 ## TL;DR
-Twenty accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps, and ADR-0020 from reading the five per-workflow context blocks against each other once all five existed. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
+Twenty-one accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps, ADR-0020 from reading the five per-workflow context blocks against each other once all five existed, and ADR-0021 from the pro edition's packaging shape. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
 Alternatives are not restated: each ADR states in its own Considered Options why the ones it rejected were rejected.
 
 ## Key Decisions
@@ -25,6 +25,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - A dispatch worktree is named for the run and the node, and an unresolvable run id is refused rather than defaulted into a colliding name (ADR-0018)
 - Generated per-ticket chains live in a git-ignored subdirectory of the workflow home, resolve by name like an eject, and are deleted by a runtime verb once their runs close (ADR-0019)
 - The per-workflow context blocks overlap enough to share a thin core, and the factoring is recorded rather than done: typed known keys are what a generic bag would cost (ADR-0020)
+- The pro edition ships as an assembled superset under one plugin name in a new marketplace, with driver mode and the contracts apparatus closing to pro-only and this wave landing only the open repository's inert preparations (ADR-0021)
 
 ## Index
 
@@ -52,3 +53,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0018](0018-per-run-dispatch-worktrees.md) | Dispatch worktrees are named for the run and the node | Accepted | 2026-09-08 | — |
 | [ADR-0019](0019-generated-chain-home.md) | Generated chains live in a subdirectory of the workflow home | Accepted | 2026-09-08 | — |
 | [ADR-0020](0020-context-block-shared-core.md) | The context-block shared core is unblocked, and deferred to its own change | Accepted | 2026-09-16 | — |
+| [ADR-0021](0021-pro-edition-packaging.md) | The pro edition ships as an assembled superset, and W1 lands its packaging foundation only | Accepted | 2026-09-19 | — |
