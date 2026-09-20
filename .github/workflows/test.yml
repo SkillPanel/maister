@@ -21,3 +21,32 @@ jobs:
           test -z "$(git status --porcelain -- plugins/maister-copilot/)" \
             || (echo "generated variant is stale — run \`make build\` and commit" \
                 && git status --porcelain -- plugins/maister-copilot/ && exit 1)
+
+      # Tells the pro repository's CI that a new commit landed here, so it
+      # can assemble and test against this exact tree. The token is minted
+      # and stored by the operator (never this repo's tooling); pro
+      # infrastructure must never fail open CI (PRO-ADR-006), so an absent
+      # token is a warning and a clean exit, not a failure. sha/ref/repo are
+      # routed through env: and referenced as quoted shell variables — never
+      # interpolated directly into the run: body — the same shape used to
+      # fix an injection defect in the pro repository's own workflows.
+      - name: Dispatch to pro CI
+        if: github.event_name == 'push'
+        env:
+          PRO_DISPATCH_TOKEN: ${{ secrets.PRO_DISPATCH_TOKEN }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$PRO_DISPATCH_TOKEN" ]; then
+            echo "::warning::PRO_DISPATCH_TOKEN is not set — skipping dispatch to SkillPanel/maister-pro (pro infrastructure must never fail open CI)"
+            exit 0
+          fi
+          payload="$(jq -n --arg sha "$SHA" --arg ref "$REF" --arg repo "$REPO" \
+            '{event_type: "open-push", client_payload: {sha: $sha, ref: $ref, repo: $repo}}')"
+          curl -sS -o /dev/null -w '%{http_code}\n' \
+            -X POST \
+            -H "Authorization: token $PRO_DISPATCH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/SkillPanel/maister-pro/dispatches" \
+            -d "$payload"
