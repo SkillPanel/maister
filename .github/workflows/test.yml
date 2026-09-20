@@ -44,9 +44,19 @@ jobs:
           fi
           payload="$(jq -n --arg sha "$SHA" --arg ref "$REF" --arg repo "$REPO" \
             '{event_type: "open-push", client_payload: {sha: $sha, ref: $ref, repo: $repo}}')"
-          curl -sS -o /dev/null -w '%{http_code}\n' \
+          # A silently-failing dispatch is the exact failure the drift loop exists to prevent —
+          # unlike the pro-side status write-back, this must fail the step loudly, not warn.
+          http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
             -X POST \
             -H "Authorization: token $PRO_DISPATCH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/SkillPanel/maister-pro/dispatches" \
-            -d "$payload"
+            -d "$payload")"
+          echo "dispatch response: $http_code"
+          case "$http_code" in
+            2??) ;;
+            *)
+              echo "::error::dispatch to SkillPanel/maister-pro returned HTTP $http_code"
+              exit 1
+              ;;
+          esac
