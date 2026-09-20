@@ -157,7 +157,7 @@ When a workflow pauses at a gate, you answer it in-session — every ordinary se
 
 ## Compatibility floor
 
-The on-disk shapes are frozen for **task directories written by plugin 2.2.3 or newer**. Anything older is listed by directory name, date and type only — never parsed, rendered from its state, or resumed. There is no migration step and nothing to do: finished task directories are reference material, and a run that predates the floor was finished long before you upgraded. The normative register of every frozen shape, and the rules for changing one, ships with the Pro Edition; see [ADR-0006](docs/decisions/0006-compatibility-floor.md) for the floor and tolerance rules that still apply here.
+The on-disk shapes are frozen for **task directories written by plugin 2.2.3 or newer**. Anything older is listed by directory name, date and type only — never parsed, rendered from its state, or resumed. There is no migration step and nothing to do: finished task directories are reference material, and a run that predates the floor was finished long before you upgraded. The normative register of every frozen shape, and the rules for changing one, moved to the Pro Edition; see [ADR-0006](docs/decisions/0006-compatibility-floor.md) for why the floor was set and its 2026-09-20 amendment for why the register no longer governs the open tree directly.
 
 ## Beta Channel
 

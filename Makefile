@@ -3,10 +3,11 @@
 build:
 	bash platforms/copilot-cli/build.sh
 
-# Regenerate every shipped workflow diagram. The suite byte-compares each one
-# against its definition, so run this after editing a definition and commit both
-# together. Definition-agnostic on purpose: a definition added to workflows/ is
-# picked up here without an edit, the way the suite picks it up without one.
+# Regenerate every shipped workflow diagram. `make validate` byte-compares each
+# one against a fresh regeneration, so run this after editing a definition and
+# commit both together. Definition-agnostic on purpose: a definition added to
+# workflows/ is picked up here without an edit, the way validate picks it up
+# without one.
 ENGINE = plugins/maister/skills/workflow-engine
 diagram:
 	@for definition in $(ENGINE)/workflows/*.yml; do \
@@ -38,6 +39,15 @@ validate:
 	@test "$$(grep -rl 'MAISTER_PLUGIN_ROOT' plugins/maister-copilot/skills/ --include="*.md" 2>/dev/null | wc -l | tr -d ' ')" = "$$(grep -rl 'CLAUDE_PLUGIN_ROOT' plugins/maister/skills/ --include="*.md" 2>/dev/null | wc -l | tr -d ' ')" || (echo "FAIL: the emitted skills' plugin-root variable count drifted from the source tree" && exit 1)
 	@echo "Checking every hooks.json command path exists on disk..."
 	@for rel in $$(grep -o 'hooks/[A-Za-z0-9_.-]*\.\(sh\|mjs\)' plugins/maister/hooks/hooks.json | sort -u); do test -f "plugins/maister/$$rel" || (echo "FAIL: hooks.json names plugins/maister/$$rel, which does not exist" && exit 1); done
+	@echo "Checking no shipped file names the pro-only compatibility register..."
+	@! grep -rn 'compatibility-contracts\.md' plugins/maister/ || (echo "FAIL: a shipped file names the pro register" && exit 1)
+	@echo "Checking every shipped workflow diagram matches a fresh regeneration..."
+	@tmp=$$(mktemp); \
+	for definition in $(ENGINE)/workflows/*.yml; do \
+	  node $(ENGINE)/scripts/workflow.mjs diagram --definition $$definition > $$tmp; \
+	  diff -q $$tmp $${definition%.yml}.mmd >/dev/null || (rm -f $$tmp; echo "FAIL: $${definition%.yml}.mmd is stale — run make diagram" && exit 1); \
+	done; \
+	rm -f $$tmp
 	@echo "Checking the open tree ships zero schemas (schema validation is now Pro-only)..."
 	@test "$$(find plugins/maister -path '*/schemas/*' -name '*.json' 2>/dev/null | wc -l | tr -d ' ')" -eq 0 || (echo "FAIL: a schema file is still shipped in the open tree" && exit 1)
 	@echo "Checking the generated variant is byte-identical to a fresh build..."

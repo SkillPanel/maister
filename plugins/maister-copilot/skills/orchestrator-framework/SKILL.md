@@ -33,12 +33,11 @@ Each orchestrator reads the framework reference file at initialization (Step 1):
 
 | File | Purpose |
 |------|---------|
-| `references/orchestrator-patterns.md` | Delegation rules, phase gates, state schema (normative shapes: `compatibility-contracts.md`), initialization, context passing, issue resolution |
+| `references/orchestrator-patterns.md` | Delegation rules, phase gates, state schema, initialization, context passing, issue resolution — the normative shapes for this edition |
 | `references/orchestrator-creation-checklist.md` | Authoring checklist for creating new orchestrators (not loaded at runtime) |
 | `references/html-report-style.md` | Style guide for HTML companion reports (passed to companion-writing agents) |
-| `references/compatibility-contracts.md` | **Normative** compatibility-contract register: state, dashboard, config, task-dir layout (§ A4), summary blocks, timestamps, workflow grammar, driver, gates, coordination, hook floors |
 | `schemas/*.schema.json` | JSON Schemas for every contract in the register; validated by the compatibility suite |
-| `assets/dashboard.html` | The frozen operator dashboard, copied into every task dir — MD5 pinned in `compatibility-contracts.md` § A4 |
+| `assets/dashboard.html` | The frozen operator dashboard, copied into every task dir |
 
 ## Key Principles
 
