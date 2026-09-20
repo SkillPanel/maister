@@ -47,6 +47,14 @@ done
 if [ "$hook_present" -eq "${#hook_sources[@]}" ]; then
   mkdir -p "$OUT/.github/hooks"
   cp "$CORE/hooks/"{gate-enforce,gate-stop-nudge,gate-beacon}.mjs "$OUT/.github/hooks/"
+  # gate-lib.mjs is not in hook_sources (it stays open whole, PRO-ADR-011) but
+  # each of the three hooks above imports it as a sibling, so it has to land
+  # here too. Gated on the source existing, like the unconditional hooks/ copy
+  # below, so a missing gate-lib.mjs trips that copy's own named tripwire
+  # rather than a raw `cp:` error here.
+  if [ -f "$CORE/hooks/gate-lib.mjs" ]; then
+    cp "$CORE/hooks/gate-lib.mjs" "$OUT/.github/hooks/"
+  fi
   cp "$ROOT/platforms/copilot-cli/hooks/maister-gates.json" "$OUT/.github/hooks/"
   cp "$ROOT/platforms/copilot-cli/hooks/README.md" "$OUT/.github/hooks/"
 elif [ "$hook_present" -eq 0 ]; then
