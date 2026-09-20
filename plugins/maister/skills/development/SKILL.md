@@ -54,7 +54,7 @@ measured against, and the path an install without a script runtime still takes.
 
 Before doing anything else, settle this policy now and do not re-litigate it at any gate:
 
-**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `AskUserQuestion` at a gate. They apply only to your discretionary clarifications. Invoke `AskUserQuestion` when `orchestrator.driver.kind` is absent or `terminal`; when it is `cockpit` or `dispatch` you MUST NOT ask in session — suspend the run with one `gate-request` call, which writes the request file, the gate index and `gate_pending` together, then rewrite the dashboard data, print `GATE-PENDING: <node>` as the last line and end the turn instead (`compatibility-contracts.md § E2`).
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `AskUserQuestion` at a gate. They apply only to your discretionary clarifications. Invoke `AskUserQuestion` when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
@@ -85,7 +85,7 @@ Full framework rule: `../orchestrator-framework/references/orchestrator-patterns
 3. **Create Task Directory**: `.maister/tasks/development/YYYY-MM-DD-task-name/`
 4. **Initialize State**: Create `orchestrator-state.yml` with task info and research reference
 5. **Set up Operator Dashboard** (orchestrator-patterns.md § 8) — first read `.maister/config.yml` and set `orchestrator.options.html_output` (default true if the file/key is absent) and `orchestrator.options.mockup_format` (default `html`; read by Phase 4). **When `html_output` is false, SKIP this entire step** — no `dashboard.html`, no `dashboard-data.js`, no browser auto-open — and proceed. Otherwise: copy `../orchestrator-framework/assets/dashboard.html` to the task root as `dashboard.html`, write the initial `dashboard-data.js` (all phases pending), then **auto-open it in the user's browser** (`open` / `xdg-open` / `start` per platform, passing the plain absolute filesystem path — NEVER a hand-built `file://` URL; on failure just print the path — never block). On resume: re-copy `dashboard.html` only if missing; regenerate `dashboard-data.js` from state; then auto-open it in the browser again (same opener as a new task — the OS focuses an already-open tab rather than duplicating).
-6. **Discover project documentation**: Read `.maister/docs/INDEX.md` (if exists), extract ALL file paths from the "Project Documentation" section. This includes predefined docs (vision, roadmap, tech-stack, architecture) AND any user-added project docs (e.g., deployment.md, api-strategy.md). Store complete list as `project_doc_paths` under the **top-level** `project_context` block in state — `project_context` is a sibling of `orchestrator` and `task_context`, never nested inside either (`compatibility-contracts.md § A1`).
+6. **Discover project documentation**: Read `.maister/docs/INDEX.md` (if exists), extract ALL file paths from the "Project Documentation" section. This includes predefined docs (vision, roadmap, tech-stack, architecture) AND any user-added project docs (e.g., deployment.md, api-strategy.md). Store complete list as `project_doc_paths` under the **top-level** `project_context` block in state — `project_context` is a sibling of `orchestrator` and `task_context`, never nested inside either (the pro register § A1).
 
 ### Step 4: Ingest Design Context
 
@@ -129,7 +129,7 @@ Cross-cutting rules from `orchestrator-patterns.md` apply throughout this workfl
 1. **Artifact Summary Contract (§ 7)**: every artifact-writing subagent prompt MUST include the contract instruction (artifacts open with TL;DR / Key Decisions / Open Questions / Risks — the writer heading is `## Open Questions / Risks`). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` (shared entry shape, § 4).
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark it `in_progress` before delegating), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks so the operator reviews them on the dashboard while answering — status stays `in_progress` until the gate passes), after every phase completion (including skips, with reason), every gate decision, every verification cycle, and at finalization. It is a terse projection of state — never duplicate artifact content into it.
 3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to specification-creator, implementation-planner, and e2e-test-verifier — companion-writing **agents**. The `implementation-verifier` **skill** takes no such parameter: it resolves the guide itself and gates on `orchestrator.options.html_output` (§ 9). Register returned `html_path` values in `phase_summaries.[phase].artifacts[].html`.
-4. **Phase icons (§ 8)**: every phase row written to `dashboard-data.js` carries an `icon_hint` from the enum of seven — `analysis`, `spec`, `plan`, `code`, `verify`, `docs`, `done`. Never invent a value; pick the closest (`compatibility-contracts.md § A2`).
+4. **Phase icons (§ 8)**: every phase row written to `dashboard-data.js` carries an `icon_hint` from the enum of seven — `analysis`, `spec`, `plan`, `code`, `verify`, `docs`, `done`. Never invent a value; pick the closest (the pro register § A2).
 
 ---
 
@@ -629,7 +629,7 @@ orchestrator:
     reality_check_enabled: true
     production_check_enabled: true
 
-# Top-level siblings of `orchestrator:` — never nested inside it (compatibility-contracts.md § A1)
+# Top-level siblings of `orchestrator:` — never nested inside it (the pro register § A1)
 project_context:
   project_doc_paths: []
   project_context_summary: null
@@ -677,7 +677,7 @@ task_context:
 
 ## Task Structure
 
-The normative layout and naming rules are `../orchestrator-framework/references/compatibility-contracts.md § A4`; the tree below is this workflow's instance of them.
+The normative layout and naming rules ship with the pro register § A4; the tree below is this workflow's instance of them.
 
 ```
 .maister/tasks/development/YYYY-MM-DD-task-name/

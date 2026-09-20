@@ -28,7 +28,7 @@ prose companion `.maister/workflows/<name>.md` beside it. A node is one entry un
 | `direct:<name>` | The engine itself, following the section of that name in the prose companion |
 | `skill:<name>` | A skill, invoked by the host's Skill tool |
 | `agent:<name>` | An agent, invoked by the host's Task tool |
-| `workflow:<name>` | Another workflow definition — dispatched into a member when the node carries `dir:`. Three ship for exactly this: `plan` for deciding how, `change` for one bounded change, `fix` for a reproducible defect |
+| `workflow:<name>` | Another workflow definition — dispatched into a member when the node carries `dir:` |
 
 A gate is a node with `type: gate`, a question under `ask:` and its answers under `options:`,
 exactly one of which continues the run and at least one of which stops it. Nodes declare their
@@ -51,8 +51,7 @@ the node and the field. Warnings never block.
 
 **Where a chain runs.** A chain with a name of its own is started from the cockpit's Start-a-chain
 form and driven there; a single project outside a workspace runs the built-in workflows through
-their commands, and extends them through overlays and eject (below). Shorter than writing a chain by
-hand: describe the work to `/maister:chain-planner` and review what it writes.
+their commands, and extends them through overlays and eject (below).
 
 ## Your own skills and agents as nodes
 
@@ -180,27 +179,6 @@ The field is a promise, and a driver-aware skill must keep four of them:
 A skill that asks its questions in the session is a fine skill; it is simply not one to dispatch.
 Run it on a node without `dir:`, in the coordinating repository.
 
-## What the planner will and will not generate
-
-`/maister:chain-planner` writes a chain from a description of the work and the workspace's manifest,
-proves it with the same validator you would run, and publishes the definition, its prose companion
-and a plan file that explains every node. It is bounded on purpose:
-
-- **It authors only what the grammar has.** Explicit nodes, one per known target, each behind its
-  own guard. Work that needs fan-out over a set discovered at run time, a branch chosen while the
-  run is going, or a repeat-until is refused with what the shape would have to be instead.
-- **It offers dispatch targets it discovered.** Which skills can be dispatched is read off the skill
-  files by the rule above, through the same resolution order — so a skill of your own that declares
-  `driver_aware: true` is offered where a `dir:` node needs a target, and one that does not is
-  never emitted there. The three chain-only built-ins are always available beside whatever it
-  found, and are what it reaches for when a node's share of the work is to plan something, to make
-  one bounded change, or to fix a defect that can be reproduced.
-- **It refuses a name a built-in already uses**, because a workspace definition of that name would
-  shadow the built-in wherever the built-in is named.
-- **It starts nothing.** Review the plan file, run the dry run in the cockpit, then start the chain.
-
-Anything the planner refuses, you can still write by hand — provided the grammar can say it.
-
 ## What needs a contract change
 
 The grammar's *shape* is frozen by a compatibility contract that the plugin, the cockpit and the gate
@@ -225,5 +203,5 @@ nothing, precisely so that a later version can claim them without breaking a fil
 - [Command reference](commands.md) — every command, including the workspace verbs.
 - [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md)
   — the node shape, a worked example, and the cockpit's dry run.
-- [Compatibility contracts](../plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md)
-  — the register of every frozen shape, for when you need the exact rule.
+- The compatibility contracts register, the normative record of every frozen shape, ships with the
+  Pro Edition.

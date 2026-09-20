@@ -38,3 +38,8 @@ Chosen option: **floor at 2.2.3**. Contracts `A1`-`A6` are frozen from the shape
 - Runs started before 2.2.3 cannot be resumed at all, and no tool will ever convert them
 - Two workflow types had no qualifying real run, so their fixtures are hand-synthesized and flagged `synthetic: true` until a real one lands — they prove the schema, not the writer
 - "Read-tolerant" means the reader accepts shapes the writer must not produce, a split that only a lint keeps honest
+
+### Amendment 2026-09-20 — the register and schemas move to the pro edition
+The compatibility contracts register and its 19 schemas leave the open repository for the pro
+repository (ADR-0021); the floor and tolerance rules recorded above no longer govern the open tree
+directly. This record stays in place as public history with a pointer to that decision.

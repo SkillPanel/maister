@@ -16,7 +16,7 @@ Systematic migration workflow from current state analysis to verified migration 
 
 Before doing anything else, settle this policy now and do not re-litigate it at any gate:
 
-**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications. Invoke `ask_user` when `orchestrator.driver.kind` is absent or `terminal`; when it is `cockpit` or `dispatch` you MUST NOT ask in session — suspend the run with one `gate-request` call, which writes the request file, the gate index and `gate_pending` together, then rewrite the dashboard data, print `GATE-PENDING: <node>` as the last line and end the turn instead (`compatibility-contracts.md § E2`).
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications. Invoke `ask_user` when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
@@ -359,7 +359,7 @@ verification_context:
   reverify_count: 0
 
 # `options` lives under `orchestrator:`; `migration_context`, `external_research` and
-# `verification_context` are its top-level siblings (compatibility-contracts.md § A1)
+# `verification_context` are its top-level siblings (the pro register § A1)
 orchestrator:
   options:
     html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
@@ -370,7 +370,7 @@ orchestrator:
 
 ## Task Structure
 
-The normative layout and naming rules are `../orchestrator-framework/references/compatibility-contracts.md § A4` — note the type dir is `migrations/` (plural); the tree below is this workflow's instance of them.
+The normative layout and naming rules ship with the pro register § A4 — note the type dir is `migrations/` (plural); the tree below is this workflow's instance of them.
 
 ```
 .maister/tasks/migrations/YYYY-MM-DD-migration-name/

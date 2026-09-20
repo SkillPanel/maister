@@ -32,17 +32,6 @@
             "timeout": 5
           }
         ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|mcp__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/gate-enforce.mjs"],
-            "timeout": 10
-          }
-        ]
       }
     ]
   }

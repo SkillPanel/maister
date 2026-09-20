@@ -34,16 +34,16 @@ freezes into the task's state and executes. Both interpreters produce the same t
 
 `/maister:development` runs the definition — it ships as `builtin:development`, with a diagram
 generated from it (regenerate that diagram, never edit it). Research and performance run on the
-engine by default too, and three further definitions ship without a command of their own — the chain-only
-`plan`, `change` and `fix` workflows described below, which the engine runs when a chain
-dispatches them.
+engine by default too. Three further definitions without a command of their own — `plan`, `change`
+and `fix`, dispatched into a member by a chain — are a Pro Edition feature (see
+[Pro Edition](../README.md#pro-edition)).
 
 Definitions resolve eject → generated → overlay → built-in, and the first hit wins: an eject at
 `.maister/workflows/<name>.yml`, then a generated chain at `.maister/workflows/generated/<name>.yml`,
 then an overlay at `.maister/workflows/<name>.overlay.yml`, then the shipped built-in. So a project
 can eject a shipped graph into its own workspace, or lay an overlay over it, without patching the
-plugin. That route reaches a workflow wherever the engine executes it — research, development,
-performance and the three chain-only definitions today, so ejecting or overlaying `builtin:development` takes effect
+plugin. That route reaches a workflow wherever the engine executes it — research, development and
+performance today, so ejecting or overlaying `builtin:development` takes effect
 on the next run. A generated chain — one the planner published for a single ticket — is complete in itself
 and is never overlaid or ejected; it is resolved by name like any other and deleted by the
 workspace's `prune` command once its runs have closed. Writing a chain of your own, naming your
@@ -329,50 +329,9 @@ Resume phases: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `c
 
 ## Chain-Only Workflows
 
-Not every workflow type has a command. Three of them are reachable only from a chain: a node
-that reads `uses: workflow:<name>` with a `dir:` naming a member dispatches a worker into that
-repository, and the worker runs the definition there. There is nothing to type, and nothing to
-resume by hand.
-
-They exist for the scoped work a chain hits when a ticket's next step is smaller than a full
-development run — "decide how", "make this one change", "fix this one defect". Each takes the
-dispatch's free-text statement as its subject, discovers the project's standards first, pauses
-at exactly one approval gate, and writes into the member's task directory inside the dispatch's
-own worktree.
-
-| Workflow | For | Nodes |
-|---|---|---|
-| `plan` | deciding *how* a member will do something, without doing it | discover standards, write the plan, approve, hand off |
-| `change` | one bounded change, made and proved | discover standards, make the change with its test, verify, approve, close out |
-| `fix` | a defect that can be reproduced | discover standards, reproduce as a failing test, fix, verify, approve, close out |
-
-`fix` is `change` with the reproduction in front of it, and the reproduction is load-bearing: the
-fix step is guarded on the failing test actually having failed. When it never went red, the fix
-is skipped, verification still runs, and the approval is where that is decided — a defect nobody
-has demonstrated does not get a fix written for it in the dark.
-
-**How each ends.** Stopping at the approval ends the run with whatever it has produced so far,
-uncommitted, for whoever comes next. Continuing lets the last node finish: `plan` records the
-plan path and the outcome, while `change` and `fix` commit the work on the dispatch's branch and
-push it. Whether a pull request follows is not the workflow's decision — it comes from the
-dispatch's own close-out contract, so a chain whose members have no host to open one against
-simply ends on a commit and a push.
-
-**What does not cross back.** A dispatched run's declared values do not reach the chain that
-dispatched it, so a follower node must never be guarded on one. What the chain gets is the outbox
-message — a grade and a summary — and, for `change` and `fix`, a pushed branch. How a follower
-obtains a plan file is not defined at this version: the run directory is named at run time and a
-follower's inputs are static literals, so nothing shipped routes that path automatically. Today
-these outputs are collected by a human, a reviewer or the daemon.
-
-Runs land in `.maister/tasks/plan/`, `.maister/tasks/change/` and `.maister/tasks/fix/` under
-`<YYYY-MM-DD-slug>/`, with the same task root every other workflow writes — state, dashboard, gate
-files — so each is visible to the cockpit and its gate is answerable there like any other. `plan`
-writes into `implementation/`; `change` and `fix` write into `implementation/` and `verification/`.
-
-For work you drive yourself, the typed equivalents are `/maister:quick-plan`, `/maister:quick-dev`
-and `/maister:quick-bugfix`. They are deliberately thinner: no task directory, no state and no
-gate, which is also why a chain cannot dispatch them.
+Not every workflow type has a command: `plan`, `change` and `fix` are reachable only from a chain,
+which dispatches them into a member repository. They are a Pro Edition feature — see
+[Pro Edition](../README.md#pro-edition).
 
 ---
 
@@ -446,7 +405,7 @@ The outbox is the return channel: a worker appends `status`, `followup`, `artifa
 and `closeout` messages as numbered files, and nothing ever rewrites one. Messages accumulate;
 the last word on a dispatch is its close-out, not the state of a file that kept being edited.
 
-The normative layout and naming rules are `plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md § A4`.
+The normative layout and naming rules ship with the Pro Edition's compatibility register.
 
 ## Internal Skills
 

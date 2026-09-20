@@ -305,6 +305,7 @@ function taskLines({ document, workflow, pluginRoot }) {
   lines.push('You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state - E1 requires the cwd beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run with one call to the engine\'s gate-request verb, never by writing the gate files yourself:');
   lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml>`);
   lines.push('with the request as JSON on stdin. It writes the request file, the gate index and the pending marker together; there is no second write and the run is already suspended once it returns. Then print `GATE-PENDING: ` followed by that gate\'s own node id as the last line of the turn, and stop. Never ask a question in session.');
+  lines.push('ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.');
   const args = mapOf(workflow.with);
   const inputs = Array.isArray(document.inputs) ? document.inputs : [];
   // Two filters, for two kinds of noise. The keys the envelope consumed as

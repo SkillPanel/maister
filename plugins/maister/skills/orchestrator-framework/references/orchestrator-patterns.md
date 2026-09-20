@@ -57,7 +57,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 
 ## 2. Phase Gate Behavior
 
-`→ Pause` in older prose is a synonym for `→ MANDATORY GATE`. **The gate rule is qualified by the run's driver, not by the orchestrator**: the AskUserQuestion rule below applies when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode (chain runs driven by the engine prompt) the gate is one `gate-request` call — the engine verb that writes the request file, the gate index and `gate_pending` together — plus a `GATE-PENDING` line, never an in-session question (`compatibility-contracts.md § E2`).
+`→ Pause` in older prose is a synonym for `→ MANDATORY GATE`. **The gate rule is qualified by the run's driver, not by the orchestrator**: the AskUserQuestion rule below applies when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.
 
 **`→ MANDATORY GATE` means STOP and USE AskUserQuestion.** This is NOT optional. You MUST invoke the `AskUserQuestion` tool and WAIT for user response. Proceeding without it is a protocol violation.
 
@@ -69,7 +69,7 @@ All orchestrators pause at `→ MANDATORY GATE` transitions for user review and 
 
 Claude Code's `auto` permission mode instructs the model to execute immediately and minimize clarifying questions. The `→ MANDATORY GATE` checkpoints in this framework are an explicit stated boundary that overrides that instruction.
 
-You MUST invoke `AskUserQuestion` at every `→ MANDATORY GATE` in every permission mode — `default`, `acceptEdits`, `auto`, `plan`, `bypassPermissions` — when `orchestrator.driver.kind` is absent or `terminal`; in `cockpit`/`dispatch` mode suspend the run with one `gate-request` call and end the turn instead (`compatibility-contracts.md § E2`). "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
+You MUST invoke `AskUserQuestion` at every `→ MANDATORY GATE` in every permission mode — `default`, `acceptEdits`, `auto`, `plan`, `bypassPermissions` — when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2. "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
 
 ### 2.1 Resolving session-reminder conflicts (decide ONCE, do not re-litigate at each gate)
 
@@ -219,7 +219,7 @@ When a subagent returns `decisions_needed` items, the orchestrator MUST present 
 
 ## 4. State Schema
 
-All orchestrators use `orchestrator-state.yml` at `.maister/tasks/[type]/YYYY-MM-DD-task-name/orchestrator-state.yml`. The `[type]` dir matches the workflow name except for migration, whose type dir is `migrations/` (plural) — the normative list is `compatibility-contracts.md § A4`.
+All orchestrators use `orchestrator-state.yml` at `.maister/tasks/[type]/YYYY-MM-DD-task-name/orchestrator-state.yml`. The `[type]` dir matches the workflow name except for migration, whose type dir is `migrations/` (plural) — the normative list ships with the pro register § A4.
 
 ### Timestamp Rule (applies to ALL timestamps everywhere)
 
@@ -284,11 +284,11 @@ task:
   priority: null  # high | medium | low
 ```
 
-The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-orchestrator keys are listed in each SKILL.md "Domain Context" section (`compatibility-contracts.md § A1`).
+The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-orchestrator keys are listed in each SKILL.md "Domain Context" section (the pro register § A1).
 
 ### Extension Pattern
 
-Orchestrators add domain-specific fields using `[domain]_context`, at the **top level** of the state file — never nested under `orchestrator:` (`compatibility-contracts.md § A1`). The root carries exactly one of the five, or none (a chain run has none):
+Orchestrators add domain-specific fields using `[domain]_context`, at the **top level** of the state file — never nested under `orchestrator:` (the pro register § A1). The root carries exactly one of the five, or none (a chain run has none):
 
 | Domain | Context Field | Example Fields |
 |--------|---------------|----------------|
@@ -361,7 +361,7 @@ phase_summaries:
 2. **Determine starting phase**: New task starts Phase 1; resume reads state for first incomplete phase
 3. **Capture the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash NOW — you do NOT know the time from context. Use the result for every timestamp written in this turn (`created`, `updated`, `generated`, `phases[].started`). This is a MANDATORY step, not optional: writing `created: 2026-06-12` or `T00:00:00Z` without having run `date` is the documented failure mode (§ 4 Timestamp Rule).
 4. **Read project config**: read `.maister/config.yml` if it exists; set `orchestrator.options.html_output` from its `html_output` key (default `true` when the file or key is absent — § 4 "Project Configuration"). This single read seeds the state; all dashboard/companion gates below read `options.html_output` from state.
-5. **Create task directory**: `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` plus the subdirectories this workflow owns — the per-workflow trees and the type-dir names are normative in `compatibility-contracts.md § A4`; there is no structure shared by all six workflows *(skip on resume)*
+5. **Create task directory**: `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` plus the subdirectories this workflow owns — the per-workflow trees and the type-dir names are normative in the pro register § A4; there is no structure shared by all six workflows *(skip on resume)*
 6. **Create state file**: `orchestrator-state.yml` *(skip on resume)*
 7. **Set up operator dashboard** (§ 8) — *skip this entire step when `options.html_output` is false*: copy `../assets/dashboard.html` (sibling `assets/` directory of this references/ file) to the task root as `dashboard.html`, write the initial `dashboard-data.js`, then **auto-open it in the user's browser** with the platform opener — `open "[abs-task-path]/dashboard.html"` (macOS), `xdg-open` (Linux), `start ""` (Windows). Pass the **plain absolute filesystem path — NEVER construct a `file://` URL** (hand-built URLs get mangled, e.g. `file///` missing the colon; the opener resolves plain paths itself). If the command fails, just print the path hint — never block initialization. On resume: re-copy `dashboard.html` only if missing; regenerate `dashboard-data.js` from state; then auto-open it in the browser again (same opener as a new task — if the tab is already open the OS focuses it rather than duplicating).
 8. **Create task items**: `TaskCreate` for all phases, then `TaskUpdate addBlockedBy` for dependencies. On resume, also restore completed phase statuses. When `TaskCreate`/`TaskUpdate` are unavailable in the session, record `task_ids: {}` and treat `orchestrator-state.yml` as the sole phase tracker; every other step is unchanged.
@@ -469,7 +469,7 @@ Workflow artifacts accumulate deep detail for subagent context — but the human
 Each task directory carries a self-contained HTML dashboard so the operator can monitor workflow progress at a glance and deep-dive only when needed.
 
 **Files** (both at task root):
-- `dashboard.html` — static viewer, copied verbatim from `[plugin]/skills/orchestrator-framework/assets/dashboard.html` at initialization (§ 5). NEVER generated or modified by the model — it is a maintained plugin asset. `dashboard.html` is a frozen asset: its MD5 is pinned in `compatibility-contracts.md § A4` and asserted by `make test`.
+- `dashboard.html` — static viewer, copied verbatim from `[plugin]/skills/orchestrator-framework/assets/dashboard.html` at initialization (§ 5). NEVER generated or modified by the model — it is a maintained plugin asset. `dashboard.html` is a frozen asset: its MD5 is pinned in the pro register § A4 and asserted by the pro suite.
 - `dashboard-data.js` — data projection written by the orchestrator. The viewer reads it via `<script>` (`window.MAISTER_DATA = {...}`), so it works from `file://` with no server.
 
 **Every rewrite starts with the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash before writing (one call covers all timestamps in the same turn) — `generated`, `started`, `completed`, and state `updated` all take that value. Never guess the time, never reuse a value from an earlier turn (§ 4 Timestamp Rule).
@@ -483,7 +483,7 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 6. After verification cycles (issues/fixes update)
 7. At finalization
 
-**Schema** — the file is exactly one statement, `window.MAISTER_DATA = <strict JSON>;`, with double-quoted keys and nothing else; readers additionally accept an object literal and report it as degraded (`compatibility-contracts.md § A2`):
+**Schema** — the file is exactly one statement, `window.MAISTER_DATA = <strict JSON>;`, with double-quoted keys and nothing else; readers additionally accept an object literal and report it as degraded (the pro register § A2):
 
 ```js
 window.MAISTER_DATA = {

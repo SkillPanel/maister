@@ -22,7 +22,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 - [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.80+ with the `maister-copilot` variant)
 - `jq` on `PATH` — used by the destructive-command guard
-- Node.js 20 or newer — the plugin registers its gate hook for every session, so Node is required wherever the plugin is installed, not only in chain mode; without it the hook is simply silent — an absent interpreter at `PreToolUse` emits nothing at all, so there is no per-call error to see, and a terminal session loses nothing by it (a terminal operator answers gates in-session, so there is nothing there to enforce). What a session without Node does lose is the workflow engine, which refuses to start by name and says so; chain-mode gate enforcement, `make test`, `make eval` and HTML mockups need it outright
+- Node.js 20 or newer — the workflow engine refuses to start by name without it and says so, and `make build`, `make validate` and HTML mockups need it outright. Per-call gate enforcement outside an in-session answer is a Pro Edition feature with its own Node prerequisite; see [Pro Edition](#pro-edition)
 
 ### Installation
 
@@ -151,39 +151,13 @@ Standards live in `.maister/docs/standards/` and are indexed in `.maister/docs/I
 
 **Important**: Run workflows with **auto-accept edits** enabled. Do not use Claude Code's plan mode with workflows (see [Best Practices](#best-practices) below).
 
-## Gate hooks (chain mode)
+## Gate hooks
 
-When a workflow pauses at a gate, the plugin's `PreToolUse` hook refuses every other write until the decision is recorded — so a paused run cannot quietly carry on. In ordinary terminal sessions this needs no setup: the hook ships with the plugin and allows instantly whenever nothing is pending.
+When a workflow pauses at a gate, you answer it in-session — every ordinary session runs this way, and it needs no setup. Driven sessions, resumed headlessly from outside the terminal without an in-session answer, are a Pro Edition feature (see [Pro Edition](#pro-edition) below).
 
-Chain mode — a run driven headlessly and resumed from outside the terminal — needs two more hooks (a stop nudge and a liveness beacon), and those are registered per session rather than by the plugin.
+## Compatibility floor
 
-**Claude Code.** Pass the settings template on every spawn *and* every resume; nothing about it persists inside a session. Replace `__PLUGIN_ROOT__` in `platforms/claude-code/gate-hooks.settings.json` with the installed plugin directory, then:
-
-```bash
-claude -p "<prompt>" --resume <session> --settings /path/to/gate-hooks.settings.json
-```
-
-**Copilot CLI.** Copilot resolves hooks from your own repository, never from `--plugin-dir`. Copy the generated variant's `.github/hooks/` into the git root Copilot runs in, or into `~/.copilot/hooks/` if the repository must stay untouched — the user-hooks copy needs its script directory rewritten, as its own `README.md` explains. Repository hooks are silently inert in headless `-p` mode unless the folder is trusted or the environment carries:
-
-```bash
-GITHUB_COPILOT_PROMPT_MODE_REPO_HOOKS=true copilot -p "<prompt>"
-```
-
-There is no flag for it — the variable has to be in the environment. Hooks under `~/.copilot/hooks/` always fire and need no opt-in.
-
-**Checking that they are live.** The beacon writes one marker per session to `$MAISTER_BEACON_DIR`, or to `~/.maister-cockpit/beacons/` when that is unset — never inside your project. No marker means the hooks are not running here: Node missing, files not installed, or the Copilot variable not passed through.
-
-**Environment variables.** All are read at spawn time and none has a flag. Only the first is required, and only on Copilot CLI.
-
-| Variable | Effect |
-|---|---|
-| `MAISTER_PLUGIN_ROOT` | **Copilot CLI only, and required there.** The directory holding the variant's `.claude-plugin/plugin.json` — see [Installation](#installation) for where each install path puts it. The variant's skills spell the plugin's own directory with it, and its runtime reads it too, so the path a skill names and the path the runtime resolves are one answer. Claude Code exports the equivalent itself. |
-| `MAISTER_BEACON_DIR` | Where the liveness marker for the session is written. Default `~/.maister-cockpit/beacons/`, falling back to a temp directory when home is unwritable. Never the working directory — a per-session file in a tracked tree would show up in every `git status`. |
-| `MAISTER_GATE_TRACE` | Path to a file that gets one JSON line per hook decision (tool, decision, reason, exit, timing). Off by default; this is the first thing to turn on when a gate allows or denies something you did not expect. |
-
-### Compatibility floor
-
-The on-disk shapes are frozen for **task directories written by plugin 2.2.3 or newer**. Anything older is listed by directory name, date and type only — never parsed, rendered from its state, or resumed. There is no migration step and nothing to do: finished task directories are reference material, and a run that predates the floor was finished long before you upgraded. The normative register of every frozen shape, and the rules for changing one, is [`compatibility-contracts.md`](plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md).
+The on-disk shapes are frozen for **task directories written by plugin 2.2.3 or newer**. Anything older is listed by directory name, date and type only — never parsed, rendered from its state, or resumed. There is no migration step and nothing to do: finished task directories are reference material, and a run that predates the floor was finished long before you upgraded. The normative register of every frozen shape, and the rules for changing one, ships with the Pro Edition; see [ADR-0006](docs/decisions/0006-compatibility-floor.md) for the floor and tolerance rules that still apply here.
 
 ## Beta Channel
 
@@ -295,5 +269,4 @@ beside it — and continues into umbrella workspaces and chains.
 - [Extending maister](docs/extending.md) - your own chains, skills and agents as nodes, overlays and eject, and what needs a contract change
 - [Full Command Reference](docs/commands.md) - all workflow, review, utility, and quick commands
 - [Decision Log](docs/decisions/README.md) - the ADRs behind the gate protocol, the coordination shapes, and the compatibility floor
-- [Compatibility Contracts](plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md) - the normative register of every on-disk shape, and the rules for changing one
 - [Cockpit quickstart](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/quickstart.md) - the browser-side path, from a first workflow to a chain across repositories

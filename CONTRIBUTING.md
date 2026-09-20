@@ -12,12 +12,14 @@ author to date.
    edit `plugins/maister-copilot/` by hand; it is generated).
 2. `make build` — regenerate `plugins/maister-copilot/` from `plugins/maister/`.
 3. `make validate` — lint the generated variant and the plugin source.
-4. `make test` — run the compatibility contracts suite (schemas, fixtures, hook replay).
-5. Commit the source change and the regenerated `plugins/maister-copilot/` output together.
+4. Commit the source change and the regenerated `plugins/maister-copilot/` output together.
 
-`make eval` runs a local gate-hook evaluation against real provider CLIs; it spends money
-and is never run in CI, so it isn't part of the standard loop above. See `eval/README.md`
-if you're touching gate-hook behavior and need it.
+The compatibility contracts suite (schemas, fixtures, hook replay, gate-hook evaluation) is a
+Pro Edition feature. `make validate` here covers what a free contributor can check without it: a
+hook-path existence check (every command `hooks.json` names resolves on disk), a positive
+assertion that the open tree ships zero schemas, and a byte-comparison of the committed generated
+variant against a fresh `make build` — plus the flat-command, no-colon, no-multi-select and
+plugin-root-vocabulary lints.
 
 ## Scope
 

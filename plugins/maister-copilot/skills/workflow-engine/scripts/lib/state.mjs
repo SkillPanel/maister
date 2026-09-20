@@ -848,10 +848,10 @@ function applyTopLevel(doc, key, value, changed) {
  * a run that never had the key.
  *
  * Seeded for every context block, because every context block carries the map
- * in practice: the two frozen migration runs under `fixtures/contracts/valid/`
- * both have one, and `migration.md` requires it at intake in the same words
- * `performance.md` does. No shape changes — the key was already part of A1 and
- * an empty object is the value the definitions ask for.
+ * in practice: the frozen migration run fixtures both have one, and
+ * `migration.md` requires it at intake in the same words `performance.md`
+ * does. No shape changes — the key was already part of A1 and an empty object
+ * is the value the definitions ask for.
  *
  * It is reported among `changed` only when it was actually written, so a caller
  * cannot read the echo as "the map was re-created" on every later write.

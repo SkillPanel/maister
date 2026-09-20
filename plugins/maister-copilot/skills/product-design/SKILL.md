@@ -16,7 +16,7 @@ Interactive workflow for product and feature design -- from fuzzy idea to develo
 
 Before doing anything else, settle this policy now and do not re-litigate it at any gate:
 
-**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications. Invoke `ask_user` when `orchestrator.driver.kind` is absent or `terminal`; when it is `cockpit` or `dispatch` you MUST NOT ask in session — suspend the run with one `gate-request` call, which writes the request file, the gate index and `gate_pending` together, then rewrite the dashboard data, print `GATE-PENDING: <node>` as the last line and end the turn instead (`compatibility-contracts.md § E2`).
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications. Invoke `ask_user` when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
@@ -315,7 +315,7 @@ ask_user — "I detected these design characteristics. Please confirm or correct
 
 Read `analysis/design-context.md` for full context (not just state summary) — use it to inform context-aware questions.
 
-**Compute and persist Phase 2 routing**: Read `design_characteristics` from `orchestrator-state.yml`. If `is_greenfield OR is_complex` → write `orchestrator.next_phase: "phase-3"` to state. Else → write `orchestrator.next_phase: "phase-4"`. The value is a phase id, never a sentence (`compatibility-contracts.md § A1`).
+**Compute and persist Phase 2 routing**: Read `design_characteristics` from `orchestrator-state.yml`. If `is_greenfield OR is_complex` → write `orchestrator.next_phase: "phase-3"` to state. Else → write `orchestrator.next_phase: "phase-4"`. The value is a phase id, never a sentence (the pro register § A1).
 
 **Mode: Exploration** (announce to user)
 
@@ -513,7 +513,7 @@ ask_user — "Design direction approved. Continue to Feature Specification?"
 
 Read `analysis/design-decisions.md` for selected approach details to inform specification drafts.
 
-**Compute and persist Phase 6 routing**: Read `design_characteristics.is_ui_focused` from `orchestrator-state.yml`. If `is_ui_focused` → write `orchestrator.next_phase: "phase-7"` to state. Else → write `orchestrator.next_phase: "phase-8"`. The value is a phase id, never a sentence (`compatibility-contracts.md § A1`).
+**Compute and persist Phase 6 routing**: Read `design_characteristics.is_ui_focused` from `orchestrator-state.yml`. If `is_ui_focused` → write `orchestrator.next_phase: "phase-7"` to state. Else → write `orchestrator.next_phase: "phase-8"`. The value is a phase id, never a sentence (the pro register § A1).
 
 **Mode: Convergence** (section-by-section propose-and-refine)
 
@@ -730,7 +730,7 @@ design_context:
     review_handoff: {brief_layers: [], summary: null}
 
 # `options` lives under `orchestrator:`; `design_context` is its top-level sibling
-# (compatibility-contracts.md § A1)
+# (the pro register § A1)
 orchestrator:
   options:
     html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
@@ -742,7 +742,7 @@ orchestrator:
 
 ## Task Structure
 
-The normative layout and naming rules are `../orchestrator-framework/references/compatibility-contracts.md § A4`; the tree below is this workflow's instance of them.
+The normative layout and naming rules ship with the pro register § A4; the tree below is this workflow's instance of them.
 
 ```
 .maister/tasks/product-design/YYYY-MM-DD-task-name/

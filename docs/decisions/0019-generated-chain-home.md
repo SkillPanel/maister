@@ -52,3 +52,9 @@ Option 3 was rejected because the ignore boundary it offers is exactly what an i
 - A workspace scaffolded before this change lacks the subdirectory until the planner or a forced `init` creates it, so the ignore file's presence is not guaranteed by the manifest's existence alone
 - A generated chain that was published and never started accumulates until someone names it; the sweep deliberately leaves it
 - The cockpit's file-name containment rule now admits one prefix, which is one more case its tests have to hold
+
+### Amendment 2026-09-20 — the chain planner cited above moves to the pro edition
+`plugins/maister/skills/chain-planner/SKILL.md`, cited in the Sources line above, has left the open
+repository for the pro repository (ADR-0021). The generated-chain-home rule this record fixes lives
+in the workflow-engine and umbrella runtime, not in the planner, so it is unaffected; the citation is
+kept as a pointer to where that invocation now lives.

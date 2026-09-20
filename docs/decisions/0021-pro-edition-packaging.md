@@ -61,3 +61,11 @@ Chosen option: **the assembled superset**, sequenced so that this wave only reco
 - The contracts suite goes from 69 rows to 70. That is an addition to the contributor-facing apparatus, not a behaviour change, and no consumer can observe it: nothing this wave moves out of the open plugin, and the row exists to prove the open-repository preparations are inert, not to change what any installed plugin does
 
 Once the register and schemas leave, ADR-0006's compatibility-floor discipline moves with them to pro guidance, and driver mode's move to pro-only amends the reasoning of ADR-0007 and ADR-0017 in the same spirit — both stay in place here as public history with a pointer to this record.
+
+### Amendment 2026-09-20 — Tier 1 leaves the open repository
+Tier 1 — the chain planner, the `plan`/`change`/`fix` definitions, the Stop nudge, the liveness
+beacon, the `--settings` template and the Copilot hook registration — together with the
+compatibility contracts apparatus, has now left the open repository for the pro repository, per the
+shape this record fixed. `platforms/claude-code/` no longer exists here; `docs/commands.md`,
+`docs/extending.md` and `README.md`'s gate-hooks section were edited to match, and `hooks.json`
+keeps only the session-start reminders and the destructive-command guard.

@@ -62,10 +62,8 @@ the path the runtime resolves from are one answer rather than two.
 
 ## Gate hooks
 
-Copilot resolves hooks from your own repository, never from a plugin directory. The
-registration and the scripts it names are staged in `.github/hooks/` here; that directory's own
-`README.md` covers copying them into the repository Copilot runs in, the headless opt-in, and
-the user-hooks alternative.
+When a workflow pauses at a gate, you answer it in-session; that needs no setup here. Driven
+sessions, resumed headlessly without an in-session answer, are a Pro Edition feature.
 
 ## Where the documentation lives
 

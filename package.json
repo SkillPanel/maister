@@ -5,11 +5,6 @@
   "engines": {
     "node": ">=20"
   },
-  "scripts": {
-    "test": "node scripts/verify-contracts.mjs",
-    "eval": "node scripts/eval-gates.mjs",
-    "tarball": "node scripts/build-tarball.mjs"
-  },
   "devDependencies": {
     "ajv": "^8",
     "yaml": "^2"

@@ -1,3 +1,0 @@
-version: 1
-entries:
-  - {node: change-approval, request: gates/change-approval.request.yml, kind: gate, asked_at: "2026-09-12T09:38:40Z", status: answered}

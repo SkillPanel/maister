@@ -414,49 +414,6 @@ other three refuse, because a lost status is not a lost result.
 **Entry point**: `/maister:umbrella init`, `/maister:umbrella validate` and `/maister:umbrella prune`;
 the other verbs are run by a workflow's orchestrator and by the cockpit, not by a user.
 
-### `/maister:chain-planner "<task>" [--name STEM] [--root DIR] [--generated] [--force]`
-
-Turns a one-paragraph task description into a chain the workspace has already accepted. It reads the
-manifest for the members, their providers and the workspace defaults, decides which nodes exist and
-how they depend on one another, drafts the definition together with the prose companion that carries
-its inline steps, and proves the draft with the workspace's own validator before publishing anything.
-It authors only constructs the grammar actually has — there is no fan-out, routing or loop
-construct, and a task that would need one is refused with the shape it would take rather than
-written in a spelling that only warns. Run it from inside the workspace; a chain that will not
-validate is reported and nothing is written.
-
-| Flag | Description |
-|------|-------------|
-| `--name STEM` | The file stem to publish under. Derived from the task text when omitted; given explicitly it skips the derivation, not the charset and length checks |
-| `--root DIR` | The workspace root. Defaults to the current directory |
-| `--generated` | Publish into `.maister/workflows/generated/` — the home of chains authored for one ticket or one run rather than kept for reuse. Ignored by git, resolved by name like any other chain, never overlaid or ejected, and deleted by `/maister:umbrella prune` once the chain's runs have closed |
-| `--force` | Publish over files of that stem that already exist in the target home, instead of refusing |
-
-Run with no task text at all, it asks once for the paragraph and then proceeds. That is the only
-question it ever asks: every other missing value takes its default, and a default that would be
-wrong is a refusal with its recovery rather than a second prompt — which is what lets the planner
-run headless.
-
-**What is written**: three files under `<root>/.maister/workflows/` — or under its `generated/`
-subdirectory with `--generated` — all of them or none: `<name>.yml`, the definition; `<name>.md`, the
-prose companion, one section per inline node; and `<name>.plan.md`, the reasoning a reviewer reads
-before starting anything. The stem must be free in both directories and among the built-in
-workflow names, since the engine looks a name up across all of them. The report leads with the
-definition's path relative to the workspace root, so a chain whose node ran the planner can carry it
-onward as a value. Nothing is written under a member directory, nothing outside the framework
-directory, and no run is started: the chain is reviewed in the cockpit's *Start a chain* dry-run —
-generated chains in their own group — which is where a run begins.
-
-**Examples**:
-```bash
-/maister:chain-planner "Roll the new auth token format out across the API and both clients"
-/maister:chain-planner "Retire the legacy billing endpoint" --name billing-retirement
-/maister:chain-planner "Bump the shared logger" --root /work/acme-platform --force
-/maister:chain-planner "Apply the ALPHA-42 fix in repo-alpha" --name ticket-alpha-42-rollout --generated
-```
-
----
-
 ## Quick Commands
 
 Lightweight commands for small tasks that don't need a full orchestrator workflow.

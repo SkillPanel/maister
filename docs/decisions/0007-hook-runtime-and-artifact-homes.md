@@ -163,3 +163,9 @@ release, and a corpus of captures cannot notice on its own — nothing in this r
 against a live provider, by design. This was caught by a probe that existed for another reason.
 The cheap standing answer is that a probe run against a current build should dump one payload per
 event and diff it against the schema, and that is not automated here.
+
+### Amendment 2026-09-20 — driver mode's hooks move to the pro edition
+The gate hook, the Stop nudge and the beacon recorded above leave the open repository for the pro
+repository (ADR-0021), along with the `--settings` template they were registered through. Open
+`hooks.json` keeps only the session-start reminders and the destructive-command guard; the reasoning
+above stays in place as public history with a pointer to that decision.

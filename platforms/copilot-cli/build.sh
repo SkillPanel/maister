@@ -22,12 +22,12 @@ cp -r "$CORE" "$OUT"
 # the scripts it names into .github/hooks/. No sed pass touches .mjs or .json.
 rm -rf "$OUT/hooks"
 
-# The hook stage's six source files, across the three stages that read them
-# below (gate-lib.mjs is shared by stage A and stage C, so it is listed once
-# here and copied from twice there). A pro-split tree can ship without any of
-# them; a half-present tree is a broken checkout, not a supported shape.
+# The hook stage's five source files, across the two stages that read them
+# below. gate-lib.mjs is not among them: it stays open whole (PRO-ADR-011) and
+# is copied unconditionally, below, rather than gated with the pro-only hooks.
+# A pro-split tree can ship without any of these five; a half-present tree is
+# a broken checkout, not a supported shape.
 hook_sources=(
-  "$CORE/hooks/gate-lib.mjs"
   "$CORE/hooks/gate-enforce.mjs"
   "$CORE/hooks/gate-stop-nudge.mjs"
   "$CORE/hooks/gate-beacon.mjs"
@@ -46,18 +46,29 @@ done
 
 if [ "$hook_present" -eq "${#hook_sources[@]}" ]; then
   mkdir -p "$OUT/.github/hooks"
-  cp "$CORE/hooks/"{gate-lib,gate-enforce,gate-stop-nudge,gate-beacon}.mjs "$OUT/.github/hooks/"
+  cp "$CORE/hooks/"{gate-enforce,gate-stop-nudge,gate-beacon}.mjs "$OUT/.github/hooks/"
   cp "$ROOT/platforms/copilot-cli/hooks/maister-gates.json" "$OUT/.github/hooks/"
   cp "$ROOT/platforms/copilot-cli/hooks/README.md" "$OUT/.github/hooks/"
-  # The shared state reader is a library, not a hook registration: the engine's
-  # state writer imports it as its self-check oracle. Keep it at the path the
-  # shipped source imports, so no .mjs has to be rewritten to resolve.
-  mkdir -p "$OUT/hooks"
-  cp "$CORE/hooks/gate-lib.mjs" "$OUT/hooks/"
 elif [ "$hook_present" -eq 0 ]; then
   echo "build: no gate hook sources present; skipping the Copilot hook stage" >&2
 else
   echo "build: gate hook sources are half-present (${hook_present}/${#hook_sources[@]}); missing: ${hook_missing[*]}" >&2
+  exit 1
+fi
+
+# The shared state reader is a library, not a hook registration: the engine's
+# state writer imports it as its self-check oracle. It stays open whole
+# (PRO-ADR-011), unconditionally of the pro-only gate hooks above, so it is
+# copied — and its presence asserted — unconditionally too. Keep it at the
+# path the shipped source imports, so no .mjs has to be rewritten to resolve.
+# The copy is gated on the source existing so a missing file trips the named
+# assertion below rather than a raw `cp:` error.
+mkdir -p "$OUT/hooks"
+if [ -f "$CORE/hooks/gate-lib.mjs" ]; then
+  cp "$CORE/hooks/gate-lib.mjs" "$OUT/hooks/"
+fi
+if [ ! -f "$OUT/hooks/gate-lib.mjs" ]; then
+  echo "build: $OUT/hooks/gate-lib.mjs is missing; the emitted engine cannot resolve its write primitives" >&2
   exit 1
 fi
 
