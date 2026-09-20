@@ -4,9 +4,5 @@
   "type": "module",
   "engines": {
     "node": ">=20"
-  },
-  "devDependencies": {
-    "ajv": "^8",
-    "yaml": "^2"
   }
 }
