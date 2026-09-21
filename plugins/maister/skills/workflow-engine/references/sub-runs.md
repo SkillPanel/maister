@@ -65,6 +65,25 @@ Then, and only then:
 5. `WAITING-SUBRUN: <node> run=<child-run-id>` is printed as the **last** line of the turn;
 6. the turn ends. Nothing polls, nothing waits, no session is left idle.
 
+**`WAITING-SUBRUN` is typed by the driver, and no verb emits it.** The engine's other two closing
+markers come out of the `run-complete` verb — that is why the rule elsewhere is to echo the verb's
+line and never to type a marker it did not give you — but nothing the engine ships prints the
+string `WAITING-SUBRUN`: not a verb, not a module, not a constant. A driver that goes looking for
+a tool to produce it will not find one, and a suite that greps the scripts for it will not find it
+either. The line above is composed by the driver from two things it has just written: the node id
+and the child's `values.run_id`. Hence the grammar is pinned in prose rather than deferred to a
+tool's output, and hence the ordering rule that W2 and W3 both land before step 5.
+
+The distinction matters to whoever is about to trust one of these lines. A verb marker is printed
+by the engine's own tooling at the point a run closes, after the closing write has landed and
+whatever the verb does check has passed — a dispatched run's published close-out among them.
+`WAITING-SUBRUN` asserts only that the driver *believes* it froze a child
+and recorded the link — nothing re-read the disk to confirm it. So a reader takes it as a signal to
+go look at the child run, never as evidence of its state, and the parent's own wake-up path takes
+the same view: **the disk wins, always** (see the ending table and the `SUB-RUN-DONE` rule). Treat
+the marker as the engine's testimony and a re-drive becomes a way to be told a comfortable lie;
+treat it as a pointer and a lost, duplicated or stale line costs nothing but a re-drive.
+
 **The parent does not drive a cockpit child and spawns nothing.** What it starts is a directory
 and a frozen state file; the daemon discovers the child in its ordinary task-directory sweep — the
 reason a child is a sibling directory and not a subdirectory of the parent — and spawns its
@@ -84,9 +103,19 @@ who wants work to proceed beside a sub-run needs two runs, not two branches.
 | Child `task.status` | Parent node | Parent run |
 |---|---|---|
 | `completed` | `completed` | continues its walk; declared outputs are exposed |
-| `failed` | `failed` | ends `RUN-FAILED`, unless a downstream node declares `on: failure` or `on: always` |
+| `failed` | `failed` | ends `RUN-FAILED: sub-run <child-run-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
 | `stopped` | `stopped` | **stops outright**: one patch carries `task.status: stopped` and every unexecuted node `stopped`, then `run-complete` closes the run. No `RUN-FAILED` — a stop is a legitimate outcome |
 | anything else (absent, `in_progress`) | unchanged, stays `waiting` | the waiting path runs again |
+
+**The failed row's reason is pinned, not free text: `RUN-FAILED: sub-run <child-run-id> failed`,
+with the child run id spelled exactly as the parent node recorded it in `values.run_id`.** The
+marker's grammar is `RUN-FAILED: <reason>`, so leaving the reason to the driver would put a
+different sentence in every implementation's closing line for the one ending an operator most
+often has to explain. The run-level `subrun-*` codes are not available here: each of those names a
+refusal the parent itself raised before or instead of running a child, and this ending is the
+opposite — nothing refused, the child ran and reported `failed`. Pinning the spelling is what lets
+a reader, or a sweep over closed runs, tell the parent's own failure from an adopted one, and go
+straight to the child that carries the reason.
 
 **The parent must re-resolve the child definition before it copies anything, because the frozen
 state holds no declaration.** A node entry carries a fixed key set and the workflow block six
@@ -228,6 +257,45 @@ unresolved-reference warning has: `unresolved-subrun-input:<node>:<name>` and
 written or deliberately deleted, and re-starting would duplicate a run that may still be
 executing.
 
+**It writes nothing either, and the silence is a decision.** The alternative was to record the
+node `failed` and let the run end there, which reads as tidier and is worse: it is the parent
+inventing an outcome for a child it cannot find, and it is irreversible — an operator who restores
+a directory that was moved, or a mount that came back late, then has a run permanently recorded as
+failed over a lookup that would now succeed. Writing nothing leaves the node `waiting` with the
+`task_path` and `run_id` that name what is missing, so the refusal is repeatable, the diagnosis is
+still on disk, and the run recovers by re-drive the moment the cause is fixed. The cost is that
+the parent is stuck until somebody acts — which is the right cost for a missing run, and the same
+shape as A2's "no write" row, where repetition without a write is likewise the correct behaviour.
+
+### The `SUB-RUN-INVALID` reason vocabulary
+
+The token is contractual and so is one property of the reason: **it names the field at fault, in
+that field's own spelling — `run=`, `node=`, `child=`, `status=` or `at=`, trailing `=` included.**
+The rest of the sentence is prose for an operator and is not fixed. Without that property two
+conforming engines could both print `SUB-RUN-INVALID: malformed line` and neither would be wrong,
+which turns the whole line into a `false` an operator has to debug by hand against a grammar with
+five fields. With it, the line says which field to look at, whoever emitted it.
+
+Five worked examples, one per way a line can be wrong — illustrative wording, contractual field
+naming:
+
+```
+SUB-RUN-INVALID: the field child= is missing
+SUB-RUN-INVALID: the field node= appears more than once
+SUB-RUN-INVALID: the field why= is not one of run= node= child= status= at=
+SUB-RUN-INVALID: the field at= must be last; status= follows it
+SUB-RUN-INVALID: the field status= carries "done", not one of completed failed stopped
+```
+
+The third names the offending field even though the grammar has no such field — an unknown key is
+still a field at fault, and quoting it back is what tells an operator they typed `why=` for
+`status=`. A mismatch against the state names the field whose value disagreed (`run=`, `node=` or
+`child=`) by the same rule.
+
+**A suite checks the token and the field name, never the sentence.** Byte-matching one of these
+five makes a fixture into a contract and fails the next engine that words its reason better, which
+is exactly the freedom the rule leaves open on purpose.
+
 ---
 
 ## The two cross-checks, and the node they skip
@@ -254,7 +322,7 @@ what a `workflow:` node may declare, whatever ends up running it.
 | A1 | crash after W2, before W3 | the re-driven parent derives the same directory, finds it, reads its `orchestrator.parent`, confirms it names this run and this node, **adopts** it and writes W3. Exactly one child exists |
 | A2 | a re-drive arrives while the child still runs | no write. The dashboard is rewritten, `WAITING-SUBRUN` re-printed unchanged, the turn ends. Repeatable without limit and without a second child |
 | A3 | a duplicate wake-up after the node already completed | `SUB-RUN-ALREADY-DONE` is printed, nothing is written, the node keeps its recorded status and values |
-| A4 | the child directory is missing at the recorded `task_path` | `RUN-FAILED: subrun-state-missing`. The child is never re-created and the run never silently re-started |
+| A4 | the child directory is missing at the recorded `task_path` | `RUN-FAILED: subrun-state-missing`, and **no write**: the node stays `waiting` with its recorded values, so every later re-drive reaches the same refusal until an operator restores the directory or edits the run. The child is never re-created and the run never silently re-started |
 | A5 | the parent run is stopped while a child is waiting | the child keeps running and finishes as an ordinary run; its parent link dangles, which is tolerated. Nothing tells the child, and nothing should |
 | A6 | the child fails | the parent node is `failed`; the run ends `RUN-FAILED` unless a downstream node declares `on: failure` or `on: always` |
 | A7 | the child is stopped | the parent node is `stopped`, `task.status` becomes `stopped`, every unexecuted node is recorded `stopped` in one patch, and **no `RUN-FAILED` is printed** |

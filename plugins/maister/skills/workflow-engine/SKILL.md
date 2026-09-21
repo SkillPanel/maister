@@ -416,7 +416,7 @@ the node's recorded `values.task_path` and maps it:
 | Child `task.status` | Parent node | Parent run |
 |---|---|---|
 | `completed` | `completed` | continues its walk; the declared outputs are exposed |
-| `failed` | `failed` | ends `RUN-FAILED`, unless a downstream node declares `on: failure` or `on: always` |
+| `failed` | `failed` | ends `RUN-FAILED: sub-run <child-run-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
 | `stopped` | `stopped` | stops outright — one patch carries `task.status: stopped` and every unexecuted node, then `run-complete`. No `RUN-FAILED`: a stop is a legitimate outcome |
 | anything else | unchanged, stays `waiting` | the waiting path runs again (*Sub-runs*) |
 
@@ -610,7 +610,8 @@ is how the two spellings meet in the one part they share. Defining the field as 
 would make every line the cockpit sends unparseable.
 
 A malformed line, a `run=` or `node=` that is not this run's, or a `child=` that is not the
-recorded one, all print `SUB-RUN-INVALID: <reason>` and write nothing; a `node=` that is no longer
+recorded one, all print `SUB-RUN-INVALID: <reason>` and write nothing — the reason names the field
+at fault in that field's own spelling, a vocabulary *Sub-runs* fixes; a `node=` that is no longer
 `waiting` prints `SUB-RUN-ALREADY-DONE` and writes nothing. A missing `at=` falls to the rule
 above — a fifth line shape is not a fifth way to be unstamped.
 
@@ -938,14 +939,23 @@ The engine honours the framework's contracts; it does not restate them. Follow
 
 The run's last line is a marker, read by tooling: `RUN-COMPLETE`, `RUN-FAILED: <reason>`, or —
 when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node> run=<child-run-id>`.
-The third is printed by the engine itself, whole line, nothing before or after it, with the node
-id first and `run=` second, no other field and no reordering. It carries **no `at=`**: a marker is
-not a prompt line and none of them is stamped. And it is **never printed under an absent or
-`terminal` driver** — a rule, not an implication, because the turn does not end there and the line
-would be one nobody will ever answer. `RUN-COMPLETE` and `RUN-FAILED`
-come from the `run-complete` verb rather than being typed — that is what makes a
-dispatched run's unpublished close-out a `RUN-FAILED: closeout-unpublished` instead of a
-silence its chain waits on forever.
+**The first two come from a verb; the third is typed.** `RUN-COMPLETE` and `RUN-FAILED` are what
+`run-complete` printed — which is what makes a dispatched run's unpublished close-out a
+`RUN-FAILED: closeout-unpublished` instead of a silence its chain waits on forever — so for those
+two, echo the verb's line and do not type a marker it did not give you. `WAITING-SUBRUN` has no
+verb behind it: no tool the engine ships prints that string, and the driver composes the line
+itself from the node id and the child run id it has just recorded. That is why its grammar is
+spelled out here rather than read off a tool's output — whole line, nothing before or after it,
+node id first and `run=` second, no other field and no reordering — and why the two rules are not
+in conflict. It matters to whoever trusts the line: a verb marker is the engine's own account of
+a run it just closed, while `WAITING-SUBRUN` asserts only what the driver believes it wrote, which
+is why W2 and W3 must both land before it is printed and why the child's on-disk state, never the
+marker, decides the outcome. *Sub-runs* carries the full version.
+
+A marker carries **no `at=`**: it is not a prompt line and none of them is stamped. And
+`WAITING-SUBRUN` is **never printed under an absent or `terminal` driver** — a rule, not an
+implication, because the turn does not end there and the line would be one nobody will ever
+answer.
 The vocabulary and the rule that on-disk state outranks a marker ship with the pro register § 13.
 
 ---
