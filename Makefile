@@ -45,7 +45,7 @@ validate:
 	@tmp=$$(mktemp); \
 	for definition in $(ENGINE)/workflows/*.yml; do \
 	  node $(ENGINE)/scripts/workflow.mjs diagram --definition $$definition > $$tmp; \
-	  diff -q $$tmp $${definition%.yml}.mmd >/dev/null || (rm -f $$tmp; echo "FAIL: $${definition%.yml}.mmd is stale — run make diagram" && exit 1); \
+	  diff -q $$tmp $${definition%.yml}.mmd >/dev/null || { rm -f $$tmp; echo "FAIL: $${definition%.yml}.mmd is stale — run make diagram"; exit 1; }; \
 	done; \
 	rm -f $$tmp
 	@echo "Checking the open tree ships zero schemas (schema validation is now Pro-only)..."
