@@ -111,27 +111,33 @@ between a stretch and the approval that closes it.
 
 ## Embedded mode
 
-When a parent orchestrator invoked this workflow rather than an operator, the
-`completion` node is skipped and the parent handles its own next steps. Two
-things are owed to the parent instead:
+**There is one, and this is the workflow that has it.** Research is
+child-capable: a parent whose node names this workflow starts a run of it as a
+child, and `embedded` means exactly that — *this run is a sub-run of another
+run*. The engine supplies the input at the child freeze; an operator never
+types it and no command exposes it.
 
-1. **Copy the research report** into the parent task's `analysis/research/`
-   directory, so the parent's later phases read it from their own tree.
-2. **Return the handoff block** — `research_outputs`, with exactly five keys,
-   each an artifact path or nothing when the stretch that writes it did not run:
+Its only effect is the guard on `completion`, which is therefore skipped for a
+child. That node exists to tell an operator the run is over and to suggest what
+to do next; a parent handles its own next steps, so it has nothing to say to
+one. Everything else in the graph runs unchanged, gates included — a child
+suspends on its own gates in its own Run view.
 
-```yaml
-research_outputs:
-  research_report: "[path to outputs/research-report.md]"
-  findings_directory: "[path to analysis/findings/]"
-  solution_exploration: "[path to outputs/solution-exploration.md]"
-  high_level_design: "[path to outputs/high-level-design.md]"
-  decision_log: "[path to outputs/decision-log.md]"
-```
+What a parent may read is the workflow-level `outputs:` block in
+`research.yml`, and nothing else: six artifact keys — `research_report`,
+`report`, `findings_directory`, `solution_exploration`, `high_level_design`,
+`decision_log` — and one value, `conclusions`. `report` aliases
+`research_report` on purpose, so a chain authored against
+`${research.artifacts.report}` keeps resolving. Three of the artifacts belong
+to nodes a guard may skip; an entry whose node was skipped is simply absent,
+and the parent's missing-artifact rule decides what follows.
 
-The key names are the parent's contract, not a convenience: a parent reads them
-by name, so a renamed or omitted key reaches the parent as a missing artifact
-rather than as an error.
+**Nothing is copied and nothing is handed back in prose.** A parent addresses
+this run's artifacts through the child's own `task_path`, so a copy in the
+parent's tree would be a second copy that nothing keeps in step. The mechanics
+— the freeze, the child directory name, the ending and what a parent reads when
+— belong to the engine skill's *Sub-runs* section, which states them once for
+every workflow.
 
 ---
 
@@ -208,8 +214,19 @@ research question, the research type and the methodology.
 
 The synthesizer returns pattern analysis and cross-references, the report that
 answers the question, a confidence level per finding and the documented gaps.
-Record the overall confidence — it is this node's declared value output and two
-later nodes read it.
+Record the overall confidence — it is a declared value output of this node and
+two later nodes read it.
+
+**Record `conclusions` in the same breath**, the node's second declared value:
+the one-line conclusion of the research just reported — the sentence the
+executive summary opens with, reduced to a handle. It is a handle and not the
+content; the full conclusion is the report, and whoever needs the detail reads
+the report. It goes onto a one-line node entry, so it must be flow-safe: no
+newline, no carriage return, no tab, no quote character. A short hyphenated
+phrase inside the bare charset (`adapter-scope-bounded`) is preferred and needs
+no quoting at all; a plain sentence without punctuation the emitter must escape
+is permitted. A value that is not flow-safe is refused at the write, which
+fails this node halfway through the graph.
 
 **Operator visibility**: refresh the dashboard after each of the four steps, so
 brief, plan, findings and report appear as they land rather than all at once.
@@ -477,9 +494,9 @@ operator declined design.
 
 ## `completion`
 
-Executed inline, writes no files, and runs only when the workflow was invoked on
-its own — a parent orchestrator handles its own next steps, so this node is
-skipped in embedded mode.
+Executed inline, writes no files, and runs only when this run is its own — a
+parent handles its own next steps, so the guard skips this node whenever the
+run is a sub-run of another.
 
 1. Inventory the outputs: the research report always, plus the solution
    exploration, the high-level design and the decision log when the stretches
