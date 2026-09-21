@@ -47,3 +47,32 @@ The sub-run scheme resolves differently on purpose. A `skill:` or `agent:` targe
 - The prose companion is load-bearing: a `direct:` node whose section is renamed stops validating, and the coupling between a `.yml` file and its `.md` sibling is not visible from either one alone
 - A warning-severity sub-run reference means a genuinely misspelled sub-run target reaches run time, where it surfaces as the run stopping rather than as a validation error
 - Resolution reads the filesystem, so validating a definition requires the tree it names to be present — a definition cannot be checked in isolation
+
+### Amendment 2026-09-22 — the sub-run scheme now executes
+The decision above stands in full: the scheme list is still closed, still runner logic rather than
+a schema keyword, targets are still bare, an omitted `uses` is still rejected, and an unresolvable
+sub-run target is still a warning. What has changed is the fact this record assumed while making
+its case — that the fourth mechanism had no runtime. ADR-0022 gives it one: a `workflow:<name>`
+node without `dir:` freezes a child run of that workflow into a sibling task directory and waits
+for it. Four statements above are therefore no longer true as written, and are corrected here
+rather than edited away, because each was load-bearing in its own argument:
+
+1. The TL;DR's "three mechanisms delegate — a skill, an agent, a sub-run — and a fourth, `direct:`"
+   listed a sub-run as a mechanism that delegates *in the grammar*. It now delegates at run time
+   as well.
+2. The Context's "a sub-run of another definition, was in the grammar before anything executed it"
+   describes the state of the tree when this record was written, not the state of the tree now.
+3. The Decision Outcome's "nothing executes a sub-run node today: the engine stops the run with a
+   clear message when it reaches one, so an unresolvable target cannot silently do the wrong
+   thing" was the **first** of the two reasons warning severity was the right level. That reason
+   is gone: an unresolvable target now fails a node that would otherwise have started a child. The
+   **second** reason is untouched and now carries the severity alone — a frozen valid fixture
+   carries such a node, and a check that errors on it fails the repository's own examples. A third
+   reason has since joined it: the resolvable-only cross-checks a parent's `with:` map and declared
+   outputs get at validate time would, as errors, fail exactly the workspace chains the sub-run
+   runtime exists for (ADR-0022).
+4. The Consequences' "a genuinely misspelled sub-run target reaches run time, where it surfaces as
+   the run stopping rather than as a validation error" still describes a misspelling reaching run
+   time, but the surface has changed: it is now a named run-level refusal identifying the
+   unresolved target, not the generic stop this record anticipated. The consequence is milder than
+   it was recorded as being.
