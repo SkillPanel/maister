@@ -33,7 +33,10 @@
  * than the ones that happen to be typed in the base. The frozen order is base,
  * then `disable`, then `tune`, then `add`, then the selected profile.
  *
- * **The hash covers the node set and nothing else.** Provenance — where the
+ * **The hash covers the node set and what the definition exposes, and nothing
+ * else.** The envelope is `{nodes, outputs}` for every definition, with no
+ * branch in it, so an absent `outputs:` block and an empty one are one value.
+ * Provenance — where the
  * definition came from, which overlays were applied, which profile was chosen,
  * what the document calls itself — is deliberately outside it, because the same
  * graph reached by an overlay and by a hand-written eject must carry one
@@ -47,7 +50,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { nodeOf } from './definition.mjs';
+import { nodeOf, readDefinition } from './definition.mjs';
 
 // ---------------------------------------------------------------------------
 // the closed vocabularies
@@ -167,7 +170,83 @@ const WARN = {
   reservedKey: (suffix) => `reserved-key:${suffix}`,
   unresolved: (node, target) => `unresolved-reference:${node}:${target}`,
   valueType: (path) => `undecidable-value-type:${path}`,
+  subrunInput: (node, name) => `unresolved-subrun-input:${node}:${name}`,
+  subrunOutput: (node, name) => `unresolved-subrun-output:${node}:${name}`,
 };
+
+/**
+ * The sub-run refusal codes this module owns, spelled once so the engine and
+ * every report quote one vocabulary rather than a copy of it.
+ *
+ * Three of them are run-level: they fail the parent node before anything is
+ * created, and `checkSubrunStart` below decides all three. The fourth is a
+ * validate-time error, raised by `checkSubrun`, and it is here rather than in
+ * a message literal for the same reason — a code a caller greps for must have
+ * exactly one spelling.
+ */
+export const SUBRUN_REFUSAL = {
+  onDirNode: 'subrun-on-dir-node',
+  recursion: 'subrun-recursion',
+  targetUnresolved: 'subrun-target-unresolved',
+  outputReserved: 'subrun-output-reserved',
+};
+
+/** The scheme a sub-run node names, and the one prefix `uses` may carry for it. */
+const WORKFLOW_SCHEME = 'workflow:';
+
+/**
+ * Names the engine writes onto a `workflow:` node itself — the address of the
+ * child run — and which a definition therefore may not declare as outputs of
+ * its own. A node's values map is replaced whole on every patch, so a declared
+ * output of either name would be merged over the parent's link and the parent
+ * would silently lose the address of its own child.
+ *
+ * The reservation is on the **parent node's** declaration and needs no twin on
+ * the child side: a child is free to expose a key of either name, and a parent
+ * simply cannot declare one, so the key is unreachable rather than dangerous.
+ */
+const RESERVED_SUBRUN_OUTPUTS = ['task_path', 'run_id'];
+
+/**
+ * The three checks that refuse a sub-run before any state is written, in the
+ * order the engine performs them. Returns `{code, message}` for the first that
+ * refuses, or null when the node may start a child.
+ *
+ * `parent` is the starting run's own `orchestrator.parent` link, whatever the
+ * state carries there. One level of nesting is what the design needs, and
+ * refusing on the link makes a cycle impossible without cycle detection.
+ *
+ * Exported because the engine raises these, and the condition for each of them
+ * — the node's shape, the run's link, and what `locateWorkflow` answers — is
+ * decided here. A second implementation next to the caller is how a refusal
+ * ends up meaning two different things.
+ */
+export function checkSubrunStart({ node, parent = null, project = null } = {}) {
+  const uses = typeof node?.uses === 'string' ? node.uses : '';
+  const written = uses.startsWith(WORKFLOW_SCHEME) ? uses.slice(WORKFLOW_SCHEME.length) : null;
+  if (written === null) return null;
+
+  if (typeof node.dir === 'string' && node.dir !== '') {
+    return {
+      code: SUBRUN_REFUSAL.onDirNode,
+      message: 'a workflow node carrying dir: dispatches into that directory and keeps its dispatch meaning; '
+        + 'remove dir: to run it as a child of this run, or dispatch it',
+    };
+  }
+  if (parent !== null && parent !== undefined) {
+    return {
+      code: SUBRUN_REFUSAL.recursion,
+      message: 'this run is already a child, and a child starts no grandchild',
+    };
+  }
+  if (locateWorkflow(written, project) === null) {
+    return {
+      code: SUBRUN_REFUSAL.targetUnresolved,
+      message: `"${written}" is not an eject, a generated chain, an overlay or a built-in: it resolves in none of the four homes`,
+    };
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // entry points
@@ -281,7 +360,8 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     const folded = canonicalNodes(graph);
     return {
       ok: true, errors: [], warnings: [], ...provenance,
-      tracker_key: trackerKeyOf(graph.inputs), degraded, graph_hash: hashNodes(folded), nodes: folded,
+      tracker_key: trackerKeyOf(graph.inputs), degraded,
+      graph_hash: hashNodes(folded, canonicalOutputs(graph)), nodes: folded,
     };
   }
 
@@ -302,7 +382,7 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     degraded,
     ...provenance,
     tracker_key: trackerKeyOf(graph.inputs),
-    graph_hash: hashNodes(nodes),
+    graph_hash: hashNodes(nodes, canonicalOutputs(graph)),
     nodes,
   };
 }
@@ -606,12 +686,51 @@ export function locateTarget(scheme, written, { project = null } = {}) {
 }
 
 /**
+ * Find the file behind a `workflow:` target, searching the four homes the
+ * engine's own Step 3 describes — eject, then generated, then overlay, then
+ * the built-in shipped beside this module — and returning `{at, from, base}`
+ * for the first hit, or null when the name is found in none of them. `from` is
+ * one of `eject`, `generated`, `overlay`, `builtin`.
+ *
+ * `base` is the definition file to *read*: the hit itself for the three homes
+ * that hold a definition, and the built-in for an overlay, which carries
+ * operations rather than a document of its own. Callers that need the child's
+ * declared interface read `base` and never have to branch on `from`.
+ *
+ * The built-in prefix is stripped through `bareWorkflowName`, so `research` and
+ * `builtin:research` resolve to the same file and the prefix never reaches a
+ * path.
+ *
+ * Exported, and shared with the validator, because the defect it closes is a
+ * definition that **validates against one file and runs another**: the prose
+ * resolved four homes and this module used to test one, so a workspace eject
+ * was invisible to `validate` and decisive at run time. The umbrella's own
+ * definition-path resolution has the same shape of bug and is deliberately
+ * left alone — the export is what makes swapping it a one-line follow-up.
+ */
+export function locateWorkflow(name, root = null) {
+  const bare = bareWorkflowName(name);
+  if (bare === null || !TARGET_NAME.test(bare)) return null;
+  const home = path.join(root ? path.resolve(root) : projectRoot(), '.maister', 'workflows');
+  const builtin = path.join(pluginRoot(), 'skills', 'workflow-engine', 'workflows', `${bare}.yml`);
+  const homes = [
+    { at: path.join(home, `${bare}.yml`), from: 'eject', base: null },
+    { at: path.join(home, 'generated', `${bare}.yml`), from: 'generated', base: null },
+    { at: path.join(home, `${bare}.overlay.yml`), from: 'overlay', base: builtin },
+    { at: builtin, from: 'builtin', base: null },
+  ];
+  const hit = homes.find((home_) => isFile(home_.at));
+  return hit ? { at: hit.at, from: hit.from, base: hit.base ?? hit.at } : null;
+}
+
+/**
  * Resolve one node target. Returns `{resolved}` when it resolves — `at` and
  * `from` saying where — a message when it is an error, and `{warning}` when it
  * is undecidable.
  *
- * Three of the four schemes are undecidable. A `workflow:` target may be
- * provided by a workspace eject or overlay this static check cannot see, and a
+ * Three of the four schemes are undecidable. A `workflow:` target is searched
+ * in all four homes `locateWorkflow` knows, but may still be provided by a
+ * workspace this validator is not being run inside, and a
  * `skill:` or `agent:` target by a plugin installed later, or by a project
  * this definition will be run in but is not being validated in — so none of the
  * three is an error merely for being absent from every tree searched. The
@@ -655,8 +774,10 @@ function resolveTarget(uses, origin, project) {
       ? { resolved: { at: companionOf(origin), from: 'companion' } }
       : { message: `the prose companion carries no section for "${name}"` };
   }
-  const builtin = path.join(pluginRoot(), 'skills', 'workflow-engine', 'workflows', `${name}.yml`);
-  return isFile(builtin) ? { resolved: { at: builtin, from: 'builtin' } } : { warning: true };
+  // All four homes, not the built-in alone: the report says which one answered,
+  // and a target no environment in hand can see still warns rather than errors.
+  const found = locateWorkflow(name, project);
+  return found ? { resolved: { at: found.at, from: found.from } } : { warning: true };
 }
 
 /** The prose companion's path beside a definition file. */
@@ -752,7 +873,12 @@ function buildGraph({ definition, overlays, profile, errors }) {
 
   for (const [id, node] of nodes) scanControlCharacters(node, origins.get(id) ?? file, id, `nodes.${id}`, errors);
 
-  return { file, inputs: isMap(doc.inputs) ? doc.inputs : {}, nodes, origins };
+  // The workflow-level `outputs:` block is carried out of the base definition
+  // alone: overlay operations apply to nodes, so there is nothing an overlay
+  // could say about it. An overlay that needs to expose something else is a
+  // definition of its own. Carried raw rather than defaulted to a map, so the
+  // shape check below can tell an absent block from a malformed one.
+  return { file, inputs: isMap(doc.inputs) ? doc.inputs : {}, outputs: doc.outputs, nodes, origins };
 }
 
 /**
@@ -945,10 +1071,86 @@ function checkInputs(inputs, file, errors) {
   }
 }
 
+/**
+ * The two sub-maps a workflow-level `outputs:` block may carry, and the order
+ * the canonical form emits them in. Closed: both halves of an entry are in the
+ * file being validated, so a third sub-map is a decidable mistake and is
+ * refused here rather than carried into the hash unread. That is deliberately
+ * the opposite of the node rule, where an unrecognised key is carried through
+ * because a newer definition must resolve to the document it declared — a node
+ * key this build does not know may still mean something to the engine that
+ * does, whereas this block is read by this module and nothing else.
+ */
+const OUTPUT_KINDS = ['artifacts', 'values'];
+
+/**
+ * The workflow-level `outputs:` block: what a definition exposes to whoever
+ * runs it as a child. Each entry maps an exposed key to a dotted reference to
+ * a node's own declared output — `<node>.artifacts.<key>` or
+ * `<node>.values.<key>` — and every such reference is an **error** when it
+ * misses, because the node it names and the output it names are both in the
+ * file being validated. Nothing about it is undecidable, so nothing about it
+ * warns.
+ *
+ * It names a node and not a path deliberately: two nodes may declare the same
+ * path, and a parent reading the child's interface has to know *whose* skip
+ * sanctions an absent artifact. A bare path cannot say.
+ *
+ * A `values` entry carries no type of its own — it inherits the declaring
+ * node's declared type, so the four-type vocabulary needs no second spelling
+ * and no second check.
+ *
+ * Today a definition may carry the block and be hashed as though it did not,
+ * which is exactly the failure the canonical form below closes.
+ */
+function checkOutputs(outputs, nodes, file, errors) {
+  if (outputs === undefined || outputs === null) return;
+  if (!isMap(outputs)) {
+    fail(errors, file, 'outputs', `outputs is a mapping of ${OUTPUT_KINDS.join(' and ')}; ${describe(outputs)} is not`);
+    return;
+  }
+  for (const kind of Object.keys(outputs)) {
+    if (!OUTPUT_KINDS.includes(kind)) {
+      fail(errors, file, `outputs.${kind}`,
+        `a workflow exposes ${OUTPUT_KINDS.join(' and ')} and nothing else; "${kind}" is neither`);
+    }
+  }
+  for (const kind of OUTPUT_KINDS) {
+    const exposed = outputs[kind];
+    if (exposed === undefined || exposed === null) continue;
+    if (!isMap(exposed)) {
+      fail(errors, file, `outputs.${kind}`, `outputs.${kind} is a mapping of exposed key to node reference`);
+      continue;
+    }
+    for (const [name, reference] of Object.entries(exposed)) {
+      const dotted = `outputs.${kind}.${name}`;
+      if (typeof reference !== 'string' || reference === '') {
+        fail(errors, file, dotted, `an exposed output names one node output; ${describe(reference)} is not a reference`);
+        continue;
+      }
+      const parts = reference.split('.');
+      if (parts.length !== 3 || parts[1] !== kind) {
+        fail(errors, file, dotted,
+          `an entry under outputs.${kind} names <node>.${kind}.<key>; "${reference}" does not`);
+        continue;
+      }
+      const source = nodes.get(parts[0]);
+      if (!source) {
+        fail(errors, file, dotted, `"${reference}" names "${parts[0]}", which no node declares`, parts[0]);
+        continue;
+      }
+      if (source.outputs?.[kind]?.[parts[2]] === undefined) {
+        fail(errors, file, dotted, `"${reference}" names an output "${parts[0]}" does not declare`, parts[0]);
+      }
+    }
+  }
+}
+
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
-  const { file, inputs, nodes, origins } = graph;
+  const { file, inputs, outputs, nodes, origins } = graph;
 
   checkInputs(inputs, file, errors);
+  checkOutputs(outputs, nodes, file, errors);
 
   for (const id of nodes.keys()) {
     if (!NODE_ID.test(id)) fail(errors, file, 'nodes',
@@ -956,6 +1158,8 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
       + 'starting with a letter, at least two characters and at most forty-one', id);
   }
 
+  // One read per child definition per pass, however many nodes name it.
+  const children = new Map();
   for (const [id, node] of nodes) {
     const at = `nodes.${id}`;
     const origin = origins.get(id) ?? file;
@@ -968,6 +1172,7 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
     checkNodeShape(node, id, at, origin, errors);
     checkReference(node, id, at, origin, errors, warnings, resolved, project);
     checkDeclaredValues(node, at, origin, errors, warnings, id);
+    checkSubrun(node, id, at, origin, errors, warnings, project, children);
   }
 
   const closures = closuresOf(nodes);
@@ -1107,6 +1312,109 @@ function checkDeclaredValues(node, at, file, errors, warnings, id) {
 function describe(value) {
   if (isMap(value)) return `{${Object.keys(value).join(', ')}}`;
   return `"${value}"`;
+}
+
+/**
+ * The two ends of a sub-run held against each other: what the parent node
+ * passes down, and what it expects back.
+ *
+ * - **`with:` against the child's inputs.** Every input the child declares
+ *   `required: true` must be present, and every key present must be an input
+ *   the child declares. Passing the map through untouched was rejected: a typo
+ *   becomes a child started without its question, failing deep inside the child
+ *   rather than at the node that wrote it.
+ * - **The parent's declared outputs against the child's.** A key the parent
+ *   declares must be exposed under the same name by the child's workflow-level
+ *   `outputs:`, and — for an artifact — the path the parent declared must be
+ *   the path the child's producing node declares. Binding is by name; there is
+ *   no renaming grammar because nothing needs one yet. A parent that declared a
+ *   stale path would otherwise pass a name check and then test the existence of
+ *   a file nothing writes.
+ *
+ * Both are **warnings here, and only when the child definition resolves**. That
+ * relaxation is not a courtesy: an unresolvable `workflow:` target already warns
+ * rather than errors, and a validate-time error here would break exactly the
+ * workspace chains this feature exists for. The unconditional refusal is the
+ * run-time one, and it is what fails a node.
+ *
+ * A node carrying `dir:` is skipped: it dispatches into that directory and is
+ * not a sub-run at all — `checkSubrunStart` refuses one outright — and the
+ * workflow it names is resolved in the member repository, not here, so holding
+ * it against a local file of the same name would warn about a disagreement
+ * that does not exist. The reserved-name check above it is not skipped, because
+ * that one is a rule about what a `workflow:` node may declare, whatever runs it.
+ */
+function checkSubrun(node, id, at, file, errors, warnings, project, children) {
+  const uses = typeof node.uses === 'string' ? node.uses : '';
+  if (!uses.startsWith(WORKFLOW_SCHEME)) return;
+
+  for (const kind of OUTPUT_KINDS) {
+    const declared = node.outputs?.[kind];
+    if (!isMap(declared)) continue;
+    for (const name of RESERVED_SUBRUN_OUTPUTS) {
+      if (declared[name] === undefined) continue;
+      fail(errors, file, `${at}.outputs.${kind}.${name}`,
+        `${SUBRUN_REFUSAL.outputReserved}: "${name}" is the address of the child run, written onto this node by the `
+        + 'engine; a declared output of that name would be merged over it and the parent would lose its own child', id);
+    }
+  }
+
+  if (typeof node.dir === 'string' && node.dir !== '') return;
+  const found = locateWorkflow(uses.slice(WORKFLOW_SCHEME.length), project);
+  if (found === null) return;
+  const child = childInterface(found.base, children);
+  if (child === null) return;
+
+  const passed = isMap(node.with) ? node.with : {};
+  for (const [name, input] of Object.entries(child.inputs)) {
+    if (isMap(input) && input.required === true && passed[name] === undefined) warnings.push(WARN.subrunInput(id, name));
+  }
+  for (const name of Object.keys(passed)) {
+    if (child.inputs[name] === undefined) warnings.push(WARN.subrunInput(id, name));
+  }
+
+  for (const kind of OUTPUT_KINDS) {
+    const declared = node.outputs?.[kind];
+    if (!isMap(declared)) continue;
+    const exposed = isMap(child.outputs[kind]) ? child.outputs[kind] : {};
+    for (const [name, wanted] of Object.entries(declared)) {
+      if (RESERVED_SUBRUN_OUTPUTS.includes(name)) continue;
+      const reference = exposed[name];
+      if (typeof reference !== 'string') {
+        warnings.push(WARN.subrunOutput(id, name));
+        continue;
+      }
+      // Only an artifact carries a path on both sides; a declared value carries
+      // a type, and its type is the producing node's by inheritance.
+      if (kind !== 'artifacts') continue;
+      const parts = reference.split('.');
+      const written = child.nodes[parts[0]]?.outputs?.artifacts?.[parts[2]];
+      if (written !== undefined && written !== wanted) warnings.push(WARN.subrunOutput(id, name));
+    }
+  }
+}
+
+/**
+ * The child's declared interface — its inputs, what it exposes, and the nodes
+ * behind those references — read once per file per pass and remembered, because
+ * several parent nodes may name the same child.
+ *
+ * A child that cannot be read or parsed answers null and the cross-checks say
+ * nothing about it. It is a file this validator was not asked to judge, and
+ * reporting its parse errors against the node that names it would blame the
+ * wrong document.
+ */
+function childInterface(file, children) {
+  if (children.has(file)) return children.get(file);
+  const read = readDefinition(file);
+  const doc = read.errors.length === 0 && isMap(read.doc) ? read.doc : null;
+  const declared = doc === null ? null : {
+    inputs: isMap(doc.inputs) ? doc.inputs : {},
+    outputs: isMap(doc.outputs) ? doc.outputs : {},
+    nodes: isMap(doc.nodes) ? doc.nodes : {},
+  };
+  children.set(file, declared);
+  return declared;
 }
 
 /**
@@ -1297,6 +1605,28 @@ function canonicalNodes(graph) {
   });
 }
 
+/**
+ * The workflow-level `outputs:` block reduced to the same deterministic form
+ * the node list already has: keys sorted, each entry its dotted reference
+ * string, **both** sub-maps always present — empty when they carry nothing —
+ * and the whole block the empty form when the definition declares none.
+ *
+ * Which is the point: an absent block and an empty block canonicalise to the
+ * same value and therefore hash identically. A definition's identity must not
+ * depend on whether an optional key was typed.
+ */
+function canonicalOutputs(graph) {
+  const block = isMap(graph.outputs) ? graph.outputs : {};
+  const canonical = {};
+  for (const kind of OUTPUT_KINDS) {
+    const exposed = isMap(block[kind]) ? block[kind] : {};
+    const sorted = {};
+    for (const key of Object.keys(exposed).sort()) sorted[key] = canonicalValue(exposed[key]);
+    canonical[kind] = sorted;
+  }
+  return canonical;
+}
+
 /** Free-form values keep their content and lose their authoring key order. */
 function canonicalValue(value) {
   if (Array.isArray(value)) return value.map(canonicalValue);
@@ -1338,8 +1668,19 @@ function topological(nodes) {
 
 /**
  * The graph's identity. Provenance is excluded by construction: nothing outside
- * the canonical node list reaches this function, so there is no field to forget
- * to strip.
+ * the canonical node list and the canonical exposed outputs reaches this
+ * function, so there is no field to forget to strip.
+ *
+ * **The envelope is `{nodes, outputs}`, always, with no branch in it.** Every
+ * definition is hashed in that shape whether or not it declares an `outputs:`
+ * block, because the alternative — wrapping only when a block exists — makes a
+ * definition's identity depend on whether an optional key is present, and
+ * leaves two spellings of "exposes nothing" hashing differently from each
+ * other's neighbourhood. That was weighed against this form and rejected: the
+ * conditional spelling holds for a year and then surprises whoever adds the
+ * first empty block. The cost of this one is paid once, in the open: every
+ * shipped definition re-hashes when the envelope lands, and so does every
+ * workspace chain.
  *
  * **The digest carries its `sha256:` prefix from here**, because this is the
  * only place one is produced and the state block that records it accepts no
@@ -1348,8 +1689,8 @@ function topological(nodes) {
  * instruction: the value now travels from the resolver into state unchanged,
  * and a caller that writes what it was handed is right by construction.
  */
-function hashNodes(nodes) {
-  return `sha256:${createHash('sha256').update(JSON.stringify(nodes), 'utf8').digest('hex')}`;
+function hashNodes(nodes, outputs) {
+  return `sha256:${createHash('sha256').update(JSON.stringify({ nodes, outputs }), 'utf8').digest('hex')}`;
 }
 
 // ---------------------------------------------------------------------------
