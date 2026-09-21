@@ -58,7 +58,10 @@ MAISTER_WORKFLOW_PROSE=1 /maister:development "..."
 ```
 
 One variable covers every workflow that has a prose twin — its scope is the whole plugin, not a
-single workflow — so while it is set, research and performance run on prose too.
+single workflow — so while it is set, research and performance run on prose too. The phases it
+selects are a reference file beside the workflow's skill, not the skill body: `development`'s are
+in `skills/development/references/development-twin.md`, and the other two follow the same naming.
+On the default path nothing reads them.
 
 The engine records every state change by running its own writer, which is a shell command, and no
 permission mode covers the shell — so the plugin's gate hook allows those calls itself rather than
@@ -162,7 +165,8 @@ MAISTER_WORKFLOW_PROSE=1 /maister:performance "..."
 ```
 
 The variable is the same global switch the Development section describes — it selects the prose
-twin for every workflow that has one, not for this workflow alone.
+twin for every workflow that has one, not for this workflow alone. This workflow's phases live in
+`skills/performance/references/performance-twin.md`.
 
 ### Resume
 
@@ -236,8 +240,8 @@ Multi-source research with synthesis, optional solution brainstorming, and high-
 
 Research runs on the workflow engine by default: the workflow ships as a definition — a graph
 of nodes with declared dependencies and guards — which the engine freezes into the task's state
-and executes. The same phases also exist as prose in the workflow's own skill, and both produce
-the same task directory.
+and executes. The same phases also exist as prose beside the workflow's own skill, in
+`skills/research/references/research-twin.md`, and both produce the same task directory.
 
 To run the prose phases instead, set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
 

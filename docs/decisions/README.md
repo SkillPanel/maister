@@ -54,3 +54,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0019](0019-generated-chain-home.md) | Generated chains live in a subdirectory of the workflow home | Accepted | 2026-09-08 | — |
 | [ADR-0020](0020-context-block-shared-core.md) | The context-block shared core is unblocked, and deferred to its own change | Accepted | 2026-09-16 | — |
 | [ADR-0021](0021-pro-edition-packaging.md) | The pro edition ships as an assembled superset, and W1 lands its packaging foundation only | Accepted | 2026-09-19 | — |
+| [ADR-0023](0023-prose-twin-as-reference.md) | The prose twin is a reference; the orchestrator SKILL.md is a hand-off | Accepted | 2026-09-21 | Extends ADR-0013 (the twin stays maintained and reachable; only its address changes) |

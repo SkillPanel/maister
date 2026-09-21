@@ -153,6 +153,10 @@ driver_aware: true
 
 The plugin's own orchestrators declare the same thing by stating the driver-qualified gate rule in
 their body, and both forms are honoured; for a skill of your own, the field is the documented way.
+Either way it is the `SKILL.md` that is read, never a file under its `references/` — which is why
+the built-in orchestrators keep the gate rule in a body that is otherwise a hand-off, with their
+prose phases moved out to `references/<name>-twin.md` (ADR-0023). Move a declaration into a
+reference and the skill stops being dispatchable without anything else changing.
 The declaration is read off the skill file the resolution order finds — the same file the workspace
 validator reads when it judges a `dir:` node, and the same file the dispatch runtime reads when it
 builds the worker's envelope — so a skill that resolves and declares the field is a legal dispatch

@@ -823,7 +823,7 @@ The development orchestrator auto-detects the product-design task path during in
 
 It then generates `analysis/design-context/INDEX.md` (screen/component inventory with stable IDs) and propagates design context through all subsequent phases via `task_context.phase_summaries.design`. The product brief's Layer 0 maps to requirements, design characteristics map to task characteristics, and mockup references become **binding inputs** to implementation: the implementation-planner attaches `Visual References` to UI task groups, task-group-implementer reads each mockup before coding, and Phase 12 produces a visual-fidelity report comparing rendered screens against source mockups.
 
-**See**: `skills/development/SKILL.md` § "Design-Informed Development" for full propagation semantics.
+**See**: `skills/development/references/development-twin.md` § "Design-Informed Development" for full propagation semantics.
 
 ### Research Input
 
