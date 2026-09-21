@@ -30,7 +30,28 @@ inputs:
   # a `when` clause — the decision node turns it into a declared bool first.
   brainstorm: {type: string, required: false}
   design: {type: string, required: false}
+  # "This run is a sub-run of another run." The engine supplies it at the child
+  # freeze; an operator never types it. Its only effect here is the guard on
+  # `completion`, which a parent has no use for.
   embedded: {type: bool, required: false, default: false}
+
+# What a parent may read. Every entry names an output some node already
+# declares, so a key that stops resolving fails validation rather than a run.
+# Three of the six artifacts belong to nodes a guard may skip: such an entry is
+# simply absent, and the parent's missing-artifact rule decides what follows.
+# `report` deliberately aliases `research_report` — chains authored against
+# `${research.artifacts.report}` keep resolving.
+outputs:
+  artifacts:
+    research_report: research-foundation.artifacts.report
+    report: research-foundation.artifacts.report
+    findings_directory: research-foundation.artifacts.findings
+    solution_exploration: solution-generation.artifacts.exploration
+    high_level_design: high-level-design.artifacts.design
+    decision_log: high-level-design.artifacts.decision_log
+  values:
+    conclusions: research-foundation.values.conclusions
+
 nodes:
   research-foundation:
     uses: direct:research-foundation
@@ -48,6 +69,11 @@ nodes:
         report: outputs/research-report.md
       values:
         confidence_level: {enum: [high, medium, low]}
+        # A handle, not the content: the one-line conclusion of the research
+        # this node reported, for a parent that reads the declared block
+        # without opening the report. Flow-safe and short — a hyphenated
+        # phrase inside the bare charset is preferred.
+        conclusions: string
 
   foundation-approval:
     type: gate

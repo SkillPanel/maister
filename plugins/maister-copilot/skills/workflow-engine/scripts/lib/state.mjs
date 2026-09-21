@@ -127,20 +127,33 @@ const WORKFLOW_KEYS = ['source', 'overlays', 'profile', 'graph_hash', 'grammar_v
 
 /**
  * The status mirror, and it is a mapping rather than a copy: a node carries one
- * of seven statuses, a summary one of five. `suspended` never occurs in
+ * of eight statuses, a summary one of five. `suspended` never occurs in
  * terminal mode and `stopped` occurs only on unexecuted nodes, which carry no
  * summary — both are absent here on purpose, so a mirror that cannot be spelled
  * is simply not written.
+ *
+ * `waiting` — a parent node whose child run is still going — mirrors to
+ * `in_progress`, because that is what it is in the shorter phase vocabulary.
+ * Left out, a `nodes` patch carrying `status: waiting` would write no summary
+ * mirror at all: a node that changed state with nothing in the summary saying
+ * so. It stamps neither end, for the reason the two sets below give.
  */
 const STATUS_MIRROR = {
   pending: 'pending',
   running: 'in_progress',
+  waiting: 'in_progress',
   completed: 'completed',
   skipped: 'skipped',
   failed: 'failed',
 };
 
-/** The statuses that make the writer stamp a node's clock fields. */
+/**
+ * The statuses that make the writer stamp a node's clock fields.
+ *
+ * `waiting` is in neither set on purpose: `started` was stamped when the node
+ * went `running`, and `completed` is stamped when the child run ends. A
+ * `waiting` stamp would record the node as finished while it is still waiting.
+ */
 const STARTS = new Set(['running']);
 const ENDS = new Set(['completed', 'failed', 'skipped']);
 
@@ -172,6 +185,19 @@ const NODE_ID = /^[a-z][a-z0-9-]{1,40}$/;
  */
 const PENDING_KEYS = ['node', 'request', 'since'];
 const REQUEST_PATH = /^gates\/[a-z0-9-]+\.request\.yml$/;
+
+/**
+ * The two keys of the child's parent link, and the spelling its path obeys.
+ *
+ * `PARENT_RUN` is the bare flow charset minus everything that would make the
+ * value something other than a relative path: it accepts no leading `/`, no
+ * backslash and no `.`/`..` segment, so what it admits is both emittable
+ * unquoted and joinable onto the repository root. The segment test is separate
+ * because a pattern that excluded `..` would also exclude the dated directory
+ * names that carry dots in the wild.
+ */
+const PARENT_KEYS = ['run', 'node'];
+const PARENT_RUN = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const MIDNIGHT = /^\d{4}-\d{2}-\d{2}T00:00:00Z$/;
 
@@ -217,6 +243,11 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  *                   the answered gate's `node` and `request` standing beside a
  *                   null nobody wrote — a marker the hook would still read as
  *                   pending.
+ *   parent          A child run's `{run, node}` link back to its parent,
+ *                   validated whole before it is emitted. Written once, at the
+ *                   freeze, and never edited afterwards, so there is no second
+ *                   writer to merge with and a replacing write is what the key
+ *                   means.
  *   completed_phases, failed_phases
  *                   Sequences. There is no key to merge on; a caller that means
  *                   to append sends the whole list, the same rule
@@ -432,6 +463,10 @@ function applyScalars(doc, section, values, changed) {
         `${JSON.stringify(String(key))} is not a usable key under ${section}:`);
     }
     if (key === 'gate_pending') assertPending(value);
+    // Scoped to the section because `parent` names a block under
+    // `orchestrator:` and nothing under `task:`, so a shape check that ignored
+    // the section would judge a key it does not describe.
+    if (section === 'orchestrator' && key === 'parent') assertParent(value);
     if (MERGED_MAPS.has(`${section}.${key}`) && isPlainObject(value)) {
       mergeMap(doc, section, key, value, changed);
       continue;
@@ -508,6 +543,48 @@ function assertPending(value) {
   }
   if (typeof value.since !== 'string' || !TIMESTAMP.test(value.since) || MIDNIGHT.test(value.since)) {
     return refuse(`${JSON.stringify(String(value.since))} is not a measured UTC timestamp`);
+  }
+}
+
+/**
+ * The child run's link back to its parent, validated whole before it is
+ * emitted, and for the same reason the pending-marker check exists: the writer
+ * would otherwise accept any shape under this key, and the first reader to
+ * discover a malformed parent link is the cockpit, one repository away from the
+ * defect.
+ *
+ * `{run, node}` and nothing else — exactly the two keys, both strings, `node`
+ * spelled as any other node id, `run` the parent's repository-root-relative
+ * task directory. The key is written once, at the freeze, and never edited, so
+ * there is no partial write to accommodate and no reason to accept one.
+ *
+ * Everything here refuses under the patch-invalid code this section has always
+ * used. The vocabulary is closed and does not grow because a key gained a
+ * shape — the same rule `gate_pending` follows, and the reason that one keeps
+ * its own long-standing code rather than taking a new one.
+ */
+function assertParent(value) {
+  const refuse = detail => {
+    throw new Refusal('state-patch-invalid',
+      `orchestrator.parent is written as {run, node} on one line: ${detail}`);
+  };
+  if (!isPlainObject(value)) {
+    return refuse(`this value is ${value === null ? 'null' : Array.isArray(value) ? 'a sequence' : typeof value}, and a link sent as text would reach the file with its own bytes`);
+  }
+  const keys = Object.keys(value);
+  const missing = PARENT_KEYS.filter(key => !keys.includes(key));
+  if (missing.length) return refuse(`it is missing ${missing.join(', ')}`);
+  const extra = keys.filter(key => !PARENT_KEYS.includes(key));
+  if (extra.length) return refuse(`${extra.join(', ')} is not part of the link`);
+
+  if (typeof value.node !== 'string' || !NODE_ID.test(value.node)) {
+    return refuse(`${JSON.stringify(String(value.node))} is not a usable node id`);
+  }
+  if (typeof value.run !== 'string' || !PARENT_RUN.test(value.run)) {
+    return refuse(`${JSON.stringify(String(value.run))} is not a relative task directory the one-line reader can carry unquoted`);
+  }
+  if (value.run.split('/').some(segment => segment === '.' || segment === '..')) {
+    return refuse(`${JSON.stringify(value.run)} climbs out of the repository root, so it names no task directory`);
   }
 }
 

@@ -68,9 +68,9 @@ swap the *writer*, and that is not a degraded mode but a different failure surfa
 
 **The name may arrive prefixed.** A workflow's orchestrator hands the run over naming its
 workflow `builtin:<name>`, so the prefix is stripped before any filesystem lookup and
-both forms are accepted — `builtin:research` and `research` resolve to the same three
-candidates below. A prefix left on the name turns the lookup into a search for a file called
-`builtin:research.yml`, which exists nowhere.
+both forms are accepted — `builtin:<name>` and `<name>` resolve to the same candidates
+below. A prefix left on the name turns the lookup into a search for a file called
+`builtin:<name>.yml`, which exists nowhere.
 
 Search `.maister/workflows/` in the current project root, then its `generated/`
 subdirectory, then the built-ins shipped beside this file:
@@ -188,7 +188,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, five verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, seven verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -299,6 +299,13 @@ A node whose guard is false is marked `skipped`, and **a skip satisfies everythi
 downstream** — that is how a definition expresses an optional phase without any routing
 construct.
 
+**A `waiting` node is not ready.** It is a `workflow:` node whose child run has not reached a
+terminal status, and three separate readers need to be told so separately: it is not ready, so
+the walk does not execute it again; it satisfies **no** `needs`, not even one declaring
+`on: always`, because the node has not ended; and it does **not** make the run gate-pending,
+because no gate was asked and no request file exists. What a run with a waiting node does on its
+next turn is the waiting path of *Sub-runs*, not a ready-set walk that skips it.
+
 **No node in the shipped built-in carries `on:`**, and that is precisely what makes a stop
 option terminate a run: under the default, nothing downstream of a stopped node ever
 becomes ready.
@@ -335,7 +342,7 @@ The node's `uses` names both the mechanism and the target:
 | `skill:<name>` | the Skill tool |
 | `agent:<name>` | the Task tool |
 | `direct:<name>` | inline, by this engine, following the node's section in the definition's prose companion |
-| `workflow:<name>` | **stops the run** with a clear message — sub-run execution is out of scope; the validator resolves the target, nothing executes it |
+| `workflow:<name>` | with no `dir:`, it **starts a child run** — its own task directory, its own frozen graph, its own driver — and the node waits for it (*Sub-runs*). With `dir:` it keeps its dispatch meaning and is refused as a sub-run |
 
 **A `skill:` or `agent:` target is looked for in the project, then in this plugin, then in
 every installed plugin — first hit wins.** The project is the directory the host declares
@@ -401,6 +408,26 @@ schemes:
 | Budget exhausted, the operator chose to retry, and it then succeeded | `completed` | satisfies `needs` |
 | Budget exhausted, the operator chose to skip | `skipped` | satisfies `needs`; declared boolean outputs default false, declared string outputs to null |
 | Hard failure with no operator path | `failed` | satisfies nothing by default; the run stops with `RUN-FAILED` |
+
+**A `workflow:` node's outcome is the child run's, mapped rather than judged.** The node has no
+self-check of its own — the child ran its own — so the parent reads the child's `task.status` at
+the node's recorded `values.task_path` and maps it:
+
+| Child `task.status` | Parent node | Parent run |
+|---|---|---|
+| `completed` | `completed` | continues its walk; the declared outputs are exposed |
+| `failed` | `failed` | ends `RUN-FAILED: sub-run <child-run-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
+| `stopped` | `stopped` | stops outright — one patch carries `task.status: stopped` and every unexecuted node, then `run-complete`. No `RUN-FAILED`: a stop is a legitimate outcome |
+| anything else | unchanged, stays `waiting` | the waiting path runs again (*Sub-runs*) |
+
+**A declared artifact path resolves against the task directory of the run that wrote it.** Stated
+once, covering every scheme: for a `direct:`, `skill:` or `agent:` node that is the run's own task
+directory, as it always has been; for a `workflow:` node it is the **child's**, named by the
+node's recorded `values.task_path`, because the path the parent declares is the path as the child
+writes it. The join applies to both readers of a declared artifact — the existence check above and
+`${<node>.artifacts.<key>}` downstream — and the joined value is repository-root-relative.
+Artifacts are therefore never copied into the parent node's values; only declared *values* are.
+Storing the joined path as well would be a third copy of one fact, kept in step by hand.
 
 **The two budget-exhausted rows need an operator, so they need a driver.** Asking whether to
 retry or to skip is itself an in-node question, and under a `cockpit` or `dispatch` driver
@@ -540,10 +567,20 @@ change to the hook's allow-list, its deny reason or its decision logic.
 The run is suspended the moment step 2's marker publishes. **The commit point is
 `gate_pending` back to `null`, and that is written on resume, not here.**
 
+**A sub-run suspends on the same shape, with its own two writes in place of step 2.** The child
+freeze (W2) and the parent's record of the link (W3) both complete **before** the dashboard is
+rewritten and before `WAITING-SUBRUN` is printed, and that ordering is the contract rather than a
+convenience. A gate pending in a run whose `driver.session.id` is absent binds *every* session, so
+a child that suspends while a parent write is still outstanding would deny that write, and the
+parent could no longer record the link it has already created. This is the umbrella's "the ledger
+entry is written before the waiting marker is printed", at the scale of a run rather than a
+dispatch. W2 precedes W3 for a second reason — the parent's `values.task_path` must name a
+directory that exists — and *Sub-runs* carries both walks in full.
+
 ### Driver-suspended mode — resume
 
-A resume always arrives as a first line in one of four shapes — `GATE-ANSWER`, `RE-DRIVE`,
-`STEER` or `RESUME` — and **all four end with `at=<timestamp>`**. That stamp is the turn's
+A resume always arrives as a first line in one of five shapes — `GATE-ANSWER`, `RE-DRIVE`,
+`STEER`, `RESUME` or `SUB-RUN-DONE` — and **all five end with `at=<timestamp>`**. That stamp is the turn's
 measured time and it is the only one the engine has: nothing in a resumed turn may read a
 clock of its own or reuse a time from an earlier turn. Record it exactly as a `GATE-ANSWER`
 stamp is recorded — as the `at` of the decision the turn writes, and as the `started` of any
@@ -552,10 +589,38 @@ no `at=` is below the contract: print `RUN-FAILED: prompt-line-unstamped`, write
 leave the run where it was. Inventing a time there is what puts a midnight timestamp into a
 run's permanent record, and a fabricated stamp is worse than a refused turn.
 
-**None of the four carries a value, so none of them carries the run's inputs.** A resumed
+**None of the five carries a value, so none of them carries the run's inputs.** A resumed
 driver reads those off `orchestrator.options.inputs`, which the freeze wrote — see Step 4.
 Re-deriving an input from the line, the run directory's name or a task description is inventing
 one, and an invented input is the same class of defect as an invented timestamp.
+
+**The fifth shape wakes a parent whose sub-run has ended**, and its grammar is total:
+
+```
+SUB-RUN-DONE run=<parent-run> node=<node> child=<child-run> status=<completed|failed|stopped> at=<ts>
+```
+
+Every field is required, appears exactly once, and the order is fixed with **`at=` last**; a sixth
+field is a malformed line rather than a forward-compatible one. `run=` and `child=` carry an
+opaque run token, `\S+` — the engine writes a task-directory basename because that is the only
+spelling it can produce, and a daemon writes its own colon address, so **the match rule is to
+compare the token's last colon-separated segment** against the run's task-directory basename and
+against the node's recorded `values.run_id`. A token with no colon is its own last segment, which
+is how the two spellings meet in the one part they share. Defining the field as a basename instead
+would make every line the cockpit sends unparseable.
+
+A malformed line, a `run=` or `node=` that is not this run's, or a `child=` that is not the
+recorded one, all print `SUB-RUN-INVALID: <reason>` and write nothing — the reason names the field
+at fault in that field's own spelling, a vocabulary *Sub-runs* fixes; a `node=` that is no longer
+`waiting` prints `SUB-RUN-ALREADY-DONE` and writes nothing. A missing `at=` falls to the rule
+above — a fifth line shape is not a fifth way to be unstamped.
+
+**The disk wins, always.** `status=` is a hint about why the parent was woken; the child's
+`task.status` is the outcome, and when they disagree the state decides and the line is ignored.
+A parent woken `completed` by a child still running stays waiting; a parent woken `failed` by a
+child that completed completes. Without the rule a daemon bug becomes a wrong outcome recorded
+permanently in a run's history. A re-drive carrying no `SUB-RUN-DONE` at all reaches the same
+waiting node and takes the same path, which is what makes it idempotent under a sweep.
 
 Under a pending gate the whole tool surface is denied, the shell included, so the state
 writer is unreachable and the decision is recorded with editor tools on the allow-listed
@@ -665,6 +730,38 @@ and defaulting is not a licence to invent one.
 
 ---
 
+## Sub-runs
+
+A `workflow:` node carrying no `dir:` starts a **child run**: an ordinary task directory beside
+the parent's, with its own frozen graph, its own state file and its own driver, linked back by the
+child's `orchestrator.parent` — `{run, node}`, written once at the freeze. The parent node holds
+`status: waiting` while the child executes and adopts the child's terminal status when it ends.
+The full contract — both driver walks, the interruption matrix, the refusal table, the worked
+parent/child state pair, the child directory's derivation and the recipe for making a workflow
+child-capable — is `references/sub-runs.md`. What the engine must hold in mind at the node:
+
+- **Three writes bracket a start**: W1 the parent node `running`; W2 the whole child freeze, one
+  call against the child's state; W3 the parent node `waiting` with `values: {task_path, run_id}`.
+  W2 precedes W3, and both precede the dashboard rewrite and the marker.
+- **Under a terminal driver the child runs in session** and the turn continues to W4. Under a
+  `cockpit` or `dispatch` driver the turn ends at `WAITING-SUBRUN` and the daemon discovers the
+  child in its ordinary sweep — the parent drives nothing and spawns nothing.
+- **Five checks refuse before anything is created** — a node carrying `dir:`, a run that is
+  already a child, a target resolving in none of the four homes, a `with:` map that misses or
+  invents an input, and a declared output the child does not expose. The first three are decided
+  by the graph module's own exported check, so this prose and that code share one vocabulary.
+- **`task_path` and `run_id` are reserved** against a `workflow:` node's declared outputs, because
+  the node's values map is replaced whole on patch and a child output of either name would be
+  merged over the parent's link to its own child.
+- **The child directory name is derived, never chosen**, from the parent directory's date and
+  slug and the node id, so a parent re-driven after a crash computes the same name and **adopts**
+  the existing child instead of starting a second one.
+- **Nothing here names a workflow.** A workflow becomes child-capable by declaring an `embedded`
+  input, guarding its closing node and declaring a workflow-level `outputs:` block; the engine is
+  unchanged either way, and the recipe is in the reference.
+
+---
+
 ## Writing state
 
 **Every state change goes through `write-state`. Never edit `orchestrator-state.yml` with an
@@ -738,6 +835,18 @@ records.
 | the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key` and `orchestrator.options.inputs` (Step 4) |
 | `gate-request` | one invocation, three writes, in the order § E2 fixes — a run is pending from the moment its request file lands, so a second shell call against it is denied |
 | the empty patch on gate resume | the shell becomes reachable only the instant `gate_pending` goes null, which is what that write re-validates (*Driver-suspended mode — resume*) |
+
+**A fifth pair can never merge, and for a different reason: it lands in two files.** Starting a
+sub-run writes the parent's node (W1), then the whole child freeze (W2), then the parent's link
+(W3). W2 is a write against the **child's** state file and the other two are against the parent's,
+so no patch vocabulary could carry them together however close in time they are — "one write per
+moment" is per state file, and a sub-run start is three moments across two runs.
+
+**W2 is one call and must stay one call.** A state carrying a `workflow:` block but no `nodes` and
+no `task` reads as *gate-pending* to the enforcement hook's own reader, so a two-call freeze makes
+the child look pending between the calls and the second call is denied — a child that can never be
+finished and a parent that can never proceed. It is the same reasoning that makes `gate-request`
+one call, arriving from the other side.
 
 ### When a write is refused
 
@@ -828,19 +937,36 @@ The engine honours the framework's contracts; it does not restate them. Follow
 - the **HTML companions** (§ 9) and the style guide path passed to artifact-writing
   delegates, following `html-report-style.md`.
 
-The run's last line is a marker, read by tooling: `RUN-COMPLETE`, or `RUN-FAILED: <reason>`.
-Both come from the `run-complete` verb rather than being typed — that is what makes a
-dispatched run's unpublished close-out a `RUN-FAILED: closeout-unpublished` instead of a
-silence its chain waits on forever.
+The run's last line is a marker, read by tooling: `RUN-COMPLETE`, `RUN-FAILED: <reason>`, or —
+when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node> run=<child-run-id>`.
+**The first two come from a verb; the third is typed.** `RUN-COMPLETE` and `RUN-FAILED` are what
+`run-complete` printed — which is what makes a dispatched run's unpublished close-out a
+`RUN-FAILED: closeout-unpublished` instead of a silence its chain waits on forever — so for those
+two, echo the verb's line and do not type a marker it did not give you. `WAITING-SUBRUN` has no
+verb behind it: no tool the engine ships prints that string, and the driver composes the line
+itself from the node id and the child run id it has just recorded. That is why its grammar is
+spelled out here rather than read off a tool's output — whole line, nothing before or after it,
+node id first and `run=` second, no other field and no reordering — and why the two rules are not
+in conflict. It matters to whoever trusts the line: a verb marker is the engine's own account of
+a run it just closed, while `WAITING-SUBRUN` asserts only what the driver believes it wrote, which
+is why W2 and W3 must both land before it is printed and why the child's on-disk state, never the
+marker, decides the outcome. *Sub-runs* carries the full version.
+
+A marker carries **no `at=`**: it is not a prompt line and none of them is stamped. And
+`WAITING-SUBRUN` is **never printed under an absent or `terminal` driver** — a rule, not an
+implication, because the turn does not end there and the line would be one nobody will ever
+answer.
 The vocabulary and the rule that on-disk state outranks a marker ship with the pro register § 13.
 
 ---
 
 ## When to use
 
-**Use** when a workflow ships a definition and its orchestrator hands the run over.
+**Use** when a workflow ships a definition and its orchestrator hands the run over — including
+when a node of that definition starts a child run of its own, which is this engine's job and is
+covered by *Sub-runs*.
 
 **Do not use** to run an arbitrary definition file on request, to author an eject or an
-overlay, to execute a `workflow:` sub-run node, or as a workflow a user starts directly.
-Each of those is either another skill's job or out of scope, and none of them is reachable
-by improvising here.
+overlay, to dispatch a `workflow:` node carrying `dir:` into a member repository, or as a
+workflow a user starts directly. Each of those is another skill's job, and none of them is
+reachable by improvising here.

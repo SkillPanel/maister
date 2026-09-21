@@ -1,6 +1,6 @@
 ---
 name: research
-description: Orchestrates comprehensive research workflows from question definition through findings documentation. Handles technical, requirements, literature, and mixed research types with adaptive methodology, multi-source gathering, pattern synthesis, and evidence-based reporting. Supports standalone research tasks and embedded research phase in other workflows.
+description: Orchestrates comprehensive research workflows from question definition through findings documentation. Handles technical, requirements, literature, and mixed research types with adaptive methodology, multi-source gathering, pattern synthesis, and evidence-based reporting. Supports standalone research tasks and runs as a sub-run of another run.
 user-invocable: true
 ---
 
@@ -540,25 +540,19 @@ The normative layout and naming rules ship with the pro register § A4; the tree
 **Command**: `/maister-research [research-question]`
 **Flow**: Complete all phases, save outputs in task directory
 
-### As Embedded Research Phase
+### As a Sub-run
 
-**Invoked by**: development orchestrator, migration orchestrator
+**Started by**: the engine, when a parent run reaches a node naming this workflow. No orchestrator invokes the skill directly, and no command starts a research run as somebody else's phase.
 
 **Integration**:
-1. Parent orchestrator invokes research skill
-2. Research executes phases 1-5 (skip Phase 6 completion — parent orchestrator handles next steps)
-3. Design outputs fed into parent's specification phase
-4. Research report saved in parent task's `analysis/research/` directory
+1. The engine freezes a child run of research in a task directory of its own and supplies the `embedded` input — an operator never types it.
+2. Phases 1–5 run unchanged, gates included; the child suspends on its own gates in its own Run view.
+3. Phase 6 (completion) is skipped: its guard reads `embedded`, and a parent handles its own next steps.
+4. The parent reads the outputs through the child's `task_path`. Nothing is copied into the parent's tree — a copy is a second copy that nothing keeps in step.
 
-**Handoff**:
-```yaml
-research_outputs:
-  research_report: "[path to outputs/research-report.md]"
-  findings_directory: "[path to analysis/findings/]"
-  solution_exploration: "[path to outputs/solution-exploration.md]"
-  high_level_design: "[path to outputs/high-level-design.md]"
-  decision_log: "[path to outputs/decision-log.md]"
-```
+**What the parent may read** is the workflow-level `outputs:` block in `research.yml` and nothing else: the artifacts `research_report`, `report` (a deliberate alias of the first), `findings_directory`, `solution_exploration`, `high_level_design`, `decision_log`, and the value `conclusions`. An entry whose producing node was skipped is simply absent.
+
+The mechanics — the freeze, the child directory name, the ending, what a parent reads when — are stated once in the workflow-engine skill's *Sub-runs* section.
 
 ---
 
