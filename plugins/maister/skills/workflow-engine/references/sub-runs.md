@@ -276,13 +276,24 @@ change and a companion paragraph.
    tell an operator the run is over, and on anything else with no meaning for a parent.
 3. **Declare the interface.** Add a workflow-level `outputs:` block naming, by key, every artifact
    and value a parent may read. A key a parent cannot see does not exist to it.
-4. **Make every node driver-capable.** Every in-node question must carry a default its own prose
-   names, because a child under a cockpit driver is never asked one. A question that genuinely
-   needs an operator belongs in a gate node, which the child suspends on in its own Run view.
+4. **Make every node driver-capable.** Either a minute's verification or the bulk of the seven
+   steps, depending on where the workflow starts — nothing else here is close, so find out which
+   before planning the change. The requirement is per node: every question a node asks *inside
+   itself* must name, in its own prose, the answer a run with nobody to ask takes, because a child
+   under a cockpit or dispatch driver is never asked one. Read each node in turn and look for a
+   question with no such answer named; a workflow that has none is already driver-capable and this
+   step is a read. A question that genuinely needs an operator gets no default: it moves to a gate
+   node, which the child suspends on in its own Run view. Leave one unnamed and the node answers it
+   unobserved — and the parent adopts, as an outcome, a run that decided something nobody saw.
 5. **Keep the exposed values flow-safe and short** — no newline, no quote, the bare charset
    preferred. A value is a handle; the detail belongs in an artifact.
-6. **Regenerate the diagram and expect the hash to move.** The `outputs:` block is part of
-   `graph_hash`, so the definition's recorded identity changes when the block is added.
+6. **Expect the recorded identity to move, then regenerate the diagram.** The `outputs:` block is
+   part of what `graph_hash` covers, so a definition that declares an interface is no longer the
+   one that declared none: the hash changing is the freeze telling the truth about a changed
+   interface, not damage to undo. Regenerating the rendered diagram is a step of its own rather
+   than part of declaring the block — it rewrites generated files, and may be batched with any
+   other definition change in flight. What must not be deferred is the declaration: a diagram
+   regenerated before the block is added records an identity no run will ever freeze.
 7. **Say so in the companion.** Keep the workflow's `## Embedded mode` heading — every companion
    carries one — and rewrite its body: what the workflow declares, that the engine supplies
    `embedded`, and which node the guard skips.
