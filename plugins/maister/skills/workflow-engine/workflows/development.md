@@ -208,9 +208,13 @@ no guard. Every reference to development elsewhere in the tree hands an operator
 a next step — a suggested command, a handoff path — rather than executing one,
 so there is no parent to owe a handoff block to and no output contract to keep.
 
-If that ever changes, it changes here first: an embedded input, a guard on
-`finalization`, and a named handoff block in this section. Until then a reader
-finding no embedded behaviour has found the intended answer rather than a gap.
+If that ever changes, it changes here first, and it is the recipe the engine's
+sub-run rule already sets out: an `embedded` input the engine supplies, a guard
+on the closing node — `finalization`, which exists only to tell an operator the
+run is over — and a workflow-level `outputs:` block declaring what a parent may
+read. No engine change is involved; see the engine skill's *Sub-runs* section
+and the `sub-runs.md` reference beside it. Until then a reader finding no
+embedded behaviour has found the intended answer rather than a gap.
 
 ---
 
