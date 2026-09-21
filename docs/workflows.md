@@ -2,9 +2,9 @@
 
 Maister provides six workflow types, each with phases tailored to its needs. All workflows pause between phases for your review and input.
 
-A run started from the cockpit, or dispatched into another repository, has nobody sitting in the
-session — so it asks nothing there. The pauses between phases still happen: each one suspends the
-run and waits for you to answer it from outside. The smaller questions a phase asks along the way
+A run started from the cockpit, dispatched into another repository, or started by another run as
+a step of its own, has nobody sitting in the session — so it asks nothing there. The pauses
+between phases still happen: each one suspends the run and waits for you to answer it from outside. The smaller questions a phase asks along the way
 cannot wait like that, so each one takes a stated default instead: a clarification goes unasked
 and the analysis stands, an opt-in and a decision take what the phase recommends, a revise-or-accept
 loop accepts what it has, and a phase that has run out of recovery attempts fails rather than
@@ -232,6 +232,15 @@ Multi-source research with synthesis, optional solution brainstorming, and high-
 
 **Flags**: `--brainstorm` (force brainstorming phases), `--no-brainstorm` (skip them)
 
+**Research also runs as a step inside another run.** A chain can name it from a node, and the node
+then starts a research run instead of a command doing it: the question comes from the node rather
+than from you, the run gets a task directory of its own named after the run that started it, and
+the node waits until it ends. What the calling run may read back is what the research definition
+declares — its report and its conclusions — and nothing else. A research run started this way
+skips the step that exists only to tell an operator the run is over; everything before it is the
+same eight phases, gates included. Nothing about it needs setting up on your side, and a research
+run you start yourself is unaffected.
+
 ### Interpreter
 
 Research runs on the workflow engine by default: the workflow ships as a definition — a graph
@@ -375,6 +384,17 @@ What sits beside them depends on the workflow:
 
 A run that hands work out to another repository also writes a `dispatch/` directory beside
 those, holding one envelope per dispatched node.
+
+A run started by another run is listed here too, because it is nothing special:
+
+| Kind of run | Where its directory goes |
+|----------|----------------|
+| **started by a command or the cockpit** | `.maister/tasks/<type>/YYYY-MM-DD-task-name/` |
+| **started by another run** | `.maister/tasks/<its own type>/<parent's date>-<parent's name>-<node>/` — a **sibling** of the run that started it, under the folder of its own type, **never nested** inside the parent's directory |
+
+The child's state records which run and which node started it, and that link is what ties the two
+together — so a child lists, opens, resumes and is driven exactly like any other run, and the
+parent finds it again by name after an interruption rather than by searching.
 
 ### Umbrella workspaces
 

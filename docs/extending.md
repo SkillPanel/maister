@@ -28,7 +28,7 @@ prose companion `.maister/workflows/<name>.md` beside it. A node is one entry un
 | `direct:<name>` | The engine itself, following the section of that name in the prose companion |
 | `skill:<name>` | A skill, invoked by the host's Skill tool |
 | `agent:<name>` | An agent, invoked by the host's Task tool |
-| `workflow:<name>` | Another workflow definition — dispatched into a member when the node carries `dir:` |
+| `workflow:<name>` | Another workflow definition — as a child run of its own, or dispatched into a member when the node carries `dir:` |
 
 A gate is a node with `type: gate`, a question under `ask:` and its answers under `options:`,
 exactly one of which continues the run and at least one of which stops it. Nodes declare their
@@ -43,6 +43,46 @@ mentions it. Write the steps, the fan-outs, the self-checks and the questions th
 the engine reads that section before running the node, not after it fails. A `direct:` target with
 no section is a validation error, because the companion is the one reference a definition fully
 controls.
+
+**A `workflow:` node without `dir:` starts a child run.** The named workflow gets a task directory
+of its own — an ordinary dated one, of its own type, sitting beside the parent's rather than inside
+it — with its own frozen graph, its own driver and its own pauses. The node waits while the child
+runs, takes the child's outcome as its own, and then exposes the keys the child declares, which a
+later node reads as `${<node>.artifacts.<key>}` and `${<node>.values.<key>}`. The same node *with*
+`dir:` keeps its dispatch meaning and hands the work to a member repository instead; one key tells
+the two apart, and a node cannot do both. Not every workflow can be a child: only one whose
+definition declares an `embedded` input and an `outputs:` block, which is the next paragraph.
+
+**Declare what a parent may read with a workflow-level `outputs:` block.** It sits beside `name`,
+`version`, `inputs` and `nodes` in the definition, and maps an exposed key to the node output it
+comes from — a key a parent cannot see does not exist to it:
+
+```yaml
+outputs:
+  artifacts:
+    report: research-foundation.artifacts.report
+  values:
+    conclusions: research-foundation.values.conclusions
+```
+
+The named node must exist and must declare that output, or validation errors. The calling node
+declares the same keys on its own side, an artifact by the path the child writes it to and a value
+by its type:
+
+```yaml
+nodes:
+  probe:
+    uses: workflow:research
+    with: {question: "How should the adapter be scoped?"}
+    outputs:
+      artifacts: {report: outputs/research-report.md}
+      values: {conclusions: string}
+```
+
+Binding is by name, both ways — there is no renaming — and `task_path` and `run_id` are reserved,
+because the node always carries those two itself. The block is part of the definition's recorded
+identity, so adding one moves that identity: regenerate the diagram of any definition that ships
+with one.
 
 **Validate before you run.** `/maister:umbrella validate --definition .maister/workflows/<name>.yml`
 parses the file, checks ids and the graph, resolves every target, checks gate shape and — in a
@@ -189,8 +229,15 @@ cannot add to:
   grammar change.
 - **The node types.** `type: gate` is the only typed node; everything else is a task node.
 - **The gate effects.** An option continues or stops, and a gate offers exactly one continue.
-- **The declared value types**, `bool`, `id`, `enum` and `string`, and the one-line shapes of the
-  state block, the gate marker and the prompt lines the cockpit composes.
+- **The declared value types**, `bool`, `id`, `enum` and `string`.
+- **The one-line shapes the cockpit and the gate hooks read.** They are fixed, and naming them is
+  the point — a chain of yours consumes them, it does not add to them:
+  - the state block a run writes, and the node statuses it may record;
+  - the gate marker `GATE-PENDING: <node>`, and the run markers `RUN-COMPLETE`,
+    `RUN-FAILED: <reason>` and `WAITING-SUBRUN: <node> run=<child-run-id>`;
+  - the five prompt lines a driven run is resumed by — `GATE-ANSWER`, `RE-DRIVE`, `STEER`,
+    `RESUME` and `SUB-RUN-DONE`, the last of which wakes a parent whose child run has ended.
+    Every one of the five ends with `at=<timestamp>`, the turn's measured time.
 
 Say what you need on the issue tracker: these are tracked for a future contract tag, and a request
 that names the chain it would unblock is the most useful form. Until then, the reserved keys the

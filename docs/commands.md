@@ -99,6 +99,12 @@ Starts research workflow (8 phases) with multi-source gathering, synthesis, and 
 
 Research output can feed into development: `/maister:development --research=.maister/tasks/research/...`
 
+A research run can also be started by another run rather than by this command — a chain names the
+workflow from one of its nodes, supplies the question, and waits for the report and conclusions the
+research definition declares. Such a run is named after the run that started it,
+`.maister/tasks/research/<parent's date>-<parent's name>-<node>/`, and is otherwise an ordinary
+research run: same phases, same gates, listed and resumed the same way.
+
 **Task directory**: `.maister/tasks/research/`
 **Resume phases**: `foundation`, `brainstorming-decision`, `brainstorming`, `design`, `outputs`, `verification`, `integration`
 
