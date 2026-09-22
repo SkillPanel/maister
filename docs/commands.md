@@ -103,7 +103,9 @@ A research run can also be started by another run rather than by this command â€
 workflow from one of its nodes, supplies the question, and waits for the report and conclusions the
 research definition declares. Such a run is named after the run that started it,
 `.maister/tasks/research/<parent's date>-<parent's name>-<node>/`, and is otherwise an ordinary
-research run: same phases, same gates, listed and resumed the same way.
+research run: same phases, same gates, listed and resumed the same way. The run that started it is
+not yet re-driven automatically when the research ends â€” under the cockpit the parent waits until it
+is woken, while in the terminal the research runs in the same session and the parent carries on.
 
 **Task directory**: `.maister/tasks/research/`
 **Resume phases**: `foundation`, `brainstorming-decision`, `brainstorming`, `design`, `outputs`, `verification`, `integration`

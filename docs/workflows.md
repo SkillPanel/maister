@@ -396,6 +396,11 @@ The child's state records which run and which node started it, and that link is 
 together — so a child lists, opens, resumes and is driven exactly like any other run, and the
 parent finds it again by name after an interruption rather than by searching.
 
+One boundary, for now: nothing re-drives a parent when its child ends. A run you are driving from
+the terminal is unaffected, because the child runs in the same session and the parent picks the
+child's outcome up in that same turn. A run driven by the cockpit parks once its child finishes and
+waits until it is woken.
+
 ### Umbrella workspaces
 
 A workspace whose members are checkouts of separate repositories carries a second tree, beside

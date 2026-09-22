@@ -67,6 +67,11 @@ to survive a shell. It is required for `outbox` — each message type demands
 fields an empty body could not carry — and optional for `envelope` and `ledger`,
 where an absent document simply means "no overrides" and "no arguments".
 
+**"Optional" means the document may be empty, not that the read is skipped.** `envelope` reads
+stdin unconditionally, so invoked with stdin attached to a terminal it blocks, waiting for a
+document nobody is typing — it looks like a hang and it is not one. Anything scripting a sweep of
+several runs, or an operator calling the verb by hand, closes stdin: append `< /dev/null`.
+
 ### Exit codes
 
 | Exit | Meaning | What the caller does |
@@ -462,7 +467,7 @@ tool because the script said no is the drift this whole design removes.
 | Refusal | Response |
 |---|---|
 | `dispatch-node-incomplete` | The node names no member directory, or names one the manifest does not declare, or no provider resolves for it, or its `with:` map states a `closeout_contract.pr_required` that is neither `true` nor `false`. The report names which. Fix the definition or the manifest — this is a caller defect and re-sending will not change it. A provider that resolves nowhere is also a `validate` error at `nodes.<id>.provider`, so reaching it here means the chain changed after it was validated: run `validate` again before editing. |
-| `dispatch-graph-drifted` | The definition has changed since the run froze its graph. The frozen graph is the contract, and an envelope built from a changed definition would dispatch work the run never planned. Either restore the definition, or start a new run against the new one. Never force past this. |
+| `dispatch-graph-drifted` | The definition has changed since the run froze its graph. The frozen graph is the contract, and an envelope built from a changed definition would dispatch work the run never planned. Three recoveries, in the order they usually apply. If the definition was edited by hand, restore it and the run continues untouched. If the plugin was upgraded under an unchanged workspace — the common case, because a release can re-hash every built-in definition without a character of your chain changing — **re-freeze the run**: re-resolve the definition the run's `workflow.source` names, and write the fresh `graph_hash` onto the run's `workflow` block through the engine's `write-state`, having first read the new graph and satisfied yourself it still plans the work the run has left. Only when the definition genuinely means something else now is starting a new run the answer, and it costs every node the chain has already finished. Never force past this. |
 | `dispatch-autonomy-unresolved` | No autonomy tier is set on the node, on the member, or as a workspace default. A scaffolded workspace always has the default, so this is a hand-written manifest failing loudly on purpose. Declare a tier. |
 | `dispatch-autonomy-unknown` | A tier was found but is outside the frozen vocabulary. The envelope would be invalid the moment it landed. Correct the spelling at the level the report names. |
 | `dispatch-workflow-not-driver-capable` | The node dispatches into a member but names a workflow that cannot run under a driver — it would ask a question no one is there to answer. Point `uses:` at an orchestrator skill or a `workflow:`, or drop the `dir:` and run the step in the coordinating repository. Nothing was written. |

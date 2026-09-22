@@ -748,8 +748,11 @@ child-capable — is `references/sub-runs.md`. What the engine must hold in mind
   child in its ordinary sweep — the parent drives nothing and spawns nothing.
 - **Five checks refuse before anything is created** — a node carrying `dir:`, a run that is
   already a child, a target resolving in none of the four homes, a `with:` map that misses or
-  invents an input, and a declared output the child does not expose. The first three are decided
-  by the graph module's own exported check, so this prose and that code share one vocabulary.
+  invents an input, and a declared output the child does not expose. **All five are performed
+  here, from this prose** — no verb runs them for you. What the graph module contributes is the
+  *spelling*: one exported constant is the single source of those four refusal codes, and of them
+  only the reserved-name check runs as code, at validate time. The distinction decides what to
+  trust: this list is operative for *when* a refusal fires, the module for *how it is named*.
 - **`task_path` and `run_id` are reserved** against a `workflow:` node's declared outputs, because
   the node's values map is replaced whole on patch and a child output of either name would be
   merged over the parent's link to its own child.

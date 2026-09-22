@@ -239,6 +239,11 @@ cannot add to:
     `RESUME` and `SUB-RUN-DONE`, the last of which wakes a parent whose child run has ended.
     Every one of the five ends with `at=<timestamp>`, the turn's measured time.
 
+  The two sub-run shapes — the `WAITING-SUBRUN` marker and the `SUB-RUN-DONE` line — are fixed by
+  the grammar, but the cockpit does not read them yet, and nothing re-drives a parent when its child
+  ends. A parent under the cockpit waits until it is woken; a terminal run never hits this, because
+  its child runs in the same session.
+
 Say what you need on the issue tracker: these are tracked for a future contract tag, and a request
 that names the chain it would unblock is the most useful form. Until then, the reserved keys the
 validator warns about — `foreach`, `loop`, `routing.tiers` and their kin — parse, warn and do

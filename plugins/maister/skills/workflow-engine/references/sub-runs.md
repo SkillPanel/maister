@@ -26,8 +26,13 @@ catches it with `on:`) before anything is created:
 5. a key the node declares under `outputs:` has no entry of that name in the child definition's
    workflow-level `outputs:` → `subrun-output-unmatched`.
 
-The first three are decided by one exported helper in the graph module, because a second
-implementation beside the caller is how a refusal ends up meaning two different things. Checks 4
+**All five are performed by the driver, from this prose.** No verb runs them: the graph module
+spells the vocabulary, it does not decide these refusals. What it guarantees is that there is one
+spelling of each code — an exported constant is their single source, so this file and any code that
+ever raises them cannot drift into two names for one refusal. Of the checks the module's constant
+covers, only the reserved-name one runs as code, at validate time. Read this list as the operative
+statement of *when* each refusal fires, and the module as the authority on *how it is spelled*.
+Checks 4
 and 5 also run at validate time, as warnings, whenever the child definition resolves: the warnings
 are what an author sees first, the refusals are what fail a run.
 
@@ -247,9 +252,11 @@ Neither family joins the writer's fifteen refusal codes: nothing here is a write
 | `subrun-child-foreign` | run-level | the derived child directory holds a run whose parent link names another run or another node |
 | `subrun-state-missing` | run-level | the child directory or state file is absent at the recorded `task_path` |
 
-The four codes the graph module owns — the three pre-start ones and the reserved-name one — are
-exported from it under one name, so this table and the code that raises them share one vocabulary
-rather than two that drift. Validate-time warnings keep the shape the existing
+The four codes the graph module spells — the three pre-start ones and the reserved-name one — are
+exported from it under one name, so this table and any code that raises them share one vocabulary
+rather than two that drift. Spelling is all that is shared: only the reserved-name code is raised
+from there, at validate time, while the three pre-start refusals are performed by the driver from
+the list above. Validate-time warnings keep the shape the existing
 unresolved-reference warning has: `unresolved-subrun-input:<node>:<name>` and
 `unresolved-subrun-output:<node>:<name>`.
 
