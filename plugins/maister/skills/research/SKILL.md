@@ -19,8 +19,8 @@ interpreter differs.
 PowerShell and cmd.exe:
 
 - **A non-empty value** — or no script runtime to read it with — selects the prose twin. Read
-  `references/research-twin.md` and run the phases in it exactly as written, with nothing else
-  changed by the presence of this branch.
+  `references/research-twin.md` **with the Read tool** — a shell read truncates it — then run the
+  phases in it exactly as written, with nothing else changed by the presence of this branch.
 - **No value, or an empty one — the default** — hand the run over. Invoke the
   `maister:workflow-engine` skill with the Skill tool, naming the workflow `builtin:research`
   and passing the task description, the resume target and the invocation's flags. Hand over

@@ -105,7 +105,8 @@ In order, and nothing else:
    with the task description, resume target and flags, the rule that `--from=PHASE` and
    `--reset-attempts` are handed over rather than dropped, and the rule that **a task directory
    carrying no `workflow:` block is always resumed by the twin**.
-4. The opt-out sentence, citing `references/<name>-twin.md` in backticks.
+4. The opt-out sentence, citing `references/<name>-twin.md` in backticks and naming the Read
+   tool — see the measurement below for why the tool is named rather than left to the session.
 5. `### Step 0` — the gate block, byte-identical.
 
 Rationale that asked a session to do nothing — why the variable names what it selects rather than
@@ -160,6 +161,20 @@ cannot update it. It is recorded here so the pin bump is not a discovery:
 References are found non-recursively, so the twin sits directly in `references/` and never in a
 subdirectory of it.
 
+### The behaviour, measured
+Three headless sessions against a throwaway project, the edited tree loaded for one session only,
+turn-capped before any task directory was created:
+
+| Switch | Skill | What the session did |
+|---|---|---|
+| unset | `development` | read the switch, took the engine branch, invoked `maister:workflow-engine` with `builtin:development`, the task description and an explicit "no resume target, no flags" — and never opened the twin |
+| `1` | `development` | read the switch, opened `references/development-twin.md`, worked into it |
+| `1` | `research` | read the switch, opened `references/research-twin.md` |
+
+So the hand-off drives both branches, and the reference is reached unprompted. What the runs also
+showed is the tool question above, which is why the opt-out sentence names the Read tool rather
+than saying "read".
+
 ### Consequences
 
 #### Good
@@ -180,7 +195,9 @@ subdirectory of it.
 - The gate block now has three more carriers, all byte-identical but all needing the same lockstep
   edit.
 - A pin bump in the pro repository is required for the rows listed above.
-- The behavioural claim — that a model on the opt-out path actually opens the reference — is
-  structural, not measured. The failure mode of progressive disclosure is a reference nobody reads;
-  the mitigation here is that the branch names the file as the thing to read and offers no
-  alternative text to act on.
+- The opt-out path's read has to be told which tool to use. The failure mode of progressive
+  disclosure is a reference nobody reads, and the near miss of it is a reference read badly: in the
+  smoke runs above, a session left to itself read a 58 KB twin through the shell and got a
+  truncated result it then had to navigate back into. The branch therefore names the Read tool, and
+  a later twin that grows past what one read returns will need paging guidance rather than a
+  louder sentence.
