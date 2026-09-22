@@ -162,7 +162,7 @@ error. A definition that does not validate cannot be executed part-way.
 
 **A workflow-level `outputs:` entry whose node an overlay or a profile disabled warns; it does
 not stop the run.** The warning is `exposed-output-disabled:outputs.<kind>.<key>:<node>`, and
-the entry is **dropped from the resolved block**, the same way the disabled node itself is, so
+the entry is **dropped from the canonical block**, the same way the disabled node itself is, so
 the graph never exposes a key no node can produce. Fewer keys means a different `graph_hash`,
 deliberately: a run exposing five artifacts is not the same executable graph as one exposing
 six, and a hash that stayed still would say it was.

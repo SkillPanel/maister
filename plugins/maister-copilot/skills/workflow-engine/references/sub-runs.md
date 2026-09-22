@@ -363,9 +363,14 @@ change and a companion paragraph.
    a node the base definition never declares is a hard error — the author's own mistake, both
    halves in one file. An entry whose node an *overlay* or a *profile* disables is not: it warns
    `exposed-output-disabled:outputs.<kind>.<key>:<node>` and the entry is dropped from the
-   resolved block, so the graph never exposes a key no node can produce. The resolved block then
-   has fewer keys and hashes differently, which is the freeze telling the truth about a narrower
+   canonical block, so the graph never exposes a key no node can produce. That block then has
+   fewer keys and hashes differently, which is the freeze telling the truth about a narrower
    interface — see step 6.
+   **Replacing a node under the same id is a promise to keep the interface the base exposes
+   through it.** The split above is about a node going *absent* — an overlay removing what the
+   base could not have anticipated. A re-add is the overlay *choosing* a shape, and that shape is
+   the author's to keep consistent: a replacement declaring fewer outputs is a hard error the base
+   cannot fix, so expose less in the base, or make the variant a definition of its own.
 4. **Make every node driver-capable.** Either a minute's verification or the bulk of the seven
    steps, depending on where the workflow starts — nothing else here is close, so find out which
    before planning the change. The requirement is per node: every question a node asks *inside

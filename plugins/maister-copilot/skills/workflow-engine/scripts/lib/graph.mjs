@@ -179,11 +179,12 @@ const WARN = {
  * The sub-run refusal codes this module owns, spelled once so the engine and
  * every report quote one vocabulary rather than a copy of it.
  *
- * Three of them are run-level: they fail the parent node before anything is
- * created, and `checkSubrunStart` below decides all three. The fourth is a
- * validate-time error, raised by `checkSubrun`, and it is here rather than in
- * a message literal for the same reason — a code a caller greps for must have
- * exactly one spelling.
+ * Spelling is all this module owns. Only the fourth is raised from here:
+ * `checkSubrun` fails on it at validate time. The other three are run-level
+ * refusals the driver performs from the engine's prose, before anything is
+ * created — `checkSubrunStart` below writes their conditions down but has no
+ * caller today. All four live here rather than in a message literal for one
+ * reason: a code a caller greps for must have exactly one spelling.
  */
 export const SUBRUN_REFUSAL = {
   onDirNode: 'subrun-on-dir-node',
@@ -210,17 +211,18 @@ const RESERVED_SUBRUN_OUTPUTS = ['task_path', 'run_id'];
 
 /**
  * The three checks that refuse a sub-run before any state is written, in the
- * order the engine performs them. Returns `{code, message}` for the first that
+ * order the driver performs them. Returns `{code, message}` for the first that
  * refuses, or null when the node may start a child.
  *
  * `parent` is the starting run's own `orchestrator.parent` link, whatever the
  * state carries there. One level of nesting is what the design needs, and
  * refusing on the link makes a cycle impossible without cycle detection.
  *
- * Exported because the engine raises these, and the condition for each of them
- * — the node's shape, the run's link, and what `locateWorkflow` answers — is
- * decided here. A second implementation next to the caller is how a refusal
- * ends up meaning two different things.
+ * Exported, and with no caller today: the driver performs these three from the
+ * engine's prose, and this is their condition — the node's shape, the run's
+ * link, and what `locateWorkflow` answers — written down once so a caller that
+ * ever does run them need not re-derive it. A second derivation next to the
+ * caller is how a refusal ends up meaning two different things.
  */
 export function checkSubrunStart({ node, parent = null, project = null } = {}) {
   const uses = typeof node?.uses === 'string' ? node.uses : '';
@@ -1375,7 +1377,8 @@ function describe(value) {
  * run-time one, and it is what fails a node.
  *
  * A node carrying `dir:` is skipped: it dispatches into that directory and is
- * not a sub-run at all — `checkSubrunStart` refuses one outright — and the
+ * not a sub-run at all — the driver refuses one outright before a child is
+ * created, and `checkSubrunStart` states that condition — and the
  * workflow it names is resolved in the member repository, not here, so holding
  * it against a local file of the same name would warn about a disagreement
  * that does not exist. The reserved-name check above it is not skipped, because
