@@ -9,16 +9,19 @@ workspace with work in flight.
 A `workflow:` node with no `dir:` now starts a **child run**: an ordinary task directory beside the
 parent's, with its own frozen graph, its own gates and its own driver, linked back to the node that
 started it. The parent waits while the child executes and adopts the child's outcome when it ends.
-Alongside it, a workflow name is now resolved in all four homes — project, user, plugin, installed —
-at validate time as well as at run time, which closes a case where a workspace validated one file and
-ran another.
+Alongside it, a workflow name is now resolved in all four homes — an eject, then a generated chain,
+then an overlay, then the shipped built-in — at validate time as well as at run time, which closes a
+case where a workspace validated one file and ran another.
 
 ### Upgrading
 
-**Every built-in workflow definition's recorded identity moved in this release.** The graph hash is
-computed over what a definition exposes, and the resolution fix changed that computation, so the
-hash changed for every built-in — including definitions whose text is byte-for-byte identical to the
-previous release.
+**Every built-in workflow definition's recorded identity moved in this release.** A workflow-level
+`outputs:` block now enters the hash envelope, and it enters it unconditionally — a definition that
+declares no interface at all is hashed as one that declares an empty one, which is not what the
+previous version hashed. So the hash changed for every built-in, including definitions whose text is
+byte-for-byte identical to the previous release: nothing in the file moved, the envelope the file is
+hashed inside did. The resolution fix is not the cause — where a definition was found never entered
+the hash, and still does not.
 
 *What breaks:* a multi-repository workspace holding a **chain run that is still in flight** refuses
 its first dispatch after the upgrade. The refusal is this, verbatim:

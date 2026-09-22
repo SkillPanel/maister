@@ -160,6 +160,18 @@ that is a run whose inputs are genuinely unknown: say so rather than guessing on
 If `validate` rejects the definition, stop with `RUN-FAILED:` carrying the validator's first
 error. A definition that does not validate cannot be executed part-way.
 
+**A workflow-level `outputs:` entry whose node an overlay or a profile disabled warns; it does
+not stop the run.** The warning is `exposed-output-disabled:outputs.<kind>.<key>:<node>`, and
+the entry is **dropped from the resolved block**, the same way the disabled node itself is, so
+the graph never exposes a key no node can produce. Fewer keys means a different `graph_hash`,
+deliberately: a run exposing five artifacts is not the same executable graph as one exposing
+six, and a hash that stayed still would say it was.
+
+**A reference to a node the base definition never declared stays a hard error.** The two look
+alike in the resolved graph and are nothing alike in origin: a name no base node carries is the
+author's own mistake, both halves of the contradiction in one file; a name an overlay or profile
+removed is not the base's mistake at all.
+
 ### Step 5: Decline the resume flags the graph cannot express
 
 An invocation may arrive carrying `--from=PHASE` or `--reset-attempts`, because the prose
@@ -464,11 +476,20 @@ and nothing else. Reading a phase key off the node id is the mirroring defect to
 because the write succeeds and the run keeps going with a key nothing else reads.
 
 A node's summary carries the shorter phase-status vocabulary, so the node status is mapped
-rather than copied: `running` becomes `in_progress`, and the other four map to themselves.
-`suspended` occurs only on a node the run is suspended at while its gate awaits an answer,
-which is a driver-suspended mode only — in terminal mode the answer arrives in the same turn
-and the node goes straight to `completed`. `stopped` occurs only on nodes a stop option left
-unexecuted, and those carry no summary at all.
+rather than copied. `pending`, `completed`, `skipped` and `failed` map to themselves; `running`
+and `waiting` both become `in_progress`, a parent whose child run is still going being exactly
+that in the shorter vocabulary; and **`stopped` maps to `skipped`**. `suspended` occurs only on
+a node the run is suspended at while its gate awaits an answer — a driver-suspended mode only,
+since in terminal mode the answer arrives in the same turn — so it has no mirror and needs none.
+
+**Why `stopped` mirrors to `skipped`.** The summary vocabulary has five members and none is
+`stopped`, so the status is spelled as one of the five or not written at all. `skipped` is the
+member that says *did not produce its outcome, and not because anything broke*, which is what
+a stop is; `failed` would read as the `RUN-FAILED` the engine deliberately does not print for
+one. Both halves of the rule hold at once, and the distinction is the point: a node a stop
+option left **unexecuted** still carries no summary, because it never ran, while a `workflow:`
+node that **did** run, waited and then saw its child stop is recorded `stopped` and its
+adopting write carries a summary — which is the one that needed a spelling.
 
 **Retry budgets are prose, never `with:` data.** `with:` is an unconstrained free-form
 object handed to the node; a budget written there would read like a grammar feature while
@@ -665,6 +686,10 @@ A stop option ends the run, and ends it completely:
 
 A stopped run is a legitimate outcome, not a failure. Do not print `RUN-FAILED` for one, and
 never re-ask a gate the operator has already answered.
+
+`stopped` is not only a status for unexecuted nodes: a `workflow:` node whose child run stopped
+ran, waited and adopted that outcome, so it is recorded `stopped` **with** a summary, mirrored to
+`skipped` per *Recording an outcome*. The unexecuted nodes carry none, which tells the two apart.
 
 ---
 

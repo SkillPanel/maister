@@ -112,6 +112,15 @@ who wants work to proceed beside a sub-run needs two runs, not two branches.
 | `stopped` | `stopped` | **stops outright**: one patch carries `task.status: stopped` and every unexecuted node `stopped`, then `run-complete` closes the run. No `RUN-FAILED` — a stop is a legitimate outcome |
 | anything else (absent, `in_progress`) | unchanged, stays `waiting` | the waiting path runs again |
 
+**The stopped row's W4 write carries a summary, and that summary says `skipped`.** A stopped
+node used to be an unexecuted one, which writes no summary, so the mirror had no entry to make.
+A sub-run parent falsifies that: this node ran, waited and adopted a stop, so its adopting write
+carries a node summary like any other. The summary vocabulary has five members and none of them
+is `stopped`, so the status is mirrored to `skipped` — the member that says *did not produce its
+outcome, and not because anything broke*. `failed` would read as the `RUN-FAILED` the engine
+deliberately does not print for a stop. The unexecuted nodes the same patch records `stopped`
+still carry no summary; nothing about them changes.
+
 **The failed row's reason is pinned, not free text: `RUN-FAILED: sub-run <child-run-id> failed`,
 with the child run id spelled exactly as the parent node recorded it in `values.run_id`.** The
 marker's grammar is `RUN-FAILED: <reason>`, so leaving the reason to the driver would put a
@@ -332,7 +341,7 @@ what a `workflow:` node may declare, whatever ends up running it.
 | A4 | the child directory is missing at the recorded `task_path` | `RUN-FAILED: subrun-state-missing`, and **no write**: the node stays `waiting` with its recorded values, so every later re-drive reaches the same refusal until an operator restores the directory or edits the run. The child is never re-created and the run never silently re-started |
 | A5 | the parent run is stopped while a child is waiting | the child keeps running and finishes as an ordinary run; its parent link dangles, which is tolerated. Nothing tells the child, and nothing should |
 | A6 | the child fails | the parent node is `failed`; the run ends `RUN-FAILED` unless a downstream node declares `on: failure` or `on: always` |
-| A7 | the child is stopped | the parent node is `stopped`, `task.status` becomes `stopped`, every unexecuted node is recorded `stopped` in one patch, and **no `RUN-FAILED` is printed** |
+| A7 | the child is stopped | the parent node is `stopped`, `task.status` becomes `stopped`, every unexecuted node is recorded `stopped` in one patch, and **no `RUN-FAILED` is printed**. The parent node's own summary is written and mirrors `stopped` to `skipped`; the unexecuted nodes carry none |
 | A8 | a child gate is raised while a parent write is outstanding | cannot happen: W3 completes before the child executes. Verified by reading the write order in the captured state pair |
 | A9 | the child's definition is edited between W2 and W4 | `RUN-FAILED: subrun-graph-drifted`. The parent copies nothing from an interface the child never froze |
 | A10 | a cockpit child raises a gate before the daemon has written `driver.session` | a pending gate with no session binds **every** session, so the parent's next write would be denied — the protection is the write order: every parent write is finished before the turn ends, so there is no write left to deny. A re-driven parent treats a child pending with no session as non-terminal, re-prints the marker and ends, and **never** writes the child's `driver.session` itself. If the window persists the operator answers the child's gate directly, exactly as for any other pending run |
@@ -350,7 +359,13 @@ change and a companion paragraph.
 2. **Guard the closing node.** Put `when: "!${inputs.embedded}"` on the node that exists only to
    tell an operator the run is over, and on anything else with no meaning for a parent.
 3. **Declare the interface.** Add a workflow-level `outputs:` block naming, by key, every artifact
-   and value a parent may read. A key a parent cannot see does not exist to it.
+   and value a parent may read. A key a parent cannot see does not exist to it. An entry naming
+   a node the base definition never declares is a hard error — the author's own mistake, both
+   halves in one file. An entry whose node an *overlay* or a *profile* disables is not: it warns
+   `exposed-output-disabled:outputs.<kind>.<key>:<node>` and the entry is dropped from the
+   resolved block, so the graph never exposes a key no node can produce. The resolved block then
+   has fewer keys and hashes differently, which is the freeze telling the truth about a narrower
+   interface — see step 6.
 4. **Make every node driver-capable.** Either a minute's verification or the bulk of the seven
    steps, depending on where the workflow starts — nothing else here is close, so find out which
    before planning the change. The requirement is per node: every question a node asks *inside
@@ -363,9 +378,11 @@ change and a companion paragraph.
 5. **Keep the exposed values flow-safe and short** — no newline, no quote, the bare charset
    preferred. A value is a handle; the detail belongs in an artifact.
 6. **Expect the recorded identity to move, then regenerate the diagram.** The `outputs:` block is
-   part of what `graph_hash` covers, so a definition that declares an interface is no longer the
-   one that declared none: the hash changing is the freeze telling the truth about a changed
-   interface, not damage to undo. Regenerating the rendered diagram is a step of its own rather
+   part of what `graph_hash` covers — unconditionally, so a definition that declares nothing
+   hashes differently than it did before the block entered the envelope — and a definition that
+   declares an interface is no longer the one that declared none: the hash changing is the freeze
+   telling the truth about a changed interface, not damage to undo. The same holds for a run
+   whose overlay or profile dropped an exposed entry: fewer keys, a different hash, by design. Regenerating the rendered diagram is a step of its own rather
    than part of declaring the block — it rewrites generated files, and may be batched with any
    other definition change in flight. What must not be deferred is the declaration: a diagram
    regenerated before the block is added records an identity no run will ever freeze.
