@@ -30,6 +30,15 @@ remaining references grew more over the same three days than the deletion remove
 belong here: a reduction effort that quotes only its own subtraction is measuring its intention
 rather than the plugin.
 
+**What moved since, 2026-09-21, not yet folded into the table above.** The prose twins of
+`development`, `research` and `performance` moved out of their orchestrator `SKILL.md` files into
+`references/<name>-twin.md` (ADR-0023): 117,534 bytes leave the Skills row and 122,483 arrive in the
+References row, and the corpus total is unchanged but for the hand-offs' own framing. The number
+this change is scored against is not in this section at all — it is what a *run* loads, and there
+the three orchestrators fell from 129,071 B to 11,537 B on the default path. That is the distinction
+this document opens with, in its sharpest form: a corpus measurement would have scored this change
+at approximately zero.
+
 ## The session-start footprint: what a session pays before any work
 
 Measured 2026-09-11 and not re-taken: deleting a reference body changes nothing here, because a

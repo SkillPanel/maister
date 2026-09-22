@@ -55,7 +55,7 @@ as `/maister:development "test feature"`, and inspect the task directory under `
 | Orchestrator execution rules — delegation, phase gates, state schema, resume, issue resolution, artifact/dashboard/HTML-companion contracts, `.maister/config.yml` | `plugins/maister/skills/orchestrator-framework/references/orchestrator-patterns.md` |
 | Creating or auditing an orchestrator | `plugins/maister/skills/orchestrator-framework/references/orchestrator-creation-checklist.md` |
 | HTML companion report style | `plugins/maister/skills/orchestrator-framework/references/html-report-style.md` |
-| Development workflow phases, design-context propagation | `plugins/maister/skills/development/SKILL.md` |
+| Development workflow phases, design-context propagation | `plugins/maister/skills/development/references/development-twin.md` (the prose twin; `SKILL.md` is a hand-off — `docs/decisions/0023-*.md`) |
 | UI mockups (HTML/ASCII, design-resource discovery) | `plugins/maister/skills/mockup-studio/SKILL.md` |
 | Why a contract or a hook is shaped the way it is (ADRs) | `docs/decisions/` (index: `docs/decisions/README.md`) |
 | Task directory layout, user-facing workflow/command docs | `docs/workflows.md`, `docs/commands.md` |

@@ -50,8 +50,9 @@ top of them and restates none of them.
 ### Step 2: Probe the runtime, before writing anything
 
 Run `node --version` once. On failure, stop immediately: print `RUN-FAILED: node-unavailable`
-and hand the run to the workflow's prose orchestrator, which needs no script — unless the
-workflow has no prose orchestrator, in which case there is nowhere to hand it to: a
+and hand the run to the workflow's prose twin — the orchestrator skill's
+`<name>-twin.md` in its `references/` directory, which needs no script — unless there is no twin, in
+which case there is nowhere to hand it to: a
 dispatched worker reports `blocked` through the outbox verb and stops, and a terminal-driver
 run says the same to the operator in session and stops. Never run such a workflow by hand.
 
@@ -91,7 +92,8 @@ graph, never from the path, so where a chain lives changes nothing about the run
 eject or an overlay, and running an arbitrary definition file, are not this skill's business.
 
 **Reading the opt-out switch, on every platform.** A workflow's own orchestrator hands runs
-here by default, and `MAISTER_WORKFLOW_PROSE` is what sends a run to the prose twin instead —
+here by default, and `MAISTER_WORKFLOW_PROSE` is what sends a run to that workflow's prose
+twin instead —
 so the way it is read has to work wherever the plugin runs. Read it as
 `node -p "process.env.MAISTER_WORKFLOW_PROSE ?? ''"`: the same one line is correct under
 zsh, bash, PowerShell and cmd.exe, and `node` is already a hard prerequisite of the engine.
@@ -181,16 +183,16 @@ lives in state, because budgets are node prose rather than data.
 
 **Say so by name, before the first node runs.** Name the flag that arrived, state which of the
 two facts above makes it inert, and name the route that still serves it — the workflow's prose
-twin, reached by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value before the workflow's
-own command. Then continue with the flag dropped: an ordinary run, or an ordinary resume from
-the frozen state.
+twin, `<name>-twin.md` under that workflow's orchestrator skill's `references/`, reached by setting
+`MAISTER_WORKFLOW_PROSE` to any non-empty value before the workflow's own command. Then continue
+with the flag dropped: an ordinary run, or an ordinary resume from the frozen state.
 
-**Describe that route as the twin actually behaves, which differs by workflow.** Some prose
-orchestrators document a named entry point and honour `--from=PHASE` directly; others carry no
-phase flag at all and re-enter by artifact presence instead — each step checks whether its own
-output is already on disk and skips ahead when it is, so a plain re-run picks up near where the
-last one stopped. Read the workflow's own resume signature before promising an operator either
-one. Promising a phase jump to a twin that has none replaces one dead flag with another.
+**Describe that route as the twin actually behaves, which differs by workflow.** Some twins
+document a named entry point and honour `--from=PHASE` directly; others carry no phase flag at
+all and re-enter by artifact presence instead — each step checks whether its own output is
+already on disk and skips ahead when it is, so a plain re-run picks up near where the last one
+stopped. Read that workflow's own `<name>-twin.md` for its resume signature before
+promising an operator either one. Promising a phase jump to a twin that has none replaces one dead flag with another.
 
 **Never accept one silently.** Dropping a flag without a word is the failure this step exists
 to prevent — the operator asked to re-enter a run partway, watched it start somewhere else, and
@@ -940,15 +942,18 @@ graph is already frozen — but never Step 5. Name the flag, say which fact make
 the route, and continue.
 
 **A task directory with no `workflow:` block is not engine-resumable.** It carries no frozen
-graph, so hand it to the workflow's prose orchestrator — which is exactly why that
-orchestrator is kept rather than deleted. Step-level resume *inside* a node is that node's
+graph, so hand it to the workflow's prose twin, its orchestrator skill's `<name>-twin.md` — which is
+exactly why that twin is kept rather than deleted. Step-level resume *inside* a node is that node's
 prose, not the engine's business.
 
 **The prose twin is transitional.** A workflow that exists both as a definition and as a
-prose orchestrator keeps the prose copy only while the engine is proving itself: it is the
-escape hatch during rollout, and it is retired once the engine is proven, at which point a
-working script runtime becomes a hard requirement. Build nothing that assumes a permanent
-second implementation. The reasoning is recorded in the repository's decision log.
+prose twin — the orchestrator skill's `<name>-twin.md` reference, which that skill's own
+hand-off is the only route to — keeps the prose copy only while the engine is proving itself:
+it is the escape hatch during rollout, and it is retired once the engine is proven, at which
+point a working script runtime becomes a hard requirement. Retirement then deletes one
+reference file per workflow and the opt-out branch that reaches it, rather than a whole
+orchestrator. Build nothing that assumes a permanent second implementation. The reasoning is
+recorded in the repository's decision log.
 
 ---
 
