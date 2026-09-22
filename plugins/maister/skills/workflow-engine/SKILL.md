@@ -159,6 +159,14 @@ line says which run and when; it never carried a value and is not going to. Read
 it is, because the run wrote it. A run frozen before the engine recorded them has no key, and
 that is a run whose inputs are genuinely unknown: say so rather than guessing one.
 
+**The freeze patch carries `orchestrator.completed_phases: []` and
+`orchestrator.failed_phases: []`.** The state contract requires both on every run, from its
+first write. The writer seeds each as an empty list, at the top of the block, when the write
+that installs the `workflow:` block does not supply it and the file does not already carry it,
+so the freeze patch need not spell them and a freeze that omits them still lands valid. A
+later write of either replaces the whole list; there is no key to merge on, so a caller that
+means to append sends the whole list.
+
 If `validate` rejects the definition, stop with `RUN-FAILED:` carrying the validator's first
 error. A definition that does not validate cannot be executed part-way.
 
@@ -819,6 +827,11 @@ able to write:
 - `context` and `phase_summaries` — written into whichever per-workflow context block the
   run's name resolves to (`task_context` for development, `research_context` for research,
   `performance_context` for performance, `migration_context` for migration); `node_summaries` is its own top-level block, keyed by node id.
+  A phase summary is always sent as the **top-level** `phase_summaries` patch key, never nested
+  under `context`, although the file keeps the map inside the context block: the top-level key
+  merges entry by entry, while every `context` key is free-form and replaces whole, so a nested
+  map would erase every summary earlier phases wrote. The writer refuses the nested shape with
+  `state-patch-invalid`. `node_summaries` merges entry by entry the same way.
 - `project_context`, `related_tasks`, `verification_context`, `external_research` — the four
   optional top-level blocks. Each is written as a **top-level sibling** of `orchestrator:`
   and of the context block, never nested inside either. A mapping is merged key by key, so
@@ -834,8 +847,9 @@ reach is a test failure, not something to work around with an editor tool.
 
 **A patch may carry every block at once, and a moment that changes several things is one
 write, not one write per thing.** The vocabulary above is a per-invocation union: the writer
-applies every key present in a single pass, and `nodes`, `node_summaries` and
-`phase_summaries` are maps, so any number of entries ride in one patch. A run that issues a
+applies every key present in a single pass, and `nodes`, `node_summaries` and the top-level
+`phase_summaries` key are maps merged entry by entry, so any number of entries ride in one patch
+and none of them disturbs an entry it does not name. A run that issues a
 write per field is paying a process, a whole-file rename and — on a terminal session — an
 operator's attention for each one.
 
@@ -862,7 +876,7 @@ records.
 
 | The write | Why it cannot join anything |
 |---|---|
-| the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key` and `orchestrator.options.inputs` (Step 4) |
+| the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key`, `orchestrator.options.inputs` and the two empty phase sequences (Step 4) |
 | `gate-request` | one invocation, three writes, in the order § E2 fixes — a run is pending from the moment its request file lands, so a second shell call against it is denied |
 | the empty patch on gate resume | the shell becomes reachable only the instant `gate_pending` goes null, which is what that write re-validates (*Driver-suspended mode — resume*) |
 
@@ -909,8 +923,9 @@ from a literal is the one to watch.
 
 The last group is a defect in the caller, so it is worth naming what a defect looks like: a
 `workflow:` block sent without its nodes, a pending marker sent as a block map, a node
-summary sent as an inline collection, a patch key outside the closed vocabulary, a context
-write sent before the workflow has a name. Fix the patch and re-run; **re-sending the same
+summary sent as an inline collection, a patch key outside the closed vocabulary, a phase
+summary nested under `context` instead of sent as the top-level key, a context write sent
+before the workflow has a name. Fix the patch and re-run; **re-sending the same
 patch, or reaching for an editor tool because the script said no, is the failure mode this
 whole design removes.** A refusal is a correct answer, not an obstacle.
 
