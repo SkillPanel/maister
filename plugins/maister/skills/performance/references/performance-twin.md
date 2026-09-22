@@ -348,10 +348,11 @@ AskUserQuestion - Display executive summary: total issues found, issues fixed, i
 **State**: Set `task.status: completed`
 
 **Process**:
-1. Create workflow summary (bottlenecks found, optimizations implemented, verification result)
-2. Update task status to "completed"
-3. Provide commit message template
-4. Guide performance-specific next steps:
+1. **Reconcile artifacts against disk** — compare every `artifacts[]` entry in state with what actually exists and name every missing path in the summary (`orchestrator-patterns.md` § 10)
+2. Create workflow summary (bottlenecks found, optimizations implemented, verification result)
+3. Update task status to "completed"
+4. Provide commit message template
+5. Guide performance-specific next steps:
    - Run the application and verify improvements manually
    - Consider profiling with runtime tools to measure actual impact
    - Monitor production metrics after deployment

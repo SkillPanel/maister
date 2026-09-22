@@ -312,6 +312,8 @@ AskUserQuestion - Display executive summary: total issues found, issues fixed, i
 - Rollback procedures
 - Troubleshooting common issues
 
+**Before closing the workflow**: **Reconcile artifacts against disk** — compare every `artifacts[]` entry in state with what actually exists and name every missing path in the summary (`orchestrator-patterns.md` § 10).
+
 → End of workflow
 
 ---

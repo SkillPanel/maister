@@ -747,7 +747,9 @@ from a node that no guard can skip.
    compatibility results. The migration guide is there only when the run was
    asked for one, and the dual-run plan only for a dual-run strategy — name each
    absent one as skipped rather than as missing, and every other absence as a
-   defect.
+   defect. Take the inventory from disk and not from state: compare every
+   artifact the run declared against what is actually there, and name every
+   declared path that is absent (`orchestrator-patterns.md` § 10).
 2. **Present the executive summary**: what was migrated and to what, the
    strategy used, the verification verdict with any issues left open, whether
    the rollback procedure was tested and whether it is still available.

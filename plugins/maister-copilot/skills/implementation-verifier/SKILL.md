@@ -24,6 +24,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 |----------|-----------|
 | `verification/implementation-verification.md` | Always |
 | `verification/implementation-verification.html` | Always (operator-facing companion — never blocks; see Phase 3) |
+| `verification/completeness-report.md` | Always |
 | `verification/code-review-report.md` | If code_review_enabled |
 | `verification/pragmatic-review.md` | If pragmatic_review_enabled |
 | `verification/production-readiness-report.md` | If production_check_enabled |
@@ -119,7 +120,7 @@ Task tool call (if NOT skip_test_suite):
 Task tool call (always):
 - subagent_type: `maister-implementation-completeness-checker`
 - description: `Check implementation completeness`
-- prompt: Include task_path. The subagent checks plan completion, standards compliance, and documentation completeness.
+- prompt: Include task_path, report_path (`[task_path]/verification/completeness-report.md`). The subagent checks plan completion, standards compliance, and documentation completeness.
 
 Task tool call (if code_review_enabled):
 - subagent_type: `maister-code-reviewer`
@@ -150,8 +151,9 @@ Task tool call (if reality_check_enabled):
 After ALL subagents return:
 1. Use `TaskUpdate` to set each verification task to `status: "completed"`
 2. Extract status, issues, and findings from each
-3. Aggregate issue counts
-4. Track any critical issues that would affect overall verdict
+3. **Confirm each report reached disk**: every enabled review owes the file at the `report_path` you passed it. Check them; for each one missing, record an issue with `source: "artifacts"`, `severity: "warning"`, naming the agent that owed it and the path, and say plainly in the compiled report that its findings are the subagent's reply transcribed rather than its own artifact. Never let a transcription pass silently for the artifact — that substitution is the defect this check exists to surface.
+4. Aggregate issue counts
+5. Track any critical issues that would affect overall verdict
 
 ### Impact on Overall Status
 
@@ -184,12 +186,6 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Update the TL;DR block to the final verdict and remaining (not original) issue counts
    - Add a **"Fix & Re-Verification History"** section: each issue → fix applied → re-check outcome (resolved / residual, with one-line evidence)
    - Subagent re-check outputs may save as side files (e.g. `code-review-reverify.md`) — fine as evidence, but they never substitute for refreshing the canonical report
-4. **Write HTML companion** to `verification/implementation-verification.html` — *skip this step entirely when `orchestrator.options.html_output` is false in `orchestrator-state.yml` (markdown-only mode; leave `html_path: null`)*. As a **skill**, this receives no `html_style_guide_path` parameter: it resolves the guide itself and gates on state (`orchestrator-patterns.md` § 9):
-   - Follow the shared style guide at `../orchestrator-framework/references/html-report-style.md` (relative to this SKILL.md): self-contained single file, standard CSS block, no external resources
-   - Lead with the verdict banner (✅ Passed / ⚠️ Passed with Issues / ❌ Failed) and issue counts; then findings table sorted critical→info with severity badges, per-check section status, fixes-applied list. Link to the md twin in the header
-   - Same content as the md — restructure and visualize, never add findings
-   - Never block on it: if generation fails, keep the md, note the miss, continue
-5. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
    Structure (md report — MUST open with the Artifact Summary Contract block):
    - **TL;DR** (3-5 lines max: verdict + issue counts + headline finding)
@@ -205,6 +201,13 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Issues requiring attention
    - Recommendations
    - Verification checklist
+4. **Write HTML companion** to `verification/implementation-verification.html` — *skip this step entirely when `orchestrator.options.html_output` is false in `orchestrator-state.yml` (markdown-only mode; leave `html_path: null`)*. As a **skill**, this receives no `html_style_guide_path` parameter: it resolves the guide itself and gates on state (`orchestrator-patterns.md` § 9):
+   - Follow the shared style guide at `../orchestrator-framework/references/html-report-style.md` (relative to this SKILL.md): self-contained single file, standard CSS block, no external resources
+   - Lead with the verdict banner (✅ Passed / ⚠️ Passed with Issues / ❌ Failed) and issue counts; then findings table sorted critical→info with severity badges, per-check section status, fixes-applied list. Link to the md twin in the header
+   - Same content as the md — restructure and visualize, never add findings
+   - Never block on it: if generation fails, keep the md, note the miss, continue
+5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 5 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
+6. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
 ---
 
@@ -244,6 +247,9 @@ Visual Fidelity: [N] match / [M] minor / [K] drift — see verification/visual-f
 
 Verification Report: verification/implementation-verification.md
 
+[If any declared artifact was missing on disk]
+Missing artifacts: [path] — owed by [agent or this skill]
+
 [Status-specific guidance on next steps]
 ```
 
@@ -259,7 +265,7 @@ report_path: "verification/implementation-verification.md"
 html_path: "verification/implementation-verification.html"  # null if companion generation failed
 
 issues:
-  - source: "completeness" | "test_suite" | "code_review" | "pragmatic" | "production" | "reality"
+  - source: "completeness" | "test_suite" | "code_review" | "pragmatic" | "production" | "reality" | "artifacts"
     severity: "critical" | "warning" | "info"
     description: "[Brief description of the issue]"
     location: "[File path or area affected]"
