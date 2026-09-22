@@ -10,3 +10,4 @@
 # Maister task tracking (generated per-project, not part of plugin source)
 .maister/
 /.worktrees/
+.playwright-mcp/

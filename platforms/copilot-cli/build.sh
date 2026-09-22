@@ -19,8 +19,9 @@ rm -rf "$OUT"
 cp -r "$CORE" "$OUT"
 rm -rf "$OUT/hooks"
 
-# 1. Update plugin.json name
+# 1. Update plugin.json name and description
 sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"
+sedi 's/for Claude Code/for GitHub Copilot CLI/' "$OUT/.claude-plugin/plugin.json"
 
 # 2. Strip plugin prefix from command names: "maister:foo" → "foo"
 #    Plugin system adds the plugin-id prefix automatically
@@ -70,5 +71,20 @@ EOF
 find "$OUT" -name "*.md" | while read f; do
   sedi 's/AskUserQuestion/ask_user/g' "$f"
 done
+
+# 9. Rename the plugin-root variable in skills and their references.
+#    CLAUDE_PLUGIN_ROOT is a Claude Code variable and is absent from Copilot
+#    CLI's environment, so a skill telling an agent to run
+#    `node ${CLAUDE_PLUGIN_ROOT}/...` here would name an unset variable. The
+#    variant names its own variable instead, and the variant README says how
+#    to export it.
+find "$OUT/skills" -name "*.md" | while read f; do
+  sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
+done
+
+# 10. Stage the variant's install notes last: the prefix pass above rewrites
+#     `maister:` wherever it appears, and install commands legitimately
+#     contain it.
+cp "$ROOT/platforms/copilot-cli/README.md" "$OUT/README.md"
 
 echo "Built Copilot CLI variant at $OUT"

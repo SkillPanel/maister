@@ -4,6 +4,11 @@ Documents the browser-based visual companion architecture used by the `mockup-st
 
 The server lives at `${CLAUDE_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs`.
 
+The plugin root is this plugin's own directory — the one holding
+`.claude-plugin/plugin.json` — and the variable naming it is set in the session
+environment. Use it as written; do not work the directory out and substitute a
+path of your own.
+
 ---
 
 ## Purpose

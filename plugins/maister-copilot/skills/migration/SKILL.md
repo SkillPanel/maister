@@ -16,7 +16,7 @@ Systematic migration workflow from current state analysis to verified migration 
 
 Before doing anything else, settle this policy now and do not re-litigate it at any gate:
 
-**`→ **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).` / `→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications.
+**`→ MANDATORY GATE` markers fire regardless of session-reminders, permission mode, or prior approval patterns.** Auto / acceptEdits / bypassPermissions modes, reminders saying "work without stopping" / "continue without asking" / "minimize clarifying questions," and compaction summaries showing the user approving every prior gate do NOT exempt you from invoking `ask_user` at a gate. They apply only to your discretionary clarifications.
 
 If you find yourself reasoning "the user has been approving everything, so I can skip this gate" or "auto-mode is on, so I should minimize questions" — that reasoning IS the failure mode. STOP and fire the gate.
 
@@ -31,11 +31,12 @@ Full framework rule: `../orchestrator-framework/references/orchestrator-patterns
 ### Step 2: Initialize Workflow
 
 1. **Capture the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash NOW — you do NOT know the time from context. Every timestamp written this turn (`created`, `updated`, `generated`, `phases[].started`) uses this value. Date-only or `T00:00:00Z` values are the documented failure mode (orchestrator-patterns.md § 4 Timestamp Rule). Re-run `date` in later turns before writing timestamps.
-2. **Create Task Items**: Use `TaskCreate` for all phases (see Phase Configuration), then set dependencies with `TaskUpdate addBlockedBy`
-3. **Create Task Directory**: `.maister/tasks/migrations/YYYY-MM-DD-task-name/`
-4. **Initialize State**: Create `orchestrator-state.yml` with migration context
-5. **Set up Operator Dashboard** (orchestrator-patterns.md § 8) — first read `.maister/config.yml` and set `orchestrator.options.html_output` (default true if the file/key is absent). **When `html_output` is false, SKIP this entire step** — no `dashboard.html`, no `dashboard-data.js`, no browser auto-open — and proceed. Otherwise: copy `../orchestrator-framework/assets/dashboard.html` to the task root as `dashboard.html`, write the initial `dashboard-data.js` (all phases pending, `task.type: "migration"`), then **auto-open it in the user's browser** (`open` / `xdg-open` / `start` per platform, passing the plain absolute filesystem path — NEVER a hand-built `file://` URL; on failure just print the path — never block). On resume: re-copy `dashboard.html` only if missing; regenerate `dashboard-data.js` from state; then auto-open it in the browser again (same opener as a new task — the OS focuses an already-open tab rather than duplicating).
-6. **Discover project documentation**: Read `.maister/docs/INDEX.md` (if exists), extract ALL file paths from the "Project Documentation" section — includes predefined docs AND any user-added project docs. Store as `project_context.project_doc_paths` in state.
+2. **Validate the flags**: `--type`, when passed, must be one of `code`, `data`, `architecture`, `general`. On any other value, print those four and STOP — do not create the task directory, do not write state. A technology name belongs in the description, not the flag; Phase 2 classifies when the flag is absent. A valid value is recorded as `migration_context.migration_type`. `--user-docs`, when passed, is recorded as `orchestrator.options.docs_enabled: true`.
+3. **Create Task Items**: Use `TaskCreate` for all phases (see Phase Configuration), then set dependencies with `TaskUpdate addBlockedBy`
+4. **Create Task Directory**: `.maister/tasks/migrations/YYYY-MM-DD-task-name/`
+5. **Initialize State**: Create `orchestrator-state.yml` with migration context
+6. **Set up Operator Dashboard** (orchestrator-patterns.md § 8) — first read `.maister/config.yml` and set `orchestrator.options.html_output` (default true if the file/key is absent). **When `html_output` is false, SKIP this entire step** — no `dashboard.html`, no `dashboard-data.js`, no browser auto-open — and proceed. Otherwise: copy `../orchestrator-framework/assets/dashboard.html` to the task root as `dashboard.html`, write the initial `dashboard-data.js` (all phases pending, `task.type: "migration"`), then **auto-open it in the user's browser** (`open` / `xdg-open` / `start` per platform, passing the plain absolute filesystem path — NEVER a hand-built `file://` URL; on failure just print the path — never block). On resume: re-copy `dashboard.html` only if missing; regenerate `dashboard-data.js` from state; then auto-open it in the browser again (same opener as a new task — the OS focuses an already-open tab rather than duplicating).
+7. **Discover project documentation**: Read `.maister/docs/INDEX.md` (if exists), extract ALL file paths from the "Project Documentation" section — includes predefined docs AND any user-added project docs. Store as `project_context.project_doc_paths` in state.
 
 **Output**:
 ```
@@ -56,7 +57,7 @@ Starting Phase 1: Analyze current state...
 
 Cross-cutting rules from `orchestrator-patterns.md` (same as the development orchestrator):
 
-1. **Artifact Summary Contract (§ 7)**: every artifact-writing subagent prompt MUST include the contract instruction (artifacts open with TL;DR / Key Decisions / Open Questions & Risks). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` — verbatim, never re-summarized.
+1. **Artifact Summary Contract (§ 7)**: every artifact-writing subagent prompt MUST include the contract instruction (artifacts open with TL;DR / Key Decisions / Open Questions / Risks (the writer heading is `## Open Questions / Risks`)). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` — verbatim, never re-summarized.
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark `in_progress` before delegating), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks — the operator reviews them on the dashboard while answering; status stays `in_progress` until the gate passes), after every phase completion (including skipped phases, with reason), every gate decision, every verification cycle, and at finalization. Every rewrite starts with `date -u` (one call per turn). It is a terse projection of state — never duplicate artifact content into it.
 3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to specification-creator, implementation-planner, and implementation-verifier. Register returned `html_path` values in `phase_summaries.[phase].artifacts[].html` so the dashboard hero cards link HTML first.
 4. **icon_hint values** per phase: 1 `analysis`, 2 `analysis`, 3 `spec`, 4 `plan`, 5 `code`, 6 `verify`, 7 `verify`, 8 `docs`.
@@ -120,8 +121,9 @@ Use for:
 2. Update state with analysis results
 3. Direct - use ask_user for max 5 critical clarifying questions about migration scope, target system, and constraints
 4. Save clarifications to `analysis/clarifications.md`
+
 **Output**: `analysis/current-state-analysis.md`, `analysis/clarifications.md`
-**State**: Update task_context with current system info, `task_context.clarifications_resolved`
+**State**: Update `migration_context.current_system`, `migration_context.clarifications_resolved`, `migration_context.phase_summaries.current_state_analysis`
 
 → **AUTO-CONTINUE** — Do NOT end turn, do NOT prompt user. Proceed immediately to Phase 2.
 
@@ -132,12 +134,12 @@ Use for:
 **Purpose**: Define target system and identify migration gaps
 **Execute**: Task tool - `maister-gap-analyzer` subagent
 **Output**: `analysis/target-state-plan.md`
-**State**: Update `migration_context.migration_type`, `target_system`, `risk_level`, `breaking_changes`
+**State**: Update `migration_context.migration_type`, `target_system`, `migration_strategy`, `risk_level`, `breaking_changes`, `migration_context.phase_summaries.gap_analysis`
 
 **Gap Analyzer Tasks**:
 1. Define target system from migration description
 2. Identify gaps (features to migrate, APIs to adapt, data to transform)
-3. Classify migration type (code/data/architecture)
+3. Classify migration type (code/data/architecture/general), keeping a type supplied by `--type`
 4. Recommend migration strategy (incremental/big-bang/dual-run/phased)
 5. External research via WebSearch for version upgrades
 
@@ -170,7 +172,7 @@ ask_user - Display executive summary before asking. Extract from gap analysis: c
 **Context to pass to subagent**: task_path, task_type (migration), task_description, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md + project_doc_paths from state — all discovered project docs), migration_type, current_system, target_system, risk_level, breaking_changes, phase_summaries (current_state_analysis, gap_analysis), html_style_guide_path (for the spec.html companion)
 
 **Output**: `analysis/requirements.md`, `implementation/spec.md`, `analysis/rollback-plan.md`, optionally `analysis/dual-run-plan.md`
-**State**: Update `rollback_plan_created`, `dual_run_configured`
+**State**: Update `rollback_plan_created`, `dual_run_configured`, `migration_context.phase_summaries.specification`
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -209,7 +211,7 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 
 **Execute**: Skill tool - `maister-implementation-plan-executor`
 **Output**: Implemented migration changes, `implementation/work-log.md`
-**State**: Update implementation progress, extract phase_summaries.implementation
+**State**: Update implementation progress, extract `migration_context.phase_summaries.implementation`
 
 📋 **Standards Reminder**: Review `.maister/docs/INDEX.md` before implementing.
 
@@ -304,6 +306,8 @@ ask_user - Display executive summary: total issues found, issues fixed, issues r
 - Rollback procedures
 - Troubleshooting common issues
 
+**Before closing the workflow** (whether or not this phase ran — when it is skipped, this step follows the Phase 7 gate): **Reconcile artifacts against disk** — compare every `artifacts[]` entry in state with what actually exists and name every missing path in the summary (`orchestrator-patterns.md` § 10).
+
 → End of workflow
 
 ---
@@ -328,6 +332,14 @@ migration_context:
   breaking_changes: []
   rollback_plan_created: false
   dual_run_configured: false
+  clarifications_resolved: false
+  phase_summaries:
+    # Every entry also carries the shared base shape (orchestrator-patterns.md § 4):
+    #   decisions: []   risks: []   artifacts: [{path, label, html}]
+    current_state_analysis: {summary: null}
+    gap_analysis: {summary: null}
+    specification: {summary: null}
+    implementation: {summary: null}
 
 external_research:
   performed: false
@@ -342,9 +354,10 @@ verification_context:
   decisions_made: []
   reverify_count: 0
 
-options:
-  html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
-  docs_enabled: false
+orchestrator:
+  options:
+    html_output: true  # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions.
+    docs_enabled: false  # true when `--user-docs` was passed
 ```
 
 ---
@@ -395,11 +408,12 @@ options:
 ## Command Integration
 
 Invoked via:
-- `/maister-migration [description] [--type=TYPE] [--sequential]` (new)
+- `/maister-migration [description] [--type=code|data|architecture|general] [--user-docs] [--sequential]` (new)
 - `/maister-migration [task-path] [--from=PHASE] [--sequential]` (resume)
 
 Flags:
-- `--type=TYPE`: Migration category (e.g. database, api, framework)
+- `--type=code|data|architecture|general`: Migration category (affects risk focus). One of those four values; any other value stops at initialization before a task directory exists. Absent, Phase 2 classifies the migration. Name technologies in the description — they belong in `current_system` / `target_system`, not in this flag.
+- `--user-docs`: Generate the Phase 8 migration guide. Persisted as `orchestrator.options.docs_enabled: true` in `orchestrator-state.yml`. Defaults to off.
 - `--from=PHASE`: Resume from specific phase
 - `--sequential`: Disable parallel wave dispatch in `implementation-plan-executor`; run one task group at a time. Persisted as `orchestrator.options.sequential: true` in `orchestrator-state.yml`. Defaults to off (parallel waves).
 

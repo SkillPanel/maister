@@ -2,7 +2,12 @@
 
 Documents the browser-based visual companion architecture used by the `mockup-studio` skill (the HTML mockup path). Provides high-fidelity visual feedback by rendering HTML/CSS mockups in a browser during a mockup session. `mockup-studio` is invoked both standalone and by the development (Phase 4) and product-design (Phase 7) orchestrators, so this component is shared, not product-design-specific.
 
-The server lives at `${CLAUDE_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs`.
+The server lives at `${MAISTER_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs`.
+
+The plugin root is this plugin's own directory — the one holding
+`.claude-plugin/plugin.json` — and the variable naming it is set in the session
+environment. Use it as written; do not work the directory out and substitute a
+path of your own.
 
 ---
 
@@ -72,7 +77,7 @@ Example annotations:
 
 ### Startup
 
-1. Spawn server process: `node ${CLAUDE_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs --task-path=${task_path} --output-subdir=${output_subdir} &`
+1. Spawn server process: `node ${MAISTER_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs --task-path=${task_path} --output-subdir=${output_subdir} &`
    - `--output-subdir` (relative to task path) controls where mockups are saved. Default `analysis/mockups` (product-design / standalone); development passes `analysis/design-context/mockups`.
 2. Port allocation: try 3847, fallback through 3848-3850
 3. Verify ready: poll `GET /status` until ok (timeout after 3 seconds)

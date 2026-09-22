@@ -246,13 +246,13 @@ Each task folder follows the pattern `YYYY-MM-DD-task-name/`:
 
 ## Internal Skills
 
-These skills are invoked automatically by the orchestrators — you don't call them directly:
+These skills are machinery: an orchestrator invokes them, and none of them has a command of its
+own. Each one declares that in its own frontmatter (`user-invocable: false`).
 
 | Skill | What It Does |
 |-------|-------------|
-| **codebase-analyzer** | Launches parallel Explore subagents to analyze your codebase, synthesizes findings into a report |
-| **implementer** | Executes implementation plans with mandatory standards reading and test-driven enforcement |
-| **implementation-plan-executor** | Adaptive execution (direct for ≤5 steps, delegated for 6+) with continuous standards discovery |
-| **implementation-verifier** | Delegates verification to specialized subagents: test runner, code reviewer, pragmatic reviewer, reality assessor, production readiness checker |
-| **task-classifier** | Classifies task descriptions into types (bug, feature, enhancement, performance, migration, research) with confidence scoring |
-| **docs-manager** | Internal engine for managing `.maister/docs/` structure, INDEX.md, and standards files |
+| **codebase-analyzer** | Launches parallel exploration subagents sized to the task, then has a reporter subagent merge their findings into one report |
+| **docs-manager** | The engine behind `.maister/docs/`: file operations, the standards index, and the project instructions that point at it |
+| **implementation-plan-executor** | Runs an implementation plan by handing each task group to an implementer subagent, then records progress and the work log |
+| **implementation-verifier** | Delegates verification to specialists -- completeness, test suite, code review, pragmatic review, production readiness, reality check -- and compiles one report. It reports; it never fixes |
+| **orchestrator-framework** | Not executable at all: the shared patterns every orchestrator reads for phase execution, state, gates and initialization |

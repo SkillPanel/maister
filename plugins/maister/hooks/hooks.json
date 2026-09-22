@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/post-compact-reminder.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-compact-reminder.sh\"",
             "timeout": 10
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/skill-invocation-reminder.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/skill-invocation-reminder.sh\"",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-destructive-commands.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/block-destructive-commands.sh\"",
             "timeout": 5
           }
         ]

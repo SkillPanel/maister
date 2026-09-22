@@ -63,6 +63,7 @@ Starts migration workflow (8 phases) with mandatory rollback planning and risk a
 | Flag | Description |
 |------|-------------|
 | `--type=code\|data\|architecture\|general` | Migration type (affects risk focus) |
+| `--user-docs` | Generate the Phase 8 migration guide for end users |
 | `--from=PHASE` | Start from or resume at a specific phase |
 | `--reset-attempts` | Reset failed attempt counters (resume) |
 
@@ -109,6 +110,26 @@ Design output can feed directly into development: `/maister:development .maister
 
 **Task directory**: `.maister/tasks/product-design/`
 **Resume phases**: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `convergence`, `specification`, `prototyping`, `handoff`
+
+### `/maister:mockup-studio "<screen or feature>"`
+
+Generates UI mockups for one screen or feature, on its own rather than as a step inside
+another workflow. It finds the project's design language first — standards, design
+system, component library, whatever design skills are installed — and binds the mockups
+to it by real token and component names, so what you see is what the codebase can
+actually build.
+
+Two formats. The default renders HTML and CSS in a browser through a local visual
+companion. Set `mockup_format: ascii` in `.maister/config.yml` for terminal ASCII, which
+shows layout and placement and nothing about style; HTML falls back to ASCII on its own
+when Node.js is unavailable.
+
+Between rounds it asks what to change and re-renders, so a screen converges in the
+session rather than in a handoff. The development and product-design workflows use the
+same skill at their mockup step, so a mockup made here and one made inside a workflow
+are the same artifact.
+
+**Task directory**: `.maister/tasks/mockups/`
 
 ---
 

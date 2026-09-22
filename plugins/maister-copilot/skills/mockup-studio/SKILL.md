@@ -79,7 +79,8 @@ Read `references/visual-companion.md` for the full protocol. Then:
 
 1. **Stale-server check**: `curl -s http://localhost:3847/status` (try 3847–3850). If it responds with a different `taskPath`, `POST /shutdown` it. If it matches the current task, reuse it.
 2. **Start the server** (Bash):
-   `node ${CLAUDE_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs --task-path=${task_path} --output-subdir=${output_subdir} &`
+   `node ${MAISTER_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs --task-path=${task_path} --output-subdir=${output_subdir} &`
+   The plugin root is this plugin's own directory — the one holding `.claude-plugin/plugin.json` — and the variable naming it is set in the session environment. Use it as written rather than substituting a path of your own.
    Wait ~1s, verify `curl -s http://localhost:${port}/status` returns ok (try 3847–3850).
 3. **Open browser** (best-effort, non-blocking): Playwright MCP `browser_navigate` to `http://localhost:${port}` → fallback `open`/`xdg-open` → fallback log the URL.
 4. **Generate user-facing wireframes** — one screen per relevant view implied by `context`. Title each screen specifically (e.g. "Add New Allergy Form", not "Dashboard"). Bind to discovered tokens/components/CSS variables by their real names. Add `data-screen="slug"` to clickable elements for click-through navigation, and `annotations` for component-reuse / integration / interaction hints (NOT requirements). Generate USER-FACING UI only — never architecture/data-flow/ER diagrams.
