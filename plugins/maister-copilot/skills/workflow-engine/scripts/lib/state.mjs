@@ -127,16 +127,25 @@ const WORKFLOW_KEYS = ['source', 'overlays', 'profile', 'graph_hash', 'grammar_v
 
 /**
  * The status mirror, and it is a mapping rather than a copy: a node carries one
- * of eight statuses, a summary one of five. `suspended` never occurs in
- * terminal mode and `stopped` occurs only on unexecuted nodes, which carry no
- * summary — both are absent here on purpose, so a mirror that cannot be spelled
- * is simply not written.
+ * of eight statuses, a summary one of five. `suspended` is the only one absent
+ * on purpose: it never occurs in terminal mode, so a mirror that cannot be
+ * spelled is simply not written.
  *
  * `waiting` — a parent node whose child run is still going — mirrors to
  * `in_progress`, because that is what it is in the shorter phase vocabulary.
  * Left out, a `nodes` patch carrying `status: waiting` would write no summary
  * mirror at all: a node that changed state with nothing in the summary saying
  * so. It stamps neither end, for the reason the two sets below give.
+ *
+ * `stopped` used to occur only on nodes a stop option left unexecuted, which
+ * carry no summary, and it was left out on those grounds. Sub-runs made that
+ * false: a `workflow:` node that ran, waited and then saw its child stop is
+ * recorded `stopped`, and the write that adopts the outcome carries a summary
+ * for it. It mirrors to `skipped`, the one member of the shorter vocabulary
+ * that says "did not produce its outcome, and not because anything broke" — a
+ * stop is a legitimate outcome and `failed` would read as the `RUN-FAILED` the
+ * engine deliberately does not print. A stopped unexecuted node still writes no
+ * summary; nothing about that changes by giving the status a spelling here.
  */
 const STATUS_MIRROR = {
   pending: 'pending',
@@ -145,6 +154,7 @@ const STATUS_MIRROR = {
   completed: 'completed',
   skipped: 'skipped',
   failed: 'failed',
+  stopped: 'skipped',
 };
 
 /**

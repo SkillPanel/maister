@@ -44,7 +44,8 @@ validate:
 	@echo "Checking every shipped workflow diagram matches a fresh regeneration..."
 	@tmp=$$(mktemp); \
 	for definition in $(ENGINE)/workflows/*.yml; do \
-	  node $(ENGINE)/scripts/workflow.mjs diagram --definition $$definition > $$tmp; \
+	  node $(ENGINE)/scripts/workflow.mjs diagram --definition $$definition > $$tmp \
+	    || { rm -f $$tmp; echo "FAIL: the diagram renderer exited non-zero on $$definition — the diagram is not stale, the renderer is broken; running make diagram would fail the same way"; exit 1; }; \
 	  diff -q $$tmp $${definition%.yml}.mmd >/dev/null || { rm -f $$tmp; echo "FAIL: $${definition%.yml}.mmd is stale — run make diagram"; exit 1; }; \
 	done; \
 	rm -f $$tmp

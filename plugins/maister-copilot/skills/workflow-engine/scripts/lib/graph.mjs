@@ -172,6 +172,7 @@ const WARN = {
   valueType: (path) => `undecidable-value-type:${path}`,
   subrunInput: (node, name) => `unresolved-subrun-input:${node}:${name}`,
   subrunOutput: (node, name) => `unresolved-subrun-output:${node}:${name}`,
+  exposedDisabled: (path, node) => `exposed-output-disabled:${path}:${node}`,
 };
 
 /**
@@ -828,10 +829,17 @@ function scanReserved(doc, warnings) {
  * frozen order, with the profile last because it is chosen at invocation and
  * must be able to override what the overlay it lives in decided.
  *
- * Returns `{file, inputs, nodes, origins}` where `origins` records which file
- * each node came from. Origins never reach the canonical form or the hash; they
- * exist so an error can name the file the operator has to edit, and so a
- * `direct:` target is looked for beside the file that declared it.
+ * Returns `{file, inputs, nodes, origins, removed}` where `origins` records
+ * which file each node came from. Origins never reach the canonical form or the
+ * hash; they exist so an error can name the file the operator has to edit, and
+ * so a `direct:` target is looked for beside the file that declared it.
+ *
+ * `removed` is the other half of the same bookkeeping: which file's `disable`
+ * took a node out, for every node an overlay or a profile removed. Without it a
+ * node that is absent because the base never declared it and a node that is
+ * absent because an overlay trimmed it are the same fact, and the workflow-level
+ * `outputs:` block — carried out of the base alone, deliberately not overlayable
+ * — cannot tell the author's own mistake from the operator's legitimate trim.
  */
 function buildGraph({ definition, overlays, profile, errors }) {
   if (!definition || !definition.doc || typeof definition.doc !== 'object') {
@@ -851,6 +859,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
 
   const nodes = new Map();
   const origins = new Map();
+  const removed = new Map();
   for (const [id, node] of Object.entries(isMap(doc.nodes) ? doc.nodes : {})) {
     if (!isMap(node)) {
       fail(errors, file, `nodes.${id}`, 'a node must be a mapping', id);
@@ -860,7 +869,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
     origins.set(id, file);
   }
 
-  for (const overlay of overlays) applyOps(overlay.doc, overlay.file, '', { nodes, origins }, errors);
+  for (const overlay of overlays) applyOps(overlay.doc, overlay.file, '', { nodes, origins, removed }, errors);
   for (const overlay of overlays) {
     if (profile === null || !isMap(overlay.doc?.profiles)) continue;
     const selected = overlay.doc.profiles[profile];
@@ -868,7 +877,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
       fail(errors, overlay.file, `profiles.${profile}`, `the overlay declares no profile named "${profile}"`, null);
       continue;
     }
-    applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins }, errors);
+    applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed }, errors);
   }
 
   for (const [id, node] of nodes) scanControlCharacters(node, origins.get(id) ?? file, id, `nodes.${id}`, errors);
@@ -878,7 +887,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
   // could say about it. An overlay that needs to expose something else is a
   // definition of its own. Carried raw rather than defaulted to a map, so the
   // shape check below can tell an absent block from a malformed one.
-  return { file, inputs: isMap(doc.inputs) ? doc.inputs : {}, outputs: doc.outputs, nodes, origins };
+  return { file, inputs: isMap(doc.inputs) ? doc.inputs : {}, outputs: doc.outputs, nodes, origins, removed };
 }
 
 /**
@@ -928,7 +937,7 @@ function scanControlCharacters(value, file, id, dotted, errors) {
  */
 function applyOps(body, file, prefix, graph, errors) {
   if (!isMap(body)) return;
-  const { nodes, origins } = graph;
+  const { nodes, origins, removed } = graph;
 
   for (const [index, id] of (Array.isArray(body.disable) ? body.disable : []).entries()) {
     const dotted = `${prefix}disable.${index}`;
@@ -941,6 +950,7 @@ function applyOps(body, file, prefix, graph, errors) {
     const inherited = needsOf(nodes.get(id));
     nodes.delete(id);
     origins.delete(id);
+    removed.set(id, file);
     for (const node of nodes.values()) {
       if (!needsOf(node).includes(id)) continue;
       const rewired = [];
@@ -1080,6 +1090,12 @@ function checkInputs(inputs, file, errors) {
  * because a newer definition must resolve to the document it declared — a node
  * key this build does not know may still mean something to the engine that
  * does, whereas this block is read by this module and nothing else.
+ *
+ * Closed to the *validator*, that is. The canonical form below is not closed to
+ * it: a degraded document is hashed without ever reaching the check that would
+ * have refused a third sub-map, so dropping one there would hash a document
+ * that declares something this build cannot read identically to one that
+ * declares nothing at all.
  */
 const OUTPUT_KINDS = ['artifacts', 'values'];
 
@@ -1102,8 +1118,25 @@ const OUTPUT_KINDS = ['artifacts', 'values'];
  *
  * Today a definition may carry the block and be hashed as though it did not,
  * which is exactly the failure the canonical form below closes.
+ *
+ * **An overlay changes who the two halves belong to.** The grounds for erroring
+ * rather than warning are that the block and the node it names are both in the
+ * file being validated — which stops being true the moment an overlay or a
+ * profile disables a node, because the block is carried out of the base alone
+ * and is deliberately not overlayable. There is no grammar an author could use
+ * to fix it: a base exposing an optional phase's artifact would become
+ * unfixably invalid under every overlay that trims that phase.
+ *
+ * So the miss is split. A reference naming a node the base never declared is
+ * still an error — the author's own mistake, both halves in one file. A
+ * reference naming a node an overlay removed is not the base's mistake: it
+ * warns, and the entry is *dropped from the canonical block* the same way the
+ * disabled node itself is dropped from the node list. The resolved graph
+ * therefore never exposes a key no node can produce, and the digest moves —
+ * which is right, because a run that exposes five artifacts is not the same
+ * executable graph as the one that exposed six.
  */
-function checkOutputs(outputs, nodes, file, errors) {
+function checkOutputs(outputs, nodes, file, errors, removed, warnings) {
   if (outputs === undefined || outputs === null) return;
   if (!isMap(outputs)) {
     fail(errors, file, 'outputs', `outputs is a mapping of ${OUTPUT_KINDS.join(' and ')}; ${describe(outputs)} is not`);
@@ -1136,6 +1169,10 @@ function checkOutputs(outputs, nodes, file, errors) {
       }
       const source = nodes.get(parts[0]);
       if (!source) {
+        if (removed.has(parts[0])) {
+          warnings.push(WARN.exposedDisabled(dotted, parts[0]));
+          continue;
+        }
         fail(errors, file, dotted, `"${reference}" names "${parts[0]}", which no node declares`, parts[0]);
         continue;
       }
@@ -1147,10 +1184,10 @@ function checkOutputs(outputs, nodes, file, errors) {
 }
 
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
-  const { file, inputs, outputs, nodes, origins } = graph;
+  const { file, inputs, outputs, nodes, origins, removed } = graph;
 
   checkInputs(inputs, file, errors);
-  checkOutputs(outputs, nodes, file, errors);
+  checkOutputs(outputs, nodes, file, errors, removed, warnings);
 
   for (const id of nodes.keys()) {
     if (!NODE_ID.test(id)) fail(errors, file, 'nodes',
@@ -1591,7 +1628,11 @@ function canonicalNodes(graph) {
   const ordered = topological(graph.nodes);
   return ordered.map((id) => {
     const node = graph.nodes.get(id);
-    const canonical = {};
+    // Null-prototyped for the reason `canonicalOutputs` gives below: an
+    // unrecognised node key is carried through by design, and a node key
+    // spelled `__proto__` would hit the prototype setter on a plain literal
+    // and leave the digest unable to tell two documents apart.
+    const canonical = Object.create(null);
     for (const key of NODE_KEYS) {
       if (key === 'id') canonical.id = id;
       else if (key === 'needs') canonical.needs = [...new Set(needsOf(node))].sort();
@@ -1614,24 +1655,67 @@ function canonicalNodes(graph) {
  * Which is the point: an absent block and an empty block canonicalise to the
  * same value and therefore hash identically. A definition's identity must not
  * depend on whether an optional key was typed.
+ *
+ * Three things this form does that the shape above does not say on its own.
+ *
+ * **An entry naming a node an overlay disabled is dropped**, for the reason
+ * `checkOutputs` gives: the resolved graph does not carry that node, so it
+ * cannot carry a key only that node could have produced. The digest moves with
+ * the drop, which is the honest answer — the trimmed graph exposes less and is
+ * a different graph.
+ *
+ * **A sub-map this build does not recognise is carried, not dropped.** The
+ * validator refuses a third kind, but it never runs on a degraded document, and
+ * that is the only route by which one reaches this function. Iterating the
+ * closed set alone would hash `outputs: {metrics: {…}}` identically to a
+ * document declaring nothing — the collision the node rule already avoids by
+ * carrying unrecognised keys through. The two known kinds keep their fixed
+ * positions and anything else follows in name order, so the form stays
+ * deterministic and every shipped definition hashes exactly as it did.
+ *
+ * **Every accumulator is null-prototyped**, so an exposed key spelled
+ * `__proto__` becomes an ordinary own property instead of hitting the prototype
+ * setter and vanishing from the digest. The definition reader builds its maps
+ * the same way and for the same reason; a canonicaliser that undid that care
+ * would let two different definitions hash identically, which is precisely what
+ * the drift refusal compares.
  */
 function canonicalOutputs(graph) {
   const block = isMap(graph.outputs) ? graph.outputs : {};
-  const canonical = {};
+  const extra = Object.keys(block).filter((kind) => !OUTPUT_KINDS.includes(kind)).sort();
+  const canonical = Object.create(null);
   for (const kind of OUTPUT_KINDS) {
     const exposed = isMap(block[kind]) ? block[kind] : {};
-    const sorted = {};
-    for (const key of Object.keys(exposed).sort()) sorted[key] = canonicalValue(exposed[key]);
+    const sorted = Object.create(null);
+    for (const key of Object.keys(exposed).sort()) {
+      if (isDisabledReference(exposed[key], graph)) continue;
+      sorted[key] = canonicalValue(exposed[key]);
+    }
     canonical[kind] = sorted;
   }
+  for (const kind of extra) canonical[kind] = canonicalValue(block[kind]);
   return canonical;
+}
+
+/**
+ * Does this exposed entry name a node an overlay or a profile removed?
+ *
+ * Only a removal answers yes. A reference to a node nothing ever declared is
+ * the author's own error and never reaches a hash, and a node disabled and then
+ * added back under the same id is present again, so it is exposed as it always
+ * was.
+ */
+function isDisabledReference(reference, graph) {
+  if (typeof reference !== 'string') return false;
+  const id = reference.split('.')[0];
+  return !graph.nodes.has(id) && (graph.removed?.has(id) ?? false);
 }
 
 /** Free-form values keep their content and lose their authoring key order. */
 function canonicalValue(value) {
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (!isMap(value)) return value;
-  const sorted = {};
+  const sorted = Object.create(null);
   for (const key of Object.keys(value).sort()) sorted[key] = canonicalValue(value[key]);
   return sorted;
 }
