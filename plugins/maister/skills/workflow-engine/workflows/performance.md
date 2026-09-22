@@ -682,7 +682,9 @@ workflow as a sub-run, so there is no embedded case to guard against.
    specification, the audit, the plan, the work log and the verification report.
    All seven exist on a run that reached here, because nothing in this workflow
    is conditional — so an absent one is a defect to name rather than a skip to
-   explain.
+   explain. Take the inventory from disk and not from state: compare every
+   artifact the run declared against what is actually there, and name every
+   declared path that is absent (`orchestrator-patterns.md` § 10).
 2. **Present the executive summary**: which bottlenecks were found, which
    optimizations landed, the verification verdict with any issues left open, and
    whether the ranking rested on profiling data or on static analysis alone.

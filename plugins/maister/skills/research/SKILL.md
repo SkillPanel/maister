@@ -418,7 +418,7 @@ AskUserQuestion - "Design complete. Continue to output generation?"
 **Output**: No new files — summarizes existing outputs
 
 **Process**:
-1. Inventory all generated outputs: `outputs/research-report.md` (always), plus conditional: `solution-exploration.md`, `high-level-design.md`, `decision-log.md`
+1. Inventory all generated outputs: `outputs/research-report.md` (always), plus conditional: `solution-exploration.md`, `high-level-design.md`, `decision-log.md`. **Reconcile artifacts against disk** — compare every `artifacts[]` entry in state with what actually exists and name every missing path in the summary (`orchestrator-patterns.md` § 10)
 2. Present executive summary to user:
    - Key findings and confidence level
    - Which optional phases ran (brainstorming, design)

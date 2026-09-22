@@ -1063,7 +1063,10 @@ workflow as a sub-run, so there is no embedded case to guard against.
    report always; the TDD gate artifacts, the mockups and their index, the
    audit, the browser reports and the user guide when the stretches that produce
    them ran. Say plainly which stretches were skipped and why — a reader of the
-   summary should not have to infer a skip from a missing file.
+   summary should not have to infer a skip from a missing file. Take the
+   inventory from disk and not from state: compare every artifact the run
+   declared against what is actually there, and name every declared path that
+   is absent (`orchestrator-patterns.md` § 10).
 2. **Present the executive summary**: what was built, which task groups landed,
    the verification verdict with any issues left open, and the risk level the
    gap analysis recorded.

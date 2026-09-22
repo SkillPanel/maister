@@ -561,3 +561,28 @@ Selected high-value artifacts get a rich HTML companion written by the **same su
 - Orchestrators pass `html_style_guide_path` (the absolute path of that style guide — it sits next to the patterns file read at initialization) to every companion-writing **agent**, and omit it when `options.html_output` is false; an agent given no path writes only the `.md`. **Skills** that write companions (`implementation-verifier`) receive no such parameter: they resolve the guide themselves and gate on `orchestrator.options.html_output` in state.
 - Register companions in `phase_summaries.[phase].artifacts[].html` so the dashboard (§ 8) links HTML first with md fallback (`html: null` when companions are disabled).
 - Companion generation must never block the workflow: if it fails, keep the md, log the miss, continue.
+
+---
+
+## 10. Finalization: Artifact Reconciliation
+
+State records what each phase produced; only disk records what each phase actually wrote. At
+finalization — the closing phase of every workflow — reconcile the two before declaring the task
+complete.
+
+**What to compare**: every `phase_summaries.[phase].artifacts[].path` and every non-null
+`.html` beside it. Resolve each against the task root and check it exists.
+
+**What to report**: a **Missing artifacts** block in the workflow summary, one line per absent
+path, naming the phase that declared it and the subagent or skill that owed it. When nothing is
+missing, omit the block — silence here means the declaration held.
+
+**What not to do**: reconciliation reports, it never repairs. Do not re-run a phase, regenerate a
+companion or delete the stale entry from state; the entry is the evidence that the artifact was
+promised. Nor does it block completion — a workflow with a missing artifact still finishes, with
+the miss named.
+
+**Why it exists**: an orchestrator can transcribe what a subagent returned, and the verdict then
+reads as if the artifact existed. The transcription is the orchestrator's summary of a subagent's
+words, not the subagent's own artifact, and nothing else in the run records that the substitution
+took place. This comparison is what makes that visible.

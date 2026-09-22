@@ -602,10 +602,11 @@ ask_user - "Documentation complete. Continue to Phase 14?"
 **State**: Set `task.status: completed`
 
 **Process**:
-1. Create workflow summary
-2. Update task status to "completed"
-3. Provide commit message template
-4. Guide next steps (code review, PR, deployment)
+1. **Reconcile artifacts against disk** — compare every `artifacts[]` entry in state with what actually exists and name every missing path in the summary (`orchestrator-patterns.md` § 10)
+2. Create workflow summary
+3. Update task status to "completed"
+4. Provide commit message template
+5. Guide next steps (code review, PR, deployment)
 
 → End of workflow
 

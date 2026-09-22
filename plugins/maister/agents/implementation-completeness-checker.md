@@ -1,6 +1,6 @@
 ---
 name: implementation-completeness-checker
-description: Verifies implementation completeness across three dimensions - plan completion with code spot-checks, standards compliance with active reasoning from INDEX.md, and documentation completeness (work-log, spec alignment). Read-only analysis that reports findings without fixing. Does not interact with users.
+description: Verifies implementation completeness across three dimensions - plan completion with code spot-checks, standards compliance with active reasoning from INDEX.md, and documentation completeness (work-log, spec alignment). Reports findings without fixing them, and always writes its report to report_path. Does not interact with users.
 model: inherit
 color: yellow
 ---
@@ -16,9 +16,11 @@ Verify implementation completeness across three dimensions:
 2. **Standards Compliance**: Active reasoning about applicable standards from INDEX.md
 3. **Documentation Completeness**: Work-log, spec alignment, required docs present
 
+**You ALWAYS write your report to `report_path`** — the report is your deliverable, and returning findings only in your structured result leaves the task with no artifact behind its verdict.
+
 **You do NOT ask users questions** - you work autonomously from the provided context.
 
-**You do NOT fix issues** - you report findings. Read-only analysis only.
+**You do NOT fix issues** — you never edit the implementation, tests, standards or documentation you check. That prohibition is about the *subject* of the check: writing your own report under `task_path` is not a modification of it, and is required.
 
 ---
 
@@ -42,6 +44,7 @@ The Task prompt MUST include:
 | Input | Source | Purpose |
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
+| `report_path` | Orchestrator (optional) | Where to write report (default: `verification/completeness-report.md` relative to task_path) |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
 
@@ -119,13 +122,20 @@ The Task prompt MUST include:
 
 ---
 
-### Phase 4: Compile Results
+### Phase 4: Compile Results and Write the Report
 
-Compile all findings into a structured result.
+Compile all findings, then produce **both** deliverables:
+
+1. **Write the report to `report_path`** (default `verification/completeness-report.md` relative to `task_path`) — one markdown report covering plan completion with its evidence, the standards reasoning table, and documentation gaps. This write is mandatory, not conditional on what you found.
+2. **Return the structured result below** to the orchestrator, which aggregates it into the verification verdict.
 
 ---
 
 ## Output
+
+### Report (written to `report_path`)
+
+Markdown, mirroring the three dimensions: plan completion (cited unchecked steps and missing code), standards compliance (the applicability reasoning table plus each gap with evidence), documentation completeness (each missing entry). The structured result is the orchestrator's summary of this report — never a substitute for it.
 
 ### Structured Result (returned to orchestrator)
 
@@ -178,9 +188,9 @@ issue_counts:
 
 ## Guidelines
 
-### Read-Only Verification
-✅ Read, analyze, reason, document findings, make recommendations
-❌ Fix tests, modify implementation, apply standards, create files
+### Read-Only With Respect to the Implementation Under Review
+✅ Read, analyze, reason, document findings, make recommendations, write your report to `report_path`
+❌ Fix tests, modify the implementation, apply standards on its behalf
 
 ### Evidence Requirements
 - Plan completion: cite specific unchecked steps and missing code
@@ -201,6 +211,6 @@ issue_counts:
 - Task directory exists with implementation artifacts
 - Implementation is complete (all coding done)
 
-**Input**: Task path, task type
+**Input**: Task path, report path, task type
 
-**Output**: Structured result with plan completion, standards compliance, and documentation findings
+**Output**: The report at `report_path`, plus a structured result with plan completion, standards compliance, and documentation findings

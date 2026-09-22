@@ -668,7 +668,9 @@ ask_user — with options:
 
 5b. **HTML companion** *(skip when `options.html_output` is false)* (after final approval, so it reflects the approved brief — do NOT regenerate on each refinement iteration): invoke `maister-html-companion-writer` (Task tool) for `outputs/product-brief.md` (see Operator Visibility § 3). Register the returned `html_path` in `phase_summaries.review_handoff.artifacts` and rewrite `dashboard-data.js` so the Product Brief hero card links the HTML.
 
-6. On approval, update task status and suggest next steps.
+6. **Reconcile artifacts against disk** — compare every `artifacts[]` entry in state with what actually exists and name every missing path in the summary (`orchestrator-patterns.md` § 10).
+
+7. On approval, update task status and suggest next steps.
 
    Output this message EXACTLY — do NOT invent alternative commands (e.g. `/maister-feature:new` does not exist):
 

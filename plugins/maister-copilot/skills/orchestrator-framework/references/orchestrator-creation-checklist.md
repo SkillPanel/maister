@@ -19,6 +19,7 @@ Before considering an orchestrator complete, verify ALL items:
 - [ ] **Interactive mode** — `ask_user` at every `→ MANDATORY GATE` transition
 - [ ] **Standards discovery** — `.maister/docs/INDEX.md` referenced in spec, plan, implement, verify phases
 - [ ] **TaskCreate initialization** — Tasks created for all phases at workflow start with `addBlockedBy` dependencies; when `TaskCreate`/`TaskUpdate` are unavailable in the session, record `task_ids: {}` and treat `orchestrator-state.yml` as the sole phase tracker
+- [ ] **Finalization reconciliation** — Closing phase compares `artifacts[]` in state against disk and names every missing path in the summary (`orchestrator-patterns.md` § 10)
 - [ ] **Auto-recovery table** — Max attempts per phase with recovery strategies
 - [ ] **Domain context schema** — Includes `phase_summaries` structure
 
@@ -37,6 +38,7 @@ Before considering an orchestrator complete, verify ALL items:
 | File paths only in subagent prompts | Include state summaries and prior phase summaries |
 | Stopping at AUTO-CONTINUE transitions | Brief summary is fine, but must proceed immediately |
 | Missing standards references | INDEX.md must be referenced in relevant phases |
+| Finishing without reconciling artifacts | A declared artifact that never reached disk closes the run in silence |
 | Auto-accepting subagent decisions | User must consent via ask_user |
 
 ---
