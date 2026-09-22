@@ -261,7 +261,8 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  *   completed_phases, failed_phases
  *                   Sequences. There is no key to merge on; a caller that means
  *                   to append sends the whole list, the same rule
- *                   `related_tasks` follows at the top level.
+ *                   `related_tasks` follows at the top level. Both start as
+ *                   empty lists the freeze writes (`seedSequences`).
  *   the scalars     `started_phase`, `created`, `updated`, `task_path`,
  *                   `next_phase`, `type` — one value each, so a write of one is
  *                   a replacement by definition.
@@ -379,6 +380,9 @@ function apply(doc, patch, changed) {
   const now = canonical.stamp();
   const intended = new Set(['orchestrator']);
 
+  // Before the patch's own `orchestrator` keys, so the seeded sequences open
+  // the block and a freeze's `parent` still lands last.
+  if (patch.workflow) seedSequences(doc, patch.orchestrator, changed);
   if (patch.orchestrator) applyScalars(doc, 'orchestrator', patch.orchestrator, changed);
   if (patch.task) {
     applyScalars(doc, 'task', patch.task, changed);
@@ -949,9 +953,41 @@ function seedSummaries(doc, contextKey, changed) {
   changed.push(`${contextKey}.phase_summaries`);
 }
 
-/** Free-form keys under the run's context block, beside `phase_summaries:`. */
+/**
+ * `orchestrator.completed_phases` and `orchestrator.failed_phases`, written as
+ * empty lists by the write that installs the `workflow:` block.
+ *
+ * The state contract requires both on every run, and the freeze patch the
+ * prose describes never carried them, so every engine-frozen run was invalid
+ * from its first write. The reason the writer carries the rule rather than the
+ * prose is the one `seedSummaries` gives. A value the file already holds, or
+ * one the patch supplies, is left alone: a later write of either is still the
+ * whole-list replacement `applyScalars` makes it.
+ */
+function seedSequences(doc, orchestrator, changed) {
+  for (const key of ['completed_phases', 'failed_phases']) {
+    if (isPlainObject(orchestrator) && Object.hasOwn(orchestrator, key)) continue;
+    if (doc.locate(['orchestrator', key])) continue;
+    doc.set(['orchestrator', key], [`  ${key}: []`]);
+    changed.push(`orchestrator.${key}`);
+  }
+}
+
+/**
+ * Free-form keys under the run's context block, beside `phase_summaries:`.
+ *
+ * Each one replaces, which is right for a free-form key and wrong for the one
+ * map beside them: `phase_summaries` sent here would be written whole over
+ * every entry earlier phases merged in, and `prior-context` would hand the next
+ * delegate only the latest. The top-level `phase_summaries` key is the one
+ * shape, so the nested one is refused before anything is set.
+ */
 function applyContext(doc, contextKey, context, changed) {
   if (!isPlainObject(context)) throw new Refusal('state-patch-invalid', 'the context patch must be an object');
+  if (Object.hasOwn(context, 'phase_summaries')) {
+    throw new Refusal('state-patch-invalid',
+      'phase_summaries is not a context key; send it as the top-level phase_summaries patch key, which merges entry by entry instead of replacing the map');
+  }
   for (const [key, value] of Object.entries(context)) {
     doc.set([contextKey, key], block(key, value, 2));
     changed.push(`${contextKey}.${key}`);
