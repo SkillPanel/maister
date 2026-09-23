@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Plan Executor"
+  short_description: "Execute approved plans with tests and logs."
+  default_prompt: "Use $maister-codex:maister-implementation-plan-executor to execute this approved Maister implementation plan."

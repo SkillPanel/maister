@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Performance"
+  short_description: "Optimize performance with measured evidence."
+  default_prompt: "Use $maister-codex:maister-performance to analyze and improve this performance problem."

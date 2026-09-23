@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Codebase Analysis"
+  short_description: "Map code paths, patterns, tests, and risks."
+  default_prompt: "Use $maister-codex:maister-codebase-analysis to map this codebase before changes."

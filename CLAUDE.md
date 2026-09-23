@@ -86,10 +86,11 @@ After `git merge --squash`, git doesn't record that beta's commits were merged. 
 
 ### Manifest files to update
 
-These three files need version/name changes during the merge workflow:
+These four files need version/name changes during the merge workflow:
 - `.claude-plugin/marketplace.json` — name + version + descriptions
 - `plugins/maister/.claude-plugin/plugin.json` — version + description
 - `plugins/maister-copilot/.claude-plugin/plugin.json` — version + description
+- `plugins/maister-codex/.codex-plugin/plugin.json` — version + description
 
 ## Testing Changes
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Code Review"
+  short_description: "Review correctness, security, and regressions."
+  default_prompt: "Use $maister-codex:maister-reviews-code to review this code or change set."

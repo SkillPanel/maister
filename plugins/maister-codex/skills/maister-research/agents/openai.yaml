@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Research"
+  short_description: "Research and synthesize technical decisions."
+  default_prompt: "Use $maister-codex:maister-research to investigate this question with evidence and citations."

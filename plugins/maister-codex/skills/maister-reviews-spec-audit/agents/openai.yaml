@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Spec Audit"
+  short_description: "Audit specifications before implementation."
+  default_prompt: "Use $maister-codex:maister-reviews-spec-audit to audit this specification for gaps and ambiguity."

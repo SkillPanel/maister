@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Reality Check"
+  short_description: "Verify that delivered behavior solves the need."
+  default_prompt: "Use $maister-codex:maister-reviews-reality-check to assess whether this completed task meets the real user need."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Production Readiness"
+  short_description: "Assess deployment readiness and blockers."
+  default_prompt: "Use $maister-codex:maister-reviews-production-readiness to assess whether this change is ready to deploy."

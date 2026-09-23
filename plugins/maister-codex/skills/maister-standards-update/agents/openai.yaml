@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Standards Update"
+  short_description: "Capture or synchronize project conventions."
+  default_prompt: "Use $maister-codex:maister-standards-update to record this team convention."

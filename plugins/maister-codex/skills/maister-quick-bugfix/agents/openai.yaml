@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Quick Bugfix"
+  short_description: "Fix an isolated bug with TDD evidence."
+  default_prompt: "Use $maister-codex:maister-quick-bugfix to reproduce and fix this bug."
