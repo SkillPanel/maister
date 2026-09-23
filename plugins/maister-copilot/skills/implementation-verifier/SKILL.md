@@ -15,8 +15,17 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 1. Validate prerequisites exist
 2. Delegate ALL verifications to subagents in parallel (core + optional)
 3. Compile all results into verification report
-4. Update roadmap if exists (optional)
-5. Output summary with overall verdict
+4. Keep the operator dashboard current across verification cycles
+5. Update roadmap if exists (optional)
+6. Output summary with overall verdict
+
+## Dashboard Upkeep
+
+This skill owns the dashboard for the duration of the verification phase, including every re-verification cycle after fixes — the orchestrator cannot refresh it while control sits here.
+
+- **Gate**: read `orchestrator.options.html_output` from `orchestrator-state.yml`. When false, or in standalone mode (no state file), there is no dashboard — skip every rewrite.
+- **Rules**: `../orchestrator-framework/references/orchestrator-patterns.md` § 8 (moment 10, schema, the `date -u` clock rule). Do not restate them here — read them.
+- **Never blocks**: a failed rewrite is noted in the Phase 5 summary and the verdict stands regardless.
 
 ## Output Artifacts
 
@@ -67,6 +76,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
    - Subject: "Reality assessment", activeForm: "Running reality assessment" — only if reality_check_enabled
    - Subject: "Compile report", activeForm: "Compiling verification report"
 6. **Set dependencies** using `TaskUpdate` with `addBlockedBy`: "Compile report" blocked by ALL verification tasks above
+7. **Rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate): verification phase `in_progress`, `verification.status` set to the cycle about to run. On a re-verification cycle this is what clears the previous cycle's picture before new results land.
 
 If prerequisites missing, report and stop.
 
@@ -207,7 +217,8 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Same content as the md — restructure and visualize, never add findings
    - Never block on it: if generation fails, keep the md, note the miss, continue
 5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 5 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
-6. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
+6. **Rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate) with this cycle's outcome: `verification.status`, `issues` (original severity retained, `fixed: true` on the ones fixed), `fixes`, and `reverify_count`. Register the report and its companion in the verification phase's `artifacts`. This is the dashboard counterpart of the **Re-verification rule** above: the canonical report and the dashboard are rewritten together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
+7. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
 ---
 
@@ -320,4 +331,5 @@ Before finalizing verification:
 - All subagent results processed
 - Verification report created
 - Overall status determined from aggregated results
+- `dashboard-data.js` rewritten at entry and after this cycle's report — or skipped because `html_output` is false / standalone mode
 - No direct analysis performed (all delegated)

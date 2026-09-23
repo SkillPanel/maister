@@ -454,14 +454,22 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 
 **Every rewrite starts with the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash before writing (one call covers all timestamps in the same turn) — `generated`, `started`, `completed`, and state `updated` all take that value. Never guess the time, never reuse a value from an earlier turn (§ 4 Timestamp Rule).
 
-**When to rewrite `dashboard-data.js`** (full rewrite each time — it is a projection of `orchestrator-state.yml` plus `phase_summaries`, never an incremental patch):
-1. At initialization (all phases pending)
-2. **When a phase starts** (set its status to `in_progress` — BEFORE delegating to the skill/subagent, so the operator sees the running phase, not just the last completed one)
-3. **BEFORE firing every phase exit gate** — the phase's work is finished while the workflow waits (possibly long) for the user's answer. Register the phase's artifacts, summary, decisions, and risks NOW; the status stays `in_progress` until the gate passes (per § 2 state ordering). The operator reviews the finished work on the dashboard while deciding at the gate — a gate fired against a stale dashboard defeats its purpose.
-4. After every phase completes (including skipped phases — mark them `skipped` with a reason)
-5. After every gate decision (record the user's choice)
-6. After verification cycles (issues/fixes update)
-7. At finalization
+**When to rewrite `dashboard-data.js`** (full rewrite each time — it is a projection of `orchestrator-state.yml` plus `phase_summaries`, never an incremental patch). Each moment names its owner:
+
+| # | Moment | Owner |
+|---|--------|-------|
+| 1 | At initialization (all phases pending) | orchestrator |
+| 2 | **When a phase starts** — set its status to `in_progress` BEFORE delegating to the skill/subagent, so the operator sees the running phase, not just the last completed one | orchestrator |
+| 3 | **BEFORE firing every phase exit gate** — the phase's work is finished while the workflow waits (possibly long) for the user's answer. Register the phase's artifacts, summary, decisions, and risks NOW; the status stays `in_progress` until the gate passes (per § 2 state ordering). The operator reviews the finished work on the dashboard while deciding at the gate — a gate fired against a stale dashboard defeats its purpose. | orchestrator |
+| 4 | After every phase completes (including skipped phases — mark them `skipped` with a reason) | orchestrator |
+| 5 | After every gate decision (record the user's choice) | orchestrator |
+| 6 | After verification cycles (issues/fixes update) | orchestrator |
+| 7 | At finalization | orchestrator |
+| 8 | On entry to the implementation phase — regenerate from state, which is what a resumed run depends on | `implementation-plan-executor` |
+| 9 | After every wave resolves, and at implementation finalize — carrying the running phase's `progress` | `implementation-plan-executor` |
+| 10 | After every verification cycle (the initial pass and each re-verification after fixes) | `implementation-verifier` |
+
+**A phase that delegates to a skill does not own that phase's interior — the skill does.** Moments 1-7 keep the dashboard current between phases; moments 8-10 keep it current *inside* the two long phases that run for hours under a skill. Those skills read `orchestrator.options.html_output` from `orchestrator-state.yml` themselves and skip every rewrite when it is false (the same self-resolving pattern as § 9's skill-written companions). Their rewrites never block the work: a failed rewrite gets a warning line in `work-log.md` and the run continues.
 
 **Schema**:
 
@@ -489,7 +497,16 @@ window.MAISTER_DATA = {
     decisions: [],                // [{decision, rationale}]
     risks: [],                    // [string]
     artifacts: [],                // [{path, label, html}] — paths relative to task root
-    gate: null                    // {question, answer} after the exit gate fires
+    gate: null,                   // {question, answer} after the exit gate fires
+    progress: null                // interior progress, reported only by the skill that owns the
+                                  // phase interior (moments 8-10 above). Shape:
+                                  // {groups_done, groups_total, current_wave, skipped: [], reverted: []}
+                                  // skipped/reverted hold group labels ("Group 4 — flaky DB fixture").
+                                  // Additive and optional: null/absent on every phase with no
+                                  // interior progress, and the viewer renders such phases exactly
+                                  // as before. Keep it on the phase when it completes, with
+                                  // groups_done == groups_total — a finished phase that goes blank
+                                  // reads as a phase that never ran.
   }],
   verification: {                 // mirror of verification_context, when it exists
     status: null,
