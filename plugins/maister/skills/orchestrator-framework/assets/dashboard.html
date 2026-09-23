@@ -174,6 +174,7 @@
   .mini.decisions { background: var(--accent-soft); color: var(--accent); }
   .mini.risks { background: var(--warn-soft); color: var(--warn); }
   .mini.time { background: none; color: var(--text-faint); padding-right: 0; }
+  .mini.prog { background: var(--ok-soft); color: var(--ok); font-variant-numeric: tabular-nums; }
   .ph-caret { color: var(--text-faint); flex: none; transition: transform .15s; font-size: 11px; }
   .phase.open .ph-caret { transform: rotate(90deg); }
   .ph-body { display: none; padding: 2px 18px 14px 56px; }
@@ -316,6 +317,23 @@ function fmtDur(ms) {
   if (m < 1) return "<1m";
   if (m < 60) return m + "m";
   return Math.floor(m / 60) + "h " + (m % 60) + "m";
+}
+
+/* interior progress reported by the skill owning a long phase; absent on older data files */
+function progressLine(ph) {
+  const p = ph.progress;
+  if (!p || !(p.groups_total > 0)) return null;
+  const done = p.groups_done > 0 ? p.groups_done : 0;
+  const wave = p.current_wave != null && p.current_wave !== "" ? " · wave " + p.current_wave : "";
+  return done + "/" + p.groups_total + " groups" + wave;
+}
+
+function progressNotes(ph) {
+  const p = ph.progress || {};
+  const out = [];
+  for (const s of (Array.isArray(p.skipped) ? p.skipped : [])) out.push({ kind: "skipped", text: s });
+  for (const r of (Array.isArray(p.reverted) ? p.reverted : [])) out.push({ kind: "reverted", text: r });
+  return out;
 }
 
 function phaseTime(ph) {
@@ -462,7 +480,9 @@ function renderTimeline(phases) {
     const decs = (ph.decisions || []).length;
     const risks = (ph.risks || []).length;
     const arts = (ph.artifacts || []).length;
-    const hasBody = ph.summary || decs || risks || arts || ph.gate;
+    const prog = progressLine(ph);
+    const notes = progressNotes(ph);
+    const hasBody = ph.summary || decs || risks || arts || ph.gate || notes.length;
     const open = openPhases.has(id) ? " open" : (st === "in_progress" ? " open" : "");
     if (open && !openPhases.has(id) && st === "in_progress") openPhases.add(id);
     const time = phaseTime(ph);
@@ -482,6 +502,8 @@ function renderTimeline(phases) {
               '<span class="path">' + esc(a.path) + '</span>' +
             '</div>').join("") +
           '</div></div>' : "") +
+        (notes.length ? '<div class="ph-section"><div class="sec-label">Skipped / reverted groups</div><ul>' +
+          notes.map(n => '<li><b>' + esc(n.kind) + '</b> — ' + esc(n.text) + '</li>').join("") + '</ul></div>' : "") +
         (ph.gate ? '<div class="gate-line">Gate: ' + esc(ph.gate.question || "") + ' → <b>' + esc(ph.gate.answer || "") + '</b></div>' : "") +
       '</div>';
     }
@@ -493,6 +515,7 @@ function renderTimeline(phases) {
           (st === "skipped" && ph.skip_reason ? ' <span class="skipnote">— skipped: ' + esc(ph.skip_reason) + '</span>' : "") +
         '</div>' +
         '<div class="ph-tags">' +
+          (prog ? '<span class="mini prog">' + esc(prog) + '</span>' : "") +
           (decs ? '<span class="mini decisions">' + decs + ' decision' + (decs > 1 ? "s" : "") + '</span>' : "") +
           (risks ? '<span class="mini risks">' + risks + ' risk' + (risks > 1 ? "s" : "") + '</span>' : "") +
           (arts ? '<span class="mini">' + arts + ' artifact' + (arts > 1 ? "s" : "") + '</span>' : "") +
