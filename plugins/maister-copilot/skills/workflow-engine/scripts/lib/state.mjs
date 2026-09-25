@@ -69,6 +69,10 @@ import { scanState } from '../../../../hooks/gate-lib.mjs';
 // final gate reading `pending` forever. The renderer is a separate module
 // because `gate.mjs` imports this one, and importing it back would be a cycle.
 import { refreshIndex } from './gate-index.mjs';
+// The one state reader. This module carried a private `isPlainObject` until the
+// reader was extracted; two copies of the same predicate is the drift that
+// extraction removed.
+import { isPlainObject } from './state-read.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -1532,8 +1536,4 @@ function topLevelKeys(text) {
 function commit(state, text) {
   const tmp = path.join(path.dirname(path.resolve(state)), TMP_NAME);
   canonical.commit({ target: state, text, tmp, codes: COMMIT_CODES });
-}
-
-function isPlainObject(value) {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
