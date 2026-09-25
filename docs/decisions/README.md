@@ -3,7 +3,7 @@
 **Scope**: this repository — the plugin, its generated Copilot variant, the contract register and the gate hooks · **Format**: MADR · **Normative shapes**: `plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md`
 
 ## TL;DR
-Twenty-two accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps, ADR-0020 from reading the five per-workflow context blocks against each other once all five existed, ADR-0021 from the pro edition's packaging shape, and ADR-0022 from giving the engine's fourth reference scheme a runtime. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
+Twenty-four accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps, ADR-0020 from reading the five per-workflow context blocks against each other once all five existed, ADR-0021 from the pro edition's packaging shape, and ADR-0022 from giving the engine's fourth reference scheme a runtime. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
 Alternatives are not restated: each ADR states in its own Considered Options why the ones it rejected were rejected.
 
 ## Key Decisions
@@ -27,6 +27,8 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - The per-workflow context blocks overlap enough to share a thin core, and the factoring is recorded rather than done: typed known keys are what a generic bag would cost (ADR-0020)
 - The pro edition ships as an assembled superset under one plugin name in a new marketplace, with driver mode and the contracts apparatus closing to pro-only and this wave landing only the open repository's inert preparations (ADR-0021)
 - A `workflow:` node runs a child as an ordinary sibling task directory, frozen by the existing path with no new verb, and a definition's declared outputs enter one unconditional hash envelope that moves every built-in's `graph_hash` once (ADR-0022)
+- The prose twin is a maintained reference and the orchestrator SKILL.md a hand-off to it (ADR-0023)
+- On the engine path the dashboard data file is projected by the state writer after every committed write; a projection failure warns rather than refusing, and icon hints sit outside the hashed envelope so presentation cannot move a graph's identity (ADR-0024)
 
 ## Index
 
@@ -57,3 +59,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0021](0021-pro-edition-packaging.md) | The pro edition ships as an assembled superset, and W1 lands its packaging foundation only | Accepted | 2026-09-19 | — |
 | [ADR-0022](0022-workflow-nodes-run-as-sub-runs.md) | A `workflow:` node runs as a sub-run | Accepted | 2026-09-22 | Amends ADR-0008 (the four statements that nothing executes a sub-run) |
 | [ADR-0023](0023-prose-twin-as-reference.md) | The prose twin is a reference; the orchestrator SKILL.md is a hand-off | Accepted | 2026-09-21 | Extends ADR-0013 (the twin stays maintained and reachable; only its address changes) |
+| [ADR-0024](0024-dashboard-projection-at-write-time.md) | The dashboard is projected at write time | Accepted | 2026-09-26 | Amends ADR-0012 (the all-or-nothing writer contract, for the post-commit projection only); scopes the framework's seven dashboard-rewrite moments to the prose path |
