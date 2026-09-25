@@ -26,6 +26,10 @@
  * **The retained rule: an unaccountable indent is a throw.** This is the one
  * piece of behaviour the extraction was not allowed to soften, and it is
  * deliberately not the return-don't-throw shape the rest of the boundary uses.
+ * A block sequence whose items sit at their own key's indent rather than deeper
+ * is *accounted for* and not merely tolerated — it is ordinary YAML, and it used
+ * to end the document at the dash line and drop every sibling key after it, so
+ * it is read as belonging to that key and the map resumes at the key's indent.
  * An indent the reader cannot account for means the document is not the
  * document it thinks it is, and the alternative to stopping is a map that is
  * missing entries no caller can know were there: a half-read `phase_summaries`
@@ -64,6 +68,23 @@ function indentOf(line) {
   return line.length - line.trimStart().length;
 }
 
+/** A dash alone opens a nested item; `- ` carries one inline. */
+const SEQ_DASH = '-';
+const SEQ_ITEM_PREFIX = '- ';
+
+/**
+ * Does this trimmed line open a block sequence item?
+ *
+ * One definition, shared by every site that decides between a map entry and a
+ * sequence item: the node dispatcher, the map reader, the sequence reader, and
+ * the nesting rule below, which needs the same answer as of this change. They
+ * spelled the two comparisons out separately before, and separate copies of this
+ * predicate are how a form one reader accepts becomes a form another drops.
+ */
+function isSeqItem(body) {
+  return body === SEQ_DASH || body.startsWith(SEQ_ITEM_PREFIX);
+}
+
 /** Skip blank lines and whole-line comments. Returns the next content index. */
 function advance(lines, cur) {
   while (cur.i < lines.length) {
@@ -79,7 +100,7 @@ function parseNode(lines, cur, indent) {
   advance(lines, cur);
   if (cur.i >= lines.length) return null;
   const body = lines[cur.i].trim();
-  return body === '-' || body.startsWith('- ') ? parseSeq(lines, cur, indent) : parseMap(lines, cur, indent);
+  return isSeqItem(body) ? parseSeq(lines, cur, indent) : parseMap(lines, cur, indent);
 }
 
 function parseMap(lines, cur, indent) {
@@ -91,7 +112,7 @@ function parseMap(lines, cur, indent) {
     const ind = indentOf(line);
     if (ind < indent) break;
     const body = line.trim();
-    if (body === '-' || body.startsWith('- ')) break;
+    if (isSeqItem(body)) break;
     const pair = splitKey(body);
     if (!pair) throw new Error(`line ${cur.i + 1} is neither a key nor a sequence item`);
     cur.i++;
@@ -109,8 +130,8 @@ function parseSeq(lines, cur, indent) {
     const ind = indentOf(line);
     if (ind < indent) break;
     const body = line.trim();
-    if (!(body === '-' || body.startsWith('- '))) break;
-    const rest = body === '-' ? '' : body.slice(2).trim();
+    if (!isSeqItem(body)) break;
+    const rest = body === SEQ_DASH ? '' : body.slice(SEQ_ITEM_PREFIX.length).trim();
     cur.i++;
     if (rest === '') {
       items.push(parseNested(lines, cur, ind));
@@ -161,11 +182,38 @@ function parseValue(rest, lines, cur, indent) {
   return parseScalar(rest);
 }
 
-/** Whatever is indented under the line just consumed, or null if nothing is. */
+/**
+ * Whatever belongs to the line just consumed, or null if nothing does.
+ *
+ * Two forms belong. The plainly nested one is written deeper than its key. The
+ * other is a block sequence whose items sit at the **key's own** indent, which
+ * is ordinary YAML and is what a hand-written state file looks like:
+ *
+ *     orchestrator:
+ *       completed_phases:
+ *       - phase-1
+ *       options:
+ *         html_output: false
+ *
+ * That form used to end the document. This function saw an indent no deeper
+ * than the key and returned null, and then the enclosing `parseMap` broke on
+ * the dash line — so `completed_phases` read null and `options` was gone
+ * entirely, along with every other sibling after it. A caller reading
+ * `html_output` off that got `undefined` and defaulted it to the opposite of
+ * what the file said, with nothing to tell it the key had been dropped. Items at
+ * the key's indent belong to the key, and the map resumes at the key's indent
+ * once they end, which is where `parseSeq` leaves the cursor.
+ *
+ * Widening what can be accounted for is not the same as softening the rule an
+ * indent below: an indent that still fits neither form is still a throw.
+ */
 function parseNested(lines, cur, indent) {
   const at = advance(lines, cur);
-  if (at >= lines.length || indentOf(lines[at]) <= indent) return null;
-  return parseNode(lines, cur, indentOf(lines[at]));
+  if (at >= lines.length) return null;
+  const ind = indentOf(lines[at]);
+  if (ind === indent && isSeqItem(lines[at].trim())) return parseSeq(lines, cur, indent);
+  if (ind <= indent) return null;
+  return parseNode(lines, cur, ind);
 }
 
 /** A `|` or `>` scalar: every more-indented line, joined by newline or space. */
