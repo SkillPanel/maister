@@ -31,6 +31,36 @@ version: 1
 inputs:
   task_description: {type: string, required: true}
   sequential: {type: bool, required: false, default: false}
+
+# What the dashboard draws beside each node. Definition data rather than graph
+# data: the block sits outside `nodes:` and outside the hashed envelope, so
+# adding or correcting a hint moves no `graph_hash` and drifts no frozen chain.
+# The seven values are the closed set the viewer knows — `analysis`, `spec`,
+# `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
+# member rather than inventing one; anything else fails validation. Each gate
+# carries the icon of the node it closes, so a phase and the approval that
+# closes it read as one pair. The same table lives in the prose beside this
+# file.
+display:
+  icons:
+    intake:                        analysis
+    codebase-analysis:             analysis
+    bottleneck-analysis:           analysis
+    bottleneck-approval:           analysis
+    specification:                 spec
+    specification-approval:        spec
+    spec-audit:                    verify
+    spec-audit-approval:           verify
+    planning:                      plan
+    planning-approval:             plan
+    implementation:                code
+    implementation-approval:       code
+    verification-options:          verify
+    verification-options-approval: verify
+    verification:                  verify
+    verification-approval:         verify
+    finalization:                  done
+
 nodes:
   intake:
     uses: direct:intake

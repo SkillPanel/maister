@@ -173,6 +173,7 @@ const WARN = {
   subrunInput: (node, name) => `unresolved-subrun-input:${node}:${name}`,
   subrunOutput: (node, name) => `unresolved-subrun-output:${node}:${name}`,
   exposedDisabled: (path, node) => `exposed-output-disabled:${path}:${node}`,
+  iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
 };
 
 /**
@@ -365,6 +366,7 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
       ok: true, errors: [], warnings: [], ...provenance,
       tracker_key: trackerKeyOf(graph.inputs), degraded,
       graph_hash: hashNodes(folded, canonicalOutputs(graph)), nodes: folded,
+      display: displayOf(graph),
     };
   }
 
@@ -387,7 +389,27 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     tracker_key: trackerKeyOf(graph.inputs),
     graph_hash: hashNodes(nodes, canonicalOutputs(graph)),
     nodes,
+    display: displayOf(graph),
   };
+}
+
+/**
+ * The `display:` block as a caller reads it: always a mapping, always with an
+ * `icons` mapping inside it, empty when the definition declared none.
+ *
+ * Both `ok: true` paths above call this, the degraded branch included, off the
+ * graph each of them already built — so a caller reads `resolved.display.icons`
+ * without first asking which branch produced the result and without a shape
+ * guard of its own. A projection that had to branch here would drop icons for
+ * exactly the runs whose definition this build cannot fully read, which is the
+ * class of silent gap this module is written to avoid.
+ *
+ * Not canonicalized and not hashed. The value is cosmetic, so there is no
+ * identity for a canonical form to serve.
+ */
+function displayOf(graph) {
+  const block = isMap(graph?.display) ? graph.display : {};
+  return { ...block, icons: isMap(block.icons) ? { ...block.icons } : {} };
 }
 
 // ---------------------------------------------------------------------------
@@ -889,7 +911,23 @@ function buildGraph({ definition, overlays, profile, errors }) {
   // could say about it. An overlay that needs to expose something else is a
   // definition of its own. Carried raw rather than defaulted to a map, so the
   // shape check below can tell an absent block from a malformed one.
-  return { file, inputs: isMap(doc.inputs) ? doc.inputs : {}, outputs: doc.outputs, nodes, origins, removed };
+  //
+  // The workflow-level `display:` block is carried the same way and for the
+  // same stated reason — overlay operations apply to nodes, so there is nothing
+  // an overlay could say about it. Unlike `outputs` it is never folded into the
+  // canonical node list and never reaches the hash: an icon hint is cosmetic,
+  // and a graph whose only change is which glyph a viewer draws is the same
+  // executable graph. Were it inside the envelope, every frozen sub-run child
+  // and every frozen dispatched chain would refuse on drift over a picture.
+  return {
+    file,
+    inputs: isMap(doc.inputs) ? doc.inputs : {},
+    outputs: doc.outputs,
+    display: doc.display,
+    nodes,
+    origins,
+    removed,
+  };
 }
 
 /**
@@ -1185,11 +1223,77 @@ function checkOutputs(outputs, nodes, file, errors, removed, warnings) {
   }
 }
 
+/**
+ * The icon hints a viewer knows how to draw, in the order the prose tables list
+ * them. Closed, and closed as an **error**: the dashboard resolves a hint
+ * through a lookup table it ships, so a value outside this set draws the
+ * fallback glyph and the author never learns their spelling was ignored. The
+ * rule a writer follows is to pick the closest member of this set and never to
+ * invent one, which is only enforceable if the set is checked where the writing
+ * happens — at validate time, against the file in hand — rather than quietly
+ * coerced where the drawing happens.
+ *
+ * Both halves of a hint entry are decidable here: the value against this list,
+ * and the node id against the graph. So nothing about the value warns.
+ */
+const ICON_HINTS = ['analysis', 'spec', 'plan', 'code', 'verify', 'docs', 'done'];
+
+/**
+ * The workflow-level `display:` block: what a viewer draws beside each node.
+ * One sub-map today, `icons`, mapping a node id to one member of `ICON_HINTS`.
+ *
+ * It is definition data and not graph data, which is the whole reason it is a
+ * top-level block rather than a per-node field. A hint on a node would enter the
+ * canonical node list and therefore the digest, and correcting a glyph would
+ * re-hash every definition that carries one — making every frozen sub-run child
+ * refuse `subrun-graph-drifted` and every frozen dispatched chain refuse
+ * `dispatch-graph-drifted` over a cosmetic edit. Outside the envelope the same
+ * edit costs nothing and no chain notices.
+ *
+ * **An entry naming a node the graph does not declare warns rather than
+ * errors**, unlike the equivalent miss under `outputs:`. The grounds differ: an
+ * exposed output is load-bearing — a parent reads it — whereas a hint for an
+ * absent node is unread data, and the commonest way a node goes absent is an
+ * overlay or a profile legitimately disabling it. A base that could not carry a
+ * hint for an optional phase would be unfixably invalid under every overlay
+ * that trims that phase, which is the same trap `checkOutputs` documents and
+ * the same escape from it.
+ */
+function checkDisplay(display, nodes, file, errors, warnings) {
+  if (display === undefined || display === null) return;
+  if (!isMap(display)) {
+    fail(errors, file, 'display', `display is a mapping of icons; ${describe(display)} is not`);
+    return;
+  }
+  const icons = display.icons;
+  if (icons === undefined || icons === null) return;
+  if (!isMap(icons)) {
+    fail(errors, file, 'display.icons',
+      `display.icons is a mapping of node id to icon hint; ${describe(icons)} is not`);
+    return;
+  }
+  for (const [id, hint] of Object.entries(icons)) {
+    const dotted = `display.icons.${id}`;
+    if (typeof hint !== 'string' || hint === '') {
+      fail(errors, file, dotted, `an icon hint is one of ${ICON_HINTS.join(', ')}; ${describe(hint)} is not`, id);
+      continue;
+    }
+    if (!ICON_HINTS.includes(hint)) {
+      fail(errors, file, dotted,
+        `"${hint}" is not an icon hint; the admitted values are ${ICON_HINTS.join(', ')}`
+        + ' — pick the closest one rather than a new name, because a viewer draws only these seven', id);
+      continue;
+    }
+    if (!nodes.has(id)) warnings.push(WARN.iconUnknownNode(dotted, id));
+  }
+}
+
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
-  const { file, inputs, outputs, nodes, origins, removed } = graph;
+  const { file, inputs, outputs, display, nodes, origins, removed } = graph;
 
   checkInputs(inputs, file, errors);
   checkOutputs(outputs, nodes, file, errors, removed, warnings);
+  checkDisplay(display, nodes, file, errors, warnings);
 
   for (const id of nodes.keys()) {
     if (!NODE_ID.test(id)) fail(errors, file, 'nodes',
