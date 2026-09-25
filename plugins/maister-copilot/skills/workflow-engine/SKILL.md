@@ -910,6 +910,11 @@ row:
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |
 
+A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
+projection runs after the state rename, so a projection that could not be published leaves the
+state write untouched, `dashboard-data.js` simply absent from the reported files, and the exit
+code at `0`. Read the next write's output rather than re-sending the patch.
+
 Exit `2` is the one row that is not a refusal at all, which is why it is easy to mishandle:
 there is no code to look up and no patch to correct, so the tempting next step is to record
 the state change with an editor tool instead. **Do not.** A writer that could not start is

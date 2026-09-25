@@ -68,11 +68,21 @@ import { scanState } from '../../../../hooks/gate-lib.mjs';
 // too: regenerating it only when the *next* gate is asked left every run's
 // final gate reading `pending` forever. The renderer is a separate module
 // because `gate.mjs` imports this one, and importing it back would be a cycle.
-import { refreshIndex } from './gate-index.mjs';
+import { refreshIndex, REQUEST_SUFFIX } from './gate-index.mjs';
 // The one state reader. This module carried a private `isPlainObject` until the
 // reader was extracted; two copies of the same predicate is the drift that
 // extraction removed.
-import { isPlainObject } from './state-read.mjs';
+import { isPlainObject, parse as parseState } from './state-read.mjs';
+// The projection. It is imported here and not the other way round: `dashboard.mjs`
+// is pure and knows nothing of this module, which is what keeps the edge acyclic
+// and the renderer golden-file testable.
+import * as dashboard from './dashboard.mjs';
+// `readDefinition` and `locateWorkflow` are imported rather than re-derived for
+// the reason `locateWorkflow` is exported at all: the prose resolved four homes
+// while the code tested one, and a second copy of that resolution rule here would
+// make a workspace eject invisible to the projection and decisive at run time.
+import { readDefinition } from './definition.mjs';
+import { locateWorkflow } from './graph.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -94,6 +104,28 @@ const TMP_NAME = 'orchestrator-state.yml.tmp';
 
 /** Reported among `changed` when a decision closes the run's gate index. */
 const GATE_INDEX = 'gates/index.yml';
+
+/**
+ * The projection's two file names, frozen for the same reason `TMP_NAME` is: the
+ * allow-list that lets the engine keep writing while a gate is pending is a list
+ * of names, not a glob (ADR-0012). Both dashboard files are engine-owned, and
+ * `dashboard-data.js.tmp` exists only inside this module's publish.
+ */
+const DASHBOARD = 'dashboard-data.js';
+const DASHBOARD_TMP = 'dashboard-data.js.tmp';
+
+/**
+ * The two refusals the shared publish path can raise while publishing the
+ * projection — injected exactly as `COMMIT_CODES` is, and **never leaving this
+ * module as refusals**.
+ *
+ * They are caught at the projection call site and turned into warning entries,
+ * because the projection runs *after* the state rename: a refusal there could not
+ * un-publish the state write and reporting one would turn a landed write into a
+ * reported failure. So the writer's documented fifteen-code vocabulary does not
+ * grow and neither code is owed a recovery row.
+ */
+const DASHBOARD_CODES = { unwritable: 'dashboard-unwritable', tempExists: 'dashboard-temp-exists' };
 
 /**
  * The A1 core-optional top-level blocks the writer reaches by name.
@@ -308,34 +340,57 @@ const WORKFLOW_CONTEXT = {
 /**
  * Apply `patch` to the state file at `state`.
  *
- * Returns `{ok, changed, errors}`. On a refusal `changed` is empty and the file
- * on disk is byte-for-byte what it was: every check that can refuse runs before
- * the rename, and the rename is the only thing that publishes a write.
+ * Returns `{ok, changed, errors, warnings}`. On a refusal `changed` is empty and
+ * the file on disk is byte-for-byte what it was: every check that can refuse runs
+ * before the rename, and the rename is the only thing that publishes a write.
+ *
+ * `warnings` carries what went wrong *after* the write landed, which today is the
+ * dashboard projection and nothing else. It is data rather than a stderr line
+ * because no module under `scripts/lib/` performs stdio: every refusal already
+ * travels to `workflow.mjs` as data and is printed there, and this is the same
+ * journey for something that is not a refusal.
+ *
+ * The clock is read once, here, and handed to everything downstream. It used to be
+ * read inside `apply`, which `writeState` never saw — so the projection would have
+ * had to read a second one and a write could be stamped a second apart from the
+ * file describing it.
  */
 export function writeState({ state, patch }) {
   const changed = [];
+  const warnings = [];
   try {
     checkPatch(patch);
     const doc = readDoc(state);
+    const now = canonical.stamp();
     // The top-level keys the file already carries, plus the ones this write
     // means to introduce: anything else in the candidate came from a value,
     // and a value that reaches column 0 is an injection.
     const allowed = new Set(topLevelKeys(doc.text()));
-    for (const key of apply(doc, patch, changed)) allowed.add(key);
+    for (const key of apply(doc, patch, changed, now)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
     // file exactly as it was — `writeState`'s standing promise. The index is a
     // mirror of the request files, which already carry the answer by the time
     // this write is issued, so refreshing it early is never wrong: it is the
-    // state file that is about to catch up, not the index.
+    // state file that is about to catch up, not the index. The projection below
+    // sits on the other side of the commit, for the opposite reason.
     if (clearsPending(patch) && refreshIndex(path.dirname(path.resolve(state)))) {
       changed.push(GATE_INDEX);
     }
     commit(state, text);
-    return { ok: true, changed, errors: [] };
+    // After the commit, and the asymmetry against `refreshIndex` above is
+    // deliberate: the index mirrors request files that are already on disk, so
+    // publishing it early can never be wrong, while the dashboard is a projection
+    // OF THIS WRITE — projected before the rename it would describe a state the
+    // run might never have. A projection failure is a warning and never a refusal:
+    // the state write already landed and un-publishing it is not on offer.
+    project(state, text, now, changed, warnings);
+    return { ok: true, changed, errors: [], warnings };
   } catch (err) {
-    if (err instanceof Refusal) return { ok: false, changed: [], errors: [{ code: err.code, message: err.message }] };
+    if (err instanceof Refusal) {
+      return { ok: false, changed: [], errors: [{ code: err.code, message: err.message }], warnings };
+    }
     throw err;
   }
 }
@@ -369,6 +424,228 @@ function checkPatch(patch) {
 }
 
 // ---------------------------------------------------------------------------
+// the dashboard projection
+// ---------------------------------------------------------------------------
+
+/**
+ * Publish `dashboard-data.js` from the state this write just committed.
+ *
+ * The only impure part of the feature: `dashboard.mjs` derives the bytes and this
+ * function reads the side inputs and writes the file, the same split
+ * `diagram.mjs` and its caller already use.
+ *
+ * It **catches everything**. A `Refusal` out of the publish path and any other
+ * `Error` both become one warning entry and a normal return, so no projection
+ * fault ever reaches `writeState`'s outer `catch` — which would report a landed
+ * state write as a refused one, the single worst outcome available here.
+ *
+ * The committed text is parsed rather than re-read. It is free, and a re-read
+ * opens a window in which another writer could have moved the file: the
+ * projection would then describe a state this invocation did not write.
+ */
+function project(state, text, now, changed, warnings) {
+  try {
+    const runDir = path.dirname(path.resolve(state));
+    const doc = parseState(text);
+    const target = path.join(runDir, DASHBOARD);
+
+    if (!htmlOutput(doc)) {
+      // Stat first, so `changed` reports a removal that happened rather than one
+      // that was attempted: a caller reading `changed` is reading what this write
+      // did to the directory. `dashboard.html` is never touched — it is the viewer,
+      // not the data, and an operator who turns the option off is turning off the
+      // regeneration, not deleting the page they may still open on the old data.
+      let existed = false;
+      try {
+        existed = fs.statSync(target).isFile();
+      } catch {
+        existed = false;
+      }
+      fs.rmSync(target, { force: true });
+      if (existed) changed.push(DASHBOARD);
+      return;
+    }
+
+    const definition = definitionOf(doc, runDir);
+    const view = {
+      state: doc,
+      display: dashboard.iconsOf(definition),
+      gates: gateRequests(runDir),
+      progress: progressOf(doc, definition, runDir),
+    };
+    canonical.commit({
+      target,
+      text: dashboard.render(view, { now }),
+      tmp: path.join(runDir, DASHBOARD_TMP),
+      codes: DASHBOARD_CODES,
+    });
+    changed.push(DASHBOARD);
+  } catch (err) {
+    const code = err instanceof Refusal ? err.code : DASHBOARD_CODES.unwritable;
+    // `Refusal` prefixes its own message with its code, which is what makes the
+    // code the first stderr token on the refusal path. Here the code is a field,
+    // and `workflow.mjs` spells it itself — so the prefix is stripped rather than
+    // printed twice inside one set of parentheses.
+    const raw = err && err.message ? String(err.message) : String(err);
+    const prefix = `${code}: `;
+    warnings.push({ code, message: raw.startsWith(prefix) ? raw.slice(prefix.length) : raw });
+  }
+}
+
+/**
+ * Whether this run wants the dashboard at all, defaulting to **true**.
+ *
+ * `html_output` is an operator option written by `intake` and merged by every
+ * later option write, and a run that never set it gets the dashboard. Absence of
+ * the key, of the `options` map or of the whole `orchestrator:` block all mean
+ * the same thing, and only the literal `false` turns the projection off — an
+ * explicit `null` is an unset option, which is how the other option keys spell
+ * "not decided".
+ *
+ * Both on-disk forms are handled for free because `state-read.parse` reads a
+ * one-line flow map and a block map alike. `Doc.scalar` handles neither and is
+ * deliberately not used here.
+ */
+function htmlOutput(doc) {
+  const orchestrator = isPlainObject(doc.orchestrator) ? doc.orchestrator : null;
+  if (!orchestrator) return true;
+  const options = isPlainObject(orchestrator.options) ? orchestrator.options : null;
+  if (!options || !Object.hasOwn(options, 'html_output')) return true;
+  return options.html_output !== false;
+}
+
+/**
+ * The workflow definition behind this run, or null.
+ *
+ * The order is the whole point. A single `locateWorkflow(workflow.source)` returns
+ * null for the majority of real runs, because `locateWorkflow` passes its argument
+ * through `bareWorkflowName` and therefore rejects a path — and 11 of 17 real
+ * `source` values on disk *are* absolute paths, the form
+ * `workflow.mjs --definition <path>` records. The failure would be silent: no
+ * definition, no `display`, no `icon_hint` on any phase, one fallback glyph
+ * everywhere, and nothing anywhere saying so.
+ *
+ * So: the path first, then the name resolution for `builtin:<name>` and a bare
+ * name, then the run's own `workflow.name` for the state files that record a bare
+ * literal `builtin` as their source.
+ *
+ * Any failure at any step yields null and never fails the write.
+ */
+function definitionOf(doc, runDir) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const root = projectRootOf(runDir);
+  const source = typeof workflow.source === 'string' && workflow.source !== '' ? workflow.source : null;
+
+  let file = null;
+  if (source !== null) {
+    const direct = path.resolve(source);
+    if (isFile(direct)) file = direct;
+    else file = located(source, root);
+  }
+  if (file === null && typeof workflow.name === 'string' && workflow.name !== '') {
+    file = located(workflow.name, root);
+  }
+  if (file === null) return null;
+  return readDefinition(file).doc ?? null;
+}
+
+/** The base definition `locateWorkflow` finds for a name, or null. */
+function located(name, root) {
+  const hit = locateWorkflow(name, root);
+  return hit ? hit.base : null;
+}
+
+/**
+ * The project root, derived from the run directory and from nothing else.
+ *
+ * `<root>/.maister/tasks/<type>/<date-name>` is four levels down, and the run
+ * directory is the only thing this write knows for certain. `locateWorkflow`'s own
+ * default root is `CLAUDE_PROJECT_DIR` or the process cwd, neither of which is a
+ * property of the run being written — a dispatched worker started elsewhere would
+ * resolve another project's workflows.
+ */
+function projectRootOf(runDir) {
+  return path.resolve(runDir, '..', '..', '..', '..');
+}
+
+function isFile(file) {
+  try {
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Every gate request beside this run, parsed, keyed by node id.
+ *
+ * The suffix is the one `gate-index.mjs` exports rather than a second spelling of
+ * it, because that is exactly the part that must never drift. The index's own
+ * `requestMeta` is deliberately not widened: it reads two keys as a convenience
+ * for the index and widening it would make the index's scanner serve an unrelated
+ * shape.
+ *
+ * A request file that cannot be read or parsed is skipped rather than failing the
+ * projection: one unreadable gate card is a card that does not render, while a
+ * throw here would cost the operator the whole dashboard.
+ */
+function gateRequests(runDir) {
+  const gates = Object.create(null);
+  const dir = path.join(runDir, 'gates');
+  let names;
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return gates;
+  }
+  for (const name of names.sort()) {
+    if (!name.endsWith(REQUEST_SUFFIX)) continue;
+    try {
+      gates[name.slice(0, -REQUEST_SUFFIX.length)] = parseState(fs.readFileSync(path.join(dir, name), 'utf8'));
+    } catch {
+      continue;
+    }
+  }
+  return gates;
+}
+
+/**
+ * The executor phase's interior progress, keyed by its node id; `{}` when the run
+ * has no plan and no work log on disk yet.
+ *
+ * The node id comes from the definition wherever it can be read, and only falls
+ * back to the frozen ids when it cannot — a frozen list is the route that silently
+ * excludes every definition whose executor node is named otherwise. The fallback
+ * is narrowed against the run's own frozen node map, so a `progress` entry is
+ * never attached to a node this run does not have.
+ */
+function progressOf(doc, definition, runDir) {
+  const progress = Object.create(null);
+  const plan = path.join(runDir, 'implementation', 'implementation-plan.md');
+  const log = path.join(runDir, 'implementation', 'work-log.md');
+  if (!isFile(plan) || !isFile(log)) return progress;
+
+  let derived;
+  try {
+    derived = dashboard.deriveProgress(fs.readFileSync(plan, 'utf8'), fs.readFileSync(log, 'utf8'));
+  } catch {
+    return progress;
+  }
+  if (derived === null || derived === undefined) return progress;
+
+  const node = dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc);
+  if (node !== null) progress[node] = derived;
+  return progress;
+}
+
+/** The first frozen executor id the run's own node map declares, or null. */
+function fallbackExecutor(doc) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  return dashboard.EXECUTOR_FALLBACK.find(id => Object.hasOwn(nodes, id)) ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // applying the patch
 // ---------------------------------------------------------------------------
 
@@ -379,9 +656,14 @@ function checkPatch(patch) {
  *
  * Returns the top-level keys this write means to introduce, which is what lets
  * the self-check tell an intended block from an injected one.
+ *
+ * `now` is supplied by the caller rather than read here. The write and the
+ * dashboard projection derived from it have to carry one timestamp: two
+ * `canonical.stamp()` calls in one invocation can straddle a second boundary, and
+ * a data file stamped a second before the state it describes is a data file whose
+ * freshness cannot be reasoned about.
  */
-function apply(doc, patch, changed) {
-  const now = canonical.stamp();
+function apply(doc, patch, changed, now) {
   const intended = new Set(['orchestrator']);
 
   // Before the patch's own `orchestrator` keys, so the seeded sequences open

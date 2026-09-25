@@ -319,6 +319,14 @@ async function runWriteState(flags) {
   const write = entryOf(module, 'writeState', VERBS['write-state'].module);
   const result = write({ state: flags.state, patch });
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
+  // A warning is not a refusal and must not read like one: the refusal contract
+  // puts the code as the first stderr token, so these lines open with `warning:`
+  // and name what did not happen. The dashboard is a projection of a write that
+  // already landed, so the exit code does not move.
+  for (const warning of result.warnings || []) {
+    process.stderr.write(`warning: dashboard-data.js was not written (${warning.code}: ${warning.message});`
+      + ' the state write is unaffected\n');
+  }
   if (result.ok) return EXIT.OK;
   // A refusal is exit 1 and no rename happened: the state file on disk is
   // exactly what it was before the invocation.
