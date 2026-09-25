@@ -341,7 +341,7 @@ Before executing step N.2 or higher:
 After each task group:
 
 ```markdown
-## [timestamp] - Group [N] Complete
+## [timestamp] - Group [N] Complete (wave [K])
 
 **Steps**: N.1 through N.M completed
 **Standards Applied**:
@@ -352,6 +352,23 @@ After each task group:
 **Files Modified**: [list]
 **Notes**: [any decisions or discoveries]
 ```
+
+**The heading is a contract, not a caption.** The dashboard reads `current_wave` off
+the wave number in the last such heading, so keep `Group [N] Complete (wave [K])`
+intact and put any annotation after the number — `(wave 2, parallel with Group 3)`
+still reads. A heading that renames those words carries nothing to the dashboard.
+
+When a group is reverted rather than completed, record it in the same shape:
+
+```markdown
+## [timestamp] - Group [N] Reverted (wave [K]): [reason]
+
+**Reverted**: [what was undone]
+**Next**: [retry, manual completion, or stopped for investigation]
+```
+
+The reason after the colon is what the dashboard shows in `reverted`, so write it
+for an operator reading the run at a glance.
 
 ## Phase 3: Finalize
 
@@ -397,6 +414,11 @@ If task-group-implementer reports failure:
    - "Rollback changes" - Revert this group's changes
    - "Stop" - Pause for investigation
    ```
+5. **If "Rollback changes"**: after the revert, write the revert entry from § Work-Log
+   Updates — `## [timestamp] - Group [N] Reverted (wave [K]): [reason]` — and clear the
+   group's checkboxes back to `- [ ]`. The entry is the only record of the revert the
+   dashboard can read; a rollback that leaves nothing behind shows up as a group that
+   simply stopped.
 
 ### Test Failure
 

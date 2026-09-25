@@ -380,20 +380,138 @@ export function executorNodeOf(definitionDoc) {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// the plan and work-log contracts
+// ---------------------------------------------------------------------------
+
+/**
+ * A task group's heading, and the number that labels it.
+ *
+ * Matches `### Task Group 6: Progress derivation` — the shape
+ * `implementation-planner.md` writes and the executor reads back. It does not
+ * match `#### Task Group 6:` or a mention of the phrase mid-sentence, because
+ * the count of these headings **is** `groups_total` and a prose reference to a
+ * group is not a group.
+ */
+const GROUP_HEADING = /^### Task Group (\d+):/gm;
+
+/**
+ * Any `### ` heading, which is where a group's section ends.
+ *
+ * A group runs from its own heading to the next one of these or to EOF, so the
+ * `### Checks` and `### Acceptance Criteria` headings real plans carry inside a
+ * group close that group's section as surely as the next group's heading does.
+ * That is deliberate: those sections hold numbered lists and bullets, not step
+ * checkboxes, and counting them as steps would make every group unfinished.
+ */
+const SECTION_HEADING = /^### /gm;
+
+/**
+ * One step checkbox and its mark.
+ *
+ * Matches `- [ ] 6.1 Implement …`, `  - [x] 6.2 …` and `  - [~] 6.3 SKIPPED: …`
+ * at any indent, which is what the plan's two nesting levels need. The mark is
+ * captured because the done test is over marks: a section is done when it holds
+ * at least one checkbox and none of them is the empty one — the executor's own
+ * completion test, "no `- [ ]` checkboxes remain".
+ */
+const CHECKBOX = /^[ \t]*-\s\[([ x~])\]/gm;
+
+/**
+ * A skipped step, with its group number and its reason.
+ *
+ * Matches `- [~] 6.1 SKIPPED: no test harness on this platform`, the form the
+ * executor writes for a skipped step. The group number comes from the step's own
+ * `N.M` label rather than from the enclosing section, because the label is what
+ * the roll-up keys by and a step is never labelled out of its group.
+ */
+const SKIPPED_STEP = /^[ \t]*-\s\[~\]\s*(\d+)\.\d+\s+SKIPPED:\s*(.+)$/gm;
+
+/**
+ * A work-log entry announcing a group's wave.
+ *
+ * Case-insensitive, and the closing paren is deliberately **not** required right
+ * after the digits: real logs carry `## 2026-09-20 14:02 - Group 3 Complete
+ * (wave 2, parallel with Group 2)` and `## … - Group 1 Complete (Wave 1)`, and
+ * both are the same announcement. The last match in the file wins, because the
+ * log is append-only and the current wave is the most recent one named.
+ * Headings this cannot account for — `## … Group 1 attempt 1 aborted
+ * (infrastructure)` — are simply not matches, never errors.
+ */
+const WAVE_HEADING = /^##\s.*\bGroup \d+ (?:Complete|Reverted) \(wave\s*(\d+)/gim;
+
+/**
+ * A work-log entry announcing a reverted group, with its reason.
+ *
+ * Matches `## 2026-09-20 15:10 - Group 4 Reverted (wave 3): migration left the
+ * schema half-applied` — the entry § 3.8 adds to the executor skill and wires to
+ * its "Rollback changes" recovery option. Before that template existed nothing
+ * on disk carried a revert, which is why the reason is required here: an entry
+ * with no reason is prose about a revert rather than the record of one.
+ */
+const REVERT_HEADING = /^##\s.*\bGroup (\d+) Reverted \(wave\s*\d+\):\s*(.+)$/gim;
+
+/** How a group-level note is labelled for the viewer, which renders it verbatim. */
+const GROUP_LABEL = (group, reason) => `Group ${group} — ${reason}`;
+
 /**
  * The executor phase's interior progress, from the plan and the work log.
  *
- * **Not implemented here.** The plan and work-log contracts, and the rule that a
- * plan-side doubt yields `null` rather than a guess, are the next commit's work;
- * this signature exists now so `state.mjs` can call it and a run carries no
- * `progress` key until the body lands. Returning `null` is the same answer the
- * finished function gives for a run whose plan cannot be counted, so the caller
- * needs no change when the body arrives.
+ * `null` on **plan-side doubt only** — no `### Task Group N:` heading anywhere,
+ * or a group section carrying no checkbox — and `project` then omits the
+ * `progress` key entirely rather than publishing a count nobody can stand
+ * behind. A guess there is worse than an absence: this file's whole purpose is
+ * to stop looking plausible the moment it is not current.
+ *
+ * The work-log side is the opposite bargain. Its headings were free prose until
+ * § 3.8 made two of them a contract, so real logs are full of forms no regex can
+ * account for, and treating an unaccountable heading as fatal would blank the
+ * group counts — which are perfectly sound — over a line that only ever carried
+ * a wave number. An unmatched log therefore yields `current_wave: null` and
+ * `reverted: []` beside valid counts.
+ *
+ * Both arguments are text, never paths: nothing here reads a file, so the whole
+ * derivation is a total function of two strings and golden-file testable.
+ * `progress` survives the phase completing, with `groups_done ==
+ * groups_total` — a finished phase that goes blank reads as one that never ran.
  */
 export function deriveProgress(planText, logText) {
-  void planText;
-  void logText;
-  return null;
+  const plan = typeof planText === 'string' ? planText : '';
+  const log = typeof logText === 'string' ? logText : '';
+
+  const headings = [...plan.matchAll(GROUP_HEADING)];
+  if (headings.length === 0) return null;
+
+  // Every `### ` in the file, so a section's end is a lookup rather than a
+  // second scan per group.
+  const boundaries = [...plan.matchAll(SECTION_HEADING)].map(match => match.index);
+
+  let done = 0;
+  for (const heading of headings) {
+    const start = heading.index;
+    const end = boundaries.find(index => index > start) ?? plan.length;
+    const marks = [...plan.slice(start, end).matchAll(CHECKBOX)].map(match => match[1]);
+    if (marks.length === 0) return null;
+    if (marks.every(mark => mark !== ' ')) done += 1;
+  }
+
+  // Insertion order is document order, and the first skipped step in a group is
+  // the one whose reason labels that group.
+  const reasons = new Map();
+  for (const step of plan.matchAll(SKIPPED_STEP)) {
+    if (!reasons.has(step[1])) reasons.set(step[1], step[2].trim());
+  }
+
+  const waves = [...log.matchAll(WAVE_HEADING)];
+  const last = waves.length === 0 ? null : waves[waves.length - 1][1];
+
+  return {
+    groups_done: done,
+    groups_total: headings.length,
+    current_wave: last === null ? null : Number(last),
+    skipped: [...reasons].map(([group, reason]) => GROUP_LABEL(group, reason)),
+    reverted: [...log.matchAll(REVERT_HEADING)].map(entry => GROUP_LABEL(entry[1], entry[2].trim())),
+  };
 }
 
 // ---------------------------------------------------------------------------
