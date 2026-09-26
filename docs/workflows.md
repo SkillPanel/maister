@@ -370,7 +370,7 @@ Each task folder follows the pattern `YYYY-MM-DD-task-name/` and always starts w
 2026-02-17-user-auth/
 ├── orchestrator-state.yml        # Workflow state (pause/resume, phase tracking)
 ├── dashboard.html                # Operator dashboard (copied plugin asset)
-└── dashboard-data.js             # Dashboard data, rewritten after each phase
+└── dashboard-data.js             # Dashboard data, written by the engine from the run's state
 ```
 
 What sits beside them depends on the workflow:
@@ -404,6 +404,46 @@ One boundary, for now: nothing re-drives a parent when its child ends. A run you
 the terminal is unaffected, because the child runs in the same session and the parent picks the
 child's outcome up in that same turn. A run driven by the cockpit parks once its child finishes and
 waits until it is woken.
+
+### Dashboard data
+
+`dashboard-data.js` is a projection of a run's state rather than a document kept beside it. On the
+engine path the engine writes it: every state change it commits republishes the file from the state
+it has just written, so what the dashboard draws is never older than the state behind it, and
+nothing else writes that file. A run with `html_output: false` in `.maister/config.yml` gets no data
+file — if one is already on disk it is removed rather than left there to be polled. The prose
+phases, which have no single writer to ride along with, still rewrite the file as each phase turns
+over.
+
+**Phase icons — the `display` block.** Which icon a viewer draws beside a phase cannot be worked out
+from a node id, so a workflow definition may say it. `display` is a top-level key — a sibling of
+`nodes:`, not something inside it:
+
+```yaml
+display:
+  icons:
+    intake:                 analysis
+    specification:          spec
+    specification-approval: spec
+    planning:               plan
+    implementation:         code
+    verification:           verify
+    user-docs:              docs
+    finalization:           done
+```
+
+Each entry maps a node id to one of seven values: `analysis`, `spec`, `plan`, `code`, `verify`,
+`docs`, `done`. A gate node conventionally takes the icon of the node it closes, the way
+`specification-approval` follows `specification` above. A value outside the seven is refused when
+the definition is validated, naming the spelling it did not recognise and the set it admits; an
+entry for a node the graph does not declare is a warning only, since an overlay that disables a node
+legitimately leaves its hint behind.
+
+The block is cosmetic. It is no part of the graph's identity — correcting a glyph does not move the
+definition's hash, so it cannot invalidate a frozen run or a chain built from the same graph — and
+it may be omitted entirely: a definition of your own, or an ejected copy of a shipped one, is valid
+saying nothing about icons at all, and the viewer falls back to its own default. The shipped
+definitions each carry one, and are the worked examples.
 
 ### Umbrella workspaces
 
