@@ -104,7 +104,14 @@ function parseNode(lines, cur, indent) {
 }
 
 function parseMap(lines, cur, indent) {
-  const map = {};
+  // Null-prototype, because every key here comes from the file and `__proto__`
+  // is a setter on `Object.prototype`. Assigned onto an ordinary `{}` it writes
+  // *through* the map instead of into it, so `Object.keys` and `Object.hasOwn`
+  // both say the key is absent while a plain read returns what the file said —
+  // a state file could forge any field the projection publishes. `dashboard.mjs`
+  // declares exactly this invariant for the maps it builds; holding it there and
+  // not here left the guards defeated one level up.
+  const map = Object.create(null);
   while (cur.i < lines.length) {
     advance(lines, cur);
     if (cur.i >= lines.length) break;
@@ -134,7 +141,14 @@ function parseSeq(lines, cur, indent) {
     const rest = body === SEQ_DASH ? '' : body.slice(SEQ_ITEM_PREFIX.length).trim();
     cur.i++;
     if (rest === '') {
-      items.push(parseNested(lines, cur, ind));
+      // A bare `-` takes what is written *deeper* than it. What follows at the
+      // dash's own indent is the next item of this same sequence, never this
+      // item's contents: reading it as contents turns `items:\n-\n- alpha\n- beta`
+      // into `[["alpha","beta"]]`, one silent wrong answer in a module whose
+      // contract is that an unaccountable shape throws. The parent-indent form
+      // `parseNested` accounts for belongs to a *key*, which is why only that
+      // caller may ask for it.
+      items.push(parseNested(lines, cur, ind, false));
       continue;
     }
     // `- >-` and `- |`: the item itself is a block scalar, which is how a
@@ -158,7 +172,11 @@ function parseSeq(lines, cur, indent) {
     }
     // A mapped item: its first pair sits on the dash line, the rest of its
     // fields at the dash's own indent plus two.
-    const entry = { [pair.key]: parseValue(pair.rest, lines, cur, ind + 2) };
+    // Null-prototype for the reason `parseMap` is: `Object.assign` copies with
+    // [[Set]], so a `__proto__` key in the item's remaining fields would hit the
+    // prototype setter on an ordinary `{}`.
+    const entry = Object.create(null);
+    entry[pair.key] = parseValue(pair.rest, lines, cur, ind + 2);
     Object.assign(entry, parseMap(lines, cur, ind + 2));
     items.push(entry);
   }
@@ -206,12 +224,21 @@ function parseValue(rest, lines, cur, indent) {
  *
  * Widening what can be accounted for is not the same as softening the rule an
  * indent below: an indent that still fits neither form is still a throw.
+ *
+ * `sameIndentSeq` says whether the second form is on offer, and only the caller
+ * that reads a **key's** value passes it. A bare `-` reaches here too, and for it
+ * a sequence item at the same indent is the next item of the sequence it is
+ * already in, not its own contents — so that caller passes `false` and the shape
+ * throws rather than nesting the rest of the sequence inside one item.
  */
-function parseNested(lines, cur, indent) {
+function parseNested(lines, cur, indent, sameIndentSeq = true) {
   const at = advance(lines, cur);
   if (at >= lines.length) return null;
   const ind = indentOf(lines[at]);
-  if (ind === indent && isSeqItem(lines[at].trim())) return parseSeq(lines, cur, indent);
+  if (ind === indent && isSeqItem(lines[at].trim())) {
+    if (sameIndentSeq) return parseSeq(lines, cur, indent);
+    throw new Error(`line ${at + 1} is a sequence item at the indent of the bare '-' above it`);
+  }
   if (ind <= indent) return null;
   return parseNode(lines, cur, ind);
 }
@@ -233,7 +260,8 @@ function parseScalar(text) {
   const body = stripComment(text.trim());
   if (body === '') return null;
   if (body.startsWith('{') && body.endsWith('}')) {
-    const map = {};
+    // Null-prototype: a flow mapping's keys come from the file too.
+    const map = Object.create(null);
     for (const part of splitFlow(body.slice(1, -1))) {
       const pair = splitFlowPair(part);
       if (pair) map[pair.key] = parseScalar(pair.rest);

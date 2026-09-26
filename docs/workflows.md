@@ -409,11 +409,13 @@ waits until it is woken.
 
 `dashboard-data.js` is a projection of a run's state rather than a document kept beside it. On the
 engine path the engine writes it: every state change it commits republishes the file from the state
-it has just written, so what the dashboard draws is never older than the state behind it, and
-nothing else writes that file. A run with `html_output: false` in `.maister/config.yml` gets no data
-file — if one is already on disk it is removed rather than left there to be polled. The prose
-phases, which have no single writer to ride along with, still rewrite the file as each phase turns
-over.
+it has just written, so what the dashboard draws is never older than the state behind it, and no
+turn between phases has to remember to rewrite it. A run with `html_output: false` in
+`.maister/config.yml` gets no data file — if one is already on disk it is removed rather than left
+there to be polled. The prose phases, which have no single writer to ride along with, still rewrite
+the file as each phase turns over — and so do the implementation and verification phases on either
+path, because their interiors run for hours under a skill rather than under the engine, and those
+two skills refresh the file from inside them.
 
 **Phase icons — the `display` block.** Which icon a viewer draws beside a phase cannot be worked out
 from a node id, so a workflow definition may say it. `display` is a top-level key — a sibling of

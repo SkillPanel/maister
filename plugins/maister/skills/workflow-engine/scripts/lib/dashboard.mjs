@@ -10,8 +10,11 @@
  * recovery path left the dashboard describing a run that had already moved on.
  * The fix is not another rewrite moment. It is to stop treating the file as a
  * document somebody maintains and start treating it as a projection: derived
- * from the state file on **every** state write, by the writer, with no turn in
- * the loop that could forget.
+ * from the state file on **every** state write, by the writer, so no turn
+ * *between* phases can forget it. Three moments remain prose obligations, and
+ * deliberately: the implementation and verification phase interiors run for
+ * hours under a skill rather than under the engine, and those two skills refresh
+ * the file from inside them (§ 8 moments 8-10).
  *
  * **Write-strict** (ADR-0006 § A2). The output is exactly one statement —
  * `window.MAISTER_DATA = <strict JSON>;` — with double-quoted keys, no banner
@@ -271,9 +274,9 @@ function phasesOf(state, display, gates, progress) {
     // summary, which is the obligation the prose path already carried.
     phase.skip_reason = status === 'skipped' ? text : null;
     phase.summary = text;
-    phase.decisions = list(summary.decisions);
+    phase.decisions = list(summary.decisions).map(decisionOf).filter((d) => d !== null);
     phase.risks = list(summary.risks);
-    phase.artifacts = list(summary.artifacts);
+    phase.artifacts = list(summary.artifacts).map(artifactOf).filter((a) => a !== null);
     phase.gate = Object.hasOwn(gates, id) ? gateCard(gates[id]) : null;
     // Additive and optional everywhere: a run with no plan on disk carries no
     // `progress` key at all rather than an empty one.
@@ -347,6 +350,62 @@ function labelOf(options, value) {
     break;
   }
   return String(value);
+}
+
+/**
+ * One entry of a phase's `artifacts` as an A2 artifact reference, or `null` to
+ * drop it.
+ *
+ * The same defect `issueOf` closes for `issues_found`, in the field nobody
+ * re-checked: A2's `$defs/artifact_ref` is an object with a **required** `path`,
+ * and the corpus records an artifact as a bare path string 15 times across 5
+ * files. Copied verbatim, each of those publishes an invalid document and the
+ * shipped viewer reads `a.path` and `a.label` unguarded, so the drawer renders
+ * `<a href="undefined">undefined</a>`; worse, the hero lookup requires `a.path`,
+ * so the hero card reports "not produced yet" for a file that exists on disk.
+ *
+ * - An **object** passes through unchanged. Whatever `label` and `html` it
+ *   carries are what the phase recorded, and both are nullable in A2.
+ * - A **string** becomes `{path, label: null, html: null}`. A bare string in
+ *   this field *is* a path — that is the only thing it has ever meant — and the
+ *   two optional fields take their A2 defaults rather than a guess derived from
+ *   the path.
+ * - **Anything else** — number, boolean, `null`, array — is dropped: it names no
+ *   file, so there is nothing to link and nothing A2 would accept.
+ */
+function artifactOf(entry) {
+  if (isPlainObject(entry)) return entry;
+  if (typeof entry !== 'string') return null;
+  return { path: entry, label: null, html: null };
+}
+
+/**
+ * One entry of a phase's `decisions` as an A2 decision item, or `null` to drop it.
+ *
+ * A2 freezes three shapes — a bare string, the writer form carrying `decision`
+ * with an optional `rationale`, and the question/answer form the development
+ * workflow writes into its clarifications key — and the corpus carries a
+ * **fourth**: every driven run records a gate answer as
+ * `{option, answered_by, at}`, 14 entries across 6 files. It matches no frozen
+ * shape, and the viewer reads `x.decision || x`, so a gate answer renders as the
+ * literal text `[object Object]` in both the phase drawer and the decisions
+ * panel.
+ *
+ * - A **string** and an object already in one of the three frozen shapes pass
+ *   through unchanged.
+ * - The **gate-answer form** gains a `decision` key holding its `option`, and
+ *   keeps every field it arrived with: `$defs/decision_item` closes no object,
+ *   and `answered_by` and `at` are the record of who answered and when.
+ * - **Anything else** is dropped, for the reason `issueOf` drops a bare count —
+ *   an entry with no decision text in it has nothing to render.
+ */
+function decisionOf(entry) {
+  if (typeof entry === 'string') return entry;
+  if (!isPlainObject(entry)) return null;
+  if (Object.hasOwn(entry, 'decision')) return entry;
+  if (Object.hasOwn(entry, 'question') && Object.hasOwn(entry, 'answer')) return entry;
+  if (typeof entry.option === 'string') return { decision: entry.option, ...entry };
+  return null;
 }
 
 /**

@@ -983,8 +983,11 @@ The engine honours the framework's contracts; it does not restate them. Follow
   artifact, with the returned summary lifted into state verbatim rather than re-summarized;
 - the **operator dashboard** (§ 8 — the config gate that turns it off, the copied asset and the
   browser open, which stay prose): on the engine path every successful `write-state` projects
-  `dashboard-data.js` itself, so there are no separate rewrite points to honour and a projection
-  that fails is a warning that never blocks;
+  `dashboard-data.js` itself, so an engine run owes none of moments 1-7 and a projection that
+  fails is a warning that never blocks. Moments 8-10 still bind: they sit *inside* the
+  implementation and verification phases, which the engine does not enter, so
+  `implementation-plan-executor` and `implementation-verifier` carry them as prose obligations on
+  the engine path exactly as on the prose one;
 - the **HTML companions** (§ 9) and the style guide path passed to artifact-writing
   delegates, following `html-report-style.md`.
 

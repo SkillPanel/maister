@@ -517,7 +517,9 @@ window.MAISTER_DATA = {
     summary: null,                // from phase_summaries
     decisions: [],                // [{decision, rationale}]; a bare string is read and reported (§ A2)
     risks: [],                    // [string]; a resolved risk keeps its entry with a `resolved:` prefix (§ A2)
-    artifacts: [],                // [{path, label, html}] — paths relative to task root
+    artifacts: [],                // [{path, label, html}] — paths relative to task root; a bare
+                                  // path string is read and reported as {path, label: null,
+                                  // html: null} (§ A2)
     gate: null,                   // {question, answer} after the exit gate fires
     progress: null                // interior progress, reported only by the skill that owns the
                                   // phase interior (moments 8-10 above). Shape:
