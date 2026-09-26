@@ -577,13 +577,12 @@ order, and the order is the contract:
    request document arrives on stdin as JSON: the node id, the kind, the question, its options
    and the multi-choice flag (`gate.schema.json` declares the shape). `since` is the request's
    own `asked_at`, so the marker and the file agree about when the operator was asked.
+   The gate card the operator sees lands inside this same write, alongside the pending marker,
+   so nothing needs writing after it.
    **There is no second call here, and there must not be**: the run is pending from the moment
    the request file lands, and a shell call against a pending run is denied.
-3. `dashboard-data.js` is rewritten to show the gate card — by the same prose that rewrites
-   it after any other phase, because there is no dashboard verb and the dashboard is a
-   whole-file rewrite rather than a state edit.
-4. `GATE-PENDING: <node>` is printed as the **last** line of the turn.
-5. The turn ends. Nothing polls, nothing waits, no session is left idle.
+3. `GATE-PENDING: <node>` is printed as the **last** line of the turn.
+4. The turn ends. Nothing polls, nothing waits, no session is left idle.
 
 **Step 1 is the whole mechanism.** The enforcement hook allows a small list of paths while a
 gate is pending and denies everything else, and that list is fixed. Holding step 1 means
@@ -599,8 +598,8 @@ The run is suspended the moment step 2's marker publishes. **The commit point is
 `gate_pending` back to `null`, and that is written on resume, not here.**
 
 **A sub-run suspends on the same shape, with its own two writes in place of step 2.** The child
-freeze (W2) and the parent's record of the link (W3) both complete **before** the dashboard is
-rewritten and before `WAITING-SUBRUN` is printed, and that ordering is the contract rather than a
+freeze (W2) and the parent's record of the link (W3) both complete **before** the write that
+projects the dashboard and before `WAITING-SUBRUN` is printed, and that ordering is the contract rather than a
 convenience. A gate pending in a run whose `driver.session.id` is absent binds *every* session, so
 a child that suspends while a parent write is still outstanding would deny that write, and the
 parent could no longer record the link it has already created. This is the umbrella's "the ledger
@@ -676,9 +675,7 @@ re-validation through the writer.
    (`orchestrator.updated`), and that is the expected result. This is what keeps the editor-
    tool exception honest — model-authored state is accepted only after the writer has read
    it back and agreed.
-6. Rewrite `dashboard-data.js` to clear the gate card, by the same means as the suspend
-   path's step 3.
-7. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run is handed to
+6. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run is handed to
    the workflow's prose orchestrator. **Never repair the state file to get past it** — a
    refusal there means the recorded decision did not survive the reader, and editing further
    with the same tools that produced it compounds the drift instead of clearing it.
@@ -777,7 +774,7 @@ child-capable — is `references/sub-runs.md`. What the engine must hold in mind
 
 - **Three writes bracket a start**: W1 the parent node `running`; W2 the whole child freeze, one
   call against the child's state; W3 the parent node `waiting` with `values: {task_path, run_id}`.
-  W2 precedes W3, and both precede the dashboard rewrite and the marker.
+  W2 precedes W3, and both precede the write that projects the dashboard, and the marker.
 - **Under a terminal driver the child runs in session** and the turn continues to W4. Under a
   `cockpit` or `dispatch` driver the turn ends at `WAITING-SUBRUN` and the daemon discovers the
   child in its ordinary sweep — the parent drives nothing and spawns nothing.
@@ -984,9 +981,10 @@ The engine honours the framework's contracts; it does not restate them. Follow
 
 - the **artifact summary contract** (§ 7) in every prompt that asks a delegate to write an
   artifact, with the returned summary lifted into state verbatim rather than re-summarized;
-- the **operator dashboard** (§ 8) — the config gate that turns it off, the copied asset,
-  and the rewrite points: node start, before every gate, node completion including a skip,
-  every gate decision, and finalization;
+- the **operator dashboard** (§ 8 — the config gate that turns it off, the copied asset and the
+  browser open, which stay prose): on the engine path every successful `write-state` projects
+  `dashboard-data.js` itself, so there are no separate rewrite points to honour and a projection
+  that fails is a warning that never blocks;
 - the **HTML companions** (§ 9) and the style guide path passed to artifact-writing
   delegates, following `html-report-style.md`.
 

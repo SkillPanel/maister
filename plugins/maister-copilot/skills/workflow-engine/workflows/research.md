@@ -34,7 +34,8 @@ because they belong to the run rather than to a node:
 
 - `task_path` — the task directory every artifact path is relative to.
 - `html_style_guide_path` — passed **only** when `options.html_output` is true.
-  When it is false, no companion is requested and no dashboard file is written.
+  When it is false, no companion is requested, no dashboard file is written, and an
+  existing data file is removed.
 - `project_doc_paths` — discovered by the first node and read from state after.
 - the accumulated `phase_summaries` — the full converged detail of everything
   decided so far, verbatim, never re-summarized. **Fetch this one; do not write
@@ -228,10 +229,8 @@ no quoting at all; a plain sentence without punctuation the emitter must escape
 is permitted. A value that is not flow-safe is refused at the write, which
 fails this node halfway through the graph.
 
-**Operator visibility**: refresh the dashboard after each of the four steps, so
-brief, plan, findings and report appear as they land rather than all at once.
-The report must be registered **before** the following gate fires — the operator
-reviews it while answering.
+**Operator visibility**: the report must be registered **before** the following
+gate fires — the operator reviews it while answering.
 
 **Recovery budgets**: step 1 one attempt, and ask the operator to clarify an
 unclear question rather than guessing; step 2 two attempts, expanding the search

@@ -89,7 +89,8 @@ because they belong to the run rather than to a node:
 
 - `task_path` — the task directory every artifact path is relative to.
 - `html_style_guide_path` — passed **only** when `options.html_output` is true.
-  When it is false, no companion is requested and no dashboard file is written.
+  When it is false, no companion is requested, no dashboard file is written, and an
+  existing data file is removed.
 - `project_doc_paths` — discovered by the first node and read from state after.
 - the accumulated `phase_summaries` — the full detail of everything decided so
   far, verbatim, never re-summarized. **Fetch this one; do not write it.** The
@@ -123,12 +124,6 @@ engine invented. Five artifacts additionally get an HTML companion when
 verification report, the browser-verification report and the visual-fidelity
 report — and each companion path is registered under `artifacts[].html` on the
 summary entry that owns it.
-
-**Operator visibility.** Refresh the dashboard when a node starts, **before
-every gate fires** — the operator reviews the finished node's artifacts while
-answering — after every node completes or skips, on every gate decision and at
-finalization. It is a terse projection of state; never duplicate artifact
-content into it.
 
 ---
 
@@ -242,9 +237,9 @@ freeze persisted it. A non-terminal run that has no description is
    when the file or the key is absent) and `options.mockup_format` (default
    `html`, read later by `ui-mockups`). When `html_output` is false, skip the
    dashboard entirely — no dashboard asset, no data projection, no browser open.
-   Otherwise copy the dashboard asset to the task root, write the initial data
-   projection with every node pending, and open it in the operator's browser by
-   the plain absolute path. On failure print the path; never block.
+   Otherwise copy the dashboard asset to the task root and open it in the
+   operator's browser by the plain absolute path. On failure print the path;
+   never block.
 4. **Print the startup banner** — the task description, the task directory and
    the dashboard path, then say which node runs first.
 5. **Discover the project documentation** — read the documentation index under
@@ -1070,7 +1065,7 @@ workflow as a sub-run, so there is no embedded case to guard against.
 2. **Present the executive summary**: what was built, which task groups landed,
    the verification verdict with any issues left open, and the risk level the
    gap analysis recorded.
-3. **Set the task status to completed** and refresh the dashboard one last time.
+3. **Set the task status to completed**.
 4. **Guide the next steps**: a commit message covering the change, then review,
    pull request and deployment as the project's own process has them. Suggest a
    fresh session for whatever comes next rather than continuing in this one.

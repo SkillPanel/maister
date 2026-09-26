@@ -70,7 +70,8 @@ because they belong to the run rather than to a node:
 
 - `task_path` — the task directory every artifact path is relative to.
 - `html_style_guide_path` — passed **only** when `options.html_output` is true.
-  When it is false, no companion is requested and no dashboard file is written.
+  When it is false, no companion is requested, no dashboard file is written, and an
+  existing data file is removed.
 - `project_doc_paths` — discovered by `intake` and read from state after.
 - the accumulated `phase_summaries` — the full detail of everything decided so
   far, verbatim, never re-summarized. **Fetch this one; do not write it.** The
@@ -112,16 +113,6 @@ engine invented. Three artifacts additionally get an HTML companion when
 `html_output` is true — the specification, the implementation plan and the
 verification report — and each companion path is registered under
 `artifacts[].html` on the summary entry that owns it.
-
-**Operator visibility.** Rewrite `dashboard-data.js` in the same turn as the
-`write-state` call that records the change. **There is no dashboard verb** — no
-verb this workflow calls touches the projection, so it is only ever as fresh as
-the last turn that rewrote it by hand, and a rewrite point with no rewrite
-beside it is a dashboard the operator reads as stale. Five points, and every one
-of them already makes a state write: when a node starts, **before every gate
-fires** — the operator reviews the finished node's artifacts while answering —
-after every node completes, on every gate decision, and at finalization. It is a
-terse projection of state; never duplicate artifact content into it.
 
 ---
 
@@ -220,9 +211,8 @@ state file and the profiling-data drop point the analysis node reads from.
 4. **Read the project configuration** and set `options.html_output` (default true
    when the file or the key is absent). When `html_output` is false, skip the
    dashboard entirely — no dashboard asset, no data projection, no browser open.
-   Otherwise copy the dashboard asset to the task root, write the initial data
-   projection with every node pending, and **run the platform opener** on the
-   plain absolute path through the shell — `open "<task path>/dashboard.html"`
+   Otherwise copy the dashboard asset to the task root and **run the platform
+   opener** on the plain absolute path through the shell — `open "<task path>/dashboard.html"`
    on macOS, `xdg-open` on Linux, `start ""` on Windows. Never build a `file://`
    URL; the opener resolves a plain path itself. On failure print the path;
    never block.
@@ -238,8 +228,8 @@ state file and the profiling-data drop point the analysis node reads from.
 > **ANTI-PATTERN**: Do NOT print the dashboard path instead of opening it. The
 > path hint in the banner is a second copy for the operator's scrollback, not
 > the opener — a run whose transcript carries no `open`, `xdg-open` or
-> `start ""` shipped a dashboard nobody ever saw, and every later rewrite of it
-> was written for no reader.
+> `start ""` shipped a dashboard nobody ever saw, and every projection written
+> into it afterwards was written for no reader.
 
 **There is no gate after this node.** It auto-continues into the codebase
 analysis.
@@ -688,7 +678,7 @@ workflow as a sub-run, so there is no embedded case to guard against.
 2. **Present the executive summary**: which bottlenecks were found, which
    optimizations landed, the verification verdict with any issues left open, and
    whether the ranking rested on profiling data or on static analysis alone.
-3. **Set the task status to completed** and refresh the dashboard one last time.
+3. **Set the task status to completed**.
 4. **Guide the next steps**, which for this workflow are its own four: run the
    application and confirm the improvement by hand; profile with runtime tools
    to measure the actual impact, since this workflow's ranking was static unless

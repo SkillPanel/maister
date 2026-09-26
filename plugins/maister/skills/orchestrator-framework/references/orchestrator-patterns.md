@@ -188,7 +188,7 @@ After each phase, extract key findings into `[domain]_context.phase_summaries`:
 2. Create 1-2 sentence summary
 3. Extract `decisions`, `risks`, and `artifacts` from the artifact's summary block (§ 7)
 4. Update state: `[domain]_context.phase_summaries.[phase_name]`
-5. Refresh the operator dashboard data file (§ 8)
+5. **Prose path only**: refresh the operator dashboard data file (§ 8). On the engine path every successful `write-state` projects it, so there is nothing to refresh here
 
 This enables context passing to downstream phases and supports resume.
 
@@ -363,7 +363,7 @@ phase_summaries:
 4. **Read project config**: read `.maister/config.yml` if it exists; set `orchestrator.options.html_output` from its `html_output` key (default `true` when the file or key is absent — § 4 "Project Configuration"). This single read seeds the state; all dashboard/companion gates below read `options.html_output` from state.
 5. **Create task directory**: `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` plus the subdirectories this workflow owns — the per-workflow trees and the type-dir names are normative in the pro register § A4; there is no structure shared by all six workflows *(skip on resume)*
 6. **Create state file**: `orchestrator-state.yml` *(skip on resume)*
-7. **Set up operator dashboard** (§ 8) — *skip this entire step when `options.html_output` is false*: copy `../assets/dashboard.html` (sibling `assets/` directory of this references/ file) to the task root as `dashboard.html`, write the initial `dashboard-data.js`, then **auto-open it in the user's browser** with the platform opener — `open "[abs-task-path]/dashboard.html"` (macOS), `xdg-open` (Linux), `start ""` (Windows). Pass the **plain absolute filesystem path — NEVER construct a `file://` URL** (hand-built URLs get mangled, e.g. `file///` missing the colon; the opener resolves plain paths itself). If the command fails, just print the path hint — never block initialization. On resume: re-copy `dashboard.html` only if missing; regenerate `dashboard-data.js` from state; then auto-open it in the browser again (same opener as a new task — if the tab is already open the OS focuses it rather than duplicating).
+7. **Set up operator dashboard** (§ 8) — *skip this entire step when `options.html_output` is false*: copy `../assets/dashboard.html` (sibling `assets/` directory of this references/ file) to the task root as `dashboard.html`, write the initial `dashboard-data.js`, then **auto-open it in the user's browser** with the platform opener — `open "[abs-task-path]/dashboard.html"` (macOS), `xdg-open` (Linux), `start ""` (Windows). Pass the **plain absolute filesystem path — NEVER construct a `file://` URL** (hand-built URLs get mangled, e.g. `file///` missing the colon; the opener resolves plain paths itself). If the command fails, just print the path hint — never block initialization. On resume: re-copy `dashboard.html` only if missing; **on the prose path** regenerate `dashboard-data.js` from state (an engine run does not — its next `write-state` projects it); then auto-open it in the browser again (same opener as a new task — if the tab is already open the OS focuses it rather than duplicating).
 8. **Create task items**: `TaskCreate` for all phases, then `TaskUpdate addBlockedBy` for dependencies. On resume, also restore completed phase statuses. When `TaskCreate`/`TaskUpdate` are unavailable in the session, record `task_ids: {}` and treat `orchestrator-state.yml` as the sole phase tracker; every other step is unchanged.
 9. **Output summary**: Show task info, phases, starting message — include the dashboard path hint `Dashboard: open [task-path]/dashboard.html in a browser to monitor progress` *only when `options.html_output` is true*.
 
@@ -470,11 +470,11 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 
 **Files** (both at task root):
 - `dashboard.html` — static viewer, copied verbatim from `[plugin]/skills/orchestrator-framework/assets/dashboard.html` at initialization (§ 5). NEVER generated or modified by the model — it is a maintained plugin asset. `dashboard.html` is a frozen asset: its MD5 is pinned in the pro register § A4 and asserted by the pro suite.
-- `dashboard-data.js` — data projection written by the orchestrator. The viewer reads it via `<script>` (`window.MAISTER_DATA = {...}`), so it works from `file://` with no server.
+- `dashboard-data.js` — data projection. On the prose path the orchestrator writes it; on the engine path the state writer projects it from state on every successful `write-state`. The viewer reads it via `<script>` (`window.MAISTER_DATA = {...}`), so it works from `file://` with no server.
 
-**Every rewrite starts with the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash before writing (one call covers all timestamps in the same turn) — `generated`, `started`, `completed`, and state `updated` all take that value. Never guess the time, never reuse a value from an earlier turn (§ 4 Timestamp Rule).
+**Every rewrite starts with the clock** (prose path): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash before writing (one call covers all timestamps in the same turn) — `generated`, `started`, `completed`, and state `updated` all take that value. Never guess the time, never reuse a value from an earlier turn (§ 4 Timestamp Rule). On the engine path `generated` comes from the writer's own stamp.
 
-**When to rewrite `dashboard-data.js`** (full rewrite each time — it is a projection of `orchestrator-state.yml` plus `phase_summaries`, never an incremental patch). Each moment names its owner:
+**When to rewrite `dashboard-data.js`** (full rewrite each time — it is a projection of `orchestrator-state.yml` plus `phase_summaries`, never an incremental patch). Each moment names its owner. **Moments 1-7 bind the prose path; on the engine path every successful `write-state` projects the file, so an engine run owes none of them:**
 
 | # | Moment | Owner |
 |---|--------|-------|
@@ -508,6 +508,7 @@ window.MAISTER_DATA = {
   characteristics: {},            // task_characteristics / design_characteristics when present
   phases: [{
     id: "phase-1", name: "", icon_hint: "analysis|spec|plan|code|verify|docs|done",
+                                  // icon_hint is OPTIONAL — absent means the viewer's default applies
     status: "pending|in_progress|completed|skipped|failed",
     started: null,                // full ISO 8601 date+time from system clock (§ 4 Timestamp Rule);
                                   // set when the phase starts — drives elapsed/duration display

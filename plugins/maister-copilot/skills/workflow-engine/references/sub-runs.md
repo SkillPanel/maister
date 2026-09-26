@@ -65,10 +65,8 @@ W1, W2 and W3 are identical but for one field: W2's `orchestrator.driver` is
 
 Then, and only then:
 
-4. `dashboard-data.js` is rewritten to show the waiting node, by the same prose that rewrites it
-   after any other phase;
-5. `WAITING-SUBRUN: <node> run=<child-run-id>` is printed as the **last** line of the turn;
-6. the turn ends. Nothing polls, nothing waits, no session is left idle.
+4. `WAITING-SUBRUN: <node> run=<child-run-id>` is printed as the **last** line of the turn;
+5. the turn ends. Nothing polls, nothing waits, no session is left idle.
 
 **`WAITING-SUBRUN` is typed by the driver, and no verb emits it.** The engine's other two closing
 markers come out of the `run-complete` verb — that is why the rule elsewhere is to echo the verb's
@@ -77,7 +75,7 @@ string `WAITING-SUBRUN`: not a verb, not a module, not a constant. A driver that
 a tool to produce it will not find one, and a suite that greps the scripts for it will not find it
 either. The line above is composed by the driver from two things it has just written: the node id
 and the child's `values.run_id`. Hence the grammar is pinned in prose rather than deferred to a
-tool's output, and hence the ordering rule that W2 and W3 both land before step 5.
+tool's output, and hence the ordering rule that W2 and W3 both land before step 4.
 
 The distinction matters to whoever is about to trust one of these lines. A verb marker is printed
 by the engine's own tooling at the point a run closes, after the closing write has landed and
@@ -338,9 +336,9 @@ what a `workflow:` node may declare, whatever ends up running it.
 | # | Interruption | Required behaviour |
 |---|---|---|
 | A1 | crash after W2, before W3 | the re-driven parent derives the same directory, finds it, reads its `orchestrator.parent`, confirms it names this run and this node, **adopts** it and writes W3. Exactly one child exists |
-| A2 | a re-drive arrives while the child still runs | no write. The dashboard is rewritten, `WAITING-SUBRUN` re-printed unchanged, the turn ends. Repeatable without limit and without a second child |
-| A3 | a duplicate wake-up after the node already completed | `SUB-RUN-ALREADY-DONE` is printed, nothing is written, the node keeps its recorded status and values |
-| A4 | the child directory is missing at the recorded `task_path` | `RUN-FAILED: subrun-state-missing`, and **no write**: the node stays `waiting` with its recorded values, so every later re-drive reaches the same refusal until an operator restores the directory or edits the run. The child is never re-created and the run never silently re-started |
+| A2 | a re-drive arrives while the child still runs | no write — nothing changed, so the last projection is still current. `WAITING-SUBRUN` is re-printed unchanged and the turn ends. Repeatable without limit and without a second child |
+| A3 | a duplicate wake-up after the node already completed | `SUB-RUN-ALREADY-DONE` is printed, nothing is written — the node keeps its recorded status and values, and the last projection is still current |
+| A4 | the child directory is missing at the recorded `task_path` | `RUN-FAILED: subrun-state-missing`, and **no write**: the node stays `waiting` with its recorded values and the last projection is still current, so every later re-drive reaches the same refusal until an operator restores the directory or edits the run. The child is never re-created and the run never silently re-started |
 | A5 | the parent run is stopped while a child is waiting | the child keeps running and finishes as an ordinary run; its parent link dangles, which is tolerated. Nothing tells the child, and nothing should |
 | A6 | the child fails | the parent node is `failed`; the run ends `RUN-FAILED` unless a downstream node declares `on: failure` or `on: always` |
 | A7 | the child is stopped | the parent node is `stopped`, `task.status` becomes `stopped`, every unexecuted node is recorded `stopped` in one patch, and **no `RUN-FAILED` is printed**. The parent node's own summary is written and mirrors `stopped` to `skipped`; the unexecuted nodes carry none |
