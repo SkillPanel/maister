@@ -114,6 +114,33 @@ const TASK_TYPES = ['development', 'performance', 'migration', 'research', 'prod
 /** The context blocks a run's `phase_summaries` can live under (A1 layer 2). */
 const CONTEXT_SUFFIX = '_context';
 
+/**
+ * A2's `$defs/severity`, verbatim and in its order.
+ *
+ * All seven are accepted when parsing a severity prefix off a string-form issue,
+ * and the reason is asymmetric: a **writer** — this projection included — only
+ * ever emits `critical`, `warning` or `info`, exactly as the schema's own
+ * description says. The four legacy values are tolerated here only because the
+ * input is a *state file*, which real runs wrote by hand over a long enough
+ * stretch to carry them, and a reader that refused them would drop an issue that
+ * verification genuinely recorded.
+ */
+const SEVERITIES = Object.freeze([
+  'critical',
+  'warning',
+  'info',
+  'high',
+  'medium',
+  'low',
+  'resolved',
+]);
+
+/** The separator a hand-written issue line puts between severity and text. */
+const SEVERITY_SEPARATOR = ': ';
+
+/** The severity a string-form issue gets when its prefix names none. */
+const SEVERITY_DEFAULT = 'info';
+
 /** The two characteristic maps, in the order the projection prefers them. */
 const CHARACTERISTIC_KEYS = [
   ['task_context', 'task_characteristics'],
@@ -323,18 +350,56 @@ function labelOf(options, value) {
 }
 
 /**
+ * One entry of `issues_found` as an A2 issue object, or `null` to drop it.
+ *
+ * `issues_found` carries three shapes across the real corpus, and A2's
+ * `$defs/issue` is `type: object`, so copying the list verbatim publishes an
+ * invalid document — silently, twice over: the schema refuses it, and the shipped
+ * viewer reads `i.severity` and `i.description` unguarded, so a non-object
+ * renders as a blank row with an `info` badge and the issue list quietly empties.
+ *
+ * - An **object** passes through unchanged, its original `severity` included:
+ *   the panel's job is to show what verification recorded, not a re-typed
+ *   summary of it.
+ * - A **string** becomes `{severity, description}`. The prefix before the first
+ *   `": "` is a severity only when it names one of `SEVERITIES`, matched without
+ *   case; otherwise the severity is `info` and the description is the **entire**
+ *   original string. Not stripping an unrecognised prefix is the whole point:
+ *   `"e2e minor: the focus comment …"` has `e2e minor` as content, and a reader
+ *   that guessed it was a severity would delete text an operator needs.
+ * - **Anything else** — number, boolean, `null`, array — is dropped. A bare
+ *   count such as `issues_found: 9` carries no issue content, so there is
+ *   nothing to render and nothing A2 would accept.
+ *
+ * `$defs/issue` declares no `required`, so `{severity, description}` alone is a
+ * complete issue.
+ */
+function issueOf(entry) {
+  if (isPlainObject(entry)) return entry;
+  if (typeof entry !== 'string') return null;
+  const cut = entry.indexOf(SEVERITY_SEPARATOR);
+  if (cut > 0) {
+    const prefix = entry.slice(0, cut).toLowerCase();
+    if (SEVERITIES.includes(prefix)) {
+      return { severity: prefix, description: entry.slice(cut + SEVERITY_SEPARATOR.length) };
+    }
+  }
+  return { severity: SEVERITY_DEFAULT, description: entry };
+}
+
+/**
  * The verification panel, straight off `verification_context`.
  *
- * Entries pass through verbatim, an issue's original `severity` included, because
- * the panel's job is to show what verification recorded and not a re-typed
- * summary of it.
+ * `fixes` passes through verbatim — A2 types a fix as `["string", "object"]`, and
+ * the viewer guards it for both — while `issues` is normalized by `issueOf`,
+ * because A2 types an issue as an object and the viewer does not guard it.
  */
 function verificationOf(state) {
   const context = isPlainObject(state.verification_context) ? state.verification_context : {};
   const count = context.reverify_count;
   return {
     status: scalar(context.last_status),
-    issues: list(context.issues_found),
+    issues: list(context.issues_found).map(issueOf).filter((issue) => issue !== null),
     fixes: list(context.fixes_applied),
     reverify_count: typeof count === 'number' && Number.isFinite(count) ? count : 0,
   };
