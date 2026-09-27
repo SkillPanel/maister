@@ -89,6 +89,9 @@ export const SEED_LINE_CAP = 60;
 // telling a worker to bind a value no definition declares.
 const CONTROL_ARGS = new Set(['autonomy', 'statement', 'task', 'closeout_contract']);
 
+/** The input role a triage's research report carries into a dispatch. */
+const RESEARCH_ROLE = 'research';
+
 /** C4's message types, named here because the outbox section teaches them. */
 const MESSAGE_TYPES = ['status', 'followup', 'artifact', 'closeout', 'blocked'];
 
@@ -334,9 +337,15 @@ function taskLines({ document, workflow, pluginRoot }) {
     // does not exist; saying so gives it the move that does — a blocked
     // message, which is what the outbox is for.
     lines.push('Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. If one does not resolve, send a blocked message rather than guessing:');
+    // A research input is the report the work was planned from, so it is named
+    // as required reading on its own line rather than by a sentence of its own:
+    // the section's line count, and so the cap, does not move.
     for (const input of inputs) {
       const role = mapOf(input).role;
-      lines.push(`  ${oneLine(mapOf(input).path)}${role ? ` (${oneLine(role)})` : ''}`);
+      const note = role === RESEARCH_ROLE
+        ? ` (${RESEARCH_ROLE} - required reading: read it in full before any work starts)`
+        : role ? ` (${oneLine(role)})` : '';
+      lines.push(`  ${oneLine(mapOf(input).path)}${note}`);
     }
   }
   return lines;
