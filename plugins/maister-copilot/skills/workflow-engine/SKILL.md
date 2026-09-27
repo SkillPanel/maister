@@ -333,9 +333,20 @@ option terminate a run: under the default, nothing downstream of a stopped node 
 becomes ready.
 
 Execute ready nodes one at a time, in the order the frozen graph lists them. When nothing
-is pending, set the task status and end the run through the `run-complete` verb, which
-prints the marker — `RUN-COMPLETE`, or `RUN-FAILED: closeout-unpublished` when a dispatched
-run owes a close-out it never published. Echo that line as the last line of the turn; do not
+is pending — or a node failed with no downstream `on:` to take it, or a stop option ended the
+run — record `task.status` in the closing patch and end the run through the `run-complete`
+verb. It reads that status and prints the marker from it:
+
+- `completed` → `RUN-COMPLETE`;
+- `failed` → `RUN-FAILED: node <id> failed`, naming the first failed node, or
+  `RUN-FAILED: sub-run <child-run-id> failed` when that node is a `workflow:` node;
+- `stopped` → `RUN-COMPLETE` too, because the vocabulary has no stopped marker and a stop is
+  not a failure — preceded by one plain line, `run stopped: <node> - <option>`, read from
+  the state so a person reading the terminal does not take the stop for a success. The marker
+  stays the last line, and `task.status` on disk is what says the run stopped.
+
+A dispatched run that owes a close-out it never published gets `RUN-FAILED:
+closeout-unpublished` whatever its status. Echo the verb's lines, the marker last; do not
 type a marker the verb did not give you.
 
 ### Ending a dispatched run
@@ -931,11 +942,21 @@ before the workflow has a name. Fix the patch and re-run; **re-sending the same
 patch, or reaching for an editor tool because the script said no, is the failure mode this
 whole design removes.** A refusal is a correct answer, not an obstacle.
 
-### When the close-out is refused
+### When `run-complete` refuses
 
-`run-complete` publishes nothing, so its one refusal is not a write refusal and does not
-belong in the table above. `closeout-unpublished` — exit `1`, the message on stderr, the
-marker `RUN-FAILED: closeout-unpublished` on stdout — says the run is dispatch-driven and
+`run-complete` publishes nothing, so its refusals are not write refusals and do not belong in
+the table above. Each is exit `1`, the message on stderr, and `RUN-FAILED: <code>` on stdout.
+A failed run's `RUN-FAILED: node <id> failed` is also exit `1`, but it is the run's ending
+rather than a refusal: echo it, there is nothing to recover.
+
+- `state-missing` — no state file at `--state`. There is no run there to close; check the
+  path names the run's own `orchestrator-state.yml`.
+- `run-not-ended` — `task.status` is absent or not one of `completed`, `failed`, `stopped`.
+  The closing patch was never written: write it, with the status, then run the verb again.
+- `state-unreadable` — the file cannot be read or parsed. Nothing was changed; this is the
+  write table's `state-unreadable`, with the same hand-over.
+
+`closeout-unpublished` says the run is dispatch-driven and
 its outbox holds no close-out for this dispatch, or that the outbox root and the dispatch id
 were not given, so nothing could be checked. **The recovery is the step that was missed, not
 a retry**: publish the close-out through the umbrella runtime's outbox verb with the grade
