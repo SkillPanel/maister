@@ -1,0 +1,8 @@
+# Rejected by validate: `review` needs a node the definition never declares.
+name: development
+version: 1
+
+nodes:
+  review:
+    uses: skill:implementation-plan-executor
+    needs: [nonexistent]

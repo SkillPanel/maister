@@ -1,0 +1,22 @@
+# Written by a prose orchestrator before the engine adopted the run.
+orchestrator:
+  started_phase: analysis
+  completed_phases: [analysis]
+  failed_phases: []
+  options:
+    html_output: true
+    mockup_format: html
+
+task:
+  title: Adopted run
+  status: in_progress
+
+workflow:
+  name: development
+  nodes:
+    analysis: {kind: direct, status: completed}
+    approval: {kind: gate, status: pending}
+
+project_context:
+  tech_stack: node
+  notes: "kept through every write"

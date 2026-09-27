@@ -1,0 +1,40 @@
+# A small definition exercising each node kind the engine records: a direct
+# node, a gate, the plan executor (the node the dashboard hangs progress on)
+# and a workflow: node that starts a child run.
+name: development
+version: 1
+inputs:
+  ticket: {type: string, required: false, tracker_key: true}
+
+display:
+  icons:
+    analysis: analysis
+    approval: spec
+    implementation: code
+    research: analysis
+
+nodes:
+  analysis:
+    uses: direct:analysis
+    needs: []
+    outputs:
+      artifacts:
+        report: analysis/report.md
+
+  approval:
+    type: gate
+    needs: [analysis]
+    ask: "Analysis complete. Continue to implementation?"
+    options:
+      continue: continue
+      stop-here: stop
+
+  implementation:
+    uses: skill:implementation-plan-executor
+    needs: [approval]
+
+  research:
+    uses: workflow:research
+    needs: [implementation]
+    with:
+      question: "What did the implementation leave open?"
