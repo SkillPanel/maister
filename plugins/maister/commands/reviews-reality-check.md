@@ -25,29 +25,11 @@ You are performing no-nonsense reality assessment to determine if completed work
 
 ```
 Task Tool:
-- subagent_type: reality-assessor
+- subagent_type: "maister:reality-assessor"
 - description: Reality assessment
 - prompt: |
-    You are the reality-assessor agent. Assess the reality of completion for: [task-path]
-
-    Your task:
-    1. Load all available verification reports (implementation-verifier, pragmatic-review.md, code-review-report.md, spec-audit.md)
-    2. Assess claimed completion (check implementation-plan.md markers, test results, verification status)
-    3. Validate functional completeness:
-       - Run tests yourself (don't trust reports)
-       - Test end-to-end workflows (not just unit tests)
-       - Try error scenarios (invalid inputs, edge cases, realistic data)
-       - Test integration with dependent systems
-       - Test under realistic conditions
-    4. Identify reality gaps (functionality, quality, production readiness)
-    5. Check integration points (data flow, API contracts, auth, external systems)
-    6. Generate reality assessment report with clear deployment decision
-
-    Save report to: verification/reality-check.md
-
-    Focus on: Does this ACTUALLY work for intended purpose? Functional reality over technical perfection.
-
-    Provide clear deployment decision: ✅ Ready | ⚠️ Issues Found | ❌ Not Ready
+    Assess completion reality for task: [task-path]
+    Write the report to: [task-path]/verification/reality-check.md
 ```
 
 **Wait for the agent to complete before proceeding.**
@@ -72,11 +54,6 @@ User: /maister:reviews-reality-check .maister/tasks/development/2025-11-17-payme
 **Example 2**: Verify claimed completion
 ```
 User: /maister:reviews-reality-check .maister/tasks/development/2025-11-17-login-timeout/
-```
-
-**Example 3**: Production readiness check
-```
-User: /maister:reviews-reality-check .maister/tasks/development/2025-11-17-user-dashboard/ --production
 ```
 
 ## What to Expect

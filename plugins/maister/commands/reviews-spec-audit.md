@@ -20,8 +20,7 @@ You are performing senior auditor review of specifications to verify completenes
    - If not provided: Use AskUserQuestion to ask for spec.md path
 
 2. **Audit type**:
-   - **Pre-implementation**: Audit spec before building (default)
-   - **Post-implementation**: Audit spec vs actual implementation (if implementation exists)
+   Audit type: post-implementation when --post-implementation is passed or an implementation exists next to the spec; otherwise pre-implementation.
 
 ## Your Instructions
 
@@ -29,30 +28,13 @@ You are performing senior auditor review of specifications to verify completenes
 
 ```
 Task Tool:
-- subagent_type: spec-auditor
+- subagent_type: "maister:spec-auditor"
 - description: Specification audit
 - prompt: |
-    You are the spec-auditor agent. Audit the specification at: [spec-path]
-
-    Your task:
-    1. Read and comprehend the specification thoroughly
-    2. [If pre-implementation]: Identify ambiguities, missing details, unclear sections
-    3. [If post-implementation]: Examine actual implementation independently
-    4. [If post-implementation]: Compare specification vs implementation
-    5. Categorize gaps (Missing/Incomplete/Incorrect/Extra/Ambiguous)
-    6. Assign severity to each finding (Critical/High/Medium/Low)
-    7. Request clarification for ambiguous specifications
-    8. Generate comprehensive audit report
-
-    [If post-implementation]:
-    - Use az CLI to verify Azure resources if applicable
-    - Use gh CLI to verify GitHub integration if applicable
-    - Examine codebase, database schemas, API endpoints, configurations
-    - Trust nothing, verify everything independently
-
-    Save report to: verification/spec-audit.md
-
-    Focus on: Evidence-based assessment. Every finding must have file:line references or clear evidence.
+    Audit the specification at: [spec-path]
+    Mode: [pre-implementation|post-implementation]
+    Write the report to: [task dir]/verification/spec-audit.md
+    List open ambiguities as questions in the report.
 ```
 
 **Wait for the agent to complete before proceeding.**
@@ -64,7 +46,7 @@ The spec-auditor agent will:
 4. (If post-impl) Compare specification vs implementation using external tools
 5. Categorize gaps with evidence
 6. Assign severity with justification
-7. Ask clarifying questions for ambiguities
+7. List clarifying questions for ambiguities in the report
 8. Provide recommendations for compliance
 
 ## Examples
@@ -77,11 +59,6 @@ User: /maister:reviews-spec-audit .maister/tasks/development/2025-11-17-user-aut
 **Example 2**: Post-implementation audit
 ```
 User: /maister:reviews-spec-audit .maister/tasks/development/2025-11-17-user-auth/ --post-implementation
-```
-
-**Example 3**: Audit with clarification focus
-```
-User: /maister:reviews-spec-audit spec.md --focus=ambiguity
 ```
 
 ## What to Expect

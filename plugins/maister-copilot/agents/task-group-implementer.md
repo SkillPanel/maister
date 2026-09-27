@@ -293,7 +293,7 @@ All steps execute, tests pass → Report SUCCESS with full details
 
 ### Scenario 2: Test Failure After Implementation
 
-Implementation complete but tests fail → Attempt fix (max 2 tries) → If still failing, report PARTIAL with analysis
+Implementation complete but tests fail → Attempt fix (max 3 attempts) → If still failing, report PARTIAL with analysis
 
 ### Scenario 3: Missing Standard Discovered
 

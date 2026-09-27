@@ -57,7 +57,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 
 ## 2. Phase Gate Behavior
 
-`→ Pause` in older prose is a synonym for `→ MANDATORY GATE`. **The gate rule is qualified by the run's driver, not by the orchestrator**: the ask_user rule below applies when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.
+**The gate rule is qualified by the run's driver, not by the orchestrator**: the ask_user rule below applies when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.
 
 **`→ MANDATORY GATE` means STOP and USE ask_user.** This is NOT optional. You MUST invoke the `ask_user` tool and WAIT for user response. Proceeding without it is a protocol violation.
 

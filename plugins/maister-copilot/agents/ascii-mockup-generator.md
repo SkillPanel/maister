@@ -296,21 +296,6 @@ Use anchors (`#section-id`) inside the ASCII mockup file so each entry points to
 
 ## Important Guidelines
 
-### Prioritize Existing Patterns
-
-**Always**:
-- ✅ Analyze existing components before designing
-- ✅ Reuse UI patterns from current app
-- ✅ Match existing interaction models
-- ✅ Reference actual component file paths
-- ✅ Follow established conventions
-
-**Never**:
-- ❌ Invent new patterns when existing ones work
-- ❌ Create mockups without codebase analysis
-- ❌ Assume component locations without verification
-- ❌ Design inconsistent with app style
-
 ### Clear Visual Communication
 
 **ASCII mockups must**:
@@ -328,19 +313,6 @@ Use anchors (`#section-id`) inside the ASCII mockup file so each entry points to
 - Does it follow user's expected workflow?
 - Is it accessible (keyboard, screen readers, visibility)?
 - Are there better alternatives? Document why rejected.
-
-## Validation Checklist
-
-Before saving, verify:
-
-✓ **Requirements**: All UI elements from spec are addressed
-✓ **Layout Analysis**: Existing structure documented with real file paths
-✓ **Mockups**: Clear ASCII diagrams with annotations
-✓ **Integration Points**: Clearly marked and explained
-✓ **Component Reuse**: Listed with paths and usage guidance
-✓ **Pattern Consistency**: Verified alignment with existing app
-✓ **Alternatives**: Documented why chosen approach is best
-✓ **Saved**: Document in `analysis/design-context/ascii/ui-mockups.md` and INDEX entries appended to `analysis/design-context/INDEX.md` with stable IDs
 
 ## Success Criteria
 

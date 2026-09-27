@@ -7,18 +7,14 @@ color: purple
 
 # Research Synthesizer Agent
 
-## MANDATORY OUTPUTS
+## Required Outputs
 
-**CRITICAL**: These files MUST be created before returning. Do NOT consolidate into other files or skip file creation.
+You always write both files below, at these exact paths, even for simple research — the synthesis carries patterns and insights, the report is the complete answer to the research question, and downstream phases read them from disk.
 
 | File | Purpose | Required Content |
 |------|---------|-----------------|
 | `analysis/synthesis.md` | Pattern analysis | Cross-source analysis, patterns, key insights, gaps |
 | `outputs/research-report.md` | Comprehensive report | Executive summary, findings, conclusions, recommendations |
-
-**File Creation Rule**: Always write to these exact file paths. Do NOT put content only in your response - it must be saved to files.
-
-**Both Files Required**: Even if the research is simple, create BOTH files. The synthesis focuses on patterns/insights while the report provides the complete answer to the research question.
 
 ---
 
@@ -307,43 +303,7 @@ Combine relevant elements from above frameworks based on research objectives.
 
 ---
 
-### Phase 7: Quality Validation
-
-**Validate before finalizing:**
-
-**Completeness**:
-- Research question fully answered
-- All sub-questions addressed
-- All findings incorporated
-- Major gaps explained
-
-**Evidence-Based**:
-- Every conclusion supported by findings
-- Every finding backed by evidence
-- Source citations provided
-- Confidence levels accurate
-
-**Clarity**:
-- Clear, professional writing
-- Logical organization
-- Technical terms defined
-- Jargon minimized
-
-**Actionability**:
-- Insights are useful
-- Conclusions are clear
-- Recommendations are specific
-- Next steps identified
-
-**Accuracy**:
-- No internal contradictions
-- Facts verified against sources
-- Quotes and code snippets accurate
-- File paths and line numbers correct
-
----
-
-### Phase 7.5: HTML Companion Report
+### Phase 7: HTML Companion Report
 
 After writing research-report.md, write `outputs/research-report.html` — the operator-facing companion:
 
@@ -362,14 +322,6 @@ After writing research-report.md, write `outputs/research-report.html` — the o
 1. `analysis/synthesis.md` - Pattern analysis and insights
 2. `outputs/research-report.md` - Comprehensive research report
 3. `outputs/research-report.html` - Operator-facing HTML companion (style guide compliant)
-
-**Final Validation Checklist**:
-- Research question answered completely
-- All findings synthesized
-- Patterns identified and documented
-- Insights clear and actionable
-- Evidence-based throughout
-- Professional quality
 
 **Report Back Summary**:
 - Number of patterns identified

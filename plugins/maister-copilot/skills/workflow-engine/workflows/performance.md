@@ -244,9 +244,9 @@ file it cannot find is an absence rather than a failure.
 Delegated to the codebase analyzer through the Skill tool, then a short
 clarification round inline.
 
-> **ANTI-PATTERN**: Do NOT explore the codebase inline instead of delegating.
-> The codebase-analyzer skill dispatches parallel explorers and produces the
-> structured analysis the rest of the run reads.
+The codebase-analyzer skill runs this exploration every time rather than an
+inline read: it dispatches parallel explorers and produces the structured
+analysis every later node reads.
 
 Pass the enhancement task type and a performance-focused description. The
 analyzer adaptively selects its explorers, and for a performance run the
@@ -291,10 +291,9 @@ the primary language, and with `node: codebase-analysis` on the entry.
 Delegated to the bottleneck analyzer through the Task tool. This is the node the
 whole workflow turns on: everything after it optimizes what this node found.
 
-> **ANTI-PATTERN**: Do NOT analyze the bottlenecks yourself, and do NOT grep for
-> N+1 patterns inline. The bottleneck-analyzer agent reads source, schema and
-> query patterns and produces the ranked list the specification is written
-> against.
+The bottleneck-analyzer agent does the analysis rather than an inline read or
+grep, because it reads source, schema and query patterns together and produces
+the ranked list the specification is written against.
 
 **Check the profiling directory before delegating.** `intake` declared
 `analysis/user-profiling-data/` and created it empty. When it holds files, pass
@@ -314,10 +313,6 @@ list built without profiling data otherwise reads the same as one built with it.
 `performance_context.user_data_available` from whether the directory held
 anything, and `performance_context.bottleneck_priorities` with its `p0`, `p1`,
 `p2` and `p3` counts.
-
-> **SELF-CHECK**: did you invoke the Task tool with the bottleneck analyzer, or
-> did you start reading code yourself? If the latter, STOP and invoke the Task
-> tool.
 
 **Executive summary before the gate.** Read `analysis/performance-analysis.md`
 and print, immediately before `bottleneck-approval` fires: how many bottlenecks
@@ -373,18 +368,18 @@ verification node later reports against it as though someone had asked for it.
 
 **Part B — specification creation (delegate).**
 
-> **ANTI-PATTERN**: Do NOT write the specification inline. Not because the task
-> looks small, and not only when it does — the specification-creator agent
-> writes it every time. Simplicity is never a reason to skip the delegation.
+The specification-creator agent writes the specification every time, whatever
+the task's size, because it searches for reusable code and checks coverage of
+the priorities before the audit and the planner read the result.
 
 Invoke the specification creator through the Task tool with the performance task
 type. Everything node-scoped it needs is in `with:`; the run-scoped four supply
 the rest, including the style guide path that produces the specification's HTML
 companion, and the project documentation paths `intake` discovered.
 
-> **SELF-CHECK**: after the Task tool returns, verify that
-> `implementation/spec.md` exists and covers the priorities gathered in Part A.
-> If missing: **STOP. Do NOT proceed.** Re-invoke with corrected context.
+If the agent returns without `implementation/spec.md`, or with one that leaves a
+priority gathered in Part A uncovered, re-invoke it with the missing context
+rather than writing the specification yourself.
 
 **Executive summary before the gate.** Read `implementation/spec.md` and
 extract: the optimization targets, the approach chosen, how many changes are
@@ -418,9 +413,10 @@ Delegated to the specification auditor through the Task tool. **It runs on every
 run.** There is no opt-in, no size threshold and no flag: every performance
 specification is reviewed before planning starts.
 
-> **ANTI-PATTERN**: Do NOT review the specification yourself. The spec-auditor
-> agent audits it from a senior auditor's perspective and verifies claims
-> against the codebase rather than trusting them.
+The spec-auditor agent audits the specification rather than an inline review,
+because it checks the spec's claims against the codebase instead of trusting
+them — and it runs before any code exists, so it audits the spec itself, not an
+implementation.
 
 The auditor returns a verdict — pass, pass with concerns, or fail — issue counts
 by severity, and the findings themselves. Write all of it to
@@ -450,18 +446,17 @@ and stop the run on the stop option.
 
 Delegated to the implementation planner through the Task tool.
 
-> **ANTI-PATTERN**: Do NOT break the work into steps inline. The
-> implementation-planner agent produces the task groups, their dependencies and
-> their test-first step lists. Simplicity is not a reason to skip the
-> delegation.
+The implementation-planner agent writes the plan every time, whatever the
+task's size, because it produces the task groups, their dependencies and the
+test-first step lists the executor dispatches from.
 
 The planner reads the specification, the audit findings and the performance
 analysis, and sequences the optimizations so that a change whose measurement
 depends on an earlier one lands after it.
 
-> **SELF-CHECK**: after the Task tool returns, verify that
-> `implementation/implementation-plan.md` exists and that its groups cover the
-> specification's optimization targets. If missing: **STOP. Do NOT proceed.**
+If the planner returns without `implementation/implementation-plan.md`, or with
+groups that leave an optimization target uncovered, re-invoke it with the
+missing context rather than writing the plan yourself.
 
 **Executive summary before the gate.** Read
 `implementation/implementation-plan.md` and extract: how many task groups it
@@ -490,10 +485,10 @@ and stop the run on the stop option.
 Delegated to the implementation-plan executor through the Skill tool. This is
 the node that changes code, and it is the only one that does.
 
-> **ANTI-PATTERN**: Do NOT apply the optimizations inline. Not for a small plan,
-> not for a single-group plan — the implementation-plan-executor skill runs the
-> groups, dispatches the implementers and keeps the plan's progress marks in
-> step with what actually landed.
+The implementation-plan-executor skill applies the optimizations every time,
+whatever the plan's size, because it runs the groups, dispatches the
+implementers and keeps the plan's progress marks in step with what actually
+landed.
 
 **The sequential input, and where the executor reads it.** Before invoking the
 skill, record the input's value as `orchestrator.options.sequential`: the
@@ -513,9 +508,6 @@ it is not a value this option has.
 in the companion too, and a companion still showing outstanding work after a
 complete run is a stale projection rather than a finding. Then record what
 landed: the groups completed, the files changed and the incremental test results.
-
-> **SELF-CHECK**: did the executor run, or did you start editing files yourself?
-> If the latter, **STOP** and invoke the skill instead.
 
 **Executive summary before the gate.** Read `implementation/work-log.md` and
 this node's own summary and extract: the optimizations applied, the files
@@ -598,10 +590,10 @@ is where continuing goes on every run.
 Delegated to the implementation verifier through the Skill tool, then a fix loop
 inline.
 
-> **ANTI-PATTERN**: Do NOT verify the implementation inline. The
-> implementation-verifier skill runs the test suite first, as its own step, and
-> passes that result into every review prompt; then the completeness check and
-> the selected reviews, compiled into one report.
+The implementation-verifier skill does the verification rather than an inline
+review, because it runs the test suite first, as its own step, passes that
+result into every review prompt, and compiles the completeness check and the
+selected reviews into one report.
 
 Pass no style guide path: as a skill it resolves the guide itself and gates its
 own companion on the HTML output option.

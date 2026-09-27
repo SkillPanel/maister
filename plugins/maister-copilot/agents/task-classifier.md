@@ -1,6 +1,6 @@
 ---
 name: task-classifier
-description: Task classification specialist analyzing task descriptions and issue references to classify into 5 workflow types (development, performance, migration, research). Supports GitHub/Jira integration, codebase context analysis, and confidence scoring.
+description: Task classification specialist analyzing task descriptions and issue references to classify into 5 workflow types (development, performance, migration, research, product-design). Supports GitHub/Jira integration, codebase context analysis, and confidence scoring.
 model: inherit
 color: purple
 ---
@@ -102,7 +102,7 @@ When description mentions a feature/component:
 If description contains error messages or stack traces:
 1. Extract error patterns (timeout, null pointer, 404, etc.)
 2. Search for error locations in codebase
-3. Boost confidence if error message found (+20%), stack trace verified (+15%), exception handling present (+10%)
+3. Treat an error message or stack trace you can locate in the codebase as strong evidence for development
 
 ---
 
@@ -149,17 +149,10 @@ If description contains error messages or stack traces:
 - Planning: scope definition, requirements gathering, feature spec (before code)
 - **Key distinction**: Designing what to build before building it — if implementation is implied, route to development instead
 
-**Calculate Confidence Score**:
-```
-Base: 50%
-First keyword match: +15%
-Second keyword match: +10%
-Third+ keyword match: +5%
-Strong context present: +10%
-Issue label matches: +5%
-Multiple competing types: -10% per type
-Cap at 98%
-```
+**Assess Confidence** (reported as a percentage — `commands/work.md` displays it):
+- **80-94%**: the description, issue labels and codebase context all point to one type
+- **60-79%**: one type fits best but another is plausible
+- **Below 60%**: signals conflict or are thin
 
 **Resolve Multi-Type Matches**:
 
@@ -175,7 +168,7 @@ Priority rules:
 **Determine Confirmation Level**:
 - **High (80-94%)**: Quick confirmation with option to override
 - **Medium (60-79%)**: Show classification, ask to confirm or choose
-- **Low (<60%)**: Present all 4 options, let user choose
+- **Low (<60%)**: Present all 5 options, let user choose
 
 **High Confidence Confirmation** (≥ 80%):
 ```

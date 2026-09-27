@@ -163,14 +163,7 @@ Write each file to `.maister/docs/project/`.
 
 Wait for docs-operator to complete, then immediately continue with Step 2.
 
-**Step 2**: Run validation checks:
-- Verify INDEX.md exists
-- Verify tech-stack.md exists (required)
-- Verify selected docs exist
-- Verify selected standards directories exist
-- Verify .github/copilot-instructions.md integration
-
-**Step 3**: Display comprehensive summary:
+**Step 2**: Display comprehensive summary. Include any failure docs-operator reported.
 - Project analysis results (type, language, framework, architecture)
 - Structure created (tree with check marks for created items)
 - Documentation status (which docs generated, which standards initialized)

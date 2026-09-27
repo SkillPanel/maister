@@ -254,14 +254,10 @@ ask_user — "I detected these design characteristics. Please confirm or correct
 
 **For enhancements** (`is_enhancement = true`):
 
-**ANTI-PATTERN -- DO NOT DO THIS:**
-- "Let me analyze the codebase..." -- STOP. Delegate to codebase-analyzer.
-- "I'll look through the project..." -- STOP. Delegate to codebase-analyzer.
+Delegate codebase analysis to the `maister-codebase-analyzer` skill rather than reading project files yourself — it keeps raw exploration out of the orchestrator's context.
 
 **INVOKE NOW** -- Skill tool call:
 1. Skill tool - `maister-codebase-analyzer` (to understand existing product context, tech stack, UI patterns)
-
-**SELF-CHECK**: Did you invoke the Skill tool with `maister-codebase-analyzer`? Or did you start reading project files yourself? If the latter, STOP and invoke the Skill tool.
 
 **POST-SKILL CONTINUATION**: After codebase-analyzer returns control:
 1. Read `orchestrator-state.yml` to confirm you are the orchestrator
@@ -273,16 +269,12 @@ ask_user — "I detected these design characteristics. Please confirm or correct
 3. Fetch external links collected in Phase 0 using WebFetch tool for each URL in `design_context.collected_urls`
 4. If `design_context.research_topics` is non-empty: launch information-gatherer agents for each topic
 
-   **ANTI-PATTERN -- DO NOT DO THIS:**
-   - "Let me research that topic..." -- STOP. Delegate to information-gatherer.
-   - "I'll look that up..." -- STOP. Delegate to information-gatherer.
+   Delegate each research topic to a `maister-information-gatherer` subagent rather than searching yourself — it keeps raw findings out of the orchestrator's context.
 
    **INVOKE NOW** -- Task tool call (parallel, one per topic):
    Task tool - `maister-information-gatherer` subagent per research topic
 
    **Context to pass**: research topic, scope constraints, task_path
-
-   **SELF-CHECK**: Did you invoke the Task tool with information-gatherer for each research topic? Or did you start searching yourself? If the latter, STOP and invoke the Task tool.
 
 5. **Synthesize ALL sources** into `analysis/design-context.md`:
    - Project documentation: vision, roadmap, tech stack, architecture, and any user-added project docs (from `design_context.project_doc_paths` discovered in Phase 0)
@@ -415,10 +407,7 @@ ask_user — "Personas defined. Continue to Idea Generation?"
 **Execute**: Agent via Task tool (deliberately non-interactive to avoid anchoring bias)
 **Resume check**: If `analysis/alternatives.md` exists, skip to Phase 5
 
-**ANTI-PATTERN -- DO NOT DO THIS:**
-- "Let me brainstorm some approaches..." -- STOP. Delegate to solution-brainstormer.
-- "Here are some alternatives I see..." -- STOP. Delegate to solution-brainstormer.
-- "The obvious approach would be..." -- STOP. Anchoring bias. Delegate to solution-brainstormer.
+Delegate alternatives to the `maister-solution-brainstormer` subagent rather than proposing them yourself — generating them outside the conversation avoids anchoring on your first idea.
 
 **INVOKE NOW** -- Task tool call:
 
