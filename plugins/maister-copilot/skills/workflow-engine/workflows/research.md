@@ -148,6 +148,11 @@ Four sequential steps, executed inline. On resume, check the artifacts each step
 declares and skip the ones already on disk — the four resume checks below are
 what make a re-entered run cheap instead of destructive.
 
+**The context seed.** The freeze sends `research_question`, the question input
+verbatim, and `research_type` when the invocation supplied one, as its `context`,
+so `research_context` is on disk before this node starts. Step 1 writes a
+classified type over an absent one.
+
 **Each of steps 1–3 ends with one milestone write.** This node is the longest
 stretch of the run, and the dashboard is projected only when state is written, so
 a node that writes nothing between its start and its end leaves the operator
@@ -159,6 +164,11 @@ sent only the new artifact would erase the earlier ones. The call carries no
 `nodes` patch: the node is still `running`, and only its closing write changes
 that. Step 4 needs no milestone of its own, because the node's closing write
 registers the report.
+
+The `phase-1` entry also carries `steps_completed`, the steps finished so far by
+name — `initialize`, `plan`, `gather`, `synthesize` — on every milestone and on
+the closing write. The context fields a step settles ride in that step's
+milestone as `context`, rather than as a write of their own.
 
 **Before anything else**: when the invocation supplied no question, ask the
 operator for it. Nothing downstream is meaningful without one, and inventing a
@@ -182,6 +192,12 @@ one exists and extract every path from its project-documentation section —
 predefined and operator-added alike — recording them as
 `research_context.project_doc_paths`.
 
+The step's milestone records `research_type`, `research_question`, `scope` as a
+map of three lists — `included`, `excluded`, `constraints` — and
+`project_doc_paths`, which is `[]` when there is no index. The planner is
+handed the same scope, so a resumed run and a parent reading the state see the
+boundaries the research was actually given.
+
 ### Step 2 — plan (delegate)
 
 *Writes* `planning/research-plan.md`, `planning/sources.md`. *Resume check*: if
@@ -196,6 +212,11 @@ type, the research question, the scope, `project_doc_paths`, and
 `methodology_reference` — the absolute path of
 `${MAISTER_PLUGIN_ROOT}/skills/research/references/research-methodologies.md`,
 which the planner reads in full before it classifies the question.
+
+When the planner returns, the step's milestone records `methodology` and
+`sources`, both lists lifted from what the planner wrote: the methods its plan
+chose, and the sources `planning/sources.md` names. They are read from the two
+files, not recomposed. The synthesizer's methodology comes from this record.
 
 ### Step 3 — gather (parallel delegates)
 
@@ -312,6 +333,15 @@ still settles it without a default being taken at all.
 
 **Default under a non-terminal driver** (`design-opt-in`): the computed design
 recommendation, by the same rule, recorded as the node's design output.
+
+**The two choices are also run options.** The node's closing write records the
+same two booleans as `orchestrator.options.brainstorming_enabled` and
+`orchestrator.options.design_enabled`, beside its declared values. That holds
+whether an answer, a supplied flag or a non-terminal default settled them. The
+declared values are what the `when` guards read. The options are where every
+reader of the run's state looks for which optional stretches were chosen, and
+`options` merges key by key, so the write leaves `html_output` and the recorded
+inputs alone.
 
 **Recovery budget**: one attempt — re-evaluate the recommendation when the
 synthesis reads unclearly.

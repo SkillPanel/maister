@@ -174,6 +174,13 @@ so the freeze patch need not spell them and a freeze that omits them still lands
 later write of either replaces the whole list; there is no key to merge on, so a caller that
 means to append sends the whole list.
 
+**The freeze patch carries the definition's context seed, when its node prose names one.** Some
+workflows keep context fields that are known before the first node runs — the input the run
+was started with, restated where that workflow's readers look for it. Such a definition's prose
+names them, and the freeze sends them as `context`. The writer resolves the context block from
+the `workflow.name` in the same patch, so the run's per-workflow block exists from the first
+write rather than appearing at some later node. A definition that names no seed sends none.
+
 If `validate` rejects the definition, stop with `RUN-FAILED:` carrying the validator's first
 error. A definition that does not validate cannot be executed part-way.
 
