@@ -527,4 +527,12 @@ above is what the operator gets instead.
 
 There is no gate after this node. The workflow ends here.
 
+**The executive summary is not the run's last line; the marker is.** Write the closing patch,
+call `run-complete`, and end the turn's final message with the lines the verb printed, the
+marker last and nothing after it — the engine skill's run-end rule. Do not present the summary
+in a message after the marker. Put it before the marker in the same final message, or in a
+message sent before the verb runs. The same rule holds for the endings that never reach this
+node — an embedded run, whose guard skips it, and a run a gate's stop option ended: each
+still ends its turn on the verb's marker.
+
 **Recovery budget**: none — this node summarizes and nothing else.
