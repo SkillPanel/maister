@@ -1,4 +1,4 @@
-.PHONY: build diagram validate clean watch
+.PHONY: build diagram validate test clean watch
 
 build:
 	bash platforms/copilot-cli/build.sh
@@ -61,6 +61,13 @@ validate:
 	@# and the free build no longer emits it, so it dropped out of this grep.
 	@! grep -rn 'python3' plugins/maister/hooks/ 2>/dev/null || (echo "FAIL: a hook reaches for python3" && exit 1)
 	@echo "All checks passed"
+
+# The engine verb suite: every verb run as a driver runs it, against committed
+# fixtures copied into a scratch directory per test. Prerequisites: node >= 20,
+# nothing installed. The glob is expanded by the shell because Node 20's
+# --test takes no glob of its own.
+test:
+	node --test tests/engine/*.test.mjs
 
 clean:
 	rm -rf plugins/maister-copilot/

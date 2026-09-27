@@ -10,6 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The floor package.json declares, so a verb reaching for a newer API
+      # fails here rather than in a consumer's session.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Build and validate Copilot CLI variant
         run: make build && make validate
 
@@ -30,6 +36,9 @@ jobs:
       # routed through env: and referenced as quoted shell variables — never
       # interpolated directly into the run: body — the same shape used to
       # fix an injection defect in the pro repository's own workflows.
+      - name: Test the engine verbs
+        run: make test
+
       - name: Dispatch to pro CI
         if: github.event_name == 'push'
         env:

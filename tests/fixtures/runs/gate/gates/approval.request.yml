@@ -1,0 +1,10 @@
+version: 1
+node: approval
+kind: approval
+question: "Analysis complete. Continue to implementation?"
+options:
+  - {id: continue, label: "Continue to implementation", effect: continue}
+  - {id: stop-here, label: "Stop here", effect: stop}
+multiple: false
+asked_at: "2026-01-05T09:00:00Z"
+answer: null
