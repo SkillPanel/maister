@@ -33,8 +33,8 @@ definition — a graph of nodes with declared dependencies and guards — that t
 freezes into the task's state and executes. Both interpreters produce the same task directory.
 
 `/maister:development` runs the definition — it ships as `builtin:development`, with a diagram
-generated from it (regenerate that diagram, never edit it). Research and performance run on the
-engine by default too. Three further definitions without a command of their own — `plan`, `change`
+generated from it (regenerate that diagram, never edit it). Research, performance and migration
+run on the engine by default too. Three further definitions without a command of their own — `plan`, `change`
 and `fix`, dispatched into a member by a chain — are a Pro Edition feature (see
 [Pro Edition](../README.md#pro-edition)).
 
@@ -42,8 +42,8 @@ Definitions resolve eject → generated → overlay → built-in, and the first 
 `.maister/workflows/<name>.yml`, then a generated chain at `.maister/workflows/generated/<name>.yml`,
 then an overlay at `.maister/workflows/<name>.overlay.yml`, then the shipped built-in. So a project
 can eject a shipped graph into its own workspace, or lay an overlay over it, without patching the
-plugin. That route reaches a workflow wherever the engine executes it — research, development and
-performance today, so ejecting or overlaying `builtin:development` takes effect
+plugin. That route reaches a workflow wherever the engine executes it — research, development,
+performance and migration today, so ejecting or overlaying `builtin:development` takes effect
 on the next run. A generated chain — one the planner published for a single ticket — is complete in itself
 and is never overlaid or ejected; it is resolved by name like any other and deleted by the
 workspace's `prune` command once its runs have closed. Writing a chain of your own, naming your
@@ -58,9 +58,9 @@ MAISTER_WORKFLOW_PROSE=1 /maister:development "..."
 ```
 
 One variable covers every workflow that has a prose twin — its scope is the whole plugin, not a
-single workflow — so while it is set, research and performance run on prose too. The phases it
+single workflow — so while it is set, research, performance and migration run on prose too. The phases it
 selects are a reference file beside the workflow's skill, not the skill body: `development`'s are
-in `skills/development/references/development-twin.md`, and the other two follow the same naming.
+in `skills/development/references/development-twin.md`, and the other three follow the same naming.
 On the default path nothing reads them.
 
 The engine records every state change by running its own writer, which is a shell command, and no
@@ -190,7 +190,7 @@ Technology, data, and architecture migrations with rollback planning and risk as
 /maister:migration
 /maister:migration "Migrate from REST to GraphQL" --type=code
 ```
-**Flags**: `--type=code|data|architecture|general`, `--user-docs`, `--sequential`, `--from=PHASE`
+**Flags**: `--type=code|data|architecture|general`, `--user-docs`, `--sequential`
 
 **Migration types**: `code`, `data`, `architecture`, `general`
 
@@ -213,13 +213,37 @@ Technology, data, and architecture migrations with rollback planning and risk as
 - Halts on data integrity issues (no automatic recovery)
 - External research for version upgrades via web search
 
+### Interpreter
+
+This workflow exists twice as well: as the prose phases in the migration skill, and as a
+workflow definition the engine freezes into the task's state and executes. Both interpreters
+produce the same task directory.
+
+`/maister:migration` runs the definition — it ships as `builtin:migration`, and resolves
+eject → generated → overlay → built-in like every other definition, so a project can eject or
+overlay it without patching the plugin.
+
+To run the prose phases instead, set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
+
+```
+MAISTER_WORKFLOW_PROSE=1 /maister:migration "..."
+```
+
+The variable is the same global switch the Development section describes — it selects the prose
+twin for every workflow that has one, not for this workflow alone. This workflow's phases live in
+`skills/migration/references/migration-twin.md`.
+
 ### Resume
 
 ```
-/maister:migration [task-path] [--from=PHASE] [--reset-attempts]
+/maister:migration [task-path]
 ```
 
-Resume phases: `analysis`, `target`, `spec`, `plan`, `execute`, `verify`, `docs`
+The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no
+mid-graph entry point and no attempt counter: it declines `--from=PHASE` and `--reset-attempts`
+by name. Both flags apply in full on the prose phases only — see **Interpreter** above.
+
+Resume phases (prose phases only): `analysis`, `target`, `spec`, `plan`, `execute`, `verify`, `docs`
 
 ---
 

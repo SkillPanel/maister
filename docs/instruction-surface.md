@@ -39,6 +39,11 @@ the three orchestrators fell from 129,071 B to 11,537 B on the default path. Tha
 this document opens with, in its sharpest form: a corpus measurement would have scored this change
 at approximately zero.
 
+**And since, 2026-09-27.** `migration` took the same shape when it switched onto the engine: its
+prose moved into `skills/migration/references/migration-twin.md` and its `SKILL.md` became the
+same hand-off, 28,639 B → 3,908 B on the default path. Unlike the other three, this also changed
+what the command runs — before it, `/maister:migration` never reached the engine at all.
+
 ## The session-start footprint: what a session pays before any work
 
 Measured 2026-09-11 and not re-taken: deleting a reference body changes nothing here, because a

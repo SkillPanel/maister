@@ -132,14 +132,14 @@ Options:
 ```
 
 Offer the phase-restart and fresh-attempts options only for workflows whose resume signature
-still lists them. Today that is every workflow except research, development and performance.
-Those three have an engine path: the workflow engine resumes them by recomputing which nodes are
+still lists them. Today that is only product-design; research, development, performance and
+migration have an engine path: the workflow engine resumes them by recomputing which nodes are
 ready from frozen state, so there is no mid-graph entry point and no attempt counter, and it
 declines both flags by name. When an operator needs either on such a task, say so, and be
 accurate about what remains in each case. Research's prose phases carry no phase flag of their
 own: they re-enter by artifact presence — each phase skips ahead when its outputs are already on
 disk — so re-running the prose path resumes near where the last run stopped without any flag.
-The development and performance prose phases do take `--from=PHASE`, so an operator who needs a
+The development, performance and migration prose phases do take `--from=PHASE`, so an operator who needs a
 mid-workflow entry has a real route to it there. The prose path is selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value,
 and that variable is global, so while it is set every engine-backed workflow runs its prose
 phases.
@@ -155,7 +155,7 @@ Use Skill tool:
 Examples:
 - Resume development: `skill: "maister:development"` with `args: "--resume .maister/tasks/development/2025-10-23-fix"`
 - Restart from phase: `MAISTER_WORKFLOW_PROSE=1`, then `skill: "maister:development"` with `args: "--resume .maister/tasks/development/2025-10-26-auth --from=verify"` — the phase flag is a prose-path capability
-- Fresh attempts: `skill: "maister:migration"` with `args: "--resume .maister/tasks/migrations/2025-10-20-redux --reset-attempts"`
+- Fresh attempts: `MAISTER_WORKFLOW_PROSE=1`, then `skill: "maister:development"` with `args: "--resume .maister/tasks/development/2025-10-20-redux --reset-attempts"` — attempt counters are a prose-path capability
 
 Pass only the flags the workflow's resume signature lists — see **Resume Skill Reference** below.
 
@@ -245,17 +245,17 @@ Display:
 |---------------|-------|------|
 | development | `maister:development` | `--resume [path]` |
 | performance | `maister:performance` | `--resume [path]` |
-| migration | `maister:migration` | `--resume [path] [--from=PHASE]` |
+| migration | `maister:migration` | `--resume [path]` |
 | research | `maister:research` | `--resume [path]` |
 | product-design | `maister:product-design` | `--resume [path] [--from=PHASE]` |
 
 A signature is trimmed only for a workflow that has an engine path today: research,
-development and performance. All three are resumed by the workflow engine, which recomputes the
+development, performance and migration. All four are resumed by the workflow engine, which recomputes the
 ready set from frozen state. Mid-graph entry and attempt counters have no expression there, so
 `--from=PHASE` and `--reset-attempts` are declined by name rather than silently ignored. The
 prose phases are the fallback path in every case, and they differ in what they offer: research's
 take no phase flag and re-enter by artifact presence, skipping each phase whose outputs already
-exist; the development and performance prose phases do take `--from=PHASE`. Select the prose path by setting `MAISTER_WORKFLOW_PROSE` to any
+exist; the development, performance and migration prose phases do take `--from=PHASE`. Select the prose path by setting `MAISTER_WORKFLOW_PROSE` to any
 non-empty value, remembering that the variable is global and moves every engine-backed workflow
 onto prose while it is set.
 
