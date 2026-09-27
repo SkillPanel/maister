@@ -1,6 +1,6 @@
 ---
 name: umbrella
-description: Scaffolds and validates a multi-repository workspace — an umbrella directory whose members are checkouts of separate repositories — and runs it as one coordinated unit. For a user, `init` turns a directory into a workspace and `validate` judges it together with any chain files, both reached as `/maister-umbrella <verb>`. For a workflow's orchestrator and for the cockpit daemon, the same script builds the dispatch envelope a node hands to a worker in a member repository, renders that worker's seed prompt, and keeps the dispatch ledger and the per-dispatch outbox that carry results back. A third user verb, `prune`, deletes the generated per-ticket chains whose runs have all closed. Seven verbs behind one script, every write atomic and every rejection named.
+description: Scaffolds and validates a multi-repository workspace — an umbrella directory whose members are checkouts of separate repositories — and runs it as one coordinated unit. For a user, `init` turns a directory into a workspace and `validate` judges it together with any chain files, both reached as `/maister-copilot:umbrella <verb>`. For a workflow's orchestrator and for the cockpit daemon, the same script builds the dispatch envelope a node hands to a worker in a member repository, renders that worker's seed prompt, and keeps the dispatch ledger and the per-dispatch outbox that carry results back. A third user verb, `prune`, deletes the generated per-ticket chains whose runs have all closed. Seven verbs behind one script, every write atomic and every rejection named.
 argument-hint: "init [--root DIR] [--members-root DIR] [--force] | validate [--definition FILE ...] | prune [--root DIR] [--name STEM] [--dry-run]"
 user-invocable: true
 ---
@@ -14,8 +14,8 @@ envelope describing the work, a seed prompt for whoever does it, a ledger entry
 that makes it visible, and an outbox that carries the answer back.
 
 **Three of the seven verbs are a user's; four are machinery.** A user reaches
-this skill as `/maister-umbrella init` to turn a directory into a workspace, as
-`/maister-umbrella validate` to judge it, and as `/maister-umbrella prune` to
+this skill as `/maister-copilot:umbrella init` to turn a directory into a workspace, as
+`/maister-copilot:umbrella validate` to judge it, and as `/maister-copilot:umbrella prune` to
 delete the generated chains whose runs have closed — the section *When a user
 invokes this skill* below says how each argument maps onto the script and what
 to report back. The other four verbs are reached by name, by a workflow's
@@ -94,9 +94,9 @@ three verbs are reachable this way:
 
 | A user types | What runs |
 |---|---|
-| `/maister-umbrella init [--root DIR] [--members-root DIR] [--force]` | the exec form above with `init` and the flags as given |
-| `/maister-umbrella validate [--root DIR] [--definition FILE ...]` | the exec form above with `validate` and every `--definition` as given |
-| `/maister-umbrella prune [--root DIR] [--name STEM] [--dry-run]` | the exec form above with `prune` and the flags as given |
+| `/maister-copilot:umbrella init [--root DIR] [--members-root DIR] [--force]` | the exec form above with `init` and the flags as given |
+| `/maister-copilot:umbrella validate [--root DIR] [--definition FILE ...]` | the exec form above with `validate` and every `--definition` as given |
+| `/maister-copilot:umbrella prune [--root DIR] [--name STEM] [--dry-run]` | the exec form above with `prune` and the flags as given |
 
 Flags pass through as spelled — the script accepts both `--flag=value` and
 `--flag value`, and `--scaffold` on `init` passes through when given. One default

@@ -134,7 +134,7 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 
 **Purpose**: Comprehensive codebase exploration followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `maister-codebase-analyzer`
+1. Skill tool - `codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use ask_user for max 5 critical clarifying questions
 4. Save clarifications to `analysis/clarifications.md`
@@ -151,7 +151,7 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 
 **Purpose**: Compare current vs desired state, detect task characteristics, then resolve scope/approach decisions
 **Execute**:
-1. Task tool - `maister-gap-analyzer` subagent
+1. Task tool - `maister-copilot:gap-analyzer` subagent
 2. **Extract and store structured data from gap-analyzer result**:
    a. Read `task_characteristics` from gap-analyzer output — 5 fields: `has_reproducible_defect`, `modifies_existing_code`, `creates_new_entities`, `involves_data_operations`, `ui_heavy`
    b. Write all 5 fields to `orchestrator-state.yml` at `task_context.task_characteristics`
@@ -223,7 +223,7 @@ ask_user - "TDD red gate complete. Continue to Phase 4?"
 > **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Generate UI mockups (HTML by default, ASCII when configured) showing UI integration
-**Execute**: Skill tool - `maister-mockup-studio`
+**Execute**: Skill tool - `mockup-studio`
 **Output**: HTML → `analysis/design-context/mockups/*.html`; ASCII → `analysis/design-context/ascii/ui-mockups.md`. Both append entries to `analysis/design-context/INDEX.md`.
 **State**: Update `phase_summaries.ui_mockups`, `phase_summaries.design`, and `task_context.design_resources` (from mockup-studio's discovery)
 
@@ -295,11 +295,11 @@ ask_user - "UI mockups complete — review the live gallery at [companion URL] (
 
 **INVOKE NOW** — Task tool call:
 
-6. Task tool - `maister-specification-creator` subagent
+6. Task tool - `maister-copilot:specification-creator` subagent
 
 **Context to pass to subagent**: task_path, task_description, task_characteristics, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md + project_doc_paths from state — all discovered project docs), risk_level, phase_summaries (codebase_analysis, gap_analysis, clarifications, scope_clarifications, ui_mockups, design), research_context (if any), design_reference (if any — points spec-creator to `analysis/design-context/` for mockups and brief), html_style_guide_path (for the spec.html companion)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot:specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 **Output**: `analysis/technical-clarifications.md` (conditional), `analysis/requirements.md`, `implementation/spec.md`
 **State**: Update `task_context.tech_clarified`, `task_context.architecture_decision`, `phase_summaries.specification`, and `phase_summaries.architecture_decision` (the chosen approach plus a one-line rationale) when an architecture decision was made
@@ -315,7 +315,7 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 > **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 5 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Independent review of specification before implementation
-**Execute**: Task tool - `maister-spec-auditor` subagent
+**Execute**: Task tool - `maister-copilot:spec-auditor` subagent
 **Output**: `verification/spec-audit.md`
 **State**: Update `options.spec_audit_enabled` and `phase_summaries.spec_audit` (verdict plus a 1-2 sentence summary of the audit's issue counts)
 
@@ -344,13 +344,13 @@ ask_user - Display executive summary before asking. Read `verification/spec-audi
 
 **INVOKE NOW** — Task tool call:
 
-**Execute**: Task tool - `maister-implementation-planner` subagent
+**Execute**: Task tool - `maister-copilot:implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md`
 **State**: Update task groups and dependencies, and `phase_summaries.implementation_plan` (task group count plus a 1-2 sentence summary of the plan)
 
 **Context to pass to subagent**: task_path, task_description, task_characteristics, phase_summaries (specification, gap_analysis, codebase_analysis, design), research_context (if any), design_reference (if any — when `analysis/design-context/INDEX.md` exists, planner MUST enumerate every screen/component, map task groups to them via the required `Visual References` field, and produce `implementation/visual-coverage.md` proving every screen is covered by ≥1 group), html_style_guide_path (for the implementation-plan.html companion)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot:implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -370,11 +370,11 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 
 **INVOKE NOW** — Skill tool call:
 
-**Execute**: Skill tool - `maister-implementation-plan-executor`
+**Execute**: Skill tool - `implementation-plan-executor`
 **Output**: Implemented code, `implementation/work-log.md`
 **State**: Update implementation progress, extract phase_summaries.implementation
 
-**SELF-CHECK**: Did you just invoke the Skill tool with `maister-implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
+**SELF-CHECK**: Did you just invoke the Skill tool with `implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
 
 **⚠️ POST-IMPLEMENTATION CONTINUATION** — After the skill completes and returns control:
 1. **HTML plan reconciliation** (backstop for syncs missed during waves): if `implementation/implementation-plan.html` exists, for every group whose md checkboxes are all `[x]`, run the executor's idempotent marker-flip command (`sed` flipping `data-step="N\.[0-9]*" class="step todo"` and `data-group="N" class="group todo"` to `done`). VERIFY: when all md steps are checked, `grep -c 'class="step todo"' implementation/implementation-plan.html` must return 0 — a non-zero count means unflipped markers remain; flip them before continuing.
@@ -464,7 +464,7 @@ Options: "Code review (Recommended)", "Pragmatic review (Recommended)", "Reality
 
 **Execute**:
 
-**Step 1**: Invoke Skill tool - `maister-implementation-verifier` — pass no `html_style_guide_path`: as a skill it resolves the style guide itself and gates its companion on `orchestrator.options.html_output` (orchestrator-patterns.md § 9).
+**Step 1**: Invoke Skill tool - `implementation-verifier` — pass no `html_style_guide_path`: as a skill it resolves the style guide itself and gates its companion on `orchestrator.options.html_output` (orchestrator-patterns.md § 9).
 
 **Step 2**: Display detailed issue breakdown grouped by category and severity:
 ```
@@ -492,7 +492,7 @@ Verification Results:
 3. Fix selected issues, log each to `verification_context.fixes_applied`
 4. After fixes applied: set `skip_test_suite: false` (code changed, tests must re-run)
 5. ask_user — "Re-run verification to check fixes?" with options:
-   - "Yes, re-run verification" → re-invoke `maister-implementation-verifier` → return to Step 2
+   - "Yes, re-run verification" → re-invoke `implementation-verifier` → return to Step 2
    - "No, proceed to next phase"
 6. Update `verification_context.reverify_count`
 
@@ -505,7 +505,7 @@ Verification Results:
 - **MUST NOT proceed with unresolved critical issues unless user explicitly approves** — a gate answered from outside is such an approval; a default is not
 
 **⚠️ POST-VERIFICATION CONTINUATION** — After issue resolution completes:
-1. **Canonical report check**: `verification/implementation-verification.md` + `.html` MUST reflect the FINAL post-fix verdict before leaving this phase. If fixes were applied and the canonical report still shows the pre-fix state (regardless of whether re-checks were run via the full verifier skill or individual subagents writing `*-reverify.md` side files), re-invoke `maister-implementation-verifier` (or have it recompile Phase 3) so the report and companion are rewritten with a "Fix & Re-Verification History" section. A stale pre-fix report is a phase-exit violation.
+1. **Canonical report check**: `verification/implementation-verification.md` + `.html` MUST reflect the FINAL post-fix verdict before leaving this phase. If fixes were applied and the canonical report still shows the pre-fix state (regardless of whether re-checks were run via the full verifier skill or individual subagents writing `*-reverify.md` side files), re-invoke `implementation-verifier` (or have it recompile Phase 3) so the report and companion are rewritten with a "Fix & Re-Verification History" section. A stale pre-fix report is a phase-exit violation.
 2. Read `orchestrator-state.yml` to confirm you are the orchestrator
 3. Update state: add Phase 11 to `completed_phases`
 4. Proceed to Phase 12
@@ -523,7 +523,7 @@ ask_user - Display executive summary: total issues found, issues fixed, issues r
 > **⚠ Serialization rule**: Phases 12 and 13 share the Playwright MCP browser instance. They MUST run strictly sequentially. Do NOT dispatch the Phase 12 Task call and the Phase 13 Task call in the same assistant message, even when both are enabled. Wait for Phase 12 to return, honor the `→ MANDATORY GATE` / `ask_user` gate below, then start Phase 13. Concurrent dispatch will corrupt both browser sessions.
 
 **Purpose**: Runtime browser verification with screenshots (via Playwright MCP tools, not test file generation)
-**Execute**: Task tool - `maister-e2e-test-verifier` subagent
+**Execute**: Task tool - `maister-copilot:e2e-test-verifier` subagent
 **Prompt must include**: task_path (absolute), spec_path, base_url, html_style_guide_path (for the HTML companion reports). If `analysis/design-context/mockups/` exists, also include `design_context_path` so the verifier performs an LLM-judged structural visual-fidelity comparison and writes `verification/visual-fidelity.md`. Report saves to `{task_path}/verification/e2e-verification-report.md`.
 **Output**: `verification/e2e-verification-report.md` (+ `.html` companion), screenshots, `verification/visual-fidelity.md` (+ `.html` companion) (when mockups present — report-only, never gates completion)
 **State**: Update E2E results; on success mark Phase 12 in `completed_phases` (Phase 13 reads this as a precondition).
@@ -545,7 +545,7 @@ ask_user - "E2E complete. Continue to Phase 13?"
 **Preconditions**: If `options.e2e_enabled = true`, Phase 12 MUST be present in `completed_phases` before Phase 13 starts. If it is not yet completed (e.g., E2E is still running or failed), do not start Phase 13 — return to the Phase 12 gate.
 
 **Purpose**: Generate user-facing documentation with screenshots
-**Execute**: Task tool - `maister-user-docs-generator` subagent
+**Execute**: Task tool - `maister-copilot:user-docs-generator` subagent
 **Prompt must include**: task_path (absolute), spec_path, base_url. **When Phase 12 ran successfully** (E2E enabled and completed), also include `e2e_screenshots_path: {task_path}/verification/screenshots/` together with the instruction *"Reuse applicable E2E screenshots from this directory before capturing new ones via Playwright."* When Phase 12 was skipped or failed, omit `e2e_screenshots_path` entirely. Guide saves to `{task_path}/documentation/user-guide.md`.
 **Output**: `documentation/user-guide.md`, screenshots (reused from E2E run when applicable)
 **State**: Update docs generation status
@@ -725,7 +725,7 @@ When starting development from a completed research task, the orchestrator loads
 
 **Method 1: Research folder as sole argument** (recommended)
 ```
-/maister-development .maister/tasks/research/2026-01-12-oauth-research
+/maister-copilot:development .maister/tasks/research/2026-01-12-oauth-research
 ```
 The orchestrator auto-detects this is a research folder and:
 - Extracts task description from `research_context.research_question`
@@ -734,7 +734,7 @@ The orchestrator auto-detects this is a research folder and:
 
 **Method 2: Explicit --research flag**
 ```
-/maister-development "Implement OAuth" --research=.maister/tasks/research/2026-01-12-oauth-research
+/maister-copilot:development "Implement OAuth" --research=.maister/tasks/research/2026-01-12-oauth-research
 ```
 
 ### Research Artifacts (Standard List)
@@ -770,13 +770,13 @@ When mockups or design artifacts are present, they become **binding inputs** to 
 
 **Source 1 — Product-design task path** (recommended handoff):
 ```
-/maister-development .maister/tasks/product-design/2026-05-09-user-dashboard/
+/maister-copilot:development .maister/tasks/product-design/2026-05-09-user-dashboard/
 ```
 Auto-detected when the argument resolves to a `.maister/tasks/product-design/*` directory. Brief and mockups are copied into `design-context/`.
 
 **Source 2 — Inline mockup paths in task description**:
 ```
-/maister-development "Implement the dashboard from /tmp/dashboard-mockup.html"
+/maister-copilot:development "Implement the dashboard from /tmp/dashboard-mockup.html"
 ```
 Auto-detected file paths (`.html`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.pdf`) are copied into `design-context/mockups/`. Design-tool URLs (Figma, Sketch Cloud, Zeplin) are recorded in `design-context/external-links.md`.
 
@@ -819,8 +819,8 @@ Non-UI tasks see zero behavior change.
 ## Command Integration
 
 Invoked via:
-- `/maister-development [description] [--e2e] [--user-docs] [--research=PATH]` (new)
-- `/maister-development [task-path] [--from=PHASE] [--reset-attempts]` (resume)
+- `/maister-copilot:development [description] [--e2e] [--user-docs] [--research=PATH]` (new)
+- `/maister-copilot:development [task-path] [--from=PHASE] [--reset-attempts]` (resume)
 
 ---
 

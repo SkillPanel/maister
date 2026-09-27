@@ -80,7 +80,7 @@ Never assume missing `Files to Modify` means "None" — silent disjoint assumpti
 
 For each wave:
 
-0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister-task-group-implementer"`.
+0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister-copilot:task-group-implementer"`.
 
 1. **Prepare group context** (per group):
    - Extract group content from `implementation-plan.md` (including `Visual References` section, if present)
@@ -98,7 +98,7 @@ For each wave:
    ✅ Right: One assistant message with N `Task` tool-use blocks emitted before any of them returns. The runtime returns all N results before the next assistant turn.
 
    Per-call parameters:
-   - subagent_type: `maister-task-group-implementer`
+   - subagent_type: `maister-copilot:task-group-implementer`
    - prompt: per-group content + initial standards + INDEX.md path + spec excerpt + sibling-wave note (see "Subagent Invocation")
 
    **SELF-CHECK before sending the message**: Are you about to emit a message with one `Task` call when the current wave has more than one group? If yes, STOP. Compose every wave member's prompt first, then emit them all in the same message. Awaiting one before composing the next violates this skill's contract. If the wave has exactly one group, a single `Task` call is correct.

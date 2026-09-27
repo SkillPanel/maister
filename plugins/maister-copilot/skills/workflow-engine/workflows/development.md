@@ -314,7 +314,7 @@ a source it cannot find is an absence rather than a failure.
 Delegated to the codebase analyzer through the Skill tool, then a short
 clarification round inline.
 
-The `maister-codebase-analyzer` skill runs this exploration every time rather
+The `codebase-analyzer` skill runs this exploration every time rather
 than an inline read: it dispatches parallel explorers and produces the
 structured analysis every later node reads.
 
@@ -354,7 +354,7 @@ Delegated to the gap analyzer through the Task tool. This node decides the shape
 of the rest of the run: two of its three declared values are guards, and four
 later nodes plus two later gates read them.
 
-The task characteristics are the `maister-gap-analyzer` agent's assessment,
+The task characteristics are the `maister-copilot:gap-analyzer` agent's assessment,
 made from the codebase analysis; record them as returned rather than adjusting
 them by your own sense of the change's size, because they are guards that decide
 which later nodes run.
@@ -483,7 +483,7 @@ goes to the specification, not to phase 4.
 Delegated to the mockup studio through the Skill tool, and only when the gap
 analysis decided mockups are needed.
 
-The `maister-mockup-studio` skill produces the mockups rather than inline
+The `mockup-studio` skill produces the mockups rather than inline
 markup, because it runs design-resource discovery first — binding standards,
 tokens and components — and renders against what it found.
 
@@ -601,7 +601,7 @@ the ten: its answers confirm assumptions rather than decide the flow.
 
 **Part C — specification creation (delegate).**
 
-The `maister-specification-creator` agent writes the specification every time,
+The `maister-copilot:specification-creator` agent writes the specification every time,
 whatever the task's size, because it searches for reusable code and checks
 requirement coverage before the audit and the planner read the result.
 
@@ -670,7 +670,7 @@ planning.
 Delegated to the specification auditor through the Task tool, and only when the
 audit opt-in came back yes.
 
-The `maister-spec-auditor` agent audits the specification rather than an
+The `maister-copilot:spec-auditor` agent audits the specification rather than an
 inline review, because it checks the spec's claims against the codebase instead
 of trusting them — and it runs before any code exists, so it audits the spec
 itself, not an implementation.
@@ -708,7 +708,7 @@ planning without asking.
 
 Delegated to the implementation planner through the Task tool.
 
-The `maister-implementation-planner` agent writes the plan every time, whatever
+The `maister-copilot:implementation-planner` agent writes the plan every time, whatever
 the task's size, because it produces the task groups, their dependencies and the
 test-first step lists the executor dispatches from.
 
@@ -751,7 +751,7 @@ and stop the run on the stop option.
 Delegated to the implementation-plan executor through the Skill tool. This is
 the node that writes code, and it is the only one that does.
 
-The `maister-implementation-plan-executor` skill writes the code every time,
+The `implementation-plan-executor` skill writes the code every time,
 whatever the plan's size, because it runs the groups, dispatches the implementers
 and keeps the plan's progress marks in step with what actually landed.
 
@@ -903,7 +903,7 @@ missing or spelled differently silently runs a different review set:
 Delegated to the implementation verifier through the Skill tool, then a fix loop
 inline.
 
-The `maister-implementation-verifier` skill does the verification rather than
+The `implementation-verifier` skill does the verification rather than
 an inline review, because it runs the test suite first, as its own step, passes
 that result into every review prompt, and compiles the completeness check and
 the selected reviews into one report.
@@ -975,7 +975,7 @@ documentation instead — or `finalization`, when that was declined as well.
 Delegated to the browser-verification agent through the Task tool, and only when
 the browser-tests bool came back true.
 
-The `maister-e2e-test-verifier` agent drives a live browser through the running
+The `maister-copilot:e2e-test-verifier` agent drives a live browser through the running
 application and collects evidence; it is a verification pass, so no browser
 test files are written here.
 
@@ -1022,7 +1022,7 @@ nothing to return to.
 Delegated to the user-documentation generator through the Task tool, and only
 when the user-docs bool came back true.
 
-The `maister-user-docs-generator` agent writes the guide rather than an inline
+The `maister-copilot:user-docs-generator` agent writes the guide rather than an inline
 draft, because it captures the screenshots and writes for a non-technical reader.
 
 **Reuse the browser stretch's screenshots when it ran.** Pass the screenshot

@@ -66,7 +66,7 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 ### Phase 1: Planning & Initialization
 
 1. **Parse options** from command arguments
-2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, offer to run `/maister-init` first
+2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, offer to run `/maister-copilot:init` first
 3. **Read existing standards** from `.maister/docs/INDEX.md` to identify updates vs creates and avoid duplicates
 4. **Display discovery plan** showing scope, sources, and estimated time
 5. **Get user confirmation** via ask_user before proceeding
@@ -160,7 +160,7 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 Write standard files through the docs-operator subagent rather than Write/Edit, so INDEX.md and .github/copilot-instructions.md stay consistent with the files.
 
 1. **Prepare content** for every approved standard — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. Note create vs update for each target file.
-2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister-docs-operator`) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then regenerate INDEX.md and confirm .github/copilot-instructions.md references the standards directory.
+2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister-copilot:docs-operator`) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then regenerate INDEX.md and confirm .github/copilot-instructions.md references the standards directory.
 
 Display application summary: created count, updated count, total active.
 
@@ -180,7 +180,7 @@ Display final results:
 
 | Situation | Strategy |
 |-----------|----------|
-| `.maister/docs/` missing | Offer `/maister-init`, abort if declined |
+| `.maister/docs/` missing | Offer `/maister-copilot:init`, abort if declined |
 | gh CLI unavailable | Skip PR analysis, continue with other sources |
 | GitHub API rate limit | Skip PR analysis, note in report |
 | Config file parse error | Skip that file, log warning, continue |
@@ -204,17 +204,17 @@ Display final results:
 
 ```bash
 # Full discovery (default)
-/maister-standards-discover
+/maister-copilot:standards-discover
 
 # Quick scan (config files only, ~30-60s)
-/maister-standards-discover --scope=quick
+/maister-copilot:standards-discover --scope=quick
 
 # Frontend standards only
-/maister-standards-discover --scope=frontend
+/maister-copilot:standards-discover --scope=frontend
 
 # High confidence, auto-apply
-/maister-standards-discover --confidence=80 --auto-apply
+/maister-copilot:standards-discover --confidence=80 --auto-apply
 
 # Skip external analysis (offline/no GitHub)
-/maister-standards-discover --skip-external
+/maister-copilot:standards-discover --skip-external
 ```

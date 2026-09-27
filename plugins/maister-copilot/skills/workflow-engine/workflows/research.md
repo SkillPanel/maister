@@ -175,7 +175,7 @@ predefined and operator-added alike — recording them as
 *Writes* `planning/research-plan.md`, `planning/sources.md`. *Resume check*: if
 both exist, go to step 3.
 
-Invoke the `maister-research-planner` agent through the Task tool. Choosing
+Invoke the `maister-copilot:research-planner` agent through the Task tool. Choosing
 the methodology is the planner's job, so the planner — not this node — reads
 the methodology reference; pass its path rather than reading it here.
 
@@ -309,7 +309,7 @@ Delegated to the solution brainstormer through the Task tool. Read the
 brainstorming-techniques reference first — divergent and convergent techniques,
 scope guardrails.
 
-The `maister-solution-brainstormer` agent generates the alternatives rather than
+The `maister-copilot:solution-brainstormer` agent generates the alternatives rather than
 an inline list, because it works from the research evidence alone and writes the
 exploration the convergence step below presents area by area.
 
@@ -460,7 +460,7 @@ design nothing a stated constraint would have added.
 
 **Part B — design generation (delegate).**
 
-The `maister-solution-designer` agent writes the architecture and the decision
+The `maister-copilot:solution-designer` agent writes the architecture and the decision
 records rather than an inline draft, because it produces the C4 views and the
 decision log in the shapes Part C presents.
 

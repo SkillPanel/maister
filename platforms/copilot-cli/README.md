@@ -25,6 +25,19 @@ Or run a local checkout with `copilot --plugin-dir /path/to/maister/plugins/mais
 Add `--add-dir` for the same path when the checkout sits outside your working directory --
 that grants file access to it. `--add-dir` on its own does not load a plugin.
 
+## Run a workflow
+
+Copilot CLI names a plugin's commands and skills under the plugin, so every command is typed
+`/maister-copilot:<name>`:
+
+```
+/maister-copilot:init
+/maister-copilot:development Add a multiply(a, b) function
+/maister-copilot:reviews-code src/
+```
+
+A bare `/development` is reported as an unknown command.
+
 ## Export the plugin root -- required
 
 Copilot CLI exports no plugin-directory variable of its own: the four it does export name the

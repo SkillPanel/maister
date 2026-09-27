@@ -35,6 +35,8 @@ After installing, restart Claude Code (`/exit` and relaunch) to ensure the plugi
 
 On GitHub Copilot CLI, install the `maister-copilot` variant with `copilot plugin install` — from a registered marketplace (`copilot plugin marketplace add SkillPanel/maister`, then `copilot plugin install maister-copilot@maister-plugins`) or straight from the repository subdirectory (`copilot plugin install SkillPanel/maister:plugins/maister-copilot`). To run a local checkout instead, load it with `copilot --plugin-dir /path/to/maister/plugins/maister-copilot`; add `--add-dir` for the same path when the checkout sits outside your working directory, which grants file access to it. `--add-dir` on its own does not load a plugin.
 
+**Copilot names the commands under the plugin.** Every command and workflow in this README is typed `/maister-copilot:<name>` on Copilot CLI, where Claude Code takes `/maister:<name>` — `/maister-copilot:development`, `/maister-copilot:init`, `/maister-copilot:reviews-code`. A bare `/development` is reported as an unknown command.
+
 **Then export the plugin root.** Copilot CLI exports no plugin-directory variable of its own, and four of the variant's skills tell an agent to run a script under the plugin's own directory. With the variable unset those instructions do not resolve, and the agent works the path out and substitutes one — the guessing the variable exists to remove. Point it at the directory holding `.claude-plugin/plugin.json`, which is a different place on each install path:
 
 ```bash

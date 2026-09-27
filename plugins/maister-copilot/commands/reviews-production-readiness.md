@@ -30,7 +30,7 @@ You are performing comprehensive production readiness analysis covering configur
 
 ```
 Use Task tool:
-  subagent_type: "maister-production-readiness-checker"
+  subagent_type: "maister-copilot:production-readiness-checker"
   description: "Production readiness check"
   prompt: |
     Verify production readiness at: [path from user or from ask_user]
@@ -53,17 +53,17 @@ The production-readiness-checker subagent will:
 
 **Example 1**: Check specific task for production
 ```
-User: /maister-reviews-production-readiness .maister/tasks/development/2025-10-24-payment-api/
+User: /maister-copilot:reviews-production-readiness .maister/tasks/development/2025-10-24-payment-api/
 ```
 
 **Example 2**: Check feature for staging
 ```
-User: /maister-reviews-production-readiness src/features/notifications/ --target=staging
+User: /maister-copilot:reviews-production-readiness src/features/notifications/ --target=staging
 ```
 
 **Example 3**: Comprehensive project check
 ```
-User: /maister-reviews-production-readiness .
+User: /maister-copilot:reviews-production-readiness .
 ```
 
 ## What to Expect
