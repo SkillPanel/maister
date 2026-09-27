@@ -11,9 +11,9 @@ Update or create standards in `.maister/docs/standards/` based on conversation c
 ## Usage
 
 ```bash
-/maister-standards-update                                    # Detect from conversation
-/maister-standards-update "always use React.memo for lists"  # From description
-/maister-standards-update --from=/path/to/other-project      # Sync from another project
+/maister-copilot:standards-update                                    # Detect from conversation
+/maister-copilot:standards-update "always use React.memo for lists"  # From description
+/maister-copilot:standards-update --from=/path/to/other-project      # Sync from another project
 ```
 
 ---
@@ -26,7 +26,7 @@ When `--from=PATH` is provided, the skill switches to **sync mode** — importin
 
 1. Resolve the path (absolute or relative to cwd)
 2. Check `PATH/.maister/docs/standards/` exists. If not, inform the user and stop.
-3. Check `.maister/docs/standards/` exists in the current project. If not, offer to run `/maister-init` first.
+3. Check `.maister/docs/standards/` exists in the current project. If not, offer to run `/maister-copilot:init` first.
 
 ### SYNC STEP 2: Analyze Differences
 
@@ -53,7 +53,7 @@ For each selected standard:
 
 ### SYNC STEP 4: Update INDEX.md
 
-Invoke `docs-operator` subagent via Task tool (subagent_type: `maister-docs-operator`):
+Invoke `docs-operator` subagent via Task tool (subagent_type: `maister-copilot:docs-operator`):
 > "Regenerate INDEX.md to include all newly added/updated standards. Verify .github/copilot-instructions.md integration."
 
 Wait for docs-operator to complete, then immediately proceed to SYNC STEP 5.
@@ -125,7 +125,7 @@ No user prompt needed — just inform: "Updating existing standard: [name]" or "
 
 > Each standard uses a `###` heading with 1-10 lines description (excluding code snippets). Multiple standards per topic file. Split large topics into sub-topic files.
 
-**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister-docs-operator`) with context:
+**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister-copilot:docs-operator`) with context:
 
 For **updates**:
 > "Update documentation file: standards/[category]/[name].md. Current content: [content]. Add/change: [new conventions]. Integrate new practices, maintain markdown formatting, organize logically, preserve existing unless conflicts. Update INDEX.md entry with practice-specific description (enumerate actual practices, not generic category)."
@@ -145,4 +145,4 @@ Display a summary: what was updated/created, practices added, and next steps (re
 
 ## Prerequisites
 
-If `.maister/docs/` doesn't exist, offer to run `/maister-init` first.
+If `.maister/docs/` doesn't exist, offer to run `/maister-copilot:init` first.

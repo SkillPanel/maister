@@ -31,6 +31,17 @@ validate:
 	@! grep -r '^name: maister-' plugins/maister-copilot/commands/ 2>/dev/null || (echo "FAIL: maister- prefix in command names" && exit 1)
 	@echo "Checking no maister: prefixes in copilot variant..."
 	@! grep -r 'maister:' plugins/maister-copilot/ --include="*.md" --include="*.json" --include="*.mjs" --include="*.yml" 2>/dev/null || (echo "FAIL: maister: prefix found" && exit 1)
+	@echo "Checking no maister-<name> form survives (Copilot registers neither)..."
+	@names=$$( { ls plugins/maister-copilot/commands plugins/maister-copilot/agents | sed -n 's/\.md$$//p'; ls plugins/maister-copilot/skills; } | sort -u | paste -sd'|' -); \
+	! grep -rnE "maister-($$names)([^A-Za-z0-9_-]|$$)" plugins/maister-copilot/ --include="*.md" || (echo "FAIL: a maister-<name> reference survives; Copilot resolves /maister-copilot:<name>, a bare skill name or maister-copilot:<agent>" && exit 1)
+	@echo "Checking every /maister-copilot:<name> names a command or skill..."
+	@for n in $$(grep -rhoE '/maister-copilot:[A-Za-z0-9_-]+.?' plugins/maister-copilot/ --include="*.md" | grep -v ':$$' | sed -E 's#^/maister-copilot:([A-Za-z0-9_-]+).*#\1#' | sort -u); do \
+	  test -f "plugins/maister-copilot/commands/$$n.md" || test -f "plugins/maister-copilot/skills/$$n/SKILL.md" || { echo "FAIL: /maister-copilot:$$n names no command or skill"; exit 1; }; \
+	done
+	@echo "Checking every maister-copilot:<agent> names an agent..."
+	@for n in $$(grep -rhoE '(^|[^/A-Za-z0-9_-])maister-copilot:[A-Za-z0-9_-]+' plugins/maister-copilot/ --include="*.md" | sed -E 's#.*maister-copilot:##' | sort -u); do \
+	  test -f "plugins/maister-copilot/agents/$$n.md" || { echo "FAIL: maister-copilot:$$n names no agent"; exit 1; }; \
+	done
 	@echo "Checking gate markers are not nested inside code spans..."
 	@! grep -rnF '`→ **MANDATORY GATE** — fires ' plugins/maister/skills/ 2>/dev/null || (echo "FAIL: gate marker nested inside a code span" && exit 1)
 	@! grep -nF '→ Pause' plugins/maister/skills/orchestrator-framework/references/orchestrator-creation-checklist.md 2>/dev/null || (echo "FAIL: superseded transition marker in the orchestrator checklist" && exit 1)

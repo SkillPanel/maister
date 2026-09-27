@@ -22,7 +22,7 @@ PowerShell and cmd.exe:
   `references/research-twin.md` **with the Read tool** — a shell read truncates it — then run the
   phases in it exactly as written, with nothing else changed by the presence of this branch.
 - **No value, or an empty one — the default** — hand the run over. Invoke the
-  `maister-workflow-engine` skill with the Skill tool, naming the workflow `builtin:research`
+  `workflow-engine` skill with the Skill tool, naming the workflow `builtin:research`
   and passing the task description, the resume target and the invocation's flags. Hand over
   `--from=PHASE` and `--reset-attempts` as well rather than dropping them on the way — the
   graph has no mid-graph entry point and no attempt counter, and the engine surfaces that by

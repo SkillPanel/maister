@@ -156,7 +156,7 @@ This phase executes 4 sequential steps. On resume, check existing artifacts to s
 
 **Read `references/research-methodologies.md` NOW using the Read tool** — research type classification, methodology selection, gathering strategies
 
-**INVOKE NOW**: Use Task tool with `subagent_type: maister-research-planner`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister-copilot:research-planner`
 
 **Context to pass**: task_path, research_brief_path, research_type, research_question, scope, project_doc_paths (from state)
 
@@ -187,7 +187,7 @@ For each category in strategy:
 **Artifacts**: `analysis/synthesis.md`, `outputs/research-report.md`
 **Resume check**: If `analysis/synthesis.md` AND `outputs/research-report.md` exist, skip (Phase 1 complete)
 
-**INVOKE NOW**: Use Task tool with `subagent_type: maister-research-synthesizer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister-copilot:research-synthesizer`
 
 **Context to pass**: task_path, findings_directory_path, research_question, research_type, methodology, html_style_guide_path (for the research-report.html companion)
 
@@ -259,7 +259,7 @@ ask_user - "Research foundation complete (initialized, planned, gathered, synthe
 
 > **ANTI-PATTERN**: Do NOT generate solution alternatives inline. The solution-brainstormer agent has specialized multi-perspective analysis capabilities.
 
-**INVOKE NOW**: Use Task tool with `subagent_type: maister-solution-brainstormer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister-copilot:solution-brainstormer`
 
 **Context to pass** (Pattern 7):
 - `task_path`, `synthesis_path`, `research_report_path`
@@ -345,7 +345,7 @@ ask_user - "Brainstorming complete. Continue to high-level design?"
 
 > **ANTI-PATTERN**: Do NOT generate C4 architecture diagrams or ADRs inline. The solution-designer agent has specialized architecture and MADR documentation capabilities.
 
-**INVOKE NOW**: Use Task tool with `subagent_type: maister-solution-designer`
+**INVOKE NOW**: Use Task tool with `subagent_type: maister-copilot:solution-designer`
 
 **Context to pass** (Pattern 7):
 - `task_path`, `synthesis_path`, `research_report_path`
@@ -391,7 +391,7 @@ ask_user - "Design complete. Continue to output generation?"
 3. If design artifacts exist, suggest starting development in a fresh session:
    ```
    To start development based on this research, clear context first or start a new session, then run:
-   /maister-development [task-path]
+   /maister-copilot:development [task-path]
    ```
 
 → End of workflow
@@ -502,7 +502,7 @@ The normative layout and naming rules ship with the pro register § A4; the tree
 
 ### As Standalone Research
 
-**Command**: `/maister-research [research-question]`
+**Command**: `/maister-copilot:research [research-question]`
 **Flow**: Complete all phases, save outputs in task directory
 
 ### As a Sub-run
@@ -524,8 +524,8 @@ The mechanics — the freeze, the child directory name, the ending, what a paren
 ## Command Integration
 
 Invoked via:
-- `/maister-research [question] [--type=TYPE] [--brainstorm] [--no-brainstorm] [--design] [--no-design]` (new)
-- `/maister-research [task-path]` (resume)
+- `/maister-copilot:research [question] [--type=TYPE] [--brainstorm] [--no-brainstorm] [--design] [--no-design]` (new)
+- `/maister-copilot:research [task-path]` (resume)
 
 **Brainstorming flags**:
 - `--brainstorm`: Force brainstorming phase (auto-resolves Phase 2 brainstorming decision to "enable")

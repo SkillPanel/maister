@@ -95,10 +95,27 @@ find "$OUT/skills" -name "*.md" | while read f; do
   sedi 's/^name: maister:/name: /' "$f"
 done
 
-# 4. Replace maister: prefix with maister- for subagent/skill refs
-# Run AFTER command name transform so name: lines are already clean
+# 4. Rewrite every remaining `maister:` reference into the name Copilot CLI
+#    registers for it. Copilot namespaces a plugin's commands, skills and agents
+#    under the manifest name, so the namespace is read from the manifest step 1
+#    just wrote rather than spelled here. Three forms, three passes, in order —
+#    each pass consumes its own matches, so the next one never sees them:
+#      /maister:<name>        → /<ns>:<name>   a slash command or skill the user types
+#      maister:<agent>        → <ns>:<agent>   the agent type the task tool dispatches
+#      maister:<skill>        → <skill>        the bare name the skill tool takes
+#    Run AFTER the name: transforms so frontmatter names are already clean.
+NS=$(sed -n 's/^[[:space:]]*"name":[[:space:]]*"\([^"]*\)".*/\1/p' "$OUT/.claude-plugin/plugin.json" | head -1)
+if [ -z "$NS" ]; then
+  echo "build: no plugin name in $OUT/.claude-plugin/plugin.json; cannot derive the command namespace" >&2
+  exit 1
+fi
+AGENTS=$(find "$CORE/agents" -name "*.md" -exec basename {} .md \; | sort | paste -sd'|' -)
 find "$OUT" -name "*.md" | while read f; do
-  sedi 's/maister:/maister-/g' "$f"
+  sedi -E \
+    -e "s#/maister:#/$NS:#g" \
+    -e "s#maister:($AGENTS)([^A-Za-z0-9_-]|\$)#$NS:\\1\\2#g" \
+    -e 's#maister:##g' \
+    "$f"
 done
 
 # 5. Transform multi-select patterns to sequential

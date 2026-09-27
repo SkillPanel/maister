@@ -114,7 +114,7 @@ Use for:
 
 **Purpose**: Comprehensive codebase exploration for performance context, followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `maister-codebase-analyzer`
+1. Skill tool - `codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use ask_user for max 5 critical clarifying questions about performance concerns, hotspots, and optimization goals
 
@@ -132,7 +132,7 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 ### Phase 2: Static Performance Analysis
 
 **Purpose**: Identify bottlenecks through static code analysis + optional user profiling data
-**Execute**: Task tool - `maister-bottleneck-analyzer` subagent
+**Execute**: Task tool - `maister-copilot:bottleneck-analyzer` subagent
 **Output**: `analysis/performance-analysis.md`
 **State**: Update `performance_context.bottlenecks_identified`, `performance_context.user_data_available`, `performance_context.bottleneck_priorities`
 
@@ -151,11 +151,11 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
 
 **INVOKE NOW** — Task tool call:
 
-4. Task tool - `maister-bottleneck-analyzer` subagent
+4. Task tool - `maister-copilot:bottleneck-analyzer` subagent
 
 **Context to pass**: task_path, description, codebase analysis summary from Phase 1, user data paths (if any)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-bottleneck-analyzer`? Or did you start analyzing code yourself? If the latter, STOP and invoke the Task tool.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot:bottleneck-analyzer`? Or did you start analyzing code yourself? If the latter, STOP and invoke the Task tool.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -192,11 +192,11 @@ ask_user - "Performance analysis complete. [N] bottlenecks identified ([P0 count
 
 **INVOKE NOW** — Task tool call:
 
-4. Task tool - `maister-specification-creator` subagent
+4. Task tool - `maister-copilot:specification-creator` subagent
 
 **Context to pass**: task_path, task_type="performance", task_description, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md + project_doc_paths from state — all discovered project docs), phase_summaries (codebase_analysis, bottleneck_analysis), html_style_guide_path (for the spec.html companion)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP and invoke the Task tool.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot:specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP and invoke the Task tool.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -209,7 +209,7 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 > **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 3 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Independent review of optimization specification
-**Execute**: Task tool - `maister-spec-auditor` subagent
+**Execute**: Task tool - `maister-copilot:spec-auditor` subagent
 **Output**: `verification/spec-audit.md`
 
 The audit always runs — there is no opt-in and no size threshold, so every performance specification is reviewed before planning starts.
@@ -234,13 +234,13 @@ ask_user - Display executive summary before asking. Read `verification/spec-audi
 
 **INVOKE NOW** — Task tool call:
 
-**Execute**: Task tool - `maister-implementation-planner` subagent
+**Execute**: Task tool - `maister-copilot:implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md`
 **State**: Update task groups and dependencies
 
 **Context to pass**: task_path, task_type="performance", task_description, phase_summaries (specification, bottleneck_analysis, codebase_analysis), html_style_guide_path (for the implementation-plan.html companion)
 
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-implementation-planner`? Or did you start writing the plan yourself? If the latter, STOP and invoke the Task tool.
+**SELF-CHECK**: Did you just invoke the Task tool with `maister-copilot:implementation-planner`? Or did you start writing the plan yourself? If the latter, STOP and invoke the Task tool.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -262,11 +262,11 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 
 **INVOKE NOW** — Skill tool call:
 
-**Execute**: Skill tool - `maister-implementation-plan-executor`
+**Execute**: Skill tool - `implementation-plan-executor`
 **Output**: Implemented optimizations, `implementation/work-log.md`
 **State**: Update implementation progress, extract `performance_context.phase_summaries.implementation`
 
-**SELF-CHECK**: Did you just invoke the Skill tool with `maister-implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
+**SELF-CHECK**: Did you just invoke the Skill tool with `implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
 
 **⚠️ POST-IMPLEMENTATION CONTINUATION** — After the skill completes and returns control:
 1. **HTML plan reconciliation** (backstop for syncs missed during waves): if `implementation/implementation-plan.html` exists, for every group whose md checkboxes are all `[x]`, run the executor's idempotent marker-flip command (`sed` flipping `data-step="N\.[0-9]*" class="step todo"` and `data-group="N" class="group todo"` to `done`). VERIFY: when all md steps are checked, `grep -c 'class="step todo"' implementation/implementation-plan.html` must return 0.
@@ -314,7 +314,7 @@ ask_user - "Options selected. Continue to Phase 8?"
 
 **Execute**:
 
-**Step 1**: Invoke Skill tool - `maister-implementation-verifier`
+**Step 1**: Invoke Skill tool - `implementation-verifier`
 
 **Step 2**: Display detailed issue breakdown grouped by category and severity (critical/warning/info), listing location, description, and fixability for each.
 
@@ -328,7 +328,7 @@ ask_user - "Options selected. Continue to Phase 8?"
 3. Fix selected issues
 4. After fixes: set `skip_test_suite: false` (code changed, tests must re-run)
 5. ask_user — "Re-run verification to check fixes?" with options: "Yes, re-run verification" / "No, proceed to next phase"
-6. If re-run → re-invoke `maister-implementation-verifier` → return to Step 2
+6. If re-run → re-invoke `implementation-verifier` → return to Step 2
 
 **Default under a non-terminal driver** (`verification-fix-loop`): fix every fixable issue, re-verify once, then continue to the gate. One re-verification is the whole budget -- a loop nobody can stop is not a loop -- and `skip_test_suite` is cleared before it exactly as an answered round clears it. An issue still critical afterwards is not proceeded past: it is named in the executive summary before this phase's exit gate, which is where an operator answers.
 
@@ -449,8 +449,8 @@ The normative layout and naming rules ship with the pro register § A4; the tree
 ## Command Integration
 
 Invoked via:
-- `/maister-performance [description] [--sequential]` (new)
-- `/maister-performance [task-path] [--from=PHASE] [--sequential]` (resume)
+- `/maister-copilot:performance [description] [--sequential]` (new)
+- `/maister-copilot:performance [task-path] [--from=PHASE] [--sequential]` (resume)
 
 Flags:
 - `--from=PHASE`: Resume from specific phase

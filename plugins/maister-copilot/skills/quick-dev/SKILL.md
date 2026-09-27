@@ -21,4 +21,4 @@ This works exactly as if you asked the main agent to implement the task directly
 
 4. **Verify compliance (mandatory)** — After implementing, go through each applicable standard and verify it was followed — report a **Standards Compliance Checklist** (pass/fail per guideline, each annotated with its source file) in your summary, alongside what changed and any tests run. Address any failure before marking the task complete.
 
-If `.maister/docs/INDEX.md` does not exist, implement normally and note: "No Maister standards found. Consider running `/maister-init`."
+If `.maister/docs/INDEX.md` does not exist, implement normally and note: "No Maister standards found. Consider running `/maister-copilot:init`."

@@ -8,7 +8,7 @@ argument-hint: "[--standards-from=PATH]"
 
 Initialize `.maister/docs/` with intelligent project analysis and meaningful documentation generation based on actual codebase inspection.
 
-**NOTE**: This skill invokes other skills and subagents at specific phases. Use the **Task tool with `docs-operator` subagent** (subagent_type: `maister-docs-operator`) for all docs-manager operations, and **Task tool** for project-analyzer. Use the **Skill tool** only for standards-discover (Phase 8, last phase). The Task tool returns control to this skill after completion; the Skill tool does not.
+**NOTE**: This skill invokes other skills and subagents at specific phases. Use the **Task tool with `docs-operator` subagent** (subagent_type: `maister-copilot:docs-operator`) for all docs-manager operations, and **Task tool** for project-analyzer. Use the **Skill tool** only for standards-discover (Phase 8, last phase). The Task tool returns control to this skill after completion; the Skill tool does not.
 
 ## Phase Configuration
 
@@ -109,7 +109,7 @@ Store selection for Phase 5.
 
 ## PHASE 5: Initialize Documentation Structure
 
-**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister-docs-operator`) with prompt:
+**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister-copilot:docs-operator`) with prompt:
 
 > "Initialize documentation structure. Standards selection: [array from Phase 4]. [If --standards-from was provided: Standards source path: [resolved path]/.maister/docs/standards/. Copy standards from this external path instead of built-in defaults.] Only copy selected standard categories. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Create placeholder sections in INDEX.md for skipped categories."
 
@@ -127,7 +127,7 @@ Wait for docs-operator to complete, then immediately proceed to Phase 6.
 html_output: true
 
 # mockup_format — how UI mockups are rendered when a workflow generates them
-# (development Phase 4, product-design Phase 7, or /maister-mockup-studio).
+# (development Phase 4, product-design Phase 7, or /maister-copilot:mockup-studio).
 #   html  (default): rendered HTML/CSS via the visual companion (browser preview, saved as .html).
 #   ascii          : terminal ASCII mockups via the ascii-mockup-generator agent (no Node/browser needed).
 # Auto-falls back to ascii when Node.js is unavailable. Default: html.
@@ -157,7 +157,7 @@ Write each file to `.maister/docs/project/`.
 
 ## PHASE 7: Validate
 
-**Step 1**: Invoke `docs-operator` subagent via Task tool (subagent_type: `maister-docs-operator`) with prompt:
+**Step 1**: Invoke `docs-operator` subagent via Task tool (subagent_type: `maister-copilot:docs-operator`) with prompt:
 
 > "Regenerate INDEX.md to include all newly created project documentation. Then verify .github/copilot-instructions.md is properly integrated with .maister/docs/ documentation."
 
@@ -171,7 +171,7 @@ Wait for docs-operator to complete, then immediately continue with Step 2.
 - Next steps:
   1. Review generated documentation
   2. Customize for your team
-  3. Start development with `/maister-work`
+  3. Start development with `/maister-copilot:work`
   4. Keep documentation current
 
 ---

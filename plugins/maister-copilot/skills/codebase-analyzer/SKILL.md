@@ -103,7 +103,7 @@ After all Explore agents complete, delegate to `codebase-analysis-reporter` suba
 
 ```
 Task tool:
-  subagent_type: "maister-codebase-analysis-reporter"
+  subagent_type: "maister-copilot:codebase-analysis-reporter"
   description: "Merge findings into analysis report"
   prompt: |
     You are the codebase-analysis-reporter. Merge these raw findings into a structured analysis report.

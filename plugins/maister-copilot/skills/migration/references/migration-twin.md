@@ -121,7 +121,7 @@ Use for:
 
 **Purpose**: Comprehensive analysis of current system before migration, followed by scope/requirements clarification
 **Execute**:
-1. Skill tool - `maister-codebase-analyzer`
+1. Skill tool - `codebase-analyzer`
 2. Update state with analysis results
 3. Direct - use ask_user for max 5 critical clarifying questions about migration scope, target system, and constraints
 4. Save clarifications to `analysis/clarifications.md`
@@ -138,7 +138,7 @@ Use for:
 ### Phase 2: Target State Planning & Gap Analysis
 
 **Purpose**: Define target system and identify migration gaps
-**Execute**: Task tool - `maister-gap-analyzer` subagent
+**Execute**: Task tool - `maister-copilot:gap-analyzer` subagent
 **Output**: `analysis/target-state-plan.md`
 **State**: Update `migration_context.migration_type`, `target_system`, `migration_strategy`, `risk_level`, `breaking_changes`, `migration_context.phase_summaries.gap_analysis`
 
@@ -175,7 +175,7 @@ ask_user - Display executive summary before asking. Extract from gap analysis: c
 **Default under a non-terminal driver** (`specification-requirements`): the assumptions stand as framed. They are written to be confirmable, so an unconfirmed one is recorded in `analysis/requirements.md` and carried into the specification as a stated assumption rather than as settled fact. Rollback expectations and downtime tolerance are the two an operator most needs to see, so name them in the executive summary before this phase's exit gate whatever else the round covered.
 
 **Part B — Specification Creation (subagent)**:
-3. Task tool - `maister-specification-creator` subagent
+3. Task tool - `maister-copilot:specification-creator` subagent
 
 **Context to pass to subagent**: task_path, task_type (migration), task_description, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md + project_doc_paths from state — all discovered project docs), migration_type, current_system, target_system, risk_level, breaking_changes, phase_summaries (current_state_analysis, gap_analysis), html_style_guide_path (for the spec.html companion)
 
@@ -193,7 +193,7 @@ ask_user - Display executive summary before asking. Read `implementation/spec.md
 > **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 3 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Break migration into task groups with rollback steps
-**Execute**: Task tool - `maister-implementation-planner` subagent
+**Execute**: Task tool - `maister-copilot:implementation-planner` subagent
 **Output**: `implementation/implementation-plan.md` with rollback procedures
 **State**: Update task groups and dependencies
 
@@ -217,13 +217,13 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 
 **INVOKE NOW** — Skill tool call:
 
-**Execute**: Skill tool - `maister-implementation-plan-executor`
+**Execute**: Skill tool - `implementation-plan-executor`
 **Output**: Implemented migration changes, `implementation/work-log.md`
 **State**: Update implementation progress, extract `migration_context.phase_summaries.implementation`
 
 📋 **Standards Reminder**: Review `.maister/docs/INDEX.md` before implementing.
 
-**SELF-CHECK**: Did you just invoke the Skill tool with `maister-implementation-plan-executor`? Or did you start writing migration code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
+**SELF-CHECK**: Did you just invoke the Skill tool with `implementation-plan-executor`? Or did you start writing migration code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
 
 **⚠️ POST-IMPLEMENTATION CONTINUATION** — After the skill completes and returns control:
 1. **HTML plan reconciliation** (backstop for syncs missed during waves): if `implementation/implementation-plan.html` exists, for every group whose md checkboxes are all `[x]`, run the executor's idempotent marker-flip command (`sed` flipping `data-step="N\.[0-9]*" class="step todo"` and `data-group="N" class="group todo"` to `done`). VERIFY: when all md steps are checked, `grep -c 'class="step todo"' implementation/implementation-plan.html` must return 0.
@@ -242,7 +242,7 @@ ask_user - Display executive summary before asking. Extract from `phase_summarie
 > **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from Phase 5 in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Verify migration success with compatibility and rollback testing
-**Execute**: Skill tool - `maister-implementation-verifier`
+**Execute**: Skill tool - `implementation-verifier`
 **Output**: `verification/implementation-verification.md`, `verification/compatibility-test-results.md`
 **State**: Update verification results
 
@@ -280,7 +280,7 @@ ask_user - Display executive summary before asking. Extract from verification re
 3. ask_user — "Which issues should I fix?" with options: "Fix all fixable issues" / "Let me choose specific issues" / "Skip fixes, proceed as-is"
 4. Fix selected issues
 5. ask_user — "Re-run verification to check fixes?" with options: "Yes, re-run verification" / "No, proceed to next phase"
-6. If re-run → re-invoke `maister-implementation-verifier` → return to Step 1
+6. If re-run → re-invoke `implementation-verifier` → return to Step 1
 7. Max 3 iterations
 
 **Data Safety Critical**: HALT on any data integrity issue - never auto-fix data problems. Always present data issues to user with rollback option.
@@ -303,7 +303,7 @@ ask_user - Display executive summary: total issues found, issues fixed, issues r
 > **Phase entry self-check**: Before executing this phase, locate the `ask_user` tool call from the preceding phase in this conversation. If you cannot point to its call ID, STOP and fire that gate now. State updates (`completed_phases`, `TaskUpdate`) without a corresponding `ask_user` call are protocol violations — never paper over a missed gate by updating state.
 
 **Purpose**: Create migration guide for end users
-**Execute**: Task tool - `maister-user-docs-generator` subagent
+**Execute**: Task tool - `maister-copilot:user-docs-generator` subagent
 **Output**: `documentation/migration-guide.md`
 **State**: Set documentation complete
 
@@ -422,8 +422,8 @@ The normative layout and naming rules ship with the pro register § A4 — note 
 ## Command Integration
 
 Invoked via:
-- `/maister-migration [description] [--type=code|data|architecture|general] [--user-docs] [--sequential]` (new)
-- `/maister-migration [task-path] [--from=PHASE] [--sequential]` (resume)
+- `/maister-copilot:migration [description] [--type=code|data|architecture|general] [--user-docs] [--sequential]` (new)
+- `/maister-copilot:migration [task-path] [--from=PHASE] [--sequential]` (resume)
 
 Flags:
 - `--type=code|data|architecture|general`: Migration category (affects risk focus). One of those four values; any other value stops at initialization before a task directory exists. Absent, Phase 2 classifies the migration. Name technologies in the description — they belong in `current_system` / `target_system`, not in this flag.

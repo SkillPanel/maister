@@ -126,7 +126,7 @@ The user documentation generator transforms technical specifications into user-f
 
 ### 3.5. Reuse E2E Screenshots (Required when `e2e_screenshots_path` is provided)
 
-**Purpose**: Reuse existing E2E screenshots before capturing new ones. The orchestrator (Phase 13 of `maister-development`) passes `e2e_screenshots_path` whenever Phase 12 ran successfully. Phase 12 and Phase 13 share the same Playwright MCP browser, so every screenshot already produced by E2E must be reused rather than re-captured.
+**Purpose**: Reuse existing E2E screenshots before capturing new ones. The orchestrator (Phase 13 of `development`) passes `e2e_screenshots_path` whenever Phase 12 ran successfully. Phase 12 and Phase 13 share the same Playwright MCP browser, so every screenshot already produced by E2E must be reused rather than re-captured.
 
 **Actions**:
 - If the prompt includes `e2e_screenshots_path`: list every file in that directory. This step is mandatory — do NOT skip to Step 4 until the inventory exists.
