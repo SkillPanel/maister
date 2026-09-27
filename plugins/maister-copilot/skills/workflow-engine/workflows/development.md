@@ -762,10 +762,12 @@ never landed there is an input the run silently ignores. When it is true the
 executor runs one task group at a time instead of dispatching independent
 groups in parallel waves. It defaults to parallel.
 
-**After the skill returns**, reconcile the plan's HTML companion when one exists
-— every group whose steps are all marked done in the document must read as done
-in the companion too, and a companion still showing outstanding work after a
-complete run is a stale projection rather than a finding. Then record what
+**After the skill returns**, reconcile the plan's HTML companion: run the
+engine's `sync-plan` verb once against `implementation/implementation-plan.md`.
+It is the call the executor makes after every wave, so it is idempotent and a
+no-op without a companion — here it catches a wave whose sync was missed. A
+companion still showing outstanding work after a complete run is a stale
+projection rather than a finding. Then record what
 landed: the groups completed, the files changed and the incremental test results.
 
 **Executive summary before the gate.** Read `implementation/work-log.md` and

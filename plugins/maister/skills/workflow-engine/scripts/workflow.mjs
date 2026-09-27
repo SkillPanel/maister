@@ -17,6 +17,9 @@
  *   prior-context  --state                                    the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt — the one read-only verb over a run
+ *   sync-plan      --plan                                     JSON on stdout
+ *                  (the plan companion's progress markers set from the
+ *                  markdown plan's checkboxes; a no-op without a companion)
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -65,6 +68,10 @@ const VERBS = {
   // found inside the state file, so there is nothing else a caller could name
   // and therefore nothing else a caller could name wrongly.
   'prior-context': { module: 'prior-context.mjs', flags: ['state'] },
+  // The plan, not the state file: the executor also runs outside an engine
+  // run, and the companion it keeps in step sits beside the plan either way.
+  // The run's `html_output` switch is looked up from there when a run exists.
+  'sync-plan': { module: 'plan-sync.mjs', flags: ['plan'] },
 };
 
 /** The flags that may be given more than once; every other flag is single-valued. */
@@ -425,6 +432,26 @@ async function runPriorContext(flags) {
   return EXIT.OK;
 }
 
+/**
+ * Set the plan companion's progress markers from the markdown plan.
+ *
+ * Reported like `validate` — the whole JSON result on stdout — because what a
+ * caller needs back is data, not a list of files: whether anything was
+ * written, and which of the plan's groups the companion carries no marker for,
+ * so a miss is logged rather than silent. A no-op (no companion, or HTML
+ * companions switched off for the run) is a success that names its reason.
+ */
+async function runSyncPlan(flags) {
+  if (!flags.plan) throw new UsageError('sync-plan needs --plan');
+  const module = await loadModule(VERBS['sync-plan'].module);
+  const sync = entryOf(module, 'syncPlan', VERBS['sync-plan'].module);
+  const result = sync({ plan: flags.plan });
+  report(result);
+  if (result.ok) return EXIT.OK;
+  for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  return EXIT.REJECTED;
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
@@ -433,6 +460,7 @@ const RUNNERS = {
   'gate-request': runGateRequest,
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
+  'sync-plan': runSyncPlan,
 };
 
 // ---------------------------------------------------------------------------
