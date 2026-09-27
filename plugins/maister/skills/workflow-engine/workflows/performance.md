@@ -625,7 +625,8 @@ critical after it is **not** proceeded past: it is named in the line printed
 before `verification-approval`, which is where an operator answers.
 
 Also record `verification_context.last_status`,
-`verification_context.issues_found` and `verification_context.decisions_made`, so
+`verification_context.issues_found` (the issue shape of `orchestrator-patterns.md`
+§ 4) and `verification_context.decisions_made`, so
 a later reader can tell a clean pass from a pass carried by an explicit
 decision.
 

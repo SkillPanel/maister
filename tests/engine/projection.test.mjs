@@ -158,6 +158,22 @@ test('issueOf: a severity prefix is read only when it names a severity', () => {
   for (const junk of [9, true, null, ['a']]) assert.equal(issueOf(junk), null);
 });
 
+test('issueOf: the issue-id shapes verification writes carry their severity', () => {
+  assert.deepEqual(issueOf('W3 no files allow-list in package.json (deferred by operator)'),
+    { id: 'W3', severity: 'warning', description: 'no files allow-list in package.json (deferred by operator)' });
+  assert.deepEqual(
+    issueOf('W5 warning (fixable, pre-existing, accepted by operator): fromEnv walks inherited keys — src/env.js:8-13'),
+    { id: 'W5', severity: 'warning', description: 'fromEnv walks inherited keys — src/env.js:8-13 (fixable, pre-existing, accepted by operator)' });
+  assert.deepEqual(issueOf('I10 info: literal source flattens a Map target'),
+    { id: 'I10', severity: 'info', description: 'literal source flattens a Map target' });
+  assert.deepEqual(issueOf('C2 the lock is never released'),
+    { id: 'C2', severity: 'critical', description: 'the lock is never released' });
+  assert.deepEqual(issueOf('M1 a medium-looking id names no severity'),
+    { id: 'M1', severity: 'info', description: 'a medium-looking id names no severity' });
+  assert.deepEqual(issueOf('CHANGELOG.md not in tarball — operator call, left as-is'),
+    { severity: 'info', description: 'CHANGELOG.md not in tarball — operator call, left as-is' });
+});
+
 test('artifactOf: a string is a path, an object passes, anything else is dropped', () => {
   assert.deepEqual(artifactOf('a/b.md'), { path: 'a/b.md', label: null, html: null });
   const object = { path: 'x.md', label: 'X' };

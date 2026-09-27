@@ -329,11 +329,13 @@ All orchestrators with verification phases use:
 ```yaml
 verification_context:
   last_status: passed | passed_with_issues | failed | null
-  issues_found: []
+  issues_found: []           # [{id, severity, source, description, fixable, fixed}]
   fixes_applied: []
   decisions_made: []
   reverify_count: 0          # max 3
 ```
+
+Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.
 
 ### Shared: phase_summaries entry shape
 

@@ -143,6 +143,23 @@ const SEVERITY_SEPARATOR = ': ';
 /** The severity a string-form issue gets when its prefix names none. */
 const SEVERITY_DEFAULT = 'info';
 
+/**
+ * An issue id as verification reports number their findings — `W3`, `I10`,
+ * `C-2` — followed by the rest of the line.
+ */
+const ISSUE_ID = /^([A-Z]{1,3}-?\d+)\s+(.+)$/s;
+
+/** A severity word leading the rest, an optional parenthesised qualifier, then `: `. */
+const ID_SEVERITY = /^([A-Za-z]+)\s*(?:\(([^)]*)\))?:\s+(.+)$/s;
+
+/**
+ * The severity an id's letter stands for when the line names none. Only the
+ * three letters the reports use for the three severities a writer emits: any
+ * other letter is a numbering this module cannot read, and guessing would turn
+ * a numbering into a severity.
+ */
+const ID_LETTER_SEVERITY = { C: 'critical', W: 'warning', I: 'info' };
+
 /** The two characteristic maps, in the order the projection prefers them. */
 const CHARACTERISTIC_KEYS = [
   ['task_context', 'task_characteristics'],
@@ -447,6 +464,14 @@ export function decisionOf(entry) {
  *   original string. Not stripping an unrecognised prefix is the whole point:
  *   `"e2e minor: the focus comment …"` has `e2e minor` as content, and a reader
  *   that guessed it was a severity would delete text an operator needs.
+ * - A string that opens with an **issue id** — `"W3 no files allow-list"`,
+ *   `"W5 warning (accepted by operator): …"`, `"I10 info: …"`, which is how runs
+ *   wrote the issues left open after verification — becomes `{id, severity,
+ *   description}`. A severity word after the id wins, and a parenthesised
+ *   qualifier beside it moves to the end of the description rather than being
+ *   dropped. With no severity word, the id's letter decides for `C`, `W` and `I`
+ *   (`ID_LETTER_SEVERITY`), and any other id is `info`. The id is kept as a
+ *   field, so no text is lost.
  * - **Anything else** — number, boolean, `null`, array — is dropped. A bare
  *   count such as `issues_found: 9` carries no issue content, so there is
  *   nothing to render and nothing A2 would accept.
@@ -457,6 +482,8 @@ export function decisionOf(entry) {
 export function issueOf(entry) {
   if (isPlainObject(entry)) return entry;
   if (typeof entry !== 'string') return null;
+  const numbered = ISSUE_ID.exec(entry);
+  if (numbered) return numberedIssue(numbered[1], numbered[2]);
   const cut = entry.indexOf(SEVERITY_SEPARATOR);
   if (cut > 0) {
     const prefix = entry.slice(0, cut).toLowerCase();
@@ -465,6 +492,19 @@ export function issueOf(entry) {
     }
   }
   return { severity: SEVERITY_DEFAULT, description: entry };
+}
+
+/** A string-form issue that opened with an id, as `{id, severity, description}`. */
+function numberedIssue(id, rest) {
+  const worded = ID_SEVERITY.exec(rest);
+  if (worded && SEVERITIES.includes(worded[1].toLowerCase())) {
+    const qualifier = worded[2] === undefined ? '' : worded[2].trim();
+    const description = qualifier === '' ? worded[3] : `${worded[3]} (${qualifier})`;
+    return { id, severity: worded[1].toLowerCase(), description };
+  }
+  const letter = id[0];
+  const severity = Object.hasOwn(ID_LETTER_SEVERITY, letter) ? ID_LETTER_SEVERITY[letter] : SEVERITY_DEFAULT;
+  return { id, severity, description: rest };
 }
 
 /**
