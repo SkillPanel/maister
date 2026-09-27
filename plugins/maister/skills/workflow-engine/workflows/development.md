@@ -952,6 +952,12 @@ answered from outside is such an answer; a default is not.
 found, how many were fixed, and how many remain by severity. Print that summary
 immediately before `verification-approval` fires.
 
+**Node summary**: no phase key. Register `verification/implementation-verification.md`
+under `node_summaries.verification.artifacts`, with its companion path as the
+entry's `html`, in the closing write. Record `verification_context.last_status`
+and the issues the report leaves open in `verification_context.issues_found`, in
+the issue shape of `orchestrator-patterns.md` § 4.
+
 **Recovery budget**: 3 attempts — fix the failing tests and re-run, three times
 over, before asking the operator how to proceed.
 

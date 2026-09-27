@@ -143,6 +143,23 @@ const SEVERITY_SEPARATOR = ': ';
 /** The severity a string-form issue gets when its prefix names none. */
 const SEVERITY_DEFAULT = 'info';
 
+/**
+ * An issue id as verification reports number their findings — `W3`, `I10`,
+ * `C-2` — followed by the rest of the line.
+ */
+const ISSUE_ID = /^([A-Z]{1,3}-?\d+)\s+(.+)$/s;
+
+/** A severity word leading the rest, an optional parenthesised qualifier, then `: `. */
+const ID_SEVERITY = /^([A-Za-z]+)\s*(?:\(([^)]*)\))?:\s+(.+)$/s;
+
+/**
+ * The severity an id's letter stands for when the line names none. Only the
+ * three letters the reports use for the three severities a writer emits: any
+ * other letter is a numbering this module cannot read, and guessing would turn
+ * a numbering into a severity.
+ */
+const ID_LETTER_SEVERITY = { C: 'critical', W: 'warning', I: 'info' };
+
 /** The two characteristic maps, in the order the projection prefers them. */
 const CHARACTERISTIC_KEYS = [
   ['task_context', 'task_characteristics'],
@@ -285,14 +302,21 @@ function phasesOf(state, display, gates, progress) {
 }
 
 /**
- * The two places a phase's prose lives, node-first.
+ * The two places a phase's prose lives, node-first, field by field.
  *
  * `node_summaries.<id>` is consulted first because `phases[].id` **is** the node
  * id; `<something>_context.phase_summaries.<key>` is the fallback, and only where
  * `key === id`. The prose path's key-to-node mapping table is deliberately not
  * carried into code: it existed so a human could line the two up by eye, and a
  * projection that guessed at it would attribute one phase's decisions to another.
- * **The two are never merged** — whichever answers first answers whole.
+ *
+ * The choice is made **per field** — `summary`, `decisions`, `risks`,
+ * `artifacts` each come from the first source that carries them filled — and
+ * **the two are never merged**: a field filled on both is the node summary's
+ * alone. Taking the first entry whole instead let a node summary written with
+ * empty lists hide the decisions and artifacts its phase summary recorded, and
+ * an empty list is what a closing write sends when the node prose names the
+ * phase key as the place for them.
  *
  * The context block is found by suffix rather than against a frozen list of five
  * names, so a run using a block this module has never heard of still projects,
@@ -309,12 +333,28 @@ function summarySources(state) {
   return sources.filter(source => source !== null);
 }
 
-/** The first source carrying an entry for `id`, as a map; `{}` when none does. */
+/** The fields a phase card takes from a summary, each chosen on its own. */
+const SUMMARY_FIELDS = ['summary', 'decisions', 'risks', 'artifacts'];
+
+/**
+ * A phase's summary as a map of the fields in `SUMMARY_FIELDS`, each from the
+ * first source carrying it filled — a non-empty string or a non-empty list; `{}`
+ * when no source does.
+ */
 function pick(sources, id) {
-  for (const source of sources) {
-    if (Object.hasOwn(source, id) && isPlainObject(source[id])) return source[id];
+  const entries = sources
+    .filter(source => Object.hasOwn(source, id) && isPlainObject(source[id]))
+    .map(source => source[id]);
+  const picked = {};
+  for (const field of SUMMARY_FIELDS) {
+    const entry = entries.find(candidate => filled(candidate[field]));
+    if (entry) picked[field] = entry[field];
   }
-  return {};
+  return picked;
+}
+
+function filled(value) {
+  return (typeof value === 'string' && value !== '') || (Array.isArray(value) && value.length > 0);
 }
 
 /**
@@ -424,6 +464,14 @@ export function decisionOf(entry) {
  *   original string. Not stripping an unrecognised prefix is the whole point:
  *   `"e2e minor: the focus comment …"` has `e2e minor` as content, and a reader
  *   that guessed it was a severity would delete text an operator needs.
+ * - A string that opens with an **issue id** — `"W3 no files allow-list"`,
+ *   `"W5 warning (accepted by operator): …"`, `"I10 info: …"`, which is how runs
+ *   wrote the issues left open after verification — becomes `{id, severity,
+ *   description}`. A severity word after the id wins, and a parenthesised
+ *   qualifier beside it moves to the end of the description rather than being
+ *   dropped. With no severity word, the id's letter decides for `C`, `W` and `I`
+ *   (`ID_LETTER_SEVERITY`), and any other id is `info`. The id is kept as a
+ *   field, so no text is lost.
  * - **Anything else** — number, boolean, `null`, array — is dropped. A bare
  *   count such as `issues_found: 9` carries no issue content, so there is
  *   nothing to render and nothing A2 would accept.
@@ -434,6 +482,8 @@ export function decisionOf(entry) {
 export function issueOf(entry) {
   if (isPlainObject(entry)) return entry;
   if (typeof entry !== 'string') return null;
+  const numbered = ISSUE_ID.exec(entry);
+  if (numbered) return numberedIssue(numbered[1], numbered[2]);
   const cut = entry.indexOf(SEVERITY_SEPARATOR);
   if (cut > 0) {
     const prefix = entry.slice(0, cut).toLowerCase();
@@ -442,6 +492,19 @@ export function issueOf(entry) {
     }
   }
   return { severity: SEVERITY_DEFAULT, description: entry };
+}
+
+/** A string-form issue that opened with an id, as `{id, severity, description}`. */
+function numberedIssue(id, rest) {
+  const worded = ID_SEVERITY.exec(rest);
+  if (worded && SEVERITIES.includes(worded[1].toLowerCase())) {
+    const qualifier = worded[2] === undefined ? '' : worded[2].trim();
+    const description = qualifier === '' ? worded[3] : `${worded[3]} (${qualifier})`;
+    return { id, severity: worded[1].toLowerCase(), description };
+  }
+  const letter = id[0];
+  const severity = Object.hasOwn(ID_LETTER_SEVERITY, letter) ? ID_LETTER_SEVERITY[letter] : SEVERITY_DEFAULT;
+  return { id, severity, description: rest };
 }
 
 /**

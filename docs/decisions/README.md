@@ -48,7 +48,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0009](0009-terminal-mode-gate-state.md) | Terminal-mode gate state | Accepted | 2026-08-26 | — |
 | [ADR-0010](0010-built-in-workflow-node-ids.md) | Built-in workflow node ids as public API | Accepted | 2026-08-26 | — |
 | [ADR-0011](0011-generated-workflow-diagrams.md) | Generated workflow diagrams are non-contractual | Accepted | 2026-08-26 | — |
-| [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | — |
+| [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | Amended 2026-09-27: a completing node summary gains its declared artifacts and companions |
 | [ADR-0013](0013-prose-workflow-twin-is-transitional.md) | The prose workflow twin is transitional | Accepted | 2026-08-26 | — |
 | [ADR-0014](0014-development-ships-as-a-workflow-definition.md) | Development ships as a workflow definition | Accepted | 2026-08-27 | — |
 | [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | — |
@@ -60,5 +60,5 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0021](0021-pro-edition-packaging.md) | The pro edition ships as an assembled superset, and W1 lands its packaging foundation only | Accepted | 2026-09-19 | — |
 | [ADR-0022](0022-workflow-nodes-run-as-sub-runs.md) | A `workflow:` node runs as a sub-run | Accepted | 2026-09-22 | Amends ADR-0008 (the four statements that nothing executes a sub-run) |
 | [ADR-0023](0023-prose-twin-as-reference.md) | The prose twin is a reference; the orchestrator SKILL.md is a hand-off | Accepted | 2026-09-21 | Extends ADR-0013 (the twin stays maintained and reachable; only its address changes) |
-| [ADR-0024](0024-dashboard-projection-at-write-time.md) | The dashboard is projected at write time | Accepted | 2026-09-26 | Amends ADR-0012 (the all-or-nothing writer contract, for the post-commit projection only); scopes the framework's seven dashboard-rewrite moments to the prose path |
+| [ADR-0024](0024-dashboard-projection-at-write-time.md) | The dashboard is projected at write time | Accepted | 2026-09-26 | Amends ADR-0012 (the all-or-nothing writer contract, for the post-commit projection only); scopes the framework's seven dashboard-rewrite moments to the prose path. Amended 2026-09-27: a phase card's prose is chosen field by field |
 | [ADR-0025](0025-plugin-3-is-engine-only.md) | Plugin 3.0 is engine-only | Accepted | 2026-09-27 | Closes ADR-0013's retirement and ADR-0023's opt-out branch; amends ADR-0006 (resume half, open plugin) and ADR-0016 (the twin route is gone) |

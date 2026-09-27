@@ -372,7 +372,7 @@ export function writeState({ state, patch }) {
     // means to introduce: anything else in the candidate came from a value,
     // and a value that reaches column 0 is an injection.
     const allowed = new Set(topLevelKeys(doc.text()));
-    for (const key of apply(doc, patch, changed, now)) allowed.add(key);
+    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)))) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -671,7 +671,7 @@ function fallbackExecutor(doc) {
  * a data file stamped a second before the state it describes is a data file whose
  * freshness cannot be reasoned about.
  */
-function apply(doc, patch, changed, now) {
+function apply(doc, patch, changed, now, runDir) {
   const intended = new Set(['orchestrator']);
 
   // Before the patch's own `orchestrator` keys, so the seeded sequences open
@@ -698,9 +698,10 @@ function apply(doc, patch, changed, now) {
     if (patch.phase_summaries) applySummaries(doc, block, patch.phase_summaries, patch.nodes, 'phase', changed);
   }
   if (patch.node_summaries) {
-    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed);
+    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed, runDir);
     intended.add('node_summaries');
   }
+  if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -1292,13 +1293,20 @@ function applyContext(doc, contextKey, context, changed) {
  * The two summary maps. Both are block maps and both are outside every
  * flow-map rule: prose belongs here, and nowhere near a node entry.
  *
- * `status` on a summary is the five-member vocabulary, so a status arriving
- * alongside a node patch in the same invocation is *mapped* rather than copied.
- * A `phase_summaries` entry mirrors only when it names the node it belongs to,
- * because its key is a phase key and the two namespaces do not line up.
+ * `status` on a summary is the five-member vocabulary, so a node status is
+ * *mapped* rather than copied. The status mirrored is the node's as it stands
+ * once this write's `nodes` patch has landed — the patch's own when it names the
+ * node, the one already on disk otherwise — so a summary re-sent in a later call
+ * than the one that ended its node still carries the outcome. It used to mirror
+ * from the patch alone, and a closing write split across two calls left a
+ * summary with no status at all. A `phase_summaries` entry mirrors only when it
+ * names the node it belongs to, because its key is a phase key and the two
+ * namespaces do not line up.
  */
-function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed) {
+function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null) {
   if (!isPlainObject(summaries)) throw new Refusal('state-patch-invalid', `the ${kind} summaries must be an object`);
+  let recorded = null;
+  let run = null;
   for (const [key, value] of Object.entries(summaries)) {
     if (!isPlainObject(value)) throw new Refusal('state-patch-invalid', `the summary ${key} must be an object`);
     const entry = { ...value };
@@ -1307,16 +1315,128 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed) {
       // Both reads are own-property reads for the reason `contextBlock` gives:
       // a summary keyed `constructor` reached the patch's prototype, and a
       // status of `constructor` reached `Object.prototype.constructor`.
-      const nodeStatus = nodeId && isPlainObject(nodePatch) && Object.hasOwn(nodePatch, nodeId)
+      let nodeStatus = nodeId && isPlainObject(nodePatch) && Object.hasOwn(nodePatch, nodeId)
         ? nodePatch[nodeId]?.status
         : undefined;
-      const statusKey = nodeStatus === undefined || nodeStatus === null ? '' : String(nodeStatus);
-      const mirrored = Object.hasOwn(STATUS_MIRROR, statusKey) ? STATUS_MIRROR[statusKey] : undefined;
+      if (nodeStatus === undefined && typeof nodeId === 'string') {
+        recorded ??= recordedNodes(doc);
+        nodeStatus = Object.hasOwn(recorded, nodeId) ? recorded[nodeId]?.status : undefined;
+      }
+      const mirrored = mirrorOf(nodeStatus);
       if (mirrored) entry.status = mirrored;
+    }
+    if (kind === 'node' && entry.status === 'completed' && runDir !== null) {
+      run ??= runOf(doc, runDir);
+      registerArtifacts(entry, key, run);
     }
     const at = kind === 'node' ? ['node_summaries', key] : [contextKey, 'phase_summaries', key];
     doc.set(at, block(key, entry, kind === 'node' ? 2 : 4));
     changed.push(at.join('.'));
+  }
+}
+
+/**
+ * What a completing summary is checked against: the run directory, the
+ * definition's declared outputs and the `html_output` option. A definition that
+ * cannot be resolved yields no declared outputs and never fails the write, for
+ * the reason `definitionOf` gives.
+ */
+function runOf(doc, runDir) {
+  let state = {};
+  try {
+    state = parseState(doc.text());
+  } catch {
+    state = {};
+  }
+  let definition = null;
+  try {
+    definition = definitionOf(state, runDir);
+  } catch {
+    definition = null;
+  }
+  return { runDir, definition, html: htmlOutput(state) };
+}
+
+/**
+ * A completing node summary carries the artifacts its node declared and the
+ * companions beside them, whether or not the closing write listed them.
+ *
+ * The declared outputs are the definition's own promise of what the node
+ * writes, and the dashboard and finalization's inventory both read the node
+ * summary for them — a closing write that forgot the list left the report
+ * unlinked although it sat on disk. Two additions, both bounded to what
+ * exists:
+ *
+ * - every declared literal path the run directory holds, and the summary does
+ *   not already name, is appended as `{path, label: null, html}`;
+ * - every registered `.md` artifact with no `html` gains the sibling `.html`
+ *   when that file exists and the run's `html_output` is not off.
+ *
+ * Nothing is removed and nothing the summary states is overwritten. An
+ * interpolated path (`${...}`) is someone else's output, so it is not claimed.
+ */
+function registerArtifacts(entry, nodeId, run) {
+  const nodes = isPlainObject(run.definition?.nodes) ? run.definition.nodes : {};
+  const node = Object.hasOwn(nodes, nodeId) && isPlainObject(nodes[nodeId]) ? nodes[nodeId] : {};
+  const declared = isPlainObject(node.outputs?.artifacts) ? Object.values(node.outputs.artifacts) : [];
+  const artifacts = Array.isArray(entry.artifacts) ? [...entry.artifacts] : [];
+  const pathOf = item => (typeof item === 'string' ? item : isPlainObject(item) ? item.path : undefined);
+  const named = new Set(artifacts.map(pathOf));
+  const exists = relative => typeof relative === 'string' && relative !== '' && !path.isAbsolute(relative)
+    && !relative.includes('${') && isFile(path.join(run.runDir, relative));
+  const companion = relative => {
+    if (!run.html || typeof relative !== 'string' || !relative.endsWith('.md')) return null;
+    const html = `${relative.slice(0, -'.md'.length)}.html`;
+    return exists(html) ? html : null;
+  };
+
+  let touched = false;
+  for (const relative of declared) {
+    if (named.has(relative) || !exists(relative)) continue;
+    artifacts.push({ path: relative, label: null, html: companion(relative) });
+    named.add(relative);
+    touched = true;
+  }
+  for (let i = 0; i < artifacts.length; i++) {
+    const item = artifacts[i];
+    if (isPlainObject(item) && item.html !== null && item.html !== undefined) continue;
+    const html = companion(pathOf(item));
+    if (html === null) continue;
+    artifacts[i] = typeof item === 'string' ? { path: item, label: null, html } : { ...item, html };
+    touched = true;
+  }
+  if (touched) entry.artifacts = artifacts;
+}
+
+/**
+ * The other half of the same rule: a node whose status changes after its
+ * summary was written carries the new status onto that summary. Only a
+ * `node_summaries` entry already on disk and not written by this patch is
+ * touched — one this patch wrote was mirrored as it was written — and only its
+ * `status` line, so the prose beside it stays byte-identical.
+ */
+function mirrorOntoRecorded(doc, nodePatch, summaryPatch, changed) {
+  for (const [id, patchEntry] of Object.entries(nodePatch)) {
+    if (isPlainObject(summaryPatch) && Object.hasOwn(summaryPatch, id)) continue;
+    const mirrored = mirrorOf(patchEntry?.status);
+    if (!mirrored || !doc.locate(['node_summaries', id])) continue;
+    doc.set(['node_summaries', id, 'status'], [`    status: ${mirrored}`]);
+    changed.push(`node_summaries.${id}.status`);
+  }
+}
+
+/** A node status in the summary vocabulary, or undefined when it has none. */
+function mirrorOf(nodeStatus) {
+  const statusKey = nodeStatus === undefined || nodeStatus === null ? '' : String(nodeStatus);
+  return Object.hasOwn(STATUS_MIRROR, statusKey) ? STATUS_MIRROR[statusKey] : undefined;
+}
+
+/** The node entries as they stand in the document, through the hook's own reader. */
+function recordedNodes(doc) {
+  try {
+    return scanState(doc.text()).nodes ?? {};
+  } catch (err) {
+    throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
   }
 }
 

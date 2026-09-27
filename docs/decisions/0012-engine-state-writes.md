@@ -52,3 +52,8 @@ Four rules make the output safe, and each is here because breaking it blocks som
 - A value an author would consider ordinary can be refused for being unsafe inline, and the fix is to change the value rather than the writer
 - Importing the hook's reader couples the writer to the hook library, so a change to the reader can fail a write path that has not otherwise changed
 - The closed patch vocabulary means every new state field is a change to the writer, not only to its caller
+
+### Amendment 2026-09-27 — a completing node summary gains its declared artifacts
+The writer no longer writes a node summary exactly as the patch sent it. When a `node_summaries` entry is written for a node whose status is `completed`, it appends each artifact path the run's definition declares for that node which exists in the run directory and is not already listed. It also fills a missing `html` on a listed markdown artifact whose sibling `.html` exists, unless `html_output` is off. Driven runs showed the need. A closing write that omitted the list left the verification report and its companion unlinked on the dashboard although both were on disk, and nothing but a person comparing two lists noticed.
+
+The addition is bounded: it covers declared literal paths and companions that exist, it removes and overwrites nothing, and a definition that cannot be resolved adds nothing and never fails the write. The writer now reads the definition and the run directory on a node summary write, as the dashboard projection already did (ADR-0024).

@@ -64,6 +64,29 @@ test('summary lists are normalized: artifacts to objects, gate answers to decisi
   ]);
 });
 
+test('an empty field on the node summary falls through to the phase summary, field by field', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, {
+    node_summaries: {
+      analysis: { summary: 'Scoped on the node.', decisions: [], risks: ['node risk'], artifacts: [] },
+    },
+    phase_summaries: {
+      analysis: {
+        summary: 'Scoped on the phase.',
+        decisions: ['keep the parser'],
+        risks: ['phase risk'],
+        artifacts: ['analysis/report.md'],
+      },
+    },
+  });
+  const analysis = readDashboard(run).phases.find(phase => phase.id === 'analysis');
+  assert.equal(analysis.summary, 'Scoped on the node.');
+  assert.deepEqual(analysis.decisions, ['keep the parser']);
+  assert.deepEqual(analysis.risks, ['node risk'], 'a field filled on both sources is the node\'s alone');
+  assert.deepEqual(analysis.artifacts, [{ path: 'analysis/report.md', label: null, html: null }]);
+});
+
 test('verification issues are normalized to objects; a bare count is dropped', t => {
   const run = scratch(t);
   freeze(run);
@@ -133,6 +156,22 @@ test('issueOf: a severity prefix is read only when it names a severity', () => {
   const object = { severity: 'odd', description: 'passes through' };
   assert.equal(issueOf(object), object);
   for (const junk of [9, true, null, ['a']]) assert.equal(issueOf(junk), null);
+});
+
+test('issueOf: the issue-id shapes verification writes carry their severity', () => {
+  assert.deepEqual(issueOf('W3 no files allow-list in package.json (deferred by operator)'),
+    { id: 'W3', severity: 'warning', description: 'no files allow-list in package.json (deferred by operator)' });
+  assert.deepEqual(
+    issueOf('W5 warning (fixable, pre-existing, accepted by operator): fromEnv walks inherited keys — src/env.js:8-13'),
+    { id: 'W5', severity: 'warning', description: 'fromEnv walks inherited keys — src/env.js:8-13 (fixable, pre-existing, accepted by operator)' });
+  assert.deepEqual(issueOf('I10 info: literal source flattens a Map target'),
+    { id: 'I10', severity: 'info', description: 'literal source flattens a Map target' });
+  assert.deepEqual(issueOf('C2 the lock is never released'),
+    { id: 'C2', severity: 'critical', description: 'the lock is never released' });
+  assert.deepEqual(issueOf('M1 a medium-looking id names no severity'),
+    { id: 'M1', severity: 'info', description: 'a medium-looking id names no severity' });
+  assert.deepEqual(issueOf('CHANGELOG.md not in tarball — operator call, left as-is'),
+    { severity: 'info', description: 'CHANGELOG.md not in tarball — operator call, left as-is' });
 });
 
 test('artifactOf: a string is a path, an object passes, anything else is dropped', () => {

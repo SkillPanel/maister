@@ -581,7 +581,8 @@ and failed, or not applicable:
 4. **Performance benchmarks**, before and after, when the specification set any.
 
 Record `verification_context.last_status` and
-`verification_context.issues_found`, then **declare `issues_to_resolve`**: true
+`verification_context.issues_found` (the issue shape of `orchestrator-patterns.md`
+§ 4), then **declare `issues_to_resolve`**: true
 when the report carries at least one fixable issue, **or** any data integrity
 issue at all. The second half is deliberate. A data integrity issue is never
 fixed, and routing it into `issue-resolution` anyway is what puts the halt in

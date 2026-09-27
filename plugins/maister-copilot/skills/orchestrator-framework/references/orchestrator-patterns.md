@@ -329,11 +329,13 @@ All orchestrators with verification phases use:
 ```yaml
 verification_context:
   last_status: passed | passed_with_issues | failed | null
-  issues_found: []
+  issues_found: []           # [{id, severity, source, description, fixable, fixed}]
   fixes_applied: []
   decisions_made: []
   reverify_count: 0          # max 3
 ```
+
+Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.
 
 ### Shared: phase_summaries entry shape
 
@@ -548,6 +550,8 @@ window.MAISTER_DATA = {
 **Verbatim rule for decisions and risks**: `decisions` and `risks` entries are copied **verbatim** from the artifact's Key Decisions / Open Questions / Risks blocks (§ 7) — never re-summarized or shortened. The contract already caps their length at the source; compressing them again strips the meaning the operator needs.
 
 **Resolved risks**: when a previously recorded risk gets resolved in a later phase, keep the entry and prefix it with `resolved:` (e.g. `"resolved: transient warning — query lookup chosen"`). The viewer dims and strikes resolved entries, separating live risks from settled ones.
+
+**Where a phase card's prose comes from on the engine path.** The projection reads `node_summaries.<node>` first and falls back to `[domain]_context.phase_summaries.<key>` only where the key equals the node id. It chooses **field by field**: `summary`, `decisions`, `risks` and `artifacts` each come from the first of the two that carries them non-empty, and the two are never concatenated — a field filled on both shows the node summary's. A node summary written with empty lists therefore no longer hides what its phase summary recorded, but a node summary that fills a field is the only source for that field.
 
 The viewer decides presentation (hero artifacts per workflow type, collapsed drawers, severity colors) — orchestrators only supply data.
 

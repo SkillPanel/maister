@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 
-import { SAMPLE, freeze, readState, scratch, verb, write } from '../helpers.mjs';
+import { SAMPLE, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 
 /** Send a patch expected to be refused; return the result and assert nothing moved. */
 function refused(run, patch) {
@@ -125,6 +126,80 @@ test('an adopted prose-written state keeps its unknown blocks, options and comme
   assert.deepEqual(state.orchestrator.completed_phases, ['analysis']);
   assert.deepEqual(state.orchestrator.options, { html_output: false, mockup_format: 'html' });
   assert.equal(state.workflow.nodes.analysis.status, 'completed');
+});
+
+test('node_summaries: a summary written after its node ended mirrors the recorded status', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped.' } } });
+  write(run, { node_summaries: { analysis: { summary: 'Scoped, and confirmed.' } } });
+  assert.deepEqual(readState(run).node_summaries.analysis, { summary: 'Scoped, and confirmed.', status: 'completed' });
+});
+
+test('node_summaries: a node ending after its summary was written updates the summary status', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  write(run, { node_summaries: { analysis: { summary: 'Scoped.' } } });
+  assert.equal(readState(run).node_summaries.analysis.status, 'in_progress');
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  assert.deepEqual(readState(run).node_summaries.analysis, { summary: 'Scoped.', status: 'completed' });
+});
+
+test('node_summaries: a status the summary states itself is kept', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  write(run, { node_summaries: { analysis: { summary: 'Scoped.', status: 'failed' } } });
+  assert.equal(readState(run).node_summaries.analysis.status, 'failed');
+});
+
+/** Put a file into the run directory, creating its folder. */
+function place(run, relative) {
+  const file = path.join(run.dir, relative);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${relative}\n`);
+}
+
+test('a completing summary registers the node\'s declared artifact and its companion', t => {
+  const run = scratch(t);
+  freeze(run);
+  place(run, 'analysis/report.md');
+  place(run, 'analysis/report.html');
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped.' } } });
+  const expected = [{ path: 'analysis/report.md', label: null, html: 'analysis/report.html' }];
+  assert.deepEqual(readState(run).node_summaries.analysis.artifacts, expected);
+  assert.deepEqual(readDashboard(run).phases.find(phase => phase.id === 'analysis').artifacts, expected);
+});
+
+test('a registered report gains its companion; a running node and a missing file register nothing', t => {
+  const run = scratch(t);
+  freeze(run);
+  place(run, 'analysis/report.md');
+  write(run, { nodes: { analysis: { status: 'running' } }, node_summaries: { analysis: { summary: 'Working.' } } });
+  assert.equal(Object.hasOwn(readState(run).node_summaries.analysis, 'artifacts'), false);
+  place(run, 'analysis/report.html');
+  write(run, {
+    nodes: { analysis: { status: 'completed' } },
+    node_summaries: { analysis: { summary: 'Scoped.', artifacts: [{ path: 'analysis/report.md', label: 'Report', html: null }] } },
+  });
+  assert.deepEqual(readState(run).node_summaries.analysis.artifacts,
+    [{ path: 'analysis/report.md', label: 'Report', html: 'analysis/report.html' }]);
+
+  const bare = scratch(t);
+  freeze(bare);
+  write(bare, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Nothing written.' } } });
+  assert.equal(Object.hasOwn(readState(bare).node_summaries.analysis, 'artifacts'), false);
+});
+
+test('with html_output off the declared artifact is registered without a companion', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { options: { html_output: false } } });
+  place(run, 'analysis/report.md');
+  place(run, 'analysis/report.html');
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped.' } } });
+  assert.deepEqual(readState(run).node_summaries.analysis.artifacts,
+    [{ path: 'analysis/report.md', label: null, html: null }]);
 });
 
 test('an empty patch is a sanctioned republish; empty stdin is a usage failure', t => {

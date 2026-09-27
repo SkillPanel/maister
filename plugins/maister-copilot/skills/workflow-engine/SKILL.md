@@ -504,6 +504,15 @@ that in the shorter vocabulary; and **`stopped` maps to `skipped`**. `suspended`
 a node the run is suspended at while its gate awaits an answer — a driver-suspended mode only,
 since in terminal mode the answer arrives in the same turn — so it has no mirror and needs none.
 
+**A completing node summary is checked against what the node declared.** When a
+`node_summaries` entry is written for a node whose status is `completed`, the writer appends
+every artifact path the definition declares for that node which exists in the run directory
+and which the entry does not already list. It also fills a missing `html` on each listed
+markdown artifact whose sibling `.html` companion exists, unless `html_output` is off. It adds
+only what is on disk and overwrites nothing the entry states. The closing write still lists
+what the node prose asks for: the check catches a list that was forgotten, it does not replace
+the list.
+
 **Why `stopped` mirrors to `skipped`.** The summary vocabulary has five members and none is
 `stopped`, so the status is spelled as one of the five or not written at all. `skipped` is the
 member that says *did not produce its outcome, and not because anything broke*, which is what
@@ -868,9 +877,11 @@ What "a moment" means, and there are four of them:
   the start moves.
 - **A node ends.** One patch: the node's status, its `node_summaries` entry, the
   `phase_summaries` key the node prose names when it mirrors one, and the `orchestrator`
-  scalars the outcome moves. Splitting these is not only three writes instead of one — the
-  writer mirrors a node's status onto its summary only when the `nodes` patch is in the
-  **same** call, so a split loses the mirror as well.
+  scalars the outcome moves. Splitting these is three writes instead of one. The writer
+  still mirrors the node's status onto its summary either way. It mirrors from the node's
+  recorded status when the summary arrives in a later call, and onto the recorded summary
+  when the status arrives later. A summary written with its own `status` keeps it until
+  the node's status next changes.
 - **A ready-set walk skips nodes.** Every node a false guard skips goes in one patch, with
   their summaries, however many there are.
 - **A run ends.** The closing node's outcome and `task.status` are one patch; a stop option is
