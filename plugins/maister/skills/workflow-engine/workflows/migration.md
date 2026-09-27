@@ -232,7 +232,9 @@ read.
 4. **Create the subdirectories** the later nodes write into — the analysis,
    implementation, verification and documentation directories.
 5. **Read the project configuration** and set `options.html_output` (default true
-   when the file or the key is absent). Mirror the `user_docs` input to
+   when the file or the key is absent) and `options.mockup_format` (default
+   `html`) beside it. The second is framework-mandated for every orchestrator and
+   inert here — no node reads it — but a reader of state expects it. Mirror the `user_docs` input to
    `options.docs_enabled` in the same step: the documentation node is guarded on
    the input, and a reader of state needs the same answer visible where every
    other option lives. When `html_output` is false, skip the dashboard entirely
@@ -270,9 +272,9 @@ a failure to retry either: it is the failure above.
 Delegated to the codebase analyzer through the Skill tool, then a short
 clarification round inline.
 
-> **ANTI-PATTERN**: Do NOT explore the codebase inline instead of delegating.
-> The codebase-analyzer skill dispatches parallel explorers and produces the
-> structured analysis the rest of the run reads.
+Delegate the exploration to the codebase-analyzer skill rather than reading the
+codebase yourself — it dispatches parallel explorers and writes the structured
+analysis every later node reads.
 
 The whole workflow rests on understanding the system before anything is moved,
 so the description passed to the analyzer names what is being migrated away
@@ -317,9 +319,9 @@ entry.
 Delegated to the gap analyzer through the Task tool. This is the node the whole
 workflow turns on: everything after it migrates what this node found missing.
 
-> **ANTI-PATTERN**: Do NOT define the target state yourself. The gap-analyzer
-> agent defines it from the migration description, enumerates the gaps and
-> recommends the strategy the specification is written against.
+Delegate to the gap-analyzer agent rather than sketching the target state
+yourself — it defines the target from the migration description, enumerates the
+gaps and recommends the strategy the specification is written against.
 
 The analyzer's five tasks, in order: define the target system from the migration
 description; identify the gaps — features to migrate, APIs to adapt, data to
@@ -335,16 +337,16 @@ is what the specification, planning and verification nodes read —
 `migration_context.target_system`, `migration_context.migration_strategy`,
 `migration_context.risk_level` and `migration_context.breaking_changes`. The
 web research lands in `external_research`, a top-level sibling of the context
-block rather than a field inside it.
-
-> **SELF-CHECK**: did you invoke the Task tool with the gap analyzer, or did you
-> start sketching the target state yourself? If the latter, STOP and invoke the
-> Task tool.
+block rather than a field inside it, under its four keys: `performed`,
+`category`, `breaking_changes` and `migration_guide_url` — `performed: false`
+with the rest empty when no research was needed, never a shape of its own.
 
 **Executive summary before the gate.** Read `analysis/target-state-plan.md` and
-print, immediately before `gap-approval` fires: the current system, the target
-system, the migration type classified, how many gaps were identified, the
-recommended strategy and the risk level.
+print, immediately before `gap-approval` fires, one labelled line for each of:
+the current system, the target system, the migration type classified, how many
+gaps were identified, the recommended strategy and the risk level. A one-line
+recap of the work does not replace them — the operator approves the strategy
+from these six lines.
 
 **Recovery budget**: 2 attempts — re-prompt for the target details on the
 second, and ask the operator when the second also comes back thin.
@@ -391,15 +393,18 @@ the round covered.
 
 **Part B — specification creation (delegate).**
 
-> **ANTI-PATTERN**: Do NOT write the specification inline. Not because the
-> migration looks small, and not only when it does — the specification-creator
-> agent writes it every time. Simplicity is never a reason to skip the
-> delegation.
+Delegate the specification to the specification-creator agent through the Task
+tool, whatever the migration's size — it owns `implementation/spec.md` and its
+companion, and the planner and the verifier read the spec in that agent's shape.
 
-Invoke the specification creator through the Task tool with the migration task
-type. Everything node-scoped it needs is in `with:`; the run-scoped four supply
-the rest, including the style guide path that produces the specification's HTML
-companion, and the project documentation paths `intake` discovered.
+Pass it the migration task type. Everything node-scoped it needs is in `with:`;
+the run-scoped four supply the rest, including the style guide path that
+produces the specification's HTML companion, and the project documentation paths
+`intake` discovered. Two things are this node's own and reach it in neither:
+the requirements path Part A just wrote, `analysis/requirements.md`, and the
+migration facts already in state — `migration_context.current_system`,
+`target_system`, `risk_level` and `breaking_changes` — which the specification
+has to name rather than rediscover.
 
 The rollback plan is written in this node and declared as its artifact, because
 every later node reads it: the planner sequences the undo steps, and the
@@ -408,10 +413,11 @@ dual-run strategy produces one — write `analysis/dual-run-plan.md` when the
 strategy is dual-run and record it on this node's summary, and write nothing
 when it is not.
 
-> **SELF-CHECK**: after the Task tool returns, verify that
-> `implementation/spec.md` and `analysis/rollback-plan.md` both exist and that
-> the specification covers the requirements gathered in Part A. If either is
-> missing: **STOP. Do NOT proceed.** Re-invoke with corrected context.
+When the Task tool returns, confirm that `implementation/spec.md` and
+`analysis/rollback-plan.md` both exist and that the specification covers the
+requirements gathered in Part A; if either file is missing, re-invoke with
+corrected context rather than continuing, because the planner and the verifier
+both read the rollback plan.
 
 Record `migration_context.rollback_plan_created` and
 `migration_context.dual_run_configured` from what actually landed.
@@ -445,25 +451,25 @@ and stop the run on the stop option.
 
 Delegated to the implementation planner through the Task tool.
 
-> **ANTI-PATTERN**: Do NOT break the migration into steps inline. The
-> implementation-planner agent produces the task groups, their dependencies and
-> their test-first step lists. Simplicity is not a reason to skip the
-> delegation.
+Delegate the plan to the implementation-planner agent, whatever the migration's
+size — it produces the task groups, their dependencies and the test-first step
+lists the executor runs.
 
 The planner reads the specification, the rollback plan and the migration type,
 and sequences the work so that each group leaves the system in a state the
 rollback plan can still undo. Rollback steps belong in the plan itself rather
 than in a separate document.
 
-> **SELF-CHECK**: after the Task tool returns, verify that
-> `implementation/implementation-plan.md` exists and that its groups carry the
-> rollback steps. If missing: **STOP. Do NOT proceed.**
+When the Task tool returns, confirm that `implementation/implementation-plan.md`
+exists and that its groups carry the rollback steps; re-invoke with the
+constraint named when either is missing, because a plan without them leaves the
+execution with nothing to undo by.
 
 **Executive summary before the gate.** Read
 `implementation/implementation-plan.md` and extract: how many task groups it
 carries, the total number of steps, whether rollback steps are included, the key
-dependencies between groups and the execution sequence. Print that summary
-immediately before `planning-approval` fires.
+dependencies between groups and the execution sequence. Print that summary,
+one labelled line per item, immediately before `planning-approval` fires.
 
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 migration constraints named in the context.
@@ -486,10 +492,10 @@ and stop the run on the stop option.
 Delegated to the implementation-plan executor through the Skill tool. This is
 the node that changes code, and it is the only one that does.
 
-> **ANTI-PATTERN**: Do NOT apply the migration inline. Not for a small plan, not
-> for a single-group plan — the implementation-plan-executor skill runs the
-> groups, dispatches the implementers and keeps the plan's progress marks in
-> step with what actually landed.
+Delegate the execution to the implementation-plan-executor skill, whatever the
+plan's size — it runs the groups, dispatches the implementers and keeps the
+plan's progress marks in step with what actually landed; this node never edits
+the migrated code itself.
 
 **The sequential input, and where the executor reads it.** Before invoking the
 skill, record the input's value as `orchestrator.options.sequential`: the
@@ -511,9 +517,6 @@ in the companion too, and a companion still showing outstanding work after a
 complete run is a stale projection rather than a finding. Then record what
 landed: the groups completed, the files changed, the incremental test results
 and whether the rollback procedure is still ready to run.
-
-> **SELF-CHECK**: did the executor run, or did you start editing files yourself?
-> If the latter, **STOP** and invoke the skill instead.
 
 **Executive summary before the gate.** Read `implementation/work-log.md` and
 this node's own summary and extract: the migration steps completed, the files
@@ -544,13 +547,24 @@ and stop the run on the stop option.
 Delegated to the implementation verifier through the Skill tool, then the
 migration-specific checks inline.
 
-> **ANTI-PATTERN**: Do NOT verify the migration inline. The
-> implementation-verifier skill runs the test suite first, as its own step, and
-> passes that result into every review prompt; then the completeness check and
-> the selected reviews, compiled into one report.
+Delegate the verification to the implementation-verifier skill rather than
+checking the migration yourself — it runs the test suite first, as its own step,
+passes that result into every review prompt, and compiles the completeness check
+and the reviews into one report.
 
 Pass no style guide path: as a skill it resolves the guide itself and gates its
 own companion on the HTML output option.
+
+**Record the review set before invoking it.** This workflow asks no
+verification-options question, and the verifier treats a review flag missing
+from state as a question for the operator — one nobody answers under a
+`cockpit` or `dispatch` driver. So write these `orchestrator.options` keys
+first, by these exact names, because the verifier reads them by name:
+`code_review_enabled`, `pragmatic_review_enabled` and `reality_check_enabled`
+true; `production_check_enabled` false, since the deployment risks a migration
+carries are what the compatibility checks and the rollback test below cover;
+and `skip_test_suite` false, because a migration is verified against the full
+suite, not against the executor's incremental runs.
 
 **The four migration-specific checks.** After the verifier returns, run them and
 write `verification/compatibility-test-results.md` — the artifact this node
@@ -582,8 +596,9 @@ form stops the workflow by itself in that case, and the graph has no routing
 construct to stop with, so the recommendation to the operator at the gate is
 what replaces it.
 
-**Print the true destination** on the line after that summary, because both
-nodes the gate leads toward are guarded. It is `Next: issue-resolution` when
+**Print the true destination** on the line after that summary, as the literal
+line below rather than a paraphrase of it, because both nodes the gate leads
+toward are guarded. It is `Next: issue-resolution` when
 `issues_to_resolve` is true. Otherwise it is `Next: documentation`, and
 `Next: finalization` when `user_docs` is false.
 
@@ -668,8 +683,8 @@ so** — a gate answered from outside is such an answer; a default is not.
 many remain by severity, together with the rollback recommendation when the
 iterations ran out.
 
-**Print the true destination** on the line after it: `Next: documentation`, or
-`Next: finalization` when `user_docs` is false.
+**Print the true destination** on the line after it, as the literal line:
+`Next: documentation`, or `Next: finalization` when `user_docs` is false.
 
 **Recovery budget**: none — this node's own three-iteration loop is its limit,
 and re-driving a node that halts on data integrity would re-run the thing it
@@ -706,9 +721,9 @@ Delegated to the user documentation generator through the Task tool, and
 a guide; absent means off, and nothing in this workflow asks about it in
 session.
 
-> **ANTI-PATTERN**: Do NOT write the migration guide inline. The
-> user-docs-generator agent writes for the end user rather than for the
-> engineer, and captures the screenshots the guide needs.
+Delegate the guide to the user-docs-generator agent rather than writing it
+yourself — it writes for the end user rather than for the engineer, and captures
+the screenshots the guide needs.
 
 The guide covers the migration overview and its goals, the prerequisites and the
 preparation steps, the step-by-step procedure, the rollback procedure and the

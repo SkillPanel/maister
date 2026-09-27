@@ -298,7 +298,7 @@ Orchestrators add domain-specific fields using `[domain]_context`, at the **top 
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |
 | Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
-Every context except `migration_context` carries `phase_summaries`. See each orchestrator's SKILL.md "Domain Context" section for the full schema.
+Every context carries `phase_summaries`. See each orchestrator's SKILL.md "Domain Context" section for the full schema.
 
 ### Shared: research_reference
 

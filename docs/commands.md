@@ -56,7 +56,7 @@ You can optionally provide profiling data (flame graphs, APM screenshots) — th
 
 **Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:performance` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume an engine run by passing the task path alone.
 
-The prose phases remain, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and they do take `--from=PHASE` — so a mid-workflow re-entry is a real route, on that path. The variable is global to every workflow that has a prose twin, so while it is set development and research move onto prose as well.
+The prose phases remain, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and they do take `--from=PHASE` — so a mid-workflow re-entry is a real route, on that path. The variable is global to every workflow that has a prose twin, so while it is set development, research and migration move onto prose as well.
 
 **Task directory**: `.maister/tasks/performance/`
 **Resume phases** (prose only): `analysis`, `specification`, `planning`, `implementation`, `verification`
@@ -73,11 +73,16 @@ Starts migration workflow (8 phases) with mandatory rollback planning and risk a
 |------|-------------|
 | `--type=code\|data\|architecture\|general` | Migration type (affects risk focus) |
 | `--user-docs` | Generate the migration guide in the documentation phase |
-| `--from=PHASE` | Start from or resume at a specific phase |
-| `--reset-attempts` | Reset failed attempt counters (resume) |
+| `--sequential` | Run one task group at a time during execution |
+| `--from=PHASE` | Prose phases only — see below |
+| `--reset-attempts` | Prose phases only — see below |
+
+**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:migration` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume an engine run by passing the task path alone.
+
+The prose phases remain, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and they do take `--from=PHASE` — so a mid-workflow re-entry is a real route, on that path. The variable is global to every workflow that has a prose twin, so while it is set development, research and performance move onto prose as well.
 
 **Task directory**: `.maister/tasks/migrations/`
-**Resume phases**: `analysis`, `target`, `spec`, `plan`, `execute`, `verify`, `docs`
+**Resume phases** (prose only): `analysis`, `target`, `spec`, `plan`, `execute`, `verify`, `docs`
 
 ---
 
