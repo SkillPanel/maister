@@ -52,3 +52,10 @@ Option 1 is the failure this decision exists to avoid. An operator who passes a 
 - Retiring the prose twin removes the sanctioned route and leaves the case unserved until something replaces it
 - An operator whose habit is the flag has to learn the opt-out that selects the prose path, which is a second thing to know at the worst moment to learn it
 - The decline's advice is per-workflow rather than uniform, because a prose twin's re-entry mechanism is its own: a twin without a phase flag can only be re-entered by re-running it
+
+### Amendment 2026-09-27 — the twin route is gone in 3.0
+Plugin 3.0 deletes the prose twins this record named as the sanctioned route for `--from=PHASE` and
+`--reset-attempts` (ADR-0025). From 3.0 the engine still declines both flags by name, but names no
+in-plugin route: a run that needs a phase jump is finished on the 2.x line. An engine equivalent is
+designed for 3.1 as its own decision, which will amend this one; the graph facts recorded above are
+unchanged until then.

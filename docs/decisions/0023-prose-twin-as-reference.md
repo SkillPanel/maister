@@ -201,3 +201,11 @@ than saying "read".
   truncated result it then had to navigate back into. The branch therefore names the Read tool, and
   a later twin that grows past what one read returns will need paging guidance rather than a
   louder sentence.
+
+### Amendment 2026-09-27 — the reference and its branch are removed in 3.0
+ADR-0025 deletes the three `references/<name>-twin.md` files and the opt-out branch of each
+hand-off, as this record's Consequences anticipated. The hand-off shape survives with its switch
+read replaced by a Node check and its "no `workflow:` block" rule replaced by a refusal; the gate
+block stays in each `SKILL.md`, byte-identical, for the two reasons recorded above. The file list
+here — including why `migration` and `product-design` took no hand-off — is history; their 3.0
+shape is decided in ADR-0025.
