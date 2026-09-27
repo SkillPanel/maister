@@ -108,10 +108,17 @@ branch, not this skill, is where that read belongs.
 
 ### Step 4: Freeze the graph before executing anything
 
-Validate, then resolve, then write the resolved graph into `orchestrator-state.yml` as the
-`workflow:` block with one line per node — before any node runs. A run executes the frozen
-graph, never the file on disk, so an edit to a definition mid-run changes nothing until the
-next run.
+Three calls, in this order, before any node runs: `validate`, then `resolve`, then the
+`write-state` that installs the resolved graph in `orchestrator-state.yml` as the `workflow:`
+block with one line per node. A run executes the frozen graph, never the file on disk, so an
+edit to a definition mid-run changes nothing until the next run.
+
+**`resolve` does not stand in for `validate`**, although it re-runs the same checks and refuses
+the same errors. Only `validate` reports where each target was found and how many nodes and
+gates the graph holds, and `resolve` drops both from its output. A run that skips `validate`
+has frozen a graph whose skills and agents nobody has confirmed resolve to the files the
+operator expects. The call is the same for every workflow, whichever orchestrator handed the
+run over.
 
 **Copy `graph_hash` through exactly as `resolve` printed it.** It is the only value the freeze
 carries straight from the resolver into state, and it arrives already in the spelling the
@@ -166,6 +173,13 @@ that installs the `workflow:` block does not supply it and the file does not alr
 so the freeze patch need not spell them and a freeze that omits them still lands valid. A
 later write of either replaces the whole list; there is no key to merge on, so a caller that
 means to append sends the whole list.
+
+**The freeze patch carries the definition's context seed, when its node prose names one.** Some
+workflows keep context fields that are known before the first node runs — the input the run
+was started with, restated where that workflow's readers look for it. Such a definition's prose
+names them, and the freeze sends them as `context`. The writer resolves the context block from
+the `workflow.name` in the same patch, so the run's per-workflow block exists from the first
+write rather than appearing at some later node. A definition that names no seed sends none.
 
 If `validate` rejects the definition, stop with `RUN-FAILED:` carrying the validator's first
 error. A definition that does not validate cannot be executed part-way.
@@ -891,6 +905,11 @@ What "a moment" means, and there are four of them:
 That leaves two writes around a node — one before the delegation and one after — which is the
 floor, because the delegation happens between them and its outcome is what the second one
 records.
+
+**A node's prose may name milestones inside it**, where a long node registers what it has
+produced so far so that the dashboard does not sit still for its whole length. Each milestone
+is one write carrying the node's summary entries and whatever else that moment moves, and never
+the node's status, which only the node's own end writes.
 
 **Three writes stand alone, and each has its own reason:**
 
