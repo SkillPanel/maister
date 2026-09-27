@@ -108,10 +108,17 @@ branch, not this skill, is where that read belongs.
 
 ### Step 4: Freeze the graph before executing anything
 
-Validate, then resolve, then write the resolved graph into `orchestrator-state.yml` as the
-`workflow:` block with one line per node — before any node runs. A run executes the frozen
-graph, never the file on disk, so an edit to a definition mid-run changes nothing until the
-next run.
+Three calls, in this order, before any node runs: `validate`, then `resolve`, then the
+`write-state` that installs the resolved graph in `orchestrator-state.yml` as the `workflow:`
+block with one line per node. A run executes the frozen graph, never the file on disk, so an
+edit to a definition mid-run changes nothing until the next run.
+
+**`resolve` does not stand in for `validate`**, although it re-runs the same checks and refuses
+the same errors. Only `validate` reports where each target was found and how many nodes and
+gates the graph holds, and `resolve` drops both from its output. A run that skips `validate`
+has frozen a graph whose skills and agents nobody has confirmed resolve to the files the
+operator expects. The call is the same for every workflow, whichever orchestrator handed the
+run over.
 
 **Copy `graph_hash` through exactly as `resolve` printed it.** It is the only value the freeze
 carries straight from the resolver into state, and it arrives already in the spelling the
