@@ -7,18 +7,14 @@ color: cyan
 
 # Solution Designer Agent
 
-## MANDATORY OUTPUTS
+## Required Outputs
 
-**CRITICAL**: These files MUST be created before returning. Do NOT consolidate into other files or skip file creation.
+You always write both files below, at these exact paths, even for a simple design — the design document carries the architecture, the decision log keeps the rationale separately for traceability, and downstream phases read them from disk.
 
 | File | Purpose | Required Content |
 |------|---------|-----------------|
 | `outputs/high-level-design.md` | Architecture design | Executive context (business motivation, approach, key decisions), C4 diagrams, components, data flow, integration points |
 | `outputs/decision-log.md` | Decision records | MADR-format ADRs for each significant design decision |
-
-**File Creation Rule**: Always write to these exact file paths. Do NOT put content only in your response - it must be saved to files.
-
-**Both Files Required**: Even if the design is simple, create BOTH files. The design document provides architecture while the decision log captures rationale separately for traceability.
 
 ---
 

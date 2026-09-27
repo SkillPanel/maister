@@ -25,23 +25,13 @@ You are performing pragmatic analysis to identify over-engineering, unnecessary 
 
 ```
 Task Tool:
-- subagent_type: code-quality-pragmatist
+- subagent_type: "maister-code-quality-pragmatist"
 - description: Pragmatic code review
 - prompt: |
-    You are the code-quality-pragmatist agent. Review the code at: [path]
-
-    Your task:
-    1. Assess overall complexity relative to project scale (check .maister/docs/project/ for scale)
-    2. Detect over-engineering patterns (infrastructure overkill, excessive abstraction, enterprise patterns in simple code)
-    3. Assess developer experience (setup complexity, feedback loops, error messages, consistency)
-    4. Verify requirements alignment (if spec.md available, compare implementation to requirements)
-    5. Recommend specific simplifications with before/after examples
-    6. Prioritize top 3 changes with highest impact
-
-    Generate comprehensive pragmatic review report.
-    Save to: verification/pragmatic-review.md
-
-    Focus on: Simple solutions for simple problems. Code should match project needs, not theoretical best practices.
+    Review the code at: [path]
+    Project scale docs: .maister/docs/project/
+    Spec (if any): [spec path]
+    Write the report to: verification/pragmatic-review.md
 ```
 
 **Wait for the agent to complete before proceeding.**

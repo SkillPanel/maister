@@ -137,12 +137,9 @@ Wait for docs-operator to complete, then immediately proceed to Phase 5.
 
 ---
 
-## PHASE 5: Validate & Summarize
+## PHASE 5: Summarize
 
-1. Verify standard file exists and has content
-2. Verify INDEX.md references the standard with practice-specific description (not generic)
-3. Verify .github/copilot-instructions.md integration
-4. Display summary: what was updated/created, practices added, next steps (review, commit, share with team)
+Display a summary: what was updated/created, practices added, and next steps (review, commit, share with team). If docs-operator reported a failure, say so.
 
 ---
 

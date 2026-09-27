@@ -57,12 +57,7 @@ If `.maister/docs/INDEX.md` does not exist, note it and suggest `/maister-init` 
 
 ### Step 3: Analyze & Assess Complexity
 
-**Explore the codebase to understand the bug:**
-
-1. Search for relevant files (Glob, Grep, Read)
-2. Trace the code path where the bug occurs
-3. Identify: likely root cause, affected files, existing tests
-4. Form a root cause hypothesis
+Investigate until you have a root-cause hypothesis backed by file/line evidence, the affected files, and the existing tests that cover them.
 
 **Complexity Escalation Check:**
 

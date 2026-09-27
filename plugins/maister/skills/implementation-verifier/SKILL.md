@@ -84,17 +84,7 @@ If prerequisites missing, report and stop.
 
 ## Phase 2: Delegate All Verifications
 
-**ANTI-PATTERN — DO NOT DO ANY OF THIS:**
-- ❌ "Let me run the tests..." — STOP. Delegate to test-suite-runner.
-- ❌ "I'll check implementation-plan.md..." — STOP. Delegate to implementation-completeness-checker.
-- ❌ "Let me read the standards..." — STOP. Delegate to implementation-completeness-checker.
-- ❌ "I'll verify the work-log..." — STOP. Delegate to implementation-completeness-checker.
-- ❌ Running any Bash command to execute tests — STOP. Delegate to test-suite-runner.
-- ❌ "Let me review the code quality..." — STOP. Delegate to code-reviewer.
-- ❌ "I'll check for over-engineering..." — STOP. Delegate to code-quality-pragmatist.
-- ❌ "Let me verify production readiness..." — STOP. Delegate to production-readiness-checker.
-- ❌ "I'll assess whether this solves the problem..." — STOP. Delegate to reality-assessor.
-- ❌ Reading source code to find security/performance issues — STOP. Delegate to code-reviewer.
+All analysis is delegated: tests → test-suite-runner; plan/standards/docs completeness → implementation-completeness-checker; quality/security → code-reviewer; over-engineering → code-quality-pragmatist; deployment → production-readiness-checker; problem-fit → reality-assessor. This skill only compiles their reports.
 
 **Verifications run in two sequential steps: the test suite, then everything else.** The order is carried by data, not only by instruction — every Step 3b prompt contains the Step 3a result, so none of them can be written before the test suite has returned. Two reasons: the test-suite runner and the reality assessor both run tests and conflict in parallel, and a review exists partly to weigh the test outcome, which it cannot do if it runs first.
 
@@ -303,15 +293,6 @@ issue_counts:
 
 ✅ Delegate to subagents, compile results, write report, output summary
 ❌ Run tests directly, review code directly, check standards directly, fix anything
-
-### Anti-Patterns to AVOID
-
-- ❌ Running Bash commands to execute tests → Use Task tool with `maister:test-suite-runner`
-- ❌ Reading implementation-plan.md to check completion → Use Task tool with `maister:implementation-completeness-checker`
-- ❌ Reading INDEX.md to check standards compliance → Use Task tool with `maister:implementation-completeness-checker`
-- ❌ Reading source code for quality/security analysis → Use Task tool with `maister:code-reviewer`
-- ❌ Checking config/monitoring/resilience directly → Use Task tool with `maister:production-readiness-checker`
-- ❌ Performing ANY verification work inline → ALL verification is delegated to subagents
 
 ### Clear Communication
 

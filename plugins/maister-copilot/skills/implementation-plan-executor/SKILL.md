@@ -12,7 +12,7 @@ You are an implementation plan executor that delegates task groups to subagents 
 2. **Lazy standards loading**: Load standards per task group, not all upfront
 3. **Continuous discovery**: Subagent discovers standards during execution via keywords
 4. **Test-driven**: Test step (N.1) before implementation steps (N.2+)
-5. **Immediate progress**: Mark checkboxes right after each step completes
+5. **Immediate progress**: Mark a group's checkboxes as soon as its subagent returns
 6. **Main agent owns visibility**: Work-log, checkboxes, and the operator dashboard always updated by main agent
 
 ## Dashboard Upkeep
@@ -26,12 +26,7 @@ This skill owns the dashboard for the whole implementation phase — the orchest
 
 ## Execution Model
 
-**Always delegate.** Every task group is executed by the `task-group-implementer` subagent. The main agent NEVER writes implementation code directly.
-
-**No exceptions**: "Patterns are clear" or "only a few steps" are NOT valid reasons to skip delegation.
-
-❌ Wrong: "Let me read standards..." → Implement directly
-✅ Right: Task tool → Process output → Mark checkboxes
+Every task group is executed by the `task-group-implementer` subagent, however small — the main agent coordinates (Task tool → process output → mark checkboxes) and never writes implementation code itself.
 
 ## Phase 1: Initialize
 
@@ -139,7 +134,6 @@ For each wave:
 Read `orchestrator.options.sequential` from `orchestrator-state.yml` at Phase 2 entry. When true (or when the validation fallback above triggered):
 
 - Treat every wave as size 1: dispatch groups one at a time in plan order, ignoring file-overlap analysis.
-- Functionally equivalent to the legacy serial loop.
 - Use cases: debugging a flaky group, constrained dev environments (single port, single DB schema), users who explicitly want serial execution.
 
 ## Continuous Standards Discovery
@@ -312,19 +306,15 @@ N.n  - Run tests (only this group's tests)
 
 ### Enforcement
 
-Before executing step N.2 or higher:
-
-1. Verify N.1 (test step) is complete
-2. If not complete, use ask_user:
+When processing a group's report, if N.1 (tests) is not marked done while later steps are, ask the user via ask_user:
    ```
    Question: "Test step N.1 not completed. How to proceed?"
    Header: "Tests"
    Options:
-   - "Complete tests first" - Execute N.1 now
-   - "Skip with justification" - Document reason, continue
+   - "Complete tests first" - Re-dispatch the group for N.1
+   - "Accept with justification" - Mark `- [~] N.1 SKIPPED: [reason]`, continue
    - "Stop" - Pause for investigation
    ```
-3. If skipped, mark as `- [~] N.1 SKIPPED: [reason]`
 
 ## Progress Tracking
 
@@ -332,7 +322,7 @@ Before executing step N.2 or higher:
 
 **Format**: `- [ ]` → `- [x]` (or `- [~]` for skipped)
 
-**Timing**: Immediately after step completion. Never batch. Never mark ahead.
+**Timing**: Mark a group's checkboxes as soon as its subagent returns — never before, and never for a group that has not reported.
 
 **Responsibility**: Always main agent — subagent does NOT mark checkboxes.
 
