@@ -366,7 +366,6 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
       ok: true, errors: [], warnings: [], ...provenance,
       tracker_key: trackerKeyOf(graph.inputs), degraded,
       graph_hash: hashNodes(folded, canonicalOutputs(graph)), nodes: folded,
-      display: displayOf(graph),
     };
   }
 
@@ -389,27 +388,7 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     tracker_key: trackerKeyOf(graph.inputs),
     graph_hash: hashNodes(nodes, canonicalOutputs(graph)),
     nodes,
-    display: displayOf(graph),
   };
-}
-
-/**
- * The `display:` block as a caller reads it: always a mapping, always with an
- * `icons` mapping inside it, empty when the definition declared none.
- *
- * Both `ok: true` paths above call this, the degraded branch included, off the
- * graph each of them already built — so a caller reads `resolved.display.icons`
- * without first asking which branch produced the result and without a shape
- * guard of its own. A projection that had to branch here would drop icons for
- * exactly the runs whose definition this build cannot fully read, which is the
- * class of silent gap this module is written to avoid.
- *
- * Not canonicalized and not hashed. The value is cosmetic, so there is no
- * identity for a canonical form to serve.
- */
-function displayOf(graph) {
-  const block = isMap(graph?.display) ? graph.display : {};
-  return { ...block, icons: isMap(block.icons) ? { ...block.icons } : {} };
 }
 
 // ---------------------------------------------------------------------------

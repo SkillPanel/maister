@@ -41,71 +41,212 @@
  *
  * A `cockpit` driver is not guarded and owes no message: it has no outbox,
  * because nothing dispatched it. Neither does a terminal run.
+ *
+ * WHICH MARKER, FROM THE RUN'S OWN STATUS. The marker is decided by
+ * `task.status`, never by the driver alone: a run whose last node failed must
+ * not end its transcript on the line every reader takes for success.
+ *
+ * - `completed` is `RUN-COMPLETE`.
+ * - `failed` is `RUN-FAILED: <reason>`, the reason naming the first failed node
+ *   in graph order. A `workflow:` node carries the reason the sub-run ending
+ *   table pins, `sub-run <child-run-id> failed`, so that line comes from this
+ *   verb rather than being typed.
+ * - `stopped` is `RUN-COMPLETE` as well. The marker vocabulary has no stopped
+ *   form and a stop is a legitimate outcome, never a `RUN-FAILED`; the outcome
+ *   itself is on disk, which every tool reads before the marker. So that a
+ *   person reading the terminal does not take the stop for a success, one plain
+ *   `run stopped: <node> - <option>` line is printed immediately above it — the
+ *   marker stays the last line, so nothing that matches markers moves.
+ * - Anything else means the closing patch has not been written, and a missing
+ *   state file means there is no run to close. Both are refusals: printing a
+ *   verdict for a run that has not recorded one is the defect this reading
+ *   closes.
+ *
+ * Under a dispatch driver the close-out check runs for every ending, a failed
+ * one included — a failed dispatch still owes its chain a close-out graded
+ * `failed`, or the chain waits on it forever.
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 
 import { scanState } from '../../../../hooks/gate-lib.mjs';
 import { published } from '../../../umbrella/scripts/lib/outbox.mjs';
 import { Refusal } from '../../../../lib/canonical.mjs';
+import { gateCard } from './dashboard.mjs';
+import { REQUEST_SUFFIX } from './gate-index.mjs';
+import { isPlainObject, parse } from './state-read.mjs';
 
-/** C5's two closing markers, spelled here once. */
+/** C5's closing markers, spelled here once. */
 const COMPLETE = 'RUN-COMPLETE';
-const UNPUBLISHED = 'RUN-FAILED: closeout-unpublished';
+const FAILED = 'RUN-FAILED';
 
 /** The type a close-out message carries in its filename (C4). */
 const CLOSEOUT = 'closeout';
+
+/** The statuses that end a run; any other one has not recorded its ending. */
+const ENDINGS = new Set(['completed', 'failed', 'stopped']);
 
 /**
  * Judge one run's ending.
  *
  * Returns rather than throws, like `writeState` and `gateRequest`: the entry
- * point prints the marker as the last line and maps `ok` onto the exit code.
- * Only a genuine internal fault escapes.
+ * point prints `notice` (when there is one) and then the marker as the last
+ * line, and maps `ok` onto the exit code. `ok` is true exactly when the marker
+ * is `RUN-COMPLETE`. Only a genuine internal fault escapes.
  */
 export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
   try {
-    const kind = driverKindOf(state);
-    if (kind !== 'dispatch') return { ok: true, marker: COMPLETE, errors: [] };
-
-    if (!outbox || !dispatchId) {
-      return refused('this run is driven by a dispatch, so its close-out is owed to the outbox its seed names, and neither --outbox nor --dispatch-id was given, so nothing can be checked. Publish the close-out with the umbrella runtime\'s outbox verb (--type=closeout, with the grade and summary the seed\'s close-out contract asks for), then run this verb again with the same --outbox root and --dispatch-id.');
+    const { raw, doc } = readRun(state);
+    const task = isPlainObject(doc.task) ? doc.task : {};
+    const status = typeof task.status === 'string' ? task.status : null;
+    if (!ENDINGS.has(status)) {
+      throw new Refusal('run-not-ended',
+        `${state} records task.status ${status === null ? 'as absent' : `"${status}"`}, so the run has not recorded how it ended and no marker can be printed for it. Write the closing patch first — the closing node's outcome with task.status completed or failed, or a stop option's task.status stopped with every unexecuted node — then run this verb again.`);
     }
 
-    const messages = published({ outbox, dispatch_id: dispatchId });
-    if (messages.some(message => message.type === CLOSEOUT)) {
-      return { ok: true, marker: COMPLETE, errors: [] };
+    if (scanState(raw).driverKind === 'dispatch') {
+      const refusal = closeoutRefusal({ outbox, dispatchId });
+      if (refusal) return refusal;
     }
 
-    const sent = messages.map(message => message.type);
-    return refused(`the outbox for dispatch ${dispatchId} holds ${sent.length ? `${sent.join(', ')} and no close-out` : 'no message at all'}, so the dispatching chain has not learned this run is over and will wait forever. Publish the close-out with the umbrella runtime's outbox verb (--type=closeout, with the grade and summary the seed's close-out contract asks for), then run this verb again.`);
+    const nodes = nodesOf(doc);
+    if (status === 'failed') {
+      const reason = failureOf(nodes);
+      return {
+        ok: false,
+        marker: `${FAILED}: ${reason}`,
+        errors: [{ code: 'run-failed', message: `the run recorded task.status failed (${reason}). This is its ending, not a refusal to retry: echo the marker as the turn's last line.` }],
+      };
+    }
+    const result = { ok: true, marker: COMPLETE, errors: [] };
+    if (status === 'stopped') result.notice = `run stopped: ${stopOf(nodes, doc, path.dirname(path.resolve(state)))}`;
+    return result;
   } catch (err) {
     if (err instanceof Refusal) {
-      return { ok: false, marker: UNPUBLISHED, errors: [{ code: err.code, message: err.message }] };
+      return { ok: false, marker: `${FAILED}: ${err.code}`, errors: [{ code: err.code, message: err.message }] };
     }
     throw err;
   }
 }
 
+/** A dispatched run's close-out, checked in its outbox; null when it landed. */
+function closeoutRefusal({ outbox, dispatchId }) {
+  if (!outbox || !dispatchId) {
+    return refused('this run is driven by a dispatch, so its close-out is owed to the outbox its seed names, and neither --outbox nor --dispatch-id was given, so nothing can be checked. Publish the close-out with the umbrella runtime\'s outbox verb (--type=closeout, with the grade and summary the seed\'s close-out contract asks for), then run this verb again with the same --outbox root and --dispatch-id.');
+  }
+
+  const messages = published({ outbox, dispatch_id: dispatchId });
+  if (messages.some(message => message.type === CLOSEOUT)) return null;
+
+  const sent = messages.map(message => message.type);
+  return refused(`the outbox for dispatch ${dispatchId} holds ${sent.length ? `${sent.join(', ')} and no close-out` : 'no message at all'}, so the dispatching chain has not learned this run is over and will wait forever. Publish the close-out with the umbrella runtime's outbox verb (--type=closeout, with the grade and summary the seed's close-out contract asks for), then run this verb again.`);
+}
+
 /** A run that cannot show its close-out, with the recovery in the message. */
 function refused(message) {
-  return { ok: false, marker: UNPUBLISHED, errors: [{ code: 'closeout-unpublished', message }] };
+  return { ok: false, marker: `${FAILED}: closeout-unpublished`, errors: [{ code: 'closeout-unpublished', message }] };
 }
 
 /**
- * The driver kind on disk, read through the same scanner the gate hook uses so
- * one parser answers for every reader of an E1 block. An absent block is a
- * terminal run by contract, and so is an absent file — a run with no state
- * never dispatched anything and owes no message.
+ * The state file, raw and parsed. The raw text goes to the same scanner the
+ * gate hook uses, so one parser answers for every reader of an E1 block; the
+ * parsed document goes through the reader every other state consumer shares.
  */
-function driverKindOf(state) {
+function readRun(state) {
   let raw;
   try {
     raw = fs.readFileSync(state, 'utf8');
   } catch (err) {
-    if (err.code === 'ENOENT') return null;
+    if (err.code === 'ENOENT') {
+      throw new Refusal('state-missing',
+        `${state} does not exist, so there is no run here to close and nothing to judge. Check the --state path names the run's own orchestrator-state.yml; a run that never wrote its state has not reached its ending.`);
+    }
     throw new Refusal('state-unreadable',
-      `${state} cannot be read: ${err.message}, so the run's driver cannot be established and its ending cannot be judged.`);
+      `${state} cannot be read: ${err.message}, so the run's ending cannot be judged.`);
   }
-  return scanState(raw).driverKind;
+  try {
+    return { raw, doc: parse(raw) };
+  } catch (err) {
+    throw new Refusal('state-unreadable',
+      `${state} cannot be parsed: ${err.message}, so the run's ending cannot be judged. Nothing was changed; repair the file through the state writer's recovery, then run this verb again.`);
+  }
+}
+
+/** The frozen node entries, in graph order. */
+function nodesOf(doc) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  return Object.entries(nodes).filter(([, entry]) => isPlainObject(entry));
+}
+
+/** The failed run's reason: the first failed node, or the task when none is. */
+function failureOf(nodes) {
+  const hit = nodes.find(([, entry]) => entry.status === 'failed');
+  if (!hit) return 'task-failed';
+  const [id, entry] = hit;
+  const runId = isPlainObject(entry.values) ? entry.values.run_id : undefined;
+  return entry.kind === 'workflow' && typeof runId === 'string' && runId !== ''
+    ? `sub-run ${runId} failed`
+    : `node ${id} failed`;
+}
+
+/**
+ * `<node> - <option>` for the notice line: what stopped the run, read from
+ * state and never reconstructed.
+ *
+ * A stopped node that carries a summary ran and adopted its child's stop — the
+ * unexecuted nodes a stop records carry none — so that node is the cause.
+ * Otherwise the stop came from a gate, and the gate is the completed one
+ * answered last. Its option is the request file's answer, as a label, when a
+ * driven run left one; a gate asked in session records it among its summary's
+ * decisions instead. An option that cannot be found is said to be missing
+ * rather than guessed.
+ */
+function stopOf(nodes, doc, runDir) {
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  const adopted = nodes.find(([id, entry]) => entry.status === 'stopped' && Object.hasOwn(summaries, id));
+  if (adopted) {
+    const [id, entry] = adopted;
+    const runId = isPlainObject(entry.values) ? entry.values.run_id : undefined;
+    return `${id} - sub-run ${typeof runId === 'string' && runId !== '' ? runId : '(run id not recorded)'} stopped`;
+  }
+
+  const answered = nodes.filter(([, entry]) => entry.status === 'completed');
+  const gates = answered.filter(([, entry]) => entry.kind === 'gate');
+  const pool = gates.length ? gates : answered;
+  let last = null;
+  for (const candidate of pool) {
+    const stamp = String(candidate[1].completed ?? '');
+    if (last === null || stamp >= String(last[1].completed ?? '')) last = candidate;
+  }
+  if (last === null) return 'no answered gate recorded - option not recorded';
+  const [id] = last;
+  return `${id} - ${requestAnswer(runDir, id) ?? summaryAnswer(summaries[id]) ?? 'option not recorded'}`;
+}
+
+/** The chosen option's label from `gates/<node>.request.yml`, or null. */
+function requestAnswer(runDir, node) {
+  try {
+    const card = gateCard(parse(fs.readFileSync(path.join(runDir, 'gates', `${node}${REQUEST_SUFFIX}`), 'utf8')));
+    return card?.answer ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The last answer an in-session gate recorded on its summary, or null. */
+function summaryAnswer(summary) {
+  if (!isPlainObject(summary)) return null;
+  const decisions = Array.isArray(summary.decisions) ? summary.decisions : [];
+  for (const decision of [...decisions].reverse()) {
+    if (!isPlainObject(decision)) continue;
+    for (const key of ['answer', 'option', 'decision']) {
+      if (typeof decision[key] === 'string' && decision[key] !== '') return decision[key];
+    }
+  }
+  for (const key of ['answer', 'option']) {
+    if (typeof summary[key] === 'string' && summary[key] !== '') return summary[key];
+  }
+  return null;
 }

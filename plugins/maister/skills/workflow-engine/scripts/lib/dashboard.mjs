@@ -2,13 +2,12 @@
  * The dashboard projection: `dashboard-data.js` as a function of state.
  *
  * **The defect this closes.** `dashboard-data.js` used to be written by hand, by
- * the prose orchestrator, at seven rewrite moments scattered through a run —
- * `performance.md:116-123` states the mechanism outright. A file that is only
- * ever as fresh as the last turn that remembered to rewrite it is a file an
- * operator reads as current and which is routinely hours stale: every phase that
- * ran without a rewrite moment, every turn that was interrupted, and every
- * recovery path left the dashboard describing a run that had already moved on.
- * The fix is not another rewrite moment. It is to stop treating the file as a
+ * the prose orchestrator, at seven rewrite moments scattered through a run. A
+ * file that is only ever as fresh as the last turn that remembered to rewrite it
+ * is a file an operator reads as current and which is routinely hours stale:
+ * every phase that ran without a rewrite moment, every turn that was
+ * interrupted, and every recovery path left the dashboard describing a run that
+ * had already moved on. The fix is not another rewrite moment. It is to stop treating the file as a
  * document somebody maintains and start treating it as a projection: derived
  * from the state file on **every** state write, by the writer, so no turn
  * *between* phases can forget it. Three moments remain prose obligations, and
@@ -128,7 +127,7 @@ const CONTEXT_SUFFIX = '_context';
  * stretch to carry them, and a reader that refused them would drop an issue that
  * verification genuinely recorded.
  */
-const SEVERITIES = Object.freeze([
+export const SEVERITIES = Object.freeze([
   'critical',
   'warning',
   'info',
@@ -163,7 +162,7 @@ const CHARACTERISTIC_KEYS = [
  * `progress` carries at most one entry keyed by the executor node.
  *
  * `generated` is the **first** top-level key: that is what the register's schema
- * spells and what 10 of 12 sampled corpus files already carry, and the cockpit
+ * spells and what hand-written files already carried, and the cockpit
  * lints `/generated` for a midnight value, so the caller's `now` is a measured
  * stamp rather than a formatted date.
  */
@@ -358,9 +357,8 @@ function labelOf(options, value) {
  *
  * The same defect `issueOf` closes for `issues_found`, in the field nobody
  * re-checked: A2's `$defs/artifact_ref` is an object with a **required** `path`,
- * and the corpus records an artifact as a bare path string 15 times across 5
- * files. Copied verbatim, each of those publishes an invalid document and the
- * shipped viewer reads `a.path` and `a.label` unguarded, so the drawer renders
+ * and state files record an artifact as a bare path string. Copied verbatim,
+ * each of those publishes an invalid document and the shipped viewer reads `a.path` and `a.label` unguarded, so the drawer renders
  * `<a href="undefined">undefined</a>`; worse, the hero lookup requires `a.path`,
  * so the hero card reports "not produced yet" for a file that exists on disk.
  *
@@ -373,7 +371,7 @@ function labelOf(options, value) {
  * - **Anything else** — number, boolean, `null`, array — is dropped: it names no
  *   file, so there is nothing to link and nothing A2 would accept.
  */
-function artifactOf(entry) {
+export function artifactOf(entry) {
   if (isPlainObject(entry)) return entry;
   if (typeof entry !== 'string') return null;
   return { path: entry, label: null, html: null };
@@ -384,9 +382,9 @@ function artifactOf(entry) {
  *
  * A2 freezes three shapes — a bare string, the writer form carrying `decision`
  * with an optional `rationale`, and the question/answer form the development
- * workflow writes into its clarifications key — and the corpus carries a
+ * workflow writes into its clarifications key — and state files carry a
  * **fourth**: every driven run records a gate answer as
- * `{option, answered_by, at}`, 14 entries across 6 files. It matches no frozen
+ * `{option, answered_by, at}`. It matches no frozen
  * shape, and the viewer reads `x.decision || x`, so a gate answer renders as the
  * literal text `[object Object]` in both the phase drawer and the decisions
  * panel.
@@ -399,7 +397,7 @@ function artifactOf(entry) {
  * - **Anything else** is dropped, for the reason `issueOf` drops a bare count —
  *   an entry with no decision text in it has nothing to render.
  */
-function decisionOf(entry) {
+export function decisionOf(entry) {
   if (typeof entry === 'string') return entry;
   if (!isPlainObject(entry)) return null;
   if (Object.hasOwn(entry, 'decision')) return entry;
@@ -411,7 +409,7 @@ function decisionOf(entry) {
 /**
  * One entry of `issues_found` as an A2 issue object, or `null` to drop it.
  *
- * `issues_found` carries three shapes across the real corpus, and A2's
+ * `issues_found` carries three shapes in real state files, and A2's
  * `$defs/issue` is `type: object`, so copying the list verbatim publishes an
  * invalid document — silently, twice over: the schema refuses it, and the shipped
  * viewer reads `i.severity` and `i.description` unguarded, so a non-object
@@ -433,7 +431,7 @@ function decisionOf(entry) {
  * `$defs/issue` declares no `required`, so `{severity, description}` alone is a
  * complete issue.
  */
-function issueOf(entry) {
+export function issueOf(entry) {
   if (isPlainObject(entry)) return entry;
   if (typeof entry !== 'string') return null;
   const cut = entry.indexOf(SEVERITY_SEPARATOR);
@@ -568,9 +566,8 @@ const WAVE_HEADING = /^##\s.*\bGroup \d+ (?:Complete|Reverted) \(wave\s*(\d+)/gi
  * A work-log entry announcing a reverted group, with its reason.
  *
  * Matches `## 2026-09-20 15:10 - Group 4 Reverted (wave 3): migration left the
- * schema half-applied` — the entry § 3.8 adds to the executor skill and wires to
- * its "Rollback changes" recovery option. Before that template existed nothing
- * on disk carried a revert, which is why the reason is required here: an entry
+ * schema half-applied` — the entry the executor skill writes from its
+ * "Rollback changes" recovery option. The reason is required here: an entry
  * with no reason is prose about a revert rather than the record of one.
  */
 const REVERT_HEADING = /^##\s.*\bGroup (\d+) Reverted \(wave\s*\d+\):\s*(.+)$/gim;
@@ -587,8 +584,8 @@ const GROUP_LABEL = (group, reason) => `Group ${group} — ${reason}`;
  * behind. A guess there is worse than an absence: this file's whole purpose is
  * to stop looking plausible the moment it is not current.
  *
- * The work-log side is the opposite bargain. Its headings were free prose until
- * § 3.8 made two of them a contract, so real logs are full of forms no regex can
+ * The work-log side is the opposite bargain. Only two of its headings are a
+ * contract and the rest are free prose, so real logs are full of forms no regex can
  * account for, and treating an unaccountable heading as fatal would blank the
  * group counts — which are perfectly sound — over a line that only ever carried
  * a wave number. An unmatched log therefore yields `current_wave: null` and
