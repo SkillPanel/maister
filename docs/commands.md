@@ -130,6 +130,8 @@ Starts the interactive product/feature design workflow (9 adaptive phases) or re
 | `--from=PHASE` | Start from or resume at a specific phase |
 | `--reset-attempts` | Reset failed attempt counters (resume) |
 
+**Runs in-session as its own skill.** Product design has no workflow definition, so it does not run on the workflow engine — it is the one workflow in 3.0 that does not. Every flag above applies in full, `--from=PHASE` and `--reset-attempts` included, and a design task is resumed by passing its task path, with or without a phase. An engine definition is planned for a later 3.x release; adding it is not a breaking change.
+
 Design output can feed directly into development: `/maister:development .maister/tasks/product-design/...`
 
 **Task directory**: `.maister/tasks/product-design/`

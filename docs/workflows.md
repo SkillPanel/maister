@@ -332,6 +332,15 @@ When run without arguments, the plugin extracts the design brief from your conve
 
 **Flags**: `--research=PATH`, `--no-visual`, `--from=PHASE`
 
+### Interpreter
+
+Product design does not run on the workflow engine. It has no workflow definition: it runs
+in-session as its own orchestrator skill, the one workflow in 3.0 that does — development,
+performance, migration and research run on the engine. Its flags apply in full, `--from=PHASE`
+and `--reset-attempts` included, and its task directory is resumed by the same skill that
+started it. An engine definition is planned for a later 3.x release; adding it is not a breaking
+change.
+
 ### Phases
 
 | # | Phase | Activation |

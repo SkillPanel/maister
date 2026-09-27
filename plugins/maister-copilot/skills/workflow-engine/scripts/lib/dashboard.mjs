@@ -506,6 +506,11 @@ export function executorNodeOf(definitionDoc) {
 // the plan and work-log contracts
 // ---------------------------------------------------------------------------
 
+// The three plan patterns are exported because the plan companion's sync
+// (`plan-sync.mjs`) must call a group done by exactly the rule the dashboard
+// counts it by — two readers of one plan that disagreed would show the operator
+// two different progress figures for the same run.
+
 /**
  * A task group's heading, and the number that labels it.
  *
@@ -515,7 +520,7 @@ export function executorNodeOf(definitionDoc) {
  * the count of these headings **is** `groups_total` and a prose reference to a
  * group is not a group.
  */
-const GROUP_HEADING = /^### Task Group (\d+):/gm;
+export const GROUP_HEADING = /^### Task Group (\d+):/gm;
 
 /**
  * Any `### ` heading, which is where a group's section ends.
@@ -526,7 +531,7 @@ const GROUP_HEADING = /^### Task Group (\d+):/gm;
  * That is deliberate: those sections hold numbered lists and bullets, not step
  * checkboxes, and counting them as steps would make every group unfinished.
  */
-const SECTION_HEADING = /^### /gm;
+export const SECTION_HEADING = /^### /gm;
 
 /**
  * One step checkbox and its mark.
@@ -537,7 +542,7 @@ const SECTION_HEADING = /^### /gm;
  * at least one checkbox and none of them is the empty one — the executor's own
  * completion test, "no `- [ ]` checkboxes remain".
  */
-const CHECKBOX = /^[ \t]*-\s\[([ x~])\]/gm;
+export const CHECKBOX = /^[ \t]*-\s\[([ x~])\]/gm;
 
 /**
  * A skipped step, with its group number and its reason.
