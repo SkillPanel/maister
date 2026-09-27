@@ -314,9 +314,9 @@ a source it cannot find is an absence rather than a failure.
 Delegated to the codebase analyzer through the Skill tool, then a short
 clarification round inline.
 
-> **ANTI-PATTERN**: Do NOT explore the codebase inline instead of delegating.
-> The `maister-codebase-analyzer` skill dispatches parallel explorers and
-> produces the structured analysis the rest of the run reads.
+The `maister-codebase-analyzer` skill runs this exploration every time rather
+than an inline read: it dispatches parallel explorers and produces the
+structured analysis every later node reads.
 
 After the skill returns, write the analysis summary, the key files and the
 primary language into state. Then ask the operator **at most five** critical
@@ -354,10 +354,10 @@ Delegated to the gap analyzer through the Task tool. This node decides the shape
 of the rest of the run: two of its three declared values are guards, and four
 later nodes plus two later gates read them.
 
-> **ANTI-PATTERN**: Do NOT judge the task characteristics yourself. The
-> `maister-gap-analyzer` agent makes that assessment from the codebase analysis,
-> and overriding it with a complexity judgement — "the UI change is small", "no
-> new screens, just a component" — is the documented failure mode.
+The task characteristics are the `maister-gap-analyzer` agent's assessment,
+made from the codebase analysis; record them as returned rather than adjusting
+them by your own sense of the change's size, because they are guards that decide
+which later nodes run.
 
 **Extract the structured result and write it to state before anything else.**
 Read the five task characteristics the analyzer returns — a reproducible defect,
@@ -483,9 +483,9 @@ goes to the specification, not to phase 4.
 Delegated to the mockup studio through the Skill tool, and only when the gap
 analysis decided mockups are needed.
 
-> **ANTI-PATTERN**: Do NOT hand-write mockups inline. The
-> `maister-mockup-studio` skill runs design-resource discovery first — binding
-> standards, tokens and components — and renders against what it found.
+The `maister-mockup-studio` skill produces the mockups rather than inline
+markup, because it runs design-resource discovery first — binding standards,
+tokens and components — and renders against what it found.
 
 Pass the mockup format from `options.mockup_format` (default `html`; the studio
 falls back to a terminal rendering on its own when the runtime cannot serve one),
@@ -601,18 +601,17 @@ the ten: its answers confirm assumptions rather than decide the flow.
 
 **Part C — specification creation (delegate).**
 
-> **ANTI-PATTERN**: Do NOT write the specification inline. Not because the task
-> looks complex, and not only when it does — the `maister-specification-creator`
-> agent writes it every time. Simplicity is never a reason to skip the
-> delegation.
+The `maister-specification-creator` agent writes the specification every time,
+whatever the task's size, because it searches for reusable code and checks
+requirement coverage before the audit and the planner read the result.
 
 Invoke the specification creator through the Task tool. Everything node-scoped
 it needs is in `with:`; the run-scoped four supply the rest, including the style
 guide path that produces the specification's HTML companion.
 
-> **SELF-CHECK**: after the Task tool returns, verify that
-> `implementation/spec.md` exists and covers the requirements gathered in Part B.
-> If missing: **STOP. Do NOT proceed.** Re-invoke with corrected context.
+If the agent returns without `implementation/spec.md`, or with one that leaves a
+requirement gathered in Part B uncovered, re-invoke it with the missing context
+rather than writing the specification yourself.
 
 **The audit opt-in — the fifth of the ten in-node questions.** Ask *"Run
 specification audit? (Recommended)"*, with **"Yes, run audit (Recommended)"** as
@@ -671,9 +670,10 @@ planning.
 Delegated to the specification auditor through the Task tool, and only when the
 audit opt-in came back yes.
 
-> **ANTI-PATTERN**: Do NOT review the specification yourself. The
-> `maister-spec-auditor` agent audits it from a senior auditor's perspective and
-> verifies claims against the codebase rather than trusting them.
+The `maister-spec-auditor` agent audits the specification rather than an
+inline review, because it checks the spec's claims against the codebase instead
+of trusting them — and it runs before any code exists, so it audits the spec
+itself, not an implementation.
 
 The auditor returns a verdict — pass, pass with concerns, or fail — issue counts
 by severity, and the findings themselves. Write all of it to
@@ -708,10 +708,9 @@ planning without asking.
 
 Delegated to the implementation planner through the Task tool.
 
-> **ANTI-PATTERN**: Do NOT break the work into steps inline. The
-> `maister-implementation-planner` agent produces the task groups, their
-> dependencies and their test-first step lists. Simplicity is not a reason to
-> skip the delegation.
+The `maister-implementation-planner` agent writes the plan every time, whatever
+the task's size, because it produces the task groups, their dependencies and the
+test-first step lists the executor dispatches from.
 
 The planner reads the specification and, when the audit ran, its findings. When
 a design index exists, it must enumerate every screen and component in it, map
@@ -720,9 +719,9 @@ and produce `implementation/visual-coverage.md` proving every screen is covered
 by at least one group. When no design index exists, that artifact is not written
 and the field is omitted entirely — a task with no UI surface sees no change.
 
-> **SELF-CHECK**: after the Task tool returns, verify that
-> `implementation/implementation-plan.md` exists and that its groups cover the
-> specification's requirements. If missing: **STOP. Do NOT proceed.**
+If the planner returns without `implementation/implementation-plan.md`, or with
+groups that leave a specification requirement uncovered, re-invoke it with the
+missing context rather than writing the plan yourself.
 
 **Executive summary before the gate.** Read
 `implementation/implementation-plan.md` and extract: how many task groups it
@@ -752,10 +751,9 @@ and stop the run on the stop option.
 Delegated to the implementation-plan executor through the Skill tool. This is
 the node that writes code, and it is the only one that does.
 
-> **ANTI-PATTERN**: Do NOT write the code inline. Not for a small plan, not for
-> a single-group plan — the `maister-implementation-plan-executor` skill runs
-> the groups, dispatches the implementers and keeps the plan's progress marks in
-> step with what actually landed.
+The `maister-implementation-plan-executor` skill writes the code every time,
+whatever the plan's size, because it runs the groups, dispatches the implementers
+and keeps the plan's progress marks in step with what actually landed.
 
 **The sequential input, and where the executor reads it.** Before invoking the
 skill, record the input's value as `orchestrator.options.sequential`: the
@@ -769,9 +767,6 @@ groups in parallel waves. It defaults to parallel.
 in the companion too, and a companion still showing outstanding work after a
 complete run is a stale projection rather than a finding. Then record what
 landed: the groups completed, the files changed and the incremental test results.
-
-> **SELF-CHECK**: did the executor run, or did you start editing files yourself?
-> If the latter, **STOP** and invoke the skill instead.
 
 **Executive summary before the gate.** Read `implementation/work-log.md` and
 this node's own summary and extract: the task groups completed, the files
@@ -906,10 +901,10 @@ missing or spelled differently silently runs a different review set:
 Delegated to the implementation verifier through the Skill tool, then a fix loop
 inline.
 
-> **ANTI-PATTERN**: Do NOT verify the implementation inline. The
-> `maister-implementation-verifier` skill runs the test suite first, as its own
-> step, and passes that result into every review prompt; then the completeness
-> check and the selected reviews, compiled into one report.
+The `maister-implementation-verifier` skill does the verification rather than
+an inline review, because it runs the test suite first, as its own step, passes
+that result into every review prompt, and compiles the completeness check and
+the selected reviews into one report.
 
 Pass no style guide path: as a skill it resolves the guide itself and gates its
 own companion on the HTML output option.
@@ -978,10 +973,9 @@ documentation instead — or `finalization`, when that was declined as well.
 Delegated to the browser-verification agent through the Task tool, and only when
 the browser-tests bool came back true.
 
-> **ANTI-PATTERN**: Do NOT generate browser test files. The
-> `maister-e2e-test-verifier` agent drives a live browser through the running
-> application and collects evidence; it is a verification pass, not a test-suite
-> author.
+The `maister-e2e-test-verifier` agent drives a live browser through the running
+application and collects evidence; it is a verification pass, so no browser
+test files are written here.
 
 Pass the specification, the verification report and, when design context exists,
 the mockup directory — with it the agent additionally performs a structural
@@ -1026,9 +1020,8 @@ nothing to return to.
 Delegated to the user-documentation generator through the Task tool, and only
 when the user-docs bool came back true.
 
-> **ANTI-PATTERN**: Do NOT write the user guide inline. The
-> `maister-user-docs-generator` agent captures the screenshots and writes for a
-> non-technical reader.
+The `maister-user-docs-generator` agent writes the guide rather than an inline
+draft, because it captures the screenshots and writes for a non-technical reader.
 
 **Reuse the browser stretch's screenshots when it ran.** Pass the screenshot
 directory together with the instruction to reuse what applies before capturing

@@ -11,7 +11,7 @@ Before considering an orchestrator complete, verify ALL items:
 - [ ] **Step 0: Load Framework** — Initialization reads `orchestrator-patterns.md`
 - [ ] **State file creation** — Explicit step to CREATE `orchestrator-state.yml`
 - [ ] **Phase structure** — Each phase has: Purpose, Execute, Output, State, Transition (`→ MANDATORY GATE` / `→ AUTO-CONTINUE`)
-- [ ] **Delegation enforcement** — Each delegated phase has: ANTI-PATTERN block, INVOKE NOW block, SELF-CHECK
+- [ ] **Delegation enforcement** — Each delegated phase names its subagent or skill, says it is used whatever the task's size, and gives the reason in one line (what the delegate produces that later phases read); plus the INVOKE NOW block
 - [ ] **POST-CONTINUATION blocks** — After Skill tool phases, explicit instructions to read state, update completed_phases, and continue
 - [ ] **Context passing** — All subagent prompts include ACCUMULATED CONTEXT section with state summaries and prior phase summaries
 - [ ] **Context extraction** — Each phase's State Update extracts findings to `phase_summaries`

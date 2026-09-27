@@ -175,12 +175,15 @@ predefined and operator-added alike — recording them as
 *Writes* `planning/research-plan.md`, `planning/sources.md`. *Resume check*: if
 both exist, go to step 3.
 
-Read the research-methodologies reference first — type classification,
-methodology selection, gathering strategies. Then invoke the research planner
-through the Task tool.
+Invoke the `maister:research-planner` agent through the Task tool. Choosing
+the methodology is the planner's job, so the planner — not this node — reads
+the methodology reference; pass its path rather than reading it here.
 
 Context for the planner: `task_path`, the research brief path, the research
-type, the research question, the scope, and `project_doc_paths`.
+type, the research question, the scope, `project_doc_paths`, and
+`methodology_reference` — the absolute path of
+`${CLAUDE_PLUGIN_ROOT}/skills/research/references/research-methodologies.md`,
+which the planner reads in full before it classifies the question.
 
 ### Step 3 — gather (parallel delegates)
 
@@ -306,15 +309,18 @@ Delegated to the solution brainstormer through the Task tool. Read the
 brainstorming-techniques reference first — divergent and convergent techniques,
 scope guardrails.
 
-> **ANTI-PATTERN**: Do NOT generate solution alternatives inline. The
-> `maister:solution-brainstormer` agent has specialized multi-perspective
-> analysis capabilities.
+The `maister:solution-brainstormer` agent generates the alternatives rather than
+an inline list, because it works from the research evidence alone and writes the
+exploration the convergence step below presents area by area.
 
 Everything node-scoped the delegate needs is in `with:`; the run-scoped four
 supply the rest. `output_path` is exact — the delegate must write to
 `outputs/solution-exploration.md` and nowhere else.
 
-> **SELF-CHECK**: after the Task tool returns, verify that `outputs/solution-exploration.md` exists and contains alternatives. If missing: **STOP. Do NOT proceed.** Re-invoke the brainstormer with corrected context, ensuring `output_path` is that exact path. If the second attempt also fails, ask the operator whether to retry or to skip the brainstorming stretch.
+If the agent returns without `outputs/solution-exploration.md`, or with one that
+holds no alternatives, re-invoke it with corrected context and `output_path` set
+to that exact path; if the second attempt also fails, ask the operator whether to
+retry or to skip the brainstorming stretch.
 
 That retry-or-skip question is the third of the in-node questions, and it exists
 because re-driving a failed node needs a construct the grammar reserves without
@@ -454,9 +460,9 @@ design nothing a stated constraint would have added.
 
 **Part B — design generation (delegate).**
 
-> **ANTI-PATTERN**: Do NOT generate architecture diagrams or decision records
-> inline. The `maister:solution-designer` agent has specialized architecture and
-> decision-documentation capabilities.
+The `maister:solution-designer` agent writes the architecture and the decision
+records rather than an inline draft, because it produces the C4 views and the
+decision log in the shapes Part C presents.
 
 Invoke the solution designer through the Task tool. The node-scoped context is
 in `with:`, plus the design preferences from Part A. **When brainstorming was
@@ -464,7 +470,10 @@ skipped**, `exploration` and `selected_approach` resolve to nothing: omit them
 from the delegate's context entirely rather than passing empty values, and say
 that the design input is the research report's recommendations.
 
-> **SELF-CHECK**: after the Task tool returns, verify that both `outputs/high-level-design.md` and `outputs/decision-log.md` exist. If missing: **STOP. Do NOT proceed to Part C.** Re-invoke the designer with corrected context. If the second attempt also fails, ask the operator whether to retry or to skip the design stretch.
+If the agent returns without both `outputs/high-level-design.md` and
+`outputs/decision-log.md`, re-invoke it with corrected context before Part C; if
+the second attempt also fails, ask the operator whether to retry or to skip the
+design stretch.
 
 **Default under a non-terminal driver** (`designer-retry`): none — neither retry
 nor skip. The budget is exhausted and nobody is there, so the node is recorded
