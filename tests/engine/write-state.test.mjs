@@ -127,6 +127,32 @@ test('an adopted prose-written state keeps its unknown blocks, options and comme
   assert.equal(state.workflow.nodes.analysis.status, 'completed');
 });
 
+test('node_summaries: a summary written after its node ended mirrors the recorded status', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped.' } } });
+  write(run, { node_summaries: { analysis: { summary: 'Scoped, and confirmed.' } } });
+  assert.deepEqual(readState(run).node_summaries.analysis, { summary: 'Scoped, and confirmed.', status: 'completed' });
+});
+
+test('node_summaries: a node ending after its summary was written updates the summary status', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  write(run, { node_summaries: { analysis: { summary: 'Scoped.' } } });
+  assert.equal(readState(run).node_summaries.analysis.status, 'in_progress');
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  assert.deepEqual(readState(run).node_summaries.analysis, { summary: 'Scoped.', status: 'completed' });
+});
+
+test('node_summaries: a status the summary states itself is kept', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  write(run, { node_summaries: { analysis: { summary: 'Scoped.', status: 'failed' } } });
+  assert.equal(readState(run).node_summaries.analysis.status, 'failed');
+});
+
 test('an empty patch is a sanctioned republish; empty stdin is a usage failure', t => {
   const run = scratch(t);
   freeze(run);

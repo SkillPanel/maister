@@ -868,9 +868,11 @@ What "a moment" means, and there are four of them:
   the start moves.
 - **A node ends.** One patch: the node's status, its `node_summaries` entry, the
   `phase_summaries` key the node prose names when it mirrors one, and the `orchestrator`
-  scalars the outcome moves. Splitting these is not only three writes instead of one — the
-  writer mirrors a node's status onto its summary only when the `nodes` patch is in the
-  **same** call, so a split loses the mirror as well.
+  scalars the outcome moves. Splitting these is three writes instead of one. The writer
+  still mirrors the node's status onto its summary either way. It mirrors from the node's
+  recorded status when the summary arrives in a later call, and onto the recorded summary
+  when the status arrives later. A summary written with its own `status` keeps it until
+  the node's status next changes.
 - **A ready-set walk skips nodes.** Every node a false guard skips goes in one patch, with
   their summaries, however many there are.
 - **A run ends.** The closing node's outcome and `task.status` are one patch; a stop option is
