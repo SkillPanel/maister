@@ -94,3 +94,8 @@ The register paragraph that lists engine-owned temp files *is* corrected separat
 - The icon tables and the `display` blocks say the same thing in two places and are kept in step by hand
 - A definition that cannot be resolved at projection time yields no icon hints and, by design, no warning — the dashboard renders default icons and looks correct, so this failure is silent and has to be caught by explicit acceptance rather than by a check
 - The projection is the one impure part of an otherwise pure rendering module, and it reads the run's workflow definition, so the writer now depends on definition resolution
+
+### Amendment 2026-09-27 — a phase card's prose is chosen field by field
+A phase card's `summary`, `decisions`, `risks` and `artifacts` come from two places: the node's own `node_summaries.<id>` entry and, where the key equals the node id, the context block's `phase_summaries.<id>`. The projection first took the first of the two that carried an entry at all, whole. Driven runs showed the cost: closing writes put decisions and artifacts on the phase summary and wrote the node summary with empty lists, so the empty entry shadowed the populated one and every phase card rendered no decisions and no artifacts.
+
+The rule is now per field: each of the four comes from the first source that carries it **filled** (a non-empty string or a non-empty list), node summary first. The sources are still never concatenated. A field filled on both is the node summary's alone, because concatenation would show the same decision twice whenever a closing write mirrors it into both places. The framework's § 8 states the rule for readers of the dashboard.

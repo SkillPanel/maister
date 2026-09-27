@@ -549,6 +549,8 @@ window.MAISTER_DATA = {
 
 **Resolved risks**: when a previously recorded risk gets resolved in a later phase, keep the entry and prefix it with `resolved:` (e.g. `"resolved: transient warning — query lookup chosen"`). The viewer dims and strikes resolved entries, separating live risks from settled ones.
 
+**Where a phase card's prose comes from on the engine path.** The projection reads `node_summaries.<node>` first and falls back to `[domain]_context.phase_summaries.<key>` only where the key equals the node id. It chooses **field by field**: `summary`, `decisions`, `risks` and `artifacts` each come from the first of the two that carries them non-empty, and the two are never concatenated — a field filled on both shows the node summary's. A node summary written with empty lists therefore no longer hides what its phase summary recorded, but a node summary that fills a field is the only source for that field.
+
 The viewer decides presentation (hero artifacts per workflow type, collapsed drawers, severity colors) — orchestrators only supply data.
 
 ---

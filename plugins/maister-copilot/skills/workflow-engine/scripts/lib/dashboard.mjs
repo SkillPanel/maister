@@ -285,14 +285,21 @@ function phasesOf(state, display, gates, progress) {
 }
 
 /**
- * The two places a phase's prose lives, node-first.
+ * The two places a phase's prose lives, node-first, field by field.
  *
  * `node_summaries.<id>` is consulted first because `phases[].id` **is** the node
  * id; `<something>_context.phase_summaries.<key>` is the fallback, and only where
  * `key === id`. The prose path's key-to-node mapping table is deliberately not
  * carried into code: it existed so a human could line the two up by eye, and a
  * projection that guessed at it would attribute one phase's decisions to another.
- * **The two are never merged** — whichever answers first answers whole.
+ *
+ * The choice is made **per field** — `summary`, `decisions`, `risks`,
+ * `artifacts` each come from the first source that carries them filled — and
+ * **the two are never merged**: a field filled on both is the node summary's
+ * alone. Taking the first entry whole instead let a node summary written with
+ * empty lists hide the decisions and artifacts its phase summary recorded, and
+ * an empty list is what a closing write sends when the node prose names the
+ * phase key as the place for them.
  *
  * The context block is found by suffix rather than against a frozen list of five
  * names, so a run using a block this module has never heard of still projects,
@@ -309,12 +316,28 @@ function summarySources(state) {
   return sources.filter(source => source !== null);
 }
 
-/** The first source carrying an entry for `id`, as a map; `{}` when none does. */
+/** The fields a phase card takes from a summary, each chosen on its own. */
+const SUMMARY_FIELDS = ['summary', 'decisions', 'risks', 'artifacts'];
+
+/**
+ * A phase's summary as a map of the fields in `SUMMARY_FIELDS`, each from the
+ * first source carrying it filled — a non-empty string or a non-empty list; `{}`
+ * when no source does.
+ */
 function pick(sources, id) {
-  for (const source of sources) {
-    if (Object.hasOwn(source, id) && isPlainObject(source[id])) return source[id];
+  const entries = sources
+    .filter(source => Object.hasOwn(source, id) && isPlainObject(source[id]))
+    .map(source => source[id]);
+  const picked = {};
+  for (const field of SUMMARY_FIELDS) {
+    const entry = entries.find(candidate => filled(candidate[field]));
+    if (entry) picked[field] = entry[field];
   }
-  return {};
+  return picked;
+}
+
+function filled(value) {
+  return (typeof value === 'string' && value !== '') || (Array.isArray(value) && value.length > 0);
 }
 
 /**
