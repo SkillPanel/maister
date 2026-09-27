@@ -13,7 +13,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 ## Responsibilities
 
 1. Validate prerequisites exist
-2. Delegate ALL verifications to subagents in parallel (core + optional)
+2. Delegate ALL verifications to subagents — the test suite first and alone, then everything else in parallel with its result
 3. Compile all results into verification report
 4. Keep the operator dashboard current across verification cycles
 5. Update roadmap if exists (optional)
@@ -96,7 +96,7 @@ If prerequisites missing, report and stop.
 - ❌ "I'll assess whether this solves the problem..." — STOP. Delegate to reality-assessor.
 - ❌ Reading source code to find security/performance issues — STOP. Delegate to code-reviewer.
 
-**Verifications run in two sequential steps to avoid parallel test conflicts.**
+**Verifications run in two sequential steps: the test suite, then everything else.** The order is carried by data, not only by instruction — every Step 3b prompt contains the Step 3a result, so none of them can be written before the test suite has returned. Two reasons: the test-suite runner and the reality assessor both run tests and conflict in parallel, and a review exists partly to weigh the test outcome, which it cannot do if it runs first.
 
 ### Step 1: Determine enabled optional reviews
 
@@ -114,18 +114,18 @@ If prerequisites missing, report and stop.
 
 **Why sequential**: Test-suite-runner and reality-assessor both run tests. Running them in parallel causes conflicts. Test-suite-runner runs first and writes results to a file that reality-assessor reads.
 
-Task tool call (if NOT skip_test_suite):
+Task tool call (if NOT skip_test_suite) — **the only Task call in its message**:
 - subagent_type: `maister-test-suite-runner`
 - description: `Run full test suite`
 - prompt: Include task_path, task_description, test_command (if known). The subagent runs ALL tests, analyzes results, and writes results to `verification/test-suite-results.md`.
 
-**Wait for test-suite-runner to complete** before proceeding to Step 3b. Mark the test suite task as `completed` with results.
+**Wait for test-suite-runner to return**, mark the test suite task `completed`, and record its result as the **test-suite result**: the pass/fail status, the pass and fail counts, and the path `verification/test-suite-results.md`. Step 3b cannot begin without it.
 
-**When `skip_test_suite: true`**: Skip Step 3a entirely. Go straight to Step 3b. The full project test suite already passed during the implementation phase. The verification report will note tests were verified during implementation.
+**When `skip_test_suite: true`**: dispatch nothing here. The test-suite result is then the skip itself — "not run in verification: the full suite passed during the implementation phase" — and the verification report notes tests were verified during implementation.
 
 ### Step 3b: Run all other verifications (parallel)
 
-**INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 parallel Task tool calls):
+**INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 parallel Task tool calls). **Every prompt below also carries the test-suite result from Step 3a** — status, counts and results path, or the skip line — so each review weighs its findings against the tests' actual outcome:
 
 Task tool call (always):
 - subagent_type: `maister-implementation-completeness-checker`
@@ -154,7 +154,7 @@ Task tool call (if reality_check_enabled):
   - **If test-suite-runner ran (Step 3a)**: Include `skip_test_execution: true` and path to `verification/test-suite-results.md`. Reality-assessor should read test results from that file instead of running tests.
   - **If test-suite-runner was skipped**: Include `skip_test_execution: false`. Reality-assessor should run tests itself since no other agent did.
 
-**SELF-CHECK**: Did you invoke test-suite-runner separately in Step 3a (or skip it), then invoke all remaining subagents in a single parallel message in Step 3b? Or did you launch everything at once? If the latter, STOP — test-suite-runner must complete before the parallel batch.
+**SELF-CHECK**: Does every Step 3b prompt contain the test-suite result from Step 3a? If you are about to send a review whose prompt has no test-suite result in it, STOP — Step 3a has not returned (or its skip was not recorded), and the review would be dispatched ahead of the tests.
 
 ### Step 4: Process all results
 

@@ -907,8 +907,9 @@ Delegated to the implementation verifier through the Skill tool, then a fix loop
 inline.
 
 > **ANTI-PATTERN**: Do NOT verify the implementation inline. The
-> `maister:implementation-verifier` skill runs the completeness check, the test
-> suite and the selected reviews, and compiles them into one report.
+> `maister:implementation-verifier` skill runs the test suite first, as its own
+> step, and passes that result into every review prompt; then the completeness
+> check and the selected reviews, compiled into one report.
 
 Pass no style guide path: as a skill it resolves the guide itself and gates its
 own companion on the HTML output option.
