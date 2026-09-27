@@ -232,7 +232,9 @@ read.
 4. **Create the subdirectories** the later nodes write into — the analysis,
    implementation, verification and documentation directories.
 5. **Read the project configuration** and set `options.html_output` (default true
-   when the file or the key is absent). Mirror the `user_docs` input to
+   when the file or the key is absent) and `options.mockup_format` (default
+   `html`) beside it. The second is framework-mandated for every orchestrator and
+   inert here — no node reads it — but a reader of state expects it. Mirror the `user_docs` input to
    `options.docs_enabled` in the same step: the documentation node is guarded on
    the input, and a reader of state needs the same answer visible where every
    other option lives. When `html_output` is false, skip the dashboard entirely
@@ -335,12 +337,16 @@ is what the specification, planning and verification nodes read —
 `migration_context.target_system`, `migration_context.migration_strategy`,
 `migration_context.risk_level` and `migration_context.breaking_changes`. The
 web research lands in `external_research`, a top-level sibling of the context
-block rather than a field inside it.
+block rather than a field inside it, under its four keys: `performed`,
+`category`, `breaking_changes` and `migration_guide_url` — `performed: false`
+with the rest empty when no research was needed, never a shape of its own.
 
 **Executive summary before the gate.** Read `analysis/target-state-plan.md` and
-print, immediately before `gap-approval` fires: the current system, the target
-system, the migration type classified, how many gaps were identified, the
-recommended strategy and the risk level.
+print, immediately before `gap-approval` fires, one labelled line for each of:
+the current system, the target system, the migration type classified, how many
+gaps were identified, the recommended strategy and the risk level. A one-line
+recap of the work does not replace them — the operator approves the strategy
+from these six lines.
 
 **Recovery budget**: 2 attempts — re-prompt for the target details on the
 second, and ask the operator when the second also comes back thin.
@@ -462,8 +468,8 @@ execution with nothing to undo by.
 **Executive summary before the gate.** Read
 `implementation/implementation-plan.md` and extract: how many task groups it
 carries, the total number of steps, whether rollback steps are included, the key
-dependencies between groups and the execution sequence. Print that summary
-immediately before `planning-approval` fires.
+dependencies between groups and the execution sequence. Print that summary,
+one labelled line per item, immediately before `planning-approval` fires.
 
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 migration constraints named in the context.
@@ -549,6 +555,17 @@ and the reviews into one report.
 Pass no style guide path: as a skill it resolves the guide itself and gates its
 own companion on the HTML output option.
 
+**Record the review set before invoking it.** This workflow asks no
+verification-options question, and the verifier treats a review flag missing
+from state as a question for the operator — one nobody answers under a
+`cockpit` or `dispatch` driver. So write these `orchestrator.options` keys
+first, by these exact names, because the verifier reads them by name:
+`code_review_enabled`, `pragmatic_review_enabled` and `reality_check_enabled`
+true; `production_check_enabled` false, since the deployment risks a migration
+carries are what the compatibility checks and the rollback test below cover;
+and `skip_test_suite` false, because a migration is verified against the full
+suite, not against the executor's incremental runs.
+
 **The four migration-specific checks.** After the verifier returns, run them and
 write `verification/compatibility-test-results.md` — the artifact this node
 always declares and always writes, each check recorded as ran and passed, ran
@@ -579,8 +596,9 @@ form stops the workflow by itself in that case, and the graph has no routing
 construct to stop with, so the recommendation to the operator at the gate is
 what replaces it.
 
-**Print the true destination** on the line after that summary, because both
-nodes the gate leads toward are guarded. It is `Next: issue-resolution` when
+**Print the true destination** on the line after that summary, as the literal
+line below rather than a paraphrase of it, because both nodes the gate leads
+toward are guarded. It is `Next: issue-resolution` when
 `issues_to_resolve` is true. Otherwise it is `Next: documentation`, and
 `Next: finalization` when `user_docs` is false.
 
@@ -665,8 +683,8 @@ so** — a gate answered from outside is such an answer; a default is not.
 many remain by severity, together with the rollback recommendation when the
 iterations ran out.
 
-**Print the true destination** on the line after it: `Next: documentation`, or
-`Next: finalization` when `user_docs` is false.
+**Print the true destination** on the line after it, as the literal line:
+`Next: documentation`, or `Next: finalization` when `user_docs` is false.
 
 **Recovery budget**: none — this node's own three-iteration loop is its limit,
 and re-driving a node that halts on data integrity would re-run the thing it
