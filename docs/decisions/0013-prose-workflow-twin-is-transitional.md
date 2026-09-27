@@ -87,3 +87,13 @@ parity checklist stays with it.
 - The parity checklist is scaffolding with a defined end: it gates the switch, guards the rollout and retires with the twin, which is why it is kept with the run's verification evidence rather than in the shipped tree or in these docs
 - Its suite check runs only where that evidence is present, so enforcement is local to a maintainer's checkout rather than continuous — accepted deliberately for a check that retires with the thing it guards
 - Retirement breaks installs without a script runtime, so it needs a deprecation note ahead of it and a release of its own
+
+### Amendment 2026-09-27 — retirement is decided for 3.0
+The retirement this record set is taken in plugin 3.0.0, a major release of its own, as the
+Consequences above require (ADR-0025). Its three blockers are answered rather than waited out:
+a directory with no frozen graph is refused on resume and finished on a maintained 2.x line; an
+install with no script runtime stays on that line, because 3.0 requires Node 20; and of the two
+workflows not switched over, `migration` switches before 3.0 and `product-design` stays a standalone
+prose orchestrator until its own definition lands (ADR-0025). The twins,
+the `MAISTER_WORKFLOW_PROSE` switch and the branches that reach them are removed there, by path.
+This record stays as the reason the twin existed.

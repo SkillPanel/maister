@@ -43,3 +43,9 @@ Chosen option: **floor at 2.2.3**. Contracts `A1`-`A6` are frozen from the shape
 The compatibility contracts register and its 19 schemas leave the open repository for the pro
 repository (ADR-0021); the floor and tolerance rules recorded above no longer govern the open tree
 directly. This record stays in place as public history with a pointer to that decision.
+
+### Amendment 2026-09-27 — resume in the open plugin narrows to engine-written directories
+From plugin 3.0 the open plugin resumes a `development`, `research`, `performance` or `migration` directory only
+when its state carries a `workflow:` block; a 2.x prose directory at or above the floor is refused on
+resume and finished on the 2.x line (ADR-0025). The floor itself and the read-side rules above are
+unchanged: such a directory is still listed, parsed and rendered.
