@@ -1,9 +1,12 @@
 ---
 name: html-companion-writer
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Generates an HTML companion report from a single finalized markdown artifact, following the shared style guide. Used by orchestrators that write artifacts inline (e.g. product-design) and therefore have no artifact-producing subagent to attach a companion to. Reads one md file, writes its sibling .html. Does not interact with users.
 model: inherit
 color: cyan
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # HTML Companion Writer
 

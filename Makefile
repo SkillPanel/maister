@@ -25,6 +25,13 @@ validate:
 	@! grep -rE 'multi-select|multiselect|multiSelect' plugins/maister-copilot/skills/ 2>/dev/null || (echo "FAIL: multi-select found in skills" && exit 1)
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find plugins/maister-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
+	@echo "Checking every Copilot agent has a tool allowlist without the agent tool, and the no-re-entry sentence..."
+	@for f in plugins/maister-copilot/agents/*.md; do \
+	  t=$$(awk 'NR==1 && $$0=="---"{fm=1; next} fm && $$0=="---"{exit} fm && /^tools:/{print}' "$$f"); \
+	  test -n "$$t" || { echo "FAIL: $$f has no tools: allowlist, so it can dispatch agents"; exit 1; }; \
+	  ! echo "$$t" | grep -qE '"(agent|task|Task|custom-agent|\*)"' || { echo "FAIL: $$f grants a dispatch tool: $$t"; exit 1; }; \
+	  grep -q '^\*\*You are a dispatched agent: do this task' "$$f" || { echo "FAIL: $$f lacks the no-re-entry sentence"; exit 1; }; \
+	done
 	@echo "Checking no CLAUDE.md references in skills..."
 	@! grep -ri 'CLAUDE\.md' plugins/maister-copilot/skills/ 2>/dev/null || (echo "FAIL: CLAUDE.md references found in skills" && exit 1)
 	@echo "Checking no maister- prefix in copilot command names..."
