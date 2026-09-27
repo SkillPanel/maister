@@ -314,8 +314,8 @@ function taskLines({ document, workflow, pluginRoot }) {
   // `dispatch`, suspend with one `gate-request` call — see the pro register §
   // E2.' The two lines above already state the driven-session instruction in
   // context for the worker this seed is rendered for; pushing this sentence as
-  // well duplicated and garbled it in the rendered prompt (open-repo defect,
-  // Group 7 correction) — so it stays here as a comment, not a pushed line.
+  // well duplicated and garbled it in the rendered prompt — so it stays here as
+  // a comment, not a pushed line.
   const args = mapOf(workflow.with);
   const inputs = Array.isArray(document.inputs) ? document.inputs : [];
   // Two filters, for two kinds of noise. The keys the envelope consumed as

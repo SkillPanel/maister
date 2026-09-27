@@ -110,6 +110,12 @@ const GATE_INDEX = 'gates/index.yml';
  * allow-list that lets the engine keep writing while a gate is pending is a list
  * of names, not a glob (ADR-0012). Both dashboard files are engine-owned, and
  * `dashboard-data.js.tmp` exists only inside this module's publish.
+ *
+ * A temp left behind by a killed writer heals itself: the shared publish path
+ * reclaims one older than `canonical.STALE_TEMP_MS`, or stamped in the future,
+ * on the next write. Only a temp younger than that is refused — it may belong
+ * to a projector still running — and that refusal is a one-write warning, not
+ * a disabled projection. A more eager unlink would race exactly that writer.
  */
 const DASHBOARD = 'dashboard-data.js';
 const DASHBOARD_TMP = 'dashboard-data.js.tmp';
@@ -518,12 +524,11 @@ function htmlOutput(doc) {
  * The workflow definition behind this run, or null.
  *
  * The order is the whole point. A single `locateWorkflow(workflow.source)` returns
- * null for the majority of real runs, because `locateWorkflow` passes its argument
- * through `bareWorkflowName` and therefore rejects a path — and 11 of 17 real
- * `source` values on disk *are* absolute paths, the form
- * `workflow.mjs --definition <path>` records. The failure would be silent: no
- * definition, no `display`, no `icon_hint` on any phase, one fallback glyph
- * everywhere, and nothing anywhere saying so.
+ * null for most runs, because `locateWorkflow` passes its argument through
+ * `bareWorkflowName` and therefore rejects a path — and a path is the commonest
+ * `source` form, the one `workflow.mjs --definition <path>` records. The failure
+ * would be silent: no definition, no `display`, no `icon_hint` on any phase, one
+ * fallback glyph everywhere, and nothing anywhere saying so.
  *
  * So: the path first, then the name resolution for `builtin:<name>` and a bare
  * name, then the run's own `workflow.name` for the state files that record a bare
@@ -538,7 +543,10 @@ function definitionOf(doc, runDir) {
 
   let file = null;
   if (source !== null) {
-    const direct = path.resolve(source);
+    // Against the run's project root, never the process cwd, for the reason
+    // `projectRootOf` gives: a relative source read from wherever the writer
+    // happened to start takes another project's definition, silently.
+    const direct = path.resolve(root, source);
     if (isFile(direct)) file = direct;
     else file = located(source, root);
   }
