@@ -148,6 +148,18 @@ Four sequential steps, executed inline. On resume, check the artifacts each step
 declares and skip the ones already on disk — the four resume checks below are
 what make a re-entered run cheap instead of destructive.
 
+**Each of steps 1–3 ends with one milestone write.** This node is the longest
+stretch of the run, and the dashboard is projected only when state is written, so
+a node that writes nothing between its start and its end leaves the operator
+looking at an empty phase for its whole length. After a step's artifacts are on
+disk, make one `write-state` call. It carries this node's `node_summaries` entry
+and its mirrored `phase-1` entry, and each lists every artifact written so far,
+not just the latest step's. A summary entry replaces whole, so a milestone that
+sent only the new artifact would erase the earlier ones. The call carries no
+`nodes` patch: the node is still `running`, and only its closing write changes
+that. Step 4 needs no milestone of its own, because the node's closing write
+registers the report.
+
 **Before anything else**: when the invocation supplied no question, ask the
 operator for it. Nothing downstream is meaningful without one, and inventing a
 question is the documented failure mode.
@@ -232,8 +244,11 @@ no quoting at all; a plain sentence without punctuation the emitter must escape
 is permitted. A value that is not flow-safe is refused at the write, which
 fails this node halfway through the graph.
 
-**Operator visibility**: the report must be registered **before** the following
-gate fires — the operator reviews it while answering.
+**Operator visibility**: the artifacts appear on the dashboard as the steps
+produce them — the brief, then the plan and the sources, then the findings, each
+through its step's milestone write — and the report must be registered
+**before** the following gate fires, because the operator reviews it while
+answering.
 
 **Recovery budgets**: step 1 one attempt, and ask the operator to clarify an
 unclear question rather than guessing; step 2 two attempts, expanding the search

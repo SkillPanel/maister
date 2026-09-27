@@ -888,6 +888,11 @@ That leaves two writes around a node — one before the delegation and one after
 floor, because the delegation happens between them and its outcome is what the second one
 records.
 
+**A node's prose may name milestones inside it**, where a long node registers what it has
+produced so far so that the dashboard does not sit still for its whole length. Each milestone
+is one write carrying the node's summary entries and whatever else that moment moves, and never
+the node's status, which only the node's own end writes.
+
 **Three writes stand alone, and each has its own reason:**
 
 | The write | Why it cannot join anything |
