@@ -350,6 +350,9 @@ const WORKFLOW_CONTEXT = {
  * the file on disk is byte-for-byte what it was: every check that can refuse runs
  * before the rename, and the rename is the only thing that publishes a write.
  *
+ * A write that installs `workflow:` into a file that carried none — the freeze —
+ * also returns `banner`, the startup lines `workflow.mjs` prints after the paths.
+ *
  * `warnings` carries what went wrong *after* the write landed, which today is the
  * dashboard projection and nothing else. It is data rather than a stderr line
  * because no module under `scripts/lib/` performs stdio: every refusal already
@@ -372,6 +375,10 @@ export function writeState({ state, patch }) {
     // means to introduce: anything else in the candidate came from a value,
     // and a value that reaches column 0 is an injection.
     const allowed = new Set(topLevelKeys(doc.text()));
+    // Read before `apply`, which installs the block: the banner marks the
+    // write that starts a run, and a later write re-sending `workflow:` into a
+    // file that already carries one is not that write.
+    const hadWorkflow = doc.has('workflow');
     for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)))) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
@@ -392,13 +399,41 @@ export function writeState({ state, patch }) {
     // run might never have. A projection failure is a warning and never a refusal:
     // the state write already landed and un-publishing it is not on offer.
     project(state, text, now, changed, warnings);
-    return { ok: true, changed, errors: [], warnings };
+    const result = { ok: true, changed, errors: [], warnings };
+    if (patch.workflow && !hadWorkflow) result.banner = banner(state, text, patch.workflow);
+    return result;
   } catch (err) {
     if (err instanceof Refusal) {
       return { ok: false, changed: [], errors: [{ code: err.code, message: err.message }], warnings };
     }
     throw err;
   }
+}
+
+/**
+ * The startup banner the freeze write returns, five lines, each ending in a
+ * newline.
+ *
+ * It is data for the same reason `warnings` is: no module under `scripts/lib/`
+ * performs stdio. It exists so the operator learns where a run lives from a
+ * channel that always renders — the freeze's own output — rather than from a
+ * paragraph the orchestrating model may or may not compose. The dashboard line
+ * reads the committed state, so an `html_output: false` the same patch carries
+ * is already in force.
+ */
+function banner(state, text, workflow) {
+  const runDir = path.dirname(path.resolve(state));
+  const doc = parseState(text);
+  const title = isPlainObject(doc.task) ? doc.task.title : undefined;
+  const named = title !== undefined && title !== null && String(title).trim() !== '';
+  const nodes = isPlainObject(workflow.nodes) ? Object.keys(workflow.nodes) : [];
+  return [
+    'Maister run started',
+    `Task: ${named ? String(title) : '(untitled)'}`,
+    `Directory: ${runDir}`,
+    `Dashboard: ${htmlOutput(doc) ? path.join(runDir, 'dashboard.html') : 'none (html_output is false)'}`,
+    `First node: ${nodes.length ? nodes[0] : '(none)'}`,
+  ].map(line => `${line}\n`).join('');
 }
 
 /**
@@ -1269,12 +1304,18 @@ function seedSummaries(doc, contextKey, changed) {
  * prose is the one `seedSummaries` gives. A value the file already holds, or
  * one the patch supplies, is left alone: a later write of either is still the
  * whole-list replacement `applyScalars` makes it.
+ *
+ * `task_ids` is seeded beside them as an empty map. The engine path creates no
+ * task items — the state file and the dashboard are the run's tracker — and
+ * the empty map is how the contract records that. It is a merged map, so a
+ * later write of an entry lands inside it.
  */
 function seedSequences(doc, orchestrator, changed) {
-  for (const key of ['completed_phases', 'failed_phases']) {
+  const seeds = [['completed_phases', '[]'], ['failed_phases', '[]'], ['task_ids', '{}']];
+  for (const [key, empty] of seeds) {
     if (isPlainObject(orchestrator) && Object.hasOwn(orchestrator, key)) continue;
     if (doc.locate(['orchestrator', key])) continue;
-    doc.set(['orchestrator', key], [`  ${key}: []`]);
+    doc.set(['orchestrator', key], [`  ${key}: ${empty}`]);
     changed.push(`orchestrator.${key}`);
   }
 }

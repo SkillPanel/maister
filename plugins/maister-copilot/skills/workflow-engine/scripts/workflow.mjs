@@ -343,6 +343,10 @@ async function runWriteState(flags) {
   const write = entryOf(module, 'writeState', VERBS['write-state'].module);
   const result = write({ state: flags.state, patch });
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
+  // The freeze's startup banner, after the changed paths and a blank line, so a
+  // caller reading paths line by line stops at the blank and the operator
+  // reads the banner as it stands.
+  if (result.banner) process.stdout.write(`\n${result.banner}`);
   // A warning is not a refusal and must not read like one: the refusal contract
   // puts the code as the first stderr token, so these lines open with `warning:`
   // and name what did not happen. The dashboard is a projection of a write that

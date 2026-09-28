@@ -174,6 +174,33 @@ so the freeze patch need not spell them and a freeze that omits them still lands
 later write of either replaces the whole list; there is no key to merge on, so a caller that
 means to append sends the whole list.
 
+**The freeze patch carries `orchestrator.options.html_output`**, read from `.maister/config.yml`
+(default `true` when the file or the key is absent). The freeze's banner names the dashboard from
+it, so a freeze that left it for intake to write would announce a dashboard an operator had turned
+off. Intake still records it and may repeat the same value.
+
+**The engine path creates no task items.** It never calls `TaskCreate` or `TaskUpdate`: the state
+file and the dashboard are the run's tracker. The writer seeds `orchestrator.task_ids: {}` beside
+the two phase sequences, on the same terms — unless the patch supplies it or the file already
+holds it — and that empty map records that no task items exist.
+
+**The freeze write prints the startup banner; relay it verbatim as visible text in the same
+turn.** After the changed paths and one blank line, the write that installs the `workflow:`
+block into a file that had none prints five lines:
+
+```
+Maister run started
+Task: <task.title, or (untitled)>
+Directory: <the run's absolute task directory>
+Dashboard: <that directory>/dashboard.html   (or: none (html_output is false))
+First node: <the first node of the frozen graph>
+```
+
+It prints once: a later write that re-sends `workflow:` prints none. Compose no banner of your
+own — the freeze's output is the banner, and a paraphrase drifts from the run it describes. A
+sub-run child's freeze prints its own banner too; the parent does not relay it, and its node
+summary names the child's path instead.
+
 **The freeze patch carries the definition's context seed, when its node prose names one.** Some
 workflows keep context fields that are known before the first node runs — the input the run
 was started with, restated where that workflow's readers look for it. Such a definition's prose
@@ -254,7 +281,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found |
 | `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
-| `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
+| `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
@@ -841,6 +868,7 @@ child-capable — is `references/sub-runs.md`. What the engine must hold in mind
 - **Three writes bracket a start**: W1 the parent node `running`; W2 the whole child freeze, one
   call against the child's state; W3 the parent node `waiting` with `values: {task_path, run_id}`.
   W2 precedes W3, and both precede the write that projects the dashboard, and the marker.
+  W2 prints the child's own startup banner; the parent does not relay it.
 - **Under a terminal driver the child runs in session** and the turn continues to W4. Under a
   `cockpit` or `dispatch` driver the turn ends at `WAITING-SUBRUN` and the daemon discovers the
   child in its ordinary sweep — the parent drives nothing and spawns nothing.
@@ -946,7 +974,7 @@ the node's status, which only the node's own end writes.
 
 | The write | Why it cannot join anything |
 |---|---|
-| the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key`, `orchestrator.options.inputs` and the two empty phase sequences (Step 4) |
+| the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key`, `orchestrator.options.inputs`, `orchestrator.options.html_output`, the two empty phase sequences and the empty `task_ids` (Step 4) |
 | `gate-request` | one invocation, three writes, in the order § E2 fixes — a run is pending from the moment its request file lands, so a second shell call against it is denied |
 | the empty patch on gate resume | the shell becomes reachable only the instant `gate_pending` goes null, which is what that write re-validates (*Driver-suspended mode — resume*) |
 

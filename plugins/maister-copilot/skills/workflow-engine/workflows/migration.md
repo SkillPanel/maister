@@ -229,8 +229,8 @@ read.
    absolute path through the shell — `open "<task path>/dashboard.html"` on macOS,
    `xdg-open` on Linux, `start ""` on Windows. Never build a `file://` URL; the
    opener resolves a plain path itself. On failure print the path; never block.
-6. **Print the startup banner** — the task description, the task directory and
-   the dashboard path, then say which node runs first.
+6. **Relay the startup banner the freeze printed** (engine Step 4) if it is not
+   already on screen; compose none.
 7. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation section, predefined and operator-added alike. Record

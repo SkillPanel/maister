@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { SAMPLE, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, SAMPLE, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+
+const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 
 /** Send a patch expected to be refused; return the result and assert nothing moved. */
 function refused(run, patch) {
@@ -60,6 +62,78 @@ test('freeze: a sequence the patch supplies is not re-seeded', t => {
   const state = readState(run);
   assert.deepEqual(state.orchestrator.completed_phases, ['intake']);
   assert.deepEqual(state.orchestrator.failed_phases, []);
+});
+
+// The startup banner: the freeze write prints it after the changed paths, once.
+
+test('banner: the freeze prints the task, its directory, the dashboard and the first node after the changed paths', t => {
+  const run = scratch(t);
+  const resolved = JSON.parse(verb(['resolve', `--definition=${DEVELOPMENT}`]).stdout);
+  const nodes = Object.fromEntries(resolved.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  const result = verb(['write-state', `--state=${run.state}`], {
+    task: { title: 'Fix the parser', status: 'in_progress' },
+    workflow: { source: DEVELOPMENT, graph_hash: resolved.graph_hash, grammar_version: 1, name: 'development', nodes },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  const [paths, banner] = result.stdout.split('\n\n');
+  assert.match(paths, /^orchestrator\.completed_phases$/m, 'the changed paths come first, unchanged');
+  assert.equal(banner, [
+    'Maister run started',
+    'Task: Fix the parser',
+    `Directory: ${run.dir}`,
+    `Dashboard: ${path.join(run.dir, 'dashboard.html')}`,
+    'First node: intake',
+    '',
+  ].join('\n'));
+});
+
+test('banner: with html_output false the dashboard line says there is none', t => {
+  const run = scratch(t);
+  const result = verb(['write-state', `--state=${run.state}`], {
+    task: { title: 'Quiet', status: 'in_progress' },
+    orchestrator: { options: { html_output: false } },
+    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
+  });
+  assert.match(result.stdout, /^Dashboard: none \(html_output is false\)$/m);
+});
+
+test('banner: a later write that re-sends the workflow block prints no second banner', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = write(run, { workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } } });
+  assert.doesNotMatch(result.stdout, /Maister run started/);
+});
+
+test('banner: the freeze records the task-items fallback as an empty map', t => {
+  const run = scratch(t);
+  freeze(run);
+  assert.match(fs.readFileSync(run.state, 'utf8'), /^ {2}task_ids: \{\}$/m);
+});
+
+test('banner: task ids the patch supplies are kept', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { task_ids: { analysis: '7' } } });
+  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /^ {2}task_ids: \{\}$/m);
+});
+
+test('banner: a freeze with no task title prints the untitled line', t => {
+  const run = scratch(t);
+  const result = verb(['write-state', `--state=${run.state}`], {
+    task: { status: 'in_progress' },
+    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Task: \(untitled\)$/m);
+  assert.match(result.stdout, /^First node: analysis$/m);
+});
+
+test('banner: a later task_ids write merges into the seeded empty map', t => {
+  const run = scratch(t);
+  freeze(run);
+  assert.deepEqual(readState(run).orchestrator.task_ids, {});
+  write(run, { orchestrator: { task_ids: { analysis: '7' } } });
+  write(run, { orchestrator: { task_ids: { design: '8' } } });
+  assert.deepEqual(readState(run).orchestrator.task_ids, { analysis: '7', design: '8' });
 });
 
 test('nodes: a status change stamps its clock field and leaves every other entry byte-identical', t => {

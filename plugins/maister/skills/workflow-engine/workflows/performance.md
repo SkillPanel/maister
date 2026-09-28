@@ -210,8 +210,8 @@ state file and the profiling-data drop point the analysis node reads from.
    on macOS, `xdg-open` on Linux, `start ""` on Windows. Never build a `file://`
    URL; the opener resolves a plain path itself. On failure print the path;
    never block.
-5. **Print the startup banner** — the task description, the task directory and
-   the dashboard path, then say which node runs first.
+5. **Relay the startup banner the freeze printed** (engine Step 4) if it is not
+   already on screen; compose none.
 6. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation section, predefined and operator-added alike. Record

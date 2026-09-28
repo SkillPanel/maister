@@ -218,8 +218,8 @@ freeze persisted it. A non-terminal run that has no description is
    Otherwise copy the dashboard asset to the task root and open it in the
    operator's browser by the plain absolute path. On failure print the path;
    never block.
-4. **Print the startup banner** — the task description, the task directory and
-   the dashboard path, then say which node runs first.
+4. **Relay the startup banner the freeze printed** (engine Step 4) if it is not
+   already on screen; compose none.
 5. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation section, predefined and operator-added alike. Record
