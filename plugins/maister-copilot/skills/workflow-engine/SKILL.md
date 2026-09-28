@@ -635,9 +635,10 @@ What the operator reads at a gate is rendered by the engine, never composed:
 
 The brief stays within 1,600 characters, so that the brief and the ask fit in the picker. A
 longer summary, decision list or risk list is trimmed, and each cut says `(+N more — see the
-dashboard)`. The `Next:`, `Recommended:` and last `Run: <dir> · Dashboard: <path>` lines are
-never trimmed. The last line reads `Dashboard: none (html_output is false)` when the run has
-no dashboard.
+dashboard)`, or `see the run's state file` when the run has no dashboard. A risk that opens
+`recommend stop:` is the last risk to go, so the reason for the recommendation stays in view. The
+`Next:`, `Recommended:` and last `Run: <dir> · Dashboard: <path>` lines are never trimmed. The
+last line reads `Dashboard: none (html_output is false)` when the run has no dashboard.
 
 The brief's `Next:` line names the node that actually runs once the continue option is
 chosen — guards evaluated, skipped nodes listed — so no gate question or prose needs to say

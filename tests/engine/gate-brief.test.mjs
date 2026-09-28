@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
@@ -380,4 +381,60 @@ test('gate-brief: --oneline keeps the same budget and never trims its tail', t =
   assert.ok(result.stdout.endsWith(` · Next: implementation · Recommended: continue · ${runLine(run)}\n`), result.stdout);
   assert.doesNotMatch(result.stdout.slice(0, -1), /[\r\n"]/);
   assert.doesNotThrow(() => scalar(result.stdout.slice(0, -1)));
+});
+
+/** The run line's own length for a run directory of `length` characters. */
+const runLineLength = length => 'Run: '.length + length + ' · Dashboard: '.length + length + '/dashboard.html'.length;
+
+test('gate-brief: a summary cut inside an emoji never splits the pair', t => {
+  for (const lead of ['', 'a']) {
+    const run = atApproval(t, { ...LONG, summary: `${lead}${'\u{1F600}'.repeat(1200)}` });
+    const result = brief(run, 'approval');
+    assert.equal(result.code, 0, result.stderr);
+    // A lone surrogate reaches stdout as U+FFFD.
+    assert.doesNotMatch(result.stdout, /\uFFFD|[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  }
+});
+
+test('gate-brief: the characters a cut reports are exactly the ones it removed', t => {
+  const run = atApproval(t, { ...LONG, decisions: [], risks: [] });
+  const first = brief(run, 'approval').stdout.split('\n')[0];
+  const match = first.match(/^(.*) … \(\+(\d+) more characters — see the dashboard\)$/);
+  assert.ok(match, first);
+  assert.equal(Number(match[2]), LONG.summary.length - match[1].length);
+});
+
+test('gate-brief: a stop recommendation keeps its risk in view however many risks are trimmed', t => {
+  const risks = [...LONG.risks, ...LONG.risks, 'recommend stop: the build is red'];
+  const run = atApproval(t, { ...LONG, risks });
+  const result = brief(run, 'approval');
+  assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
+  assert.match(result.stdout, /^Recommended: stop-here$/m);
+  assert.match(result.stdout, /^- recommend stop: the build is red$/m, 'the reason for the recommendation is shown');
+});
+
+test('gate-brief: with html_output false a trimmed brief points at the state file', t => {
+  const run = atApproval(t, LONG);
+  write(run, { orchestrator: { options: { html_output: false } } });
+  const result = brief(run, 'approval');
+  assert.doesNotMatch(result.stdout, /see the dashboard/);
+  assert.match(result.stdout, /\(\+\d+ more — see the run's state file\)/);
+});
+
+test('gate-brief: when the closing lines nearly fill the budget the brief still keeps inside it', t => {
+  // A run directory long enough that Next, Recommended and the run line leave
+  // about twenty characters for everything else.
+  const rootLength = path.join(os.tmpdir(), 'maister-engine-XXXXXX').length;
+  const fixed = 'Next: implementation\nRecommended: continue\n'.length + 1;
+  const dirLength = Math.floor((BUDGET - 20 - fixed - runLineLength(0)) / 2);
+  const nameLength = dirLength - rootLength - '/.maister/tasks/development/'.length;
+  const segments = [];
+  for (let left = nameLength; left > 0; left -= 201) segments.push('n'.repeat(Math.min(200, left)));
+  const run = scratch(t, { name: segments.join('/').slice(0, nameLength) });
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: LONG } });
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
+  assert.deepEqual(result.stdout.split('\n').slice(-4), ['Next: implementation', 'Recommended: continue', runLine(run), '']);
 });

@@ -33,7 +33,8 @@
  * The budget. A picker cuts a question off at about 2,000 characters, and what
  * it cut was the tail — the risks, `Next:`, `Recommended:` and the ask. So the
  * brief keeps inside `BUDGET`, trimming the summary, the decisions and the risks
- * with a pointer to the dashboard, and never the three closing lines: `Next:`,
+ * with a pointer to the dashboard — or to the state file, when the run has no
+ * dashboard — and never the three closing lines: `Next:`,
  * `Recommended:` and the `Run: … · Dashboard: …` line that says where the run
  * and its full summaries live.
  *
@@ -168,12 +169,17 @@ export function gateBrief({ state, node, oneline = false }) {
 
   const recommended = recommend(options, closing.risks);
   const tail = [next, `Recommended: ${recommended}`, runLine(doc, runDir)];
-  const text = fit(closing, oneline ? renderOneline : renderPlain, tail);
+  const text = fit(closing, oneline ? renderOneline : renderPlain, tail, pointerOf(doc));
   return { ok: true, text, errors: [], warnings };
 }
 
 function refuse(code, message, warnings = []) {
   return { ok: false, text: '', errors: [{ code, message: `${code}: ${message}` }], warnings };
+}
+
+/** Where a trimmed brief sends the reader for the rest: the dashboard, or the state file without one. */
+function pointerOf(doc) {
+  return htmlOutput(doc) ? 'see the dashboard' : "see the run's state file";
 }
 
 /** Where the run lives and where its dashboard is — the brief's last line. */
@@ -521,42 +527,57 @@ function items(values) {
 }
 
 /** The pointer left where something was trimmed. */
-function more(count, unit = '') {
-  return `(+${count} more${unit ? ` ${unit}` : ''} — see the dashboard)`;
-}
-
-/** `text` cut to at most `max` characters at a word, the cut named. */
-function shorten(text, max) {
-  if (text.length <= max) return text;
-  const note = ` … ${more(text.length - max, 'characters')}`;
-  const room = Math.max(0, max - note.length);
-  const cut = text.slice(0, room);
-  const word = cut.lastIndexOf(' ');
-  return `${(word > room / 2 ? cut.slice(0, word) : cut).trimEnd()}${note}`;
+function more(count, where, unit = '') {
+  return `(+${count} more${unit ? ` ${unit}` : ''} — ${where})`;
 }
 
 /**
- * The brief rendered inside `BUDGET`. Nothing is trimmed from one that fits.
- * Otherwise, in order, until it fits: each list item is cut to `ITEM_MAX`; the
- * summary gives up what it can down to `SUMMARY_FLOOR`; decisions are dropped
- * from the end down to one, then risks down to one, then the last decision,
- * then the last risk; and finally the summary gives up the rest. Every drop
- * leaves a `(+N more — see the dashboard)` item; `tail` is never touched.
+ * `text` cut to at most `max` characters at a word, the cut named with the
+ * exact count it removed. Never inside a surrogate pair. When `max` leaves no
+ * room for the note beside some of the text, nothing is kept at all: the note
+ * alone would overrun the budget it is there to keep.
  */
-function fit(closing, render, tail) {
+function shorten(text, max, where) {
+  if (text.length <= max) return text;
+  // Sized for the largest count it could report, so the real one never makes it longer.
+  const room = max - ` … ${more(text.length, where, 'characters')}`.length;
+  if (room <= 0) return '';
+  let cut = text.slice(0, room);
+  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+  const word = cut.lastIndexOf(' ');
+  const kept = (word > room / 2 ? cut.slice(0, word) : cut).trimEnd();
+  return `${kept} … ${more(text.length - kept.length, where, 'characters')}`;
+}
+
+/** A risk that decides the recommendation, and so has to stay in view. */
+const decidesStop = text => text.startsWith('recommend stop:');
+
+/**
+ * The brief rendered inside `BUDGET`. Nothing is trimmed from one that fits.
+ * Otherwise a risk that recommends stopping moves to the front of the risks,
+ * so the reason for `Recommended:` is the last risk to go, and then, in order,
+ * until it fits: each list item is cut to `ITEM_MAX`; the summary gives up what
+ * it can down to `SUMMARY_FLOOR`; decisions are dropped from the end down to
+ * one, then risks down to one, then the last decision, then the last risk; the
+ * summary gives up the rest; and last the `(+N more — …)` pointers the drops
+ * left go too. `tail` is never touched, so a tail longer than the budget on its
+ * own is the one brief that exceeds it.
+ */
+function fit(closing, render, tail, where) {
   const summary = closing.summary.trim();
   const decisions = items(closing.decisions);
-  const risks = items(closing.risks);
-  const view = { summary: summary.length, item: Infinity, decisions: decisions.length, risks: risks.length };
+  let risks = items(closing.risks);
+  const view = { summary: summary.length, item: Infinity, decisions: decisions.length, risks: risks.length, pointers: true };
   const draw = () => render({
-    summary: shorten(summary, view.summary),
-    decisions: shown(decisions, view.decisions, view.item),
-    risks: shown(risks, view.risks, view.item),
+    summary: shorten(summary, view.summary, where),
+    decisions: shown(decisions, view.decisions, view.item, where, view.pointers),
+    risks: shown(risks, view.risks, view.item, where, view.pointers),
     tail,
   });
 
   let text = draw();
   if (text.length <= BUDGET) return text;
+  risks = [...risks.filter(decidesStop), ...risks.filter(risk => !decidesStop(risk))];
   view.item = ITEM_MAX;
   text = draw();
   if (text.length > BUDGET && summary.length > SUMMARY_FLOOR) {
@@ -576,13 +597,17 @@ function fit(closing, render, tail) {
     view.summary = Math.max(0, view.summary - (text.length - BUDGET));
     text = draw();
   }
+  if (text.length > BUDGET) {
+    view.pointers = false;
+    text = draw();
+  }
   return text;
 }
 
-/** The first `count` of `values`, each cut to `max`, and a pointer to the rest. */
-function shown(values, count, max) {
-  const kept = values.slice(0, count).map(text => shorten(text, max));
-  return values.length > count ? [...kept, more(values.length - count)] : kept;
+/** The first `count` of `values`, each cut to `max`, and — with `pointer` — a pointer to the rest. */
+function shown(values, count, max, where, pointer) {
+  const kept = values.slice(0, count).map(text => shorten(text, max, where));
+  return values.length > count && pointer ? [...kept, more(values.length - count, where)] : kept;
 }
 
 /**
