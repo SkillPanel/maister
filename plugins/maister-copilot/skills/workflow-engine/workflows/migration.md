@@ -356,9 +356,9 @@ and the risk level, and with `node: gap-analysis` on the entry.
 
 ## `gap-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option — nothing after a stopped node ever becomes
-ready.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option —
+nothing after a stopped node ever becomes ready.
 
 Its question names the stage just completed and no later one. The node the run
 reaches next is `specification` — nothing between here and there is guarded —
@@ -440,8 +440,8 @@ the entry, and register the companion path under that entry's
 
 ## `specification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -481,8 +481,8 @@ nodes named in the phase-key section above and this is not one of them.
 
 ## `planning-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -540,8 +540,8 @@ section pins.
 
 ## `execution-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -610,8 +610,8 @@ never one of those attempts**: it is not retried, it is carried into
 
 ## `verification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 **Its question is neutral where the prose form's names a phase number, and that
 is a recorded divergence.** The prose form asks "Continue to Phase [7 or 8]?",
@@ -708,8 +708,8 @@ A gate, **guarded on the same value as `issue-resolution`**. It asks only when
 that stretch ran; when the stretch was skipped this gate is skipped with it, and
 the run goes straight on to whatever comes next.
 
-Ask the question the definition carries, record the answer, and stop the run on
-the stop option.
+Ask it as engine § Gates says — the gate brief, then the definition's `ask:` —
+record the answer, and stop the run on the stop option.
 
 **Its question names the documentation, which may be skipped.** The gate brief's
 `Next:` line names `finalization` when `user_docs` is false, so an operator

@@ -332,9 +332,9 @@ entry.
 
 ## `bottleneck-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option — nothing after a stopped node ever becomes
-ready.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option —
+nothing after a stopped node ever becomes ready.
 
 **Its question drops the prose form's interpolated counts, and that is a
 recorded divergence.** The prose asks it with the bottleneck count and the P0
@@ -402,8 +402,8 @@ on the entry, and register the companion path under that entry's
 
 ## `specification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 Its question names the specification audit, and the audit is what runs next on
 every run of this workflow; the gate brief's `Next:` line says the same.
@@ -447,8 +447,8 @@ verdict.
 
 ## `spec-audit-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -485,8 +485,8 @@ nodes named in the phase-key section above and this is not one of them.
 
 ## `planning-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -540,8 +540,8 @@ implementation` on the entry.
 
 ## `implementation-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -582,14 +582,22 @@ missing or spelled differently silently runs a different review set:
   implementation; the fix loop in `verification` clears it the moment a fix
   changes code.
 
+**Gate brief content.** Write into this node's closing `node_summaries` entry
+the review set the verification will run — code review and production readiness,
+each on or off, beside the reality check and the pragmatic review that always
+run — and whether the test suite re-runs, in `summary`; the operator's choice in
+`decisions`, or the `defaulted:` decision when a non-terminal driver took the
+recommended set. The `verification-options-approval` question is the gate brief
+rendered from it (engine § Gates).
+
 **Recovery budget**: none — this node asks and records.
 
 ---
 
 ## `verification-options-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -671,8 +679,8 @@ over, before asking the operator how to proceed.
 
 ## `verification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 

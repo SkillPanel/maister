@@ -612,9 +612,12 @@ What the operator reads at a gate is rendered by the engine, never composed:
   `recommend stop:`; an open decision or a still-critical issue is a risk starting `open:`; a
   defaulted question is the `defaulted:` decision *In-node questions* describes. The node
   prose's "Gate brief content" paragraph names what belongs there.
-- **Run `gate-brief --state=<state> --node=<gate>` in its own call** before asking the gate.
-  Its stdout is the brief; paste it, never write one by hand, and never print a summary of
-  your own before the gate instead.
+- **Run `gate-brief --state=<state> --node=<gate>` in its own call** before asking the gate,
+  and only once the closing write — the patch carrying the node's summary and its `completed`
+  status — has returned successfully. Never issue the two in parallel: a brief that reads the
+  state before the write lands is refused for a summary that is about to exist. Its stdout is
+  the brief; paste it, never write one by hand, and never print a summary of your own before
+  the gate instead.
 - **`gate-brief-no-summary` or `gate-brief-value-missing`**: send the patch the message names
   through `write-state`, then run the verb again. The value-missing patch carries the node's
   whole `values` map, because a node's values are replaced whole on patch.
@@ -1100,9 +1103,9 @@ break: the chain would wait forever on a run that looked finished.
 
 Read `orchestrator-state.yml`, take the frozen graph from its `workflow:` block, recompute
 the ready set from the recorded node statuses, and continue. Resume never re-resolves the
-definition: the graph that ran is the graph that resumes. `gate-brief` is the one reader of
-the definition after the freeze, and it only reads: it re-resolves it to name the next node
-and the option ids, and degrades to `Next: unknown` when the definition has drifted.
+definition: the graph that ran is the graph that resumes. `gate-brief` is the one verb that
+re-resolves the definition after the freeze, and it only reads: it re-resolves it to name the
+next node and the option ids, and degrades to `Next: unknown` when the definition has drifted.
 
 **A resume declines the same two flags a first run does.** Step 5's rule is not scoped to a
 fresh run: `--from=PHASE` and `--reset-attempts` are resume flags, so a resume is where they

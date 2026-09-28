@@ -414,8 +414,9 @@ each with `node: gap-analysis` on the entry.
 
 ## `gap-approval`
 
-A gate. Ask the question the definition carries, record the answer, and stop the
-run on the stop option — nothing after a stopped node ever becomes ready.
+A gate. Ask it as engine § Gates says — the gate brief, then the definition's
+`ask:` — record the answer, and stop the run on the stop option — nothing after
+a stopped node ever becomes ready.
 
 **Its question is deliberately neutral, and that is a recorded divergence.** The
 prose form routes three ways here by reading the task characteristics and names
@@ -442,6 +443,13 @@ Record the test file, the command that runs it and the failing output in
 > **SELF-CHECK**: did the test actually fail, and did it fail for the reason the
 > defect describes rather than for a missing import or a typo? A test failing
 > for the wrong reason passes `tdd-green` for the wrong reason too.
+
+**Gate brief content.** Read `implementation/tdd-red-gate.md` and write into
+this node's closing `node_summaries` entry: the test file, the command that runs
+it and the failure it produced, tied to the defect it reproduces, in `summary`;
+a failure whose reason is in doubt, or a stretch skipped because no failing run
+could be produced, in `risks`. The `tdd-red-approval` question is the gate brief
+rendered from it (engine § Gates).
 
 **Recovery budget**: 2 attempts — rewrite the test on the second, and when the
 second also cannot produce a failing run, skip the TDD stretch and document why
@@ -639,8 +647,8 @@ companion path under the specification entry's `artifacts[].html`.
 
 ## `specification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 The node after it, `spec-audit`, is guarded by the boolean `specification` just
 emitted. The gate brief's `Next:` line names the node that actually runs.
@@ -730,8 +738,8 @@ entry's `artifacts[].html`.
 
 ## `planning-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -778,8 +786,8 @@ the entry.
 
 ## `implementation-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -796,6 +804,13 @@ gate so the two read as one piece of evidence.
 
 > **SELF-CHECK**: is this the same test, run the same way, as the red gate
 > recorded? A different test passing proves nothing about the defect.
+
+**Gate brief content.** Read `implementation/tdd-green-gate.md` and write into
+this node's closing `node_summaries` entry: the test that now passes, the command
+and the red-to-green pair of outcomes in `summary`; any other test the change
+turned red, or a doubt that the passing run exercises the defect, in `risks`.
+The `tdd-green-approval` question is the gate brief rendered from it (engine
+§ Gates).
 
 **Recovery budget**: 3 attempts — when the test still fails, return to the
 implementation rather than adjusting the test. A test edited until it passes is
@@ -967,8 +982,8 @@ over, before asking the operator how to proceed.
 
 ## `verification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 The node after it, `e2e-verification`, is guarded by a boolean
 `verification-options` settled before the verification node ran. The gate
@@ -1036,6 +1051,12 @@ anything new. When the browser stretch was skipped, omit the directory entirely
 rather than passing an empty path.
 
 The guide is written to `documentation/user-guide.md` and nowhere else.
+
+**Gate brief content.** Write into this node's closing `node_summaries` entry
+the guide's path, the flows it covers and whether its screenshots were reused
+from the browser stretch or captured fresh in `summary`; each flow the
+generator could not document in `risks`. The `docs-approval` question is the
+gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: none — a guide the generator could not complete is reported
 rather than retried.
