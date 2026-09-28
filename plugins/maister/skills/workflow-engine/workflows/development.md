@@ -817,7 +817,9 @@ Ask three questions — the seventh, eighth and ninth of the ten:
 
 1. **Which standard verifications to run.** This one carries the multi-choice
    flag (see `gate.schema.json`), with the four reviews — code review, pragmatic
-   review, reality check and production readiness — all pre-selected. A gate
+   review, reality check and production readiness — each labelled
+   `(Recommended)`, and the question text carries the line
+   `Recommended: all four reviews`. A gate
    cannot express it: a gate's options map option ids to continue or stop, and
    this question picks a subset rather than a route. The generated Copilot
    variant additionally rewrites a multi-choice question into a run of
@@ -834,7 +836,7 @@ characteristics are defaults for the recommendation, not answers — an operator
 is there, and the operator answers.
 
 **Default under a non-terminal driver** (`standard-verifications`): the
-pre-selected set, which is all four reviews.
+recommended set, which is all four reviews.
 
 **Default under a non-terminal driver** (`browser-tests`): the recommendation
 this node just printed, which is the seed `gap-analysis` wrote — on for a

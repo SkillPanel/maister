@@ -350,13 +350,17 @@ bottleneck list into a specification the planner can break down.
 then ask the operator which priorities to address (every P0 and P1, the P0s
 only, or a named subset), what constraints apply (backward compatibility, memory
 limits, no new dependencies), and whether there are performance targets —
-specific response-time goals, when any are known. Save the round to
+specific response-time goals, when any are known. The constraints question is a
+sequential single-select over those three constraints with none labelled `(Recommended)`,
+and its question text carries the line
+`Recommended: none — no constraint beyond the invocation`. Save the round to
 `analysis/requirements.md` together with the performance issue description, the
 bottleneck summary, the chosen priorities, the constraints and the targets.
 
 **Default under a non-terminal driver** (`optimization-priorities`): the
 analyzer's own priorities stand — every P0 and P1 bottleneck it identified, with
-no constraint and no numeric target beyond what the invocation already supplied.
+no constraint and no numeric target beyond what the invocation already supplied
+(the constraints question's recommended set, none).
 An invented performance target is the failure mode here: a target nobody set
 becomes an acceptance criterion the specification is written against, and the
 verification node later reports against it as though someone had asked for it.
@@ -542,15 +546,16 @@ question above its options rather than printed ahead of it. The operator adjusts
 what they see; a question that does not carry the plan asks about nothing.
 
 Ask which additional verification checks to run. This question carries
-the multi-choice flag (see `gate.schema.json`), offering code review
-(recommended) and a production-readiness check. A gate cannot express it: a gate's options map
+the multi-choice flag (see `gate.schema.json`), offering code review, labelled
+`(Recommended)`, and a production-readiness check; the question text carries the
+line `Recommended: code review only`. A gate cannot express it: a gate's options map
 option ids to continue or stop, and this question picks a subset rather than a
 route. The generated Copilot variant additionally rewrites a multi-choice
 question into a run of single-choice ones, which is a second reason it belongs
 in a node.
 
 **Default under a non-terminal driver** (`standard-verifications`): the
-recommended selection — code review on, production readiness off. The reality
+recommended set, which is code review only — production readiness off. The reality
 check and the pragmatic review are always enabled and are not part of this
 question, so a defaulted run still gets both.
 

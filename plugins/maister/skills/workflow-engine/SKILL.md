@@ -821,8 +821,13 @@ families and what each takes:
 | A clarification | nothing is asked; the analysis or the delegate's own answers stand, and the node writes its artifact and sets its flag as a run with nothing to ask already does |
 | An opt-in | the recommended option |
 | A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is recorded as an `open:` risk in the node's summary, which the gate brief renders at the next gate |
+| A multi-select | the recommended set its prose names, each member labelled (Recommended) |
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
 | An exhausted recovery budget | the node is recorded `failed`, per *Recording an outcome* |
+
+A multi-select's question text also carries a `Recommended: …` line naming that set. When the
+question is asked as one yes/no single-select per option, the `(Recommended)` label goes on
+"Yes" for a recommended member and on "No" otherwise.
 
 **What is recorded.** One entry per defaulted question on that node's summary `decisions`
 list, as a plain string:
