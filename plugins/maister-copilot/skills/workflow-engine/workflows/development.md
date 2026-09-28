@@ -824,10 +824,13 @@ Ask three questions — the seventh, eighth and ninth of the ten:
    this question picks a subset rather than a route. The generated Copilot
    variant additionally rewrites a multi-choice question into a run of
    single-choice ones, which is a second reason it belongs in a node.
-2. **Browser verification on or off**, recommended on. Its answer is this node's
+2. **Browser verification on or off.** The option labelled `(Recommended)` is
+   the seed `gap-analysis` wrote to `orchestrator.options.e2e_enabled` — on
+   when it is true, off when it is false or absent. Its answer is this node's
    `browser_tests_enabled` output.
-3. **User documentation on or off**, recommended on. Its answer is this node's
-   `user_docs_enabled` output.
+3. **User documentation on or off.** The option labelled `(Recommended)` is
+   the seed `gap-analysis` wrote to `orchestrator.options.user_docs_enabled`,
+   by the same rule. Its answer is this node's `user_docs_enabled` output.
 
 **Skip a question whose answer was already supplied.** The browser-tests and
 user-docs inputs are tri-state: absent means ask, and `yes` or `no` means the
@@ -838,8 +841,8 @@ is there, and the operator answers.
 **Default under a non-terminal driver** (`standard-verifications`): the
 recommended set, which is all four reviews.
 
-**Default under a non-terminal driver** (`browser-tests`): the recommendation
-this node just printed, which is the seed `gap-analysis` wrote — on for a
+**Default under a non-terminal driver** (`browser-tests`): the option this
+node labels `(Recommended)`, which is the seed `gap-analysis` wrote — on for a
 UI-heavy task, off otherwise. With nobody to answer, the recommendation is the
 answer, and it is recorded as this node's `browser_tests_enabled` output.
 
