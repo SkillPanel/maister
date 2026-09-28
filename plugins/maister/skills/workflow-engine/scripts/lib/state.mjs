@@ -537,6 +537,18 @@ function htmlOutput(doc) {
  * Any failure at any step yields null and never fails the write.
  */
 function definitionOf(doc, runDir) {
+  const file = definitionPathOf(doc, runDir);
+  if (file === null) return null;
+  return readDefinition(file).doc ?? null;
+}
+
+/**
+ * The file `definitionOf` reads, or null — the same lookup order, returned as a
+ * path. Exported for `gate-brief`, which re-reads the definition a run froze and
+ * must find it exactly where the projection does: two copies of this order would
+ * let the brief and the dashboard read different files for one run.
+ */
+export function definitionPathOf(doc, runDir) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const root = projectRootOf(runDir);
   const source = typeof workflow.source === 'string' && workflow.source !== '' ? workflow.source : null;
@@ -553,8 +565,7 @@ function definitionOf(doc, runDir) {
   if (file === null && typeof workflow.name === 'string' && workflow.name !== '') {
     file = located(workflow.name, root);
   }
-  if (file === null) return null;
-  return readDefinition(file).doc ?? null;
+  return file;
 }
 
 /** The base definition `locateWorkflow` finds for a name, or null. */
@@ -572,7 +583,7 @@ function located(name, root) {
  * property of the run being written — a dispatched worker started elsewhere would
  * resolve another project's workflows.
  */
-function projectRootOf(runDir) {
+export function projectRootOf(runDir) {
   return path.resolve(runDir, '..', '..', '..', '..');
 }
 

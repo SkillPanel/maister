@@ -224,7 +224,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, eight verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, nine verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -258,6 +258,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
+| `gate-brief` | `--state`, `--node` (the gate), optional `--oneline` | the gate brief on stdout — the closing node's summary, its decisions and risks, a `Next:` line naming the node that actually runs next (with any guard-skipped nodes) and a `Recommended:` option; `--oneline` folds it onto one flow-safe line — reads the run, writes nothing (§ Gates) |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
 `gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
@@ -556,10 +557,38 @@ run. What the engine does with it follows the run's driver, and nothing else:
 Decide which of the two applies once, when the run starts, from the driver block the state
 file already carries. A gate never changes mode partway through a run.
 
+### Before every gate — the gate brief
+
+What the operator reads at a gate is rendered by the engine, never composed:
+
+- **Every node a gate needs writes a non-empty `summary`** in its closing `node_summaries`
+  entry, in the same patch that marks it `completed`. Gate-relevant extras go beside it: the
+  choices made in `decisions`, open items in `risks`. A stop recommendation is a risk starting
+  `recommend stop:`; an open decision or a still-critical issue is a risk starting `open:`; a
+  defaulted question is the `defaulted:` decision *In-node questions* describes. The node
+  prose's "Gate brief content" paragraph names what belongs there.
+- **Run `gate-brief --state=<state> --node=<gate>` in its own call** before asking the gate.
+  Its stdout is the brief; paste it, never write one by hand, and never print a summary of
+  your own before the gate instead.
+- **`gate-brief-no-summary` or `gate-brief-value-missing`**: send the patch the message names
+  through `write-state`, then run the verb again. The value-missing patch carries the node's
+  whole `values` map, because a node's values are replaced whole on patch.
+- **`gate-brief-unknown-node` or `gate-brief-not-a-gate`**: the `--node` argument is wrong;
+  correct it. Nothing is written.
+- **A `gate-brief-graph-drift` warning** means the definition changed since the freeze. Relay
+  the warning as-is; the brief still printed, its `Next:` line says the next node is unknown,
+  and the gate is still asked.
+
+The brief's `Next:` line names the node that actually runs once the continue option is
+chosen — guards evaluated, skipped nodes listed — so no gate question or prose needs to say
+where the run goes next.
+
 ### Terminal mode — asked and answered in one turn
 
-1. **Asks it in session** with `AskUserQuestion`, carrying the node's own question text and
-   its own options.
+1. **Asks it in session** with `AskUserQuestion`. The question is the `gate-brief` stdout, a
+   blank line, then the node's `ask:` verbatim. The options are the gate's own; the one the
+   brief's `Recommended:` line names is listed first and labelled `<id> (Recommended)`. The
+   recorded answer is the bare option id.
 2. **Records the answer** — the chosen option id, who answered and when — on the node's
    summary, and marks the node `completed`.
 3. **Writes no `gate_pending` and no gate request file.** The pending marker is only ever
@@ -610,7 +639,9 @@ order, and the order is the contract:
    `orchestrator.gate_pending` to `{node, request, since}` **and** the node's `status` to
    `suspended` through the state writer — one invocation, three writes, in that order. The
    request document arrives on stdin as JSON: the node id, the kind, the question, its options
-   and the multi-choice flag (`gate.schema.json` declares the shape). `since` is the request's
+   and the multi-choice flag (`gate.schema.json` declares the shape). The question is the
+   node's `ask:`; `context.summary` is the `gate-brief --oneline` stdout without its trailing
+   newline; the option the brief recommends carries `recommended: true`. `since` is the request's
    own `asked_at`, so the marker and the file agree about when the operator was asked.
    The gate card the operator sees lands inside this same write, alongside the pending marker,
    so nothing needs writing after it.
@@ -762,7 +793,7 @@ families and what each takes:
 |---|---|
 | A clarification | nothing is asked; the analysis or the delegate's own answers stand, and the node writes its artifact and sets its flag as a run with nothing to ask already does |
 | An opt-in | the recommended option |
-| A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is named in the context line printed before the next gate, which the node prose identifies |
+| A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is recorded as an `open:` risk in the node's summary, which the gate brief renders at the next gate |
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
 | An exhausted recovery budget | the node is recorded `failed`, per *Recording an outcome* |
 
@@ -789,8 +820,8 @@ and defaulting is not a licence to invent one.
 **Two things this rule never defaults past.** It settles who answers, not what may be waived:
 
 - An unresolved critical verification issue is not proceeded past. The default fixes what is
-  fixable and carries the remainder into the following gate's context, where an operator sees
-  it and answers.
+  fixable and records the remainder as `open:` risks in the node's summary, which the
+  following gate's brief renders for an operator to see and answer.
 - A decision the node owes is still *resolved* rather than skipped. A defaulted decision is a
   resolved one and satisfies a node's own completeness self-check; an unasked, unrecorded,
   unresolved one does not, and a node must not be marked complete with one outstanding.
@@ -1002,7 +1033,9 @@ break: the chain would wait forever on a run that looked finished.
 
 Read `orchestrator-state.yml`, take the frozen graph from its `workflow:` block, recompute
 the ready set from the recorded node statuses, and continue. Resume never re-resolves the
-definition: the graph that ran is the graph that resumes.
+definition: the graph that ran is the graph that resumes. `gate-brief` is the one reader of
+the definition after the freeze, and it only reads: it re-resolves it to name the next node
+and the option ids, and degrades to `Next: unknown` when the definition has drifted.
 
 **A resume declines the same two flags a first run does.** Step 5's rule is not scoped to a
 fresh run: `--from=PHASE` and `--reset-attempts` are resume flags, so a resume is where they

@@ -6,8 +6,8 @@ per-node context in `with:` to whatever the node names.
 
 **What this file carries that the graph cannot.** The definition says which
 nodes exist, what they need and what they declare. It says nothing about the
-operator questions asked *inside* a node, the executive summaries printed before
-a gate fires, the self-checks that decide whether a node succeeded, or how many
+operator questions asked *inside* a node, what each node writes into its closing
+summary for the gate brief, the self-checks that decide whether a node succeeded, or how many
 times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `performance.yml` alone cannot
@@ -51,12 +51,9 @@ to nodes:
 | 8 | `verification` | `verification-approval` |
 | 9 | `finalization` | none — the workflow ends |
 
-**No destination is ever skipped, so this file needs no true-destination line.**
-A guarded chain has to name the node that will actually run next before a gate
-fires, because a guard may be false by the time its gate is asked. Here every
-node in the table runs on every run, so the node a gate's question names is the
-node the run reaches. A reader coming from a guarded definition should
-read the absence of that rule here as the intended answer rather than as a gap.
+The gate brief's `Next:` line names the node that actually runs after each gate
+(engine § Gates); here every node runs on every run, so it is always the next
+node in the table.
 
 ---
 
@@ -311,12 +308,13 @@ list built without profiling data otherwise reads the same as one built with it.
 anything, and `performance_context.bottleneck_priorities` with its `p0`, `p1`,
 `p2` and `p3` counts.
 
-**Executive summary before the gate.** Read `analysis/performance-analysis.md`
-and print, immediately before `bottleneck-approval` fires: how many bottlenecks
-were identified, how many are P0 and how many P1, whether profiling data was
-incorporated, and the top one or two findings. **This is the compensating
-behaviour for the gate's constant question**, which cannot carry those counts —
-see `bottleneck-approval` below.
+**Gate brief content.** Read `analysis/performance-analysis.md` and write into
+this node's closing `node_summaries` entry: how many bottlenecks were
+identified, how many are P0 and how many P1, and whether profiling data was
+incorporated in `summary`; the top one or two findings in `risks`. **This is the
+compensating behaviour for the gate's constant question**, which cannot carry
+those counts — the gate brief renders them in the `bottleneck-approval` question
+(engine § Gates).
 
 **Recovery budget**: 2 attempts — re-analyze with broader patterns on the
 second, and ask the operator when the second also comes back thin.
@@ -338,8 +336,8 @@ ready.
 recorded divergence.** The prose asks it with the bottleneck count and the P0
 and P1 counts spliced in. A gate question is authoring-time constant and covered
 by the graph hash, so it cannot carry a value that differs per run. The counts
-are printed by `bottleneck-analysis` in the line immediately before this gate
-fires, which is where the operator reads them while answering.
+are in the `bottleneck-analysis` summary, which the gate brief renders in this
+gate's question, where the operator reads them while answering.
 
 ---
 
@@ -378,10 +376,11 @@ If the agent returns without `implementation/spec.md`, or with one that leaves a
 priority gathered in Part A uncovered, re-invoke it with the missing context
 rather than writing the specification yourself.
 
-**Executive summary before the gate.** Read `implementation/spec.md` and
-extract: the optimization targets, the approach chosen, how many changes are
-planned, and the expected impact. Print that summary immediately before
-`specification-approval` fires.
+**Gate brief content.** Read `implementation/spec.md` and write into this node's
+closing `node_summaries` entry: the optimization targets, how many changes are
+planned and the expected impact in `summary`; the approach chosen in
+`decisions`. The `specification-approval` question is the gate brief rendered
+from it (engine § Gates).
 
 **Recovery budget**: 2 attempts — regenerate the specification on the second
 with the gaps named in the context.
@@ -399,8 +398,7 @@ A gate, unguarded. Ask the question the definition carries, record the answer,
 and stop the run on the stop option.
 
 Its question names the specification audit, and the audit is what runs next on
-every run of this workflow. There is no guard to evaluate and no
-true-destination line to print.
+every run of this workflow; the gate brief's `Next:` line says the same.
 
 ---
 
@@ -422,10 +420,11 @@ by severity, and the findings themselves. Write all of it to
 A failing verdict does not end the run on its own. It is what the operator reads
 at the gate, and the gate's stop option is the route out.
 
-**Executive summary before the gate.** Read `verification/spec-audit.md` and
-extract: the overall verdict, the issue counts by severity, and the top one or
-two critical findings when there are any. Print that summary immediately before
-`spec-audit-approval` fires.
+**Gate brief content.** Read `verification/spec-audit.md` and write into this
+node's closing `node_summaries` entry: the overall verdict and the issue counts
+by severity in `summary`; the top one or two critical findings, when there are
+any, in `risks`. The `spec-audit-approval` question is the gate brief rendered
+from it (engine § Gates).
 
 **Recovery budget**: none — an audit that returns is an audit, whatever its
 verdict.
@@ -455,11 +454,11 @@ If the planner returns without `implementation/implementation-plan.md`, or with
 groups that leave an optimization target uncovered, re-invoke it with the
 missing context rather than writing the plan yourself.
 
-**Executive summary before the gate.** Read
-`implementation/implementation-plan.md` and extract: how many task groups it
-carries, the total number of steps, the key dependencies between groups, and the
-optimization sequence. Print that summary immediately before `planning-approval`
-fires.
+**Gate brief content.** Read `implementation/implementation-plan.md` and write
+into this node's closing `node_summaries` entry: how many task groups it carries
+and the total number of steps in `summary`; the key dependencies between groups
+and the optimization sequence in `decisions`. The `planning-approval` question
+is the gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 gaps named in the context.
@@ -508,11 +507,11 @@ companion still showing outstanding work after a complete run is a stale
 projection rather than a finding. Then record what
 landed: the groups completed, the files changed and the incremental test results.
 
-**Executive summary before the gate.** Read `implementation/work-log.md` and
-this node's own summary and extract: the optimizations applied, the files
-changed, the test results from the incremental runs, and any known issues or
-deferred items. Print that summary immediately before `implementation-approval`
-fires.
+**Gate brief content.** Read `implementation/work-log.md` and write into this
+node's closing `node_summaries` entry: the optimizations applied, the files
+changed and the test results from the incremental runs in `summary`; any known
+issues or deferred items in `risks`. The `implementation-approval` question is
+the gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: 5 attempts — the widest in the run, because the failures
 here are ordinary and local: fix a syntax error, fix an import, fix a failing
@@ -537,11 +536,12 @@ and stop the run on the stop option.
 Executed inline, writes no files, and decides which reviews the verification
 node runs.
 
-**Print the verification plan first** — the checks that always run, and the
-recommended reviews with their current setting. The operator adjusts what they
-see; a question asked without the plan on screen asks about nothing.
+**The verification plan is the question's text** — the checks that always run,
+and the recommended reviews with their current setting, written into the
+question above its options rather than printed ahead of it. The operator adjusts
+what they see; a question that does not carry the plan asks about nothing.
 
-Then ask which additional verification checks to run. This question carries
+Ask which additional verification checks to run. This question carries
 the multi-choice flag (see `gate.schema.json`), offering code review
 (recommended) and a production-readiness check. A gate cannot express it: a gate's options map
 option ids to continue or stop, and this question picks a subset rather than a
@@ -612,8 +612,9 @@ fixable issue, re-verify once, then continue to the gate. The re-run follows the
 same rule as an answered one — `fixes_applied` recorded and `reverify_count`
 raised before the verifier is re-invoked — and one re-verification is the whole
 budget, because a loop nobody can stop is not a loop. An issue that remains
-critical after it is **not** proceeded past: it is named in the line printed
-before `verification-approval`, which is where an operator answers.
+critical after it is **not** proceeded past: it is recorded as an `open:` risk
+in this node's summary, which the gate brief renders at `verification-approval`
+— where an operator answers.
 
 Also record `verification_context.last_status`,
 `verification_context.issues_found` (the issue shape of `orchestrator-patterns.md`
@@ -633,10 +634,11 @@ answered from outside is such an answer; a default is not.
 > the next gate against it. Recompile it rather than leaving a side file to
 > carry the truth.
 
-**Executive summary before the gate.** Read
-`verification/implementation-verification.md` and extract: the total issues
-found, how many were fixed, and how many remain by severity. Print that summary
-immediately before `verification-approval` fires.
+**Gate brief content.** Read `verification/implementation-verification.md` and
+write into this node's closing `node_summaries` entry: the total issues found,
+how many were fixed and how many remain by severity in `summary`; each critical
+issue still open as an `open:` risk. The `verification-approval` question is the
+gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: 3 attempts — fix the failing tests and re-run, three times
 over, before asking the operator how to proceed.
@@ -673,6 +675,10 @@ workflow as a sub-run, so there is no embedded case to guard against.
    and come back for the remaining P2 and P3 bottlenecks if they still matter.
    Suggest a fresh session for whatever comes next rather than continuing in
    this one.
+
+The executive summary and the next steps are the last text printed ahead of the
+engine's `run-complete` call. That verb's lines follow them, with its marker
+last.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

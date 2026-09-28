@@ -1,0 +1,262 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
+import { scalar } from '../../plugins/maister/lib/canonical.mjs';
+
+// `gate-brief` renders what the operator reads at a gate — the closing node's
+// summary, the node that will actually run next and the recommended option —
+// from the state and the frozen graph, so that no gate depends on the model
+// composing a summary it may keep to itself.
+
+const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
+const MIGRATION = path.join(ENGINE_DIR, 'workflows/migration.yml');
+
+const SUMMARY = {
+  status: 'completed',
+  summary: 'Two gaps found in the parser.',
+  decisions: [{ decision: 'Patch the tokenizer', rationale: 'smallest change' }],
+  risks: ['The fixture corpus is thin'],
+  artifacts: [{ path: 'analysis/report.md', label: 'Report', html: null }],
+};
+
+function brief(run, node) {
+  return verb(['gate-brief', `--state=${run.state}`, `--node=${node}`]);
+}
+
+/** A sample run paused at `approval`, its closing node's summary recorded. */
+function atApproval(t, summary = SUMMARY) {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } }, ...(summary ? { node_summaries: { analysis: summary } } : {}) });
+  return run;
+}
+
+/**
+ * A development run paused at `verification-approval`: every node before the
+ * gate ended, the verification-options values recorded as given, and the
+ * verification summary in place.
+ */
+function atVerificationApproval(t, values) {
+  const run = scratch(t);
+  const graph = freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Fix the parser' } });
+  const nodes = {};
+  for (const node of graph.nodes) {
+    if (node.id === 'verification-approval') break;
+    nodes[node.id] = { status: 'completed' };
+  }
+  if (values) nodes['verification-options'] = { status: 'completed', values };
+  write(run, { nodes, node_summaries: { verification: { ...SUMMARY, summary: 'Verification passed with 2 warnings.' } } });
+  return { run, graph };
+}
+
+const continueOf = (graph, id) => {
+  const gate = graph.nodes.find(node => node.id === id);
+  return Object.keys(gate.options).find(option => {
+    const effect = gate.options[option];
+    return (typeof effect === 'string' ? effect : effect.effect) === 'continue';
+  });
+};
+
+test('gate-brief: renders the closing summary, its decisions and risks, the next node and the recommended option', t => {
+  const run = atApproval(t);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout, [
+    'Two gaps found in the parser.',
+    '',
+    'Decisions:',
+    '- Patch the tokenizer — smallest change',
+    'Risks:',
+    '- The fixture corpus is thin',
+    '',
+    'Next: implementation',
+    'Recommended: continue',
+    '',
+  ].join('\n'));
+});
+
+test('gate-brief: writes nothing', t => {
+  const run = atApproval(t);
+  const before = fs.readFileSync(run.state, 'utf8');
+  const listing = fs.readdirSync(run.dir).sort();
+  brief(run, 'approval');
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+  assert.deepEqual(fs.readdirSync(run.dir).sort(), listing);
+});
+
+test('gate-brief: a false guard skips its stretch, and the Next line names the node that actually runs', t => {
+  const { run, graph } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: true });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Next: user-docs — skipped: e2e-verification, e2e-approval$/m);
+  assert.match(result.stdout, new RegExp(`^Recommended: ${continueOf(graph, 'verification-approval')}$`, 'm'));
+  assert.match(result.stdout, /^Verification passed with 2 warnings\.$/m);
+});
+
+test('gate-brief: with every optional stretch off, the Next line lands on finalization', t => {
+  const { run } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: false });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Next: finalization — skipped: e2e-verification, e2e-approval, user-docs, docs-approval$/m);
+});
+
+test('gate-brief: an unguarded next node carries no skipped list', t => {
+  const { run } = atVerificationApproval(t, { browser_tests_enabled: true, user_docs_enabled: true });
+  assert.match(brief(run, 'verification-approval').stdout, /^Next: e2e-verification$/m);
+});
+
+test('gate-brief: a risk that recommends stopping makes the stop option the recommended one', t => {
+  const run = atApproval(t, { ...SUMMARY, risks: ['recommend stop: nothing in the verdict is fixable'] });
+  assert.match(brief(run, 'approval').stdout, /^Recommended: stop-here$/m);
+});
+
+test('gate-brief: the last gate of a run names the end of the run', t => {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'tail.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    '  analysis: {uses: "direct:analysis", needs: []}',
+    '  approval:', '    type: gate', '    needs: [analysis]', '    ask: "Done. Close the run?"',
+    '    options: {close: continue, stop-here: stop}', '',
+  ].join('\n'));
+  // The prose companion a `direct:` node resolves against, shaped like the
+  // sample fixture's: without it the definition does not resolve at all.
+  fs.writeFileSync(path.join(run.root, 'tail.md'), '# Tail workflow — node prose\n\n## `analysis`\n\nWrite the report.\n');
+  freeze(run, { definition });
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
+  assert.match(brief(run, 'approval').stdout, /^Next: end of run$/m);
+});
+
+for (const [label, setup, node, code] of [
+  ['no summary recorded for the closing node', t => atApproval(t, null), 'approval', 'gate-brief-no-summary'],
+  ['a node that is not a gate', t => atApproval(t), 'analysis', 'gate-brief-not-a-gate'],
+  ['a node the graph does not have', t => atApproval(t), 'nowhere', 'gate-brief-unknown-node'],
+  ['a guard value the completed node never recorded', t => atVerificationApproval(t, null).run, 'verification-approval', 'gate-brief-value-missing'],
+]) {
+  test(`refusal: ${label}`, t => {
+    const run = setup(t);
+    const result = brief(run, node);
+    assert.equal(result.code, 1, `expected a refusal, got exit ${result.code}: ${result.stdout}`);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, new RegExp(code));
+  });
+}
+
+test('refusal: the missing value is named with the patch that records it', t => {
+  const { run } = atVerificationApproval(t, null);
+  const result = brief(run, 'verification-approval');
+  assert.match(result.stderr, /verification-options\.values\.browser_tests_enabled/);
+});
+
+test('refusal: the value-missing patch re-sends the values already recorded beside the missing key', t => {
+  const { run } = atVerificationApproval(t, { user_docs_enabled: true });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^gate-brief-value-missing: /);
+  assert.ok(result.stderr.includes('{"nodes":{"verification-options":{"values":{"user_docs_enabled":true,"browser_tests_enabled":<true|false>}}}}'), result.stderr);
+});
+
+test('gate-brief: a definition changed since the freeze degrades the Next line and still exits 0', t => {
+  const run = atApproval(t);
+  const text = fs.readFileSync(run.state, 'utf8').replace(/graph_hash: "?sha256:[0-9a-f]+"?/, 'graph_hash: "sha256:' + '0'.repeat(64) + '"');
+  fs.writeFileSync(run.state, text);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Two gaps found in the parser\.$/m);
+  assert.match(result.stdout, /^Next: unknown — the definition changed since the freeze$/m);
+  assert.match(result.stdout, /^Recommended: continue$/m);
+  assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+});
+
+test('gate-brief: --oneline folds the brief onto one flow-safe line', t => {
+  const run = atApproval(t, { ...SUMMARY, summary: 'Two gaps found\n  in the "parser".' });
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--oneline']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(result.stdout.endsWith('\n'));
+  const line = result.stdout.slice(0, -1);
+  assert.doesNotMatch(line, /[\r\n"]/);
+  assert.ok(line.includes('Next: implementation · Recommended: continue'), line);
+  assert.equal(line, "Two gaps found in the 'parser'. · Decisions: Patch the tokenizer — smallest change"
+    + ' · Risks: The fixture corpus is thin · Next: implementation · Recommended: continue');
+  assert.doesNotThrow(() => scalar(line));
+});
+
+test('gate-brief: a summary recorded only in the context block\'s phase_summaries is found by its node', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, {
+    nodes: { analysis: { status: 'completed' } },
+    phase_summaries: { 'phase-1': { node: 'analysis', status: 'completed', summary: 'Scoped from the context block.' } },
+  });
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Scoped from the context block\.$/m);
+});
+
+test('gate-brief: with no decisions and no risks the brief is the summary, a blank line, Next and Recommended', t => {
+  const run = atApproval(t, { status: 'completed', summary: 'Nothing to decide.' });
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, ['Nothing to decide.', '', 'Next: implementation', 'Recommended: continue', ''].join('\n'));
+});
+
+test('gate-brief: a skipped node\'s values read as false', t => {
+  const run = scratch(t);
+  const graph = freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Fix the parser' } });
+  const nodes = {};
+  for (const node of graph.nodes) {
+    if (node.id === 'verification-approval') break;
+    nodes[node.id] = { status: node.id === 'verification-options' ? 'skipped' : 'completed' };
+  }
+  write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Verified.' } } });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Next: finalization — skipped: e2e-verification, e2e-approval, user-docs, docs-approval$/m);
+});
+
+test('gate-brief: an input the run never recorded takes the definition\'s default', t => {
+  const run = scratch(t, { type: 'migration' });
+  const graph = freeze(run, { definition: MIGRATION, inputs: { task_description: 'Move the config loader' } });
+  const nodes = {};
+  for (const node of graph.nodes) {
+    if (node.id === 'verification-approval') break;
+    nodes[node.id] = { status: 'completed' };
+  }
+  nodes.verification = { status: 'completed', values: { issues_to_resolve: false } };
+  write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Compatible.' } } });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Next: finalization — skipped: issue-resolution, resolution-approval, documentation$/m);
+});
+
+test('gate-brief: a negated guard is honoured, and a pending node outside the gate\'s downstream is never Next', t => {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'negated.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1',
+    'inputs:', '  quiet: {type: bool, required: false, default: false}',
+    'nodes:',
+    '  analysis: {uses: "direct:analysis", needs: []}',
+    '  aside: {uses: "direct:aside", needs: []}',
+    '  approval:', '    type: gate', '    needs: [analysis]', '    ask: "Analysis complete. Continue?"',
+    '    options: {continue: continue, stop-here: stop}',
+    '  report: {uses: "direct:report", needs: [approval], when: "!${inputs.quiet}"}',
+    '  wrap-up: {uses: "direct:wrap-up", needs: [report]}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'negated.md'), ['# Negated workflow — node prose', '',
+    ...['analysis', 'aside', 'report', 'wrap-up'].flatMap(id => [`## \`${id}\``, '', 'Do the step.', '']),
+  ].join('\n'));
+
+  for (const [inputs, expected] of [[null, /^Next: report$/m], [{ quiet: true }, /^Next: wrap-up — skipped: report$/m]]) {
+    const run_ = inputs ? scratch(t) : run;
+    freeze(run_, { definition, inputs });
+    write(run_, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
+    const result = brief(run_, 'approval');
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, expected);
+  }
+});
