@@ -700,9 +700,14 @@ workflow as a sub-run, so there is no embedded case to guard against.
    Suggest a fresh session for whatever comes next rather than continuing in
    this one.
 
-The executive summary and the next steps are the last text printed ahead of the
-engine's `run-complete` call. That verb's lines follow them, with its marker
-last.
+**Print first, then close.** The executive summary and then every next step
+from step 4 — all four of this workflow's own, then the fresh-session suggestion,
+none dropped or merged — are printed as ordinary text **before** the engine's
+`run-complete` call, and they are the last thing printed ahead of it. Only then
+call `run-complete`. Its marker is the last line of its stdout; after the call,
+print nothing but that line, copied exactly as the verb printed it. Never call
+`run-complete` first and summarize after it, and never type a marker the verb did
+not print.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

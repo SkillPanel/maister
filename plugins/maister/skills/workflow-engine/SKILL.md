@@ -1148,7 +1148,10 @@ when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node>
 **The first two come from a verb; the third is typed.** `RUN-COMPLETE` and `RUN-FAILED` are what
 `run-complete` printed — which is what makes a dispatched run's unpublished close-out a
 `RUN-FAILED: closeout-unpublished` instead of a silence its chain waits on forever — so for those
-two, echo the verb's line and do not type a marker it did not give you. `WAITING-SUBRUN` has no
+two, echo the verb's line and do not type a marker it did not give you. Everything the operator
+is meant to read at the end — the executive summary and the full list of next steps — is printed
+before the `run-complete` call, never after it, so the verb's marker stays the last line.
+`WAITING-SUBRUN` has no
 verb behind it: no tool the engine ships prints that string, and the driver composes the line
 itself from the node id and the child run id it has just recorded. That is why its grammar is
 spelled out here rather than read off a tool's output — whole line, nothing before or after it,
