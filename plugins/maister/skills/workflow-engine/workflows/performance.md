@@ -35,10 +35,8 @@ no destination a gate names can go missing before the operator reaches it.
 
 ## The phase numbers, and where they went
 
-One gate question names a phase number the graph does not have. The number is
-kept verbatim from the workflow's prose form, because equality against that form
-is the strongest thing anyone can assert about the two being the same workflow.
-This table is how a reader resolves one to the other:
+No gate question names a phase number; this table maps the prose form's phases
+to nodes:
 
 | Prose phase | Node | Closing gate |
 |---|---|---|
@@ -57,8 +55,7 @@ This table is how a reader resolves one to the other:
 A guarded chain has to name the node that will actually run next before a gate
 fires, because a guard may be false by the time its gate is asked. Here every
 node in the table runs on every run, so the node a gate's question names is the
-node the run reaches. `verification-options-approval` names phase 8, and phase 8
-is `verification` — always. A reader coming from a guarded definition should
+node the run reaches. A reader coming from a guarded definition should
 read the absence of that rule here as the intended answer rather than as a gap.
 
 ---
@@ -578,12 +575,6 @@ missing or spelled differently silently runs a different review set:
 
 A gate, unguarded. Ask the question the definition carries, record the answer,
 and stop the run on the stop option.
-
-**Its question names a phase number the graph lacks, and that is a recorded
-divergence.** Equality with the prose form is the stronger assertion, so the
-number stays verbatim; the phase-number table above is how a reader resolves it.
-Phase 8 is `verification`, and because nothing in this workflow is guarded, that
-is where continuing goes on every run.
 
 ---
 

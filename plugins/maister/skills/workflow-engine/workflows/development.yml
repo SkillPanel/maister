@@ -148,9 +148,9 @@ nodes:
     type: gate
     needs: [tdd-red]
     when: "${gap-analysis.values.has_reproducible_defect}"
-    ask: "TDD red gate complete. Continue to Phase 4?"
+    ask: "TDD red gate complete. Continue?"
     options:
-      continue-to-mockups: continue
+      continue-past-tdd-red: continue
       stop-development: stop
 
   ui-mockups:
@@ -173,7 +173,7 @@ nodes:
     type: gate
     needs: [ui-mockups]
     when: "${gap-analysis.values.mockups_needed}"
-    ask: "UI mockups complete. Continue to Phase 5?"
+    ask: "UI mockups complete. Continue to specification?"
     options:
       continue-to-specification: continue
       stop-development: stop
@@ -200,9 +200,9 @@ nodes:
   specification-approval:
     type: gate
     needs: [specification]
-    ask: "Continue to specification audit?"
+    ask: "Specification complete. Continue?"
     options:
-      continue-to-spec-audit: continue
+      continue-past-specification: continue
       stop-development: stop
 
   spec-audit:
@@ -221,7 +221,7 @@ nodes:
     type: gate
     needs: [spec-audit]
     when: "${specification.values.spec_audit_enabled}"
-    ask: "Continue to implementation planning?"
+    ask: "Specification audit complete. Continue to implementation planning?"
     options:
       continue-to-planning: continue
       stop-development: stop
@@ -242,7 +242,7 @@ nodes:
   planning-approval:
     type: gate
     needs: [planning]
-    ask: "Continue to implementation?"
+    ask: "Implementation plan complete. Continue to implementation?"
     options:
       continue-to-implementation: continue
       stop-development: stop
@@ -262,9 +262,9 @@ nodes:
   implementation-approval:
     type: gate
     needs: [implementation]
-    ask: "Continue to verification?"
+    ask: "Implementation complete. Continue?"
     options:
-      continue-to-tdd-green: continue
+      continue-past-implementation: continue
       stop-development: stop
 
   tdd-green:
@@ -282,7 +282,7 @@ nodes:
     type: gate
     needs: [tdd-green]
     when: "${gap-analysis.values.has_reproducible_defect}"
-    ask: "TDD gate passed. Continue to Phase 10?"
+    ask: "TDD green gate passed. Continue to verification options?"
     options:
       continue-to-verification-options: continue
       stop-development: stop
@@ -316,9 +316,9 @@ nodes:
   verification-approval:
     type: gate
     needs: [verification]
-    ask: "Continue to Phase 12?"
+    ask: "Verification complete. Continue?"
     options:
-      continue-to-e2e: continue
+      continue-past-verification: continue
       stop-development: stop
 
   e2e-verification:
@@ -338,9 +338,9 @@ nodes:
     type: gate
     needs: [e2e-verification]
     when: "${verification-options.values.browser_tests_enabled}"
-    ask: "E2E complete. Continue to Phase 13?"
+    ask: "E2E verification complete. Continue?"
     options:
-      continue-to-user-docs: continue
+      continue-past-e2e: continue
       stop-development: stop
 
   user-docs:
@@ -358,7 +358,7 @@ nodes:
     type: gate
     needs: [user-docs]
     when: "${verification-options.values.user_docs_enabled}"
-    ask: "Documentation complete. Continue to Phase 14?"
+    ask: "Documentation complete. Continue to finalization?"
     options:
       continue-to-finalization: continue
       stop-development: stop

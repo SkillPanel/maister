@@ -33,10 +33,8 @@ for a stretch that never ran.
 
 ## The phase numbers, and where they went
 
-Six gate questions name a phase number the graph does not have. The numbers are
-kept verbatim from the workflow's prose form, because equality against that form
-is the strongest thing anyone can assert about the two being the same workflow.
-This table is how a reader resolves one to the other:
+No gate question names a phase number; this table maps the prose form's phases
+to nodes:
 
 | Prose phase | Node | Closing gate |
 |---|---|---|
@@ -56,12 +54,11 @@ This table is how a reader resolves one to the other:
 | 13 | `user-docs` | `docs-approval` |
 | 14 | `finalization` | none — the workflow ends |
 
-A gate may name a destination that is then skipped. `tdd-red-approval` names
-phase 4, `specification-approval` names the audit, `verification-approval` names
-phase 12 and `e2e-approval` names phase 13 — every one of those destinations is
-guarded, and a guard may be false by the time its gate is asked. That is the
-normal shape of a guarded chain, not a defect in the question, but the operator
-must not have to discover it after answering.
+The node after a gate may be skipped. The destinations after
+`tdd-red-approval`, `specification-approval`, `verification-approval` and
+`e2e-approval` are all guarded, and a guard may be false by the time its gate is
+asked. That is the normal shape of a guarded chain, not a defect in the question,
+but the operator must not have to discover it after answering.
 
 **Name the true destination before the gate fires, not after.** Immediately
 before asking one of those four gates, print one line stating which node will
@@ -70,14 +67,13 @@ declared by completed nodes, exactly as the ready set will, and say plainly when
 the destination the question names is going to be skipped:
 
 ```
-Next: specification — phase 4 (UI mockups) is skipped, the gap analysis found mockups are not needed.
+Next: specification — the UI mockups are skipped, the gap analysis found mockups are not needed.
 ```
 
 The line is printed by the node that closes into the gate, in the same breath as
 its executive summary where it has one, so the operator answers with it on
 screen. It changes no question text and no option: the `ask:` value stays
-verbatim, which is what keeps the equality assertion against the prose form
-intact, and the line carries what the fixed question cannot. When the guard is
+verbatim, and the line carries what the fixed question cannot. When the guard is
 true, the line says so in the same shape and costs one sentence.
 
 ---
@@ -470,11 +466,11 @@ A gate, guarded by the same condition as the node before it. When no reproducibl
 defect was found, this gate is skipped along with `tdd-red` and the run continues
 to the mockup stretch without asking.
 
-Its question names phase 4, whose node is itself guarded. The mockup guard is
-already settled here — `gap-analysis` declared it two nodes ago — so print the
+The node after it, `ui-mockups`, is itself guarded. The mockup guard is already
+settled here — `gap-analysis` declared it two nodes ago — so print the
 true-destination line before asking, per § `The phase numbers, and where they
 went`: when mockups are not needed, the operator is told that answering continue
-goes to the specification, not to phase 4.
+goes to the specification.
 
 ---
 
@@ -657,7 +653,7 @@ companion path under the specification entry's `artifacts[].html`.
 A gate, unguarded. Ask the question the definition carries, record the answer,
 and stop the run on the stop option.
 
-Its question names the audit, whose node is guarded by the boolean
+The node after it, `spec-audit`, is guarded by the boolean
 `specification` just emitted — settled, so print the true-destination line before
 asking, per § `The phase numbers, and where they went`. When the operator
 declined the audit, the operator is told before answering that continue goes to
@@ -791,10 +787,6 @@ the entry.
 
 A gate, unguarded. Ask the question the definition carries, record the answer,
 and stop the run on the stop option.
-
-Its question names verification, but the node that follows it is `tdd-green`,
-which is guarded. When no reproducible defect was found, that stretch skips and
-the run reaches the verification options directly.
 
 ---
 
@@ -968,7 +960,7 @@ over, before asking the operator how to proceed.
 A gate, unguarded. Ask the question the definition carries, record the answer,
 and stop the run on the stop option.
 
-Its question names phase 12, whose node is guarded by a boolean
+The node after it, `e2e-verification`, is guarded by a boolean
 `verification-options` settled before the verification node ran, so print the
 true-destination line before asking, per § `The phase numbers, and where they
 went`. When browser verification was declined, the line names the user
@@ -1010,8 +1002,8 @@ A gate, guarded by the same condition as the node before it. When browser
 verification was declined, this gate is skipped along with `e2e-verification` and
 the run continues to the user documentation without asking.
 
-Its question names phase 13, whose node is guarded by a boolean already settled,
-so print the true-destination line before asking, per § `The phase numbers, and
+The node after it, `user-docs`, is guarded by a boolean already settled, so
+print the true-destination line before asking, per § `The phase numbers, and
 where they went`: when the user documentation was declined, continue goes to
 `finalization`.
 

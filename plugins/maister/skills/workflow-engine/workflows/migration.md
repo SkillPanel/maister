@@ -40,9 +40,8 @@ not.
 
 ## The phase numbers, and where they went
 
-The prose form of this workflow numbers its phases, and one gate question names
-a phase number the graph does not have. This table is how a reader resolves one
-to the other:
+The prose form of this workflow numbers its phases, but no gate question names a
+phase number. This table maps the prose form's phases to nodes:
 
 | Prose phase | Node | Closing gate |
 |---|---|---|
