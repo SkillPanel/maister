@@ -118,7 +118,7 @@ nodes:
   specification-approval:
     type: gate
     needs: [specification]
-    ask: "Continue to specification audit?"
+    ask: "Specification complete. Continue to specification audit?"
     options:
       continue-to-spec-audit: continue
       stop-performance: stop
@@ -137,7 +137,7 @@ nodes:
   spec-audit-approval:
     type: gate
     needs: [spec-audit]
-    ask: "Continue to implementation planning?"
+    ask: "Specification audit complete. Continue to implementation planning?"
     options:
       continue-to-planning: continue
       stop-performance: stop
@@ -157,7 +157,7 @@ nodes:
   planning-approval:
     type: gate
     needs: [planning]
-    ask: "Continue to implementation?"
+    ask: "Implementation plan complete. Continue to implementation?"
     options:
       continue-to-implementation: continue
       stop-performance: stop
@@ -176,7 +176,7 @@ nodes:
   implementation-approval:
     type: gate
     needs: [implementation]
-    ask: "Continue to verification?"
+    ask: "Implementation complete. Continue to verification options?"
     options:
       continue-to-verification-options: continue
       stop-performance: stop
@@ -190,7 +190,7 @@ nodes:
   verification-options-approval:
     type: gate
     needs: [verification-options]
-    ask: "Options selected. Continue to Phase 8?"
+    ask: "Verification options selected. Continue to verification?"
     options:
       continue-to-verification: continue
       stop-performance: stop
@@ -209,7 +209,7 @@ nodes:
   verification-approval:
     type: gate
     needs: [verification]
-    ask: "Continue to finalization?"
+    ask: "Verification complete. Continue to finalization?"
     options:
       continue-to-finalization: continue
       stop-performance: stop

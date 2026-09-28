@@ -5,7 +5,8 @@
 Each test drives `plugins/maister/skills/workflow-engine/scripts/workflow.mjs` the way a workflow
 driver does: one verb per child process, the patch or request as JSON on stdin, and assertions on
 the exit code, stdout, stderr and the files left behind. Only the dashboard normalizers
-(`issueOf`, `artifactOf`, `decisionOf`, `deriveProgress`) are imported directly.
+(`issueOf`, `artifactOf`, `decisionOf`, `deriveProgress`) and the gate hook's command recogniser
+(`engineInvocation`, in `gate-hook.test.mjs`) are imported directly.
 
 - `helpers.mjs` — the scratch project (`<tmp>/.maister/tasks/<type>/<name>/`), the verb runner, the freeze.
 - `fixtures/definitions/` — a small definition covering a direct node, a gate, the plan executor and a

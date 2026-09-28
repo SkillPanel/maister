@@ -6,8 +6,8 @@ per-node context in `with:` to whatever the node names.
 
 **What this file carries that the graph cannot.** The definition says which
 nodes exist, what they need, what guards them and what they declare. It says
-nothing about the operator questions asked *inside* a node, the executive
-summaries printed before a gate fires, the self-checks that decide whether a
+nothing about the operator questions asked *inside* a node, what each node
+writes into its closing summary for the gate brief, the self-checks that decide whether a
 node succeeded, or how many times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `migration.yml` alone cannot see
@@ -32,17 +32,12 @@ consults. Seven nodes carry a budget; the rest carry none and re-drive nothing.
 false is skipped and still satisfies everything downstream. That is why
 `resolution-approval` repeats the guard of `issue-resolution` rather than
 sitting unguarded behind it: an unguarded gate at the end of a stretch that
-never ran would fire and ask an operator to approve nothing. It is also why
-every gate whose named destination may be skipped has a **true-destination
-line** printed before it by the node that closes into it — the question is a
-constant fixed at authoring time, and the node that will actually run next is
-not.
+never ran would fire and ask an operator to approve nothing.
 
 ## The phase numbers, and where they went
 
-The prose form of this workflow numbers its phases, and one gate question names
-a phase number the graph does not have. This table is how a reader resolves one
-to the other:
+The prose form of this workflow numbers its phases, but no gate question names a
+phase number. This table maps the prose form's phases to nodes:
 
 | Prose phase | Node | Closing gate |
 |---|---|---|
@@ -57,19 +52,10 @@ to the other:
 | 8 | `documentation` | none — the prose form has no gate here either |
 | no twin phase → `finalization` | `finalization` | none — the workflow ends |
 
-**The two true-destination rules.** Both stretches at the end of this workflow
-can be skipped, so the two gates in front of them say where the run is really
-going:
-
-- **Before `verification-approval`**, printed by `verification`: `Next:
-  issue-resolution` when `issues_to_resolve` is true. Otherwise `Next:
-  documentation`, or `Next: finalization` when `user_docs` is false.
-- **Before `resolution-approval`**, printed by `issue-resolution`: `Next:
-  documentation`, or `Next: finalization` when `user_docs` is false.
-
-A gate question is authoring-time constant and covered by the graph hash, so it
-cannot carry a value that differs per run. The line above it can, and is where
-the operator reads what continuing actually does.
+Both stretches at the end of this workflow can be skipped. A gate question is
+authoring-time constant and covered by the graph hash, so it cannot say where
+the run is really going; the gate brief's `Next:` line names the node that
+actually runs, with the skipped ones listed (engine § Gates).
 
 ---
 
@@ -109,7 +95,9 @@ one line, and nothing in the prompt recorded that they had ever been thirteen. S
 the composing step is gone. Call `prior-context` with the run's state file **at
 each consuming delegate** — one call per prompt, in the turn that composes it —
 paste its stdout into the prompt, and leave it alone: trimming it, re-ordering it
-or tightening it is the same defect by hand. Re-using a rendering produced for an
+or tightening it is the same defect by hand. The stdout is pasted as text, whole:
+never slice it with `sed`, `head`, `tail` or the like, and never pass a file path
+or a saved copy in place of the pasted text. Re-using a rendering produced for an
 earlier delegate is not licensed however recent it looks: a summary written in
 between makes it stale, the prompt records nothing about when it was taken, and a
 prompt that happens to be current is current by timing rather than by
@@ -238,13 +226,14 @@ read.
    `options.docs_enabled` in the same step: the documentation node is guarded on
    the input, and a reader of state needs the same answer visible where every
    other option lives. When `html_output` is false, skip the dashboard entirely
-   — no dashboard asset, no data projection, no browser open. Otherwise copy the
-   dashboard asset to the task root and **run the platform opener** on the plain
-   absolute path through the shell — `open "<task path>/dashboard.html"` on macOS,
+   — no dashboard asset, no data projection, no browser open. Otherwise the freeze
+   installed `dashboard.html` in the task root (see the changed paths it reported)
+   — copy nothing; **run the platform opener** on the plain absolute path through
+   the shell — `open "<task path>/dashboard.html"` on macOS,
    `xdg-open` on Linux, `start ""` on Windows. Never build a `file://` URL; the
    opener resolves a plain path itself. On failure print the path; never block.
-6. **Print the startup banner** — the task description, the task directory and
-   the dashboard path, then say which node runs first.
+6. **Relay the startup banner the freeze printed** (engine Step 4) if it is not
+   already on screen; compose none.
 7. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation section, predefined and operator-added alike. Record
@@ -335,18 +324,27 @@ scope.
 `migration_context.migration_type` — the declared value this node emits, which
 is what the specification, planning and verification nodes read —
 `migration_context.target_system`, `migration_context.migration_strategy`,
-`migration_context.risk_level` and `migration_context.breaking_changes`. The
+`migration_context.risk_level` and `migration_context.breaking_changes`.
+`migration_context.target_system` is `{description, technologies}` — the same
+shape as `current_system`: a description string and a list of technology
+names. `migration_context.migration_strategy` is `{approach, phases}`, where
+`approach` is exactly one of `incremental`, `big-bang`, `dual-run` or `phased`,
+and `phases` is a list of strings, one per migration phase in order. The
 web research lands in `external_research`, a top-level sibling of the context
 block rather than a field inside it, under its four keys: `performed`,
 `category`, `breaking_changes` and `migration_guide_url` — `performed: false`
-with the rest empty when no research was needed, never a shape of its own.
+with the rest empty when no research was needed, never a shape of its own. With
+`external_research.performed: false`, `category` is null and `breaking_changes`
+is `[]`; breaking changes found by reading the code go to
+`migration_context.breaking_changes`, never into `external_research`.
 
-**Executive summary before the gate.** Read `analysis/target-state-plan.md` and
-print, immediately before `gap-approval` fires, one labelled line for each of:
-the current system, the target system, the migration type classified, how many
-gaps were identified, the recommended strategy and the risk level. A one-line
-recap of the work does not replace them — the operator approves the strategy
-from these six lines.
+**Gate brief content.** Read `analysis/target-state-plan.md` and write into this
+node's closing `node_summaries` entry a `summary` of one labelled line for each
+of: the current system, the target system, the migration type classified, how
+many gaps were identified, the recommended strategy and the risk level. A
+one-line recap of the work does not replace them — the operator approves the
+strategy from these six lines, which the gate brief renders in the
+`gap-approval` question (engine § Gates).
 
 **Recovery budget**: 2 attempts — re-prompt for the target details on the
 second, and ask the operator when the second also comes back thin.
@@ -359,13 +357,13 @@ and the risk level, and with `node: gap-analysis` on the entry.
 
 ## `gap-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option — nothing after a stopped node ever becomes
-ready.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option —
+nothing after a stopped node ever becomes ready.
 
-Its question names the migration strategy, and the specification is what writes
-one. Nothing between here and there is guarded, so the node the question names
-is the node the run reaches and no true-destination line is owed.
+Its question names the stage just completed and no later one. The node the run
+reaches next is `specification` — nothing between here and there is guarded —
+and the gate brief's `Next:` line names it.
 
 ---
 
@@ -388,8 +386,8 @@ assumptions stand as framed. They are written to be confirmable, so an
 unconfirmed one is recorded in `analysis/requirements.md` and carried into the
 specification as a stated assumption rather than as settled fact. Rollback
 expectations and downtime tolerance are the two an operator most needs to see,
-so they are named in the executive summary before this node's gate whatever else
-the round covered.
+so they are named in this node's closing summary for the gate brief whatever
+else the round covered.
 
 **Part B — specification creation (delegate).**
 
@@ -422,12 +420,13 @@ both read the rollback plan.
 Record `migration_context.rollback_plan_created` and
 `migration_context.dual_run_configured` from what actually landed.
 
-**Executive summary before the gate.** Read `implementation/spec.md` and
-extract: the migration strategy chosen, the scope boundaries, the rollback
-approach, the breaking changes identified and the key constraints. Print that
-summary immediately before `specification-approval` fires, with the rollback
-expectations and the downtime tolerance named whether or not Part A was
-answered.
+**Gate brief content.** Read `implementation/spec.md` and write into this node's
+closing `node_summaries` entry: the scope boundaries, the rollback approach, and
+the rollback expectations and the downtime tolerance — named whether or not
+Part A was answered — in `summary`; the migration strategy chosen in
+`decisions`; the breaking changes identified and the key constraints in `risks`.
+The `specification-approval` question is the gate brief rendered from it
+(engine § Gates).
 
 **Recovery budget**: 2 attempts — re-gather the requirements and regenerate the
 specification and the rollback plan on the second, with the gaps named in the
@@ -442,8 +441,8 @@ the entry, and register the companion path under that entry's
 
 ## `specification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -465,11 +464,12 @@ exists and that its groups carry the rollback steps; re-invoke with the
 constraint named when either is missing, because a plan without them leaves the
 execution with nothing to undo by.
 
-**Executive summary before the gate.** Read
-`implementation/implementation-plan.md` and extract: how many task groups it
-carries, the total number of steps, whether rollback steps are included, the key
-dependencies between groups and the execution sequence. Print that summary,
-one labelled line per item, immediately before `planning-approval` fires.
+**Gate brief content.** Read `implementation/implementation-plan.md` and write
+into this node's closing `node_summaries` entry a `summary` of one labelled line
+each for how many task groups it carries, the total number of steps and whether
+rollback steps are included; the key dependencies between groups and the
+execution sequence go in `decisions`. The `planning-approval` question is the
+gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 migration constraints named in the context.
@@ -482,8 +482,8 @@ nodes named in the phase-key section above and this is not one of them.
 
 ## `planning-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -520,10 +520,12 @@ projection rather than a finding. Then record what
 landed: the groups completed, the files changed, the incremental test results
 and whether the rollback procedure is still ready to run.
 
-**Executive summary before the gate.** Read `implementation/work-log.md` and
-this node's own summary and extract: the migration steps completed, the files
+**Gate brief content.** Read `implementation/work-log.md` and write into this
+node's closing `node_summaries` entry: the migration steps completed, the files
 changed, the test results from the incremental runs and the rollback readiness
-status. Print that summary immediately before `execution-approval` fires.
+status in `summary`; any known issues or deferred items in `risks`. The
+`execution-approval` question is the gate brief rendered from it (engine
+§ Gates).
 
 **Recovery budget**: 5 attempts — the widest in the run, because the failures
 here are ordinary and local: fix a syntax error, fix an import, fix a failing
@@ -539,8 +541,8 @@ section pins.
 
 ## `execution-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -588,22 +590,17 @@ issue at all. The second half is deliberate. A data integrity issue is never
 fixed, and routing it into `issue-resolution` anyway is what puts the halt in
 the node that owns it rather than leaving it to a gate.
 
-**Executive summary before the gate.** Read
-`verification/implementation-verification.md` and
-`verification/compatibility-test-results.md` and extract: the overall verdict,
-the issue counts by severity, the compatibility results, the data integrity
-status and the rollback test results. Print that summary immediately before
-`verification-approval` fires. **When the verdict failed and nothing in it is
-fixable, the summary recommends `stop-migration` in as many words** — the prose
-form stops the workflow by itself in that case, and the graph has no routing
-construct to stop with, so the recommendation to the operator at the gate is
-what replaces it.
-
-**Print the true destination** on the line after that summary, as the literal
-line below rather than a paraphrase of it, because both nodes the gate leads
-toward are guarded. It is `Next: issue-resolution` when
-`issues_to_resolve` is true. Otherwise it is `Next: documentation`, and
-`Next: finalization` when `user_docs` is false.
+**Gate brief content.** Read `verification/implementation-verification.md` and
+`verification/compatibility-test-results.md` and write into this node's closing
+`node_summaries` entry: the overall verdict, the issue counts by severity, the
+compatibility results, the data integrity status and the rollback test results
+in `summary`; each critical issue still open as an `open:` risk. **When the
+verdict failed and nothing in it is fixable, add a risk starting
+`recommend stop:`** that says why — the prose form stops the workflow by itself
+in that case, and the graph has no routing construct to stop with, so the gate
+brief recommending `stop-migration` is what replaces it. The
+`verification-approval` question is the gate brief rendered from this entry,
+and its `Next:` line names the node that actually runs (engine § Gates).
 
 **Recovery budget**: 3 attempts — fix the failing tests and re-run, three times
 over, before asking the operator how to proceed. **A data integrity issue is
@@ -614,20 +611,20 @@ never one of those attempts**: it is not retried, it is carried into
 
 ## `verification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 **Its question is neutral where the prose form's names a phase number, and that
 is a recorded divergence.** The prose form asks "Continue to Phase [7 or 8]?",
 interpolating the destination it computed. A gate question is authoring-time
 constant and covered by the graph hash, so it cannot carry a destination that
-differs per run. The true-destination line `verification` prints immediately
-above this gate is where the operator reads where continuing goes.
+differs per run. The gate brief's `Next:` line is where the operator reads where
+continuing goes.
 
 **Its stop option is also the route out of a failed verification.** The prose
 form stops the workflow automatically when the verdict failed with nothing
-fixable; here the operator does it, having read the recommendation in the
-executive summary.
+fixable; here the operator does it, having read the `recommend stop:` risk in
+the gate brief, which then recommends the stop option.
 
 ---
 
@@ -640,17 +637,27 @@ why the gate that closes it repeats the same guard.
 **Display the issue breakdown** the verifier returned, grouped by category and
 severity, with the location, the description and the fixability of each.
 
-**The fix loop.** Present the critical and warning issues as a numbered list and
-ask which to fix: all the fixable ones, a chosen subset, or none. Apply the
-chosen fixes and log each one. Record the applied fixes as
-`verification_context.fixes_applied`, add the operator's calls to
-`verification_context.decisions_made`, and raise
-`verification_context.reverify_count` by one **before** re-invoking the
-verifier: those two keys are what tell the verifier it is running after fixes,
-and a re-run that cannot see them rewrites nothing, leaving the pre-fix report
-standing. Then ask whether to re-run the verification; a yes re-invokes the
-verifier and returns to the breakdown. Both answers continue the run, which is
-why this is a node question rather than a gate. **At most three iterations.**
+**The fix loop.** Ask it as one single-select. The question text is the numbered critical and
+warning list, one line per issue in the shape
+`N. [severity] path:line — description (fixable | needs a hand)`, followed by
+`Which to fix?`. The options are **"Fix all fixable (Recommended)"** and
+**"None — proceed as is"**; a subset is chosen by typing its numbers through
+Other. When nothing on the list is fixable, the `(Recommended)` label moves to
+"None — proceed as is".
+Apply the chosen fixes and log each one. Record the applied fixes as
+`verification_context.fixes_applied`, and add the operator's calls to
+`verification_context.decisions_made`.
+After "None — proceed as is" nothing was fixed and nothing changed, so there
+is nothing to re-verify: ask no re-run question and continue to the gate. When
+at least one fix was applied, ask one single-select, `Re-run verification?`,
+with the options
+**"Re-verify now (Recommended)"** and **"No — continue to the gate"**. Only on
+a yes, raise `verification_context.reverify_count` by one and re-invoke the
+verifier, which returns to the breakdown; a no leaves the count alone, so it
+counts only re-runs that happened. The recorded fixes and the raised count are
+what tell the verifier it is running after fixes, and a re-run that cannot see
+them rewrites nothing, leaving the pre-fix report standing. Both answers
+continue the run, which is why this is a node question rather than a gate. **At most three iterations.**
 
 **Data integrity is never auto-fixed.** On any data integrity issue, stop the
 loop. Under a terminal driver, present the issue and the rollback option to the
@@ -661,17 +668,22 @@ failing rather than skipping — an operator arrives to the migration's state as
 the verification left it, rather than to an automated repair already applied to
 their data.
 
-**Default under a non-terminal driver** (`verification-fix-loop`): fix every
-fixable issue, re-verify once, then continue to the gate — **except a data
+**Default under a non-terminal driver** (`verification-fix-loop`): the
+recommended option — fix every fixable issue and re-verify once, then continue to the gate; with
+nothing fixable, proceed as is and continue to the gate without re-verifying — **except a data
 integrity issue, which is never fixed and never proceeded past**, and which ends
-the run as the paragraph above says. One re-verification is the whole budget,
+the run as the paragraph above says. The default follows the same order as an
+answered loop: apply the fixes, record `fixes_applied`, then, when a fix was applied — the recommended answer to the re-run
+question — raise `reverify_count` by one and re-invoke the
+verifier. One re-verification is the whole budget,
 because a loop nobody can stop is not a loop. A non-data issue still critical
-after it is named in the line printed before `resolution-approval`, which is
-where an operator answers.
+after it is recorded as an `open:` risk in this node's summary, which the gate
+brief renders at `resolution-approval` — where an operator answers.
 
 **Exit conditions**: no critical issue remains; or the operator explicitly chose
 to proceed as-is; or the three iterations are spent, at which point name the
-issues still open and **recommend the rollback** before the gate. **Never
+issues still open and **recommend the rollback** as a risk starting
+`recommend stop:` in this node's summary. **Never
 proceed past an unresolved critical issue without an explicit answer saying
 so** — a gate answered from outside is such an answer; a default is not.
 
@@ -681,13 +693,12 @@ so** — a gate answered from outside is such an answer; a default is not.
 > the next gate against it. Recompile it rather than leaving a side file to
 > carry the truth.
 
-**Executive summary before the gate.** Print, immediately before
-`resolution-approval` fires: the total issues found, how many were fixed and how
-many remain by severity, together with the rollback recommendation when the
-iterations ran out.
-
-**Print the true destination** on the line after it, as the literal line:
-`Next: documentation`, or `Next: finalization` when `user_docs` is false.
+**Gate brief content.** Write into this node's closing `node_summaries` entry:
+the total issues found, how many were fixed and how many remain by severity in
+`summary`; each critical issue still open as an `open:` risk; and, when the
+iterations ran out, the rollback recommendation as a risk starting
+`recommend stop:`. The `resolution-approval` question is the gate brief rendered
+from it (engine § Gates).
 
 **Recovery budget**: none — this node's own three-iteration loop is its limit,
 and re-driving a node that halts on data integrity would re-run the thing it
@@ -701,19 +712,20 @@ A gate, **guarded on the same value as `issue-resolution`**. It asks only when
 that stretch ran; when the stretch was skipped this gate is skipped with it, and
 the run goes straight on to whatever comes next.
 
-Ask the question the definition carries, record the answer, and stop the run on
-the stop option.
+Ask it as engine § Gates says — the gate brief, then the definition's `ask:` —
+record the answer, and stop the run on the stop option.
 
-**Its question names the documentation, which may be skipped.** That is what the
-true-destination line above it is for: it names `finalization` when `user_docs`
-is false, so an operator answering "continue to documentation" is never
-surprised by a run that ends instead.
+**Its question names the documentation, which may be skipped.** The gate brief's
+`Next:` line names `finalization` when `user_docs` is false, so an operator
+answering "continue to documentation" is never surprised by a run that ends
+instead.
 
 **It is also the third answer the prose form has and the graph does not.** When
 the fix iterations run out, the prose form asks whether to proceed with warnings
 or to roll back. A gate has one continue and one stop and no third effect, so
-the rollback recommendation is printed by `issue-resolution` and the stop option
-here is what acts on it.
+the rollback recommendation is a `recommend stop:` risk in the
+`issue-resolution` summary — the gate brief then recommends the stop option —
+and the stop option here is what acts on it.
 
 ---
 
@@ -731,6 +743,11 @@ the screenshots the guide needs.
 The guide covers the migration overview and its goals, the prerequisites and the
 preparation steps, the step-by-step procedure, the rollback procedure and the
 troubleshooting for the problems the verification actually found.
+
+**Node summary.** This node's closing `node_summaries` entry lifts the guide's
+Key Decisions item for item into `decisions` — one entry per item, in the
+guide's order, none merged and none reworded — and its open questions and risks
+the same way into `risks`.
 
 **This is a stretch of one, with no gate after it.** The prose form has none
 either, so nothing here repeats its guard onto a following gate — the guard ends
@@ -768,6 +785,15 @@ from a node that no guard can skip.
    migration; and retire the old system, or the dual-run configuration, only
    once both have been true for a while. Suggest a fresh session for whatever
    comes next rather than continuing in this one.
+
+**Print first, then close.** The executive summary and then every next step
+from step 4 — all four of this workflow's own, then the fresh-session suggestion,
+none dropped or merged — are printed as ordinary text **before** the engine's
+`run-complete` call, and they are the last thing printed ahead of it. Only then
+call `run-complete`. Its marker is the last line of its stdout; after the call,
+print nothing but that line, copied exactly as the verb printed it. Never call
+`run-complete` first and summarize after it, and never type a marker the verb did
+not print.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

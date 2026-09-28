@@ -174,6 +174,41 @@ so the freeze patch need not spell them and a freeze that omits them still lands
 later write of either replaces the whole list; there is no key to merge on, so a caller that
 means to append sends the whole list.
 
+**The freeze patch carries `orchestrator.options.html_output`**, read from `.maister/config.yml`
+(default `true` when the file or the key is absent). The freeze's banner names the dashboard from
+it, so a freeze that left it for intake to write would announce a dashboard an operator had turned
+off. Intake still records it and may repeat the same value.
+
+**The engine path creates no task items.** It never calls `TaskCreate` or `TaskUpdate`: the state
+file and the dashboard are the run's tracker. The writer seeds `orchestrator.task_ids: {}` beside
+the two phase sequences, on the same terms — unless the patch supplies it or the file already
+holds it — and that empty map records that no task items exist.
+
+**The freeze write installs the dashboard viewer.** When `html_output` is not false and the run
+directory holds no `dashboard.html`, the freeze copies the plugin's viewer there and reports
+`dashboard.html` among the changed paths. It never replaces a file already there, and a copy
+that fails is a warning on stderr — the state write still lands. No later write copies it.
+
+**The freeze write prints the startup banner; relay it verbatim as visible text in the same
+turn.** After the changed paths and one blank line, the write that installs the `workflow:`
+block into a file that had none prints five lines:
+
+```
+Maister run started
+Task: <task.title, or (untitled)>
+Directory: <the run's absolute task directory>
+Dashboard: <that directory>/dashboard.html   (or: none (html_output is false))
+First node: <the first node of the frozen graph>
+```
+
+It prints once: a later write that re-sends `workflow:` prints none. That includes a retried
+freeze — the identical patch sent again because the first call's output was lost. The retry is
+a no-op for the block (no `workflow` path is reported) and prints no banner; the first call's
+write stands, and the task directory, the dashboard and the first node are read off the state
+file instead. Compose no banner of your own — the freeze's output is the banner, and a
+paraphrase drifts from the run it describes. A sub-run child's freeze prints its own banner too; the parent does not relay it, and its node
+summary names the child's path instead.
+
 **The freeze patch carries the definition's context seed, when its node prose names one.** Some
 workflows keep context fields that are known before the first node runs — the input the run
 was started with, restated where that workflow's readers look for it. Such a definition's prose
@@ -224,7 +259,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, eight verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, nine verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -232,15 +267,36 @@ node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs <verb> [
 ```
 
 The plugin root is this plugin's own directory — the one holding
-`.claude-plugin/plugin.json` — and the variable naming it is set in the session
-environment. Use it as written; do not work the directory out and substitute a
-path of your own.
+`.claude-plugin/plugin.json`, two levels above the base directory the loader shows
+for this skill. Run the script by that absolute path, never through the variable:
+where a command here still reads `${MAISTER_PLUGIN_ROOT}`, write the directory in its
+place. The shell expands a variable from its own state, and that expansion is not
+the path the enforcement hook verified, so a call spelled through it is not
+recognised as this plugin's own and the operator is asked to approve it. A root
+holding a space goes in single quotes.
 
 **The invocation is the whole command.** No `cd` in front of it, no `set -e`, no
 variable assigned first and used in it, no second command after it, no redirection,
-no substitution — and never several verbs packed into one shell script. The only
-thing that may share the line is the patch or the request document being piped in:
-`echo '<json>' | node …`. This is not style. The enforcement hook recognises this
+no substitution — and never several verbs packed into one shell script. Flag values
+are written bare; a path holding a space goes in single quotes, never double quotes or a
+backslash. The only
+thing that may go with it is the patch or the request document, sent on stdin as a
+quoted heredoc:
+
+```
+node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs write-state --state=<state> <<'JSON'
+{"node_summaries": {"<node>": {"summary": "…"}}}
+JSON
+```
+
+The quotes around the opening `JSON` are what keep the body literal: an apostrophe, a
+`$`, a backslash or a `\r\n` escape inside the JSON reaches the verb exactly as typed,
+in bash and zsh alike. The closing `JSON` stands alone on the last line, and nothing
+follows it. Never send the document as `echo '<json>' | node …` in a POSIX shell: the
+first apostrophe in the text ends the quoted string, and zsh's `echo` turns `\r\n`
+escapes into control characters. Where the shell tool is PowerShell, which has no
+heredoc, `echo '<json>' | node …` is the form, with every apostrophe in the JSON
+doubled. This is not style. The enforcement hook recognises this
 plugin's own call and answers it, so the operator is not asked to approve their own
 workflow once per write — and it recognises the call by reading the command, so a
 command doing anything else is not that call and the prompt comes back. Measured
@@ -254,10 +310,11 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found |
 | `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
-| `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line |
+| `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
+| `gate-brief` | `--state`, `--node` (the gate), optional `--oneline` | the gate brief on stdout — the closing node's summary, its decisions and risks, a `Next:` line naming the node that actually runs next (with any guard-skipped nodes), a `Recommended:` option and a last `Run: <dir> · Dashboard: <path>` line, kept within 1,600 characters; `--oneline` folds it onto one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
 `gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
@@ -309,10 +366,11 @@ and a check that only ran where this repository's own tests run would be checkin
 place that needs it least. So a document can be contract-invalid and still be written: the
 schemas are the suite's instrument, and the gate they back is the compatibility suite, not
 this verb. Two things follow for a caller. Send values in the shapes the register declares
-rather than relying on a refusal to catch a wrong one; and where a value must survive, send
-it or leave it out — the six scalars beside `workflow.nodes`, `graph_hash` among them, are
-carried forward from the file when a patch omits them rather than dropped with the rest of
-the block.
+rather than relying on a refusal to catch a wrong one; and never rewrite the `workflow:`
+block. It is written once, at the freeze, and never again: a later patch identical to it
+changes nothing, and one that differs in a node or in any scalar beside `workflow.nodes` —
+`graph_hash` among them — is refused with `state-workflow-frozen`. Nothing is carried
+forward into the block and nothing is dropped from it.
 
 The patch arrives on stdin so no quoting has to survive a shell — Windows without a POSIX
 shell is a supported target. An unknown version degrades **the same way in every verb** —
@@ -426,7 +484,10 @@ that passage by hand does not hold — measured across four attended runs, a nod
 afresh from an artifact it had already read condensed thirteen items into seven clauses on
 one line — so the passage is not written, it is fetched. Run `prior-context` against the run's
 state file **at each consuming delegate** — one call per prompt, in the turn that composes it —
-and paste its stdout into the prompt under its own heading, unedited. It renders
+and paste its stdout into the prompt under its own heading, unedited. The stdout is pasted as
+text, whole: never slice it with `sed`, `head`, `tail` or the like, and never pass a file path
+or a saved copy in place of the pasted text — a delegate handed a path reads what it chooses
+to, and a sliced passage is a trimmed one. It renders
 every `phase_summaries` entry the run has accumulated: the phase key, the node that owns it,
 its summary line, then its decisions and its risks as one bullet each with the count beside
 the heading, so a truncation is visible as a number that disagrees with its own bullets. It
@@ -556,10 +617,55 @@ run. What the engine does with it follows the run's driver, and nothing else:
 Decide which of the two applies once, when the run starts, from the driver block the state
 file already carries. A gate never changes mode partway through a run.
 
+### Before every gate — the gate brief
+
+What the operator reads at a gate is rendered by the engine, never composed:
+
+- **Every node a gate needs writes a non-empty `summary`** in its closing `node_summaries`
+  entry, in the same patch that marks it `completed`. Gate-relevant extras go beside it: the
+  choices made in `decisions`, open items in `risks`. A stop recommendation is a risk starting
+  `recommend stop:`; an open decision or a still-critical issue is a risk starting `open:`; a
+  defaulted question is the `defaulted:` decision *In-node questions* describes. The node
+  prose's "Gate brief content" paragraph names what belongs there.
+- **Run `gate-brief --state=<state> --node=<gate>` in its own call** before asking the gate,
+  and only once the closing write — the patch carrying the node's summary and its `completed`
+  status — has returned successfully. Never issue the two in parallel: a brief that reads the
+  state before the write lands is refused for a summary that is about to exist. Its stdout is
+  the brief; paste it, never write one by hand, and never print a summary of your own before
+  the gate instead.
+- **`gate-brief-no-summary` or `gate-brief-value-missing`**: send the patch the message names
+  through `write-state`, then run the verb again. The value-missing patch carries the node's
+  whole `values` map, because a node's values are replaced whole on patch.
+- **`gate-brief-unknown-node` or `gate-brief-not-a-gate`**: the `--node` argument is wrong;
+  correct it. Nothing is written.
+- **`gate-brief-no-graph`**: the definition cannot be read, the freeze recorded no needs and no
+  node carries a summary. No write fixes it: relay the message and ask the gate with its `ask:`
+  alone.
+- **A `gate-brief-graph-drift` warning** means the definition changed since the freeze. Relay
+  the warning as-is; the brief still printed, its `Next:` line says the next node is unknown,
+  and the gate is still asked. A `gate-brief-needs-unknown` warning beside it says the summary
+  is the nearest recorded one, because what the gate closes is unknown; relay it too.
+
+The brief stays within 1,600 characters, so that the brief and the ask fit in the picker. A
+longer summary, decision list or risk list is trimmed, and each cut says `(+N more — see the
+dashboard)`, or `see the run's state file` when the run has no dashboard or its run directory
+holds no `dashboard.html`. A risk that opens
+`recommend stop:` is the last risk to go, so the reason for the recommendation stays in view. The
+`Next:`, `Recommended:` and last `Run: <dir> · Dashboard: <path>` lines are never trimmed. The
+last line reads `Dashboard: none (html_output is false)` when the run has no dashboard, and
+names the run alone — `Run: <dir>` — when the viewer is missing from the run directory.
+
+The brief's `Next:` line names the node that actually runs once the continue option is
+chosen — guards evaluated, skipped nodes listed — so no gate question or prose needs to say
+where the run goes next. When that node waits on a branch the gate does not reach, the line
+reads `Next: waiting on <ids>`; `Next: end of run` means nothing after the gate is left.
+
 ### Terminal mode — asked and answered in one turn
 
-1. **Asks it in session** with `ask_user`, carrying the node's own question text and
-   its own options.
+1. **Asks it in session** with `ask_user`. The question is the `gate-brief` stdout, a
+   blank line, then the node's `ask:` verbatim. The options are the gate's own; the one the
+   brief's `Recommended:` line names is listed first and labelled `<id> (Recommended)`. The
+   recorded answer is the bare option id.
 2. **Records the answer** — the chosen option id, who answered and when — on the node's
    summary, and marks the node `completed`.
 3. **Writes no `gate_pending` and no gate request file.** The pending marker is only ever
@@ -610,7 +716,9 @@ order, and the order is the contract:
    `orchestrator.gate_pending` to `{node, request, since}` **and** the node's `status` to
    `suspended` through the state writer — one invocation, three writes, in that order. The
    request document arrives on stdin as JSON: the node id, the kind, the question, its options
-   and the multi-choice flag (`gate.schema.json` declares the shape). `since` is the request's
+   and the multi-choice flag (`gate.schema.json` declares the shape). The question is the
+   node's `ask:`; `context.summary` is the `gate-brief --oneline` stdout without its trailing
+   newline; the option the brief recommends carries `recommended: true`. `since` is the request's
    own `asked_at`, so the marker and the file agree about when the operator was asked.
    The gate card the operator sees lands inside this same write, alongside the pending marker,
    so nothing needs writing after it.
@@ -704,7 +812,8 @@ re-validation through the writer.
    **`gate_pending: null` last**. The order matters because the marker is what the hook
    reads: clearing it first would open the tool surface before the decision was recorded.
 5. The instant the marker is null the gate is no longer pending, so the very next action is
-   `echo '{}' | node .../workflow.mjs write-state --state=<state>` — the empty patch. It is
+   `write-state --state=<state>` with the empty patch, `{}`, as its heredoc body (§ The
+   invocation contract). It is
    not a no-op: the writer reads the file the editor tools just wrote, self-checks it through
    the enforcement hook's own reader, and re-publishes it. The file changes by one line
    (`orchestrator.updated`), and that is the expected result. This is what keeps the editor-
@@ -762,9 +871,14 @@ families and what each takes:
 |---|---|
 | A clarification | nothing is asked; the analysis or the delegate's own answers stand, and the node writes its artifact and sets its flag as a run with nothing to ask already does |
 | An opt-in | the recommended option |
-| A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is named in the context line printed before the next gate, which the node prose identifies |
+| A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is recorded as an `open:` risk in the node's summary, which the gate brief renders at the next gate |
+| A sequential single-select | the recommended set its prose names, each member labelled (Recommended) |
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
 | An exhausted recovery budget | the node is recorded `failed`, per *Recording an outcome* |
+
+A sequential single-select's question text also carries a `Recommended: …` line naming that set. When the
+question is asked as one yes/no single-select per option, the `(Recommended)` label goes on
+"Yes" for a recommended member and on "No" otherwise.
 
 **What is recorded.** One entry per defaulted question on that node's summary `decisions`
 list, as a plain string:
@@ -789,8 +903,8 @@ and defaulting is not a licence to invent one.
 **Two things this rule never defaults past.** It settles who answers, not what may be waived:
 
 - An unresolved critical verification issue is not proceeded past. The default fixes what is
-  fixable and carries the remainder into the following gate's context, where an operator sees
-  it and answers.
+  fixable and records the remainder as `open:` risks in the node's summary, which the
+  following gate's brief renders for an operator to see and answer.
 - A decision the node owes is still *resolved* rather than skipped. A defaulted decision is a
   resolved one and satisfies a node's own completeness self-check; an unasked, unrecorded,
   unresolved one does not, and a node must not be marked complete with one outstanding.
@@ -810,6 +924,7 @@ child-capable — is `references/sub-runs.md`. What the engine must hold in mind
 - **Three writes bracket a start**: W1 the parent node `running`; W2 the whole child freeze, one
   call against the child's state; W3 the parent node `waiting` with `values: {task_path, run_id}`.
   W2 precedes W3, and both precede the write that projects the dashboard, and the marker.
+  W2 prints the child's own startup banner; the parent does not relay it.
 - **Under a terminal driver the child runs in session** and the turn continues to W4. Under a
   `cockpit` or `dispatch` driver the turn ends at `WAITING-SUBRUN` and the daemon discovers the
   child in its ordinary sweep — the parent drives nothing and spawns nothing.
@@ -897,7 +1012,10 @@ What "a moment" means, and there are four of them:
   when the status arrives later. A summary written with its own `status` keeps it until
   the node's status next changes.
 - **A ready-set walk skips nodes.** Every node a false guard skips goes in one patch, with
-  their summaries, however many there are.
+  their summaries, however many there are. That patch lands no later than the next
+  executed node's `running` patch — either earlier, or as part of that same patch — so no
+  node is ever recorded as started while a node the walk already passed still reads
+  `pending`.
 - **A run ends.** The closing node's outcome and `task.status` are one patch; a stop option is
   likewise one patch carrying `task.status: stopped` and every unexecuted node. `run-complete`
   follows it and publishes nothing, so it is not a write and never merges with one.
@@ -915,7 +1033,7 @@ the node's status, which only the node's own end writes.
 
 | The write | Why it cannot join anything |
 |---|---|
-| the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key`, `orchestrator.options.inputs` and the two empty phase sequences (Step 4) |
+| the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key`, `orchestrator.options.inputs`, `orchestrator.options.html_output`, the two empty phase sequences and the empty `task_ids` (Step 4) |
 | `gate-request` | one invocation, three writes, in the order § E2 fixes — a run is pending from the moment its request file lands, so a second shell call against it is denied |
 | the empty patch on gate resume | the shell becomes reachable only the instant `gate_pending` goes null, which is what that write re-validates (*Driver-suspended mode — resume*) |
 
@@ -946,6 +1064,7 @@ row:
 | `state-entry-unserializable` | A node entry **already in the file** cannot be re-serialised. The patch is fine; the file needs repair. Stop with `RUN-FAILED: state-entry-unserializable` and report the message verbatim. This is **not** the `value-not-flow-safe` recovery — shortening the value the patch carries changes nothing here, and trying it loops. |
 | `state-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. Nothing was written. **Do not delete anything**: wait a minute and issue the same write again. A temp older than a minute is a crashed writer's leftover, and the next write reclaims it itself. |
 | `state-gate-pending-form` | The pending-gate marker has two legal spellings and this was neither. It is written as the literal `null`, or as `{node, request, since}` — `request` being `gates/<node>.request.yml` for that same `node`, and `since` a measured UTC timestamp — which the writer puts on one line itself. Send the marker as an object, never as pre-spelled text: text carrying a trailing comment or a quote reaches the file with its own bytes and the reader throws on it. Stop with `RUN-FAILED: state-gate-pending-form` and report the message verbatim. |
+| `state-workflow-frozen` | A `workflow` patch after the freeze differs from the frozen block — a node left out, added or re-typed, or a scalar changed. Nothing was written. The freeze is written once; send node updates under the top-level `nodes` key, never under `workflow`, and never re-type the graph. A re-send identical to the frozen block changes nothing. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |
 
@@ -1002,7 +1121,9 @@ break: the chain would wait forever on a run that looked finished.
 
 Read `orchestrator-state.yml`, take the frozen graph from its `workflow:` block, recompute
 the ready set from the recorded node statuses, and continue. Resume never re-resolves the
-definition: the graph that ran is the graph that resumes.
+definition: the graph that ran is the graph that resumes. `gate-brief` is the one verb that
+re-resolves the definition after the freeze, and it only reads: it re-resolves it to name the
+next node and the option ids, and degrades to `Next: unknown` when the definition has drifted.
 
 **A resume declines the same two flags a first run does.** Step 5's rule is not scoped to a
 fresh run: `--from=PHASE` and `--reset-attempts` are resume flags, so a resume is where they
@@ -1033,8 +1154,9 @@ The engine honours the framework's contracts; it does not restate them. Follow
 
 - the **artifact summary contract** (§ 7) in every prompt that asks a delegate to write an
   artifact, with the returned summary lifted into state verbatim rather than re-summarized;
-- the **operator dashboard** (§ 8 — the config gate that turns it off, the copied asset and the
-  browser open, which stay prose): on the engine path every successful `write-state` projects
+- the **operator dashboard** (§ 8 — the config gate that turns it off and the browser open,
+  which stay prose; the viewer itself is installed by the freeze write, Step 4, so an engine run
+  copies nothing): on the engine path every successful `write-state` projects
   `dashboard-data.js` itself, so an engine run owes none of moments 1-7 and a projection that
   fails is a warning that never blocks. Moments 8-10 still bind: they sit *inside* the
   implementation and verification phases, which the engine does not enter, so
@@ -1048,7 +1170,10 @@ when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node>
 **The first two come from a verb; the third is typed.** `RUN-COMPLETE` and `RUN-FAILED` are what
 `run-complete` printed — which is what makes a dispatched run's unpublished close-out a
 `RUN-FAILED: closeout-unpublished` instead of a silence its chain waits on forever — so for those
-two, echo the verb's line and do not type a marker it did not give you. `WAITING-SUBRUN` has no
+two, echo the verb's line and do not type a marker it did not give you. Everything the operator
+is meant to read at the end — the executive summary and the full list of next steps — is printed
+before the `run-complete` call, never after it, so the verb's marker stays the last line.
+`WAITING-SUBRUN` has no
 verb behind it: no tool the engine ships prints that string, and the driver composes the line
 itself from the node id and the child run id it has just recorded. That is why its grammar is
 spelled out here rather than read off a tool's output — whole line, nothing before or after it,

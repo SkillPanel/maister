@@ -3,7 +3,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { SAMPLE, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, SAMPLE, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+
+const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
+
+/**
+ * The state text without its write stamp: every landed write re-stamps
+ * `orchestrator.updated`, so a comparison across two writes that must not move
+ * anything else would fail whenever they straddle a second.
+ */
+const unstamped = text => text.replace(/^  updated: .*$/m, '');
 
 /** Send a patch expected to be refused; return the result and assert nothing moved. */
 function refused(run, patch) {
@@ -60,6 +69,160 @@ test('freeze: a sequence the patch supplies is not re-seeded', t => {
   const state = readState(run);
   assert.deepEqual(state.orchestrator.completed_phases, ['intake']);
   assert.deepEqual(state.orchestrator.failed_phases, []);
+});
+
+// The startup banner: the freeze write prints it after the changed paths, once.
+
+test('banner: the freeze prints the task, its directory, the dashboard and the first node after the changed paths', t => {
+  const run = scratch(t);
+  const resolved = JSON.parse(verb(['resolve', `--definition=${DEVELOPMENT}`]).stdout);
+  const nodes = Object.fromEntries(resolved.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  const result = verb(['write-state', `--state=${run.state}`], {
+    task: { title: 'Fix the parser', status: 'in_progress' },
+    workflow: { source: DEVELOPMENT, graph_hash: resolved.graph_hash, grammar_version: 1, name: 'development', nodes },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  const [paths, banner] = result.stdout.split('\n\n');
+  assert.match(paths, /^orchestrator\.completed_phases$/m, 'the changed paths come first, unchanged');
+  assert.equal(banner, [
+    'Maister run started',
+    'Task: Fix the parser',
+    `Directory: ${run.dir}`,
+    `Dashboard: ${path.join(run.dir, 'dashboard.html')}`,
+    'First node: intake',
+    '',
+  ].join('\n'));
+});
+
+test('banner: with html_output false the dashboard line says there is none', t => {
+  const run = scratch(t);
+  const result = verb(['write-state', `--state=${run.state}`], {
+    task: { title: 'Quiet', status: 'in_progress' },
+    orchestrator: { options: { html_output: false } },
+    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
+  });
+  assert.match(result.stdout, /^Dashboard: none \(html_output is false\)$/m);
+});
+
+test('banner: a later write that re-sends the workflow block prints no second banner', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const nodes = Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  const result = write(run, { workflow: { name: 'development', nodes } });
+  assert.doesNotMatch(result.stdout, /Maister run started/);
+});
+
+test('banner: a retried freeze, the identical patch sent again, is a no-op with no banner', t => {
+  const run = scratch(t);
+  freeze(run);
+  const before = fs.readFileSync(run.state, 'utf8');
+  const graph = JSON.parse(verb(['resolve', `--definition=${SAMPLE}`]).stdout);
+  const nodes = Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  const result = verb(['write-state', `--state=${run.state}`], {
+    task: { title: 'Sample run', status: 'in_progress' },
+    workflow: { source: SAMPLE, overlays: graph.overlays, profile: graph.profile, graph_hash: graph.graph_hash, grammar_version: 1, name: graph.name, nodes },
+    orchestrator: {},
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /Maister run started/);
+  assert.doesNotMatch(result.stdout, /^workflow/m, 'no workflow path is reported');
+  assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), unstamped(before));
+});
+
+// The freeze installs the dashboard viewer beside the data it projects, so an
+// engine-driven run directory opens like any other.
+const VIEWER = path.join(ENGINE_DIR, '..', 'orchestrator-framework', 'assets', 'dashboard.html');
+const FROZEN = { task: { title: 'Viewer', status: 'in_progress' }, workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } } };
+
+test('viewer: the freeze copies dashboard.html into the run directory and reports it before the banner', t => {
+  const run = scratch(t);
+  const result = write(run, FROZEN);
+  assert.equal(fs.readFileSync(path.join(run.dir, 'dashboard.html'), 'utf8'), fs.readFileSync(VIEWER, 'utf8'));
+  const [paths, banner] = result.stdout.split('\n\n');
+  assert.match(paths, /^dashboard\.html$/m);
+  assert.match(banner, /^Maister run started$/m);
+});
+
+test('viewer: the freeze never overwrites a dashboard.html already there', t => {
+  const run = scratch(t);
+  fs.writeFileSync(path.join(run.dir, 'dashboard.html'), '<!-- the operator\'s own -->\n');
+  const result = write(run, FROZEN);
+  assert.equal(fs.readFileSync(path.join(run.dir, 'dashboard.html'), 'utf8'), '<!-- the operator\'s own -->\n');
+  assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
+});
+
+test('viewer: no copy when html_output is false', t => {
+  const run = scratch(t);
+  const result = write(run, { ...FROZEN, orchestrator: { options: { html_output: false } } });
+  assert.equal(fs.existsSync(path.join(run.dir, 'dashboard.html')), false);
+  assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
+});
+
+test('viewer: a later write that is not the freeze copies nothing', t => {
+  const run = scratch(t);
+  write(run, FROZEN);
+  fs.rmSync(path.join(run.dir, 'dashboard.html'));
+  const result = write(run, { nodes: { analysis: { status: 'in_progress' } } });
+  assert.equal(fs.existsSync(path.join(run.dir, 'dashboard.html')), false);
+  assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
+});
+
+test('viewer: a link already named dashboard.html is left alone, dangling or not, and the freeze lands', t => {
+  const run = scratch(t);
+  const link = path.join(run.dir, 'dashboard.html');
+  fs.symlinkSync(path.join(run.dir, 'missing-dir', 'dashboard.html'), link);
+  const result = verb(['write-state', `--state=${run.state}`], FROZEN);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(readState(run).workflow.name, 'development');
+  assert.ok(fs.lstatSync(link).isSymbolicLink());
+  assert.equal(fs.existsSync(path.join(run.dir, 'missing-dir')), false, 'nothing was written through the link');
+  assert.match(result.stdout, /^Maister run started$/m);
+});
+
+test('banner: a title spanning lines is folded onto the Task line', t => {
+  const run = scratch(t);
+  // The writer refuses a newline in a title it is sent, so only a file it
+  // adopted can carry one: a literal block scalar, as a hand-written state has.
+  fs.writeFileSync(run.state, 'task:\n  title: |\n    Fix the parser\n      and the lexer\n  status: in_progress\n');
+  const result = verb(['write-state', `--state=${run.state}`], {
+    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  const banner = result.stdout.split('\n\n')[1];
+  assert.equal(banner.split('\n').length, 6, banner);
+  assert.match(banner, /^Task: Fix the parser and the lexer$/m);
+});
+
+test('banner: the freeze records the task-items fallback as an empty map', t => {
+  const run = scratch(t);
+  freeze(run);
+  assert.match(fs.readFileSync(run.state, 'utf8'), /^ {2}task_ids: \{\}$/m);
+});
+
+test('banner: task ids the patch supplies are kept', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { task_ids: { analysis: '7' } } });
+  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /^ {2}task_ids: \{\}$/m);
+});
+
+test('banner: a freeze with no task title prints the untitled line', t => {
+  const run = scratch(t);
+  const result = verb(['write-state', `--state=${run.state}`], {
+    task: { status: 'in_progress' },
+    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Task: \(untitled\)$/m);
+  assert.match(result.stdout, /^First node: analysis$/m);
+});
+
+test('banner: a later task_ids write merges into the seeded empty map', t => {
+  const run = scratch(t);
+  freeze(run);
+  assert.deepEqual(readState(run).orchestrator.task_ids, {});
+  write(run, { orchestrator: { task_ids: { analysis: '7' } } });
+  write(run, { orchestrator: { task_ids: { design: '8' } } });
+  assert.deepEqual(readState(run).orchestrator.task_ids, { analysis: '7', design: '8' });
 });
 
 test('nodes: a status change stamps its clock field and leaves every other entry byte-identical', t => {
@@ -254,4 +417,64 @@ test('refusal: a summary key that would spill onto its own lines', t => {
   freeze(run);
   const result = refused(run, { phase_summaries: { 'design: draft': { summary: 'x' } } });
   assert.match(result.stderr, /^state-patch-invalid\b/);
+});
+
+/** Every frozen node re-typed as its bare kind — the shape of a re-sent freeze. */
+function retyped(graph) {
+  return Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+}
+
+test('refusal: a workflow patch after the freeze that drops frozen nodes', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  const result = refused(run, { workflow: { name: 'development', nodes: { analysis: { kind: 'direct', status: 'completed' } } } });
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
+  assert.match(result.stderr, /approval/, 'the message names the nodes the patch would drop');
+  assert.match(result.stderr, /top-level `nodes` key/);
+});
+
+test('refusal: a workflow patch after the freeze that re-types every node would reset recorded progress', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed', values: { x: true } } } });
+  const result = refused(run, { workflow: { name: 'development', nodes: retyped(graph) } });
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
+  assert.match(result.stderr, /analysis/, 'the message names the node whose record differs');
+  assert.match(result.stderr, /top-level `nodes` key/);
+  assert.equal(readState(run).workflow.nodes.analysis.status, 'completed');
+});
+
+test('refusal: a workflow patch after the freeze that adds a node no graph declares', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const result = refused(run, { workflow: { name: 'development', nodes: { ...retyped(graph), ghost: { kind: 'direct', status: 'completed' } } } });
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
+  assert.match(result.stderr, /ghost/);
+});
+
+test('refusal: a workflow patch after the freeze that changes a frozen scalar', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const result = refused(run, { workflow: { name: 'development', graph_hash: 'sha256:0000', nodes: retyped(graph) } });
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
+  assert.match(result.stderr, /graph_hash/);
+});
+
+test('write-state: an identical re-send of the frozen workflow block changes nothing', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const before = fs.readFileSync(run.state, 'utf8');
+  const result = write(run, { workflow: { name: 'development', graph_hash: graph.graph_hash, grammar_version: 1, nodes: retyped(graph) } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /^workflow/m, 'nothing under workflow is reported changed');
+  assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), unstamped(before));
+});
+
+test('refusal: a workflow block without nodes says where node updates go', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = refused(run, { workflow: { name: 'development' } });
+  assert.match(result.stderr, /^state-workflow-without-nodes\b/);
+  assert.match(result.stderr, /top-level `nodes` key/);
 });

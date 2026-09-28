@@ -66,3 +66,18 @@ test('an unknown verb is a usage failure, exit 2', () => {
   assert.equal(result.code, 2);
   assert.match(result.stderr, /^usage: unknown verb "frobnicate"/);
 });
+
+// The gate hook lets a pending run keep calling the engine only through the
+// verbs it lists by name, so a verb added to the entry point but not to that
+// list prompts the operator on every call. The usage message is the entry
+// point's own verb list; the hook's set must hold every one of them.
+test('every workflow.mjs verb is on the gate hook\'s engine allow-list', () => {
+  const usage = verb([]).stderr;
+  const verbs = usage.slice(usage.indexOf(':', usage.indexOf('a verb is required')) + 1).trim().split(/,\s*/);
+  assert.ok(verbs.length > 1, usage);
+  const hook = fs.readFileSync(path.join(ENGINE_DIR, '../../hooks/gate-lib.mjs'), 'utf8');
+  const entry = hook.match(/'skills\/workflow-engine\/scripts\/workflow\.mjs',\s*new Set\(\[([^\]]*)\]\)/);
+  assert.ok(entry, 'the workflow.mjs ENGINE_ENTRIES line is present in hooks/gate-lib.mjs');
+  const allowed = new Set([...entry[1].matchAll(/'([^']+)'/g)].map(match => match[1]));
+  for (const name of verbs) assert.ok(allowed.has(name), `gate-lib.mjs ENGINE_ENTRIES lacks the verb ${name}`);
+});

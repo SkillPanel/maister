@@ -16,7 +16,11 @@
  *                  (the request file, the gate index and the pending marker)
  *   prior-context  --state                                    the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
- *                  prompt — the one read-only verb over a run
+ *                  prompt — read-only over a run
+ *   gate-brief     --state, --node, optional --oneline        the gate brief:
+ *                  the closing summary, the node that runs next, the
+ *                  recommended option and the run's dashboard, kept inside a
+ *                  fixed budget — read-only over a run
  *   sync-plan      --plan                                     JSON on stdout
  *                  (the plan companion's progress markers set from the
  *                  markdown plan's checkboxes; a no-op without a companion)
@@ -63,11 +67,16 @@ const VERBS = {
   // hands them over under exactly these two spellings for the outbox verb it
   // publishes with.
   'run-complete': { module: 'complete.mjs', flags: ['state', 'outbox', 'dispatch-id'] },
-  // The only verb that reads a run and writes nothing. One flag, for
+  // One of the two verbs that read a run and write nothing. One flag, for
   // `write-state`'s reason: the context block and its `phase_summaries` are
   // found inside the state file, so there is nothing else a caller could name
   // and therefore nothing else a caller could name wrongly.
   'prior-context': { module: 'prior-context.mjs', flags: ['state'] },
+  // The other read-only verb. `--node` because a run has many gates and the
+  // state records no "current" one while a question is being composed; the
+  // gate is checked against the frozen graph, so a wrong id is refused rather
+  // than rendered. `--oneline` folds the brief for a driven gate request.
+  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline'] },
   // The plan, not the state file: the executor also runs outside an engine
   // run, and the companion it keeps in step sits beside the plan either way.
   // The run's `html_output` switch is looked up from there when a run exists.
@@ -76,6 +85,9 @@ const VERBS = {
 
 /** The flags that may be given more than once; every other flag is single-valued. */
 const REPEATABLE = new Set(['overlay']);
+
+/** The flags that take no value: present means true. Every other flag needs one. */
+const BOOLEAN = new Set(['oneline']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -111,6 +123,12 @@ function parseArgs(argv) {
     }
     const at = arg.indexOf('=');
     const name = at < 0 ? arg.slice(2) : arg.slice(2, at);
+    if (BOOLEAN.has(name)) {
+      if (at >= 0) throw new UsageError(`the flag --${name} takes no value`);
+      if (Object.hasOwn(flags, name)) throw new UsageError(`the flag --${name} was given more than once`);
+      flags[name] = true;
+      continue;
+    }
     let value = at < 0 ? undefined : arg.slice(at + 1);
     if (value === undefined) {
       value = argv[i + 1];
@@ -326,12 +344,16 @@ async function runWriteState(flags) {
   const write = entryOf(module, 'writeState', VERBS['write-state'].module);
   const result = write({ state: flags.state, patch });
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
+  // The freeze's startup banner, after the changed paths and a blank line, so a
+  // caller reading paths line by line stops at the blank and the operator
+  // reads the banner as it stands.
+  if (result.banner) process.stdout.write(`\n${result.banner}`);
   // A warning is not a refusal and must not read like one: the refusal contract
   // puts the code as the first stderr token, so these lines open with `warning:`
   // and name what did not happen. The dashboard is a projection of a write that
   // already landed, so the exit code does not move.
   for (const warning of result.warnings || []) {
-    process.stderr.write(`warning: dashboard-data.js was not written (${warning.code}: ${warning.message});`
+    process.stderr.write(`warning: ${warning.file ?? 'dashboard-data.js'} was not written (${warning.code}: ${warning.message});`
       + ' the state write is unaffected\n');
   }
   if (result.ok) return EXIT.OK;
@@ -433,6 +455,30 @@ async function runPriorContext(flags) {
 }
 
 /**
+ * Print the brief an operator reads at a gate.
+ *
+ * Reported like `prior-context` — stdout is the bytes a caller pastes into the
+ * question, a refusal is exit 1 with an empty stdout and the code first on
+ * stderr — with one addition: a drifted definition is a warning, not a
+ * refusal, so it goes to stderr beside a brief that still printed, or after
+ * the refusal's code when one follows it.
+ */
+async function runGateBrief(flags) {
+  if (!flags.state) throw new UsageError('gate-brief needs --state');
+  if (!flags.node) throw new UsageError('gate-brief needs --node');
+  const module = await loadModule(VERBS['gate-brief'].module);
+  const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
+  const result = render({ state: flags.state, node: flags.node, oneline: flags.oneline === true });
+  // A refusal's code comes first on stderr, and a drift warning is kept after
+  // it: a drifted run that also lacks a summary must still say it drifted.
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
+  if (!result.ok) return EXIT.REJECTED;
+  process.stdout.write(result.text);
+  return EXIT.OK;
+}
+
+/**
  * Set the plan companion's progress markers from the markdown plan.
  *
  * Reported like `validate` — the whole JSON result on stdout — because what a
@@ -460,6 +506,7 @@ const RUNNERS = {
   'gate-request': runGateRequest,
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
+  'gate-brief': runGateBrief,
   'sync-plan': runSyncPlan,
 };
 

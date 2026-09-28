@@ -13,9 +13,9 @@
  * replaces or inserts only those regions, and passes every other line through
  * untouched. Unknown keys and comments outside those regions therefore survive
  * by construction rather than by parser fidelity. Inside one of them they do
- * not: `workflow:` is re-emitted whole from the patch, so a comment or an
- * unknown child that block carried is dropped by that write. It is the one
- * region installed rather than edited, and `applyWorkflow` says why.
+ * not: `workflow:` is emitted whole from the freeze patch, so it carries only
+ * what that patch carried, and a later patch is refused unless identical to it.
+ * It is the one region installed rather than edited, and `applyWorkflow` says why.
  *
  * That preservation has one exception, and it is worth stating plainly because
  * it is the opposite of what "line-oriented" suggests. A file this engine
@@ -59,6 +59,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 // The reader lives beside the hooks because the hooks are its other caller. Any
 // emitted plugin tree must therefore carry `hooks/gate-lib.mjs` at this path,
 // whatever else a build does with the hook registrations.
@@ -119,6 +120,14 @@ const GATE_INDEX = 'gates/index.yml';
  */
 const DASHBOARD = 'dashboard-data.js';
 const DASHBOARD_TMP = 'dashboard-data.js.tmp';
+
+/**
+ * The dashboard viewer and where it ships: the plugin's own copy, found from
+ * this module's location so every install of the plugin — either variant —
+ * copies the page it was built with.
+ */
+const VIEWER = 'dashboard.html';
+const VIEWER_SOURCE = fileURLToPath(new URL('../../../orchestrator-framework/assets/dashboard.html', import.meta.url));
 
 /**
  * The two refusals the shared publish path can raise while publishing the
@@ -350,6 +359,10 @@ const WORKFLOW_CONTEXT = {
  * the file on disk is byte-for-byte what it was: every check that can refuse runs
  * before the rename, and the rename is the only thing that publishes a write.
  *
+ * A write that installs `workflow:` into a file that carried none — the freeze —
+ * also installs the dashboard viewer (see `installViewer`) and returns `banner`,
+ * the startup lines `workflow.mjs` prints after the paths.
+ *
  * `warnings` carries what went wrong *after* the write landed, which today is the
  * dashboard projection and nothing else. It is data rather than a stderr line
  * because no module under `scripts/lib/` performs stdio: every refusal already
@@ -372,6 +385,10 @@ export function writeState({ state, patch }) {
     // means to introduce: anything else in the candidate came from a value,
     // and a value that reaches column 0 is an injection.
     const allowed = new Set(topLevelKeys(doc.text()));
+    // Read before `apply`, which installs the block: the banner marks the
+    // write that starts a run, and a later write re-sending `workflow:` into a
+    // file that already carries one is not that write.
+    const hadWorkflow = doc.has('workflow');
     for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)))) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
@@ -392,13 +409,45 @@ export function writeState({ state, patch }) {
     // run might never have. A projection failure is a warning and never a refusal:
     // the state write already landed and un-publishing it is not on offer.
     project(state, text, now, changed, warnings);
-    return { ok: true, changed, errors: [], warnings };
+    const freeze = Boolean(patch.workflow) && !hadWorkflow;
+    if (freeze) installViewer(state, text, changed, warnings);
+    const result = { ok: true, changed, errors: [], warnings };
+    if (freeze) result.banner = banner(state, text, patch.workflow);
+    return result;
   } catch (err) {
     if (err instanceof Refusal) {
       return { ok: false, changed: [], errors: [{ code: err.code, message: err.message }], warnings };
     }
     throw err;
   }
+}
+
+/**
+ * The startup banner the freeze write returns, five lines, each ending in a
+ * newline.
+ *
+ * It is data for the same reason `warnings` is: no module under `scripts/lib/`
+ * performs stdio. It exists so the operator learns where a run lives from a
+ * channel that always renders — the freeze's own output — rather than from a
+ * paragraph the orchestrating model may or may not compose. The dashboard line
+ * reads the committed state, so an `html_output: false` the same patch carries
+ * is already in force.
+ */
+function banner(state, text, workflow) {
+  const runDir = path.dirname(path.resolve(state));
+  const doc = parseState(text);
+  const title = isPlainObject(doc.task) ? doc.task.title : undefined;
+  // Folded onto one line: an adopted file can carry a block-scalar title, and
+  // its line breaks would add lines to a banner that is five lines long.
+  const folded = title === undefined || title === null ? '' : String(title).replace(/\s*[\r\n]+\s*/g, ' ').trim();
+  const nodes = isPlainObject(workflow.nodes) ? Object.keys(workflow.nodes) : [];
+  return [
+    'Maister run started',
+    `Task: ${folded !== '' ? folded : '(untitled)'}`,
+    `Directory: ${runDir}`,
+    `Dashboard: ${htmlOutput(doc) ? path.join(runDir, 'dashboard.html') : 'none (html_output is false)'}`,
+    `First node: ${nodes.length ? nodes[0] : '(none)'}`,
+  ].map(line => `${line}\n`).join('');
 }
 
 /**
@@ -499,6 +548,31 @@ function project(state, text, now, changed, warnings) {
 }
 
 /**
+ * Copy the dashboard viewer into the run directory, at the freeze only.
+ *
+ * `dashboard-data.js` is regenerated on every write, but it is only data; the
+ * page that renders it is a static file the run directory needs once. The prose
+ * path installs it at initialization, which the engine path never reaches, so
+ * the freeze — the write that starts an engine run — installs it instead.
+ *
+ * Never over an existing file, a link included: an operator's own page or an
+ * older viewer they still open stays as it is. Skipped when the run has turned
+ * `html_output` off. A failure is a warning after a write that already landed,
+ * the same terms as the projection, and never a refusal.
+ */
+function installViewer(state, text, changed, warnings) {
+  if (!htmlOutput(parseState(text))) return;
+  const target = path.join(path.dirname(path.resolve(state)), VIEWER);
+  try {
+    fs.copyFileSync(VIEWER_SOURCE, target, fs.constants.COPYFILE_EXCL);
+    changed.push(VIEWER);
+  } catch (err) {
+    if (err && err.code === 'EEXIST') return;
+    warnings.push({ file: VIEWER, code: 'viewer-uncopied', message: err && err.message ? String(err.message) : String(err) });
+  }
+}
+
+/**
  * Whether this run wants the dashboard at all, defaulting to **true**.
  *
  * `html_output` is an operator option written by `intake` and merged by every
@@ -512,7 +586,7 @@ function project(state, text, now, changed, warnings) {
  * one-line flow map and a block map alike. `Doc.scalar` handles neither and is
  * deliberately not used here.
  */
-function htmlOutput(doc) {
+export function htmlOutput(doc) {
   const orchestrator = isPlainObject(doc.orchestrator) ? doc.orchestrator : null;
   if (!orchestrator) return true;
   const options = isPlainObject(orchestrator.options) ? orchestrator.options : null;
@@ -537,6 +611,18 @@ function htmlOutput(doc) {
  * Any failure at any step yields null and never fails the write.
  */
 function definitionOf(doc, runDir) {
+  const file = definitionPathOf(doc, runDir);
+  if (file === null) return null;
+  return readDefinition(file).doc ?? null;
+}
+
+/**
+ * The file `definitionOf` reads, or null — the same lookup order, returned as a
+ * path. Exported for `gate-brief`, which re-reads the definition a run froze and
+ * must find it exactly where the projection does: two copies of this order would
+ * let the brief and the dashboard read different files for one run.
+ */
+export function definitionPathOf(doc, runDir) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const root = projectRootOf(runDir);
   const source = typeof workflow.source === 'string' && workflow.source !== '' ? workflow.source : null;
@@ -553,8 +639,7 @@ function definitionOf(doc, runDir) {
   if (file === null && typeof workflow.name === 'string' && workflow.name !== '') {
     file = located(workflow.name, root);
   }
-  if (file === null) return null;
-  return readDefinition(file).doc ?? null;
+  return file;
 }
 
 /** The base definition `locateWorkflow` finds for a name, or null. */
@@ -572,7 +657,7 @@ function located(name, root) {
  * property of the run being written — a dispatched worker started elsewhere would
  * resolve another project's workflows.
  */
-function projectRootOf(runDir) {
+export function projectRootOf(runDir) {
   return path.resolve(runDir, '..', '..', '..', '..');
 }
 
@@ -1018,27 +1103,23 @@ function splitTopLevel(body) {
 }
 
 /**
- * Install or replace the whole `workflow:` block. `workflow:` and its `nodes:`
- * child are emitted together, always: a block present without its nodes is read
- * as a run awaiting an operator, which denies every write in the session.
+ * Install the whole `workflow:` block, once, at the freeze. `workflow:` and its
+ * `nodes:` child are emitted together, always: a block present without its
+ * nodes is read as a run awaiting an operator, which denies every write in the
+ * session.
  *
  * This is the one region the writer does not edit in place. The whole block is
- * re-emitted from the patch, so comments inside it and children the patch does
- * not carry are dropped rather than preserved — the module header's
- * preservation guarantee covers every other region, not this one. That is the
- * behaviour the callers want (a workflow block is installed once, from the
- * resolved graph) and it is stated here rather than left to be discovered.
+ * emitted from the patch, so comments inside it and children the patch does not
+ * carry are never preserved — the module header's preservation guarantee covers
+ * every other region, not this one. That is the behaviour the callers want (a
+ * workflow block is installed once, from the resolved graph) and it is stated
+ * here rather than left to be discovered.
  *
- * **The six frozen scalars are the exception**, and they are carried forward
- * from the document verbatim when the patch omits them. `graph_hash` is why:
- * it is what makes the frozen graph in state verifiable against the definition
- * it came from, and the envelope refuses to dispatch a run whose state records
- * none. A later patch that rewrites only `nodes` — the ordinary shape of a
- * re-freeze — would otherwise erase the run's identity silently rather than
- * fail, removing the check instead of failing it. Carried forward as the
- * *bytes* on the line rather than through the value emitter: `overlays` is a
- * flow sequence, and re-encoding a value this writer never parsed would quote
- * a sequence into a string.
+ * **After the freeze the block is refused rather than re-emitted**, unless the
+ * patch is identical to it, which is a no-op. `graph_hash` is what makes the
+ * frozen graph verifiable against the definition it came from, and the node
+ * entries are the run's progress; a re-emission from a patch would replace
+ * both with whatever the patch carried.
  *
  * Both key loops below emit `  ${key}:` raw, so both run the block-key guard
  * first. Without it a key carrying a newline did not produce a bad-looking
@@ -1051,20 +1132,32 @@ function applyWorkflow(doc, workflow, now, changed) {
   const nodes = workflow.nodes;
   if (!isPlainObject(nodes) || Object.keys(nodes).length === 0) {
     throw new Refusal('state-workflow-without-nodes',
-      'a workflow block is written only together with a non-empty nodes child');
+      'a workflow block is written only together with a non-empty nodes child, at the freeze; '
+      + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
   }
   if (!doc.has('task')) {
     throw new Refusal('state-workflow-without-task',
       'a workflow block cannot be installed into a state file that has no task block');
   }
+  // After the freeze the block is never rewritten. It is re-emitted whole from
+  // the patch, so a re-sent block did damage in every direction: a node left
+  // out was erased, a node re-typed as its bare kind went back to `pending` with
+  // its values and clocks gone, and a node no graph declares joined the ready
+  // set recorded however the patch said. A re-send identical to the file is
+  // the one harmless case, and it is a no-op.
+  if (doc.has('workflow')) {
+    const differences = frozenDifferences(doc, workflow);
+    if (differences.length) {
+      throw new Refusal('state-workflow-frozen',
+        `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — `
+        + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
+    }
+    return;
+  }
 
   const lines = ['workflow:'];
   for (const key of WORKFLOW_KEYS) {
-    if (!Object.hasOwn(workflow, key)) {
-      const held = doc.locate(['workflow', key]);
-      if (held && held.inline !== '') lines.push(`  ${key}: ${held.inline}`);
-      continue;
-    }
+    if (!Object.hasOwn(workflow, key)) continue;
     assertBlockKey(key);
     lines.push(`  ${key}: ${flow(workflow[key], `workflow.${key}`)}`);
   }
@@ -1080,6 +1173,51 @@ function applyWorkflow(doc, workflow, now, changed) {
   }
   doc.set(['workflow'], lines);
   changed.push('workflow');
+}
+
+/**
+ * How a `workflow` patch differs from the block the file already carries, one
+ * phrase per difference; empty when the patch says nothing the file does not.
+ * A scalar the patch leaves out is carried forward, so only the ones it sends
+ * are compared. A node entry is compared with its `pending` default filled in,
+ * because the freeze wrote it that way.
+ */
+function frozenDifferences(doc, workflow) {
+  let frozen;
+  try {
+    frozen = parseState(doc.text()).workflow;
+  } catch (err) {
+    throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
+  }
+  const held = isPlainObject(frozen) ? frozen : {};
+  const recorded = isPlainObject(held.nodes) ? held.nodes : {};
+  const differences = [];
+  const scalars = Object.keys(workflow).filter(key => key !== 'nodes' && !sameValue(workflow[key], held[key]));
+  if (scalars.length) differences.push(`changes ${scalars.join(', ')}`);
+  const dropped = Object.keys(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
+  if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
+  const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
+  if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
+  const rewritten = Object.keys(workflow.nodes).filter(id => Object.hasOwn(recorded, id)
+    && !sameValue({ status: 'pending', ...workflow.nodes[id] }, recorded[id]));
+  if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
+  return differences;
+}
+
+/**
+ * Value equality between a patch value and one read back from the file. Key
+ * order is not compared, and a null is the same as an absent key — the writer
+ * emits neither.
+ */
+function sameValue(a, b) {
+  if (a === null || a === undefined) return b === null || b === undefined;
+  if (Array.isArray(a)) return Array.isArray(b) && a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
+  if (isPlainObject(a)) {
+    if (!isPlainObject(b)) return false;
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    return [...keys].every(key => sameValue(a[key], b[key]));
+  }
+  return a === b;
 }
 
 /**
@@ -1258,12 +1396,18 @@ function seedSummaries(doc, contextKey, changed) {
  * prose is the one `seedSummaries` gives. A value the file already holds, or
  * one the patch supplies, is left alone: a later write of either is still the
  * whole-list replacement `applyScalars` makes it.
+ *
+ * `task_ids` is seeded beside them as an empty map. The engine path creates no
+ * task items — the state file and the dashboard are the run's tracker — and
+ * the empty map is how the contract records that. It is a merged map, so a
+ * later write of an entry lands inside it.
  */
 function seedSequences(doc, orchestrator, changed) {
-  for (const key of ['completed_phases', 'failed_phases']) {
+  const seeds = [['completed_phases', '[]'], ['failed_phases', '[]'], ['task_ids', '{}']];
+  for (const [key, empty] of seeds) {
     if (isPlainObject(orchestrator) && Object.hasOwn(orchestrator, key)) continue;
     if (doc.locate(['orchestrator', key])) continue;
-    doc.set(['orchestrator', key], [`  ${key}: []`]);
+    doc.set(['orchestrator', key], [`  ${key}: ${empty}`]);
     changed.push(`orchestrator.${key}`);
   }
 }

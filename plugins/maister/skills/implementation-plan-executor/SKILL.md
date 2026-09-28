@@ -110,7 +110,7 @@ For each wave:
    - Verify test results are acceptable.
    - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
 
-   Then, once every member of the wave has been processed, **sync the plan's HTML companion** — one call per wave, after the checkboxes above are marked:
+   Then, once every member of the wave has been processed, **sync the plan's HTML companion** — one call per wave, after the checkboxes above are marked, with the plugin root written as its absolute path rather than the variable (the workflow engine's invocation contract says why):
    ```
    node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs sync-plan --plan=<task path>/implementation/implementation-plan.md
    ```

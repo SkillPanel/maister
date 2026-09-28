@@ -38,9 +38,13 @@ node ${MAISTER_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs <verb> [flags]
 ```
 
 The plugin root is this plugin's own directory — the one holding
-`.claude-plugin/plugin.json` — and the variable naming it is set in the session
-environment. Use it as written; do not work the directory out and substitute a
-path of your own.
+`.claude-plugin/plugin.json`, two levels above the base directory the loader shows
+for this skill. Run the script by that absolute path, never through the variable:
+where a command here still reads `${MAISTER_PLUGIN_ROOT}`, write the directory in its
+place. The shell expands a variable from its own state, and that expansion is not
+the path the enforcement hook verified, so a call spelled through it is not
+recognised as this plugin's own and the operator is asked to approve it. A root
+holding a space goes in single quotes.
 
 No shebang and no executable bit — the script is handed to `node` explicitly, so
 a Windows checkout with no POSIX shell behaves exactly like any other. Node 20

@@ -6,8 +6,8 @@ per-node context in `with:` to whatever the node names.
 
 **What this file carries that the graph cannot.** The definition says which
 nodes exist, what they need, what guards them and what they declare. It says
-nothing about the operator questions asked *inside* a node, the executive
-summaries printed before a gate fires, the self-checks that decide whether a
+nothing about the operator questions asked *inside* a node, what each node
+writes into its closing summary for the gate brief, the self-checks that decide whether a
 node succeeded, or how many times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `development.yml` alone cannot
@@ -27,16 +27,16 @@ there would read like a grammar feature while being inert data the engine never
 consults. Eight nodes carry a budget; the rest carry none and re-drive nothing.
 
 **A skip does not cascade.** A node whose guard is false is marked skipped, and
-a skip satisfies everything downstream. That is why the closing gate of a
+a skip satisfies everything downstream. The skip is stamped in a patch that lands
+no later than the next executed node's `running` patch — earlier, or in that
+same patch — never after the run has moved on. That is why the closing gate of a
 conditional stretch repeats its stretch's guard: an unguarded gate would fire
 for a stretch that never ran.
 
 ## The phase numbers, and where they went
 
-Six gate questions name a phase number the graph does not have. The numbers are
-kept verbatim from the workflow's prose form, because equality against that form
-is the strongest thing anyone can assert about the two being the same workflow.
-This table is how a reader resolves one to the other:
+No gate question names a phase number; this table maps the prose form's phases
+to nodes:
 
 | Prose phase | Node | Closing gate |
 |---|---|---|
@@ -56,29 +56,9 @@ This table is how a reader resolves one to the other:
 | 13 | `user-docs` | `docs-approval` |
 | 14 | `finalization` | none — the workflow ends |
 
-A gate may name a destination that is then skipped. `tdd-red-approval` names
-phase 4, `specification-approval` names the audit, `verification-approval` names
-phase 12 and `e2e-approval` names phase 13 — every one of those destinations is
-guarded, and a guard may be false by the time its gate is asked. That is the
-normal shape of a guarded chain, not a defect in the question, but the operator
-must not have to discover it after answering.
-
-**Name the true destination before the gate fires, not after.** Immediately
-before asking one of those four gates, print one line stating which node will
-actually run next — evaluate the destination's guard against the values already
-declared by completed nodes, exactly as the ready set will, and say plainly when
-the destination the question names is going to be skipped:
-
-```
-Next: specification — phase 4 (UI mockups) is skipped, the gap analysis found mockups are not needed.
-```
-
-The line is printed by the node that closes into the gate, in the same breath as
-its executive summary where it has one, so the operator answers with it on
-screen. It changes no question text and no option: the `ask:` value stays
-verbatim, which is what keeps the equality assertion against the prose form
-intact, and the line carries what the fixed question cannot. When the guard is
-true, the line says so in the same shape and costs one sentence.
+The node after a gate may be skipped by its guard. The gate brief's `Next:` line
+names the node that actually runs, with the skipped ones listed, so no question
+and no node here names a destination (engine § Gates).
 
 ---
 
@@ -108,7 +88,9 @@ one line, and nothing in the prompt recorded that they had ever been thirteen. S
 the composing step is gone. Call `prior-context` with the run's state file **at
 each consuming delegate** — one call per prompt, in the turn that composes it —
 paste its stdout into the prompt, and leave it alone: trimming it, re-ordering it
-or tightening it is the same defect by hand. Re-using a rendering produced for an
+or tightening it is the same defect by hand. The stdout is pasted as text, whole:
+never slice it with `sed`, `head`, `tail` or the like, and never pass a file path
+or a saved copy in place of the pasted text. Re-using a rendering produced for an
 earlier delegate is not licensed however recent it looks: a summary written in
 between makes it stale, the prompt records nothing about when it was taken, and a
 prompt that happens to be current is current by timing rather than by
@@ -237,11 +219,12 @@ freeze persisted it. A non-terminal run that has no description is
    when the file or the key is absent) and `options.mockup_format` (default
    `html`, read later by `ui-mockups`). When `html_output` is false, skip the
    dashboard entirely — no dashboard asset, no data projection, no browser open.
-   Otherwise copy the dashboard asset to the task root and open it in the
-   operator's browser by the plain absolute path. On failure print the path;
+   Otherwise the freeze installed `dashboard.html` in the task root (see the
+   changed paths it reported) — copy nothing; open it in the operator's browser
+   by the plain absolute path, never a `file://` URL. On failure print the path;
    never block.
-4. **Print the startup banner** — the task description, the task directory and
-   the dashboard path, then say which node runs first.
+4. **Relay the startup banner the freeze printed** (engine Step 4) if it is not
+   already on screen; compose none.
 5. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation section, predefined and operator-added alike. Record
@@ -399,8 +382,9 @@ what the invocation described, false when none did.
 **Default under a non-terminal driver** (`scope-decisions`): each decision takes
 the option the analyzer recommended. A decision the analyzer left without a
 recommendation is not guessed at: it stays open, is written to
-`analysis/scope-clarifications.md` as open, and is named in the context line
-printed before `gap-approval`, which is where an operator reaches it.
+`analysis/scope-clarifications.md` as open, and is recorded as an `open:` risk
+in this node's summary, which the gate brief renders at `gap-approval` — where
+an operator reaches it.
 
 **Seed the optional-verification defaults** from the characteristics: a UI-heavy
 task seeds both browser tests and user documentation on; a task that creates new
@@ -411,11 +395,12 @@ keys are `orchestrator.options.e2e_enabled` and
 declared bools that guard the two stretches are emitted later, by
 `verification-options`.
 
-**Executive summary before the gate.** Read `analysis/gap-analysis.md` and
-extract: the task type detected, the risk level, which characteristics are
-enabled — the TDD stretches, the mockups, browser tests, user docs — and the
-scope decisions made, if any. Print that summary immediately before
-`gap-approval` fires, so the operator answers with it on screen.
+**Gate brief content.** Read `analysis/gap-analysis.md` and write into this
+node's closing `node_summaries` entry: the task type detected, the risk level
+and which characteristics are enabled — the TDD stretches, the mockups, browser
+tests, user docs — in `summary`; the scope decisions made, if any, in
+`decisions`. The `gap-approval` question is the gate brief rendered from it
+(engine § Gates).
 
 **Recovery budget**: 2 attempts — re-analyze with the clarifications folded in
 on the second, and ask the operator when the second also comes back thin.
@@ -430,15 +415,17 @@ each with `node: gap-analysis` on the entry.
 
 ## `gap-approval`
 
-A gate. Ask the question the definition carries, record the answer, and stop the
-run on the stop option — nothing after a stopped node ever becomes ready.
+A gate. Ask it as engine § Gates says — the gate brief, then the definition's
+`ask:` — record the answer, and stop the run on the stop option — nothing after
+a stopped node ever becomes ready.
 
 **Its question is deliberately neutral, and that is a recorded divergence.** The
 prose form routes three ways here by reading the task characteristics and names
 the destination in the question. The graph has no routing construct and needs
 none: the destination is already fixed by the guards on the four nodes that
-follow, so the gate asks only whether to continue at all. The executive summary
-`gap-analysis` printed carries the detail the routed question used to carry.
+follow, so the gate asks only whether to continue at all. The gate brief carries
+the detail the routed question used to carry: the `gap-analysis` summary, and a
+`Next:` line naming the node that actually runs.
 
 ---
 
@@ -458,6 +445,13 @@ Record the test file, the command that runs it and the failing output in
 > defect describes rather than for a missing import or a typo? A test failing
 > for the wrong reason passes `tdd-green` for the wrong reason too.
 
+**Gate brief content.** Read `implementation/tdd-red-gate.md` and write into
+this node's closing `node_summaries` entry: the test file, the command that runs
+it and the failure it produced, tied to the defect it reproduces, in `summary`;
+a failure whose reason is in doubt, or a stretch skipped because no failing run
+could be produced, in `risks`. The `tdd-red-approval` question is the gate brief
+rendered from it (engine § Gates).
+
 **Recovery budget**: 2 attempts — rewrite the test on the second, and when the
 second also cannot produce a failing run, skip the TDD stretch and document why
 in the gate artifact rather than proceeding on a test that proves nothing.
@@ -470,11 +464,8 @@ A gate, guarded by the same condition as the node before it. When no reproducibl
 defect was found, this gate is skipped along with `tdd-red` and the run continues
 to the mockup stretch without asking.
 
-Its question names phase 4, whose node is itself guarded. The mockup guard is
-already settled here — `gap-analysis` declared it two nodes ago — so print the
-true-destination line before asking, per § `The phase numbers, and where they
-went`: when mockups are not needed, the operator is told that answering continue
-goes to the specification, not to phase 4.
+The node after it, `ui-mockups`, is itself guarded. The gate brief's `Next:` line
+names the node that actually runs.
 
 ---
 
@@ -512,16 +503,17 @@ No revise round is taken, the node continues straight to the gate, and
 `mockup-approval` — answered from outside — is where an operator who wants
 changes says so.
 
-**Print the gallery pointer immediately before the gate fires.** The gate's own
-question is authoring-time constant — it is covered by the graph hash, so it
-cannot interpolate anything — and this is the compensating behaviour, which is a
+**Gate brief content: the gallery pointer.** The gate's own question is
+authoring-time constant — it is covered by the graph hash, so it cannot
+interpolate anything — and this is the compensating behaviour, which is a
 recorded divergence from the prose form's interpolated question. When the studio
-reports a live gallery address, print it verbatim in the line before the gate,
-with the navigation the operator has: the gallery grid, each screen, previous
-and next, and back to the grid. **When the companion never came up** — a
-terminal rendering, or a browser or port failure — say so plainly and reference
-the saved mockup files by path instead. Never print an address that was never
-served.
+reports a live gallery address, write it verbatim into this node's closing
+`summary`, with the navigation the operator has: the gallery grid, each screen,
+previous and next, and back to the grid. The gate brief renders it in the
+`mockup-approval` question. **When the companion never came up** — a terminal
+rendering, or a browser or port failure — say so plainly in the summary and
+reference the saved mockup files by path instead. Never write an address that
+was never served.
 
 **Companion-server teardown.** The gate is where the operator actually reviews
 the screens, and it fires *after* this node returns, so the server must still be
@@ -550,8 +542,8 @@ not needed, this gate is skipped along with `ui-mockups` and the run continues t
 the specification without asking.
 
 **Its question drops the interpolated gallery address, and that is a recorded
-divergence.** The address is printed by `ui-mockups` in the line immediately
-before this gate fires, for the reason given in that node's section: a gate
+divergence.** The address is in the `ui-mockups` summary, which the gate brief
+renders in this gate's question, for the reason given in that node's section: a gate
 question is frozen into the graph hash and cannot carry a value that differs per
 run.
 
@@ -577,8 +569,9 @@ it: it settled the technical questions by having none to ask.
 **Default under a non-terminal driver** (`technical-questions`): the recommended
 approach is the chosen one, and the specification is written against it. When no
 approach is recommended, none is invented: the choice stays open, is written to
-`analysis/technical-clarifications.md` as open, and is named in the context line
-printed before `specification-approval`.
+`analysis/technical-clarifications.md` as open, and is recorded as an `open:`
+risk in this node's summary, which the gate brief renders at
+`specification-approval`.
 
 **Part B — requirements gathering (inline).** Ask the specification questions,
 with the count adapted to how much the invocation already said: a brief
@@ -632,11 +625,12 @@ option, so the audit runs. The bool and `orchestrator.options.spec_audit_enabled
 are recorded exactly as an answered question records them, and a supplied audit
 input still settles it without a default being taken at all.
 
-**Executive summary before the gate.** Read `implementation/spec.md` and
-extract: the specification title, the scope boundaries — what is included and
-what is excluded — how many key requirements it carries, which architecture
-approach was chosen if any, and the assumptions it makes. Print that summary
-immediately before `specification-approval` fires.
+**Gate brief content.** Read `implementation/spec.md` and write into this node's
+closing `node_summaries` entry: the specification title, the scope boundaries —
+what is included and what is excluded — and how many key requirements it carries
+in `summary`; the architecture approach chosen, if any, in `decisions`; the
+assumptions it makes in `risks`. The `specification-approval` question is the
+gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: 2 attempts — regenerate the specification on the second
 with the gaps named in the context.
@@ -654,14 +648,11 @@ companion path under the specification entry's `artifacts[].html`.
 
 ## `specification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
-Its question names the audit, whose node is guarded by the boolean
-`specification` just emitted — settled, so print the true-destination line before
-asking, per § `The phase numbers, and where they went`. When the operator
-declined the audit, the operator is told before answering that continue goes to
-planning.
+The node after it, `spec-audit`, is guarded by the boolean `specification` just
+emitted. The gate brief's `Next:` line names the node that actually runs.
 
 ---
 
@@ -675,17 +666,24 @@ inline review, because it checks the spec's claims against the codebase instead
 of trusting them — and it runs before any code exists, so it audits the spec
 itself, not an implementation.
 
-The auditor returns a verdict — pass, pass with concerns, or fail — issue counts
-by severity, and the findings themselves. Write all of it to
-`verification/spec-audit.md` and record the verdict in state.
+The auditor's prompt names its report path `verification/spec-audit.md`, and
+the auditor writes the report there: a verdict — pass, pass with concerns, or
+fail — issue counts by severity, and the findings themselves. The report is the
+auditor's. If the auditor returns its report as text and the file does not
+exist, write that returned text to the path verbatim, once; never append to the
+report, edit it, annotate it or resolve its findings. Record the verdict in
+state.
+
+This node asks the operator nothing — no question about findings, no revise round; the following gate is the operator's moment.
 
 A failing verdict does not end the run on its own. It is what the operator reads
 at the gate, and the gate's stop option is the route out.
 
-**Executive summary before the gate.** Read `verification/spec-audit.md` and
-extract: the overall verdict, the issue counts by severity, and the top one or
-two critical findings when there are any. Print that summary immediately before
-`spec-audit-approval` fires.
+**Gate brief content.** Read `verification/spec-audit.md` and write into this
+node's closing `node_summaries` entry: the overall verdict and the issue counts
+by severity in `summary`; the top one or two critical findings, when there are
+any, in `risks`. The `spec-audit-approval` question is the gate brief rendered
+from it (engine § Gates).
 
 **Recovery budget**: none — an audit that returns is an audit, whatever its
 verdict.
@@ -723,11 +721,11 @@ If the planner returns without `implementation/implementation-plan.md`, or with
 groups that leave a specification requirement uncovered, re-invoke it with the
 missing context rather than writing the plan yourself.
 
-**Executive summary before the gate.** Read
-`implementation/implementation-plan.md` and extract: how many task groups it
-carries, the total number of implementation steps, the key dependencies between
-groups, and the estimated complexity. Print that summary immediately before
-`planning-approval` fires.
+**Gate brief content.** Read `implementation/implementation-plan.md` and write
+into this node's closing `node_summaries` entry: how many task groups it
+carries, the total number of implementation steps and the estimated complexity
+in `summary`; the key dependencies between groups in `decisions`. The
+`planning-approval` question is the gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 gaps named in the context.
@@ -741,8 +739,8 @@ entry's `artifacts[].html`.
 
 ## `planning-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -770,11 +768,11 @@ companion still showing outstanding work after a complete run is a stale
 projection rather than a finding. Then record what
 landed: the groups completed, the files changed and the incremental test results.
 
-**Executive summary before the gate.** Read `implementation/work-log.md` and
-this node's own summary and extract: the task groups completed, the files
-changed, the test results from the incremental runs, and any known issues or
-deferred items. Print that summary immediately before
-`implementation-approval` fires.
+**Gate brief content.** Read `implementation/work-log.md` and write into this
+node's closing `node_summaries` entry: the task groups completed, the files
+changed and the test results from the incremental runs in `summary`; any known
+issues or deferred items in `risks`. The `implementation-approval` question is
+the gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: 5 attempts — the widest in the run, because the failures
 here are ordinary and local: fix a syntax error, fix an import, fix a failing
@@ -789,12 +787,8 @@ the entry.
 
 ## `implementation-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
-
-Its question names verification, but the node that follows it is `tdd-green`,
-which is guarded. When no reproducible defect was found, that stretch skips and
-the run reaches the verification options directly.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
 ---
 
@@ -811,6 +805,13 @@ gate so the two read as one piece of evidence.
 
 > **SELF-CHECK**: is this the same test, run the same way, as the red gate
 > recorded? A different test passing proves nothing about the defect.
+
+**Gate brief content.** Read `implementation/tdd-green-gate.md` and write into
+this node's closing `node_summaries` entry: the test that now passes, the command
+and the red-to-green pair of outcomes in `summary`; any other test the change
+turned red, or a doubt that the passing run exercises the defect, in `risks`.
+The `tdd-green-approval` question is the gate brief rendered from it (engine
+§ Gates).
 
 **Recovery budget**: 3 attempts — when the test still fails, return to the
 implementation rather than adjusting the test. A test edited until it passes is
@@ -832,24 +833,30 @@ Executed inline, writes no files, and decides both optional verification
 stretches of the run. Its two declared boolean outputs are what the later `when`
 guards read.
 
-**Print the verification plan first** — the obligatory checks that always run,
-the recommended reviews with their current setting, and the two conditional
-stretches with the reason each is on or off. The operator adjusts what they see;
-a question asked without the plan on screen asks about nothing.
+**The verification plan is the first question's text** — the obligatory checks
+that always run, the recommended reviews with their current setting, and the two
+conditional stretches with the reason each is on or off, written into the
+question above its options rather than printed ahead of it. The operator adjusts
+what they see; a question that does not carry the plan asks about nothing.
 
-Then ask three questions — the seventh, eighth and ninth of the ten:
+Ask three questions — the seventh, eighth and ninth of the ten:
 
 1. **Which standard verifications to run.** This one carries the multi-choice
    flag (see `gate.schema.json`), with the four reviews — code review, pragmatic
-   review, reality check and production readiness — all pre-selected. A gate
+   review, reality check and production readiness — each labelled
+   `(Recommended)`, and the question text carries the line
+   `Recommended: all four reviews`. A gate
    cannot express it: a gate's options map option ids to continue or stop, and
    this question picks a subset rather than a route. The generated Copilot
    variant additionally rewrites a multi-choice question into a run of
    single-choice ones, which is a second reason it belongs in a node.
-2. **Browser verification on or off**, recommended on. Its answer is this node's
+2. **Browser verification on or off.** The option labelled `(Recommended)` is
+   the seed `gap-analysis` wrote to `orchestrator.options.e2e_enabled` — on
+   when it is true, off when it is false or absent. Its answer is this node's
    `browser_tests_enabled` output.
-3. **User documentation on or off**, recommended on. Its answer is this node's
-   `user_docs_enabled` output.
+3. **User documentation on or off.** The option labelled `(Recommended)` is
+   the seed `gap-analysis` wrote to `orchestrator.options.user_docs_enabled`,
+   by the same rule. Its answer is this node's `user_docs_enabled` output.
 
 **Skip a question whose answer was already supplied.** The browser-tests and
 user-docs inputs are tri-state: absent means ask, and `yes` or `no` means the
@@ -858,10 +865,10 @@ characteristics are defaults for the recommendation, not answers — an operator
 is there, and the operator answers.
 
 **Default under a non-terminal driver** (`standard-verifications`): the
-pre-selected set, which is all four reviews.
+recommended set, which is all four reviews.
 
-**Default under a non-terminal driver** (`browser-tests`): the recommendation
-this node just printed, which is the seed `gap-analysis` wrote — on for a
+**Default under a non-terminal driver** (`browser-tests`): the option this
+node labels `(Recommended)`, which is the seed `gap-analysis` wrote — on for a
 UI-heavy task, off otherwise. With nobody to answer, the recommendation is the
 answer, and it is recorded as this node's `browser_tests_enabled` output.
 
@@ -916,24 +923,38 @@ severity, with the file and line for each and whether it is fixable
 automatically or needs a hand.
 
 **The fix loop — the tenth of the ten in-node questions.** When the verdict is
-anything but a clean pass, present the critical and warning issues as a numbered
-list and ask which to fix: all the fixable ones, a chosen subset, or none.
+anything but a clean pass, ask it as one single-select. The question text is the numbered critical and
+warning list, one line per issue in the shape
+`N. [severity] path:line — description (fixable | needs a hand)`, followed by
+`Which to fix?`. The options are **"Fix all fixable (Recommended)"** and
+**"None — proceed as is"**; a subset is chosen by typing its numbers through
+Other. When nothing on the list is fixable, the `(Recommended)` label moves to
+"None — proceed as is".
 Apply the chosen fixes, log each one, and re-enable the full test suite because
-code changed. Record the applied fixes as `verification_context.fixes_applied`
-and raise `verification_context.reverify_count` by one **before** re-invoking
-the verifier: those two keys are what tell the verifier it is running after
-fixes, and a re-run that cannot see them rewrites nothing, leaving the pre-fix
-report standing. Then ask whether to re-run the verification; a yes re-invokes
-the verifier and returns to the breakdown. Both answers continue the run, which is
-why this is a node question rather than a gate.
+code changed. Record the applied fixes as `verification_context.fixes_applied`.
+After "None — proceed as is" nothing was fixed and nothing changed, so there
+is nothing to re-verify: ask no re-run question and continue to the gate. When
+at least one fix was applied, ask one single-select, `Re-run verification?`,
+with the options
+**"Re-verify now (Recommended)"** and **"No — continue to the gate"**. Only on
+a yes, raise `verification_context.reverify_count` by one and re-invoke the
+verifier, which returns to the breakdown; a no leaves the count alone, so it
+counts only re-runs that happened. The recorded fixes and the raised count are
+what tell the verifier it is running after fixes, and a re-run that cannot see
+them rewrites nothing, leaving the pre-fix report standing. Both answers
+continue the run, which is why this is a node question rather than a gate.
 
-**Default under a non-terminal driver** (`verification-fix-loop`): fix every
-fixable issue, re-verify once, then continue to the gate. The re-run follows the
-same rule as an answered one — `fixes_applied` recorded and `reverify_count`
-raised before the verifier is re-invoked — and one re-verification is the whole
+**Default under a non-terminal driver** (`verification-fix-loop`): the
+recommended option — fix every fixable issue and re-verify once, then continue to the gate; with
+nothing fixable, proceed as is and continue to the gate without re-verifying. The default follows
+the same order as an answered loop: apply the fixes, record `fixes_applied`,
+then, when a fix was applied — the recommended answer to the re-run
+question — raise `reverify_count`
+by one and re-invoke the verifier. One re-verification is the whole
 budget, because a loop nobody can stop is not a loop. An issue that remains
-critical after it is **not** proceeded past: it is named in the context line
-printed before `verification-approval`, which is where an operator answers.
+critical after it is **not** proceeded past: it is recorded as an `open:` risk
+in this node's summary, which the gate brief renders at `verification-approval`
+— where an operator answers.
 
 **Exit conditions**: no critical issue remains; or the operator explicitly chose
 to proceed as-is; or the budget below is exhausted, at which point ask once
@@ -947,10 +968,11 @@ answered from outside is such an answer; a default is not.
 > the next gate against it. Recompile it rather than leaving a side file to
 > carry the truth.
 
-**Executive summary before the gate.** Read
-`verification/implementation-verification.md` and extract: the total issues
-found, how many were fixed, and how many remain by severity. Print that summary
-immediately before `verification-approval` fires.
+**Gate brief content.** Read `verification/implementation-verification.md` and
+write into this node's closing `node_summaries` entry: the total issues found,
+how many were fixed and how many remain by severity in `summary`; each critical
+issue still open as an `open:` risk. The `verification-approval` question is the
+gate brief rendered from it (engine § Gates).
 
 **Node summary**: no phase key. Register `verification/implementation-verification.md`
 under `node_summaries.verification.artifacts`, with its companion path as the
@@ -965,14 +987,12 @@ over, before asking the operator how to proceed.
 
 ## `verification-approval`
 
-A gate, unguarded. Ask the question the definition carries, record the answer,
-and stop the run on the stop option.
+A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
+definition's `ask:` — record the answer, and stop the run on the stop option.
 
-Its question names phase 12, whose node is guarded by a boolean
-`verification-options` settled before the verification node ran, so print the
-true-destination line before asking, per § `The phase numbers, and where they
-went`. When browser verification was declined, the line names the user
-documentation instead — or `finalization`, when that was declined as well.
+The node after it, `e2e-verification`, is guarded by a boolean
+`verification-options` settled before the verification node ran. The gate
+brief's `Next:` line names the node that actually runs.
 
 ---
 
@@ -995,9 +1015,10 @@ after the other, which the linear chain already guarantees — but never dispatc
 the two delegate calls in one message even when both stretches are enabled.
 Concurrent dispatch corrupts both sessions.
 
-**Executive summary before the gate**: not required here — the gate's own
-question is a short confirmation and the report is registered on the dashboard
-before it fires.
+**Gate brief content.** Write into this node's closing `node_summaries` entry
+the verdict and the scenario counts — run, passed, failed — in `summary`, and
+each failed scenario in `risks`. The `e2e-approval` question is the gate brief
+rendered from it (engine § Gates).
 
 **Recovery budget**: none — a browser session that cannot be established is
 reported as a finding rather than retried blindly.
@@ -1010,10 +1031,8 @@ A gate, guarded by the same condition as the node before it. When browser
 verification was declined, this gate is skipped along with `e2e-verification` and
 the run continues to the user documentation without asking.
 
-Its question names phase 13, whose node is guarded by a boolean already settled,
-so print the true-destination line before asking, per § `The phase numbers, and
-where they went`: when the user documentation was declined, continue goes to
-`finalization`.
+The node after it, `user-docs`, is guarded by a boolean already settled. The gate
+brief's `Next:` line names the node that actually runs.
 
 **The prose form's "return to the phase 12 gate" is dropped, and that is a
 recorded divergence.** A `needs` graph is acyclic and a back-edge fails
@@ -1037,6 +1056,12 @@ anything new. When the browser stretch was skipped, omit the directory entirely
 rather than passing an empty path.
 
 The guide is written to `documentation/user-guide.md` and nowhere else.
+
+**Gate brief content.** Write into this node's closing `node_summaries` entry
+the guide's path, the flows it covers and whether its screenshots were reused
+from the browser stretch or captured fresh in `summary`; each flow the
+generator could not document in `risks`. The `docs-approval` question is the
+gate brief rendered from it (engine § Gates).
 
 **Recovery budget**: none — a guide the generator could not complete is reported
 rather than retried.
@@ -1068,9 +1093,19 @@ workflow as a sub-run, so there is no embedded case to guard against.
    the verification verdict with any issues left open, and the risk level the
    gap analysis recorded.
 3. **Set the task status to completed**.
-4. **Guide the next steps**: a commit message covering the change, then review,
-   pull request and deployment as the project's own process has them. Suggest a
-   fresh session for whatever comes next rather than continuing in this one.
+4. **Guide the next steps**, which for this workflow are its own four: a commit
+   message covering the change; a review of the diff; a pull request; and
+   deployment as the project's own process has it. Suggest a fresh session for
+   whatever comes next rather than continuing in this one.
+
+**Print first, then close.** The executive summary and then every next step
+from step 4 — all four of this workflow's own, then the fresh-session suggestion,
+none dropped or merged — are printed as ordinary text **before** the engine's
+`run-complete` call, and they are the last thing printed ahead of it. Only then
+call `run-complete`. Its marker is the last line of its stdout; after the call,
+print nothing but that line, copied exactly as the verb printed it. Never call
+`run-complete` first and summarize after it, and never type a marker the verb did
+not print.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out
