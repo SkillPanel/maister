@@ -1099,11 +1099,24 @@ function applyWorkflow(doc, workflow, now, changed) {
   const nodes = workflow.nodes;
   if (!isPlainObject(nodes) || Object.keys(nodes).length === 0) {
     throw new Refusal('state-workflow-without-nodes',
-      'a workflow block is written only together with a non-empty nodes child');
+      'a workflow block is written only together with a non-empty nodes child, at the freeze; '
+      + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
   }
   if (!doc.has('task')) {
     throw new Refusal('state-workflow-without-task',
       'a workflow block cannot be installed into a state file that has no task block');
+  }
+  // The block is re-emitted whole from the patch, so a patch that leaves a
+  // frozen node out erases it: a status update sent as `workflow.nodes` once
+  // left a run holding a one-node graph, found only when a gate named a node
+  // the state no longer had. A re-freeze carries every frozen node or none.
+  if (doc.has('workflow')) {
+    const dropped = Object.keys(frozenNodes(doc)).filter(id => !Object.hasOwn(nodes, id));
+    if (dropped.length) {
+      throw new Refusal('state-workflow-nodes-dropped',
+        `this workflow patch would drop the frozen node(s) ${dropped.join(', ')}; the freeze is written once — `
+        + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
+    }
   }
 
   const lines = ['workflow:'];
@@ -1128,6 +1141,15 @@ function applyWorkflow(doc, workflow, now, changed) {
   }
   doc.set(['workflow'], lines);
   changed.push('workflow');
+}
+
+/** The node entries the file already carries, read with the hook's own reader. */
+function frozenNodes(doc) {
+  try {
+    return scanState(doc.text()).nodes ?? {};
+  } catch (err) {
+    throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
+  }
 }
 
 /**

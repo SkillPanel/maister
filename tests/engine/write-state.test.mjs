@@ -99,8 +99,9 @@ test('banner: with html_output false the dashboard line says there is none', t =
 
 test('banner: a later write that re-sends the workflow block prints no second banner', t => {
   const run = scratch(t);
-  freeze(run);
-  const result = write(run, { workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } } });
+  const graph = freeze(run);
+  const nodes = Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  const result = write(run, { workflow: { name: 'development', nodes } });
   assert.doesNotMatch(result.stdout, /Maister run started/);
 });
 
@@ -342,4 +343,22 @@ test('refusal: a summary key that would spill onto its own lines', t => {
   freeze(run);
   const result = refused(run, { phase_summaries: { 'design: draft': { summary: 'x' } } });
   assert.match(result.stderr, /^state-patch-invalid\b/);
+});
+
+test('refusal: a workflow patch after the freeze that drops frozen nodes', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  const result = refused(run, { workflow: { name: 'development', nodes: { analysis: { kind: 'direct', status: 'completed' } } } });
+  assert.match(result.stderr, /^state-workflow-nodes-dropped\b/);
+  assert.match(result.stderr, /approval/, 'the message names the nodes the patch would drop');
+  assert.match(result.stderr, /top-level `nodes` key/);
+});
+
+test('refusal: a workflow block without nodes says where node updates go', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = refused(run, { workflow: { name: 'development' } });
+  assert.match(result.stderr, /^state-workflow-without-nodes\b/);
+  assert.match(result.stderr, /top-level `nodes` key/);
 });
