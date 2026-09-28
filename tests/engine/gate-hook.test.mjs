@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { ROOT } from '../helpers.mjs';
-import { engineInvocation } from '../../plugins/maister/hooks/gate-lib.mjs';
+import { engineInvocation, resolvePath } from '../../plugins/maister/hooks/gate-lib.mjs';
 
 // The gate hook answers for the engine's own shell calls by reading the
 // command text, and an answer is an allow that skips the operator's prompt. So
@@ -18,9 +18,11 @@ const PLUGIN_ROOT = fs.realpathSync(path.join(ROOT, 'plugins/maister'));
 process.env.CLAUDE_PLUGIN_ROOT = PLUGIN_ROOT;
 delete process.env.MAISTER_PLUGIN_ROOT;
 
-const ENGINE = '${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs';
+// Only the literal plugin path is this plugin's call. The root variable is
+// expanded by the shell from its own state, which the hook never sees.
 const ABSOLUTE = `${PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs`;
-const UMBRELLA = '${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs';
+const ENGINE = ABSOLUTE;
+const UMBRELLA = `${PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs`;
 const STATE = '.maister/tasks/development/2026-09-28-sample/orchestrator-state.yml';
 const bash = command => engineInvocation({ tool: 'Bash', kind: 'opaque', target: command });
 
@@ -42,18 +44,13 @@ const CASES = [
     '{}',
     'JSON',
   ].join('\n') },
-  { name: 'the unbraced root variable', verb: 'write-state', command: [
-    'node $CLAUDE_PLUGIN_ROOT/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/x.yml <<\'JSON\'',
-    '{}',
-    'JSON',
-  ].join('\n') },
   { name: 'a heredoc with a trailing blank line', verb: 'write-state', command: `node ${ENGINE} write-state --state=${STATE} <<'JSON'\n{}\nJSON\n` },
   { name: 'a CRLF heredoc, read by the shell with a CR in its tag', verb: 'write-state', command: `node ${ENGINE} write-state --state=${STATE} <<'JSON'\r\n{}\r\nJSON\r\n` },
   { name: 'gate-brief with --state and --node', verb: 'gate-brief', command: `node ${ENGINE} gate-brief --state=${STATE} --node=gap-approval` },
   { name: 'gate-brief --oneline', verb: 'gate-brief', command: `node ${ENGINE} gate-brief --state=${STATE} --node=gap-approval --oneline` },
   { name: 'sync-plan with the plan path', verb: 'sync-plan', command: `node ${ENGINE} sync-plan --plan=.maister/tasks/development/2026-09-28-sample/implementation/implementation-plan.md` },
   { name: 'prior-context with an absolute state path', verb: 'prior-context', command: `node ${ABSOLUTE} prior-context --state=/Users/x/.maister/tasks/research/2026-01-05-a/orchestrator-state.yml` },
-  { name: 'resolve with a definition under the root variable', verb: 'resolve', command: `node ${ENGINE} resolve --definition=\${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/workflows/development.yml` },
+  { name: 'resolve with a definition under the plugin path', verb: 'resolve', command: `node ${ENGINE} resolve --definition=${PLUGIN_ROOT}/skills/workflow-engine/workflows/development.yml` },
   { name: 'a state path with a space, single-quoted', verb: 'write-state', command: [
     `node ${ENGINE} write-state --state='/tmp/my run/orchestrator-state.yml' <<'JSON'`,
     '{}',
@@ -122,6 +119,17 @@ const CASES = [
   { name: 'a printf producer', command: `printf '{}' | node ${ENGINE} write-state --state=/tmp/x.yml` },
   { name: 'an echo producer with two arguments', command: `echo '{}' '{}' | node ${ENGINE} write-state --state=/tmp/x.yml` },
   { name: 'an or-list after an echo', command: `echo '{}' || node ${ENGINE} write-state --state=/tmp/x.yml` },
+  // The plugin-root variable, in every spelling: the shell expands it from its
+  // own state (IFS, an earlier export, PowerShell's own variables), so the path
+  // it runs is not the path the hook would verify.
+  { name: 'the braced root variable', command: 'node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/x.yml' },
+  { name: 'the unbraced root variable', command: 'node $CLAUDE_PLUGIN_ROOT/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/x.yml <<\'JSON\'\n{}\nJSON' },
+  { name: 'the Copilot root variable, braced', command: 'node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs write-state --state=/tmp/x.yml' },
+  { name: 'the Copilot root variable, bare', command: 'node $MAISTER_PLUGIN_ROOT/skills/umbrella/scripts/umbrella.mjs validate --root=/tmp/w' },
+  { name: 'the root variable inside a flag value', command: `node ${ENGINE} resolve --definition=\${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/workflows/development.yml` },
+  // The verb is the first word after the script, as the engine reads it.
+  { name: 'a flag before the verb', command: `node ${ENGINE} --state=/tmp/x.yml write-state` },
+  { name: 'a spaced flag that swallows the listed verb', command: `node ${ENGINE} --state write-state gate-request` },
   { name: 'a verb the engine does not own', command: `node ${ENGINE} rm --state=/tmp/x.yml` },
   { name: 'a newline inside a single-quoted flag', command: `node ${ENGINE} write-state --state='/tmp/x\ntouch MARK'` },
 ];
@@ -182,7 +190,9 @@ test('gate hook: every recognised command runs as exactly one engine call in eac
       spawnSync(shell, ['-c', concrete], {
         cwd: scratch,
         input: '',
-        env: { PATH: `${bin}:/usr/bin:/bin`, NODE_LOG: log, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, HOME: scratch },
+        // The root variable is absent here on purpose: an accepted command
+        // has to run the plugin's script without the shell's help.
+        env: { PATH: `${bin}:/usr/bin:/bin`, NODE_LOG: log, HOME: scratch },
       });
       const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
       const single = calls.length === 1 && !fs.existsSync(mark) && calls[0].startsWith(`${PLUGIN_ROOT}/skills/`);
@@ -190,4 +200,58 @@ test('gate hook: every recognised command runs as exactly one engine call in eac
     }
   }
   assert.deepEqual(verdicts, []);
+});
+
+test('gate hook: a plugin path holding a space is recognised single-quoted', t => {
+  const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister gate ')));
+  t.after(() => {
+    process.env.CLAUDE_PLUGIN_ROOT = PLUGIN_ROOT;
+    fs.rmSync(parent, { recursive: true, force: true });
+  });
+  const root = path.join(parent, 'plugin');
+  fs.mkdirSync(path.join(root, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-plugin', 'plugin.json'), '{}');
+  process.env.CLAUDE_PLUGIN_ROOT = root;
+  const script = `${root}/skills/workflow-engine/scripts/workflow.mjs`;
+  assert.deepEqual(bash(`node '${script}' write-state --state=/tmp/x.yml`), { root, script: 'skills/workflow-engine/scripts/workflow.mjs', verb: 'write-state' });
+  assert.equal(bash(`node ${script} write-state --state=/tmp/x.yml`), null);
+});
+
+test('gate hook: a script outside the declared plugin root is refused', t => {
+  t.after(() => { process.env.CLAUDE_PLUGIN_ROOT = PLUGIN_ROOT; });
+  process.env.CLAUDE_PLUGIN_ROOT = os.tmpdir();
+  assert.equal(bash(`node ${ABSOLUTE} write-state --state=/tmp/x.yml`), null);
+});
+
+test('gate hook: PowerShell refuses a splatted word and a bare comma', () => {
+  assert.equal(powershell(`node ${ABSOLUTE} write-state @args`), null);
+  assert.equal(powershell(`node ${ABSOLUTE} write-state --state=/tmp/a,b`), null);
+  assert.equal(powershell(`node ${ABSOLUTE} write-state --state='/tmp/a,b@c'`)?.verb, 'write-state');
+});
+
+// Adversarial sizes return null quickly and never throw: the recogniser runs in
+// a hook on every tool call.
+test('gate hook: a huge command returns null fast', () => {
+  const started = Date.now();
+  const padded = `node ${ABSOLUTE} write-state --state=/tmp/x.yml` + ' '.repeat(200_000) + 'x';
+  assert.equal(bash(padded), null);
+  assert.equal(bash(`node ${ABSOLUTE} write-state ` + 'a'.repeat(200_000)), null);
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+});
+
+test('gate hook: a script path of twenty thousand segments returns null without throwing', () => {
+  const started = Date.now();
+  for (const depth of [6_000, 20_000]) {
+    const deep = '/a'.repeat(depth) + '/skills/workflow-engine/scripts/workflow.mjs';
+    assert.equal(bash(`node ${deep} write-state --state=/tmp/x.yml`), null);
+  }
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+});
+
+test('gate hook: resolvePath walks any depth without recursion and keeps the missing tail', () => {
+  const started = Date.now();
+  assert.equal(resolvePath('/a'.repeat(20_000)).length, 40_000);
+  const shallow = path.join(PLUGIN_ROOT, 'no', 'such', 'file.yml');
+  assert.equal(resolvePath(shallow), shallow);
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
 });

@@ -550,12 +550,14 @@ const WORD_CHAR = /^[\p{L}\p{M}\p{N}._/:@%+=,-]$/u;
 const QUOTE_LIKE = /['\n\r‘-‛]/;
 
 /**
- * The plugin-root variable, braced or bare, in two spellings with one value —
- * the host's, and the one the Copilot variant's install notes ask the operator
- * to export — read from the environment exactly as the runtimes read it. Bare,
- * it has to end where the name ends: `$CLAUDE_PLUGIN_ROOTX` is another variable.
+ * The longest command read at all. The engine's own calls are a line plus a
+ * patch; anything longer is left to the permission prompt, so the time spent
+ * here stays bounded on whatever a tool call carries.
  */
-const ROOT_REFERENCE = /^\$(?:\{(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)\}|(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)(?![A-Za-z0-9_]))/;
+const MAX_COMMAND = 64 * 1024;
+
+/** The longest script path resolved — past any platform's own path limit. */
+const MAX_PATH = 4096;
 
 /**
  * The one producer a recognised pipeline may carry: `echo` and a single
@@ -588,13 +590,25 @@ const HEREDOC_OPEN = /^<<'([A-Za-z_][A-Za-z0-9_]*)'(\r|[ \t]*)$/;
  *     <body>
  *     TAG]
  *
- * where every word is bare `WORD_CHAR`s, single-quoted spans without a newline
- * or anything PowerShell reads as a quote, and the plugin-root variable, glued
- * together. A heredoc is lifted only in a POSIX shell, and only when the first
+ * where every word is bare `WORD_CHAR`s and single-quoted spans without a
+ * newline or anything PowerShell reads as a quote, glued together, and `<verb>`
+ * is the first word after the script — the one the engine dispatches. A heredoc is lifted only in a POSIX shell, and only when the first
  * line parses to its end under this grammar — so the `<<'TAG'` the hook sees is
  * the one the shell sees, and the body is data the shell does not expand. What
  * a shell reads differently from this grammar is refused rather than modelled:
  * an unclosed `"`, a `\'`, a `#` before the tag.
+ *
+ * The script is the literal plugin path, single-quoted where it holds a space —
+ * never the plugin-root variable. A shell expands a variable from its own
+ * state: a changed `IFS` splits it, an earlier `export` repoints it, PowerShell
+ * reads `$NAME` as a session variable of its own, and an unset one leaves
+ * `/skills/…`. None of that is visible here, so a variable would be verified
+ * against the hook's value while the shell runs another; any `$` is refused.
+ *
+ * The grammar reads text, so it assumes a clean shell: no alias or function
+ * standing in for `node`, and no zsh global alias expanding one of the words
+ * into a second command. Shell state of that kind is outside what a command's
+ * text can show.
  *
  * Returns `{root, script, verb}` or `null`. Everything it cannot recognise
  * returns `null` and is left to the caller's own permission flow untouched:
@@ -602,11 +616,21 @@ const HEREDOC_OPEN = /^<<'([A-Za-z_][A-Za-z0-9_]*)'(\r|[ \t]*)$/;
  * allows.
  */
 export function engineInvocation(tooling) {
+  try {
+    return recognise(tooling);
+  } catch {
+    // Unrecognised is the answer to anything this cannot read, a throw included.
+    return null;
+  }
+}
+
+function recognise(tooling) {
   if (!tooling || tooling.kind !== 'opaque' || !SHELL_TOOLS.has(tooling.tool)) return null;
   const posix = POSIX_TOOLS.has(tooling.tool);
+  if (typeof tooling.target !== 'string' || tooling.target.length > MAX_COMMAND) return null;
   // Spaces, tabs and blank lines around the command are no-ops to every shell;
   // a carriage return is not stripped, because a POSIX shell reads it as text.
-  const text = typeof tooling.target === 'string' ? tooling.target.replace(/^[ \t\n]+|[ \t\n]+$/g, '') : '';
+  const text = trimCommand(tooling.target);
   const newline = text.indexOf('\n');
   const line = parseLine(newline === -1 ? text : text.slice(0, newline), posix);
   if (!line) return null;
@@ -622,6 +646,9 @@ export function engineInvocation(tooling) {
 
   const [program, script, ...rest] = line.words;
   if (!program || program.source !== 'node' || !script || !path.isAbsolute(script.value)) return null;
+  // No file system names a longer path, and resolving one costs a lookup per
+  // segment.
+  if (script.value.length > MAX_PATH) return null;
   const resolved = resolvePath(script.value);
 
   for (const [entry, verbs] of ENGINE_ENTRIES) {
@@ -629,10 +656,22 @@ export function engineInvocation(tooling) {
     if (!resolved.endsWith(suffix)) continue;
     const root = resolved.slice(0, -suffix.length);
     if (!isPluginRoot(root) || !matchesDeclaredRoot(root)) return null;
-    const verb = rest.find(word => !word.value.startsWith('-'));
+    // The first word after the script is the verb the engine dispatches; a flag
+    // in front of it could swallow the listed word as its value.
+    const verb = rest[0];
     return verb && verbs.has(verb.value) ? { root, script: entry, verb: verb.value } : null;
   }
   return null;
+}
+
+/** Strip spaces, tabs and newlines at both ends, in one pass each way. */
+function trimCommand(command) {
+  const blank = char => char === ' ' || char === '\t' || char === '\n';
+  let start = 0;
+  let end = command.length;
+  while (start < end && blank(command[start])) start++;
+  while (end > start && blank(command[end - 1])) end--;
+  return command.slice(start, end);
 }
 
 /**
@@ -666,9 +705,10 @@ function parseLine(line, posix) {
 
 /**
  * One word from `start`: `{source, value, end}`, `value` being what the shell
- * hands the program — the spans unquoted and the plugin root substituted — or
- * `null`. A Windows path's `\` is a word character in PowerShell only, where it
- * escapes nothing.
+ * hands the program, the spans unquoted — or `null`. A Windows path's `\` is a
+ * word character in PowerShell only, where it escapes nothing. PowerShell reads
+ * two more bare characters as syntax: a leading `@` splats a variable and a
+ * comma builds an array, so neither passes there outside a quoted span.
  */
 function readWord(text, start, posix) {
   let value = '';
@@ -682,14 +722,8 @@ function readWord(text, start, posix) {
       if (QUOTE_LIKE.test(span)) return null;
       value += span;
       at = close + 1;
-    } else if (char === '$') {
-      const reference = text.slice(at).match(ROOT_REFERENCE);
-      const root = reference ? process.env[reference[1] ?? reference[2]] : undefined;
-      // Unquoted, the value is split and globbed by the shell, so it has to be
-      // a word this grammar would accept as written.
-      if (!root || ![...root].every(c => isWordChar(c, posix))) return null;
-      value += root;
-      at += reference[0].length;
+    } else if (!posix && (char === ',' || (char === '@' && at === start))) {
+      return null;
     } else if (isWordChar(char, posix)) {
       value += char;
       at += char.length;
@@ -732,12 +766,23 @@ function matchesDeclaredRoot(root) {
  * equal either way.
  */
 export function resolvePath(target) {
-  try {
-    return fs.realpathSync(target);
-  } catch {
-    const parent = path.dirname(target);
-    if (parent === target) return target;
-    return path.join(resolvePath(parent), path.basename(target));
+  // Past any platform's path limit nothing exists to resolve through, and the
+  // walk below would cost a lookup per segment: normalise it and stop.
+  if (target.length > MAX_PATH) return path.resolve(target);
+  // Walked up in a loop, not by recursion: a path of any depth resolves
+  // without growing the stack.
+  const missing = [];
+  let current = target;
+  for (;;) {
+    try {
+      const real = fs.realpathSync(current);
+      return missing.length ? path.join(real, ...missing.reverse()) : real;
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return missing.length ? path.join(current, ...missing.reverse()) : current;
+      missing.push(path.basename(current));
+      current = parent;
+    }
   }
 }
 
