@@ -639,14 +639,16 @@ warning list, one line per issue in the shape
 Other. When nothing on the list is fixable, the `(Recommended)` label moves to
 "None — proceed as is".
 Apply the chosen fixes and log each one. Record the applied fixes as
-`verification_context.fixes_applied`, add the operator's calls to
-`verification_context.decisions_made`, and raise
-`verification_context.reverify_count` by one **before** re-invoking the
-verifier: those two keys are what tell the verifier it is running after fixes,
-and a re-run that cannot see them rewrites nothing, leaving the pre-fix report
-standing. Then ask whether to re-run the verification; a yes re-invokes the
-verifier and returns to the breakdown. Both answers continue the run, which is
-why this is a node question rather than a gate. **At most three iterations.**
+`verification_context.fixes_applied`, and add the operator's calls to
+`verification_context.decisions_made`.
+Then ask one single-select, `Re-run verification?`, with the options
+**"Re-verify now (Recommended)"** and **"No — continue to the gate"**. Only on
+a yes, raise `verification_context.reverify_count` by one and re-invoke the
+verifier, which returns to the breakdown; a no leaves the count alone, so it
+counts only re-runs that happened. The recorded fixes and the raised count are
+what tell the verifier it is running after fixes, and a re-run that cannot see
+them rewrites nothing, leaving the pre-fix report standing. Both answers
+continue the run, which is why this is a node question rather than a gate. **At most three iterations.**
 
 **Data integrity is never auto-fixed.** On any data integrity issue, stop the
 loop. Under a terminal driver, present the issue and the rollback option to the
@@ -661,7 +663,10 @@ their data.
 recommended option — fix every fixable issue (with nothing fixable, proceed as
 is), re-verify once, then continue to the gate — **except a data
 integrity issue, which is never fixed and never proceeded past**, and which ends
-the run as the paragraph above says. One re-verification is the whole budget,
+the run as the paragraph above says. The default follows the same order as an
+answered loop: apply the fixes, record `fixes_applied`, then — the recommended
+answer to the re-run question — raise `reverify_count` by one and re-invoke the
+verifier. One re-verification is the whole budget,
 because a loop nobody can stop is not a loop. A non-data issue still critical
 after it is recorded as an `open:` risk in this node's summary, which the gate
 brief renders at `resolution-approval` — where an operator answers.

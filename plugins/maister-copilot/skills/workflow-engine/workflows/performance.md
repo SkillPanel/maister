@@ -611,19 +611,22 @@ Other. When nothing on the list is fixable, the `(Recommended)` label moves to
 "None — proceed as is".
 Apply the chosen fixes, log each one,
 and clear `skip_test_suite` because code changed. Record the applied fixes as
-`verification_context.fixes_applied` and raise
-`verification_context.reverify_count` by one **before** re-invoking the verifier:
-those two keys are what tell the verifier it is running after fixes, and a re-run
-that cannot see them rewrites nothing, leaving the pre-fix report standing. Then
-ask whether to re-run the verification; a yes re-invokes the verifier and returns
-to the breakdown. Both answers continue the run, which is why this is a node
-question rather than a gate. **Budget: 3 fix rounds.**
+`verification_context.fixes_applied`.
+Then ask one single-select, `Re-run verification?`, with the options
+**"Re-verify now (Recommended)"** and **"No — continue to the gate"**. Only on
+a yes, raise `verification_context.reverify_count` by one and re-invoke the
+verifier, which returns to the breakdown; a no leaves the count alone, so it
+counts only re-runs that happened. The recorded fixes and the raised count are
+what tell the verifier it is running after fixes, and a re-run that cannot see
+them rewrites nothing, leaving the pre-fix report standing. Both answers
+continue the run, which is why this is a node question rather than a gate. **Budget: 3 fix rounds.**
 
 **Default under a non-terminal driver** (`verification-fix-loop`): the
 recommended option — fix every fixable issue (with nothing fixable, proceed as
-is), re-verify once, then continue to the gate. The re-run follows the
-same rule as an answered one — `fixes_applied` recorded and `reverify_count`
-raised before the verifier is re-invoked — and one re-verification is the whole
+is), re-verify once, then continue to the gate. The default follows
+the same order as an answered loop: apply the fixes, record `fixes_applied`,
+then — the recommended answer to the re-run question — raise `reverify_count`
+by one and re-invoke the verifier. One re-verification is the whole
 budget, because a loop nobody can stop is not a loop. An issue that remains
 critical after it is **not** proceeded past: it is recorded as an `open:` risk
 in this node's summary, which the gate brief renders at `verification-approval`
