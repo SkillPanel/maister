@@ -265,7 +265,9 @@ path of your own.
 
 **The invocation is the whole command.** No `cd` in front of it, no `set -e`, no
 variable assigned first and used in it, no second command after it, no redirection,
-no substitution — and never several verbs packed into one shell script. The only
+no substitution — and never several verbs packed into one shell script. Flag values
+are written bare; a path holding a space goes in single quotes, never double quotes or a
+backslash. The only
 thing that may go with it is the patch or the request document, sent on stdin as a
 quoted heredoc:
 

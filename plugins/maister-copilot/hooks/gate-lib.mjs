@@ -530,27 +530,47 @@ const PLUGIN_MANIFEST = path.join('.claude-plugin', 'plugin.json');
 /** The shell tools, in both vocabularies. Only these carry a command to read. */
 const SHELL_TOOLS = new Set(['Bash', 'bash', 'powershell']);
 
-/**
- * Shell metacharacters that put anything at all beside the invocation being
- * judged — a line break outside quotes is a command separator like `;`. `|` is
- * absent on purpose: `echo '{}' | node …` is one way to hand a patch to the
- * state writer, and a pipeline is checked stage by stage below instead. The
- * other way, a quoted heredoc, is lifted off before this is applied.
- */
-const COMMAND_POISON = /[;&`<>\n\r]|\$\(|\|\|/;
+/** The shell tools that run a POSIX shell, the only ones with a heredoc. */
+const POSIX_TOOLS = new Set(['Bash', 'bash']);
 
 /**
- * A quoted heredoc opened at the end of the command's first line. Quoting the
- * tag is what makes the body literal — nothing in it is expanded — so the body
- * is data exactly as a single-quoted span is; an unquoted tag is not matched.
+ * A character a bare word may carry: letters and digits of any script, and the
+ * path punctuation no shell this reads expands, splits on or treats as an
+ * operator. Everything else — quotes of either kind, `\`, `$`, `#`, `;`, `&`,
+ * `|`, `<`, `>`, backtick, brackets, braces, globs, `~`, `!`, any whitespace
+ * but the space and tab between words — ends recognition.
  */
-const QUOTED_HEREDOC = /\s<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*$/;
+const WORD_CHAR = /^[\p{L}\p{M}\p{N}._/:@%+=,-]$/u;
 
-/** The only producers a recognised pipeline may carry on its left-hand side. */
-const STDIN_PRODUCERS = new Set(['echo', 'printf']);
+/**
+ * The characters PowerShell reads as a single quote: the apostrophe and four
+ * typographic ones. A span holding any of them would close early there, so
+ * none may appear inside one, in either shell.
+ */
+const QUOTE_LIKE = /['\n\r‘-‛]/;
 
-/** Both spellings of the plugin-root variable, in both `$VAR` and `${VAR}` forms. */
-const ROOT_VARIABLE = /\$\{?(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)\}?/g;
+/**
+ * The plugin-root variable, braced or bare, in two spellings with one value —
+ * the host's, and the one the Copilot variant's install notes ask the operator
+ * to export — read from the environment exactly as the runtimes read it. Bare,
+ * it has to end where the name ends: `$CLAUDE_PLUGIN_ROOTX` is another variable.
+ */
+const ROOT_REFERENCE = /^\$(?:\{(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)\}|(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)(?![A-Za-z0-9_]))/;
+
+/**
+ * The one producer a recognised pipeline may carry: `echo` and a single
+ * single-quoted argument, then one `|`. A doubled apostrophe is PowerShell's
+ * escape for one; a POSIX shell reads the same text as two spans side by side,
+ * and both stay literal either way.
+ */
+const ECHO_PRODUCER = /^echo[ \t]+'(?:[^'\n\r‘-‛]|'')*'[ \t]*\|[ \t]*/;
+
+/**
+ * A quoted heredoc opening at the end of the line: `<<'TAG'`, then either
+ * nothing but spaces or a carriage return straight after the quote — which a
+ * POSIX shell reads as part of the tag, so the body then ends at `TAG\r`.
+ */
+const HEREDOC_OPEN = /^<<'([A-Za-z_][A-Za-z0-9_]*)'(\r|[ \t]*)$/;
 
 /**
  * Whether a tool call is this plugin invoking one of its own runtimes.
@@ -561,6 +581,21 @@ const ROOT_VARIABLE = /\$\{?(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)\}?/g;
  * see `emitAllow` for why that answer is the one exception to an allow being
  * silence.
  *
+ * Recognition is an allow-list grammar, never a list of characters to refuse.
+ * The command is exactly
+ *
+ *     [echo '<json>' |] node <script> <verb> [<word>]… [<<'TAG'
+ *     <body>
+ *     TAG]
+ *
+ * where every word is bare `WORD_CHAR`s, single-quoted spans without a newline
+ * or anything PowerShell reads as a quote, and the plugin-root variable, glued
+ * together. A heredoc is lifted only in a POSIX shell, and only when the first
+ * line parses to its end under this grammar — so the `<<'TAG'` the hook sees is
+ * the one the shell sees, and the body is data the shell does not expand. What
+ * a shell reads differently from this grammar is refused rather than modelled:
+ * an unclosed `"`, a `\'`, a `#` before the tag.
+ *
  * Returns `{root, script, verb}` or `null`. Everything it cannot recognise
  * returns `null` and is left to the caller's own permission flow untouched:
  * this function never denies anything and never widens what a pending gate
@@ -568,118 +603,105 @@ const ROOT_VARIABLE = /\$\{?(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)\}?/g;
  */
 export function engineInvocation(tooling) {
   if (!tooling || tooling.kind !== 'opaque' || !SHELL_TOOLS.has(tooling.tool)) return null;
-  const whole = typeof tooling.target === 'string' ? tooling.target.trim() : '';
-  const heredoc = whole ? liftHeredoc(whole) : null;
-  if (!heredoc) return null;
-  const { command, lifted } = heredoc;
-  const masked = command && maskSingleQuoted(command);
-  if (!masked || COMMAND_POISON.test(masked)) return null;
-
-  // At most two stages, and a producer on the left: a pipeline that reaches
-  // any further is a command doing more than handing a patch to the writer.
-  // Split where the *masked* text has a pipe, so a `|` inside the patch is not
-  // taken for one.
-  const stages = splitAt(command, masked, '|').map(stage => stage.trim());
-  if (stages.length > (lifted ? 1 : 2) || stages.some(stage => stage === '')) return null;
-  if (stages.length === 2) {
-    const producer = tokenize(stages[0]);
-    if (!producer.length || !STDIN_PRODUCERS.has(producer[0]) || producer.some(hasSubstitution)) return null;
+  const posix = POSIX_TOOLS.has(tooling.tool);
+  // Spaces, tabs and blank lines around the command are no-ops to every shell;
+  // a carriage return is not stripped, because a POSIX shell reads it as text.
+  const text = typeof tooling.target === 'string' ? tooling.target.replace(/^[ \t\n]+|[ \t\n]+$/g, '') : '';
+  const newline = text.indexOf('\n');
+  const line = parseLine(newline === -1 ? text : text.slice(0, newline), posix);
+  if (!line) return null;
+  if (line.heredoc === null) {
+    if (newline !== -1) return null;
+  } else {
+    // The body runs to the first line that is exactly the tag, and that line
+    // has to be the last: anything after it is a second command.
+    if (line.producer || newline === -1) return null;
+    const body = text.slice(newline + 1).split('\n');
+    if (body.indexOf(line.heredoc) !== body.length - 1) return null;
   }
 
-  const tokens = tokenize(stages[stages.length - 1]);
-  if (tokens.length < 3 || tokens[0] !== 'node') return null;
-
-  const script = expandRoot(tokens[1]);
-  if (!script || hasSubstitution(script) || !path.isAbsolute(script)) return null;
-  const resolved = resolvePath(script);
+  const [program, script, ...rest] = line.words;
+  if (!program || program.source !== 'node' || !script || !path.isAbsolute(script.value)) return null;
+  const resolved = resolvePath(script.value);
 
   for (const [entry, verbs] of ENGINE_ENTRIES) {
     const suffix = path.sep + entry.split('/').join(path.sep);
     if (!resolved.endsWith(suffix)) continue;
     const root = resolved.slice(0, -suffix.length);
     if (!isPluginRoot(root) || !matchesDeclaredRoot(root)) return null;
-    const verb = tokens.slice(2).find(token => !token.startsWith('-'));
-    return verb && verbs.has(verb) ? { root, script: entry, verb } : null;
+    const verb = rest.find(word => !word.value.startsWith('-'));
+    return verb && verbs.has(verb.value) ? { root, script: entry, verb: verb.value } : null;
   }
   return null;
 }
 
 /**
- * The command with a quoted heredoc's body lifted off: `{command, lifted}`, the
- * first line alone when it opens one, the whole text unchanged when it does not,
- * or `null` when the body is never closed or anything follows its terminator —
- * a line after the terminator is a second command.
+ * One command line read under the grammar: `{producer, words, heredoc}`, where
+ * `heredoc` is the tag the body ends at, or `null` when any character falls
+ * outside it.
  */
-function liftHeredoc(text) {
-  const lines = text.split('\n');
-  const open = lines[0].match(QUOTED_HEREDOC);
-  if (!open) return { command: text, lifted: false };
-  const end = lines.findIndex((line, index) => index > 0 && line === open[1]);
-  if (end !== lines.length - 1) return null;
-  return { command: lines[0].slice(0, open.index).trim(), lifted: true };
+function parseLine(line, posix) {
+  let rest = line;
+  const echo = rest.match(ECHO_PRODUCER);
+  if (echo) rest = rest.slice(echo[0].length);
+  const words = [];
+  let heredoc = null;
+  let at = 0;
+  while (at < rest.length) {
+    while (rest[at] === ' ' || rest[at] === '\t') at++;
+    if (at >= rest.length) break;
+    if (rest.startsWith('<<', at)) {
+      const open = posix && words.length ? rest.slice(at).match(HEREDOC_OPEN) : null;
+      if (!open) return null;
+      heredoc = open[1] + (open[2] === '\r' ? '\r' : '');
+      break;
+    }
+    const word = readWord(rest, at, posix);
+    if (!word) return null;
+    words.push(word);
+    at = word.end;
+  }
+  return { producer: Boolean(echo), words, heredoc };
 }
 
 /**
- * The command with every single-quoted span blanked out, same length, or `null`
- * when a single quote never closes.
- *
- * A shell expands nothing between single quotes — in POSIX shells and in
- * PowerShell alike — so the punctuation a patch carries there is data and
- * cannot chain, redirect or substitute anything. A node summary is prose, and
- * prose carries `;`: measured on a real run, reading the patch's text as shell
- * turned a plain state write into a command the hook refused to recognise.
- * Double quotes are left alone, because a substitution still expands inside them.
+ * One word from `start`: `{source, value, end}`, `value` being what the shell
+ * hands the program — the spans unquoted and the plugin root substituted — or
+ * `null`. A Windows path's `\` is a word character in PowerShell only, where it
+ * escapes nothing.
  */
-function maskSingleQuoted(command) {
-  let masked = '';
-  let quoted = false;
-  for (const char of command) {
+function readWord(text, start, posix) {
+  let value = '';
+  let at = start;
+  while (at < text.length && text[at] !== ' ' && text[at] !== '\t') {
+    const char = String.fromCodePoint(text.codePointAt(at));
     if (char === "'") {
-      quoted = !quoted;
-      masked += char;
+      const close = text.indexOf("'", at + 1);
+      if (close === -1) return null;
+      const span = text.slice(at + 1, close);
+      if (QUOTE_LIKE.test(span)) return null;
+      value += span;
+      at = close + 1;
+    } else if (char === '$') {
+      const reference = text.slice(at).match(ROOT_REFERENCE);
+      const root = reference ? process.env[reference[1] ?? reference[2]] : undefined;
+      // Unquoted, the value is split and globbed by the shell, so it has to be
+      // a word this grammar would accept as written.
+      if (!root || ![...root].every(c => isWordChar(c, posix))) return null;
+      value += root;
+      at += reference[0].length;
+    } else if (isWordChar(char, posix)) {
+      value += char;
+      at += char.length;
     } else {
-      masked += quoted ? '_' : char;
+      return null;
     }
   }
-  return quoted ? null : masked;
+  return { source: text.slice(start, at), value, end: at };
 }
 
-/** Split `text` wherever `masked` — its same-length twin — holds `separator`. */
-function splitAt(text, masked, separator) {
-  const parts = [];
-  let from = 0;
-  for (let at = masked.indexOf(separator); at !== -1; at = masked.indexOf(separator, at + 1)) {
-    parts.push(text.slice(from, at));
-    from = at + 1;
-  }
-  parts.push(text.slice(from));
-  return parts;
-}
-
-/**
- * Split a command into argv, honouring one level of quoting. A token whose
- * quotes do not close is returned as written, which then fails the checks
- * above rather than being silently repaired.
- */
-function tokenize(text) {
-  const tokens = [];
-  const pattern = /"((?:[^"\\]|\\.)*)"|'([^']*)'|(\S+)/g;
-  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-    tokens.push(match[1] ?? match[2] ?? match[3]);
-  }
-  return tokens;
-}
-
-/** Any shell expansion the hook would have to evaluate to know the real path. */
-const hasSubstitution = token => token.includes('$');
-
-/**
- * Substitute the plugin-root variable from the environment. Two spellings, one
- * value — the host's and the one the Copilot variant's install notes ask the
- * operator to export — read exactly as the runtimes themselves read them.
- */
-function expandRoot(token) {
-  return token.replace(ROOT_VARIABLE, (whole, name) => process.env[name] ?? whole);
+function isWordChar(char, posix) {
+  return WORD_CHAR.test(char) || (!posix && char === '\\');
 }
 
 /** A directory is a plugin root when it carries a plugin manifest. */
