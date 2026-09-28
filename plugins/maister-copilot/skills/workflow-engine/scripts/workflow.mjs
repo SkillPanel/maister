@@ -353,7 +353,7 @@ async function runWriteState(flags) {
   // and name what did not happen. The dashboard is a projection of a write that
   // already landed, so the exit code does not move.
   for (const warning of result.warnings || []) {
-    process.stderr.write(`warning: dashboard-data.js was not written (${warning.code}: ${warning.message});`
+    process.stderr.write(`warning: ${warning.file ?? 'dashboard-data.js'} was not written (${warning.code}: ${warning.message});`
       + ' the state write is unaffected\n');
   }
   if (result.ok) return EXIT.OK;

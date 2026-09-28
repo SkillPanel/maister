@@ -184,6 +184,11 @@ file and the dashboard are the run's tracker. The writer seeds `orchestrator.tas
 the two phase sequences, on the same terms — unless the patch supplies it or the file already
 holds it — and that empty map records that no task items exist.
 
+**The freeze write installs the dashboard viewer.** When `html_output` is not false and the run
+directory holds no `dashboard.html`, the freeze copies the plugin's viewer there and reports
+`dashboard.html` among the changed paths. It never replaces a file already there, and a copy
+that fails is a warning on stderr — the state write still lands. No later write copies it.
+
 **The freeze write prints the startup banner; relay it verbatim as visible text in the same
 turn.** After the changed paths and one blank line, the write that installs the `workflow:`
 block into a file that had none prints five lines:
@@ -643,10 +648,12 @@ What the operator reads at a gate is rendered by the engine, never composed:
 
 The brief stays within 1,600 characters, so that the brief and the ask fit in the picker. A
 longer summary, decision list or risk list is trimmed, and each cut says `(+N more — see the
-dashboard)`, or `see the run's state file` when the run has no dashboard. A risk that opens
+dashboard)`, or `see the run's state file` when the run has no dashboard or its run directory
+holds no `dashboard.html`. A risk that opens
 `recommend stop:` is the last risk to go, so the reason for the recommendation stays in view. The
 `Next:`, `Recommended:` and last `Run: <dir> · Dashboard: <path>` lines are never trimmed. The
-last line reads `Dashboard: none (html_output is false)` when the run has no dashboard.
+last line reads `Dashboard: none (html_output is false)` when the run has no dashboard, and
+names the run alone — `Run: <dir>` — when the viewer is missing from the run directory.
 
 The brief's `Next:` line names the node that actually runs once the continue option is
 chosen — guards evaluated, skipped nodes listed — so no gate question or prose needs to say

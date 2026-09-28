@@ -345,6 +345,17 @@ test('gate-brief: the last line names the run directory and its dashboard', t =>
   assert.equal(lines.at(-2), runLine(run));
 });
 
+test('gate-brief: without the viewer in the run directory the last line names the run only', t => {
+  const run = atApproval(t, LONG);
+  fs.rmSync(path.join(run.dir, 'dashboard.html'), { force: true });
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  const lines = result.stdout.split('\n');
+  assert.equal(lines.at(-2), `Run: ${run.dir}`);
+  assert.doesNotMatch(result.stdout, /Dashboard|see the dashboard/);
+  assert.match(result.stdout, /\(\+\d+ more — see the run's state file\)/);
+});
+
 test('gate-brief: with html_output false the last line says there is no dashboard', t => {
   const run = atApproval(t);
   write(run, { orchestrator: { options: { html_output: false } } });

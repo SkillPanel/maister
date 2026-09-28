@@ -34,9 +34,9 @@
  * it cut was the tail — the risks, `Next:`, `Recommended:` and the ask. So the
  * brief keeps inside `BUDGET`, trimming the summary, the decisions and the risks
  * with a pointer to the dashboard — or to the state file, when the run has no
- * dashboard — and never the three closing lines: `Next:`,
- * `Recommended:` and the `Run: … · Dashboard: …` line that says where the run
- * and its full summaries live.
+ * dashboard or its viewer is missing — and never the three closing lines:
+ * `Next:`, `Recommended:` and the `Run: … · Dashboard: …` line that says where
+ * the run and its full summaries live (the run alone when there is no viewer).
  *
  * The guard evaluation and the ready-set simulation live here and nowhere else.
  * `umbrella/scripts/lib/envelope.mjs` re-resolves a frozen definition the same
@@ -169,7 +169,7 @@ export function gateBrief({ state, node, oneline = false }) {
 
   const recommended = recommend(options, closing.risks);
   const tail = [next, `Recommended: ${recommended}`, runLine(doc, runDir)];
-  const text = fit(closing, oneline ? renderOneline : renderPlain, tail, pointerOf(doc));
+  const text = fit(closing, oneline ? renderOneline : renderPlain, tail, pointerOf(doc, runDir));
   return { ok: true, text, errors: [], warnings };
 }
 
@@ -177,15 +177,28 @@ function refuse(code, message, warnings = []) {
   return { ok: false, text: '', errors: [{ code, message: `${code}: ${message}` }], warnings };
 }
 
-/** Where a trimmed brief sends the reader for the rest: the dashboard, or the state file without one. */
-function pointerOf(doc) {
-  return htmlOutput(doc) ? 'see the dashboard' : "see the run's state file";
+/**
+ * Whether the run has a dashboard to point at: turned on, and its viewer in the
+ * run directory. A page that is not there is not named — the freeze installs
+ * it, so a run without one predates that or had it removed.
+ */
+function hasViewer(doc, runDir) {
+  return htmlOutput(doc) && fs.existsSync(path.join(runDir, 'dashboard.html'));
 }
 
-/** Where the run lives and where its dashboard is — the brief's last line. */
+/** Where a trimmed brief sends the reader for the rest: the dashboard, or the state file without one. */
+function pointerOf(doc, runDir) {
+  return hasViewer(doc, runDir) ? 'see the dashboard' : "see the run's state file";
+}
+
+/**
+ * Where the run lives and where its dashboard is — the brief's last line. With
+ * `html_output` off it says there is none; with the viewer missing it names the
+ * run alone.
+ */
 function runLine(doc, runDir) {
-  const dashboard = htmlOutput(doc) ? path.join(runDir, 'dashboard.html') : 'none (html_output is false)';
-  return `Run: ${runDir} · Dashboard: ${dashboard}`;
+  if (!htmlOutput(doc)) return `Run: ${runDir} · Dashboard: none (html_output is false)`;
+  return hasViewer(doc, runDir) ? `Run: ${runDir} · Dashboard: ${path.join(runDir, 'dashboard.html')}` : `Run: ${runDir}`;
 }
 
 function entryOf(recorded, id) {

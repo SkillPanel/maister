@@ -129,6 +129,56 @@ test('banner: a retried freeze, the identical patch sent again, is a no-op with 
   assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), unstamped(before));
 });
 
+// The freeze installs the dashboard viewer beside the data it projects, so an
+// engine-driven run directory opens like any other.
+const VIEWER = path.join(ENGINE_DIR, '..', 'orchestrator-framework', 'assets', 'dashboard.html');
+const FROZEN = { task: { title: 'Viewer', status: 'in_progress' }, workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } } };
+
+test('viewer: the freeze copies dashboard.html into the run directory and reports it before the banner', t => {
+  const run = scratch(t);
+  const result = write(run, FROZEN);
+  assert.equal(fs.readFileSync(path.join(run.dir, 'dashboard.html'), 'utf8'), fs.readFileSync(VIEWER, 'utf8'));
+  const [paths, banner] = result.stdout.split('\n\n');
+  assert.match(paths, /^dashboard\.html$/m);
+  assert.match(banner, /^Maister run started$/m);
+});
+
+test('viewer: the freeze never overwrites a dashboard.html already there', t => {
+  const run = scratch(t);
+  fs.writeFileSync(path.join(run.dir, 'dashboard.html'), '<!-- the operator\'s own -->\n');
+  const result = write(run, FROZEN);
+  assert.equal(fs.readFileSync(path.join(run.dir, 'dashboard.html'), 'utf8'), '<!-- the operator\'s own -->\n');
+  assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
+});
+
+test('viewer: no copy when html_output is false', t => {
+  const run = scratch(t);
+  const result = write(run, { ...FROZEN, orchestrator: { options: { html_output: false } } });
+  assert.equal(fs.existsSync(path.join(run.dir, 'dashboard.html')), false);
+  assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
+});
+
+test('viewer: a later write that is not the freeze copies nothing', t => {
+  const run = scratch(t);
+  write(run, FROZEN);
+  fs.rmSync(path.join(run.dir, 'dashboard.html'));
+  const result = write(run, { nodes: { analysis: { status: 'in_progress' } } });
+  assert.equal(fs.existsSync(path.join(run.dir, 'dashboard.html')), false);
+  assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
+});
+
+test('viewer: a link already named dashboard.html is left alone, dangling or not, and the freeze lands', t => {
+  const run = scratch(t);
+  const link = path.join(run.dir, 'dashboard.html');
+  fs.symlinkSync(path.join(run.dir, 'missing-dir', 'dashboard.html'), link);
+  const result = verb(['write-state', `--state=${run.state}`], FROZEN);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(readState(run).workflow.name, 'development');
+  assert.ok(fs.lstatSync(link).isSymbolicLink());
+  assert.equal(fs.existsSync(path.join(run.dir, 'missing-dir')), false, 'nothing was written through the link');
+  assert.match(result.stdout, /^Maister run started$/m);
+});
+
 test('banner: a title spanning lines is folded onto the Task line', t => {
   const run = scratch(t);
   // The writer refuses a newline in a title it is sent, so only a file it

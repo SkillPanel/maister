@@ -59,6 +59,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 // The reader lives beside the hooks because the hooks are its other caller. Any
 // emitted plugin tree must therefore carry `hooks/gate-lib.mjs` at this path,
 // whatever else a build does with the hook registrations.
@@ -119,6 +120,14 @@ const GATE_INDEX = 'gates/index.yml';
  */
 const DASHBOARD = 'dashboard-data.js';
 const DASHBOARD_TMP = 'dashboard-data.js.tmp';
+
+/**
+ * The dashboard viewer and where it ships: the plugin's own copy, found from
+ * this module's location so every install of the plugin — either variant —
+ * copies the page it was built with.
+ */
+const VIEWER = 'dashboard.html';
+const VIEWER_SOURCE = fileURLToPath(new URL('../../../orchestrator-framework/assets/dashboard.html', import.meta.url));
 
 /**
  * The two refusals the shared publish path can raise while publishing the
@@ -351,7 +360,8 @@ const WORKFLOW_CONTEXT = {
  * before the rename, and the rename is the only thing that publishes a write.
  *
  * A write that installs `workflow:` into a file that carried none — the freeze —
- * also returns `banner`, the startup lines `workflow.mjs` prints after the paths.
+ * also installs the dashboard viewer (see `installViewer`) and returns `banner`,
+ * the startup lines `workflow.mjs` prints after the paths.
  *
  * `warnings` carries what went wrong *after* the write landed, which today is the
  * dashboard projection and nothing else. It is data rather than a stderr line
@@ -399,8 +409,10 @@ export function writeState({ state, patch }) {
     // run might never have. A projection failure is a warning and never a refusal:
     // the state write already landed and un-publishing it is not on offer.
     project(state, text, now, changed, warnings);
+    const freeze = Boolean(patch.workflow) && !hadWorkflow;
+    if (freeze) installViewer(state, text, changed, warnings);
     const result = { ok: true, changed, errors: [], warnings };
-    if (patch.workflow && !hadWorkflow) result.banner = banner(state, text, patch.workflow);
+    if (freeze) result.banner = banner(state, text, patch.workflow);
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -532,6 +544,31 @@ function project(state, text, now, changed, warnings) {
     const raw = err && err.message ? String(err.message) : String(err);
     const prefix = `${code}: `;
     warnings.push({ code, message: raw.startsWith(prefix) ? raw.slice(prefix.length) : raw });
+  }
+}
+
+/**
+ * Copy the dashboard viewer into the run directory, at the freeze only.
+ *
+ * `dashboard-data.js` is regenerated on every write, but it is only data; the
+ * page that renders it is a static file the run directory needs once. The prose
+ * path installs it at initialization, which the engine path never reaches, so
+ * the freeze — the write that starts an engine run — installs it instead.
+ *
+ * Never over an existing file, a link included: an operator's own page or an
+ * older viewer they still open stays as it is. Skipped when the run has turned
+ * `html_output` off. A failure is a warning after a write that already landed,
+ * the same terms as the projection, and never a refusal.
+ */
+function installViewer(state, text, changed, warnings) {
+  if (!htmlOutput(parseState(text))) return;
+  const target = path.join(path.dirname(path.resolve(state)), VIEWER);
+  try {
+    fs.copyFileSync(VIEWER_SOURCE, target, fs.constants.COPYFILE_EXCL);
+    changed.push(VIEWER);
+  } catch (err) {
+    if (err && err.code === 'EEXIST') return;
+    warnings.push({ file: VIEWER, code: 'viewer-uncopied', message: err && err.message ? String(err.message) : String(err) });
   }
 }
 
