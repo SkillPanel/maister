@@ -653,9 +653,15 @@ inline review, because it checks the spec's claims against the codebase instead
 of trusting them — and it runs before any code exists, so it audits the spec
 itself, not an implementation.
 
-The auditor returns a verdict — pass, pass with concerns, or fail — issue counts
-by severity, and the findings themselves. Write all of it to
-`verification/spec-audit.md` and record the verdict in state.
+The auditor's prompt names its report path `verification/spec-audit.md`, and
+the auditor writes the report there: a verdict — pass, pass with concerns, or
+fail — issue counts by severity, and the findings themselves. The report is the
+auditor's. If the auditor returns its report as text and the file does not
+exist, write that returned text to the path verbatim, once; never append to the
+report, edit it, annotate it or resolve its findings. Record the verdict in
+state.
+
+This node asks the operator nothing — no question about findings, no revise round; the following gate is the operator's moment.
 
 A failing verdict does not end the run on its own. It is what the operator reads
 at the gate, and the gate's stop option is the route out.
