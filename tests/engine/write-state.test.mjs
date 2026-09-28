@@ -104,6 +104,20 @@ test('banner: a later write that re-sends the workflow block prints no second ba
   assert.doesNotMatch(result.stdout, /Maister run started/);
 });
 
+test('banner: a title spanning lines is folded onto the Task line', t => {
+  const run = scratch(t);
+  // The writer refuses a newline in a title it is sent, so only a file it
+  // adopted can carry one: a literal block scalar, as a hand-written state has.
+  fs.writeFileSync(run.state, 'task:\n  title: |\n    Fix the parser\n      and the lexer\n  status: in_progress\n');
+  const result = verb(['write-state', `--state=${run.state}`], {
+    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  const banner = result.stdout.split('\n\n')[1];
+  assert.equal(banner.split('\n').length, 6, banner);
+  assert.match(banner, /^Task: Fix the parser and the lexer$/m);
+});
+
 test('banner: the freeze records the task-items fallback as an empty map', t => {
   const run = scratch(t);
   freeze(run);

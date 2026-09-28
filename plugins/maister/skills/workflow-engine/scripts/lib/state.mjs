@@ -425,11 +425,13 @@ function banner(state, text, workflow) {
   const runDir = path.dirname(path.resolve(state));
   const doc = parseState(text);
   const title = isPlainObject(doc.task) ? doc.task.title : undefined;
-  const named = title !== undefined && title !== null && String(title).trim() !== '';
+  // Folded onto one line: an adopted file can carry a block-scalar title, and
+  // its line breaks would add lines to a banner that is five lines long.
+  const folded = title === undefined || title === null ? '' : String(title).replace(/\s*[\r\n]+\s*/g, ' ').trim();
   const nodes = isPlainObject(workflow.nodes) ? Object.keys(workflow.nodes) : [];
   return [
     'Maister run started',
-    `Task: ${named ? String(title) : '(untitled)'}`,
+    `Task: ${folded !== '' ? folded : '(untitled)'}`,
     `Directory: ${runDir}`,
     `Dashboard: ${htmlOutput(doc) ? path.join(runDir, 'dashboard.html') : 'none (html_output is false)'}`,
     `First node: ${nodes.length ? nodes[0] : '(none)'}`,
@@ -547,7 +549,7 @@ function project(state, text, now, changed, warnings) {
  * one-line flow map and a block map alike. `Doc.scalar` handles neither and is
  * deliberately not used here.
  */
-function htmlOutput(doc) {
+export function htmlOutput(doc) {
   const orchestrator = isPlainObject(doc.orchestrator) ? doc.orchestrator : null;
   if (!orchestrator) return true;
   const options = isPlainObject(orchestrator.options) ? orchestrator.options : null;

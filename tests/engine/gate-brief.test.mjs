@@ -26,6 +26,22 @@ function brief(run, node) {
   return verb(['gate-brief', `--state=${run.state}`, `--node=${node}`]);
 }
 
+/** The line every brief ends with: where the run lives and where its dashboard is. */
+function runLine(run, dashboard = path.join(run.dir, 'dashboard.html')) {
+  return `Run: ${run.dir} · Dashboard: ${dashboard}`;
+}
+
+/** The picker shows a question of about 2,000 characters; the brief keeps inside this. */
+const BUDGET = 1600;
+
+/** Point the frozen run at a definition that no longer exists anywhere. */
+function loseDefinition(run) {
+  const text = fs.readFileSync(run.state, 'utf8')
+    .replace(/^  source: .*$/m, '  source: gone/nowhere.yml')
+    .replace(/^  name: .*$/m, '  name: gone-workflow');
+  fs.writeFileSync(run.state, text);
+}
+
 /** A sample run paused at `approval`, its closing node's summary recorded. */
 function atApproval(t, summary = SUMMARY) {
   const run = scratch(t);
@@ -75,6 +91,7 @@ test('gate-brief: renders the closing summary, its decisions and risks, the next
     '',
     'Next: implementation',
     'Recommended: continue',
+    runLine(run),
     '',
   ].join('\n'));
 });
@@ -181,7 +198,7 @@ test('gate-brief: --oneline folds the brief onto one flow-safe line', t => {
   assert.doesNotMatch(line, /[\r\n"]/);
   assert.ok(line.includes('Next: implementation · Recommended: continue'), line);
   assert.equal(line, "Two gaps found in the 'parser'. · Decisions: Patch the tokenizer — smallest change"
-    + ' · Risks: The fixture corpus is thin · Next: implementation · Recommended: continue');
+    + ` · Risks: The fixture corpus is thin · Next: implementation · Recommended: continue · ${runLine(run)}`);
   assert.doesNotThrow(() => scalar(line));
 });
 
@@ -201,7 +218,7 @@ test('gate-brief: with no decisions and no risks the brief is the summary, a bla
   const run = atApproval(t, { status: 'completed', summary: 'Nothing to decide.' });
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, ['Nothing to decide.', '', 'Next: implementation', 'Recommended: continue', ''].join('\n'));
+  assert.equal(result.stdout, ['Nothing to decide.', '', 'Next: implementation', 'Recommended: continue', runLine(run), ''].join('\n'));
 });
 
 test('gate-brief: a skipped node\'s values read as false', t => {
@@ -259,4 +276,108 @@ test('gate-brief: a negated guard is honoured, and a pending node outside the ga
     assert.equal(result.code, 0, result.stderr);
     assert.match(result.stdout, expected);
   }
+});
+
+test('gate-brief: a downstream node blocked on a pending parallel branch is waited on, not the end of the run', t => {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'parallel.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    '  analysis: {uses: "direct:analysis", needs: []}',
+    '  aside: {uses: "direct:aside", needs: []}',
+    '  approval:', '    type: gate', '    needs: [analysis]', '    ask: "Analysis complete. Continue?"',
+    '    options: {continue: continue, stop-here: stop}',
+    '  join: {uses: "direct:join", needs: [approval, aside]}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'parallel.md'), ['# Parallel workflow — node prose', '',
+    ...['analysis', 'aside', 'join'].flatMap(id => [`## \`${id}\``, '', 'Do the step.', '']),
+  ].join('\n'));
+  freeze(run, { definition });
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Next: waiting on aside$/m);
+});
+
+test('gate-brief: an unreadable definition with no frozen needs degrades to the nearest recorded summary', t => {
+  const run = atApproval(t);
+  loseDefinition(run);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Two gaps found in the parser\.$/m);
+  assert.match(result.stdout, /^Next: unknown — /m);
+  assert.match(result.stdout, /^Recommended: the continue option$/m);
+  assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+  assert.match(result.stderr, /^warning: gate-brief-needs-unknown: .*analysis/m);
+});
+
+test('refusal: an unreadable definition and no summary anywhere names no write', t => {
+  const run = atApproval(t, null);
+  loseDefinition(run);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 1);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /^gate-brief-no-graph: /);
+  assert.match(result.stderr, /no state write fixes this/);
+  assert.doesNotMatch(result.stderr, /node_summaries/);
+});
+
+test('refusal: a drift warning is kept beside a no-summary refusal, the code first', t => {
+  const run = atApproval(t, null);
+  const text = fs.readFileSync(run.state, 'utf8').replace(/graph_hash: "?sha256:[0-9a-f]+"?/, 'graph_hash: "sha256:' + '0'.repeat(64) + '"');
+  fs.writeFileSync(run.state, text);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^gate-brief-no-summary: /);
+  assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+});
+
+test('refusal: the no-summary patch names the node that closed, not a placeholder', t => {
+  const result = brief(atApproval(t, null), 'approval');
+  assert.ok(result.stderr.includes('{"node_summaries":{"analysis":{"summary":"…"}}}'), result.stderr);
+  assert.doesNotMatch(result.stderr, /<id>/);
+});
+
+test('gate-brief: the last line names the run directory and its dashboard', t => {
+  const run = atApproval(t);
+  const lines = brief(run, 'approval').stdout.split('\n');
+  assert.equal(lines.at(-2), runLine(run));
+});
+
+test('gate-brief: with html_output false the last line says there is no dashboard', t => {
+  const run = atApproval(t);
+  write(run, { orchestrator: { options: { html_output: false } } });
+  const lines = brief(run, 'approval').stdout.split('\n');
+  assert.equal(lines.at(-2), runLine(run, 'none (html_output is false)'));
+});
+
+/** A summary, decisions and risks far larger than a picker shows. */
+const LONG = {
+  status: 'completed',
+  summary: Array.from({ length: 60 }, (_, i) => `Sentence ${i} restates a decision carried forward from an earlier node.`).join(' '),
+  decisions: Array.from({ length: 12 }, (_, i) => ({ decision: `Decision ${i} about the parser`, rationale: 'x'.repeat(120) })),
+  risks: Array.from({ length: 10 }, (_, i) => `Risk ${i}: ${'y'.repeat(150)}`),
+};
+
+test('gate-brief: a long brief is trimmed inside the budget, and Next, Recommended and the run line survive whole', t => {
+  const run = atApproval(t, LONG);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
+  const lines = result.stdout.split('\n');
+  assert.deepEqual(lines.slice(-4), ['Next: implementation', 'Recommended: continue', runLine(run), '']);
+  assert.match(result.stdout, /\(\+\d+ more — see the dashboard\)/);
+  assert.match(result.stdout, /^Sentence 0 restates/);
+  assert.match(result.stdout, /^Risks:$/m, 'a trimmed brief still shows its first risk');
+  assert.match(result.stdout, /^- Risk 0: /m);
+});
+
+test('gate-brief: --oneline keeps the same budget and never trims its tail', t => {
+  const run = atApproval(t, LONG);
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--oneline']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
+  assert.ok(result.stdout.endsWith(` · Next: implementation · Recommended: continue · ${runLine(run)}\n`), result.stdout);
+  assert.doesNotMatch(result.stdout.slice(0, -1), /[\r\n"]/);
+  assert.doesNotThrow(() => scalar(result.stdout.slice(0, -1)));
 });

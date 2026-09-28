@@ -18,11 +18,24 @@
  * says it is unknown, and a warning names the two digests. A run started before
  * an upgrade keeps working at every gate.
  *
+ * When the definition cannot be read at all and the freeze recorded no needs,
+ * the nodes this gate closes are unknown. The brief still renders: the summary
+ * is the nearest node recorded before the gate that carries one, and a warning
+ * says so. Only when no node carries a summary does it refuse.
+ *
  * The refusals, split by who can fix them. Two are fixed by a state write, and
  * their message carries the patch: `gate-brief-no-summary` and
- * `gate-brief-value-missing`. Three say the invocation itself is wrong and name
- * no write: `gate-brief-unknown-node`, `gate-brief-not-a-gate` and
- * `state-unreadable`.
+ * `gate-brief-value-missing`. Four name no write: `gate-brief-unknown-node` and
+ * `gate-brief-not-a-gate` (the invocation is wrong), `state-unreadable`, and
+ * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
+ * back on).
+ *
+ * The budget. A picker cuts a question off at about 2,000 characters, and what
+ * it cut was the tail — the risks, `Next:`, `Recommended:` and the ask. So the
+ * brief keeps inside `BUDGET`, trimming the summary, the decisions and the risks
+ * with a pointer to the dashboard, and never the three closing lines: `Next:`,
+ * `Recommended:` and the `Run: … · Dashboard: …` line that says where the run
+ * and its full summaries live.
  *
  * The guard evaluation and the ready-set simulation live here and nowhere else.
  * `umbrella/scripts/lib/envelope.mjs` re-resolves a frozen definition the same
@@ -39,9 +52,9 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { resolve } from './graph.mjs';
-import { definitionPathOf, projectRootOf } from './state.mjs';
+import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 
-/** The context blocks a summary may also be recorded in (A1 layer 2). */
+/** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
 
 /** The warning `workflow.mjs` records for a format this build does not know. */
@@ -62,6 +75,19 @@ const WHEN = /^(!?)\$\{([a-z][a-z0-9-]*)\.(?:(values)\.)?([a-z_]+)\}$/;
 /** The drift form of the Next line, and the recommendation when no option is known. */
 const NEXT_UNKNOWN = 'Next: unknown — the definition changed since the freeze';
 const RECOMMENDED_UNKNOWN = 'the continue option';
+
+/**
+ * The most a brief prints, in characters. A picker showed every question of
+ * 1,896 characters in full and cut every one of 2,325; the brief keeps well
+ * under the first so the blank line and the gate's own ask still fit.
+ */
+export const BUDGET = 1600;
+
+/** How long one decision or risk may run before it is cut short. */
+const ITEM_MAX = 200;
+
+/** The least of a summary kept while list items can still be dropped instead. */
+const SUMMARY_FLOOR = 400;
 
 /**
  * Render the brief for the gate `node` of the run whose state file is `state`.
@@ -98,11 +124,31 @@ export function gateBrief({ state, node, oneline = false }) {
   const graph = current.graph;
   const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
 
-  const closing = closingNode({ doc, recorded, byId, gate: node });
-  if (!closing) {
-    return refuse('gate-brief-no-summary',
-      `no node this gate closes has recorded a summary (looked at: ${closingCandidates(recorded, byId, node).join(', ') || 'none — the gate\'s needs are unknown'}); `
-      + `send {"node_summaries":{"<id>":{"summary":"…"}}} for the node that closed, through write-state, and run gate-brief again`);
+  const candidates = closingCandidates(recorded, byId, node);
+  let closing;
+  if (candidates.length) {
+    closing = closingNode(doc, candidates);
+    if (!closing) {
+      return refuse('gate-brief-no-summary',
+        `no node this gate closes has recorded a summary (looked at: ${candidates.join(', ')}); `
+        + `send {"node_summaries":{"${candidates[0]}":{"summary":"…"}}} for the node that closed, through write-state, and run gate-brief again`,
+        warnings);
+    }
+  } else {
+    // Neither the definition nor the freeze says what this gate closes. The
+    // nearest node recorded before it that carries a summary is the best guess
+    // there is, and the warning says it is one.
+    closing = closingNode(doc, Object.keys(recorded).slice(0, Object.keys(recorded).indexOf(node)).reverse());
+    if (!closing) {
+      return refuse('gate-brief-no-graph',
+        'the definition cannot be read, the freeze recorded no needs for this gate, and no node before it carries a summary; '
+        + 'no state write fixes this — ask the gate without a brief and report this message',
+        warnings);
+    }
+    warnings.push({
+      code: 'gate-brief-needs-unknown',
+      message: `gate-brief-needs-unknown: what this gate closes is unknown, so the summary is ${closing.id}'s, the nearest node before it that carries one`,
+    });
   }
 
   // The options only when the current definition still holds this node as a
@@ -121,14 +167,19 @@ export function gateBrief({ state, node, oneline = false }) {
   }
 
   const recommended = recommend(options, closing.risks);
-  const text = oneline
-    ? renderOneline({ closing, next, recommended })
-    : renderPlain({ closing, next, recommended });
+  const tail = [next, `Recommended: ${recommended}`, runLine(doc, runDir)];
+  const text = fit(closing, oneline ? renderOneline : renderPlain, tail);
   return { ok: true, text, errors: [], warnings };
 }
 
-function refuse(code, message) {
-  return { ok: false, text: '', errors: [{ code, message: `${code}: ${message}` }], warnings: [] };
+function refuse(code, message, warnings = []) {
+  return { ok: false, text: '', errors: [{ code, message: `${code}: ${message}` }], warnings };
+}
+
+/** Where the run lives and where its dashboard is — the brief's last line. */
+function runLine(doc, runDir) {
+  const dashboard = htmlOutput(doc) ? path.join(runDir, 'dashboard.html') : 'none (html_output is false)';
+  return `Run: ${runDir} · Dashboard: ${dashboard}`;
 }
 
 function entryOf(recorded, id) {
@@ -232,7 +283,7 @@ function closingCandidates(recorded, byId, gate) {
 }
 
 /**
- * The first candidate with a filled summary, as `{id, summary, decisions, risks}`.
+ * The first of `candidates` with a filled summary, as `{id, summary, decisions, risks}`.
  *
  * Each field is picked on its own from the first source carrying it filled — the
  * dashboard's `pick` rule, mirrored rather than imported so the projection stays
@@ -240,9 +291,9 @@ function closingCandidates(recorded, byId, gate) {
  * its key *or* its `node:` names the candidate, because the context blocks are
  * keyed by phase and name the node inside the entry.
  */
-function closingNode({ doc, recorded, byId, gate }) {
+function closingNode(doc, candidates) {
   const sources = summarySources(doc);
-  for (const id of closingCandidates(recorded, byId, gate)) {
+  for (const id of candidates) {
     const entries = sources.flatMap(source => source(id));
     const picked = {};
     for (const field of ['summary', 'decisions', 'risks']) {
@@ -314,7 +365,7 @@ export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, option
     const ready = nodes.find(entry => downstream.has(entry.id)
       && status.get(entry.id) === 'pending'
       && list(entry.needs).every(need => satisfies(status.get(need), entry.on)));
-    if (!ready) return { ok: true, next: null, skipped };
+    if (!ready) return { ok: true, next: null, skipped, waiting: blockers(nodes, downstream, status) };
     if (typeof ready.when !== 'string') return { ok: true, next: ready.id, skipped };
 
     const guard = evaluate(ready.when, { byId, recorded, status, values, inputs, defaults });
@@ -323,6 +374,24 @@ export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, option
     status.set(ready.id, 'skipped');
     skipped.push(ready.id);
   }
+}
+
+/**
+ * What the downstream nodes still pending wait on, once nothing downstream is
+ * ready: every unmet need that is not itself one of those pending nodes — a
+ * parallel branch outside the gate's reach, most often. Empty when nothing
+ * downstream is pending, which is the end of the run.
+ */
+function blockers(nodes, downstream, status) {
+  const pending = new Set(nodes.filter(entry => downstream.has(entry.id) && status.get(entry.id) === 'pending').map(entry => entry.id));
+  const waiting = new Set();
+  for (const entry of nodes) {
+    if (!pending.has(entry.id)) continue;
+    for (const need of list(entry.needs)) {
+      if (!pending.has(need) && !satisfies(status.get(need), entry.on)) waiting.add(need);
+    }
+  }
+  return nodes.map(entry => entry.id).filter(id => waiting.has(id));
 }
 
 /** Every node whose transitive needs closure contains `gate`. */
@@ -411,8 +480,9 @@ function evaluate(when, { byId, recorded, status, values, inputs, defaults }) {
   };
 }
 
-function nextLine({ next, skipped }) {
+function nextLine({ next, skipped, waiting = [] }) {
   const suffix = skipped.length ? ` — skipped: ${skipped.join(', ')}` : '';
+  if (next === null && waiting.length) return `Next: waiting on ${waiting.join(', ')}${suffix}`;
   return `Next: ${next ?? 'end of run'}${suffix}`;
 }
 
@@ -450,15 +520,81 @@ function items(values) {
   return values.map(itemText).filter(text => text !== '');
 }
 
-/** The terminal form: the summary verbatim, the lists, then Next and Recommended. */
-function renderPlain({ closing, next, recommended }) {
-  const out = [closing.summary.trim(), ''];
+/** The pointer left where something was trimmed. */
+function more(count, unit = '') {
+  return `(+${count} more${unit ? ` ${unit}` : ''} — see the dashboard)`;
+}
+
+/** `text` cut to at most `max` characters at a word, the cut named. */
+function shorten(text, max) {
+  if (text.length <= max) return text;
+  const note = ` … ${more(text.length - max, 'characters')}`;
+  const room = Math.max(0, max - note.length);
+  const cut = text.slice(0, room);
+  const word = cut.lastIndexOf(' ');
+  return `${(word > room / 2 ? cut.slice(0, word) : cut).trimEnd()}${note}`;
+}
+
+/**
+ * The brief rendered inside `BUDGET`. Nothing is trimmed from one that fits.
+ * Otherwise, in order, until it fits: each list item is cut to `ITEM_MAX`; the
+ * summary gives up what it can down to `SUMMARY_FLOOR`; decisions are dropped
+ * from the end down to one, then risks down to one, then the last decision,
+ * then the last risk; and finally the summary gives up the rest. Every drop
+ * leaves a `(+N more — see the dashboard)` item; `tail` is never touched.
+ */
+function fit(closing, render, tail) {
+  const summary = closing.summary.trim();
   const decisions = items(closing.decisions);
   const risks = items(closing.risks);
+  const view = { summary: summary.length, item: Infinity, decisions: decisions.length, risks: risks.length };
+  const draw = () => render({
+    summary: shorten(summary, view.summary),
+    decisions: shown(decisions, view.decisions, view.item),
+    risks: shown(risks, view.risks, view.item),
+    tail,
+  });
+
+  let text = draw();
+  if (text.length <= BUDGET) return text;
+  view.item = ITEM_MAX;
+  text = draw();
+  if (text.length > BUDGET && summary.length > SUMMARY_FLOOR) {
+    view.summary = Math.max(SUMMARY_FLOOR, summary.length - (text.length - BUDGET));
+    text = draw();
+  }
+  const drops = [
+    () => view.decisions > 1 && view.decisions--,
+    () => view.risks > 1 && view.risks--,
+    () => view.decisions > 0 && view.decisions--,
+    () => view.risks > 0 && view.risks--,
+  ];
+  for (const drop of drops) {
+    while (text.length > BUDGET && drop()) text = draw();
+  }
+  if (text.length > BUDGET) {
+    view.summary = Math.max(0, view.summary - (text.length - BUDGET));
+    text = draw();
+  }
+  return text;
+}
+
+/** The first `count` of `values`, each cut to `max`, and a pointer to the rest. */
+function shown(values, count, max) {
+  const kept = values.slice(0, count).map(text => shorten(text, max));
+  return values.length > count ? [...kept, more(values.length - count)] : kept;
+}
+
+/**
+ * The terminal form: the summary verbatim, the lists, then Next, Recommended
+ * and the run line.
+ */
+function renderPlain({ summary, decisions, risks, tail }) {
+  const out = [summary, ''];
   if (decisions.length) out.push('Decisions:', ...decisions.map(text => `- ${text}`));
   if (risks.length) out.push('Risks:', ...risks.map(text => `- ${text}`));
   if (decisions.length || risks.length) out.push('');
-  out.push(next, `Recommended: ${recommended}`);
+  out.push(...tail);
   return `${out.join('\n')}\n`;
 }
 
@@ -467,13 +603,11 @@ function renderPlain({ closing, next, recommended }) {
  * request writer refuses a newline or a double quote in a flow scalar, so every
  * line break folds to a space and every `"` becomes `'`.
  */
-function renderOneline({ closing, next, recommended }) {
-  const decisions = items(closing.decisions);
-  const risks = items(closing.risks);
-  const sections = [closing.summary];
+function renderOneline({ summary, decisions, risks, tail }) {
+  const sections = [summary];
   if (decisions.length) sections.push(`Decisions: ${decisions.join('; ')}`);
   if (risks.length) sections.push(`Risks: ${risks.join('; ')}`);
-  sections.push(next, `Recommended: ${recommended}`);
+  sections.push(...tail);
   const line = sections.join(' · ').replace(/\s*[\r\n]+\s*/g, ' ').replace(/"/g, "'").trim();
   return `${line}\n`;
 }

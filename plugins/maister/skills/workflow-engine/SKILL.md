@@ -285,7 +285,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
-| `gate-brief` | `--state`, `--node` (the gate), optional `--oneline` | the gate brief on stdout — the closing node's summary, its decisions and risks, a `Next:` line naming the node that actually runs next (with any guard-skipped nodes) and a `Recommended:` option; `--oneline` folds it onto one flow-safe line — reads the run, writes nothing (§ Gates) |
+| `gate-brief` | `--state`, `--node` (the gate), optional `--oneline` | the gate brief on stdout — the closing node's summary, its decisions and risks, a `Next:` line naming the node that actually runs next (with any guard-skipped nodes), a `Recommended:` option and a last `Run: <dir> · Dashboard: <path>` line, kept within 1,600 characters; `--oneline` folds it onto one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
 `gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
@@ -605,13 +605,24 @@ What the operator reads at a gate is rendered by the engine, never composed:
   whole `values` map, because a node's values are replaced whole on patch.
 - **`gate-brief-unknown-node` or `gate-brief-not-a-gate`**: the `--node` argument is wrong;
   correct it. Nothing is written.
+- **`gate-brief-no-graph`**: the definition cannot be read, the freeze recorded no needs and no
+  node carries a summary. No write fixes it: relay the message and ask the gate with its `ask:`
+  alone.
 - **A `gate-brief-graph-drift` warning** means the definition changed since the freeze. Relay
   the warning as-is; the brief still printed, its `Next:` line says the next node is unknown,
-  and the gate is still asked.
+  and the gate is still asked. A `gate-brief-needs-unknown` warning beside it says the summary
+  is the nearest recorded one, because what the gate closes is unknown; relay it too.
+
+The brief stays within 1,600 characters, so that the brief and the ask fit in the picker. A
+longer summary, decision list or risk list is trimmed, and each cut says `(+N more — see the
+dashboard)`. The `Next:`, `Recommended:` and last `Run: <dir> · Dashboard: <path>` lines are
+never trimmed. The last line reads `Dashboard: none (html_output is false)` when the run has
+no dashboard.
 
 The brief's `Next:` line names the node that actually runs once the continue option is
 chosen — guards evaluated, skipped nodes listed — so no gate question or prose needs to say
-where the run goes next.
+where the run goes next. When that node waits on a branch the gate does not reach, the line
+reads `Next: waiting on <ids>`; `Next: end of run` means nothing after the gate is left.
 
 ### Terminal mode — asked and answered in one turn
 

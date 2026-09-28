@@ -18,8 +18,9 @@
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt — read-only over a run
  *   gate-brief     --state, --node, optional --oneline        the gate brief:
- *                  the closing summary, the node that runs next and the
- *                  recommended option — read-only over a run
+ *                  the closing summary, the node that runs next, the
+ *                  recommended option and the run's dashboard, kept inside a
+ *                  fixed budget — read-only over a run
  *   sync-plan      --plan                                     JSON on stdout
  *                  (the plan companion's progress markers set from the
  *                  markdown plan's checkboxes; a no-op without a companion)
@@ -459,7 +460,8 @@ async function runPriorContext(flags) {
  * Reported like `prior-context` — stdout is the bytes a caller pastes into the
  * question, a refusal is exit 1 with an empty stdout and the code first on
  * stderr — with one addition: a drifted definition is a warning, not a
- * refusal, so it goes to stderr beside a brief that still printed.
+ * refusal, so it goes to stderr beside a brief that still printed, or after
+ * the refusal's code when one follows it.
  */
 async function runGateBrief(flags) {
   if (!flags.state) throw new UsageError('gate-brief needs --state');
@@ -467,11 +469,11 @@ async function runGateBrief(flags) {
   const module = await loadModule(VERBS['gate-brief'].module);
   const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
   const result = render({ state: flags.state, node: flags.node, oneline: flags.oneline === true });
+  // A refusal's code comes first on stderr, and a drift warning is kept after
+  // it: a drifted run that also lacks a summary must still say it drifted.
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
-  if (!result.ok) {
-    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
-    return EXIT.REJECTED;
-  }
+  if (!result.ok) return EXIT.REJECTED;
   process.stdout.write(result.text);
   return EXIT.OK;
 }
