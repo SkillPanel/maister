@@ -321,7 +321,12 @@ scope.
 `migration_context.migration_type` — the declared value this node emits, which
 is what the specification, planning and verification nodes read —
 `migration_context.target_system`, `migration_context.migration_strategy`,
-`migration_context.risk_level` and `migration_context.breaking_changes`. The
+`migration_context.risk_level` and `migration_context.breaking_changes`.
+`migration_context.target_system` is `{description, technologies}` — the same
+shape as `current_system`: a description string and a list of technology
+names. `migration_context.migration_strategy` is `{approach, phases}`, where
+`approach` is exactly one of `incremental`, `big-bang`, `dual-run` or `phased`,
+and `phases` is a list of strings, one per migration phase in order. The
 web research lands in `external_research`, a top-level sibling of the context
 block rather than a field inside it, under its four keys: `performed`,
 `category`, `breaking_changes` and `migration_guide_url` — `performed: false`
