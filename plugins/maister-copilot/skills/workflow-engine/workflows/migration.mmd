@@ -1,12 +1,12 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: migration
-%% graph_hash: sha256:3e4ddff103937c38118f1c570e8a0c5a4643e1283d64d268938c9fb5cc62cda9
+%% graph_hash: sha256:d7e61cfd8248712bbe90beffa2b7bc36b239c0ce12f6547112b03a7aae1c252a
 
 flowchart TD
   n_intake["intake<br/>direct:intake"]
   n_current_state_analysis["current-state-analysis<br/>skill:codebase-analyzer"]
   n_gap_analysis["gap-analysis<br/>agent:gap-analyzer"]
-  n_gap_approval{{"gap-approval<br/>gate<br/>Continue to migration strategy?<br/>continue-to-specification: continue, stop-migration: stop"}}
+  n_gap_approval{{"gap-approval<br/>gate<br/>Gap analysis complete. Continue?<br/>continue-to-specification: continue, stop-migration: stop"}}
   n_specification["specification<br/>direct:specification"]
   n_specification_approval{{"specification-approval<br/>gate<br/>Continue to implementation planning?<br/>continue-to-planning: continue, stop-migration: stop"}}
   n_planning["planning<br/>agent:implementation-planner"]

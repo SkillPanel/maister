@@ -360,9 +360,9 @@ A gate, unguarded. Ask the question the definition carries, record the answer,
 and stop the run on the stop option — nothing after a stopped node ever becomes
 ready.
 
-Its question names the migration strategy, and the specification is what writes
-one. Nothing between here and there is guarded, so the node the question names
-is the node the run reaches, and the gate brief's `Next:` line says so.
+Its question names the stage just completed and no later one. The node the run
+reaches next is `specification` — nothing between here and there is guarded —
+and the gate brief's `Next:` line names it.
 
 ---
 

@@ -110,7 +110,7 @@ nodes:
   gap-approval:
     type: gate
     needs: [gap-analysis]
-    ask: "Continue to migration strategy?"
+    ask: "Gap analysis complete. Continue?"
     options:
       continue-to-specification: continue
       stop-migration: stop
