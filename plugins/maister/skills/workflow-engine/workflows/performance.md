@@ -203,8 +203,10 @@ state file and the profiling-data drop point the analysis node reads from.
    answer "no profiling data", not a missing artifact**, and the node that reads
    it treats it that way.
 4. **Read the project configuration** and set `options.html_output` (default true
-   when the file or the key is absent). When `html_output` is false, skip the
-   dashboard entirely — no dashboard asset, no data projection, no browser open.
+   when the file or the key is absent) and `options.mockup_format` (default
+   `html`) beside it. The second is framework-mandated for every orchestrator and
+   inert here — no node reads it — but a reader of state expects it. When
+   `html_output` is false, skip the dashboard entirely — no dashboard asset, no data projection, no browser open.
    Otherwise copy the dashboard asset to the task root and **run the platform
    opener** on the plain absolute path through the shell — `open "<task path>/dashboard.html"`
    on macOS, `xdg-open` on Linux, `start ""` on Windows. Never build a `file://`
