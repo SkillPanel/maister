@@ -266,8 +266,23 @@ path of your own.
 **The invocation is the whole command.** No `cd` in front of it, no `set -e`, no
 variable assigned first and used in it, no second command after it, no redirection,
 no substitution — and never several verbs packed into one shell script. The only
-thing that may share the line is the patch or the request document being piped in:
-`echo '<json>' | node …`. This is not style. The enforcement hook recognises this
+thing that may go with it is the patch or the request document, sent on stdin as a
+quoted heredoc:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs write-state --state=<state> <<'JSON'
+{"node_summaries": {"<node>": {"summary": "…"}}}
+JSON
+```
+
+The quotes around the opening `JSON` are what keep the body literal: an apostrophe, a
+`$`, a backslash or a `\r\n` escape inside the JSON reaches the verb exactly as typed,
+in bash and zsh alike. The closing `JSON` stands alone on the last line, and nothing
+follows it. Never send the document as `echo '<json>' | node …` in a POSIX shell: the
+first apostrophe in the text ends the quoted string, and zsh's `echo` turns `\r\n`
+escapes into control characters. Where the shell tool is PowerShell, which has no
+heredoc, `echo '<json>' | node …` is the form, with every apostrophe in the JSON
+doubled. This is not style. The enforcement hook recognises this
 plugin's own call and answers it, so the operator is not asked to approve their own
 workflow once per write — and it recognises the call by reading the command, so a
 command doing anything else is not that call and the prompt comes back. Measured
@@ -776,7 +791,8 @@ re-validation through the writer.
    **`gate_pending: null` last**. The order matters because the marker is what the hook
    reads: clearing it first would open the tool surface before the decision was recorded.
 5. The instant the marker is null the gate is no longer pending, so the very next action is
-   `echo '{}' | node .../workflow.mjs write-state --state=<state>` — the empty patch. It is
+   `write-state --state=<state>` with the empty patch, `{}`, as its heredoc body (§ The
+   invocation contract). It is
    not a no-op: the writer reads the file the editor tools just wrote, self-checks it through
    the enforcement hook's own reader, and re-publishes it. The file changes by one line
    (`orchestrator.updated`), and that is the expected result. This is what keeps the editor-

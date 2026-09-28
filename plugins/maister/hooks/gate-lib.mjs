@@ -532,11 +532,19 @@ const SHELL_TOOLS = new Set(['Bash', 'bash', 'powershell']);
 
 /**
  * Shell metacharacters that put anything at all beside the invocation being
- * judged. `|` is absent on purpose: the documented way to hand a patch to the
- * state writer is `echo '{}' | node …`, and a pipeline is checked stage by
- * stage below instead.
+ * judged — a line break outside quotes is a command separator like `;`. `|` is
+ * absent on purpose: `echo '{}' | node …` is one way to hand a patch to the
+ * state writer, and a pipeline is checked stage by stage below instead. The
+ * other way, a quoted heredoc, is lifted off before this is applied.
  */
-const COMMAND_POISON = /[;&`<>]|\$\(|\|\|/;
+const COMMAND_POISON = /[;&`<>\n\r]|\$\(|\|\|/;
+
+/**
+ * A quoted heredoc opened at the end of the command's first line. Quoting the
+ * tag is what makes the body literal — nothing in it is expanded — so the body
+ * is data exactly as a single-quoted span is; an unquoted tag is not matched.
+ */
+const QUOTED_HEREDOC = /\s<<'([A-Za-z_][A-Za-z0-9_]*)'[ \t]*$/;
 
 /** The only producers a recognised pipeline may carry on its left-hand side. */
 const STDIN_PRODUCERS = new Set(['echo', 'printf']);
@@ -560,7 +568,10 @@ const ROOT_VARIABLE = /\$\{?(CLAUDE_PLUGIN_ROOT|MAISTER_PLUGIN_ROOT)\}?/g;
  */
 export function engineInvocation(tooling) {
   if (!tooling || tooling.kind !== 'opaque' || !SHELL_TOOLS.has(tooling.tool)) return null;
-  const command = typeof tooling.target === 'string' ? tooling.target.trim() : '';
+  const whole = typeof tooling.target === 'string' ? tooling.target.trim() : '';
+  const heredoc = whole ? liftHeredoc(whole) : null;
+  if (!heredoc) return null;
+  const { command, lifted } = heredoc;
   const masked = command && maskSingleQuoted(command);
   if (!masked || COMMAND_POISON.test(masked)) return null;
 
@@ -569,7 +580,7 @@ export function engineInvocation(tooling) {
   // Split where the *masked* text has a pipe, so a `|` inside the patch is not
   // taken for one.
   const stages = splitAt(command, masked, '|').map(stage => stage.trim());
-  if (stages.length > 2 || stages.some(stage => stage === '')) return null;
+  if (stages.length > (lifted ? 1 : 2) || stages.some(stage => stage === '')) return null;
   if (stages.length === 2) {
     const producer = tokenize(stages[0]);
     if (!producer.length || !STDIN_PRODUCERS.has(producer[0]) || producer.some(hasSubstitution)) return null;
@@ -591,6 +602,21 @@ export function engineInvocation(tooling) {
     return verb && verbs.has(verb) ? { root, script: entry, verb } : null;
   }
   return null;
+}
+
+/**
+ * The command with a quoted heredoc's body lifted off: `{command, lifted}`, the
+ * first line alone when it opens one, the whole text unchanged when it does not,
+ * or `null` when the body is never closed or anything follows its terminator —
+ * a line after the terminator is a second command.
+ */
+function liftHeredoc(text) {
+  const lines = text.split('\n');
+  const open = lines[0].match(QUOTED_HEREDOC);
+  if (!open) return { command: text, lifted: false };
+  const end = lines.findIndex((line, index) => index > 0 && line === open[1]);
+  if (end !== lines.length - 1) return null;
+  return { command: lines[0].slice(0, open.index).trim(), lifted: true };
 }
 
 /**
