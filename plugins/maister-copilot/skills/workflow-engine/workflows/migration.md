@@ -226,9 +226,10 @@ read.
    `options.docs_enabled` in the same step: the documentation node is guarded on
    the input, and a reader of state needs the same answer visible where every
    other option lives. When `html_output` is false, skip the dashboard entirely
-   — no dashboard asset, no data projection, no browser open. Otherwise copy the
-   dashboard asset to the task root and **run the platform opener** on the plain
-   absolute path through the shell — `open "<task path>/dashboard.html"` on macOS,
+   — no dashboard asset, no data projection, no browser open. Otherwise the freeze
+   installed `dashboard.html` in the task root (see the changed paths it reported)
+   — copy nothing; **run the platform opener** on the plain absolute path through
+   the shell — `open "<task path>/dashboard.html"` on macOS,
    `xdg-open` on Linux, `start ""` on Windows. Never build a `file://` URL; the
    opener resolves a plain path itself. On failure print the path; never block.
 6. **Relay the startup banner the freeze printed** (engine Step 4) if it is not

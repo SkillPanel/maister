@@ -209,8 +209,9 @@ state file and the profiling-data drop point the analysis node reads from.
    `html`) beside it. The second is framework-mandated for every orchestrator and
    inert here — no node reads it — but a reader of state expects it. When
    `html_output` is false, skip the dashboard entirely — no dashboard asset, no data projection, no browser open.
-   Otherwise copy the dashboard asset to the task root and **run the platform
-   opener** on the plain absolute path through the shell — `open "<task path>/dashboard.html"`
+   Otherwise the freeze installed `dashboard.html` in the task root (see the
+   changed paths it reported) — copy nothing; **run the platform opener** on the
+   plain absolute path through the shell — `open "<task path>/dashboard.html"`
    on macOS, `xdg-open` on Linux, `start ""` on Windows. Never build a `file://`
    URL; the opener resolves a plain path itself. On failure print the path;
    never block.

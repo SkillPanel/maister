@@ -219,8 +219,9 @@ freeze persisted it. A non-terminal run that has no description is
    when the file or the key is absent) and `options.mockup_format` (default
    `html`, read later by `ui-mockups`). When `html_output` is false, skip the
    dashboard entirely — no dashboard asset, no data projection, no browser open.
-   Otherwise copy the dashboard asset to the task root and open it in the
-   operator's browser by the plain absolute path. On failure print the path;
+   Otherwise the freeze installed `dashboard.html` in the task root (see the
+   changed paths it reported) — copy nothing; open it in the operator's browser
+   by the plain absolute path, never a `file://` URL. On failure print the path;
    never block.
 4. **Relay the startup banner the freeze printed** (engine Step 4) if it is not
    already on screen; compose none.

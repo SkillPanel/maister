@@ -1154,8 +1154,9 @@ The engine honours the framework's contracts; it does not restate them. Follow
 
 - the **artifact summary contract** (§ 7) in every prompt that asks a delegate to write an
   artifact, with the returned summary lifted into state verbatim rather than re-summarized;
-- the **operator dashboard** (§ 8 — the config gate that turns it off, the copied asset and the
-  browser open, which stay prose): on the engine path every successful `write-state` projects
+- the **operator dashboard** (§ 8 — the config gate that turns it off and the browser open,
+  which stay prose; the viewer itself is installed by the freeze write, Step 4, so an engine run
+  copies nothing): on the engine path every successful `write-state` projects
   `dashboard-data.js` itself, so an engine run owes none of moments 1-7 and a projection that
   fails is a warning that never blocks. Moments 8-10 still bind: they sit *inside* the
   implementation and verification phases, which the engine does not enter, so
