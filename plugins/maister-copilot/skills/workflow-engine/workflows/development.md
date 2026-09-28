@@ -27,7 +27,9 @@ there would read like a grammar feature while being inert data the engine never
 consults. Eight nodes carry a budget; the rest carry none and re-drive nothing.
 
 **A skip does not cascade.** A node whose guard is false is marked skipped, and
-a skip satisfies everything downstream. That is why the closing gate of a
+a skip satisfies everything downstream. The skip is stamped in a patch that lands
+no later than the next executed node's `running` patch — earlier, or in that
+same patch — never after the run has moved on. That is why the closing gate of a
 conditional stretch repeats its stretch's guard: an unguarded gate would fire
 for a stretch that never ran.
 
@@ -86,7 +88,9 @@ one line, and nothing in the prompt recorded that they had ever been thirteen. S
 the composing step is gone. Call `prior-context` with the run's state file **at
 each consuming delegate** — one call per prompt, in the turn that composes it —
 paste its stdout into the prompt, and leave it alone: trimming it, re-ordering it
-or tightening it is the same defect by hand. Re-using a rendering produced for an
+or tightening it is the same defect by hand. The stdout is pasted as text, whole:
+never slice it with `sed`, `head`, `tail` or the like, and never pass a file path
+or a saved copy in place of the pasted text. Re-using a rendering produced for an
 earlier delegate is not licensed however recent it looks: a summary written in
 between makes it stale, the prompt records nothing about when it was taken, and a
 prompt that happens to be current is current by timing rather than by

@@ -454,7 +454,10 @@ that passage by hand does not hold — measured across four attended runs, a nod
 afresh from an artifact it had already read condensed thirteen items into seven clauses on
 one line — so the passage is not written, it is fetched. Run `prior-context` against the run's
 state file **at each consuming delegate** — one call per prompt, in the turn that composes it —
-and paste its stdout into the prompt under its own heading, unedited. It renders
+and paste its stdout into the prompt under its own heading, unedited. The stdout is pasted as
+text, whole: never slice it with `sed`, `head`, `tail` or the like, and never pass a file path
+or a saved copy in place of the pasted text — a delegate handed a path reads what it chooses
+to, and a sliced passage is a trimmed one. It renders
 every `phase_summaries` entry the run has accumulated: the phase key, the node that owns it,
 its summary line, then its decisions and its risks as one bullet each with the count beside
 the heading, so a truncation is visible as a number that disagrees with its own bullets. It
@@ -961,7 +964,10 @@ What "a moment" means, and there are four of them:
   when the status arrives later. A summary written with its own `status` keeps it until
   the node's status next changes.
 - **A ready-set walk skips nodes.** Every node a false guard skips goes in one patch, with
-  their summaries, however many there are.
+  their summaries, however many there are. That patch lands no later than the next
+  executed node's `running` patch — either earlier, or as part of that same patch — so no
+  node is ever recorded as started while a node the walk already passed still reads
+  `pending`.
 - **A run ends.** The closing node's outcome and `task.status` are one patch; a stop option is
   likewise one patch carrying `task.status: stopped` and every unexecuted node. `run-complete`
   follows it and publishes nothing, so it is not a write and never merges with one.

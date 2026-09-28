@@ -95,7 +95,9 @@ one line, and nothing in the prompt recorded that they had ever been thirteen. S
 the composing step is gone. Call `prior-context` with the run's state file **at
 each consuming delegate** — one call per prompt, in the turn that composes it —
 paste its stdout into the prompt, and leave it alone: trimming it, re-ordering it
-or tightening it is the same defect by hand. Re-using a rendering produced for an
+or tightening it is the same defect by hand. The stdout is pasted as text, whole:
+never slice it with `sed`, `head`, `tail` or the like, and never pass a file path
+or a saved copy in place of the pasted text. Re-using a rendering produced for an
 earlier delegate is not licensed however recent it looks: a summary written in
 between makes it stale, the prompt records nothing about when it was taken, and a
 prompt that happens to be current is current by timing rather than by
@@ -330,7 +332,10 @@ and `phases` is a list of strings, one per migration phase in order. The
 web research lands in `external_research`, a top-level sibling of the context
 block rather than a field inside it, under its four keys: `performed`,
 `category`, `breaking_changes` and `migration_guide_url` — `performed: false`
-with the rest empty when no research was needed, never a shape of its own.
+with the rest empty when no research was needed, never a shape of its own. With
+`external_research.performed: false`, `category` is null and `breaking_changes`
+is `[]`; breaking changes found by reading the code go to
+`migration_context.breaking_changes`, never into `external_research`.
 
 **Gate brief content.** Read `analysis/target-state-plan.md` and write into this
 node's closing `node_summaries` entry a `summary` of one labelled line for each
@@ -734,6 +739,11 @@ the screenshots the guide needs.
 The guide covers the migration overview and its goals, the prerequisites and the
 preparation steps, the step-by-step procedure, the rollback procedure and the
 troubleshooting for the problems the verification actually found.
+
+**Node summary.** This node's closing `node_summaries` entry lifts the guide's
+Key Decisions item for item into `decisions` — one entry per item, in the
+guide's order, none merged and none reworded — and its open questions and risks
+the same way into `risks`.
 
 **This is a stretch of one, with no gate after it.** The prose form has none
 either, so nothing here repeats its guard onto a following gate — the guard ends
