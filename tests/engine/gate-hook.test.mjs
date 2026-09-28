@@ -229,6 +229,27 @@ test('gate hook: PowerShell refuses a splatted word and a bare comma', () => {
   assert.equal(powershell(`node ${ABSOLUTE} write-state --state='/tmp/a,b@c'`)?.verb, 'write-state');
 });
 
+// PowerShell reads `''` inside a single-quoted span as one literal quote, not
+// as a close and a reopen, so the joined path it hands `node` is not the one a
+// POSIX shell would.
+test('gate hook: PowerShell refuses a doubled quote inside a word, wherever the split falls', () => {
+  const split = at => `'${ABSOLUTE.slice(0, at)}''${ABSOLUTE.slice(at)}'`;
+  const marker = ABSOLUTE.indexOf('/skills/');
+  for (const at of [marker, marker + 1, 1, ABSOLUTE.length - 1]) {
+    assert.equal(powershell(`node ${split(at)} write-state --state=/tmp/x.yml`), null, `split at ${at}`);
+  }
+  assert.equal(powershell(`node '${ABSOLUTE}' write-state --state='/tmp/a''b.yml'`), null);
+  assert.equal(powershell(`node '${ABSOLUTE}''' write-state --state=/tmp/x.yml`), null);
+  assert.equal(powershell(`node '${ABSOLUTE}' write-state --state=/tmp/x.yml`)?.verb, 'write-state');
+});
+
+test('gate hook: a POSIX shell still joins adjacent quoted spans', () => {
+  const at = ABSOLUTE.indexOf('/skills/');
+  const command = `node '${ABSOLUTE.slice(0, at)}''${ABSOLUTE.slice(at)}' write-state --state=/tmp/x.yml`;
+  assert.equal(bash(command)?.verb, 'write-state');
+  assert.equal(bash(`node '${ABSOLUTE}' write-state --state='/tmp/a''b.yml'`)?.verb, 'write-state');
+});
+
 // Adversarial sizes return null quickly and never throw: the recogniser runs in
 // a hook on every tool call.
 test('gate hook: a huge command returns null fast', () => {

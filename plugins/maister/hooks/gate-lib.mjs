@@ -708,7 +708,9 @@ function parseLine(line, posix) {
  * hands the program, the spans unquoted — or `null`. A Windows path's `\` is a
  * word character in PowerShell only, where it escapes nothing. PowerShell reads
  * two more bare characters as syntax: a leading `@` splats a variable and a
- * comma builds an array, so neither passes there outside a quoted span.
+ * comma builds an array, so neither passes there outside a quoted span. And a
+ * quote straight after a span's closing one is, to PowerShell, a literal quote
+ * inside that span rather than a second span, so it ends recognition there.
  */
 function readWord(text, start, posix) {
   let value = '';
@@ -720,6 +722,7 @@ function readWord(text, start, posix) {
       if (close === -1) return null;
       const span = text.slice(at + 1, close);
       if (QUOTE_LIKE.test(span)) return null;
+      if (!posix && text[close + 1] === "'") return null;
       value += span;
       at = close + 1;
     } else if (!posix && (char === ',' || (char === '@' && at === start))) {
