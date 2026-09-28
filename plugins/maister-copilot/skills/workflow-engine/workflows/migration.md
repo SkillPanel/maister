@@ -646,7 +646,10 @@ Other. When nothing on the list is fixable, the `(Recommended)` label moves to
 Apply the chosen fixes and log each one. Record the applied fixes as
 `verification_context.fixes_applied`, and add the operator's calls to
 `verification_context.decisions_made`.
-Then ask one single-select, `Re-run verification?`, with the options
+After "None — proceed as is" nothing was fixed and nothing changed, so there
+is nothing to re-verify: ask no re-run question and continue to the gate. When
+at least one fix was applied, ask one single-select, `Re-run verification?`,
+with the options
 **"Re-verify now (Recommended)"** and **"No — continue to the gate"**. Only on
 a yes, raise `verification_context.reverify_count` by one and re-invoke the
 verifier, which returns to the breakdown; a no leaves the count alone, so it
@@ -665,12 +668,12 @@ the verification left it, rather than to an automated repair already applied to
 their data.
 
 **Default under a non-terminal driver** (`verification-fix-loop`): the
-recommended option — fix every fixable issue (with nothing fixable, proceed as
-is), re-verify once, then continue to the gate — **except a data
+recommended option — fix every fixable issue and re-verify once, then continue to the gate; with
+nothing fixable, proceed as is and continue to the gate without re-verifying — **except a data
 integrity issue, which is never fixed and never proceeded past**, and which ends
 the run as the paragraph above says. The default follows the same order as an
-answered loop: apply the fixes, record `fixes_applied`, then — the recommended
-answer to the re-run question — raise `reverify_count` by one and re-invoke the
+answered loop: apply the fixes, record `fixes_applied`, then, when a fix was applied — the recommended answer to the re-run
+question — raise `reverify_count` by one and re-invoke the
 verifier. One re-verification is the whole budget,
 because a loop nobody can stop is not a loop. A non-data issue still critical
 after it is recorded as an `open:` risk in this node's summary, which the gate
