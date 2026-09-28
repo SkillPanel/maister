@@ -626,9 +626,14 @@ why the gate that closes it repeats the same guard.
 **Display the issue breakdown** the verifier returned, grouped by category and
 severity, with the location, the description and the fixability of each.
 
-**The fix loop.** Present the critical and warning issues as a numbered list and
-ask which to fix: all the fixable ones, a chosen subset, or none. Apply the
-chosen fixes and log each one. Record the applied fixes as
+**The fix loop.** Ask it as one single-select. The question text is the numbered critical and
+warning list, one line per issue in the shape
+`N. [severity] path:line — description (fixable | needs a hand)`, followed by
+`Which to fix?`. The options are **"Fix all fixable (Recommended)"** and
+**"None — proceed as is"**; a subset is chosen by typing its numbers through
+Other. When nothing on the list is fixable, the `(Recommended)` label moves to
+"None — proceed as is".
+Apply the chosen fixes and log each one. Record the applied fixes as
 `verification_context.fixes_applied`, add the operator's calls to
 `verification_context.decisions_made`, and raise
 `verification_context.reverify_count` by one **before** re-invoking the
@@ -647,8 +652,9 @@ failing rather than skipping — an operator arrives to the migration's state as
 the verification left it, rather than to an automated repair already applied to
 their data.
 
-**Default under a non-terminal driver** (`verification-fix-loop`): fix every
-fixable issue, re-verify once, then continue to the gate — **except a data
+**Default under a non-terminal driver** (`verification-fix-loop`): the
+recommended option — fix every fixable issue (with nothing fixable, proceed as
+is), re-verify once, then continue to the gate — **except a data
 integrity issue, which is never fixed and never proceeded past**, and which ends
 the run as the paragraph above says. One re-verification is the whole budget,
 because a loop nobody can stop is not a loop. A non-data issue still critical

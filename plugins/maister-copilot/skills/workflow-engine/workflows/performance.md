@@ -600,9 +600,14 @@ own companion on the HTML output option.
 severity, with the file and line for each and whether it is fixable
 automatically or needs a hand.
 
-**The fix loop.** When the verdict is anything but a clean pass, present the
-critical and warning issues as a numbered list and ask which to fix: all the
-fixable ones, a chosen subset, or none. Apply the chosen fixes, log each one,
+**The fix loop.** When the verdict is anything but a clean pass, ask it as one single-select. The question text is the numbered critical and
+warning list, one line per issue in the shape
+`N. [severity] path:line — description (fixable | needs a hand)`, followed by
+`Which to fix?`. The options are **"Fix all fixable (Recommended)"** and
+**"None — proceed as is"**; a subset is chosen by typing its numbers through
+Other. When nothing on the list is fixable, the `(Recommended)` label moves to
+"None — proceed as is".
+Apply the chosen fixes, log each one,
 and clear `skip_test_suite` because code changed. Record the applied fixes as
 `verification_context.fixes_applied` and raise
 `verification_context.reverify_count` by one **before** re-invoking the verifier:
@@ -612,8 +617,9 @@ ask whether to re-run the verification; a yes re-invokes the verifier and return
 to the breakdown. Both answers continue the run, which is why this is a node
 question rather than a gate. **Budget: 3 fix rounds.**
 
-**Default under a non-terminal driver** (`verification-fix-loop`): fix every
-fixable issue, re-verify once, then continue to the gate. The re-run follows the
+**Default under a non-terminal driver** (`verification-fix-loop`): the
+recommended option — fix every fixable issue (with nothing fixable, proceed as
+is), re-verify once, then continue to the gate. The re-run follows the
 same rule as an answered one — `fixes_applied` recorded and `reverify_count`
 raised before the verifier is re-invoked — and one re-verification is the whole
 budget, because a loop nobody can stop is not a loop. An issue that remains
