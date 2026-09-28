@@ -196,9 +196,12 @@ Dashboard: <that directory>/dashboard.html   (or: none (html_output is false))
 First node: <the first node of the frozen graph>
 ```
 
-It prints once: a later write that re-sends `workflow:` prints none. Compose no banner of your
-own — the freeze's output is the banner, and a paraphrase drifts from the run it describes. A
-sub-run child's freeze prints its own banner too; the parent does not relay it, and its node
+It prints once: a later write that re-sends `workflow:` prints none. That includes a retried
+freeze — the identical patch sent again because the first call's output was lost. The retry is
+a no-op for the block (no `workflow` path is reported) and prints no banner; the first call's
+write stands, and the task directory, the dashboard and the first node are read off the state
+file instead. Compose no banner of your own — the freeze's output is the banner, and a
+paraphrase drifts from the run it describes. A sub-run child's freeze prints its own banner too; the parent does not relay it, and its node
 summary names the child's path instead.
 
 **The freeze patch carries the definition's context seed, when its node prose names one.** Some
@@ -358,10 +361,11 @@ and a check that only ran where this repository's own tests run would be checkin
 place that needs it least. So a document can be contract-invalid and still be written: the
 schemas are the suite's instrument, and the gate they back is the compatibility suite, not
 this verb. Two things follow for a caller. Send values in the shapes the register declares
-rather than relying on a refusal to catch a wrong one; and where a value must survive, send
-it or leave it out — the six scalars beside `workflow.nodes`, `graph_hash` among them, are
-carried forward from the file when a patch omits them rather than dropped with the rest of
-the block.
+rather than relying on a refusal to catch a wrong one; and never rewrite the `workflow:`
+block. It is written once, at the freeze, and never again: a later patch identical to it
+changes nothing, and one that differs in a node or in any scalar beside `workflow.nodes` —
+`graph_hash` among them — is refused with `state-workflow-frozen`. Nothing is carried
+forward into the block and nothing is dropped from it.
 
 The patch arrives on stdin so no quoting has to survive a shell — Windows without a POSIX
 shell is a supported target. An unknown version degrades **the same way in every verb** —

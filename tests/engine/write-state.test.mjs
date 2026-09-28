@@ -7,6 +7,13 @@ import { ENGINE_DIR, SAMPLE, freeze, readDashboard, readState, scratch, verb, wr
 
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 
+/**
+ * The state text without its write stamp: every landed write re-stamps
+ * `orchestrator.updated`, so a comparison across two writes that must not move
+ * anything else would fail whenever they straddle a second.
+ */
+const unstamped = text => text.replace(/^  updated: .*$/m, '');
+
 /** Send a patch expected to be refused; return the result and assert nothing moved. */
 function refused(run, patch) {
   const before = fs.existsSync(run.state) ? fs.readFileSync(run.state, 'utf8') : null;
@@ -103,6 +110,23 @@ test('banner: a later write that re-sends the workflow block prints no second ba
   const nodes = Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
   const result = write(run, { workflow: { name: 'development', nodes } });
   assert.doesNotMatch(result.stdout, /Maister run started/);
+});
+
+test('banner: a retried freeze, the identical patch sent again, is a no-op with no banner', t => {
+  const run = scratch(t);
+  freeze(run);
+  const before = fs.readFileSync(run.state, 'utf8');
+  const graph = JSON.parse(verb(['resolve', `--definition=${SAMPLE}`]).stdout);
+  const nodes = Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  const result = verb(['write-state', `--state=${run.state}`], {
+    task: { title: 'Sample run', status: 'in_progress' },
+    workflow: { source: SAMPLE, overlays: graph.overlays, profile: graph.profile, graph_hash: graph.graph_hash, grammar_version: 1, name: graph.name, nodes },
+    orchestrator: {},
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /Maister run started/);
+  assert.doesNotMatch(result.stdout, /^workflow/m, 'no workflow path is reported');
+  assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), unstamped(before));
 });
 
 test('banner: a title spanning lines is folded onto the Task line', t => {
@@ -394,7 +418,7 @@ test('write-state: an identical re-send of the frozen workflow block changes not
   const result = write(run, { workflow: { name: 'development', graph_hash: graph.graph_hash, grammar_version: 1, nodes: retyped(graph) } });
   assert.equal(result.code, 0, result.stderr);
   assert.doesNotMatch(result.stdout, /^workflow/m, 'nothing under workflow is reported changed');
-  assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+  assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), unstamped(before));
 });
 
 test('refusal: a workflow block without nodes says where node updates go', t => {
