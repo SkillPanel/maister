@@ -13,9 +13,9 @@
  * replaces or inserts only those regions, and passes every other line through
  * untouched. Unknown keys and comments outside those regions therefore survive
  * by construction rather than by parser fidelity. Inside one of them they do
- * not: `workflow:` is re-emitted whole from the patch, so a comment or an
- * unknown child that block carried is dropped by that write. It is the one
- * region installed rather than edited, and `applyWorkflow` says why.
+ * not: `workflow:` is emitted whole from the freeze patch, so it carries only
+ * what that patch carried, and a later patch is refused unless identical to it.
+ * It is the one region installed rather than edited, and `applyWorkflow` says why.
  *
  * That preservation has one exception, and it is worth stating plainly because
  * it is the opposite of what "line-oriented" suggests. A file this engine
@@ -1066,27 +1066,23 @@ function splitTopLevel(body) {
 }
 
 /**
- * Install or replace the whole `workflow:` block. `workflow:` and its `nodes:`
- * child are emitted together, always: a block present without its nodes is read
- * as a run awaiting an operator, which denies every write in the session.
+ * Install the whole `workflow:` block, once, at the freeze. `workflow:` and its
+ * `nodes:` child are emitted together, always: a block present without its
+ * nodes is read as a run awaiting an operator, which denies every write in the
+ * session.
  *
  * This is the one region the writer does not edit in place. The whole block is
- * re-emitted from the patch, so comments inside it and children the patch does
- * not carry are dropped rather than preserved — the module header's
- * preservation guarantee covers every other region, not this one. That is the
- * behaviour the callers want (a workflow block is installed once, from the
- * resolved graph) and it is stated here rather than left to be discovered.
+ * emitted from the patch, so comments inside it and children the patch does not
+ * carry are never preserved — the module header's preservation guarantee covers
+ * every other region, not this one. That is the behaviour the callers want (a
+ * workflow block is installed once, from the resolved graph) and it is stated
+ * here rather than left to be discovered.
  *
- * **The six frozen scalars are the exception**, and they are carried forward
- * from the document verbatim when the patch omits them. `graph_hash` is why:
- * it is what makes the frozen graph in state verifiable against the definition
- * it came from, and the envelope refuses to dispatch a run whose state records
- * none. A later patch that rewrites only `nodes` — the ordinary shape of a
- * re-freeze — would otherwise erase the run's identity silently rather than
- * fail, removing the check instead of failing it. Carried forward as the
- * *bytes* on the line rather than through the value emitter: `overlays` is a
- * flow sequence, and re-encoding a value this writer never parsed would quote
- * a sequence into a string.
+ * **After the freeze the block is refused rather than re-emitted**, unless the
+ * patch is identical to it, which is a no-op. `graph_hash` is what makes the
+ * frozen graph verifiable against the definition it came from, and the node
+ * entries are the run's progress; a re-emission from a patch would replace
+ * both with whatever the patch carried.
  *
  * Both key loops below emit `  ${key}:` raw, so both run the block-key guard
  * first. Without it a key carrying a newline did not produce a bad-looking
@@ -1106,26 +1102,25 @@ function applyWorkflow(doc, workflow, now, changed) {
     throw new Refusal('state-workflow-without-task',
       'a workflow block cannot be installed into a state file that has no task block');
   }
-  // The block is re-emitted whole from the patch, so a patch that leaves a
-  // frozen node out erases it: a status update sent as `workflow.nodes` once
-  // left a run holding a one-node graph, found only when a gate named a node
-  // the state no longer had. A re-freeze carries every frozen node or none.
+  // After the freeze the block is never rewritten. It is re-emitted whole from
+  // the patch, so a re-sent block did damage in every direction: a node left
+  // out was erased, a node re-typed as its bare kind went back to `pending` with
+  // its values and clocks gone, and a node no graph declares joined the ready
+  // set recorded however the patch said. A re-send identical to the file is
+  // the one harmless case, and it is a no-op.
   if (doc.has('workflow')) {
-    const dropped = Object.keys(frozenNodes(doc)).filter(id => !Object.hasOwn(nodes, id));
-    if (dropped.length) {
-      throw new Refusal('state-workflow-nodes-dropped',
-        `this workflow patch would drop the frozen node(s) ${dropped.join(', ')}; the freeze is written once — `
+    const differences = frozenDifferences(doc, workflow);
+    if (differences.length) {
+      throw new Refusal('state-workflow-frozen',
+        `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — `
         + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
     }
+    return;
   }
 
   const lines = ['workflow:'];
   for (const key of WORKFLOW_KEYS) {
-    if (!Object.hasOwn(workflow, key)) {
-      const held = doc.locate(['workflow', key]);
-      if (held && held.inline !== '') lines.push(`  ${key}: ${held.inline}`);
-      continue;
-    }
+    if (!Object.hasOwn(workflow, key)) continue;
     assertBlockKey(key);
     lines.push(`  ${key}: ${flow(workflow[key], `workflow.${key}`)}`);
   }
@@ -1143,13 +1138,49 @@ function applyWorkflow(doc, workflow, now, changed) {
   changed.push('workflow');
 }
 
-/** The node entries the file already carries, read with the hook's own reader. */
-function frozenNodes(doc) {
+/**
+ * How a `workflow` patch differs from the block the file already carries, one
+ * phrase per difference; empty when the patch says nothing the file does not.
+ * A scalar the patch leaves out is carried forward, so only the ones it sends
+ * are compared. A node entry is compared with its `pending` default filled in,
+ * because the freeze wrote it that way.
+ */
+function frozenDifferences(doc, workflow) {
+  let frozen;
   try {
-    return scanState(doc.text()).nodes ?? {};
+    frozen = parseState(doc.text()).workflow;
   } catch (err) {
     throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
   }
+  const held = isPlainObject(frozen) ? frozen : {};
+  const recorded = isPlainObject(held.nodes) ? held.nodes : {};
+  const differences = [];
+  const scalars = Object.keys(workflow).filter(key => key !== 'nodes' && !sameValue(workflow[key], held[key]));
+  if (scalars.length) differences.push(`changes ${scalars.join(', ')}`);
+  const dropped = Object.keys(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
+  if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
+  const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
+  if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
+  const rewritten = Object.keys(workflow.nodes).filter(id => Object.hasOwn(recorded, id)
+    && !sameValue({ status: 'pending', ...workflow.nodes[id] }, recorded[id]));
+  if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
+  return differences;
+}
+
+/**
+ * Value equality between a patch value and one read back from the file. Key
+ * order is not compared, and a null is the same as an absent key — the writer
+ * emits neither.
+ */
+function sameValue(a, b) {
+  if (a === null || a === undefined) return b === null || b === undefined;
+  if (Array.isArray(a)) return Array.isArray(b) && a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
+  if (isPlainObject(a)) {
+    if (!isPlainObject(b)) return false;
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    return [...keys].every(key => sameValue(a[key], b[key]));
+  }
+  return a === b;
 }
 
 /**

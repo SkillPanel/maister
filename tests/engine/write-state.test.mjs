@@ -345,14 +345,56 @@ test('refusal: a summary key that would spill onto its own lines', t => {
   assert.match(result.stderr, /^state-patch-invalid\b/);
 });
 
+/** Every frozen node re-typed as its bare kind — the shape of a re-sent freeze. */
+function retyped(graph) {
+  return Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+}
+
 test('refusal: a workflow patch after the freeze that drops frozen nodes', t => {
   const run = scratch(t);
   freeze(run);
   write(run, { nodes: { analysis: { status: 'completed' } } });
   const result = refused(run, { workflow: { name: 'development', nodes: { analysis: { kind: 'direct', status: 'completed' } } } });
-  assert.match(result.stderr, /^state-workflow-nodes-dropped\b/);
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
   assert.match(result.stderr, /approval/, 'the message names the nodes the patch would drop');
   assert.match(result.stderr, /top-level `nodes` key/);
+});
+
+test('refusal: a workflow patch after the freeze that re-types every node would reset recorded progress', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed', values: { x: true } } } });
+  const result = refused(run, { workflow: { name: 'development', nodes: retyped(graph) } });
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
+  assert.match(result.stderr, /analysis/, 'the message names the node whose record differs');
+  assert.match(result.stderr, /top-level `nodes` key/);
+  assert.equal(readState(run).workflow.nodes.analysis.status, 'completed');
+});
+
+test('refusal: a workflow patch after the freeze that adds a node no graph declares', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const result = refused(run, { workflow: { name: 'development', nodes: { ...retyped(graph), ghost: { kind: 'direct', status: 'completed' } } } });
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
+  assert.match(result.stderr, /ghost/);
+});
+
+test('refusal: a workflow patch after the freeze that changes a frozen scalar', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const result = refused(run, { workflow: { name: 'development', graph_hash: 'sha256:0000', nodes: retyped(graph) } });
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
+  assert.match(result.stderr, /graph_hash/);
+});
+
+test('write-state: an identical re-send of the frozen workflow block changes nothing', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const before = fs.readFileSync(run.state, 'utf8');
+  const result = write(run, { workflow: { name: 'development', graph_hash: graph.graph_hash, grammar_version: 1, nodes: retyped(graph) } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /^workflow/m, 'nothing under workflow is reported changed');
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before);
 });
 
 test('refusal: a workflow block without nodes says where node updates go', t => {
