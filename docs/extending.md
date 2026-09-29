@@ -89,6 +89,16 @@ parses the file, checks ids and the graph, resolves every target, checks gate sh
 workspace — checks every `dir:` against the members the manifest declares. Errors name the file,
 the node and the field. Warnings never block.
 
+**How a run closes.** Every run ends through the engine's `run-complete` verb, which prints the
+run's closing marker. A run recorded `completed` is refused while a node it can still reach has
+not run: a node still running, or a pending one whose needs are met and that no false guard
+keeps off the path. The refusal names each one. A node a false guard skips is not owed, and
+neither is one waiting on a need that failed, unless its `on:` says to run anyway. The verb
+also prints one `missing-artifact: <node> <path>` line above the marker for each artifact a
+completed node declared that is not on disk. That line is a warning for you to read, never a
+refusal. Both checks read the resolved graph, overlays included, so a node you add is held to
+the same rule as the built-in ones.
+
 **Where a chain runs.** A chain with a name of its own is started from the cockpit's Start-a-chain
 form and driven there; a single project outside a workspace runs the built-in workflows through
 their commands, and extends them through overlays and eject (below).
