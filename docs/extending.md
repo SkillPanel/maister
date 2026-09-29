@@ -86,9 +86,20 @@ nodes:
 ```
 
 Binding is by name, both ways — there is no renaming — and `task_path` and `run_id` are reserved,
-because the node always carries those two itself. The block is part of the definition's recorded
+because the node always carries those two itself. Once the child has run, the declared artifacts it
+wrote are listed on the calling node and linked from the parent's dashboard; a declared artifact
+may be a single file or a whole directory. The block is part of the definition's recorded
 identity, so adding one moves that identity: regenerate the diagram of any definition that ships
 with one.
+
+**A run is held to the definition it froze.** The engine refuses to start a run unless the graph
+it records resolves from the definition, overlays and profile the run names, and every input the
+definition marks `required` has a value. After that, every write is refused if it names a node the
+graph does not carry, gives a node a status outside the eight it can have, records a declared
+value in the wrong form, or records a gate answer that is not one of that gate's options. A value in
+the wrong form is a `bool` that is not `true` or `false`, or an `enum` value that is not one of
+its members. A value recorded under a key the node does not declare is written with a warning:
+nothing can read it, so declare it under the node's `outputs` if a later node needs it.
 
 **Validate before you run.** `/maister:umbrella validate --definition .maister/workflows/<name>.yml`
 parses the file, checks ids and the graph, resolves every target, checks gate shape and — in a

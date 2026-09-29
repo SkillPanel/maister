@@ -400,6 +400,14 @@ async function runWriteState(flags) {
   if (result.ignored?.length) {
     process.stderr.write(`note: ignored the supplied ${result.ignored.join(', ')}; the writer stamps these from its own clock\n`);
   }
+  // A value the node's definition does not declare is written, never refused,
+  // because nothing reads one: no guard and no `${…}` reference may name it.
+  // Which is also why it is worth a line — a name meant to be declared, or
+  // misspelled, is otherwise a value nobody ever notices is ignored.
+  if (result.undeclared?.length) {
+    process.stderr.write(`warning: wrote ${result.undeclared.join(', ')}, which the definition does not declare among`
+      + ' the node\'s outputs; the write landed, and no guard or ${…} reference reads an undeclared value\n');
+  }
   if (result.ok) return EXIT.OK;
   // A refusal is exit 1 and no rename happened: the state file on disk is
   // exactly what it was before the invocation.

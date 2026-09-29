@@ -122,12 +122,29 @@ has frozen a graph whose skills and agents nobody has confirmed resolve to the f
 operator expects. The call is the same for every workflow, whichever orchestrator handed the
 run over.
 
-**Copy `graph_hash` through exactly as `resolve` printed it.** It is the only value the freeze
-carries straight from the resolver into state, and it arrives already in the spelling the
-state block accepts. Reformatting it — adding a prefix it already has, or stripping the one
-it needs — produces a run whose recorded identity no longer matches the graph it is running.
+**The `workflow` block is `resolve`'s output, copied through.** `source`, `overlays`,
+`profile`, `graph_hash` and `name` go into the freeze exactly as `resolve` printed them, beside
+`grammar_version: 1`, and `nodes` carries one entry per node `resolve` printed and no other:
+`kind: gate` for a gate, `kind: workflow` for a `workflow:` node and `kind: task` for every other
+node, each `status: pending`. The writer fills in each node's `needs` from the graph itself. Copy
+`graph_hash` without reformatting it: it arrives in the spelling the state block accepts, and
+adding a prefix it already has, or stripping the one it needs, produces a run whose recorded
+identity no longer matches the graph it is running. The overlays and the profile are the ones
+the run was resolved with; an overlay left out of the freeze describes a graph the run does not
+have.
 
-**The freeze patch must carry `workflow.name`** — the bare name, after the prefix strip. The
+**The writer proves the freeze before it installs it**, because the freeze is written once and
+every reader lays the run out from it. It re-resolves the recorded `source`, `overlays` and
+`profile` from the run's own project root, and writes nothing when the result does not hash to
+the recorded `graph_hash` (`state-freeze-unproven`), when `workflow.name` is not the
+definition's own (`state-freeze-name-mismatch`), when the nodes are not exactly the resolved
+set under the kinds above (`state-freeze-nodes-mismatch`), or when an input the definition
+declares `required` with no default has no value under `orchestrator.options.inputs`
+(`state-freeze-input-missing`). Each is corrected in the patch and the freeze sent again
+(§ When a write is refused).
+
+**The freeze patch must carry `workflow.name`** — the definition's own `name`, as `resolve`
+printed it; for a built-in, that is the bare name after the prefix strip. The
 writer derives the run's per-workflow context block from it, so a later write to `context` or
 `phase_summaries` with no name recorded is refused with `state-context-block-unknown` rather
 than landing in some default block. The name is already part of the frozen key order, so
@@ -542,6 +559,28 @@ schemes:
 | Budget exhausted, the operator chose to skip | `skipped` | satisfies `needs`; declared boolean outputs default false, declared string outputs to null |
 | Hard failure with no operator path | `failed` | satisfies nothing by default; the run stops with `RUN-FAILED` |
 
+**A node is recorded only with one of eight statuses, and only if the run froze it.** The
+statuses are `pending`, `running`, `waiting`, `suspended`, `completed`, `skipped`, `failed` and
+`stopped`. Any other status is refused with `state-node-status-unknown`, including the summary
+spelling `in_progress`: no reader knows what it means, and every reader would otherwise read the
+node as never started. A node the frozen graph does not carry is refused with
+`state-node-unknown`, because a node the graph lacks has no place in it, and nothing downstream
+would ever wait on it.
+
+**A node's values are held to the outputs it declares.** Each declared type has one form:
+- `bool`: `true` or `false`;
+- `string` or `id`: a string;
+- `enum`: one of its members.
+
+A skipped node records its declared strings and enums as null. Any other value for a declared
+key is refused with `state-value-invalid`, because a guard or a later node would misread it
+without any error: a guard reading `"false"` finds no bool at all. A key the node does not
+declare is still written, and a `warning:` line names it. Nothing reads an undeclared value, so
+the key either belongs in the node's `outputs` or should not be sent. A `workflow:` node's
+`task_path` and `run_id` are exempt: the node records those two about its child itself. This
+check and the gate-answer check (*Terminal mode*) read the definition, so they apply only while
+the frozen block still resolves to its recorded hash.
+
 **A `workflow:` node's outcome is the child run's, mapped rather than judged.** The node has no
 self-check of its own — the child ran its own — so the parent reads the child's `task.status` at
 the node's recorded `values.task_path` and maps it:
@@ -560,8 +599,11 @@ node's recorded `values.task_path`, because the path the parent declares is the 
 writes it. The join applies to both readers of a declared artifact — the existence check above and
 `${<node>.artifacts.<key>}` downstream — and the joined value is repository-root-relative.
 Artifacts are therefore never copied into the parent node's values; only declared *values* are.
-Storing the joined path as well would be a third copy of one fact, kept in step by hand. The declared
-path itself is literal: nothing substitutes a `${…}` inside it, so `validate` refuses one there.
+Storing the joined path as well would be a third copy of one fact, kept in step by hand. The
+writer makes the same join when it registers a completing node's artifacts, and spells the result
+relative to the parent's own run directory instead, because that is what the dashboard links it
+against. The declared path itself is literal: nothing substitutes a `${…}` inside it, so
+`validate` refuses one there.
 
 **The two budget-exhausted rows need an operator, so they need a driver.** Asking whether to
 retry or to skip is itself an in-node question, and under a `cockpit` or `dispatch` driver
@@ -608,12 +650,15 @@ since in terminal mode the answer arrives in the same turn — so it has no mirr
 
 **A completing node summary is checked against what the node declared.** When a
 `node_summaries` entry is written for a node whose status is `completed`, the writer appends
-every artifact path the definition declares for that node which exists in the run directory
-and which the entry does not already list. It also fills a missing `html` on each listed
-markdown artifact whose sibling `.html` companion exists, unless `html_output` is off. It adds
-only what is on disk and overwrites nothing the entry states. The closing write still lists
-what the node prose asks for: the check catches a list that was forgotten, it does not replace
-the list.
+every artifact path the definition declares for that node which exists, as a file or as a
+directory, and which the entry does not already list. It also fills a missing `html` on each
+listed markdown file whose sibling `.html` companion exists, unless `html_output` is off; a
+directory gets none. For a `workflow:` node the paths are looked for under the child's task
+directory, named by the node's recorded `values.task_path`, and registered as
+`../../<type>/<run>/<path>`. A `workflow:` node that recorded no `task_path` registers nothing,
+because the parent's own directory is not where its child writes. The writer adds only what is on
+disk and overwrites nothing the entry states. The closing write still lists what the node prose
+asks for: the check catches a list that was forgotten, it does not replace the list.
 
 **Why `stopped` mirrors to `skipped`.** The summary vocabulary has five members and none is
 `stopped`, so the status is spelled as one of the five or not written at all. `skipped` is the
@@ -703,7 +748,8 @@ gate is left.
    brief's `Recommended:` line names is listed first and labelled `<id> (Recommended)`. The
    recorded answer is the bare option id.
 2. **Records the answer** — the chosen option id, who answered and when — on the node's
-   summary, and marks the node `completed`.
+   summary, and marks the node `completed`. The option is one of the gate's own ids, spelled as
+   the gate spells it. The writer refuses any other with `state-gate-option-unknown`.
 3. **Writes no `gate_pending` and no gate request file.** The pending marker is only ever
    written as the one-line null form.
 
@@ -1091,7 +1137,7 @@ one call, arriving from the other side.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-fifteen, and they fall into four responses; one more, `edition-collision`, is raised before the
+twenty-three, each with its response below; one more, `edition-collision`, is raised before the
 writer runs. Exit `2` carries no code at all and is the table's last row:
 
 | Refusal | Response |
@@ -1103,6 +1149,14 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. Nothing was written. **Do not delete anything**: wait a minute and issue the same write again. A temp older than a minute is a crashed writer's leftover, and the next write reclaims it itself. |
 | `state-gate-pending-form` | The pending-gate marker has two legal spellings and this was neither. It is written as the literal `null`, or as `{node, request, since}` — `request` being `gates/<node>.request.yml` for that same `node`, and `since` a measured UTC timestamp — which the writer puts on one line itself. Send the marker as an object, never as pre-spelled text: text carrying a trailing comment or a quote reaches the file with its own bytes and the reader throws on it. Stop with `RUN-FAILED: state-gate-pending-form` and report the message verbatim. |
 | `state-workflow-frozen` | A `workflow` patch after the freeze differs from the frozen block — a node left out, added or re-typed, or a scalar changed. Nothing was written. The freeze is written once; send node updates under the top-level `nodes` key, never under `workflow`, and never re-type the graph. A re-send identical to the frozen block changes nothing. |
+| `state-freeze-unproven` | The freeze's `workflow` block does not re-resolve to its own `graph_hash` — no hash, a source that is not found, an overlay or a profile left out or changed, or a re-spelled hash. Nothing was written. Run `resolve` again with the `--definition`, `--overlay` and `--profile` the run was started with, and freeze with its output copied through (Step 4). When `resolve` itself fails, or the message says the definition cannot be read from the run's directory, stop with `RUN-FAILED: state-freeze-unproven` and report the message verbatim. |
+| `state-freeze-name-mismatch` | `workflow.name` is absent, or is not the name of the definition the freeze resolves. Nothing was written. Send the `name` `resolve` printed and freeze again. Never relabel a run to borrow another workflow's context block: every reader keyed by the name would then read it as that workflow. |
+| `state-freeze-nodes-mismatch` | The freeze's nodes are not exactly the nodes `resolve` printed — one added, one left out, or one recorded under a kind its node cannot have; the message names each. Nothing was written. Send one entry per resolved node with the kind Step 4 gives it, and freeze again. |
+| `state-freeze-input-missing` | The definition requires an input the freeze records no value for. Nothing was written. Add the value the run was started with under `orchestrator.options.inputs` in the same freeze and send it again. When the invocation never carried one, ask the operator for it in a terminal run; a driven run stops with `RUN-FAILED: state-freeze-input-missing`, because an invented input is a defect. |
+| `state-node-status-unknown` | A node was sent with a status outside the eight (*Recording an outcome*). The message lists them. Nothing was written. Map the outcome onto one of the eight and send the write again. `in_progress` belongs to the summary vocabulary, and `running` is the node status that means the same. |
+| `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo or a phase key used as a node id, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
+| `state-value-invalid` | A value recorded under a key the node declares is not of the declared type. The message names the key, the value and the form it should take. Nothing was written. Send the node's whole `values` map again with that key corrected, because values are replaced whole. If the node produced no such value, the node prose decides whether it failed; never coerce one to get past the check. |
+| `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
 | exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |
@@ -1110,7 +1164,9 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
 projection runs after the state rename, so a projection that could not be published leaves the
 state write untouched, `dashboard-data.js` simply absent from the reported files, and the exit
-code at `0`. Read the next write's output rather than re-sending the patch.
+code at `0`. Read the next write's output rather than re-sending the patch. The same holds for
+the warning that names values a node recorded but does not declare: the write landed with them.
+Correct the node prose, or the definition's outputs, before the next run rather than re-sending.
 
 Exit `2` is the one row that is not a refusal at all, which is why it is easy to mishandle:
 there is no code to look up and no patch to correct, so the tempting next step is to record
