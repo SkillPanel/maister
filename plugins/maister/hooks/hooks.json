@@ -18,6 +18,12 @@
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/skill-invocation-reminder.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/edition-check.mjs"],
+            "timeout": 10
           }
         ]
       }

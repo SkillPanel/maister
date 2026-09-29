@@ -23,9 +23,21 @@ export const UMBRELLA = path.join(ROOT, 'plugins/maister/skills/umbrella/scripts
 export const FIXTURES = path.join(ROOT, 'tests/fixtures');
 export const SAMPLE = path.join(FIXTURES, 'definitions/sample.yml');
 
-/** Run one engine verb. `stdin` is sent as JSON unless it is already a string. */
-export function verb(args, stdin) {
-  return run(ENGINE, args, stdin);
+/**
+ * An empty Claude Code config directory every child process sees, so the
+ * engine's edition check reads fixture settings or none — never the operator's
+ * own `~/.claude`. Removed when the test process exits.
+ */
+const EMPTY_CONFIG = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-config-'));
+process.on('exit', () => fs.rmSync(EMPTY_CONFIG, { recursive: true, force: true }));
+
+/**
+ * Run one engine verb. `stdin` is sent as JSON unless it is already a string;
+ * `env` is laid over the isolated environment, for a test that supplies its own
+ * settings.
+ */
+export function verb(args, stdin, env = {}) {
+  return run(ENGINE, args, stdin, env);
 }
 
 /** Run one umbrella runtime verb, for the outbox a dispatched run publishes to. */
@@ -33,9 +45,13 @@ export function umbrella(args, stdin) {
   return run(UMBRELLA, args, stdin);
 }
 
-function run(script, args, stdin) {
+/** Run a Node script as a child with the isolated environment: the hooks' tests use it too. */
+export function run(script, args, stdin, env = {}, cwd = undefined) {
   const input = stdin === undefined ? '' : typeof stdin === 'string' ? stdin : JSON.stringify(stdin);
-  const result = spawnSync(process.execPath, [script, ...args], { input, encoding: 'utf8' });
+  const childEnv = { ...process.env, CLAUDE_CONFIG_DIR: EMPTY_CONFIG };
+  delete childEnv.CLAUDE_PROJECT_DIR;
+  Object.assign(childEnv, env);
+  const result = spawnSync(process.execPath, [script, ...args], { input, encoding: 'utf8', env: childEnv, cwd });
   return { code: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
