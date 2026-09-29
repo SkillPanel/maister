@@ -82,7 +82,7 @@ import * as dashboard from './dashboard.mjs';
 // the reason `locateWorkflow` is exported at all: the prose resolved four homes
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
-import { readDefinition } from './definition.mjs';
+import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf } from './display.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
@@ -96,7 +96,7 @@ const { Refusal, flow } = canonical;
 /**
  * This writer's own names for the two refusals the shared publish path can
  * raise. They are passed in rather than emitted by `canonical.mjs` so this
- * module keeps its closed fifteen-code vocabulary, which the contract suite
+ * module keeps its closed twenty-three-code vocabulary, which the contract suite
  * reads back out of the refusals themselves.
  */
 const COMMIT_CODES = { unwritable: 'state-unwritable', tempExists: 'state-temp-exists' };
@@ -138,7 +138,7 @@ const VIEWER_SOURCE = fileURLToPath(new URL('../../../orchestrator-framework/ass
  * They are caught at the projection call site and turned into warning entries,
  * because the projection runs *after* the state rename: a refusal there could not
  * un-publish the state write and reporting one would turn a landed write into a
- * reported failure. So the writer's documented fifteen-code vocabulary does not
+ * reported failure. So the writer's documented twenty-three-code vocabulary does not
  * grow and neither code is owed a recovery row.
  */
 const DASHBOARD_CODES = { unwritable: 'dashboard-unwritable', tempExists: 'dashboard-temp-exists' };
@@ -222,6 +222,15 @@ const STATUS_MIRROR = {
  */
 const STARTS = new Set(['running']);
 const ENDS = new Set(['completed', 'failed', 'skipped']);
+
+/**
+ * The eight statuses a node may be recorded with — the state contract's own
+ * node-status enum, closed here for the reason the patch vocabulary is closed.
+ * A status outside it was written to disk and projected as `pending`, so a node
+ * recorded `done` or `in_progress` read, to every reader, as a node that had
+ * never started — and nothing downstream of it could become ready.
+ */
+const NODE_STATUSES = ['pending', 'running', 'waiting', 'suspended', 'completed', 'skipped', 'failed', 'stopped'];
 const ONGOING = new Set(['running', 'waiting', 'suspended']);
 
 /**
@@ -246,6 +255,28 @@ const NUMBERISH = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
  * them — reached the file through it.
  */
 const NODE_ID = /^[a-z][a-z0-9-]{1,40}$/;
+
+/**
+ * The kind a task node may be recorded under besides its own scheme. Engine runs
+ * have recorded every non-gate node as `task` since the first freeze, so the
+ * spelling stays legal; a gate is always `gate`, and a `workflow:` node always
+ * `workflow`, because those two are what `gate-brief` and `run-complete` read a
+ * node's kind for.
+ */
+const TASK_KIND = 'task';
+
+/** The warning the verbs resolve a definition of an unknown format under, as `workflow.mjs` spells it. */
+const NEWER_FORMAT = 'newer-format';
+
+/** The scheme of a node that starts a child run. */
+const WORKFLOW_SCHEME = 'workflow:';
+
+/**
+ * The two values a `workflow:` node records about its child and declares
+ * nowhere: the grammar reserves both names, because the node always carries
+ * them itself.
+ */
+const RESERVED_VALUES = ['task_path', 'run_id'];
 
 /**
  * The three keys of the pending-gate marker, and the two patterns its non-id
@@ -369,7 +400,7 @@ const WORKFLOW_CONTEXT = {
 /**
  * Apply `patch` to the state file at `state`.
  *
- * Returns `{ok, changed, errors, warnings, ignored}`. On a refusal `changed` is empty and
+ * Returns `{ok, changed, errors, warnings, ignored, undeclared}`. On a refusal `changed` is empty and
  * the file on disk is byte-for-byte what it was: every check that can refuse runs
  * before the rename, and the rename is the only thing that publishes a write.
  *
@@ -394,6 +425,9 @@ export function writeState({ state, patch }) {
   // The clock fields the patch carried and the writer dropped, as dotted
   // paths. Data rather than a stderr line, for the reason `warnings` is.
   const ignored = [];
+  // The node values this write recorded that the definition does not declare
+  // (`assertValues`), as dotted paths, on the same terms.
+  const undeclared = [];
   try {
     checkPatch(patch);
     const doc = readDoc(state);
@@ -406,7 +440,7 @@ export function writeState({ state, patch }) {
     // write that starts a run, and a later write re-sending `workflow:` into a
     // file that already carries one is not that write.
     const hadWorkflow = doc.has('workflow');
-    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)), ignored)) allowed.add(key);
+    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)), ignored, undeclared)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -428,7 +462,7 @@ export function writeState({ state, patch }) {
     project(state, text, now, changed, warnings);
     const freeze = Boolean(patch.workflow) && !hadWorkflow;
     if (freeze) installViewer(state, text, changed, warnings);
-    const result = { ok: true, changed, errors: [], warnings, ignored };
+    const result = { ok: true, changed, errors: [], warnings, ignored, undeclared };
     if (freeze) result.banner = banner(state, text, patch.workflow);
     return result;
   } catch (err) {
@@ -736,6 +770,14 @@ function isFile(file) {
   }
 }
 
+function isDirectory(file) {
+  try {
+    return fs.statSync(file).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Every gate request beside this run, parsed, keyed by node id.
  *
@@ -823,8 +865,11 @@ function fallbackExecutor(doc) {
  * a data file stamped a second before the state it describes is a data file whose
  * freshness cannot be reasoned about.
  */
-function apply(doc, patch, changed, now, runDir, ignored) {
+function apply(doc, patch, changed, now, runDir, ignored, undeclared) {
   const intended = new Set(['orchestrator']);
+  // The run's frozen graph, proven, for the checks that need the definition;
+  // resolved at most once per write, and only if one of them asks.
+  const graphOf = frozenGraphOf(doc, runDir);
 
   // `updated` is this write's own stamp, set last below; a patch value for it
   // is dropped here, before it can land and before its spelling is judged.
@@ -847,7 +892,7 @@ function apply(doc, patch, changed, now, runDir, ignored) {
     applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored);
     intended.add('workflow');
   }
-  if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored);
+  if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared);
   if (patch.context || patch.phase_summaries) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
     // the block and writes its summaries in one invocation resolves from the
@@ -859,7 +904,7 @@ function apply(doc, patch, changed, now, runDir, ignored) {
     if (patch.phase_summaries) applySummaries(doc, block, patch.phase_summaries, patch.nodes, 'phase', changed);
   }
   if (patch.node_summaries) {
-    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed, runDir);
+    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed, runDir, graphOf);
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
@@ -1194,7 +1239,9 @@ function splitTopLevel(body) {
  * patch is identical to it, which is a no-op. `graph_hash` is what makes the
  * frozen graph verifiable against the definition it came from, and the node
  * entries are the run's progress; a re-emission from a patch would replace
- * both with whatever the patch carried.
+ * both with whatever the patch carried. **Before it, the block is proven**
+ * against the definition it records (`provenNodes`), for the same reason: it
+ * is written once, so what it gets wrong stays wrong for the whole run.
  *
  * Both key loops below emit `  ${key}:` raw, so both run the block-key guard
  * first. Without it a key carrying a newline did not produce a bad-looking
@@ -1230,6 +1277,7 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
     return;
   }
 
+  const entries = provenNodes(doc, workflow, runDir);
   const lines = ['workflow:'];
   for (const key of WORKFLOW_KEYS) {
     if (!Object.hasOwn(workflow, key)) continue;
@@ -1242,7 +1290,7 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
     lines.push(`  ${key}: ${flow(workflow[key], `workflow.${key}`)}`);
   }
   lines.push('  nodes:');
-  for (const [id, entry] of Object.entries(withResolvedNeeds(workflow, runDir))) {
+  for (const [id, entry] of Object.entries(entries)) {
     lines.push(nodeLine(id, stamp(id, entry, {}, now, ignored)));
     changed.push(`workflow.nodes.${id}`);
   }
@@ -1251,37 +1299,170 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
 }
 
 /**
- * The freeze's node entries, each carrying its `needs` from the graph itself.
+ * The freeze's node entries, proven against the definition they claim and each
+ * carrying its `needs` from the graph itself.
  *
- * The first write is what a reader lays the graph out from, and a caller that
- * copied only the kinds leaves it with no edges until some later write adds
- * them. So the writer re-resolves the definition the patch records and takes
- * the edges from that — but only when the result hashes to the `graph_hash` the
- * patch is freezing, which is what proves it is the same graph. A resolved
- * `needs` then replaces whatever the patch carried for that node. Anything
- * short of that proof — a definition that cannot be found or resolved, an
- * overlay that cannot be read, a hash that differs — leaves the entries as the
- * patch sent them: the freeze is never refused over edges a reader can still
- * take from the definition.
+ * The freeze is the one write a run cannot take back: every later write is
+ * refused unless it matches the block, and every reader lays the run out from
+ * it. It used to be accepted as sent. A hash that did not re-resolve left every
+ * node without edges, a freeze that left out the overlays it was resolved with
+ * did the same, and a name, a node set or a kind that disagreed with the graph
+ * landed silently and misled every reader after it. So the patch is held to the
+ * graph it records, in this order, and refused at the first disagreement:
+ *
+ *   proof      the recorded `source`, `overlays` and `profile` resolve to the
+ *              recorded `graph_hash` (`provenGraph`);
+ *   name       `workflow.name` is the definition's own, which the context
+ *              block, the dashboard type and every other reader keyed by name
+ *              follow;
+ *   nodes      exactly the resolved node set, each under a kind the graph
+ *              allows (`kindsOf`);
+ *   inputs     every input the definition requires is in
+ *              `orchestrator.options.inputs` as this write leaves it — the
+ *              patch's `orchestrator` keys are applied before this block, so a
+ *              freeze that carries its inputs beside it is read with them.
+ *
+ * A resolved `needs` then replaces whatever the patch carried for that node, so
+ * a caller that copied only the kinds still freezes the edges.
  */
-function withResolvedNeeds(workflow, runDir) {
+function provenNodes(doc, workflow, runDir) {
   const nodes = workflow.nodes;
+  const proof = provenGraph(workflow, runDir);
+  if (!proof.graph) {
+    throw new Refusal('state-freeze-unproven',
+      `this freeze cannot be proven against its definition: ${proof.reason}. Nothing was written. `
+      + 'Run resolve with the --definition, --overlay and --profile the run was started with, and send its '
+      + 'source, overlays, profile, graph_hash and name exactly as resolve printed them');
+  }
+  const { graph, inputs } = proof;
+
+  if (graph.name !== null && workflow.name !== graph.name) {
+    throw new Refusal('state-freeze-name-mismatch',
+      `this freeze records workflow.name as ${JSON.stringify(workflow.name ?? null)}, but the definition it resolves `
+      + `is named ${JSON.stringify(graph.name)}. Nothing was written. Send workflow.name exactly as resolve printed `
+      + 'name: the run\'s context block and every reader keyed by the name follow it');
+  }
+
+  const differences = nodeDifferences(nodes, graph.nodes);
+  if (differences.length) {
+    throw new Refusal('state-freeze-nodes-mismatch',
+      `this freeze's nodes differ from the graph resolve printed (${differences.join('; ')}). Nothing was written. `
+      + 'Send one entry per resolved node and no other, recording a gate as gate, a workflow: node as workflow '
+      + 'and every other node as task');
+  }
+  for (const [id, entry] of Object.entries(nodes)) assertStatus(id, entry);
+
+  const missing = missingInputs(doc, inputs);
+  if (missing.length) {
+    throw new Refusal('state-freeze-input-missing',
+      `the definition requires the input${missing.length === 1 ? '' : 's'} ${missing.join(', ')}, and this freeze `
+      + 'records no value for it under orchestrator.options.inputs. Nothing was written. Send the value the run was '
+      + 'started with in the same freeze; a required input the invocation did not carry is the operator\'s to give, '
+      + 'never one to invent');
+  }
+
+  const needs = new Map(graph.nodes.map(node => [node.id, node.needs]));
+  const filled = {};
+  for (const [id, entry] of Object.entries(nodes)) filled[id] = { ...entry, needs: needs.get(id) };
+  return filled;
+}
+
+/**
+ * The graph a `workflow` block records, re-resolved from the provenance it
+ * records and proven by its hash: `{graph, inputs}`, or `{reason}` saying why
+ * it cannot be proven.
+ *
+ * The proof is the one `resolve` gives its caller: the recorded `source`,
+ * `overlays` and `profile` resolve, from this run's project root, to exactly the
+ * recorded `graph_hash` — exactly, in the spelling `resolve` prints, because
+ * that is the spelling state records and a re-spelled hash is a run whose
+ * identity no longer matches its graph. A definition declaring a format this
+ * build does not know is resolved on its structure alone, the way the verbs
+ * resolve it. `inputs` is the definition's own `inputs:` map, which the
+ * resolved graph does not carry and which overlays pass through untouched.
+ *
+ * Never throws: a definition that cannot be read or resolved is a reason, and
+ * what that costs is the caller's to decide. Exported so that a reader which
+ * re-resolves a frozen run can prove it by this rule rather than a copy of it.
+ */
+export function provenGraph(workflow, runDir) {
+  const recorded = typeof workflow.graph_hash === 'string' && workflow.graph_hash !== '' ? workflow.graph_hash : null;
+  if (recorded === null) return { reason: 'it records no graph_hash' };
   try {
     const sources = sourcesOf(workflow, runDir);
-    if (sources === null) return nodes;
-    const { definition, overlays, profile } = sources;
-    if ([definition, ...overlays].some(source => source.errors.length)) return nodes;
-    const graph = resolveGraph({ definition, overlays, profile, project: projectRootOf(runDir) });
-    if (!graph.ok || graph.graph_hash !== workflow.graph_hash) return nodes;
-    const needs = new Map(graph.nodes.map(node => [node.id, node.needs]));
-    const filled = {};
-    for (const [id, entry] of Object.entries(nodes)) {
-      filled[id] = isPlainObject(entry) && needs.has(id) ? { ...entry, needs: needs.get(id) } : entry;
+    if (sources === null) {
+      return { reason: `no definition is found at its source ${JSON.stringify(workflow.source ?? null)} or by its name ${JSON.stringify(workflow.name ?? null)}` };
     }
-    return filled;
-  } catch {
-    return nodes;
+    const { definition, overlays, profile } = sources;
+    const unreadable = [definition, ...overlays].find(source => source.doc === null || source.errors.length);
+    if (unreadable) {
+      return { reason: `${unreadable.file} cannot be read (${unreadable.errors[0]?.message ?? 'no document'})` };
+    }
+    const version = definition.doc.version;
+    const degraded = version !== undefined && version !== null && version !== KNOWN_VERSION ? [NEWER_FORMAT] : [];
+    const graph = resolveGraph({ definition, overlays, profile, degraded, project: projectRootOf(runDir) });
+    if (!graph.ok) return { reason: `its definition does not resolve (${graph.errors[0]?.message ?? 'no graph'})` };
+    if (graph.graph_hash !== recorded) {
+      return { reason: `it resolves to ${graph.graph_hash}, not to the recorded ${recorded}` };
+    }
+    return { graph, inputs: isPlainObject(definition.doc.inputs) ? definition.doc.inputs : {} };
+  } catch (err) {
+    return { reason: `its definition cannot be resolved (${err && err.message ? err.message : err})` };
   }
+}
+
+/**
+ * How a freeze's node entries differ from the resolved node list, one phrase
+ * per difference; empty when they agree.
+ */
+function nodeDifferences(nodes, resolved) {
+  const byId = new Map(resolved.map(node => [node.id, node]));
+  const differences = [];
+  const added = Object.keys(nodes).filter(id => !byId.has(id));
+  if (added.length) differences.push(`adds ${added.join(', ')}, which the resolved graph does not carry`);
+  const dropped = [...byId.keys()].filter(id => !Object.hasOwn(nodes, id));
+  if (dropped.length) differences.push(`leaves out ${dropped.join(', ')}`);
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (!byId.has(id)) continue;
+    const allowed = kindsOf(byId.get(id));
+    const kind = isPlainObject(entry) ? entry.kind : undefined;
+    if (allowed.includes(kind)) continue;
+    const recorded = kind === undefined || kind === null ? 'no kind' : JSON.stringify(kind);
+    differences.push(`records ${id} as ${recorded} where the graph allows ${allowed.map(each => JSON.stringify(each)).join(' or ')}`);
+  }
+  return differences;
+}
+
+/**
+ * The kinds a resolved node may be frozen under: `gate` for a gate, `workflow`
+ * for a `workflow:` node, and `task` or the node's own scheme for the rest
+ * (`TASK_KIND` says why both).
+ */
+function kindsOf(node) {
+  if (node.type === 'gate') return ['gate'];
+  const scheme = typeof node.uses === 'string' ? node.uses.slice(0, node.uses.indexOf(':')) : '';
+  return scheme === 'workflow' ? ['workflow'] : [TASK_KIND, scheme];
+}
+
+/**
+ * The inputs the definition requires — `required: true` and no `default` —
+ * that the document as this write leaves it records no value for. A null is
+ * no value.
+ */
+function missingInputs(doc, declared) {
+  const required = Object.entries(declared)
+    .filter(([, input]) => isPlainObject(input) && input.required === true && !Object.hasOwn(input, 'default'))
+    .map(([name]) => name);
+  if (!required.length) return [];
+  let held = {};
+  try {
+    const orchestrator = parseState(doc.text()).orchestrator;
+    const options = isPlainObject(orchestrator) && isPlainObject(orchestrator.options) ? orchestrator.options : {};
+    held = isPlainObject(options.inputs) ? options.inputs : {};
+  } catch {
+    held = {};
+  }
+  return required.filter(name => !Object.hasOwn(held, name) || held[name] === null || held[name] === undefined);
 }
 
 /**
@@ -1336,8 +1517,14 @@ function sameValue(a, b) {
  * Update node entries in place. Only the entry lines named by the patch move;
  * every other entry keeps its own bytes, which is what makes the preservation
  * guarantee hold on a file the engine adopted rather than wrote.
+ *
+ * Each entry is held to the run before it moves: its node must be one the run
+ * froze, its status one of `NODE_STATUSES`, and its values what the definition
+ * declares (`assertValues`). The first two are read off the file and hold for
+ * every run; the third needs the definition, so it holds only while the frozen
+ * block still proves against it (`frozenGraphOf`).
  */
-function applyNodes(doc, nodes, now, changed, ignored) {
+function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared) {
   if (!isPlainObject(nodes)) throw new Refusal('state-patch-invalid', 'the nodes patch must be an object');
   const region = doc.nodesRegion();
   if (!region) {
@@ -1360,6 +1547,20 @@ function applyNodes(doc, nodes, now, changed, ignored) {
     if (!NODE_ID.test(id)) throw new Refusal('state-patch-invalid', `"${id}" is not a usable node id`);
     if (!isPlainObject(patchEntry)) {
       throw new Refusal('state-patch-invalid', `the patch for node ${id} must be an object`);
+    }
+    // The frozen node map is the run's graph, so a node it does not carry is
+    // one no reader will lay out correctly: it was written, joined the
+    // dashboard's phases and satisfied nothing, because no node needs it.
+    if (!Object.hasOwn(existing, id)) {
+      throw new Refusal('state-node-unknown',
+        `node ${id} is not in this run's frozen graph, which carries ${Object.keys(existing).join(', ')}. Nothing was `
+        + 'written. Correct the node id; a run records progress only on the nodes it froze, and a node its definition '
+        + 'gained since belongs to the next run');
+    }
+    assertStatus(id, patchEntry);
+    if (Object.hasOwn(patchEntry, 'values')) {
+      const node = resolvedNode(graphOf(), id);
+      if (node) assertValues(id, patchEntry.values, node, undeclared);
     }
     // `NODE_ID` admits `constructor`, and the entry map is a bare object
     // literal, so an unguarded read here would merge `Object.prototype`'s
@@ -1392,6 +1593,119 @@ function serializeNode(id, merged, patchEntry, now) {
     }
     throw new Refusal('state-entry-unserializable',
       `the entry already in the file for node ${id} cannot be re-serialised (${err.message}); the patch itself is fine, so the line has to be repaired before this node can be written`);
+  }
+}
+
+/**
+ * A node entry's status, when it carries one, is one of `NODE_STATUSES`. An
+ * entry that carries none keeps the status it has, or `pending` at the freeze.
+ */
+function assertStatus(id, entry) {
+  if (!Object.hasOwn(entry, 'status')) return;
+  const status = entry.status;
+  if (typeof status === 'string' && NODE_STATUSES.includes(status)) return;
+  throw new Refusal('state-node-status-unknown',
+    `node ${id} cannot be recorded with the status ${JSON.stringify(status)}: a node status is one of `
+    + `${NODE_STATUSES.join(', ')}. Nothing was written. Map the node's outcome onto one of them and send the write again`);
+}
+
+/**
+ * The run's frozen graph as one write sees it: a function returning the graph
+ * the frozen `workflow:` block proves against (`provenGraph`), or null when it
+ * proves against none — an adopted run that recorded no hash, a definition
+ * edited since the freeze, one that can no longer be found. Resolved on the
+ * first call and remembered, so a write resolves at most once and a write no
+ * check needs the definition for resolves nothing.
+ *
+ * Null means the definition-backed checks do not run. That is deliberate: the
+ * frozen graph is the run's contract, and a definition that no longer hashes
+ * to it says nothing reliable about what the run declared.
+ */
+function frozenGraphOf(doc, runDir) {
+  let graph;
+  return () => {
+    if (graph !== undefined) return graph;
+    try {
+      const workflow = parseState(doc.text()).workflow;
+      graph = isPlainObject(workflow) ? provenGraph(workflow, runDir).graph ?? null : null;
+    } catch {
+      graph = null;
+    }
+    return graph;
+  };
+}
+
+/** A node of a resolved graph by id, or null. */
+function resolvedNode(graph, id) {
+  return graph ? graph.nodes.find(node => node.id === id) ?? null : null;
+}
+
+/**
+ * A node's recorded values, held to the outputs its definition declares.
+ *
+ * A value whose key the node declares must be of the declared type: a `bool`
+ * true or false; a `string` or an `id` a string; an `enum` one of its members.
+ * A `string`, an `id` or an `enum` may also be null, which is what a skipped
+ * node records for them. A wrong type is refused, because a reader acts on it
+ * wrongly and says nothing: a guard reading `"false"` finds no bool and
+ * refuses at the next gate as if the value were never recorded, and an enum
+ * member no declaration lists reaches a reader written for the ones it does.
+ *
+ * A key the node does not declare is written, and noted in `undeclared`. No
+ * reader consumes one — a guard and a `${…}` reference may name only a declared
+ * output, and `validate` holds them to it — so refusing it would stop a run
+ * over data nothing reads. The two values a `workflow:` node carries about its
+ * child are reserved, not undeclared. A type this build does not know is not
+ * judged.
+ */
+function assertValues(id, values, node, undeclared) {
+  if (!isPlainObject(values)) return;
+  const declared = isPlainObject(node.outputs?.values) ? node.outputs.values : {};
+  const child = typeof node.uses === 'string' && node.uses.startsWith(WORKFLOW_SCHEME);
+  for (const [key, value] of Object.entries(values)) {
+    if (child && RESERVED_VALUES.includes(key)) continue;
+    const at = `workflow.nodes.${id}.values.${key}`;
+    if (!Object.hasOwn(declared, key)) {
+      undeclared.push(at);
+      continue;
+    }
+    const expected = typeMismatch(declared[key], value);
+    if (expected === null) continue;
+    throw new Refusal('state-value-invalid',
+      `${at} is ${JSON.stringify(value)}, but ${id} declares ${key} as ${expected}. Nothing was written. `
+      + `Send ${key} as ${expected}; a node's values are replaced whole, so send the node's whole values map again`);
+  }
+}
+
+/** What a declared value type admits, spelled for a message, when `value` is not it; null when it is. */
+function typeMismatch(type, value) {
+  if (type === 'bool') return typeof value === 'boolean' ? null : 'bool, true or false';
+  if (type === 'string' || type === 'id') {
+    return value === null || typeof value === 'string' ? null : `${type}, a string, or null for a skipped node`;
+  }
+  if (isPlainObject(type) && Array.isArray(type.enum)) {
+    return value === null || type.enum.includes(value) ? null : `one of ${type.enum.join(', ')}, or null for a skipped node`;
+  }
+  return null;
+}
+
+/**
+ * A gate's recorded answer, held to the options the gate offers. Only a
+ * decision that carries an `option` is an answer; a string or a decision in
+ * another shape is prose and is not judged. An option the gate does not offer
+ * was written before, and the reader that later looked for the chosen option
+ * found none of the gate's own.
+ */
+function assertOptions(id, decisions, gate) {
+  if (!Array.isArray(decisions)) return;
+  const offered = isPlainObject(gate.options) ? Object.keys(gate.options) : [];
+  for (const decision of decisions) {
+    if (!isPlainObject(decision) || !Object.hasOwn(decision, 'option')) continue;
+    if (offered.includes(decision.option)) continue;
+    throw new Refusal('state-gate-option-unknown',
+      `node_summaries.${id} records the option ${JSON.stringify(decision.option)}, which the gate ${id} does not offer; `
+      + `it offers ${offered.join(', ')}. Nothing was written. Record the id of the option the operator chose, `
+      + 'exactly as the gate spells it and never its label, and send the write again');
   }
 }
 
@@ -1578,14 +1892,22 @@ function applyContext(doc, contextKey, context, changed) {
  * summary with no status at all. A `phase_summaries` entry mirrors only when it
  * names the node it belongs to, because its key is a phase key and the two
  * namespaces do not line up.
+ *
+ * A gate's `node_summaries` entry is where its answer is recorded, so its
+ * decisions are held to the options the gate offers (`assertOptions`) while the
+ * frozen block proves against the definition.
  */
-function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null) {
+function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null, graphOf = null) {
   if (!isPlainObject(summaries)) throw new Refusal('state-patch-invalid', `the ${kind} summaries must be an object`);
   let recorded = null;
   let run = null;
   for (const [key, value] of Object.entries(summaries)) {
     if (!isPlainObject(value)) throw new Refusal('state-patch-invalid', `the summary ${key} must be an object`);
     const entry = { ...value };
+    if (kind === 'node' && graphOf !== null && Object.hasOwn(entry, 'decisions')) {
+      const gate = resolvedNode(graphOf(), key);
+      if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate);
+    }
     if (!('status' in entry)) {
       const nodeId = kind === 'node' ? key : entry.node;
       // Both reads are own-property reads for the reason `contextBlock` gives:
@@ -1612,8 +1934,9 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
 }
 
 /**
- * What a completing summary is checked against: the run directory, the
- * definition's declared outputs and the `html_output` option. A definition that
+ * What a completing summary is checked against: the run directory and the
+ * project root it sits in, the definition's declared outputs, the node entries
+ * as this write leaves them and the `html_output` option. A definition that
  * cannot be resolved yields no declared outputs and never fails the write, for
  * the reason `definitionOf` gives.
  */
@@ -1630,7 +1953,14 @@ function runOf(doc, runDir) {
   } catch {
     definition = null;
   }
-  return { runDir, definition, html: htmlOutput(state) };
+  const workflow = isPlainObject(state.workflow) ? state.workflow : {};
+  return {
+    runDir,
+    root: projectRootOf(runDir),
+    definition,
+    nodes: isPlainObject(workflow.nodes) ? workflow.nodes : {},
+    html: htmlOutput(state),
+  };
 }
 
 /**
@@ -1643,13 +1973,18 @@ function runOf(doc, runDir) {
  * unlinked although it sat on disk. Two additions, both bounded to what
  * exists:
  *
- * - every declared literal path the run directory holds, and the summary does
- *   not already name, is appended as `{path, label: null, html}`;
- * - every registered `.md` artifact with no `html` gains the sibling `.html`
- *   when that file exists and the run's `html_output` is not off.
+ * - every declared literal path that exists, as a file or as a directory, and
+ *   that the summary does not already name, is appended as
+ *   `{path, label: null, html}`, spelled relative to the run directory
+ *   (`registeredPath`);
+ * - every registered `.md` file with no `html` gains the sibling `.html` when
+ *   that file exists and the run's `html_output` is not off. A directory has
+ *   no companion.
  *
  * Nothing is removed and nothing the summary states is overwritten. An
  * interpolated path (`${...}`) is someone else's output, so it is not claimed.
+ * A declared directory used to be skipped as though it were missing, because
+ * only a file counted as present.
  */
 function registerArtifacts(entry, nodeId, run) {
   const nodes = isPlainObject(run.definition?.nodes) ? run.definition.nodes : {};
@@ -1658,17 +1993,22 @@ function registerArtifacts(entry, nodeId, run) {
   const artifacts = Array.isArray(entry.artifacts) ? [...entry.artifacts] : [];
   const pathOf = item => (typeof item === 'string' ? item : isPlainObject(item) ? item.path : undefined);
   const named = new Set(artifacts.map(pathOf));
-  const exists = relative => typeof relative === 'string' && relative !== '' && !path.isAbsolute(relative)
-    && !relative.includes('${') && isFile(path.join(run.runDir, relative));
+  const literal = relative => typeof relative === 'string' && relative !== '' && !path.isAbsolute(relative)
+    && !relative.includes('${');
+  const exists = relative => literal(relative)
+    && (isFile(path.join(run.runDir, relative)) || isDirectory(path.join(run.runDir, relative)));
   const companion = relative => {
-    if (!run.html || typeof relative !== 'string' || !relative.endsWith('.md')) return null;
+    if (!run.html || !literal(relative) || !relative.endsWith('.md')) return null;
+    if (isDirectory(path.join(run.runDir, relative))) return null;
     const html = `${relative.slice(0, -'.md'.length)}.html`;
-    return exists(html) ? html : null;
+    return isFile(path.join(run.runDir, html)) ? html : null;
   };
+  const registered = registeredPath(node, nodeId, run);
 
   let touched = false;
-  for (const relative of declared) {
-    if (named.has(relative) || !exists(relative)) continue;
+  for (const declaredPath of declared) {
+    const relative = registered(declaredPath);
+    if (relative === null || named.has(relative) || !exists(relative)) continue;
     artifacts.push({ path: relative, label: null, html: companion(relative) });
     named.add(relative);
     touched = true;
@@ -1682,6 +2022,35 @@ function registerArtifacts(entry, nodeId, run) {
     touched = true;
   }
   if (touched) entry.artifacts = artifacts;
+}
+
+/**
+ * How a node's declared artifact paths are spelled in its summary: relative to
+ * the run directory, which is what the dashboard links them against. Returns a
+ * function from a declared path to that spelling, or to null when the path is
+ * not this run's to claim.
+ *
+ * For every scheme but `workflow:` a declared path is already that spelling. A
+ * `workflow:` node's declared paths are the child's, written into the child's
+ * own task directory, so each is joined onto the `values.task_path` the node
+ * recorded and spelled back relative to this run — `../../<type>/<run>/<path>`,
+ * the one spelling that both resolves on disk and links from the parent's
+ * dashboard. Joined onto this run's directory instead, they claimed whatever
+ * file of that name the parent happened to hold. A `workflow:` node with no
+ * usable `task_path` — none recorded yet, or one that leaves the project —
+ * registers nothing, because there is no child directory to look in.
+ */
+function registeredPath(node, nodeId, run) {
+  if (typeof node.uses !== 'string' || !node.uses.startsWith(WORKFLOW_SCHEME)) return declared => declared;
+  const recorded = Object.hasOwn(run.nodes, nodeId) && isPlainObject(run.nodes[nodeId]) ? run.nodes[nodeId] : {};
+  const taskPath = isPlainObject(recorded.values) ? recorded.values.task_path : undefined;
+  if (typeof taskPath !== 'string' || taskPath === '' || path.isAbsolute(taskPath)) return () => null;
+  const child = path.resolve(run.root, taskPath);
+  if (!child.startsWith(`${run.root}${path.sep}`)) return () => null;
+  return declared => {
+    if (typeof declared !== 'string' || declared === '' || path.isAbsolute(declared) || declared.includes('${')) return null;
+    return path.relative(run.runDir, path.resolve(child, declared)).split(path.sep).join('/');
+  };
 }
 
 /**
