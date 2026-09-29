@@ -160,6 +160,12 @@ alternatives, selected by name when the graph is resolved. The result is validat
 a node another node still needs is an error, never a silent gap. An overlay, or one of its profiles, may also carry a
 `display:` block that adds or overrides phase icons and titles — the title of a node it adds, say — without changing the graph.
 
+**A disabled node stays disabled.** Disabling a node rewires its dependents to wait for whatever it
+waited for, so a node added back under the same id would be attached to nothing — a gate that
+holds nothing, under the name of the one you removed. `validate` refuses it, whichever overlay or
+profile did the disabling. To change what a node receives, `tune` it; to put a different node in
+its place, add it under a new id and attach it upstream with `before:` (below).
+
 **The node ids you attach to are a public API.** An overlay names nodes of the built-in —
 in `needs`, in `disable`, in `tune` — so a rename in a built-in would unresolve every
 overlay in every project at once, silently and all on the same upgrade. Renaming one is

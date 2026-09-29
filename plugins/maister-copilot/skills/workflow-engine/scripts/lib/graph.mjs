@@ -965,6 +965,10 @@ function scanControlCharacters(value, file, id, dotted, errors) {
  * operation names an existing node, and naming one that does not exist is a
  * hard error rather than a no-op — a silently ignored `disable` would leave the
  * operator with a graph they believe they trimmed.
+ *
+ * `removed` is shared by every overlay and profile of one resolution, so an id
+ * any of them disabled stays disabled: an `add` naming it is refused rather than
+ * accepted as a node its old dependents no longer wait for.
  */
 function applyOps(body, file, prefix, graph, errors) {
   if (!isMap(body)) return;
@@ -1016,6 +1020,17 @@ function applyOps(body, file, prefix, graph, errors) {
 
   for (const [id, node] of Object.entries(isMap(body.add) ? body.add : {})) {
     const dotted = `${prefix}add.${id}`;
+    if (removed.has(id)) {
+      // The disable already rewired this node's dependents past it, so a node
+      // added back under the same id would come back attached to nothing: a gate
+      // that blocks nothing, under a name a reviewer reads as the original.
+      fail(errors, file, dotted,
+        `add names "${id}", which ${disabler(removed.get(id), file)} disables; a disabled node cannot come back under `
+        + 'its own id, because its dependents no longer wait for it. To change its inputs, tune its with or provider '
+        + 'instead of disabling it; to put something else in its place, add it under a new id and list the nodes that '
+        + 'should wait for it under before:', id);
+      continue;
+    }
     if (nodes.has(id)) {
       // Adding over an existing id is the back door around uses-immutability,
       // so it is refused by name rather than merged.
@@ -1032,6 +1047,11 @@ function applyOps(body, file, prefix, graph, errors) {
     nodes.set(id, { ...node });
     origins.set(id, file);
   }
+}
+
+/** Who removed a node, as a refusal names it: this overlay, or the file that did. */
+function disabler(removedBy, file) {
+  return removedBy === file ? 'this overlay' : removedBy;
 }
 
 function needsOf(node) {
@@ -1820,9 +1840,8 @@ function canonicalOutputs(graph) {
  * Does this exposed entry name a node an overlay or a profile removed?
  *
  * Only a removal answers yes. A reference to a node nothing ever declared is
- * the author's own error and never reaches a hash, and a node disabled and then
- * added back under the same id is present again, so it is exposed as it always
- * was.
+ * the author's own error and never reaches a hash, and a removed node never
+ * comes back: `applyOps` refuses an add under an id any overlay disabled.
  */
 function isDisabledReference(reference, graph) {
   if (typeof reference !== 'string') return false;
