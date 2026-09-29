@@ -15,6 +15,14 @@ the exit code, stdout, stderr and the files left behind. Only the dashboard norm
   the `run-complete` checks judge. `recovery.yml` holds an `on: failure` node on the happy path.
   `declared-outputs.yml` is a workflow of its own name whose nodes declare typed values, a file and
   a directory artifact, a three-option gate and the artifacts of a sub-run.
+- `fixtures/custom-workflow/` — a workflow no built-in is named after, as a user authors it into their
+  project's `.maister/workflows/`: `release-audit.yml` (a fan-out, a guard, a gate of its own, a sub-run,
+  a file and a directory artifact, an `on: failure` node), its child `audit-child.yml`, and
+  `hardening.overlay.yml` (an added node placed with `before:`, `tune.with` and a profile).
+  `custom-workflow.test.mjs` copies them into a scratch project and drives them through every verb.
+- `resolution.test.mjs` builds its project, config dir and home directory at test time, so no
+  `.claude/` or `.github/` tree is committed and the operator's own `~/.claude` and `~/.copilot` are
+  never read.
 - `fixtures/runs/` — run directories copied into a scratch project per test: a plan with its companion
   and work log, a pending gate request, a state file written by a prose orchestrator.
 - `fixtures/gates/` — answered request documents a test copies over the pending one.
