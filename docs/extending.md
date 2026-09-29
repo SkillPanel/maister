@@ -8,19 +8,19 @@ There are three extension points, and one boundary:
 
 | You want to | Do this |
 |---|---|
-| Run a graph of your own design | Write a chain file — a workflow definition in `.maister/workflows/` — with `direct:` nodes for the steps you describe in prose |
+| Run a graph of your own design | Write a workflow definition in `.maister/workflows/` with `direct:` nodes for the steps you describe in prose, and start it with `/maister:run <name>` |
 | Use your own skills and agents as steps | Name them from a node; the engine finds them in your project, in the plugin, or in any installed plugin |
 | Change a shipped workflow without copying it | Lay an overlay over it, or eject it into your workspace |
 | Change what the grammar can say | That is a contract change — see the last section |
 
 The grammar itself is the same one the built-in workflows use, so a definition you write is checked
-by the same validator, frozen into a run's state the same way, and driven by the cockpit like any
-built-in. The only surface the plugin keeps closed is the *shape* of that grammar.
+by the same validator, frozen into a run's state the same way, and run like any built-in — from
+the terminal with `/maister:run <name>`, or driven by the cockpit. The only surface the plugin keeps closed is the *shape* of that grammar.
 
-## Your own chains
+## Your own workflows
 
-A chain file is a workflow definition the workspace owns: `.maister/workflows/<name>.yml`, with a
-prose companion `.maister/workflows/<name>.md` beside it. A node is one entry under `nodes:`; its
+A workflow of your own is a definition the project or workspace owns: `.maister/workflows/<name>.yml`,
+with a prose companion `.maister/workflows/<name>.md` beside it. A node is one entry under `nodes:`; its
 `uses:` names what runs it, in one of four schemes:
 
 | Scheme | What runs |
@@ -104,7 +104,8 @@ nothing can read it, so declare it under the node's `outputs` if a later node ne
 **Validate before you run.** `/maister:umbrella validate --definition .maister/workflows/<name>.yml`
 parses the file, checks ids and the graph, resolves every target, checks gate shape and — in a
 workspace — checks every `dir:` against the members the manifest declares. Errors name the file,
-the node and the field. Warnings never block.
+the node and the field. Warnings never block. `/maister:run` runs the same check before it starts
+anything, so a definition that does not validate never becomes a run.
 
 **How a run closes.** Every run ends through the engine's `run-complete` verb, which prints the
 run's closing marker. A run recorded `completed` is refused while a node it can still reach has
@@ -116,9 +117,30 @@ completed node declared that is not on disk. That line is a warning for you to r
 refusal. Both checks read the resolved graph, overlays included, so a node you add is held to
 the same rule as the built-in ones.
 
-**Where a chain runs.** A chain with a name of its own is started from the cockpit's Start-a-chain
-form and driven there; a single project outside a workspace runs the built-in workflows through
-their commands, and extends them through overlays and eject (below).
+**Running your workflow.** `/maister:run <name>` starts it from the terminal:
+
+```bash
+/maister:run onboarding team=payments
+/maister:run onboarding "Payments onboarding" team=payments   # with a title of your own
+```
+
+It finds the definition by name, validates it and asks for any required input you did not pass
+as `key=value`. Then it starts the run in `.maister/tasks/<name>/YYYY-MM-DD-<title>/`, because a
+workflow's name is its task folder. From there the run has the same dashboard, gates and resume
+as a built-in.
+
+To resume, use `/maister:run <task-path>` or `/maister:work <task-path>`. Both read the workflow's
+name from the run, so the folder it sits in does not matter. `--profile` and `--overlay` work here
+exactly as they do for a built-in (below).
+
+`/maister:work` also offers your workflow when a task description matches what it is for. It
+learns that from the companion, so open `<name>.md` with a `# Title` line and a paragraph saying
+what the workflow does. `/maister:run --list` shows what `/maister:work` will see.
+
+**Where a chain runs.** A definition whose nodes carry `dir:` dispatches work into member
+repositories, which makes it a chain. A chain is started from the cockpit's Start-a-chain form and
+driven there, and `/maister:run` refuses it. Everything else on this page runs in a single project
+from the terminal.
 
 ## Your own skills and agents as nodes
 

@@ -48,6 +48,8 @@ const CASES = [
   { name: 'a CRLF heredoc, read by the shell with a CR in its tag', verb: 'write-state', command: `node ${ENGINE} write-state --state=${STATE} <<'JSON'\r\n{}\r\nJSON\r\n` },
   { name: 'gate-brief with --state and --node', verb: 'gate-brief', command: `node ${ENGINE} gate-brief --state=${STATE} --node=gap-approval` },
   { name: 'gate-brief --oneline', verb: 'gate-brief', command: `node ${ENGINE} gate-brief --state=${STATE} --node=gap-approval --oneline` },
+  { name: 'locate by name', verb: 'locate', command: `node ${ENGINE} locate --name=onboarding` },
+  { name: 'locate with no name, listing the project\'s workflows', verb: 'locate', command: `node ${ENGINE} locate` },
   { name: 'sync-plan with the plan path', verb: 'sync-plan', command: `node ${ENGINE} sync-plan --plan=.maister/tasks/development/2026-09-28-sample/implementation/implementation-plan.md` },
   { name: 'prior-context with an absolute state path', verb: 'prior-context', command: `node ${ABSOLUTE} prior-context --state=/Users/x/.maister/tasks/research/2026-01-05-a/orchestrator-state.yml` },
   { name: 'resolve with a definition under the plugin path', verb: 'resolve', command: `node ${ENGINE} resolve --definition=${PLUGIN_ROOT}/skills/workflow-engine/workflows/development.yml` },

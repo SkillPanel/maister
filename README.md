@@ -130,6 +130,8 @@ You can always be explicit when you prefer - arguments and flags simply override
 
 Task type (feature/bug/enhancement) is auto-detected from context. Override with `--type=feature|bug|enhancement` if needed. Or use `/maister:work` as a single entry point that routes to the right workflow.
 
+Workflows your project defines in `.maister/workflows/` run with `/maister:run <name>`; see [Extending maister](docs/extending.md).
+
 ### Quick Commands
 
 For smaller tasks that don't need a full workflow:

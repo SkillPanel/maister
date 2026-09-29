@@ -120,9 +120,10 @@ report is for machines; what goes back to the user is plain language:
   each one `generated` or not) and that it passed; each warning with its file,
   node and path, and that warnings alone never block. A freshly scaffolded
   manifest carries one advisory warning on a reserved key — say that it is
-  expected. Close by saying where a run begins: a chain is started by maister
-  cockpit and by nothing else, and a user who does not have it yet gets it with
-  `npx maister-cockpit`.
+  expected. Close by saying where a run begins: a chain — a definition whose
+  nodes dispatch into members — is started by maister cockpit, and a user who
+  does not have it yet gets it with `npx maister-cockpit`; a definition that
+  dispatches nothing runs in a single project with `/maister-copilot:run <name>`.
 - **`prune`, exit `0`** — each chain deleted, with its files and the closed runs
   that named it; each chain kept, with the reason: `run-open` means a run that
   may still dispatch names it, `never-started` means no run has, and a sweep
@@ -143,9 +144,11 @@ plugin's command reference (`docs/commands.md`, *Umbrella*), where the
 machine-facing verbs are documented for an operator reading a ledger or an
 outbox by hand. Never guess which of the four was meant and never run one to be
 helpful: a ledger op typed by hand is the drift this runtime exists to remove.
-A word that asks to *run* a chain is the one worth answering rather than only
-refusing: a chain is started by maister cockpit and by nothing else, and a user
-who does not have it yet gets it with `npx maister-cockpit`.
+A word that asks to *run* something is the one worth answering rather than only
+refusing: a chain — a definition whose nodes dispatch into members — is started
+by maister cockpit, and a user who does not have it yet gets it with
+`npx maister-cockpit`; a definition that dispatches nothing is started with
+`/maister-copilot:run <name>` instead.
 With no argument at all, ask with ask_user whether to scaffold the
 current directory (`init`), judge it (`validate`), or delete the generated
 chains whose runs have closed (`prune`).

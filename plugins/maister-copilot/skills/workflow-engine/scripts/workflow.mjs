@@ -11,6 +11,10 @@
  *   validate       --definition and/or repeatable --overlay   JSON on stdout
  *   resolve        --definition, --overlay…, --profile        JSON on stdout
  *   diagram        the same, plus optional --out              Mermaid text
+ *   locate         optional --name                            JSON on stdout
+ *                  (one workflow found by the name it is run by, with the
+ *                  --definition and --overlay values the three verbs above
+ *                  take; without --name, the project's own workflows)
  *   write-state    --state, the patch as JSON on stdin        changed paths
  *   gate-request   --state, the request as JSON on stdin      the files written
  *                  (the request file, the gate index and the pending marker)
@@ -58,6 +62,10 @@ const VERBS = {
   validate: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile'] },
   resolve: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile'] },
   diagram: { module: 'diagram.mjs', flags: ['definition', 'overlay', 'profile', 'out'] },
+  // The name lookup the three verbs above do not do: they take paths, and a
+  // run starts from a name. Read-only, and the flag is optional — without it
+  // the verb lists every workflow the project itself can run by name.
+  locate: { module: 'locate.mjs', flags: ['name'] },
   'write-state': { module: 'state.mjs', flags: ['state'] },
   // One flag, like `write-state`, and for the same reason: everything the verb
   // needs — the run directory, the `gates/` directory and the frozen graph — is
@@ -367,6 +375,21 @@ async function runDiagram(flags) {
   return EXIT.OK;
 }
 
+/**
+ * Find a workflow by the name it is run by, or list the project's own.
+ *
+ * Reported like `validate` — the whole JSON result on stdout, exit 1 when the
+ * name finds nothing or finds a file that calls itself something else — so a
+ * caller reads the reasons from the same place whatever the outcome.
+ */
+async function runLocate(flags) {
+  const module = await loadModule(VERBS.locate.module);
+  const find = entryOf(module, 'locate', VERBS.locate.module);
+  const result = find({ name: flags.name ?? null });
+  report(result);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
 async function runWriteState(flags) {
   if (!flags.state) throw new UsageError('write-state needs --state');
   const module = await loadModule(VERBS['write-state'].module);
@@ -557,6 +580,7 @@ const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
   diagram: runDiagram,
+  locate: runLocate,
   'write-state': runWriteState,
   'gate-request': runGateRequest,
   'run-complete': runRunComplete,

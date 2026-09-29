@@ -606,7 +606,7 @@ function editDistance(a, b) {
  * every generated variant: the skill and agent directory names are unprefixed
  * everywhere, so a bare target name resolves without a rewrite pass.
  */
-function pluginRoot() {
+export function pluginRoot() {
   // Two spellings, one value. `CLAUDE_PLUGIN_ROOT` is the host's; the Copilot
   // variant's skills name `MAISTER_PLUGIN_ROOT`, because that CLI exports no
   // plugin-directory variable of its own and its install notes ask the
@@ -667,7 +667,7 @@ function hasProseSection(file, name) {
  * working directory, which is where every verb of this engine is invoked from.
  * Read at call time, like the plugin root, so a caller can point it elsewhere.
  */
-function projectRoot() {
+export function projectRoot() {
   const declared = process.env.CLAUDE_PROJECT_DIR;
   return declared ? path.resolve(declared) : process.cwd();
 }

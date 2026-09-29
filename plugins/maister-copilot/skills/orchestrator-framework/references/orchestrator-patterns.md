@@ -219,7 +219,7 @@ When a subagent returns `decisions_needed` items, the orchestrator MUST present 
 
 ## 4. State Schema
 
-All orchestrators use `orchestrator-state.yml` at `.maister/tasks/[type]/YYYY-MM-DD-task-name/orchestrator-state.yml`. The `[type]` dir matches the workflow name except for migration, whose type dir is `migrations/` (plural) — the normative list ships with the pro register § A4.
+All orchestrators use `orchestrator-state.yml` at `.maister/tasks/[type]/YYYY-MM-DD-task-name/orchestrator-state.yml`. The `[type]` dir matches the workflow name except for migration, whose type dir is `migrations/` (plural) — the normative list ships with the pro register § A4. A workflow the project defines and starts by name (`/maister-copilot:run <name>`) follows the same rule: its name is its type dir.
 
 ### Timestamp Rule (applies to ALL timestamps everywhere)
 

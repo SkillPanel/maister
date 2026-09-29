@@ -1,6 +1,6 @@
 ---
 name: maister:workflow-engine
-description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as an orchestrated run. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session or suspends on them according to the run's driver, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator; not a workflow a user starts directly.
+description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as an orchestrated run. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session or suspends on them according to the run's driver, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator, or by `/maister:run` for a workflow started by name; not a workflow a user starts directly.
 user-invocable: false
 ---
 
@@ -12,8 +12,10 @@ into a run — one ready set at a time, with state written by a script rather th
 model holding a file open.
 
 **This is machinery, not a feature.** A user reaches a workflow through that workflow's
-own command, and that command's orchestrator hands the run here with a workflow name.
-There is no engine command and no engine entry point of its own — which is what
+own command, whose orchestrator hands the run here with a workflow name — or, for a
+workflow the project defines itself, through `/maister:run <name>`, which looks the name
+up, validates it, gathers its inputs and hands the run here the same way. There is no
+engine command and no engine entry point of its own — which is what
 `user-invocable: false` in the frontmatter above says, so the declaration and this
 paragraph cannot disagree. Nothing in a user's mental model needs the word "engine" in
 it.
@@ -73,8 +75,12 @@ both forms are accepted — `builtin:<name>` and `<name>` resolve to the same ca
 below. A prefix left on the name turns the lookup into a search for a file called
 `builtin:<name>.yml`, which exists nowhere.
 
-Search `.maister/workflows/` in the current project root, then its `generated/`
-subdirectory, then the built-ins shipped beside this file:
+**The `locate` verb performs this lookup; run it rather than testing paths by hand.**
+`locate --name=<name>` searches the homes below in their order and prints the
+`--definition` and `--overlay` values `validate` and `resolve` take, so the file the run is
+validated against is the file the lookup found — the same function `validate` uses for a
+`workflow:` target. It searches `.maister/workflows/` in the current project root, then its
+`generated/` subdirectory, then the built-ins shipped beside this file:
 
 | Found | Meaning |
 |---|---|
@@ -90,8 +96,20 @@ which the planner's collision check prevents. **An overlay beside an eject or a 
 of its name is never applied.** Say so to the operator when you find one, rather than letting
 them believe it is in effect; `validate` reports the same fact as `overlay-ignored:<name>:<home>`. Its path is what the freeze records as
 `workflow.source`, exactly as for an eject, and the graph hash is computed from the resolved
-graph, never from the path, so where a chain lives changes nothing about the run. Authoring an
-eject or an overlay, and running an arbitrary definition file, are not this skill's business.
+graph, never from the path, so where a chain lives changes nothing about the run.
+
+**A run started by name arrives with more than a name.** `/maister:run` hands over the bare
+name, the run's inputs as a map, the overlays, the profile and a title. Its overlays are the
+lookup's own followed by any the operator named, in that order, and they and the profile go to
+`validate`, `resolve` and the freeze exactly as given (Step 4); the inputs are the freeze's
+`orchestrator.options.inputs`, and the title is `task.title`. It has already refused a chain and
+validated the definition; both checks are cheap and are run again here regardless.
+
+**A run starts from a name the lookup resolves, never from a path.** A definition file kept
+anywhere else is not a workflow this skill runs, and a definition whose nodes carry `dir:` — a
+chain, which dispatches into member repositories — is started and driven by maister cockpit,
+never under an absent or `terminal` driver. Authoring an eject or an overlay is not this
+skill's business either.
 
 **Reading the opt-out switch, on every platform.** A workflow's own orchestrator hands runs
 here by default, and `MAISTER_WORKFLOW_PROSE` is what sends a run to that workflow's prose
@@ -114,6 +132,16 @@ Three calls, in this order, before any node runs: `validate`, then `resolve`, th
 `write-state` that installs the resolved graph in `orchestrator-state.yml` as the `workflow:`
 block with one line per node. A run executes the frozen graph, never the file on disk, so an
 edit to a definition mid-run changes nothing until the next run.
+
+**The run's task directory exists before the freeze**, because the state file the freeze writes
+lives in it. It is `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` under the project root, where
+`<type>` is the workflow's name — the one rule for every workflow, a workflow started by name
+included, with migration's `migrations/` the single exception — and the slug follows the
+framework's task-name rule (`orchestrator-patterns.md` § 5), with `-2`, `-3` … appended when a
+directory of that name already exists. The writer derives the project root from that depth, so
+the directory sits exactly there and nowhere deeper. Create it once, on a first run, and record
+its repository-relative path as `orchestrator.task_path` in the freeze; a resume keeps the
+directory it has.
 
 **`resolve` does not stand in for `validate`**, although it re-runs the same checks and refuses
 the same errors. Only `validate` reports where each target was found and how many nodes and
@@ -285,7 +313,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, nine verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, ten verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -336,6 +364,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead |
 | `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
+| `locate` | optional `--name` (bare or `builtin:`-prefixed) | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take, a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `dispatches` names the nodes that carry `dir:`. Exit `1` when the name is found nowhere, is not a workflow name, or finds a file whose `name:` is another. With no name, `{ok, workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
@@ -1239,6 +1268,10 @@ definition: the graph that ran is the graph that resumes. `gate-brief` is the on
 re-resolves the definition after the freeze, and it only reads: it re-resolves it to name the
 next node and the option ids, and degrades to `Next: unknown` when the definition has drifted.
 
+**A run started by name resumes the same way.** `/maister:run <run directory>` and
+`/maister:work <run directory>` read `workflow.name` from the run's state — not from the folder
+it sits in — and hand it here with the directory as the resume target.
+
 **A resume declines the same two flags a first run does.** Step 5's rule is not scoped to a
 fresh run: `--from=PHASE` and `--reset-attempts` are resume flags, so a resume is where they
 usually arrive, and it is where the decline matters most. Resume skips Step 3 and Step 4 — the
@@ -1314,11 +1347,11 @@ The vocabulary and the rule that on-disk state outranks a marker ship with the p
 
 ## When to use
 
-**Use** when a workflow ships a definition and its orchestrator hands the run over — including
-when a node of that definition starts a child run of its own, which is this engine's job and is
-covered by *Sub-runs*.
+**Use** when a workflow ships a definition and its orchestrator hands the run over, or when
+`/maister:run` hands over a workflow started by name — including when a node of that definition
+starts a child run of its own, which is this engine's job and is covered by *Sub-runs*.
 
-**Do not use** to run an arbitrary definition file on request, to author an eject or an
+**Do not use** to run a definition file by path, to start a chain, to author an eject or an
 overlay, to dispatch a `workflow:` node carrying `dir:` into a member repository, or as a
-workflow a user starts directly. Each of those is another skill's job, and none of them is
-reachable by improvising here.
+workflow a user starts directly. Each of those is another skill's job — or the cockpit's — and
+none of them is reachable by improvising here.

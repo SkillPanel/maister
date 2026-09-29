@@ -152,7 +152,8 @@ after a freeze must both prove it has not moved underneath them.
 .maister/tasks/<child-type>/<parent-date>-<parent-slug>-<node>/
 ```
 
-`<child-type>` is the child workflow's own task type. `<parent-date>` is the parent directory's
+`<child-type>` is the child workflow's own task type: its name, for every workflow but migration,
+whose type is `migrations`. `<parent-date>` is the parent directory's
 `YYYY-MM-DD` prefix, or the turn's measured date when it has none. `<parent-slug>` is the parent
 basename with that prefix and its hyphen removed — the whole basename when there is no prefix.
 `<node>` is the parent node id.

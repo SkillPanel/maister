@@ -13,6 +13,60 @@ Auto-classifies your task and routes to the appropriate workflow. Accepts:
 
 The plugin classifies the task type with confidence scoring, asks for confirmation, then launches the matching orchestrator.
 
+Workflows your project defines in `.maister/workflows/` are candidates too. When your description
+matches one of them, `/maister:work` offers it beside the best built-in match, and the manual
+selection lists them after the built-ins. A task folder of a workflow started by name resumes the
+same way as any other.
+
+### `/maister:run <name> ["title"] [key=value ...] [--profile=NAME] [--overlay=PATH ...]`
+
+Starts a workflow by name: one your project defines in `.maister/workflows/<name>.yml`, an eject
+or an overlay of a built-in, or a built-in itself. It finds the definition, checks that it
+validates, asks for any required input you did not give, and starts the run. From there the run
+behaves like any built-in one: the same dashboard, the same gates, and the same way of resuming.
+
+| Argument | Description |
+|----------|-------------|
+| `<name>` | The workflow's file name without `.yml`, or a built-in's name |
+| `"title"` | Free text: the run's title. When the workflow has exactly one required text input you did not give, this fills it too |
+| `key=value` | One input the definition declares. Quote a value with spaces: `team="Payments Core"` |
+| `--profile=NAME` | A profile one of the run's overlays declares |
+| `--overlay=PATH` | An extra overlay laid over the definition, after any `<name>.overlay.yml` found beside it. Repeatable |
+
+**Names are looked up in one order, and the first match wins:**
+1. `.maister/workflows/<name>.yml` (your own workflow, or an eject of a built-in);
+2. `.maister/workflows/generated/<name>.yml`;
+3. `.maister/workflows/<name>.overlay.yml` (laid over the built-in);
+4. the built-in.
+
+An overlay beside a definition of its own name is not applied, and the command says so.
+
+**The run's folder is the workflow's name**: `.maister/tasks/<name>/YYYY-MM-DD-<title>/`.
+
+**Resume** with `/maister:run <task-path>` (the folder name alone also works) or with
+`/maister:work <task-path>`. The run continues from the graph it started with. An overlay or
+profile edited since then does not change it.
+
+**List** your project's workflows with `/maister:run --list`. With no argument at all, it lists
+them and asks which to start.
+
+**What it will not start:**
+- A *chain*, meaning a definition whose nodes dispatch work into member repositories with `dir:`.
+  Chains are started from maister cockpit.
+- A workflow named `bug-fixes`, `enhancements`, `new-features`, `refactoring` or `mockups`. Those
+  are pre-v3 task folders that nothing reads runs from.
+- A file whose `name:` differs from its file name.
+- A definition that does not validate. The errors name the file, the node and the field.
+
+**Examples**:
+```bash
+/maister:run onboarding team=payments
+/maister:run release-notes "Notes for 4.2" since=v4.1.0
+/maister:run research "How should retries back off?" --profile=quick   # a profile .maister/workflows/research.overlay.yml declares
+/maister:run .maister/tasks/onboarding/2026-09-30-onboarding-payments
+/maister:run --list
+```
+
 ---
 
 ## Development
