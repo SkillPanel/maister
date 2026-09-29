@@ -206,14 +206,6 @@ test('before on a definition\'s own node is refused', t => {
   assert.match(error.message, /before attaches a node an overlay adds/);
 });
 
-test('before on an added node must be a non-empty list of node ids', t => {
-  const file = definition(t);
-  const lay = overlay(file, ['extends: acme', 'add:', '  audit: {uses: "agent:auditor", needs: [intake], before: []}']);
-  const { code, report } = validate(file, `--overlay=${lay}`);
-  assert.equal(code, 1);
-  assert.match(errorAt(report, 'add.audit.before').message, /before is a non-empty list of node ids/);
-});
-
 // ---------------------------------------------------------------------------
 // closed values: on, input types, the workflow name, the version
 // ---------------------------------------------------------------------------

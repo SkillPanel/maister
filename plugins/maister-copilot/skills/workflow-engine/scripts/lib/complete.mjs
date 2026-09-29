@@ -65,6 +65,44 @@
  * Under a dispatch driver the close-out check runs for every ending, a failed
  * one included — a failed dispatch still owes its chain a close-out graded
  * `failed`, or the chain waits on it forever.
+ *
+ * WHAT A COMPLETED RUN STILL OWES. `completed` is a claim about the graph, and
+ * the status alone cannot back it: a node an overlay added as a dangling leaf,
+ * a node left running, a recovery node the ready set had made ready — each
+ * closed `RUN-COMPLETE` while it had never run. So a run that recorded
+ * `completed` is refused `run-nodes-unfinished`, naming each node, while any
+ * node has not finished and the ready set cannot rule it out. The judgement is
+ * asked of `gate-brief.mjs`, where the guard evaluation and the ready-set
+ * simulation live, so a pending node is owed exactly when a driver walking the
+ * frozen graph would have run it: a false guard, or a need that ended failed or
+ * stopped which the node's `on` does not accept, keeps it off the path and it is
+ * not owed. Only `completed` is judged. A failed run's untouched nodes are its
+ * failure, and a stop records every unexecuted node `stopped`. The check runs
+ * before the close-out check, so a run with both defects finishes its work
+ * before it publishes the close-out that says it is over.
+ *
+ * WHAT IS MISSING FROM DISK. Every ending the verb judges also reconciles what
+ * the run declared against what is there: one `missing-artifact: <node> <path>`
+ * line, above the marker and above a stop's notice, for each artifact a
+ * completed node declared that does not exist. The declarations are the
+ * resolved graph's, overlays included, so a node an overlay added is held to
+ * its own; a `workflow:` node's resolve against its child's task directory, the
+ * one its recorded `task_path` names, and print repository-root-relative. A
+ * node carrying `dir:` is skipped — its work lands in another repository — and
+ * so is an interpolated path, which names someone else's output.
+ *
+ * It is a warning, never a refusal, and the exit code does not move. Whether a
+ * missing artifact is a defect is the node's own call, made before it recorded
+ * `completed`: its prose may sanction the absence, and this verb cannot read
+ * prose, so a refusal would stop runs that are right and that no write could
+ * clear. At the close the only remedy left is re-driving a node that already
+ * completed, which is the operator's decision, and the line is what lets them
+ * make it. When the definition cannot be shown to be the one the run froze,
+ * nothing is checked and a warning says so rather than guessing.
+ *
+ * The codes this module raises: `state-missing`, `state-unreadable`,
+ * `run-not-ended`, `run-nodes-unfinished` and `closeout-unpublished`. The
+ * failed ending's `run-failed` rides beside its marker and is not a refusal.
  */
 
 import fs from 'node:fs';
@@ -74,7 +112,9 @@ import { scanState } from '../../../../hooks/gate-lib.mjs';
 import { published } from '../../../umbrella/scripts/lib/outbox.mjs';
 import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
+import { atClose } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
+import { projectRootOf } from './state.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
 /** C5's closing markers, spelled here once. */
@@ -91,9 +131,10 @@ const ENDINGS = new Set(['completed', 'failed', 'stopped']);
  * Judge one run's ending.
  *
  * Returns rather than throws, like `writeState` and `gateRequest`: the entry
- * point prints `notice` (when there is one) and then the marker as the last
- * line, and maps `ok` onto the exit code. `ok` is true exactly when the marker
- * is `RUN-COMPLETE`. Only a genuine internal fault escapes.
+ * point prints the `missing` lines, then `notice` (when there is one), then the
+ * marker as the last line, puts each of `warnings` on stderr, and maps `ok`
+ * onto the exit code. `ok` is true exactly when the marker is `RUN-COMPLETE`.
+ * A refusal carries neither list. Only a genuine internal fault escapes.
  */
 export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
   try {
@@ -105,22 +146,30 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
         `${state} records task.status ${status === null ? 'as absent' : `"${status}"`}, so the run has not recorded how it ended and no marker can be printed for it. Write the closing patch first — the closing node's outcome with task.status completed or failed, or a stop option's task.status stopped with every unexecuted node — then run this verb again.`);
     }
 
+    const runDir = path.dirname(path.resolve(state));
+    const close = atClose({ doc, runDir });
+    if (status === 'completed' && close.owed.length) {
+      throw new Refusal('run-nodes-unfinished', unfinished(state, close));
+    }
+
     if (scanState(raw).driverKind === 'dispatch') {
       const refusal = closeoutRefusal({ outbox, dispatchId });
       if (refusal) return refusal;
     }
 
     const nodes = nodesOf(doc);
+    const reconciled = reconcile(nodes, close.graph, runDir);
     if (status === 'failed') {
       const reason = failureOf(nodes);
       return {
         ok: false,
         marker: `${FAILED}: ${reason}`,
         errors: [{ code: 'run-failed', message: `the run recorded task.status failed (${reason}). This is its ending, not a refusal to retry: echo the marker as the turn's last line.` }],
+        ...reconciled,
       };
     }
-    const result = { ok: true, marker: COMPLETE, errors: [] };
-    if (status === 'stopped') result.notice = `run stopped: ${stopOf(nodes, doc, path.dirname(path.resolve(state)))}`;
+    const result = { ok: true, marker: COMPLETE, errors: [], ...reconciled };
+    if (status === 'stopped') result.notice = `run stopped: ${stopOf(nodes, doc, runDir)}`;
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -141,6 +190,25 @@ function closeoutRefusal({ outbox, dispatchId }) {
 
   const sent = messages.map(message => message.type);
   return refused(`the outbox for dispatch ${dispatchId} holds ${sent.length ? `${sent.join(', ')} and no close-out` : 'no message at all'}, so the dispatching chain has not learned this run is over and will wait forever. Publish the close-out with the umbrella runtime's outbox verb (--type=closeout, with the grade and summary the seed's close-out contract asks for), then run this verb again.`);
+}
+
+/**
+ * The unfinished-nodes refusal: every owed node by id and recorded status, why
+ * a guard could not rule one out when that is the reason, and the recovery —
+ * the work that was missed, never a status written over it.
+ */
+function unfinished(state, { owed, drift }) {
+  const named = owed.map(({ id, status, guard }) => (guard
+    ? `${id} (${status}; its guard ${guard} reads a value that was never recorded)`
+    : `${id} (${status})`));
+  const one = owed.length === 1;
+  const count = one ? 'a node has' : `${owed.length} nodes have`;
+  const rule = drift
+    ? 'The definition this run froze cannot be re-read, or has changed since the freeze, so no guard was evaluated: every pending node whose needs are met counts.'
+    : `A pending node counts unless the graph keeps it off the path the run took — a false guard, or a need that ended failed or stopped which the node's on: does not accept — and nothing keeps ${one ? 'this one' : 'these'} off it.`;
+  return `${state} records task.status completed, but ${count} not finished: ${named.join(', ')}. ${rule} `
+    + `Resume the run and run ${one ? 'it' : 'each of them'}, or record skipped for one whose guard is false; then write the closing patch again and run this verb again. `
+    + `A run that cannot finish ${one ? 'it' : 'them'} ends failed, or stopped with every unexecuted node, instead. Never record a node completed that did not run.`;
 }
 
 /** A run that cannot show its close-out, with the recovery in the message. */
@@ -178,6 +246,52 @@ function nodesOf(doc) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   return Object.entries(nodes).filter(([, entry]) => isPlainObject(entry));
+}
+
+/**
+ * `{missing, warnings}`: one `missing-artifact: <node> <path>` line per artifact
+ * a completed node declared that is not on disk, in graph order, or — when the
+ * run's graph cannot be shown to be the frozen one — no lines and one warning
+ * saying nothing was checked. A run with no frozen nodes has nothing to check.
+ */
+function reconcile(nodes, graph, runDir) {
+  if (!nodes.length) return { missing: [], warnings: [] };
+  if (graph === null) {
+    return {
+      missing: [],
+      warnings: ['declared artifacts were not checked: the definition this run froze cannot be re-read, or has changed since the freeze'],
+    };
+  }
+
+  const byId = new Map(graph.nodes.map(node => [node.id, node]));
+  const root = projectRootOf(runDir);
+  const missing = [];
+  for (const [id, entry] of nodes) {
+    const node = byId.get(id);
+    if (entry.status !== 'completed' || !node || !isPlainObject(node.outputs?.artifacts)) continue;
+    if (typeof node.dir === 'string' && node.dir !== '') continue;
+    const child = typeof node.uses === 'string' && node.uses.startsWith('workflow:');
+    const taskPath = isPlainObject(entry.values) && typeof entry.values.task_path === 'string' && entry.values.task_path !== ''
+      ? entry.values.task_path
+      : null;
+    for (const declared of Object.values(node.outputs.artifacts)) {
+      if (typeof declared !== 'string' || declared === '' || declared.includes('${')) continue;
+      // A child's artifact is the child's to write; without its address it is
+      // nowhere this run can look, so it is missing rather than looked for here.
+      if (child && taskPath === null) {
+        missing.push(missingLine(id, declared));
+        continue;
+      }
+      const shown = child ? path.posix.join(taskPath, declared) : declared;
+      if (!fs.existsSync(path.resolve(child ? root : runDir, shown))) missing.push(missingLine(id, shown));
+    }
+  }
+  return { missing, warnings: [] };
+}
+
+/** The line one absent artifact prints: node id first, then the path. */
+function missingLine(node, file) {
+  return `missing-artifact: ${node} ${file}`;
 }
 
 /** The failed run's reason: the first failed node, or the task when none is. */

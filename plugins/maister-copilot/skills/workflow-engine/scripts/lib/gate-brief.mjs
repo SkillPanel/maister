@@ -38,7 +38,8 @@
  * `Next:`, `Recommended:` and the `Run: … · Dashboard: …` line that says where
  * the run and its full summaries live (the run alone when there is no viewer).
  *
- * The guard evaluation and the ready-set simulation live here and nowhere else.
+ * The guard evaluation and the ready-set simulation live here and nowhere else:
+ * `walk` for a gate's `Next:` line, `atClose` for what a completed run still owes.
  * `umbrella/scripts/lib/envelope.mjs` re-resolves a frozen definition the same
  * way and is the pattern for it, never an import: the umbrella's drift is a
  * refusal and this module's is a degradation, and one shared helper would have to
@@ -126,10 +127,10 @@ export function gateBrief({ state, node, oneline = false }) {
   const graph = current.graph;
   const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
 
-  const candidates = closingCandidates(recorded, byId, node);
+  const { direct: candidates, stretch } = closingCandidates(recorded, byId, node);
   let closing;
   if (candidates.length) {
-    closing = closingNode(doc, candidates);
+    closing = closingStretch(doc, recorded, candidates, stretch, current.titles);
     if (!closing) {
       return refuse('gate-brief-no-summary',
         `no node this gate closes has recorded a summary (looked at: ${candidates.join(', ')}); `
@@ -286,48 +287,108 @@ function isGate(recorded, byId, id) {
 }
 
 /**
- * The nodes this gate closes, in order. A need that is itself a gate is replaced
- * by that gate's own needs, recursively, so the brief never renders another
- * gate's answer as this one's summary.
+ * What this gate closes, as `{direct, stretch}`.
+ *
+ * `direct` is the nodes it needs, in order. A need that is itself a gate is
+ * replaced by that gate's own needs, recursively, so the brief never renders
+ * another gate's answer as this one's summary. One of these must have recorded
+ * a summary, because they are the nodes that just closed.
+ *
+ * `stretch` is everything behind them: their needs, walked back until a gate,
+ * which is where the previous brief already reported. A node an overlay placed
+ * before a node this gate closes is in here, and so is any node since the
+ * previous gate that no gate needed directly — neither was ever shown to the
+ * operator, and this is the gate that moves past them.
  */
 function closingCandidates(recorded, byId, gate) {
-  const out = [];
+  const direct = [];
+  const stretch = [];
   const seen = new Set([gate]);
   const visit = id => {
     for (const need of needsOf(recorded, byId, id)) {
       if (seen.has(need)) continue;
       seen.add(need);
       if (isGate(recorded, byId, need)) visit(need);
-      else out.push(need);
+      else direct.push(need);
+    }
+  };
+  const behind = id => {
+    for (const need of needsOf(recorded, byId, id)) {
+      if (seen.has(need)) continue;
+      seen.add(need);
+      if (isGate(recorded, byId, need)) continue;
+      stretch.push(need);
+      behind(need);
     }
   };
   visit(gate);
-  return out;
+  for (const id of direct) behind(id);
+  return { direct, stretch };
 }
 
 /**
- * The first of `candidates` with a filled summary, as `{id, summary, decisions, risks}`.
+ * Every node of the stretch that recorded a summary, folded into the one
+ * `{id, summary, decisions, risks}` the renderer draws, or null when none of the
+ * `direct` nodes carries one — a summary further back never stands in for the
+ * summary of the node that closed.
  *
- * Each field is picked on its own from the first source carrying it filled — the
- * dashboard's `pick` rule, mirrored rather than imported so the projection stays
- * free to change what it draws. One addition: a context-block entry counts when
- * its key *or* its `node:` names the candidate, because the context blocks are
- * keyed by phase and name the node inside the entry.
+ * The direct nodes come first and the rest after them, each group in frozen
+ * order, so the budget, which trims from the end, gives up the stretch before
+ * the node the gate closes. One node renders exactly as it always has. Several
+ * are each named by title in front of their summary, and their decisions and
+ * risks are pooled in the same order, so a `recommend stop:` from any of them
+ * decides the recommendation.
+ */
+function closingStretch(doc, recorded, direct, stretch, titles) {
+  const sources = summarySources(doc);
+  const order = Object.keys(recorded);
+  const summarized = ids => [...ids]
+    .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+    .map(id => summaryOf(sources, id))
+    .filter(Boolean);
+  const closing = summarized(direct);
+  if (!closing.length) return null;
+  const entries = [...closing, ...summarized(stretch)];
+  if (entries.length === 1) return entries[0];
+  return {
+    id: entries[0].id,
+    summary: entries.map(entry => `${titleOf(titles, entry.id)}: ${entry.summary.trim()}`).join('\n\n'),
+    decisions: entries.flatMap(entry => entry.decisions),
+    risks: entries.flatMap(entry => entry.risks),
+  };
+}
+
+/**
+ * The first of `candidates` with a filled summary — the fallback's nearest
+ * recorded node, when what the gate closes is unknown.
  */
 function closingNode(doc, candidates) {
   const sources = summarySources(doc);
   for (const id of candidates) {
-    const entries = sources.flatMap(source => source(id));
-    const picked = {};
-    for (const field of ['summary', 'decisions', 'risks']) {
-      const entry = entries.find(candidate => filled(candidate[field]));
-      if (entry) picked[field] = entry[field];
-    }
-    if (typeof picked.summary === 'string') {
-      return { id, summary: picked.summary, decisions: list(picked.decisions), risks: list(picked.risks) };
-    }
+    const found = summaryOf(sources, id);
+    if (found) return found;
   }
   return null;
+}
+
+/**
+ * One node's `{id, summary, decisions, risks}`, or null when it carries no summary.
+ *
+ * Each field is picked on its own from the first source carrying it filled — the
+ * dashboard's `pick` rule, mirrored rather than imported so the projection stays
+ * free to change what it draws. One addition: a context-block entry counts when
+ * its key *or* its `node:` names the node, because the context blocks are keyed
+ * by phase and name the node inside the entry.
+ */
+function summaryOf(sources, id) {
+  const entries = sources.flatMap(source => source(id));
+  const picked = {};
+  for (const field of ['summary', 'decisions', 'risks']) {
+    const entry = entries.find(candidate => filled(candidate[field]));
+    if (entry) picked[field] = entry[field];
+  }
+  if (typeof picked.summary !== 'string') return null;
+  return { id, summary: picked.summary, decisions: list(picked.decisions), risks: list(picked.risks) };
 }
 
 /** Each source as a function of a node id to the entries it holds for it. */
@@ -515,6 +576,96 @@ function nextLine({ next, skipped, waiting = [] }, titles) {
   const suffix = skipped.length ? ` — skipped: ${skipped.map(name).join(', ')}` : '';
   if (next === null && waiting.length) return `Next: waiting on ${waiting.map(name).join(', ')}${suffix}`;
   return `Next: ${next == null ? 'end of run' : name(next)}${suffix}`;
+}
+
+// ---------------------------------------------------------------------------
+// the run's close
+// ---------------------------------------------------------------------------
+
+/** The statuses a node has ended in. Any other, `pending` aside, started and never ended. */
+const ENDED = new Set([...ENDED_OK, ...ENDED_BADLY]);
+
+/**
+ * What a run that recorded `completed` still owes, for `run-complete`:
+ * `{owed, graph, drift}`.
+ *
+ * `owed` lists, in frozen order, every node that has not finished and that the
+ * ready set cannot rule out, as `{id, status, guard}`; `guard` names the guard
+ * when that guard reads a value its owner never recorded, which is the only
+ * reason such a node is owed. A node that started and never ended — `running`,
+ * `suspended`, `waiting`, or a status no reader knows — is owed outright. A
+ * pending one is judged the way `walk` judges one, over the whole graph instead
+ * of one gate's reach: the first pending node its rule lets through is taken, a
+ * false guard or a skip the rule itself decides simulates `skipped` — which
+ * satisfies what follows — and anything else is owed. An owed node is then
+ * simulated `completed`, so the nodes behind it are judged too rather than
+ * passed as blocked. What the loop never reaches waits on a need that ended
+ * `failed` or `stopped` and that its `on` does not accept: it can never run, so
+ * it is not owed.
+ *
+ * The edges are the freeze's. `on` and `when` are the re-resolved definition's,
+ * and only when it hashes to the freeze: under drift nothing the re-read says is
+ * trusted, so every node keeps the default `on`, no guard is evaluated, and
+ * `drift` says so. `graph` is that trusted graph, for the reader that checks
+ * declared artifacts, and null under drift.
+ */
+export function atClose({ doc, runDir }) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const ids = Object.keys(recorded);
+  if (!ids.length) return { owed: [], graph: null, drift: false };
+
+  const current = reread(doc, workflow, runDir);
+  const graph = current.drift ? null : current.graph;
+  const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
+  const recordedStatus = id => entryOf(recorded, id).status ?? 'pending';
+  const status = new Map(ids.map(id => [id, recordedStatus(id)]));
+  const owed = new Map();
+  const owe = (id, guard = null) => {
+    owed.set(id, { id, status: recordedStatus(id), guard });
+    status.set(id, 'completed');
+  };
+
+  for (const id of ids) {
+    if (status.get(id) !== 'pending' && !ENDED.has(status.get(id))) owe(id);
+  }
+  for (;;) {
+    let next = null;
+    let decision = 'waiting';
+    for (const id of ids) {
+      if (status.get(id) !== 'pending') continue;
+      decision = readiness(needsOf(recorded, byId, id).map(need => status.get(need)), byId.get(id)?.on);
+      if (decision !== 'waiting') {
+        next = id;
+        break;
+      }
+    }
+    if (next === null) break;
+    if (decision === 'skip') {
+      status.set(next, 'skipped');
+      continue;
+    }
+    const when = byId.get(next)?.when;
+    if (typeof when !== 'string') {
+      owe(next);
+      continue;
+    }
+    const guard = evaluate(when, { byId, recorded, status, values: new Map(), inputs: inputsOf(doc), defaults: current.defaults });
+    if (guard.ok && !guard.value) status.set(next, 'skipped');
+    else owe(next, guard.ok ? null : when);
+  }
+  return { owed: ids.filter(id => owed.has(id)).map(id => owed.get(id)), graph, drift: current.drift };
+}
+
+/**
+ * One pending node's readiness, from its needs' statuses and its `on`: `ready`,
+ * `waiting`, or `skip` — taken off the path by the rule itself, which is allowed
+ * and satisfies what follows, exactly like a false guard. The one place
+ * `atClose` asks the ready-set rule, so a change to that rule reaches the close
+ * in one line.
+ */
+function readiness(needStatuses, on) {
+  return needStatuses.every(state => settles(state, on)) ? 'ready' : 'waiting';
 }
 
 // ---------------------------------------------------------------------------
