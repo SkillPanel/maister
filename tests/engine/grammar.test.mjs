@@ -213,3 +213,49 @@ test('before on an added node must be a non-empty list of node ids', t => {
   assert.equal(code, 1);
   assert.match(errorAt(report, 'add.audit.before').message, /before is a non-empty list of node ids/);
 });
+
+// ---------------------------------------------------------------------------
+// closed values: on, input types, the workflow name, the version
+// ---------------------------------------------------------------------------
+
+test('an on: outside success, failure and always is refused with the value it probably meant', t => {
+  const { code, report } = validate(definition(t, [...BASE, '    on: failures']));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.wrapup.on').message, /on is one of success, failure, always; "failures" is not — did you mean "failure"\?/);
+});
+
+for (const on of ['success', 'failure', 'always']) {
+  test(`on: ${on} is accepted`, t => {
+    const { code, report } = validate(definition(t, [...BASE, `    on: ${on}`]));
+    assert.equal(code, 0, JSON.stringify(report.errors));
+  });
+}
+
+test('an input type outside string, bool and path is refused where it is declared', t => {
+  const lines = replacing('  topic: {type: string, required: true}',
+    '  topic: {type: string, required: true}', '  embedded: {type: boolean, default: false}', '  docs: {type: path}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.equal(report.errors.length, 1, JSON.stringify(report.errors));
+  assert.match(errorAt(report, 'inputs.embedded.type').message, /an input type is one of string, bool, path; "boolean" is not/);
+});
+
+test('an input declared as a bare word is refused rather than read as undeclared', t => {
+  const lines = replacing('  topic: {type: string, required: true}', '  topic: string');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'inputs.topic').message, /an input is declared as a mapping/);
+});
+
+test('a workflow name outside the closed character set is refused', t => {
+  const { code, report } = validate(definition(t, replacing('name: acme', 'name: Acme Onboarding')));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'name').message, /the workflow name "Acme Onboarding" is outside the closed character set/);
+});
+
+test('a quoted version is refused, not degraded past every check', t => {
+  const { code, report } = validate(definition(t, replacing('version: 1', 'version: "1"')));
+  assert.equal(code, 1);
+  assert.deepEqual(report.degraded, []);
+  assert.match(errorAt(report, 'version').message, /version 1, written as the bare number; the string "1" is not a version/);
+});

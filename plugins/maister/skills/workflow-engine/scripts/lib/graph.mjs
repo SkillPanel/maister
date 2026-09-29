@@ -1198,7 +1198,19 @@ function checkInputs(inputs, file, errors) {
   if (!isMap(inputs)) return;
   const marked = [];
   for (const [name, input] of Object.entries(inputs)) {
-    if (!isMap(input) || input[TRACKER_KEY] === undefined) continue;
+    // An input the checks below cannot read is one a `${inputs.…}` reference
+    // later reports as undeclared — blaming the reference for the declaration.
+    if (!isMap(input)) {
+      fail(errors, file, `inputs.${name}`,
+        `an input is declared as a mapping of its type, whether it is required and its default; ${describe(input)} is not`);
+      continue;
+    }
+    if (input.type !== undefined && !INPUT_TYPES.includes(input.type)) {
+      const near = closest(input.type, INPUT_TYPES);
+      fail(errors, file, `inputs.${name}.type`,
+        `an input type is one of ${INPUT_TYPES.join(', ')}; ${describe(input.type)} is not${near ? ` — did you mean "${near}"?` : ''}`);
+    }
+    if (input[TRACKER_KEY] === undefined) continue;
     const dotted = `inputs.${name}.${TRACKER_KEY}`;
     if (typeof input[TRACKER_KEY] !== 'boolean') {
       fail(errors, file, dotted, `${TRACKER_KEY} is true or false; ${describe(input[TRACKER_KEY])} is neither`);
@@ -1425,6 +1437,29 @@ function checkDefinition(definition, errors) {
       'profiles belong to an overlay, never to a definition, and a definition\'s own are never applied; '
       + 'move them into the overlay beside it (<name>.overlay.yml)', null);
   }
+
+  // The name a run is looked up, stored and resumed under, so it is held to
+  // the same closed set a `workflow:` target is.
+  if (isPresent(doc.name) && (typeof doc.name !== 'string' || !TARGET_NAME.test(doc.name))) {
+    fail(errors, file, 'name',
+      `the workflow name ${describe(doc.name)} is outside the closed character set: lower-case letters, digits and dashes, `
+      + 'starting with a letter — a workflow is looked up and its runs are stored under this name', null);
+  }
+  // A newer whole-number version never reaches this check: it degrades before
+  // any v1 rule is read. What does reach it and is not 1 is a misspelling of
+  // this grammar's version, and it used to switch every check off in silence.
+  if (isPresent(doc.version) && doc.version !== KNOWN_VERSION && !isNewerVersion(doc.version)) {
+    const written = typeof doc.version === 'string' ? `the string "${doc.version}"` : describe(doc.version);
+    fail(errors, file, 'version',
+      `this grammar is version ${KNOWN_VERSION}, written as the bare number; ${written} is not a version`, null);
+  }
+  if (isPresent(doc.inputs) && !isMap(doc.inputs)) {
+    fail(errors, file, 'inputs', `inputs is a mapping of input name to its declaration; ${describe(doc.inputs)} is not`, null);
+  }
+}
+
+function isPresent(value) {
+  return value !== undefined && value !== null;
 }
 
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
@@ -1541,6 +1576,13 @@ function checkNodeOutputs(node, id, at, file, errors) {
  */
 function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
   checkNodeKeys(node, id, at, file, errors, added);
+  // An `on` outside the set used to behave as the default without a word, so
+  // `on: failures` never caught a failure.
+  if (node.on !== undefined && !ON_VALUES.includes(node.on)) {
+    const near = closest(node.on, ON_VALUES);
+    fail(errors, file, `${at}.on`,
+      `on is one of ${ON_VALUES.join(', ')}; ${describe(node.on)} is not${near ? ` — did you mean "${near}"?` : ''}`, id);
+  }
 
   // `provider -> dir`, on the *resolved* node. B1's implication is backed by a
   // schema conditional, which judges a definition as authored and therefore
