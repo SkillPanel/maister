@@ -1,0 +1,33 @@
+# The child `closing.yml` starts as a sub-run: embeddable, exposing the one
+# artifact its parent declares, with a guard cascade behind its first node.
+name: closing-child
+version: 1
+inputs:
+  subject: {type: string, required: true}
+  embedded: {type: bool, required: false, default: false}
+
+outputs:
+  artifacts:
+    findings: scan.artifacts.findings
+
+nodes:
+  scan:
+    uses: direct:scan
+    needs: []
+    with:
+      subject: "${inputs.subject}"
+    outputs:
+      artifacts:
+        findings: analysis/findings.md
+      values:
+        blocking: bool
+
+  fix:
+    uses: direct:fix
+    needs: [scan]
+    when: "${scan.values.blocking}"
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [fix]
+    when: "!${inputs.embedded}"

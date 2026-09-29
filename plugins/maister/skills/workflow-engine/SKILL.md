@@ -318,7 +318,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
-| `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout; the refusal on stderr |
+| `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
 | `gate-brief` | `--state`, `--node` (the gate), optional `--oneline` | the gate brief on stdout — the closing node's summary, its decisions and risks, a `Next:` line naming the node that actually runs next (with any guard-skipped nodes), a `Recommended:` option and a last `Run: <dir> · Dashboard: <path>` line, kept within 1,600 characters; `--oneline` folds it onto one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
@@ -416,13 +416,22 @@ is pending — or a node failed with no downstream `on:` to take it, or a stop o
 run — record `task.status` in the closing patch and end the run through the `run-complete`
 verb. It reads that status and prints the marker from it:
 
-- `completed` → `RUN-COMPLETE`;
+- `completed` → `RUN-COMPLETE`, once nothing the run can still reach is left: a node still
+  `running`, `suspended` or `waiting`, or a `pending` one whose needs are met and which no false
+  guard keeps off the path, is refused `run-nodes-unfinished` (*When `run-complete` refuses*);
 - `failed` → `RUN-FAILED: node <id> failed`, naming the first failed node, or
   `RUN-FAILED: sub-run <child-run-id> failed` when that node is a `workflow:` node;
 - `stopped` → `RUN-COMPLETE` too, because the vocabulary has no stopped marker and a stop is
   not a failure — preceded by one plain line, `run stopped: <node> - <option>`, read from
   the state so a person reading the terminal does not take the stop for a success. The marker
   stays the last line, and `task.status` on disk is what says the run stopped.
+
+Whatever the ending, one `missing-artifact: <node> <path>` line precedes the marker for each
+artifact a `completed` node declared that is not on disk — a sub-run node's path joined onto its
+child's task directory. It is a warning for the operator, never a refusal, and the exit code does
+not move: whether an absence is a defect was the node's own check to make (*Recording an
+outcome*), and only its prose can sanction one. Echo the lines with the marker; a line the
+node's summary does not explain is the operator's cue to re-drive that node.
 
 A dispatched run that owes a close-out it never published gets `RUN-FAILED:
 closeout-unpublished` whatever its status. Echo the verb's lines, the marker last; do not
@@ -570,7 +579,9 @@ The check costs one existence test per declared path and needs nothing the engin
 already hold: the definition declares every artifact, so the list is free. Without it, a
 delegate that returns successfully having written nothing is indistinguishable from one that
 wrote everything, and the absence surfaces only when a later node reads the path — or when a
-human compares two lists by hand.
+human compares two lists by hand. `run-complete` repeats the comparison once more at the end,
+over every completed node, but only to report: its `missing-artifact:` lines never refuse,
+because this check — the one that can read the prose — is where the judgement belongs.
 
 **A phase key is never a node id.** `node_summaries` is keyed by node id, and the workflow's
 own `phase_summaries` map is keyed by the workflow's phase keys. The node prose names the
@@ -1123,6 +1134,17 @@ rather than a refusal: echo it, there is nothing to recover.
   The closing patch was never written: write it, with the status, then run the verb again.
 - `state-unreadable` — the file cannot be read or parsed. Nothing was changed; this is the
   write table's `state-unreadable`, with the same hand-over.
+- `run-nodes-unfinished` — `task.status` is `completed`, but the message names nodes that have
+  not finished: one still `running`, `suspended` or `waiting`, or a `pending` one the ready set
+  can still reach. A pending node is not owed when a false guard keeps it off the path, or when
+  it waits on a need that ended `failed` or `stopped` which its `on:` does not accept; a node
+  behind an owed one is owed too. **The recovery is the work that was missed**: resume the run,
+  run each named node — or record `skipped` for one whose guard is false — write the closing
+  patch again, and run the verb again. A run that cannot finish them ends `failed`, or `stopped`
+  with every unexecuted node, instead. Never record a node `completed` that did not run to
+  quiet the check. When the definition changed since the freeze no guard can be evaluated, the
+  message says so, and a node whose guard is false must be recorded `skipped` through
+  `write-state` before the run can close.
 
 `closeout-unpublished` says the run is dispatch-driven and
 its outbox holds no close-out for this dispatch, or that the outbox root and the dispatch id
