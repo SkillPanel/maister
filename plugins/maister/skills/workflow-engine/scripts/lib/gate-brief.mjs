@@ -448,11 +448,11 @@ export function walk({ graph, recorded, gate, inputs = {}, defaults = {} }) {
   for (;;) {
     const ready = nodes.find(entry => downstream.has(entry.id)
       && status.get(entry.id) === 'pending'
-      && list(entry.needs).every(need => settles(status.get(need), entry.on)));
+      && readinessOf(entry, status) !== 'waiting');
     if (!ready) return { ok: true, next: null, skipped, waiting: blockers(nodes, downstream, status) };
     // An `on: failure` node whose needs all ended well has nothing to recover
     // from: it is skipped exactly as a false guard skips a node.
-    if (ready.on === 'failure' && !list(ready.needs).some(need => ENDED_BADLY.has(status.get(need)))) {
+    if (readinessOf(ready, status) === 'skip') {
       status.set(ready.id, 'skipped');
       skipped.push(ready.id);
       continue;
@@ -512,6 +512,11 @@ function downstreamOf(nodes, gate) {
 function settles(state, on) {
   if (ENDED_OK.has(state)) return true;
   return ENDED_BADLY.has(state) && (on === 'failure' || on === 'always');
+}
+
+/** `readiness` for a graph node, read off the statuses its needs hold now. */
+function readinessOf(entry, status) {
+  return readiness(list(entry.needs).map(need => status.get(need)), entry.on);
 }
 
 /** The first option id, in resolved order, whose effect is `effect`; else null. */
@@ -650,7 +655,7 @@ export function atClose({ doc, runDir }) {
       owe(next);
       continue;
     }
-    const guard = evaluate(when, { byId, recorded, status, values: new Map(), inputs: inputsOf(doc), defaults: current.defaults });
+    const guard = evaluate(when, { byId, recorded, status, inputs: inputsOf(doc), defaults: current.defaults });
     if (guard.ok && !guard.value) status.set(next, 'skipped');
     else owe(next, guard.ok ? null : when);
   }
@@ -660,12 +665,15 @@ export function atClose({ doc, runDir }) {
 /**
  * One pending node's readiness, from its needs' statuses and its `on`: `ready`,
  * `waiting`, or `skip` — taken off the path by the rule itself, which is allowed
- * and satisfies what follows, exactly like a false guard. The one place
- * `atClose` asks the ready-set rule, so a change to that rule reaches the close
- * in one line.
+ * and satisfies what follows, exactly like a false guard. `skip` is an
+ * `on: failure` node whose needs all ended well: nothing failed, so there is
+ * nothing to recover. The one ready-set rule both readers ask — `walk` for a
+ * gate's `Next:` line and `atClose` for what a run still owes.
  */
 function readiness(needStatuses, on) {
-  return needStatuses.every(state => settles(state, on)) ? 'ready' : 'waiting';
+  if (!needStatuses.every(state => settles(state, on))) return 'waiting';
+  if (on === 'failure' && !needStatuses.some(state => ENDED_BADLY.has(state))) return 'skip';
+  return 'ready';
 }
 
 // ---------------------------------------------------------------------------

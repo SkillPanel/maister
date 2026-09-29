@@ -331,10 +331,9 @@ test('a state with no workflow block closes on its status alone', t => {
   assert.equal(result.stdout, 'RUN-COMPLETE\n');
 });
 
-// Passes once the ready-set rule returns a skip for an `on: failure` node whose
-// needs all completed. Until then `recover` reads as ready on the happy path
-// and is owed; drop the todo flag when that rule lands.
-test('an on: failure node whose needs all completed is off the path', { todo: 'needs the failure-only on: rule' }, t => {
+// The ready-set rule skips an `on: failure` node whose needs all completed, so
+// `recover` is off the path on the happy run and not owed.
+test('an on: failure node whose needs all completed is off the path', t => {
   const run = frozen(t, { definition: RECOVERY });
   const result = closeWith(run, { work: { status: 'completed' }, finish: { status: 'completed' } });
   assert.equal(result.code, 0, result.stderr);
