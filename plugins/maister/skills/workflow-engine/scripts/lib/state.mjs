@@ -757,6 +757,14 @@ function isFile(file) {
   }
 }
 
+function isDirectory(file) {
+  try {
+    return fs.statSync(file).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Every gate request beside this run, parsed, keyed by node id.
  *
@@ -1913,8 +1921,9 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
 }
 
 /**
- * What a completing summary is checked against: the run directory, the
- * definition's declared outputs and the `html_output` option. A definition that
+ * What a completing summary is checked against: the run directory and the
+ * project root it sits in, the definition's declared outputs, the node entries
+ * as this write leaves them and the `html_output` option. A definition that
  * cannot be resolved yields no declared outputs and never fails the write, for
  * the reason `definitionOf` gives.
  */
@@ -1931,7 +1940,14 @@ function runOf(doc, runDir) {
   } catch {
     definition = null;
   }
-  return { runDir, definition, html: htmlOutput(state) };
+  const workflow = isPlainObject(state.workflow) ? state.workflow : {};
+  return {
+    runDir,
+    root: projectRootOf(runDir),
+    definition,
+    nodes: isPlainObject(workflow.nodes) ? workflow.nodes : {},
+    html: htmlOutput(state),
+  };
 }
 
 /**
@@ -1944,13 +1960,18 @@ function runOf(doc, runDir) {
  * unlinked although it sat on disk. Two additions, both bounded to what
  * exists:
  *
- * - every declared literal path the run directory holds, and the summary does
- *   not already name, is appended as `{path, label: null, html}`;
- * - every registered `.md` artifact with no `html` gains the sibling `.html`
- *   when that file exists and the run's `html_output` is not off.
+ * - every declared literal path that exists, as a file or as a directory, and
+ *   that the summary does not already name, is appended as
+ *   `{path, label: null, html}`, spelled relative to the run directory
+ *   (`registeredPath`);
+ * - every registered `.md` file with no `html` gains the sibling `.html` when
+ *   that file exists and the run's `html_output` is not off. A directory has
+ *   no companion.
  *
  * Nothing is removed and nothing the summary states is overwritten. An
  * interpolated path (`${...}`) is someone else's output, so it is not claimed.
+ * A declared directory used to be skipped as though it were missing, because
+ * only a file counted as present.
  */
 function registerArtifacts(entry, nodeId, run) {
   const nodes = isPlainObject(run.definition?.nodes) ? run.definition.nodes : {};
@@ -1959,17 +1980,22 @@ function registerArtifacts(entry, nodeId, run) {
   const artifacts = Array.isArray(entry.artifacts) ? [...entry.artifacts] : [];
   const pathOf = item => (typeof item === 'string' ? item : isPlainObject(item) ? item.path : undefined);
   const named = new Set(artifacts.map(pathOf));
-  const exists = relative => typeof relative === 'string' && relative !== '' && !path.isAbsolute(relative)
-    && !relative.includes('${') && isFile(path.join(run.runDir, relative));
+  const literal = relative => typeof relative === 'string' && relative !== '' && !path.isAbsolute(relative)
+    && !relative.includes('${');
+  const exists = relative => literal(relative)
+    && (isFile(path.join(run.runDir, relative)) || isDirectory(path.join(run.runDir, relative)));
   const companion = relative => {
-    if (!run.html || typeof relative !== 'string' || !relative.endsWith('.md')) return null;
+    if (!run.html || !literal(relative) || !relative.endsWith('.md')) return null;
+    if (isDirectory(path.join(run.runDir, relative))) return null;
     const html = `${relative.slice(0, -'.md'.length)}.html`;
-    return exists(html) ? html : null;
+    return isFile(path.join(run.runDir, html)) ? html : null;
   };
+  const registered = registeredPath(node, nodeId, run);
 
   let touched = false;
-  for (const relative of declared) {
-    if (named.has(relative) || !exists(relative)) continue;
+  for (const declaredPath of declared) {
+    const relative = registered(declaredPath);
+    if (relative === null || named.has(relative) || !exists(relative)) continue;
     artifacts.push({ path: relative, label: null, html: companion(relative) });
     named.add(relative);
     touched = true;
@@ -1983,6 +2009,35 @@ function registerArtifacts(entry, nodeId, run) {
     touched = true;
   }
   if (touched) entry.artifacts = artifacts;
+}
+
+/**
+ * How a node's declared artifact paths are spelled in its summary: relative to
+ * the run directory, which is what the dashboard links them against. Returns a
+ * function from a declared path to that spelling, or to null when the path is
+ * not this run's to claim.
+ *
+ * For every scheme but `workflow:` a declared path is already that spelling. A
+ * `workflow:` node's declared paths are the child's, written into the child's
+ * own task directory, so each is joined onto the `values.task_path` the node
+ * recorded and spelled back relative to this run — `../../<type>/<run>/<path>`,
+ * the one spelling that both resolves on disk and links from the parent's
+ * dashboard. Joined onto this run's directory instead, they claimed whatever
+ * file of that name the parent happened to hold. A `workflow:` node with no
+ * usable `task_path` — none recorded yet, or one that leaves the project —
+ * registers nothing, because there is no child directory to look in.
+ */
+function registeredPath(node, nodeId, run) {
+  if (typeof node.uses !== 'string' || !node.uses.startsWith(WORKFLOW_SCHEME)) return declared => declared;
+  const recorded = Object.hasOwn(run.nodes, nodeId) && isPlainObject(run.nodes[nodeId]) ? run.nodes[nodeId] : {};
+  const taskPath = isPlainObject(recorded.values) ? recorded.values.task_path : undefined;
+  if (typeof taskPath !== 'string' || taskPath === '' || path.isAbsolute(taskPath)) return () => null;
+  const child = path.resolve(run.root, taskPath);
+  if (!child.startsWith(`${run.root}${path.sep}`)) return () => null;
+  return declared => {
+    if (typeof declared !== 'string' || declared === '' || path.isAbsolute(declared) || declared.includes('${')) return null;
+    return path.relative(run.runDir, path.resolve(child, declared)).split(path.sep).join('/');
+  };
 }
 
 /**

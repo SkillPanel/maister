@@ -444,6 +444,22 @@ test('with html_output off the declared artifact is registered without a compani
     [{ path: 'analysis/report.md', label: null, html: null }]);
 });
 
+test('a completing summary registers a declared directory, and gives it no companion', t => {
+  const run = scratch(t, { type: 'survey' });
+  freeze(run, { definition: DECLARED, inputs: { subject: 'acme-api' } });
+  place(run, 'analysis/evidence/replay.txt');
+  place(run, 'analysis/notes.md');
+  place(run, 'analysis/notes.html');
+  write(run, {
+    nodes: { scan: { status: 'completed', values: { blocking: false } } },
+    node_summaries: { scan: { summary: 'Scanned.' } },
+  });
+  assert.deepEqual(readState(run).node_summaries.scan.artifacts, [
+    { path: 'analysis/notes.md', label: null, html: 'analysis/notes.html' },
+    { path: 'analysis/evidence', label: null, html: null },
+  ]);
+});
+
 test('an empty patch is a sanctioned republish; empty stdin is a usage failure', t => {
   const run = scratch(t);
   freeze(run);

@@ -48,7 +48,7 @@ are what an author sees first, the refusals are what fail a run.
 | **W3 — the parent records the link** | `write-state` against the **parent** state | `nodes.<node>`: `status: waiting`, `values: {task_path, run_id}` |
 | — | *the child runs, in session* | the ordinary engine loop against the child's state. Child gates are asked with the host's question tool and answered in the same turn; the child's own close-out prints its marker |
 | — | *no write: the re-resolve* | read the child's state, re-resolve the definition **it** names, compare hashes, read its declared `outputs:` and the producing nodes' declared paths |
-| **W4 — the parent adopts the outcome** | `write-state` against the **parent** state | `nodes.<node>`: the mapped status, `values` re-sent whole as `{task_path, run_id, …copied values}`; `node_summaries.<node>`; the `phase_summaries` key the node prose names when it mirrors one |
+| **W4 — the parent adopts the outcome** | `write-state` against the **parent** state | `nodes.<node>`: the mapped status, `values` re-sent whole as `{task_path, run_id, …copied values}`; `node_summaries.<node>`, onto which the writer appends every artifact the node declares that the child wrote, spelled relative to the parent's run directory; the `phase_summaries` key the node prose names when it mirrors one |
 | — | continue | the parent resumes its ready-set walk; `${<node>.artifacts.<key>}` and `${<node>.values.<key>}` resolve |
 
 **`WAITING-SUBRUN` is never printed under a terminal driver.** That is a rule, not an implication.

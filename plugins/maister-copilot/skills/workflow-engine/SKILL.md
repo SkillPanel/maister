@@ -575,7 +575,10 @@ node's recorded `values.task_path`, because the path the parent declares is the 
 writes it. The join applies to both readers of a declared artifact — the existence check above and
 `${<node>.artifacts.<key>}` downstream — and the joined value is repository-root-relative.
 Artifacts are therefore never copied into the parent node's values; only declared *values* are.
-Storing the joined path as well would be a third copy of one fact, kept in step by hand.
+Storing the joined path as well would be a third copy of one fact, kept in step by hand. The
+writer makes the same join when it registers a completing node's artifacts, and spells the result
+relative to the parent's own run directory instead, because that is what the dashboard links it
+against.
 
 **The two budget-exhausted rows need an operator, so they need a driver.** Asking whether to
 retry or to skip is itself an in-node question, and under a `cockpit` or `dispatch` driver
@@ -620,12 +623,15 @@ since in terminal mode the answer arrives in the same turn — so it has no mirr
 
 **A completing node summary is checked against what the node declared.** When a
 `node_summaries` entry is written for a node whose status is `completed`, the writer appends
-every artifact path the definition declares for that node which exists in the run directory
-and which the entry does not already list. It also fills a missing `html` on each listed
-markdown artifact whose sibling `.html` companion exists, unless `html_output` is off. It adds
-only what is on disk and overwrites nothing the entry states. The closing write still lists
-what the node prose asks for: the check catches a list that was forgotten, it does not replace
-the list.
+every artifact path the definition declares for that node which exists, as a file or as a
+directory, and which the entry does not already list. It also fills a missing `html` on each
+listed markdown file whose sibling `.html` companion exists, unless `html_output` is off; a
+directory gets none. For a `workflow:` node the paths are looked for under the child's task
+directory, named by the node's recorded `values.task_path`, and registered as
+`../../<type>/<run>/<path>`. A `workflow:` node that recorded no `task_path` registers nothing,
+because the parent's own directory is not where its child writes. The writer adds only what is on
+disk and overwrites nothing the entry states. The closing write still lists what the node prose
+asks for: the check catches a list that was forgotten, it does not replace the list.
 
 **Why `stopped` mirrors to `skipped`.** The summary vocabulary has five members and none is
 `stopped`, so the status is spelled as one of the five or not written at all. `skipped` is the

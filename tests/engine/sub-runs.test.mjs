@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, freeze, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 
 const RESEARCH = path.join(ENGINE_DIR, 'workflows/research.yml');
 
@@ -110,6 +110,78 @@ test('a stopped child stops the parent: a notice line, then RUN-COMPLETE last', 
   assert.equal(result.code, 0);
   assert.equal(result.stdout, `run stopped: research - sub-run ${child.name} stopped\nRUN-COMPLETE\n`);
   assert.equal(readDashboard(parent).phases.find(phase => phase.id === 'research').status, 'skipped');
+});
+
+/**
+ * A parent whose `workflow:` node declares the child's artifacts, waiting on a
+ * research child that has run: the same walk as `waiting`, on a definition
+ * whose sub-run node declares a report file and a findings directory.
+ */
+function declaring(t) {
+  const parent = scratch(t, { type: 'survey' });
+  freeze(parent, { definition: DECLARED, inputs: { subject: 'What is left open?' } });
+  write(parent, {
+    nodes: {
+      scan: { status: 'completed', values: { blocking: false } },
+      review: { status: 'completed' },
+      probe: { status: 'running' },
+    },
+  });
+  const child = sibling(parent, { type: 'research', name: '2026-01-05-left-open' });
+  freeze(child, {
+    definition: RESEARCH,
+    task: { title: 'Left open' },
+    inputs: { question: 'What is left open?', embedded: true },
+    orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'probe' } },
+  });
+  write(parent, { nodes: { probe: { status: 'waiting', values: { task_path: child.path, run_id: child.name } } } });
+  return { parent, child };
+}
+
+/** Put a file into a run directory, creating its folder. */
+function place(run, relative) {
+  const file = path.join(run.dir, relative);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${relative}\n`);
+}
+
+/** The parent's adopting write (W4) for a completed child, its summary listing no artifacts. */
+function adopt(parent, child, values = { task_path: child.path, run_id: child.name, conclusions: 'two gaps' }) {
+  write(parent, {
+    nodes: { probe: { status: 'completed', values } },
+    node_summaries: { probe: { summary: `Sub-run ${child.name} completed.` } },
+  });
+}
+
+test('adoption: the child\'s declared artifacts are registered on the parent, relative to the parent\'s directory', t => {
+  const { parent, child } = declaring(t);
+  place(child, 'outputs/research-report.md');
+  place(child, 'outputs/research-report.html');
+  place(child, 'analysis/findings/source-1.md');
+  adopt(parent, child);
+  const at = `../../research/${child.name}`;
+  const expected = [
+    { path: `${at}/outputs/research-report.md`, label: null, html: `${at}/outputs/research-report.html` },
+    { path: `${at}/analysis/findings`, label: null, html: null },
+  ];
+  assert.deepEqual(readState(parent).node_summaries.probe.artifacts, expected);
+  assert.deepEqual(readDashboard(parent).phases.find(phase => phase.id === 'probe').artifacts, expected);
+  for (const artifact of expected) assert.ok(fs.existsSync(path.join(parent.dir, artifact.path)), artifact.path);
+});
+
+test('adoption: a file of the same name in the parent\'s own directory is never claimed for the child', t => {
+  const { parent, child } = declaring(t);
+  place(parent, 'outputs/research-report.md');
+  adopt(parent, child);
+  assert.equal(Object.hasOwn(readState(parent).node_summaries.probe, 'artifacts'), false);
+});
+
+test('adoption: a workflow node that records no task_path registers nothing', t => {
+  const { parent, child } = declaring(t);
+  place(child, 'outputs/research-report.md');
+  place(parent, 'outputs/research-report.md');
+  adopt(parent, child, { conclusions: 'two gaps' });
+  assert.equal(Object.hasOwn(readState(parent).node_summaries.probe, 'artifacts'), false);
 });
 
 for (const [label, parentLink] of [

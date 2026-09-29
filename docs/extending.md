@@ -80,7 +80,9 @@ nodes:
 ```
 
 Binding is by name, both ways — there is no renaming — and `task_path` and `run_id` are reserved,
-because the node always carries those two itself. The block is part of the definition's recorded
+because the node always carries those two itself. Once the child has run, the declared artifacts it
+wrote are listed on the calling node and linked from the parent's dashboard; a declared artifact
+may be a single file or a whole directory. The block is part of the definition's recorded
 identity, so adding one moves that identity: regenerate the diagram of any definition that ships
 with one.
 
