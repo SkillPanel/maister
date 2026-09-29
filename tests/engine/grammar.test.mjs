@@ -309,3 +309,60 @@ test('a newer version with a cycle in needs is refused: the degrade does not swi
   assert.equal(resolved.code, 1);
   assert.equal(JSON.parse(resolved.stdout).graph_hash, null);
 });
+
+// ---------------------------------------------------------------------------
+// profiles: declared by an overlay, selected from one, and all of them judged
+// ---------------------------------------------------------------------------
+
+test('a profiles: block in a definition is refused: profiles live in an overlay', t => {
+  const { code, report } = validate(definition(t, [...BASE, 'profiles:', '  lean: {disable: [wrapup]}']));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'profiles').message, /profiles belong to an overlay/);
+});
+
+test('a profile selected with no overlay is refused rather than recorded as applied', t => {
+  const file = definition(t);
+  const { code, report } = validate(file, '--profile=lean');
+  assert.equal(code, 1);
+  const error = errorAt(report, 'profiles.lean');
+  assert.equal(error.file, file);
+  assert.match(error.message, /selected with no overlay/);
+  const resolved = verb(['resolve', `--definition=${file}`, '--profile=lean']);
+  assert.equal(resolved.code, 1);
+  assert.equal(JSON.parse(resolved.stdout).graph_hash, null);
+});
+
+test('a misspelt profile names the declared one it probably meant', t => {
+  const file = definition(t);
+  const lay = overlay(file, ['extends: acme', 'profiles:', '  lean: {disable: [wrapup]}', '  strict: {}']);
+  const { code, report } = validate(file, `--overlay=${lay}`, '--profile=leen');
+  assert.equal(code, 1);
+  const error = errorAt(report, 'profiles.leen');
+  assert.equal(error.file, lay);
+  assert.match(error.message, /did you mean "lean"\? The declared profiles are lean, strict/);
+});
+
+test('a profile that breaks the graph fails validation even when it is not the one selected', t => {
+  const file = definition(t, [...BASE, '    with: {notes: "${intake.artifacts.notes}"}']);
+  const lay = overlay(file, ['extends: acme', 'profiles:', '  lean: {disable: [intake]}']);
+
+  const unselected = validate(file, `--overlay=${lay}`);
+  assert.equal(unselected.code, 1);
+  const error = errorAt(unselected.report, 'nodes.wrapup.with.notes');
+  assert.equal(error.file, file);
+  assert.match(error.message, /^under profile "lean": "intake\.artifacts\.notes" names "intake", which no node declares/);
+
+  const selected = validate(file, `--overlay=${lay}`, '--profile=lean');
+  assert.equal(selected.code, 1);
+  assert.match(errorAt(selected.report, 'nodes.wrapup.with.notes').message, /^"intake\.artifacts\.notes" names "intake"/);
+});
+
+test('with two overlays, a profile applies from the one that declares it and the other is untouched', t => {
+  const file = definition(t);
+  const first = overlay(file, ['extends: acme', 'profiles:', '  lean: {disable: [wrapup]}']);
+  const second = path.join(path.dirname(file), 'extra.overlay.yml');
+  fs.writeFileSync(second, 'extends: acme\nprofiles:\n  strict: {}\n');
+  const result = verb(['resolve', `--definition=${file}`, `--overlay=${first}`, `--overlay=${second}`, '--profile=lean']);
+  assert.equal(result.code, 0, result.stdout);
+  assert.deepEqual(JSON.parse(result.stdout).nodes.map(node => node.id), ['intake', 'review-approval']);
+});

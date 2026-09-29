@@ -337,6 +337,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   }
 
   if (mode === 'standalone') {
+    checkProfileChoice(overlays, profile, null, errors);
     // No base to build a graph from, so there is nothing to count. `null` rather
     // than zeroes: a caller that renders "0 nodes" for an overlay judged on its
     // own shape would be stating a fact about a document nobody looked at.
@@ -347,7 +348,10 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   scanReserved(definition?.doc, warnings);
   checkDefinition(definition, errors);
   const graph = buildGraph({ definition, overlays, profile, errors });
-  if (graph) checkGraph(graph, errors, warnings, resolved, project);
+  if (graph) {
+    checkGraph(graph, errors, warnings, resolved, project);
+    checkEveryProfile({ definition, overlays, profile, project }, errors);
+  }
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
 }
 
@@ -986,14 +990,10 @@ function buildGraph({ definition, overlays, profile, errors }) {
   }
 
   for (const overlay of overlays) applyOps(overlay.doc, overlay.file, '', { nodes, origins, removed }, errors);
+  checkProfileChoice(overlays, profile, file, errors);
   for (const overlay of overlays) {
-    if (profile === null || !isMap(overlay.doc?.profiles)) continue;
-    const selected = overlay.doc.profiles[profile];
-    if (!isMap(selected)) {
-      fail(errors, overlay.file, `profiles.${profile}`, `the overlay declares no profile named "${profile}"`, null);
-      continue;
-    }
-    applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed }, errors);
+    const selected = selectedProfile(overlay, profile);
+    if (selected !== null) applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed }, errors);
   }
 
   for (const [id, node] of nodes) scanControlCharacters(node, origins.get(id) ?? file, id, `nodes.${id}`, errors);
@@ -1018,8 +1018,8 @@ function buildGraph({ definition, overlays, profile, errors }) {
   const displays = [{ file, prefix: '', block: doc.display }];
   for (const overlay of overlays) displays.push({ file: overlay.file, prefix: '', block: overlay.doc?.display });
   for (const overlay of overlays) {
-    const selected = profile === null || !isMap(overlay.doc?.profiles) ? null : overlay.doc.profiles[profile];
-    if (isMap(selected)) displays.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.display });
+    const selected = selectedProfile(overlay, profile);
+    if (selected !== null) displays.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.display });
   }
   return {
     file,
@@ -1030,6 +1030,81 @@ function buildGraph({ definition, overlays, profile, errors }) {
     origins,
     removed,
   };
+}
+
+/**
+ * The body of the profile an overlay declares under the selected name, or null
+ * when nothing is selected or this overlay does not declare it. A profile
+ * belongs to the overlay that declares it, so with several overlays the
+ * selected one applies from each that has it and the others are untouched.
+ */
+function selectedProfile(overlay, profile) {
+  const profiles = overlay?.doc?.profiles;
+  if (profile === null || !isMap(profiles) || !Object.hasOwn(profiles, profile)) return null;
+  return isMap(profiles[profile]) ? profiles[profile] : null;
+}
+
+/** Every profile name the overlays declare, first declaration first. */
+function declaredProfiles(overlays) {
+  const names = [];
+  for (const overlay of overlays) {
+    const profiles = overlay?.doc?.profiles;
+    if (!isMap(profiles)) continue;
+    for (const name of Object.keys(profiles)) if (!names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+/**
+ * A selected profile that no overlay declares is an error, including when no
+ * overlay was given at all. It used to be recorded as the run's profile while
+ * nothing was applied — a graph described as trimmed that was not.
+ */
+function checkProfileChoice(overlays, profile, file, errors) {
+  if (profile === null) return;
+  const declared = declaredProfiles(overlays);
+  if (declared.includes(profile)) return;
+  if (overlays.length === 0) {
+    fail(errors, file, `profiles.${profile}`,
+      `the profile "${profile}" was selected with no overlay; profiles are declared in an overlay and selected from it`, null);
+    return;
+  }
+  const near = closest(profile, declared);
+  const where = overlays.find((overlay) => isMap(overlay?.doc?.profiles)) ?? overlays[0];
+  const missing = `no overlay declares a profile named "${profile}"`;
+  fail(errors, where.file, `profiles.${profile}`, near
+    ? `${missing}; did you mean "${near}"? The declared profiles are ${declared.join(', ')}`
+    : `${missing}; ${declared.length ? `the declared profiles are ${declared.join(', ')}` : 'none of the overlays declares a profile'}`,
+  null);
+}
+
+/**
+ * Every declared profile, judged — not only the selected one. A profile that
+ * breaks the graph used to validate clean until the day someone selected it.
+ *
+ * Each profile's graph is built and checked on its own; a finding the
+ * unprofiled pass already reported is not repeated, and one that only this
+ * profile produces is prefixed with the profile's name, because the file and
+ * path it names may be the base's, which is correct without the profile.
+ */
+function checkEveryProfile({ definition, overlays, profile, project }, errors) {
+  const seen = new Set(errors.map(findingKey));
+  for (const name of declaredProfiles(overlays)) {
+    if (name === profile) continue;
+    const found = [];
+    const graph = buildGraph({ definition, overlays, profile: name, errors: found });
+    if (graph) checkGraph(graph, found, [], [], project);
+    for (const error of found) {
+      const key = findingKey(error);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      errors.push({ ...error, message: `under profile "${name}": ${error.message}` });
+    }
+  }
+}
+
+function findingKey(error) {
+  return `${error.file}\u0000${error.path}\u0000${error.message}`;
 }
 
 /**
