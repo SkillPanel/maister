@@ -356,6 +356,11 @@ async function runWriteState(flags) {
     process.stderr.write(`warning: ${warning.file ?? 'dashboard-data.js'} was not written (${warning.code}: ${warning.message});`
       + ' the state write is unaffected\n');
   }
+  // Clock fields a patch carried are dropped, never refused: a refusal would
+  // stop a driver mid-run over a value the writer supplies anyway.
+  if (result.ignored?.length) {
+    process.stderr.write(`note: ignored the supplied ${result.ignored.join(', ')}; the writer stamps these from its own clock\n`);
+  }
   if (result.ok) return EXIT.OK;
   // A refusal is exit 1 and no rename happened: the state file on disk is
   // exactly what it was before the invocation.
