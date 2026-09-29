@@ -450,8 +450,8 @@ the file as each phase turns over — and so do the implementation and verificat
 path, because their interiors run for hours under a skill rather than under the engine, and those
 two skills refresh the file from inside them.
 
-**Phase icons — the `display` block.** Which icon a viewer draws beside a phase cannot be worked out
-from a node id, so a workflow definition may say it. `display` is a top-level key — a sibling of
+**Phase icons and titles — the `display` block.** Which icon a viewer draws beside a phase, and what
+it calls the phase, cannot be worked out from a node id, so a workflow definition may say both. `display` is a top-level key — a sibling of
 `nodes:`, not something inside it:
 
 ```yaml
@@ -465,6 +465,9 @@ display:
     verification:           verify
     user-docs:              docs
     finalization:           done
+  titles:
+    specification-approval: "Approve specification"
+    user-docs:              "User documentation"
 ```
 
 Each entry maps a node id to one of seven values: `analysis`, `spec`, `plan`, `code`, `verify`,
@@ -474,10 +477,15 @@ the definition is validated, naming the spelling it did not recognise and the se
 entry for a node the graph does not declare is a warning only, since an overlay that disables a node
 legitimately leaves its hint behind.
 
-The block is cosmetic. It is no part of the graph's identity — correcting a glyph does not move the
+`titles` maps a node id to the name the dashboard shows for that phase and the gate brief uses in its
+`Next:` line — short, one line, sentence case. A node without one is shown as its id made readable:
+`gap-analysis` becomes `Gap Analysis`. An empty or multi-line title is refused when the definition is
+validated; a title for a node the graph does not declare warns, as a hint does.
+
+The block is cosmetic. It is no part of the graph's identity — correcting a glyph or a title does not move the
 definition's hash, so it cannot invalidate a frozen run or a chain built from the same graph — and
 it may be omitted entirely: a definition of your own, or an ejected copy of a shipped one, is valid
-saying nothing about icons at all, and the viewer falls back to its own default. The shipped
+saying nothing about icons or titles at all, and the viewer falls back to its own defaults. The shipped
 definitions each carry one, and are the worked examples.
 
 ### Umbrella workspaces

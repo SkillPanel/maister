@@ -656,9 +656,10 @@ last line reads `Dashboard: none (html_output is false)` when the run has no das
 names the run alone — `Run: <dir>` — when the viewer is missing from the run directory.
 
 The brief's `Next:` line names the node that actually runs once the continue option is
-chosen — guards evaluated, skipped nodes listed — so no gate question or prose needs to say
-where the run goes next. When that node waits on a branch the gate does not reach, the line
-reads `Next: waiting on <ids>`; `Next: end of run` means nothing after the gate is left.
+chosen — guards evaluated, skipped nodes listed, each by its title — so no gate question or
+prose needs to say where the run goes next. When that node waits on a branch the gate does not
+reach, the line reads `Next: waiting on <titles>`; `Next: end of run` means nothing after the
+gate is left.
 
 ### Terminal mode — asked and answered in one turn
 
@@ -1167,6 +1168,13 @@ The engine honours the framework's contracts; it does not restate them. Follow
   the engine path exactly as on the prose one;
 - the **HTML companions** (§ 9) and the style guide path passed to artifact-writing
   delegates, following `html-report-style.md`.
+
+**Phases are named by their titles.** A definition's top-level `display:` block may carry
+`titles` — node id to a short one-line title — beside `icons`; an overlay or a profile may add or
+override either, and neither moves `graph_hash`. The dashboard's phase names and the gate brief's
+`Next:` line use them, falling back to the id made readable (`gap-analysis` → `Gap Analysis`);
+name phases the same way in the executive summary. Ids stay wherever something is keyed: state,
+gate files, markers and option ids.
 
 The run's last line is a marker, read by tooling: `RUN-COMPLETE`, `RUN-FAILED: <reason>`, or —
 when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node> run=<child-run-id>`.
