@@ -86,7 +86,9 @@ subdirectory, then the built-ins shipped beside this file:
 Resolution order is eject → generated → overlay → built-in, and the first hit wins. A
 generated chain is never overlaid and never ejected: there is no `generated/<name>.overlay.yml`
 candidate, and a definition of the same name at the top of the directory would simply win —
-which the planner's collision check prevents. Its path is what the freeze records as
+which the planner's collision check prevents. **An overlay beside an eject or a generated chain
+of its name is never applied.** Say so to the operator when you find one, rather than letting
+them believe it is in effect; `validate` reports the same fact as `overlay-ignored:<name>:<home>`. Its path is what the freeze records as
 `workflow.source`, exactly as for an eject, and the graph hash is computed from the resolved
 graph, never from the path, so where a chain lives changes nothing about the run. Authoring an
 eject or an overlay, and running an arbitrary definition file, are not this skill's business.
@@ -330,8 +332,8 @@ One verb, one call. When a step needs two verbs, that is two calls.
 
 | Verb | Flags | Gives |
 |---|---|---|
-| `validate` | `--definition`, repeatable `--overlay` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found |
-| `resolve` | `--definition`, `--overlay…`, `--profile` | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
+| `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead |
+| `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
@@ -396,10 +398,13 @@ changes nothing, and one that differs in a node or in any scalar beside `workflo
 forward into the block and nothing is dropped from it.
 
 The patch arrives on stdin so no quoting has to survive a shell — Windows without a POSIX
-shell is a supported target. An unknown version degrades **the same way in every verb** —
-`validate`, `resolve` and `diagram` alike short-circuit on it, render what they recognise,
-warn, and still exit `0` — so a newer definition in a mixed fleet is a diagnostic rather
-than a dead run, and never a document one verb accepts while another rejects it.
+shell is a supported target. A newer version — a whole number above 1 — degrades **the same
+way in every verb** — `validate`, `resolve` and `diagram` alike short-circuit on it, render
+what they recognise, warn, and still exit `0` — so a newer definition in a mixed fleet is a
+diagnostic rather than a dead run, and never a document one verb accepts while another
+rejects it. Two things are still refused on the degraded path: what the structural fold
+itself finds, and a cycle in `needs`. Any other version that is not `1` — quoted, fractional,
+a word — is a misspelling of this grammar, not a newer one, and `validate` refuses it.
 
 ---
 
@@ -407,15 +412,19 @@ than a dead run, and never a document one verb accepts while another rejects it.
 
 ### The ready set
 
-A node is ready when both hold:
+A node is ready when all three hold:
 
-1. **Every `needs` entry is satisfied.** `completed` and `skipped` satisfy; `failed` and
-   `stopped` satisfy only for a node that declares `on: failure` or `on: always`.
-2. **Its `when` guard evaluates true** against the values declared by completed nodes.
+1. **Every `needs` entry is satisfied.** Under the default, `on: success`, `completed` and
+   `skipped` satisfy. Under `on: failure` and `on: always`, `failed` and `stopped` satisfy
+   too — any need that has ended.
+2. **An `on: failure` node has something to recover from:** at least one need ended `failed`
+   or `stopped`. When every need ended `completed` or `skipped`, the node is not run.
+3. **Its `when` guard evaluates true** against the values declared by completed nodes.
 
-A node whose guard is false is marked `skipped`, and **a skip satisfies everything
-downstream** — that is how a definition expresses an optional phase without any routing
-construct.
+A node whose guard is false, and an `on: failure` node with nothing that failed, is marked
+`skipped`, and **a skip satisfies everything downstream** — that is how a definition expresses
+an optional phase without any routing construct. `on: always` runs once every need has ended,
+however it ended.
 
 **A `waiting` node is not ready.** It is a `workflow:` node whose child run has not reached a
 terminal status, and three separate readers need to be told so separately: it is not ready, so
@@ -593,7 +602,8 @@ Artifacts are therefore never copied into the parent node's values; only declare
 Storing the joined path as well would be a third copy of one fact, kept in step by hand. The
 writer makes the same join when it registers a completing node's artifacts, and spells the result
 relative to the parent's own run directory instead, because that is what the dashboard links it
-against.
+against. The declared path itself is literal: nothing substitutes a `${…}` inside it, so
+`validate` refuses one there.
 
 **The two budget-exhausted rows need an operator, so they need a driver.** Asking whether to
 retry or to skip is itself an in-node question, and under a `cockpit` or `dispatch` driver

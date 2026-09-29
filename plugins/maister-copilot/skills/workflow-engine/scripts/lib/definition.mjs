@@ -26,12 +26,23 @@
 import fs from 'node:fs';
 
 /**
- * The definition format this reader understands. A document declaring anything
- * else is not an error: the caller degrades, renders what it recognises and
+ * The definition format this reader understands. A document declaring a newer
+ * one is not an error: the caller degrades, renders what it recognises and
  * keeps going. The constant lives here because the reader is what sees the
  * declaration first.
  */
 export const KNOWN_VERSION = 1;
+
+/**
+ * Whether a declared version names a format newer than this build reads, and
+ * so degrades rather than being judged. Only a whole number above the known
+ * one does. Anything else that is not the known version — `"1"` quoted, `1.5`,
+ * `0`, a word — is a document claiming the known grammar and misspelling it,
+ * and letting it degrade would switch every check off over a typo.
+ */
+export function isNewerVersion(version) {
+  return Number.isInteger(version) && version > KNOWN_VERSION;
+}
 
 /**
  * A mapping entry. The key is lazy and forbids `:` and `#`, so a value that

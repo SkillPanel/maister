@@ -58,3 +58,10 @@ There is a third, smaller reason the overlay route does not exist even in princi
 - Two future definitions will duplicate most of a third, and the three must be kept in step by review rather than by construction
 - The shared-core option stays open and unexplored, so the duplication may turn out to have been avoidable
 - Until both are written, two of the four workflows have no engine path at all, which keeps the prose twins load-bearing (ADR-0013)
+
+### Amendment 2026-09-30 — `optional` leaves the grammar
+`optional` was accepted, tuned and hashed, but no reader ever gave it a meaning: the ready set,
+the run's close and the dashboard all ignored it. It is removed from the grammar rather than defined
+now. The tuning surface is therefore two keys, `with` and `provider`, and an overlay that tunes
+`optional` is refused like any other untunable key. The argument above does not change: `needs`,
+`uses`, `ask`, `when` and `outputs` stay immutable.

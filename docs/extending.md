@@ -33,7 +33,13 @@ prose companion `.maister/workflows/<name>.md` beside it. A node is one entry un
 A gate is a node with `type: gate`, a question under `ask:` and its answers under `options:`,
 exactly one of which continues the run and at least one of which stops it. Nodes declare their
 dependencies with `needs:`, their guards with `when:`, and the values they hand downstream with
-`outputs:`. The full node shape, the `dir:` and `provider:` keys and a worked example are in the
+`outputs:`. A node's `on:` says which endings of its needs let it run: `success`, the default, needs
+every one completed or skipped; `failure` runs only when one of them failed, and is skipped when
+none did; `always` runs once they have all ended, however. The definition's `name` is lower-case letters, digits and dashes, starting with a letter;
+`version: 1` is the bare number, never quoted; and each entry under `inputs:` declares its `type` as
+`string`, `bool` or `path`. A declared artifact is a literal path relative to the run's task
+directory: `${…}` references belong in `with:`, `dir:` and `ask:`, and one inside an artifact path,
+or one left without its closing `}`, is a validation error. The full node shape, the `dir:` and `provider:` keys and a worked example are in the
 cockpit's [umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md)
 page; [workflows.md](workflows.md) describes the built-in definitions this grammar ships with.
 
@@ -175,9 +181,10 @@ takes effect on the next run of `/maister:development`.
 
 **An overlay changes a built-in without copying it.** It carries `extends: builtin:<name>` and up to
 three operations, applied in a fixed order after the base: `disable` removes nodes by id, `tune`
-adjusts a node's `with`, `optional` or `provider` — and nothing else, `uses` is immutable by design —
+adjusts a node's `with` or `provider` — and nothing else, `uses` is immutable by design —
 and `add` introduces new nodes with their own `needs`. Named `profiles` let one overlay carry
-alternatives, selected by name when the graph is resolved. The result is validated as a whole, so an overlay that disables
+alternatives, selected by name when the graph is resolved. Every profile is validated whether or not it is
+selected, and selecting one that no overlay declares is an error; a definition carries no profiles of its own. The result is validated as a whole, so an overlay that disables
 a node another node still needs is an error, never a silent gap. An overlay, or one of its profiles, may also carry a
 `display:` block that adds or overrides phase icons and titles — the title of a node it adds, say — without changing the graph.
 
@@ -240,7 +247,8 @@ definition that resolves is an overlay that still applies.
 change is larger than an overlay expresses well — a different gate, a reordered phase — and keep in
 mind that an ejected definition no longer follows the plugin's updates to that workflow. Its prose
 companion travels with it: `direct:` nodes in an eject resolve against the `.md` beside the eject,
-not against the plugin's copy.
+not against the plugin's copy. An eject also hides any overlay of the same name — the overlay is
+never applied — and validation warns `overlay-ignored` when it finds the two side by side.
 
 A generated chain — one the planner published for a single ticket — is complete in itself and is
 never overlaid or ejected.
@@ -321,6 +329,10 @@ Say what you need on the issue tracker: these are tracked for a future contract 
 that names the chain it would unblock is the most useful form. Until then, the reserved keys the
 validator warns about — `foreach`, `loop`, `routing.tiers` and their kin — parse, warn and do
 nothing, precisely so that a later version can claim them without breaking a file written today.
+Every other key the grammar does not define is an error, at every level of a `version: 1` document —
+the definition, a node, a gate option, `display:`, an overlay and its profiles — and the error lists
+the accepted keys and names the one you probably meant. A misspelt `when:` is refused rather than
+quietly dropping the guard.
 
 ## Related reading
 

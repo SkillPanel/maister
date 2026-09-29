@@ -50,7 +50,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { nodeOf, readDefinition } from './definition.mjs';
+import { KNOWN_VERSION, isNewerVersion, nodeOf, readDefinition } from './definition.mjs';
 import { ICON_HINTS, isTitle } from './display.mjs';
 
 // ---------------------------------------------------------------------------
@@ -127,8 +127,63 @@ const BASE_REF = /^(?:builtin:)?[a-z][a-z0-9-]*$|^[^/].*\.ya?ml$/;
 /** The four target schemes. The list is closed; anything else is an error. */
 const SCHEMES = ['skill', 'agent', 'direct', 'workflow'];
 
-/** The only three node fields an overlay may tune. `uses` is immutable by design. */
-const TUNABLE = ['with', 'optional', 'provider'];
+/** The only two node fields an overlay may tune. `uses` is immutable by design. */
+const TUNABLE = ['with', 'provider'];
+
+/**
+ * The closed key sets of a version 1 document, one per level. A key outside
+ * its level's set is an error, never carried: every one of them is decidable
+ * from the file in hand, and the silent alternative is the failure this module
+ * exists to prevent — a misspelt `when` that drops a guard, a `need` that turns
+ * a node into a root, a `retries` that looks like a feature and does nothing.
+ * A document that declares a newer format is never judged against these; it
+ * degrades before any of them is read. The reserved keys of contract R are the
+ * one exemption (`isReservedKey`): they parse and warn by design.
+ *
+ * The node set is `NODE_KEYS` below, without `id` — the id is the node's map
+ * key, and an `id:` written inside a node would be ignored.
+ */
+const DEFINITION_KEYS = ['name', 'version', 'inputs', 'outputs', 'display', 'nodes'];
+const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display'];
+const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
+const DISPLAY_KEYS = ['icons', 'titles'];
+
+/**
+ * An authored gate option in its map form carries its effect and nothing else.
+ * An option routes nowhere and emits nothing: the answer is the option id,
+ * recorded in state, and the effect is whether the run goes on.
+ */
+const OPTION_KEYS = ['effect'];
+
+/**
+ * The key a node added by an overlay may carry and a definition's own node may
+ * not: `before` names existing nodes the added one attaches in front of. Its
+ * shape and meaning belong to the overlay resolution.
+ */
+const ADDED_NODE_KEYS = ['before'];
+
+/**
+ * Keys an earlier grammar accepted at one level and this one does not, each
+ * with the sentence an author migrating a file needs. A did-you-mean would
+ * point `optional` at `options`, which is the wrong fix.
+ */
+const RETIRED_NODE_KEYS = {
+  optional: 'it was accepted without ever changing how a run behaves, and has left the grammar — remove it',
+};
+const RETIRED_OPTION_KEYS = {
+  values: 'an option emits no values; a value a later guard reads is declared by a task node',
+};
+
+/** The declared input types. */
+const INPUT_TYPES = ['string', 'bool', 'path'];
+
+/**
+ * When a node may run, given how its needs ended. `success`, the default, needs
+ * every need completed or skipped; `failure` runs only when a need failed or
+ * stopped, and is skipped when every need ended well; `always` runs once every
+ * need has ended, however.
+ */
+const ON_VALUES = ['success', 'failure', 'always'];
 
 /** The declared value types a static check can prove flow-safe. */
 const FLOW_SAFE_TYPES = ['bool', 'id'];
@@ -163,7 +218,7 @@ const RESERVED_PATHS = [
  * same while they asked different questions and stopped on different answers.
  */
 const NODE_KEYS = [
-  'id', 'uses', 'needs', 'when', 'with', 'outputs', 'type', 'ask', 'options', 'on', 'dir', 'provider', 'optional',
+  'id', 'uses', 'needs', 'when', 'with', 'outputs', 'type', 'ask', 'options', 'on', 'dir', 'provider',
 ];
 
 /** The warning vocabulary, so no call site spells a prefix by hand. */
@@ -176,6 +231,7 @@ const WARN = {
   exposedDisabled: (path, node) => `exposed-output-disabled:${path}:${node}`,
   iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
   titleUnknownNode: (path, node) => `title-unknown-node:${path}:${node}`,
+  overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
   addedLeaf: (path, node, position, count, after) => `added-node-no-dependents:${path}:${node} — nothing needs it, `
     + `so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
     + 'list the nodes that should wait for it under before:',
@@ -297,6 +353,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   }
 
   if (mode === 'standalone') {
+    checkProfileChoice(overlays, profile, null, errors);
     // No base to build a graph from, so there is nothing to count. `null` rather
     // than zeroes: a caller that renders "0 nodes" for an overlay judged on its
     // own shape would be stating a fact about a document nobody looked at.
@@ -305,10 +362,14 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
 
   for (const overlay of overlays) checkOverlayBase(overlay, definition, errors);
   scanReserved(definition?.doc, warnings);
+  checkDefinition(definition, errors);
+  const hidden = hiddenOverlay(definition, overlays);
+  if (hidden) warnings.push(hidden);
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) {
     checkGraph(graph, errors, warnings, resolved, project);
     warnAddedLeaves(graph, warnings);
+    checkEveryProfile({ definition, overlays, profile, project }, errors);
   }
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
 }
@@ -381,9 +442,15 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
   // `disable` naming a node the base does not declare — and every one of them
   // is returned. Returning a graph and dropping the errors beside it is the
   // silently-ignored `disable` that `applyOps` exists to make impossible.
+  //
+  // One v1 check is not about the v1 grammar and runs here too: a cycle in
+  // `needs`. The fold below orders the nodes topologically, and on a cycle that
+  // order silently falls back to name order — so a newer document with a cycle
+  // would be hashed as a graph nobody could execute.
   if (degraded.length) {
     const errors = [];
     const graph = buildGraph({ definition, overlays, profile, errors });
+    if (graph) checkCycle(graph.nodes, graph.file, errors);
     if (!graph || errors.length) {
       return { ok: false, errors, warnings: [], ...provenance, degraded, graph_hash: null, nodes: [] };
     }
@@ -458,6 +525,71 @@ function nodeFor(dotted) {
   const parts = String(dotted).split('.');
   if ((parts[0] === 'add' || parts[0] === 'tune') && parts.length >= 2) return parts[1];
   return nodeOf(dotted);
+}
+
+/**
+ * One located error per key outside `allowed`, each naming the keys that are
+ * accepted and — when one is a small edit away — the one probably meant.
+ * `label` says what the key was taken for: "a node key", "an overlay key".
+ */
+function checkKeys(keys, allowed, { file, prefix, label, node = null, retired = {} }, errors) {
+  for (const key of keys) {
+    if (allowed.includes(key) || isReservedKey(key)) continue;
+    if (Object.hasOwn(retired, key)) {
+      fail(errors, file, `${prefix}${key}`, `"${key}" is not ${label}: ${retired[key]}`, node);
+      continue;
+    }
+    const near = closest(key, allowed);
+    const list = allowed.join(', ');
+    fail(errors, file, `${prefix}${key}`, near
+      ? `"${key}" is not ${label}; did you mean "${near}"? The accepted keys are ${list}`
+      : `"${key}" is not ${label}; the accepted keys are ${list}`, node);
+  }
+}
+
+/**
+ * Whether a key is one of contract R's reserved keys, or the first segment of
+ * one (`session` of `session.substrate`). Those parse and warn by design, so a
+ * closed key set never refuses them.
+ */
+function isReservedKey(key) {
+  return RESERVED_PATHS.some((each) => each === key || each.startsWith(`${key}.`));
+}
+
+/**
+ * The candidate a misspelling most probably meant, or null when none is close.
+ * Close is at most two edits — a transposition counting as one — and fewer
+ * than half the word's length, so `whne` finds `when` while a short word is not
+ * matched to an unrelated one.
+ */
+function closest(word, candidates) {
+  const written = String(word);
+  let best = null;
+  let distance = Infinity;
+  for (const candidate of candidates) {
+    const edits = editDistance(written, String(candidate));
+    if (edits < distance) {
+      best = candidate;
+      distance = edits;
+    }
+  }
+  return distance <= 2 && distance < written.length / 2 ? best : null;
+}
+
+/** Edits between two words — insert, delete, substitute, or swap two neighbours. */
+function editDistance(a, b) {
+  const rows = Array.from({ length: a.length + 1 }, (_, i) => [i, ...new Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) rows[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      rows[i][j] = Math.min(rows[i - 1][j] + 1, rows[i][j - 1] + 1, rows[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        rows[i][j] = Math.min(rows[i][j], rows[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return rows[a.length][b.length];
 }
 
 // ---------------------------------------------------------------------------
@@ -739,9 +871,10 @@ export function locateTarget(scheme, written, { project = null } = {}) {
 /**
  * Find the file behind a `workflow:` target, searching the four homes the
  * engine's own Step 3 describes — eject, then generated, then overlay, then
- * the built-in shipped beside this module — and returning `{at, from, base}`
- * for the first hit, or null when the name is found in none of them. `from` is
- * one of `eject`, `generated`, `overlay`, `builtin`.
+ * the built-in shipped beside this module — and returning `{at, from, base,
+ * ignored}` for the first hit, or null when the name is found in none of them.
+ * `from` is one of `eject`, `generated`, `overlay`, `builtin`; `ignored` is the
+ * overlay of the same name an eject or a generated chain hides, or null.
  *
  * `base` is the definition file to *read*: the hit itself for the three homes
  * that hold a definition, and the built-in for an overlay, which carries
@@ -771,7 +904,34 @@ export function locateWorkflow(name, root = null) {
     { at: builtin, from: 'builtin', base: null },
   ];
   const hit = homes.find((home_) => isFile(home_.at));
-  return hit ? { at: hit.at, from: hit.from, base: hit.base ?? hit.at } : null;
+  if (!hit) return null;
+  // An eject or a generated chain wins over an overlay of the same name, and
+  // the overlay is then never applied. `ignored` names it, so a caller can say
+  // so instead of letting an operator believe their overlay is in effect.
+  const overlay = homes[2];
+  const ignored = (hit.from === 'eject' || hit.from === 'generated') && isFile(overlay.at) ? overlay.at : null;
+  return { at: hit.at, from: hit.from, base: hit.base ?? hit.at, ignored };
+}
+
+/**
+ * The `overlay-ignored` warning for a definition that is itself the eject or
+ * generated chain of its name, with an overlay of that name beside it which
+ * this validation was not given. Name resolution picks the definition and never
+ * applies the overlay, which is the fact the operator needs before a run.
+ */
+function hiddenOverlay(definition, overlays) {
+  const file = definition?.file;
+  if (typeof file !== 'string' || !/\.ya?ml$/i.test(file)) return null;
+  const stem = path.basename(file).replace(/\.ya?ml$/i, '');
+  if (stem.endsWith('.overlay')) return null;
+  const dir = path.dirname(path.resolve(file));
+  const generated = path.basename(dir) === 'generated';
+  const home = generated ? path.dirname(dir) : dir;
+  if (path.basename(home) !== 'workflows' || path.basename(path.dirname(home)) !== '.maister') return null;
+  const overlay = path.join(home, `${stem}.overlay.yml`);
+  if (!isFile(overlay)) return null;
+  if (overlays.some((each) => typeof each.file === 'string' && path.resolve(each.file) === overlay)) return null;
+  return WARN.overlayIgnored(stem, generated ? 'generated' : 'eject');
 }
 
 /**
@@ -828,7 +988,8 @@ function resolveTarget(uses, origin, project) {
   // All four homes, not the built-in alone: the report says which one answered,
   // and a target no environment in hand can see still warns rather than errors.
   const found = locateWorkflow(name, project);
-  return found ? { resolved: { at: found.at, from: found.from } } : { warning: true };
+  if (!found) return { warning: true };
+  return { resolved: { at: found.at, from: found.from }, notice: found.ignored ? WARN.overlayIgnored(name, found.from) : null };
 }
 
 /** The prose companion's path beside a definition file. */
@@ -925,14 +1086,10 @@ function buildGraph({ definition, overlays, profile, errors }) {
   }
 
   for (const overlay of overlays) applyOps(overlay.doc, overlay.file, '', { nodes, origins, removed, added }, errors);
+  checkProfileChoice(overlays, profile, file, errors);
   for (const overlay of overlays) {
-    if (profile === null || !isMap(overlay.doc?.profiles)) continue;
-    const selected = overlay.doc.profiles[profile];
-    if (!isMap(selected)) {
-      fail(errors, overlay.file, `profiles.${profile}`, `the overlay declares no profile named "${profile}"`, null);
-      continue;
-    }
-    applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed, added }, errors);
+    const selected = selectedProfile(overlay, profile);
+    if (selected !== null) applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed, added }, errors);
   }
 
   for (const [id, node] of nodes) scanControlCharacters(node, origins.get(id) ?? file, id, `nodes.${id}`, errors);
@@ -957,8 +1114,8 @@ function buildGraph({ definition, overlays, profile, errors }) {
   const displays = [{ file, prefix: '', block: doc.display }];
   for (const overlay of overlays) displays.push({ file: overlay.file, prefix: '', block: overlay.doc?.display });
   for (const overlay of overlays) {
-    const selected = profile === null || !isMap(overlay.doc?.profiles) ? null : overlay.doc.profiles[profile];
-    if (isMap(selected)) displays.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.display });
+    const selected = selectedProfile(overlay, profile);
+    if (selected !== null) displays.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.display });
   }
   return {
     file,
@@ -970,6 +1127,81 @@ function buildGraph({ definition, overlays, profile, errors }) {
     removed,
     added,
   };
+}
+
+/**
+ * The body of the profile an overlay declares under the selected name, or null
+ * when nothing is selected or this overlay does not declare it. A profile
+ * belongs to the overlay that declares it, so with several overlays the
+ * selected one applies from each that has it and the others are untouched.
+ */
+function selectedProfile(overlay, profile) {
+  const profiles = overlay?.doc?.profiles;
+  if (profile === null || !isMap(profiles) || !Object.hasOwn(profiles, profile)) return null;
+  return isMap(profiles[profile]) ? profiles[profile] : null;
+}
+
+/** Every profile name the overlays declare, first declaration first. */
+function declaredProfiles(overlays) {
+  const names = [];
+  for (const overlay of overlays) {
+    const profiles = overlay?.doc?.profiles;
+    if (!isMap(profiles)) continue;
+    for (const name of Object.keys(profiles)) if (!names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+/**
+ * A selected profile that no overlay declares is an error, including when no
+ * overlay was given at all. It used to be recorded as the run's profile while
+ * nothing was applied — a graph described as trimmed that was not.
+ */
+function checkProfileChoice(overlays, profile, file, errors) {
+  if (profile === null) return;
+  const declared = declaredProfiles(overlays);
+  if (declared.includes(profile)) return;
+  if (overlays.length === 0) {
+    fail(errors, file, `profiles.${profile}`,
+      `the profile "${profile}" was selected with no overlay; profiles are declared in an overlay and selected from it`, null);
+    return;
+  }
+  const near = closest(profile, declared);
+  const where = overlays.find((overlay) => isMap(overlay?.doc?.profiles)) ?? overlays[0];
+  const missing = `no overlay declares a profile named "${profile}"`;
+  fail(errors, where.file, `profiles.${profile}`, near
+    ? `${missing}; did you mean "${near}"? The declared profiles are ${declared.join(', ')}`
+    : `${missing}; ${declared.length ? `the declared profiles are ${declared.join(', ')}` : 'none of the overlays declares a profile'}`,
+  null);
+}
+
+/**
+ * Every declared profile, judged — not only the selected one. A profile that
+ * breaks the graph used to validate clean until the day someone selected it.
+ *
+ * Each profile's graph is built and checked on its own; a finding the
+ * unprofiled pass already reported is not repeated, and one that only this
+ * profile produces is prefixed with the profile's name, because the file and
+ * path it names may be the base's, which is correct without the profile.
+ */
+function checkEveryProfile({ definition, overlays, profile, project }, errors) {
+  const seen = new Set(errors.map(findingKey));
+  for (const name of declaredProfiles(overlays)) {
+    if (name === profile) continue;
+    const found = [];
+    const graph = buildGraph({ definition, overlays, profile: name, errors: found });
+    if (graph) checkGraph(graph, found, [], [], project);
+    for (const error of found) {
+      const key = findingKey(error);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      errors.push({ ...error, message: `under profile "${name}": ${error.message}` });
+    }
+  }
+}
+
+function findingKey(error) {
+  return `${error.file}\u0000${error.path}\u0000${error.message}`;
 }
 
 /**
@@ -1264,7 +1496,19 @@ function checkInputs(inputs, file, errors) {
   if (!isMap(inputs)) return;
   const marked = [];
   for (const [name, input] of Object.entries(inputs)) {
-    if (!isMap(input) || input[TRACKER_KEY] === undefined) continue;
+    // An input the checks below cannot read is one a `${inputs.…}` reference
+    // later reports as undeclared — blaming the reference for the declaration.
+    if (!isMap(input)) {
+      fail(errors, file, `inputs.${name}`,
+        `an input is declared as a mapping of its type, whether it is required and its default; ${describe(input)} is not`);
+      continue;
+    }
+    if (input.type !== undefined && !INPUT_TYPES.includes(input.type)) {
+      const near = closest(input.type, INPUT_TYPES);
+      fail(errors, file, `inputs.${name}.type`,
+        `an input type is one of ${INPUT_TYPES.join(', ')}; ${describe(input.type)} is not${near ? ` — did you mean "${near}"?` : ''}`);
+    }
+    if (input[TRACKER_KEY] === undefined) continue;
     const dotted = `inputs.${name}.${TRACKER_KEY}`;
     if (typeof input[TRACKER_KEY] !== 'boolean') {
       fail(errors, file, dotted, `${TRACKER_KEY} is true or false; ${describe(input[TRACKER_KEY])} is neither`);
@@ -1284,14 +1528,12 @@ function checkInputs(inputs, file, errors) {
 }
 
 /**
- * The two sub-maps a workflow-level `outputs:` block may carry, and the order
- * the canonical form emits them in. Closed: both halves of an entry are in the
- * file being validated, so a third sub-map is a decidable mistake and is
- * refused here rather than carried into the hash unread. That is deliberately
- * the opposite of the node rule, where an unrecognised key is carried through
- * because a newer definition must resolve to the document it declared — a node
- * key this build does not know may still mean something to the engine that
- * does, whereas this block is read by this module and nothing else.
+ * The two sub-maps a workflow-level `outputs:` block may carry — and a node's
+ * own `outputs:` alike — and the order the canonical form emits them in.
+ * Closed: both halves of an entry are in the file being validated, so a third
+ * sub-map is a decidable mistake and is refused here rather than carried into
+ * the hash unread, exactly as an unknown node key is refused in a version 1
+ * document.
  *
  * Closed to the *validator*, that is. The canonical form below is not closed to
  * it: a degraded document is hashed without ever reaching the check that would
@@ -1421,6 +1663,9 @@ function checkDisplayValues(display, file, prefix, errors) {
     fail(errors, file, at, `display is a mapping of icons and titles; ${describe(display)} is not`);
     return;
   }
+  // Closed like every other level: a `heroes` or a misspelt `title` would
+  // otherwise pass and simply never be drawn.
+  checkKeys(Object.keys(display), DISPLAY_KEYS, { file, prefix: `${at}.`, label: 'a display key' }, errors);
   const icons = display.icons;
   if (icons !== undefined && icons !== null && !isMap(icons)) {
     fail(errors, file, `${at}.icons`,
@@ -1470,6 +1715,51 @@ function checkDisplayNodes({ prefix, block }, nodes, warnings) {
   }
 }
 
+/**
+ * The top level of a version 1 definition: `DEFINITION_KEYS` and nothing else.
+ *
+ * `profiles:` gets its own message rather than the generic one, because it is
+ * a real grammar key in the wrong file: profiles are selected out of an
+ * overlay, and a definition's own block was never applied — while a
+ * `--profile` naming one of its entries used to be recorded as though it had
+ * been.
+ */
+function checkDefinition(definition, errors) {
+  const doc = definition?.doc;
+  if (!isMap(doc)) return;
+  const file = definition.file;
+  const keys = Object.keys(doc).filter((key) => key !== 'profiles');
+  checkKeys(keys, DEFINITION_KEYS, { file, prefix: '', label: 'a definition key' }, errors);
+  if (doc.profiles !== undefined) {
+    fail(errors, file, 'profiles',
+      'profiles belong to an overlay, never to a definition, and a definition\'s own are never applied; '
+      + 'move them into the overlay beside it (<name>.overlay.yml)', null);
+  }
+
+  // The name a run is looked up, stored and resumed under, so it is held to
+  // the same closed set a `workflow:` target is.
+  if (isPresent(doc.name) && (typeof doc.name !== 'string' || !TARGET_NAME.test(doc.name))) {
+    fail(errors, file, 'name',
+      `the workflow name ${describe(doc.name)} is outside the closed character set: lower-case letters, digits and dashes, `
+      + 'starting with a letter — a workflow is looked up and its runs are stored under this name', null);
+  }
+  // A newer whole-number version never reaches this check: it degrades before
+  // any v1 rule is read. What does reach it and is not 1 is a misspelling of
+  // this grammar's version, and it used to switch every check off in silence.
+  if (isPresent(doc.version) && doc.version !== KNOWN_VERSION && !isNewerVersion(doc.version)) {
+    const written = typeof doc.version === 'string' ? `the string "${doc.version}"` : describe(doc.version);
+    fail(errors, file, 'version',
+      `this grammar is version ${KNOWN_VERSION}, written as the bare number; ${written} is not a version`, null);
+  }
+  if (isPresent(doc.inputs) && !isMap(doc.inputs)) {
+    fail(errors, file, 'inputs', `inputs is a mapping of input name to its declaration; ${describe(doc.inputs)} is not`, null);
+  }
+}
+
+function isPresent(value) {
+  return value !== undefined && value !== null;
+}
+
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
   const { file, inputs, outputs, displays, nodes, origins, removed } = graph;
 
@@ -1495,7 +1785,10 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
     for (const [index, need] of needsOf(node).entries()) {
       if (!nodes.has(need)) fail(errors, origin, `${at}.needs.${index}`, `needs names "${need}", which no node declares`, id);
     }
-    checkNodeShape(node, id, at, origin, errors);
+    // A node whose origin is not the definition was added by an overlay, and
+    // only such a node may carry the keys an added node is allowed.
+    checkNodeShape(node, id, at, origin, errors, { added: origin !== file });
+    checkNodeOutputs(node, id, at, origin, errors);
     checkReference(node, id, at, origin, errors, warnings, resolved, project);
     checkDeclaredValues(node, at, origin, errors, warnings, id);
     checkSubrun(node, id, at, origin, errors, warnings, project, children);
@@ -1508,21 +1801,81 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
     checkInterpolations(node, id, `nodes.${id}`, origin, errors, { inputs, nodes, closure: closures.get(id) });
   }
 
+  checkCycle(nodes, file, errors);
+}
+
+function checkCycle(nodes, file, errors) {
   const cycle = findCycle(nodes);
-  if (cycle) {
-    fail(errors, file, 'nodes', `needs forms a cycle: ${cycle.join(' -> ')}`, cycle[0]);
-  }
+  if (cycle) fail(errors, file, 'nodes', `needs forms a cycle: ${cycle.join(' -> ')}`, cycle[0]);
 }
 
 /**
  * An authored gate option is either the bare effect or a map carrying that
- * effect beside the values the option emits. Every effect check reads through
- * here so the two spellings stay one rule. What the values mean is not this
- * version's business; only the effect is.
+ * effect and nothing else (`OPTION_KEYS`). Every effect check reads through
+ * here so the two spellings stay one rule.
  */
 function optionEffect(option) {
   if (isMap(option)) return option.effect;
   return option;
+}
+
+/** What a node may carry: every recognised node key but `id`, which is the node's map key. */
+const NODE_FIELDS = NODE_KEYS.filter((key) => key !== 'id');
+
+/**
+ * A node's keys, against the closed node set — widened by `ADDED_NODE_KEYS`
+ * for a node an overlay adds, and only for one. A definition's own node that
+ * carries `before` is refused by name: it orders itself through `needs`, and
+ * `before` exists because an overlay cannot edit the `needs` of the nodes it
+ * attaches in front of. The shape and targets of an added node's `before` are
+ * the overlay resolution's to judge (`checkOps`, `placeBefore`), not this
+ * set's.
+ */
+function checkNodeKeys(node, id, at, file, errors, added) {
+  const allowed = added ? [...NODE_FIELDS, ...ADDED_NODE_KEYS] : NODE_FIELDS;
+  const keys = Object.keys(node);
+  if (!added && keys.includes('before')) {
+    fail(errors, file, `${at}.before`,
+      'before attaches a node an overlay adds; a definition\'s own node declares its place with needs', id);
+  }
+  checkKeys(keys.filter((key) => added || key !== 'before'), allowed,
+    { file, prefix: `${at}.`, label: 'a node key', node: id, retired: RETIRED_NODE_KEYS }, errors);
+}
+
+/**
+ * A node's declared `outputs`: a mapping of `artifacts` and `values`, nothing
+ * else. A third kind is a decidable mistake — nothing reads it — and it used to
+ * be carried into the hash unread.
+ *
+ * Each declared artifact is a path relative to the run's task directory,
+ * written literally. Nothing substitutes a `${…}` inside one — the writer that
+ * registers declared artifacts skips such a path outright — so a reference
+ * there is a file that is never found, and is refused where it is written.
+ */
+function checkNodeOutputs(node, id, at, file, errors) {
+  const outputs = node.outputs;
+  if (outputs === undefined || outputs === null) return;
+  if (!isMap(outputs)) {
+    fail(errors, file, `${at}.outputs`, `outputs is a mapping of ${OUTPUT_KINDS.join(' and ')}; ${describe(outputs)} is not`, id);
+    return;
+  }
+  checkKeys(Object.keys(outputs), OUTPUT_KINDS, { file, prefix: `${at}.outputs.`, label: 'an output kind', node: id }, errors);
+
+  const artifacts = outputs.artifacts;
+  if (artifacts === undefined || artifacts === null) return;
+  if (!isMap(artifacts)) {
+    fail(errors, file, `${at}.outputs.artifacts`, 'declared artifacts are a mapping of name to path', id);
+    return;
+  }
+  for (const [name, written] of Object.entries(artifacts)) {
+    const dotted = `${at}.outputs.artifacts.${name}`;
+    if (typeof written !== 'string' || written === '') {
+      fail(errors, file, dotted, `an artifact is declared as a path relative to the task directory; ${describe(written)} is not one`, id);
+    } else if (written.includes('${')) {
+      fail(errors, file, dotted,
+        `an artifact path is written literally, and nothing substitutes a reference inside one; "${written}" carries one`, id);
+    }
+  }
 }
 
 /**
@@ -1531,7 +1884,16 @@ function optionEffect(option) {
  * gate that cannot stop is not a gate, and a node with no target is a step the
  * engine would silently skip.
  */
-function checkNodeShape(node, id, at, file, errors) {
+function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
+  checkNodeKeys(node, id, at, file, errors, added);
+  // An `on` outside the set used to behave as the default without a word, so
+  // `on: failures` never caught a failure.
+  if (node.on !== undefined && !ON_VALUES.includes(node.on)) {
+    const near = closest(node.on, ON_VALUES);
+    fail(errors, file, `${at}.on`,
+      `on is one of ${ON_VALUES.join(', ')}; ${describe(node.on)} is not${near ? ` — did you mean "${near}"?` : ''}`, id);
+  }
+
   // `provider -> dir`, on the *resolved* node. B1's implication is backed by a
   // schema conditional, which judges a definition as authored and therefore
   // never sees a provider an overlay tuned onto a node that carries no
@@ -1557,6 +1919,12 @@ function checkNodeShape(node, id, at, file, errors) {
   }
 
   if (node.uses !== undefined) fail(errors, file, `${at}.uses`, 'a gate runs nothing and may not carry uses', id);
+  // A gate records the option chosen and nothing else, so a value it declared
+  // could never be written — and a guard on one would read false forever.
+  if (node.outputs !== undefined) {
+    fail(errors, file, `${at}.outputs`,
+      'a gate records only the option chosen and declares no outputs; a value a later guard reads belongs to a task node', id);
+  }
   if (typeof node.ask !== 'string' || node.ask.trim() === '') {
     fail(errors, file, `${at}.ask`, 'a gate must carry the question it asks', id);
   }
@@ -1571,8 +1939,9 @@ function checkNodeShape(node, id, at, file, errors) {
     if (!OPTION_ID.test(option)) {
       fail(errors, file, `${at}.options.${option}`, `the option id "${option}" is outside the closed character set`, id);
     }
-    if (isMap(authored) && authored.values !== undefined && !isMap(authored.values)) {
-      fail(errors, file, `${at}.options.${option}.values`, 'an option carries the values it emits as a map, never a scalar', id);
+    if (isMap(authored)) {
+      checkKeys(Object.keys(authored), OPTION_KEYS,
+        { file, prefix: `${at}.options.${option}.`, label: 'an option key', node: id, retired: RETIRED_OPTION_KEYS }, errors);
     }
     const effect = optionEffect(authored);
     if (effect === 'continue') continues++;
@@ -1601,6 +1970,10 @@ function checkReference(node, id, at, file, errors, warnings, resolved, project)
   if (verdict.resolved) resolved.push({ node: id, target: node.uses, ...verdict.resolved });
   else if (verdict.warning) warnings.push(WARN.unresolved(id, node.uses));
   else fail(errors, file, `${at}.uses`, verdict.message, id);
+  // A node carrying `dir:` resolves its workflow in the member repository, so
+  // what this project's homes hold says nothing about what it will run.
+  const dispatched = typeof node.dir === 'string' && node.dir !== '';
+  if (verdict.notice && !dispatched && !warnings.includes(verdict.notice)) warnings.push(verdict.notice);
 }
 
 /**
@@ -1791,12 +2164,16 @@ function checkWhen(node, id, at, file, errors, scope) {
  * referencing node's `needs` closure — nothing else can have been produced by
  * the time the node runs, so nothing else can be interpolated into it.
  *
- * `with` is the bulk of it, but not the whole: `dir` reaches a file path, `ask`
- * is read aloud to the operator and `on` decides whether the node runs at all.
- * A reference left unchecked in any of them interpolates to nothing at run time,
- * which is a silent wrong answer rather than a rejection.
+ * `with` is the bulk of it, but not the whole: `dir` reaches a file path and
+ * `ask` is read aloud to the operator. A reference left unchecked in any of
+ * them interpolates to nothing at run time, which is a silent wrong answer
+ * rather than a rejection. (`on` is not among them: it is one of three words.)
+ *
+ * A `${` that never closes is not a reference at all, so the pattern never
+ * matches it and it used to pass as literal text — an author who wrote
+ * `${inputs.version` meant a reference and got the characters.
  */
-const INTERPOLATED_KEYS = ['with', 'dir', 'ask', 'on'];
+const INTERPOLATED_KEYS = ['with', 'dir', 'ask'];
 
 function checkInterpolations(node, id, at, file, errors, scope) {
   for (const key of INTERPOLATED_KEYS) visit(node[key], `${at}.${key}`);
@@ -1814,6 +2191,9 @@ function checkInterpolations(node, id, at, file, errors, scope) {
     for (const match of value.matchAll(INTERPOLATION)) {
       const message = referenceProblem(match[1], scope);
       if (message) fail(errors, file, dotted, message, id);
+    }
+    if (value.replace(INTERPOLATION, '').includes('${')) {
+      fail(errors, file, dotted, `${JSON.stringify(value)} opens a reference with \${ and never closes it with }`, id);
     }
   }
 }
@@ -1901,10 +2281,12 @@ function findCycle(nodes) {
  * in — which is the whole basis of the hash.
  *
  * A key this build does not recognise is carried through after the known ones,
- * in sorted order, rather than dropped. A newer definition must resolve to the
- * document it declared — an engine that quietly discarded the half it did not
- * understand would hand a caller a graph missing exactly the fields that made
- * the definition newer, and would hash it as though they had never been written.
+ * in sorted order, rather than dropped. In a version 1 document the validator
+ * has already refused one, so this matters for a newer-format document, which
+ * is folded without being judged: it must resolve to the document it declared
+ * — an engine that quietly discarded the half it did not understand would hand
+ * a caller a graph missing exactly the fields that made the definition newer,
+ * and would hash it as though they had never been written.
  *
  * `needs` is deduplicated and sorted for the same reason. It is a dependency
  * set, not a sequence: execution is driven by the ready set, so the order a
@@ -2089,6 +2471,10 @@ function checkOverlayShape(overlay, errors) {
   if (typeof doc.extends !== 'string' || !BASE_REF.test(doc.extends)) {
     fail(errors, file, 'extends', 'an overlay must declare the base it extends', null);
   }
+  // An overlay speaks only through its operations. A `remove:` or a `nodes:`
+  // block was silently ignored, leaving the operator with a graph they believe
+  // they changed.
+  checkKeys(Object.keys(doc), OVERLAY_KEYS, { file, prefix: '', label: 'an overlay key' }, errors);
   checkOps(doc, file, '', errors);
 
   if (doc.profiles !== undefined) {
@@ -2097,8 +2483,12 @@ function checkOverlayShape(overlay, errors) {
       return;
     }
     for (const [name, ops] of Object.entries(doc.profiles)) {
-      if (!isMap(ops)) fail(errors, file, `profiles.${name}`, 'a profile must be a mapping of operations', null);
-      else checkOps(ops, file, `profiles.${name}.`, errors);
+      if (!isMap(ops)) {
+        fail(errors, file, `profiles.${name}`, 'a profile must be a mapping of operations', null);
+        continue;
+      }
+      checkKeys(Object.keys(ops), PROFILE_KEYS, { file, prefix: `profiles.${name}.`, label: 'a profile key' }, errors);
+      checkOps(ops, file, `profiles.${name}.`, errors);
     }
   }
 }
@@ -2164,9 +2554,6 @@ function checkOps(body, file, prefix, errors) {
             fail(errors, file, `${at}.${key}`, `only ${TUNABLE.join(', ')} may be tuned; "${key}" may not`, id);
           }
         }
-        if (patch.optional !== undefined && typeof patch.optional !== 'boolean') {
-          fail(errors, file, `${at}.optional`, 'optional is a boolean', id);
-        }
         if (patch.provider !== undefined && !['claude', 'copilot'].includes(patch.provider)) {
           fail(errors, file, `${at}.provider`, `"${patch.provider}" is not a known provider`, id);
         }
@@ -2204,7 +2591,7 @@ function checkOps(body, file, prefix, errors) {
       }
       // The node is judged as the graph will carry it, which is without `before`.
       const { before: _before, ...shape } = node;
-      checkNodeShape(shape, id, at, file, errors);
+      checkNodeShape(shape, id, at, file, errors, { added: true });
     }
   }
 }

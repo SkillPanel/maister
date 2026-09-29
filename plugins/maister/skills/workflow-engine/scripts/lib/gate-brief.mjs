@@ -66,7 +66,7 @@ const NEWER_FORMAT = 'newer-format';
 /** Statuses that satisfy a `needs` entry under the default `on`. */
 const ENDED_OK = new Set(['completed', 'skipped']);
 
-/** Statuses that satisfy a `needs` entry only under `on: failure|always`. */
+/** Statuses that end a need badly: what `on: failure` runs on and `on: always` runs through. */
 const ENDED_BADLY = new Set(['failed', 'stopped']);
 
 /** Statuses under which a node's declared values read as false. */
@@ -164,7 +164,7 @@ export function gateBrief({ state, node, oneline = false }) {
   if (current.drift) {
     next = NEXT_UNKNOWN;
   } else {
-    const walked = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults, options });
+    const walked = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults });
     if (!walked.ok) return { ok: false, text: '', errors: walked.errors, warnings };
     next = nextLine(walked, current.titles);
   }
@@ -429,12 +429,13 @@ function list(value) {
  * `needs` closure contains it. Everything else is history or a parallel branch,
  * and neither is what this answer moves forward.
  *
- * The gate is simulated as completed, carrying its continue option's `values`.
- * Then, in resolved order, the first pending in-scope node whose needs are all
- * satisfied is taken: without a `when` it is next; with one, a true guard makes it
- * next and a false one simulates a skip and the loop goes on.
+ * The gate is simulated as completed. Then, in resolved order, the first pending in-scope node whose needs are all
+ * settled is taken. An `on: failure` node none of whose needs ended badly is
+ * simulated as skipped and the loop goes on; otherwise, without a `when` it is
+ * next, and with one a true guard makes it next and a false one simulates a
+ * skip and the loop goes on.
  */
-export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, options = null }) {
+export function walk({ graph, recorded, gate, inputs = {}, defaults = {} }) {
   const nodes = graph?.nodes ?? [];
   const byId = new Map(nodes.map(entry => [entry.id, entry]));
   const downstream = downstreamOf(nodes, gate);
@@ -442,17 +443,23 @@ export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, option
   const status = new Map();
   for (const entry of nodes) status.set(entry.id, entryOf(recorded, entry.id).status ?? 'pending');
   status.set(gate, 'completed');
-  const values = new Map([[gate, continueValues(options)]]);
 
   const skipped = [];
   for (;;) {
     const ready = nodes.find(entry => downstream.has(entry.id)
       && status.get(entry.id) === 'pending'
-      && list(entry.needs).every(need => satisfies(status.get(need), entry.on)));
+      && readinessOf(entry, status) !== 'waiting');
     if (!ready) return { ok: true, next: null, skipped, waiting: blockers(nodes, downstream, status) };
+    // An `on: failure` node whose needs all ended well has nothing to recover
+    // from: it is skipped exactly as a false guard skips a node.
+    if (readinessOf(ready, status) === 'skip') {
+      status.set(ready.id, 'skipped');
+      skipped.push(ready.id);
+      continue;
+    }
     if (typeof ready.when !== 'string') return { ok: true, next: ready.id, skipped };
 
-    const guard = evaluate(ready.when, { byId, recorded, status, values, inputs, defaults });
+    const guard = evaluate(ready.when, { byId, recorded, status, inputs, defaults });
     if (!guard.ok) return guard;
     if (guard.value) return { ok: true, next: ready.id, skipped };
     status.set(ready.id, 'skipped');
@@ -472,7 +479,7 @@ function blockers(nodes, downstream, status) {
   for (const entry of nodes) {
     if (!pending.has(entry.id)) continue;
     for (const need of list(entry.needs)) {
-      if (!pending.has(need) && !satisfies(status.get(need), entry.on)) waiting.add(need);
+      if (!pending.has(need) && !settles(status.get(need), entry.on)) waiting.add(need);
     }
   }
   return nodes.map(entry => entry.id).filter(id => waiting.has(id));
@@ -495,19 +502,21 @@ function downstreamOf(nodes, gate) {
   return found;
 }
 
-/** Whether a predecessor in `state` lets a node with this `on` run. */
-function satisfies(state, on) {
+/**
+ * Whether a predecessor in `state` no longer holds back a node with this `on`.
+ * Under the default (`success`) only a need that ended well does; under
+ * `failure` and `always` any need that has ended does. Which of those a
+ * `failure` node then does — run, or be skipped because nothing failed — is
+ * the walker's decision, made once every need has settled.
+ */
+function settles(state, on) {
   if (ENDED_OK.has(state)) return true;
-  if (!ENDED_BADLY.has(state)) return false;
-  const modes = Array.isArray(on) ? on : [on];
-  return modes.includes('failure') || modes.includes('always');
+  return ENDED_BADLY.has(state) && (on === 'failure' || on === 'always');
 }
 
-/** The continue option's `values`, when it uses the `{effect, values}` form. */
-function continueValues(options) {
-  const key = optionWith(options, 'continue');
-  const option = key === null ? null : options[key];
-  return isPlainObject(option) && isPlainObject(option.values) ? option.values : {};
+/** `readiness` for a graph node, read off the statuses its needs hold now. */
+function readinessOf(entry, status) {
+  return readiness(list(entry.needs).map(need => status.get(need)), entry.on);
 }
 
 /** The first option id, in resolved order, whose effect is `effect`; else null. */
@@ -524,7 +533,7 @@ function optionWith(options, effect) {
  * value-missing refusal when a completed node never recorded the value its
  * successor is guarded on.
  */
-function evaluate(when, { byId, recorded, status, values, inputs, defaults }) {
+function evaluate(when, { byId, recorded, status, inputs, defaults }) {
   const match = WHEN.exec(when);
   if (!match) return { ok: true, value: false };
   const [, bang, owner, , key] = match;
@@ -540,12 +549,10 @@ function evaluate(when, { byId, recorded, status, values, inputs, defaults }) {
   // reads as false (SKILL.md, recording an outcome).
   if (NO_VALUES.has(status.get(owner))) return negate(false);
 
-  // A gate's values are the answer's; no write ever puts one there, so a
-  // missing key is false rather than a refusal nobody could act on.
-  if (values.has(owner) || entryOf(recorded, owner).kind === 'gate' || byId.get(owner)?.type === 'gate') {
-    const held = values.get(owner) ?? entryOf(recorded, owner).values;
-    return negate(isPlainObject(held) && held[key] === true);
-  }
+  // A gate records the option chosen and no value — the validator refuses a
+  // gate that declares one — so a guard on a gate reads false rather than
+  // refusing over a write nobody could make.
+  if (entryOf(recorded, owner).kind === 'gate' || byId.get(owner)?.type === 'gate') return negate(false);
 
   const held = entryOf(recorded, owner).values;
   if (status.get(owner) === 'completed' && isPlainObject(held) && typeof held[key] === 'boolean') {
@@ -648,7 +655,7 @@ export function atClose({ doc, runDir }) {
       owe(next);
       continue;
     }
-    const guard = evaluate(when, { byId, recorded, status, values: new Map(), inputs: inputsOf(doc), defaults: current.defaults });
+    const guard = evaluate(when, { byId, recorded, status, inputs: inputsOf(doc), defaults: current.defaults });
     if (guard.ok && !guard.value) status.set(next, 'skipped');
     else owe(next, guard.ok ? null : when);
   }
@@ -658,12 +665,15 @@ export function atClose({ doc, runDir }) {
 /**
  * One pending node's readiness, from its needs' statuses and its `on`: `ready`,
  * `waiting`, or `skip` — taken off the path by the rule itself, which is allowed
- * and satisfies what follows, exactly like a false guard. The one place
- * `atClose` asks the ready-set rule, so a change to that rule reaches the close
- * in one line.
+ * and satisfies what follows, exactly like a false guard. `skip` is an
+ * `on: failure` node whose needs all ended well: nothing failed, so there is
+ * nothing to recover. The one ready-set rule both readers ask — `walk` for a
+ * gate's `Next:` line and `atClose` for what a run still owes.
  */
 function readiness(needStatuses, on) {
-  return needStatuses.every(state => satisfies(state, on)) ? 'ready' : 'waiting';
+  if (!needStatuses.every(state => settles(state, on))) return 'waiting';
+  if (on === 'failure' && !needStatuses.some(state => ENDED_BADLY.has(state))) return 'skip';
+  return 'ready';
 }
 
 // ---------------------------------------------------------------------------
