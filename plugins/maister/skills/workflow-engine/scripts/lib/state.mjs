@@ -83,7 +83,7 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
+import { TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf } from './display.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
@@ -378,12 +378,25 @@ const MERGED_MAPS = new Set([
 ]);
 
 /**
- * The five per-workflow context blocks (A1 layer 2). The root accepts exactly
- * one, so which one a write means has to be derived rather than assumed.
+ * The five context blocks the built-in workflows write (A1 layer 2). Any other
+ * workflow's block is derived from its name (`contextBlockOf`), and the root
+ * accepts exactly one, so which one a write means has to be derived rather
+ * than assumed.
  */
 const CONTEXT_BLOCKS = ['task_context', 'research_context', 'design_context', 'performance_context', 'migration_context'];
 
-/** Workflow name to context block, where the two do not share a stem. */
+/** Every context block's name ends in this, built-in or derived. */
+const CONTEXT_SUFFIX = '_context';
+
+/**
+ * The top-level keys the contract gives a meaning of its own. Two of them end
+ * in the context suffix, so a workflow named `project` or `verification` would
+ * derive a block that is already something else: its context writes would land
+ * in the shared block every reader consults for a different purpose.
+ */
+const RESERVED_KEYS = new Set(['orchestrator', 'task', 'workflow', 'node_summaries', ...TOP_LEVEL_BLOCKS]);
+
+/** Built-in workflow name to context block, from before the block was derived. */
 const WORKFLOW_CONTEXT = {
   research: 'research_context',
   development: 'task_context',
@@ -922,33 +935,20 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared) {
 }
 
 /**
- * Which of the five per-workflow context blocks this write belongs in.
+ * Which context block this write belongs in.
  *
  * The workflow's own name is the answer wherever it can be had — from the patch
  * installing the block, or from the `name:` already beside `workflow.nodes`. A
- * file that carries exactly one of the five and no usable name is read as
+ * file that carries exactly one context block and no usable name is read as
  * belonging to that one. Anything else refuses: defaulting would write the
  * summaries into a block no reader of this run consults, which is a successful
  * write nothing can find.
  */
 function contextBlock(doc, patch) {
   const raw = patch.workflow && 'name' in patch.workflow ? patch.workflow.name : doc.scalar(['workflow', 'name']);
-  const present = CONTEXT_BLOCKS.filter(block => doc.has(block));
-  let derived = null;
+  const present = topLevelKeys(doc.text()).filter(isContextBlock);
   if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
-    const name = String(raw).trim().toLowerCase();
-    const stem = `${name.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_context`;
-    // `Object.hasOwn`, not bracket access: `workflow.mjs`'s rule, and this is
-    // the site that made it load-bearing. `name: constructor` reached
-    // `WORKFLOW_CONTEXT.constructor`, which is truthy, so the refusal below
-    // never fired and `function Object() { [native code] }:` was written as a
-    // top-level YAML key by a file that then passed every self-check at exit 0.
-    const known = Object.hasOwn(WORKFLOW_CONTEXT, name) ? WORKFLOW_CONTEXT[name] : null;
-    derived = known ?? (CONTEXT_BLOCKS.includes(stem) ? stem : null);
-    if (!derived) {
-      throw new Refusal('state-context-block-unknown',
-        `the workflow name "${raw}" names none of ${CONTEXT_BLOCKS.join(', ')}, so the context block cannot be derived`);
-    }
+    const derived = contextBlockOf(String(raw).trim());
     if (present.length && !present.includes(derived)) {
       throw new Refusal('state-context-block-unknown',
         `the workflow name "${raw}" derives ${derived} but the state file already carries ${present.join(', ')}, and the root accepts exactly one`);
@@ -960,6 +960,56 @@ function contextBlock(doc, patch) {
     present.length
       ? `the state file carries ${present.join(' and ')} and no workflow name, so the context block is ambiguous`
       : 'the state file carries no workflow name and no context block, so the context block cannot be derived');
+}
+
+/**
+ * The context block a workflow name derives: `<name>_context`, the name's
+ * dashes written as underscores.
+ *
+ * Every name a built-in run was ever recorded under keeps the block it had
+ * before the rule was general. Two built-ins' blocks never shared their name's
+ * stem — development's is `task_context`, product-design's `design_context` —
+ * and a name whose stem already spelled one of the five (`task`, a
+ * capitalised `Research`) was read as that block, so both stay ahead of the
+ * general rule rather than being folded into it.
+ *
+ * Any other name is held to the grammar's own character set, because it is
+ * about to become a top-level YAML key and a run is frozen under the name its
+ * definition declares, which `validate` already held to that set. Only a name
+ * whose block would be one the contract reserves is refused inside it.
+ */
+function contextBlockOf(written) {
+  const name = written.toLowerCase();
+  // `Object.hasOwn`, not bracket access: `workflow.mjs`'s rule, and this is
+  // the site that made it load-bearing. `name: constructor` reached
+  // `WORKFLOW_CONTEXT.constructor`, which is truthy, and
+  // `function Object() { [native code] }:` was written as a top-level YAML key
+  // by a file that then passed every self-check at exit 0. The name now derives
+  // `constructor_context`, an ordinary key, by the general rule below.
+  if (Object.hasOwn(WORKFLOW_CONTEXT, name)) return WORKFLOW_CONTEXT[name];
+  const stem = `${name.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}${CONTEXT_SUFFIX}`;
+  if (CONTEXT_BLOCKS.includes(stem)) return stem;
+  if (!TARGET_NAME.test(written)) {
+    throw new Refusal('state-context-block-unknown',
+      `the workflow name "${written}" is outside the character set a workflow name is held to — lower-case letters, digits and dashes, `
+      + 'starting with a letter — so no context block can be derived from it; record the name the run\'s definition declares');
+  }
+  if (RESERVED_KEYS.has(stem)) {
+    throw new Refusal('state-context-block-unknown',
+      `the workflow name "${written}" derives ${stem}, which the state file already uses for a block of its own, `
+      + 'so its context would land where every reader expects something else; rename the workflow');
+  }
+  return stem;
+}
+
+/**
+ * Whether a top-level state key is a run's context block: it ends in the
+ * context suffix and is not one of the blocks the contract reserves. The
+ * readers that look for a run's block by its suffix ask here, so they skip
+ * `project_context` and `verification_context` exactly as the writer does.
+ */
+export function isContextBlock(key) {
+  return key.endsWith(CONTEXT_SUFFIX) && !RESERVED_KEYS.has(key);
 }
 
 /**
