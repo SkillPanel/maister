@@ -285,7 +285,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, nine verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, ten verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -336,6 +336,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead |
 | `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
+| `locate` | optional `--name` (bare or `builtin:`-prefixed) | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take, a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `dispatches` names the nodes that carry `dir:`. Exit `1` when the name is found nowhere, is not a workflow name, or finds a file whose `name:` is another. With no name, `{ok, workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
