@@ -10,6 +10,8 @@ The performance and migration workflows reuse most of development's phases, whic
 ### Status
 Accepted. Nothing here changes a registered shape; it records a limit two shapes already impose, and a deferral that follows from it.
 
+Amended by ADR-0027: an added node may be placed upstream of existing nodes with `before:`, an edge that only ever adds a wait, and a node an overlay disabled may not be added back under its own id. `needs` itself stays untunable, and the deferral of performance and migration stands.
+
 ### Context
 Performance and migration are, read as prose, development with edits. Performance adds an analysis phase near the front and narrows what the later phases work on. Migration adds artifacts of its own and asks different things at its gates. Both share development's planning, implementation and verification stretches almost verbatim. The overlay mechanism exists precisely so a graph can be adapted without being forked, so the obvious move is to ship each as an overlay over the development definition and save two-thirds of the authoring.
 
