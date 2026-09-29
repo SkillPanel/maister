@@ -1,6 +1,7 @@
 # A small definition exercising each node kind the engine records: a direct
 # node, a gate, the plan executor (the node the dashboard hangs progress on)
-# and a workflow: node that starts a child run.
+# and a workflow: node that starts a child run. Two nodes carry a title and two
+# do not, so one run shows both a title and the humanized fallback.
 name: development
 version: 1
 inputs:
@@ -12,6 +13,9 @@ display:
     approval: spec
     implementation: code
     research: analysis
+  titles:
+    analysis: "Scope analysis"
+    approval: "Approve the scope"
 
 nodes:
   analysis:

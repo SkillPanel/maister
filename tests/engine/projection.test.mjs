@@ -22,6 +22,26 @@ test('every state write republishes dashboard-data.js beside the state', t => {
   assert.deepEqual(data.verification, { status: null, issues: [], fixes: [], reverify_count: 0 });
 });
 
+test('a phase is named by its title, else by its id made readable; the id stays the id', t => {
+  const run = scratch(t);
+  freeze(run);
+  const phases = readDashboard(run).phases;
+  assert.deepEqual(phases.map(phase => phase.id), ['analysis', 'approval', 'implementation', 'research']);
+  assert.deepEqual(phases.map(phase => phase.name), ['Scope analysis', 'Approve the scope', 'Implementation', 'Research']);
+});
+
+test('an overlay titles the node it adds and retitles the base; the run\'s profile has the last word', t => {
+  const overlay = path.join(FIXTURES, 'definitions/sample.overlay.yml');
+  for (const [profile, review] of [[null, 'Peer review'], ['quick', 'Quick review']]) {
+    const run = scratch(t);
+    freeze(run, { overlays: [overlay], profile });
+    const names = Object.fromEntries(readDashboard(run).phases.map(phase => [phase.id, phase.name]));
+    assert.equal(names.analysis, 'Impact analysis');
+    assert.equal(names.review, review);
+    assert.equal(names.implementation, 'Implementation');
+  }
+});
+
 test('node statuses are mirrored onto the shorter phase vocabulary', t => {
   const run = scratch(t);
   freeze(run);

@@ -79,6 +79,33 @@ display:
     user-docs:               docs
     docs-approval:           docs
     finalization:            done
+  titles:
+    intake:                  "Intake"
+    codebase-analysis:       "Codebase analysis"
+    gap-analysis:            "Gap analysis"
+    gap-approval:            "Approve gap analysis"
+    tdd-red:                 "TDD red"
+    tdd-red-approval:        "Approve TDD red"
+    ui-mockups:              "UI mockups"
+    mockup-approval:         "Approve UI mockups"
+    specification:           "Specification"
+    specification-approval:  "Approve specification"
+    spec-audit:              "Specification audit"
+    spec-audit-approval:     "Approve specification audit"
+    planning:                "Implementation planning"
+    planning-approval:       "Approve implementation plan"
+    implementation:          "Implementation"
+    implementation-approval: "Approve implementation"
+    tdd-green:               "TDD green"
+    tdd-green-approval:      "Approve TDD green"
+    verification-options:    "Verification options"
+    verification:            "Verification"
+    verification-approval:   "Approve verification"
+    e2e-verification:        "E2E verification"
+    e2e-approval:            "Approve E2E verification"
+    user-docs:               "User documentation"
+    docs-approval:           "Approve documentation"
+    finalization:            "Finalization"
 
 nodes:
   intake:

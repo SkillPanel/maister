@@ -60,6 +60,24 @@ display:
     verification:                  verify
     verification-approval:         verify
     finalization:                  done
+  titles:
+    intake:                        "Intake"
+    codebase-analysis:             "Codebase analysis"
+    bottleneck-analysis:           "Bottleneck analysis"
+    bottleneck-approval:           "Approve bottleneck analysis"
+    specification:                 "Specification"
+    specification-approval:        "Approve specification"
+    spec-audit:                    "Specification audit"
+    spec-audit-approval:           "Approve specification audit"
+    planning:                      "Implementation planning"
+    planning-approval:             "Approve implementation plan"
+    implementation:                "Implementation"
+    implementation-approval:       "Approve implementation"
+    verification-options:          "Verification options"
+    verification-options-approval: "Approve verification options"
+    verification:                  "Verification"
+    verification-approval:         "Approve verification"
+    finalization:                  "Finalization"
 
 nodes:
   intake:

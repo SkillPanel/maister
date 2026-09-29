@@ -98,7 +98,7 @@ test('gate-brief: renders the closing summary, its decisions and risks, the next
     'Risks:',
     '- The fixture corpus is thin',
     '',
-    'Next: implementation',
+    'Next: Implementation',
     'Recommended: continue',
     runLine(run),
     '',
@@ -118,7 +118,7 @@ test('gate-brief: a false guard skips its stretch, and the Next line names the n
   const { run, graph } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: true });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: user-docs — skipped: e2e-verification, e2e-approval$/m);
+  assert.match(result.stdout, /^Next: User documentation — skipped: E2E verification, Approve E2E verification$/m);
   assert.match(result.stdout, new RegExp(`^Recommended: ${continueOf(graph, 'verification-approval')}$`, 'm'));
   assert.match(result.stdout, /^Verification passed with 2 warnings\.$/m);
 });
@@ -127,12 +127,12 @@ test('gate-brief: with every optional stretch off, the Next line lands on finali
   const { run } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: false });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: finalization — skipped: e2e-verification, e2e-approval, user-docs, docs-approval$/m);
+  assert.match(result.stdout, /^Next: Finalization — skipped: E2E verification, Approve E2E verification, User documentation, Approve documentation$/m);
 });
 
 test('gate-brief: an unguarded next node carries no skipped list', t => {
   const { run } = atVerificationApproval(t, { browser_tests_enabled: true, user_docs_enabled: true });
-  assert.match(brief(run, 'verification-approval').stdout, /^Next: e2e-verification$/m);
+  assert.match(brief(run, 'verification-approval').stdout, /^Next: E2E verification$/m);
 });
 
 test('gate-brief: a risk that recommends stopping makes the stop option the recommended one', t => {
@@ -205,9 +205,9 @@ test('gate-brief: --oneline folds the brief onto one flow-safe line', t => {
   assert.ok(result.stdout.endsWith('\n'));
   const line = result.stdout.slice(0, -1);
   assert.doesNotMatch(line, /[\r\n"]/);
-  assert.ok(line.includes('Next: implementation · Recommended: continue'), line);
+  assert.ok(line.includes('Next: Implementation · Recommended: continue'), line);
   assert.equal(line, "Two gaps found in the 'parser'. · Decisions: Patch the tokenizer — smallest change"
-    + ` · Risks: The fixture corpus is thin · Next: implementation · Recommended: continue · ${runLine(run)}`);
+    + ` · Risks: The fixture corpus is thin · Next: Implementation · Recommended: continue · ${runLine(run)}`);
   assert.doesNotThrow(() => scalar(line));
 });
 
@@ -227,7 +227,7 @@ test('gate-brief: with no decisions and no risks the brief is the summary, a bla
   const run = atApproval(t, { status: 'completed', summary: 'Nothing to decide.' });
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, ['Nothing to decide.', '', 'Next: implementation', 'Recommended: continue', runLine(run), ''].join('\n'));
+  assert.equal(result.stdout, ['Nothing to decide.', '', 'Next: Implementation', 'Recommended: continue', runLine(run), ''].join('\n'));
 });
 
 test('gate-brief: a skipped node\'s values read as false', t => {
@@ -241,7 +241,7 @@ test('gate-brief: a skipped node\'s values read as false', t => {
   write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Verified.' } } });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: finalization — skipped: e2e-verification, e2e-approval, user-docs, docs-approval$/m);
+  assert.match(result.stdout, /^Next: Finalization — skipped: E2E verification, Approve E2E verification, User documentation, Approve documentation$/m);
 });
 
 test('gate-brief: an input the run never recorded takes the definition\'s default', t => {
@@ -256,7 +256,7 @@ test('gate-brief: an input the run never recorded takes the definition\'s defaul
   write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Compatible.' } } });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: finalization — skipped: issue-resolution, resolution-approval, documentation$/m);
+  assert.match(result.stdout, /^Next: Finalization — skipped: Issue resolution, Approve issue resolution, Documentation$/m);
 });
 
 test('gate-brief: a negated guard is honoured, and a pending node outside the gate\'s downstream is never Next', t => {
@@ -277,7 +277,7 @@ test('gate-brief: a negated guard is honoured, and a pending node outside the ga
     ...['analysis', 'aside', 'report', 'wrap-up'].flatMap(id => [`## \`${id}\``, '', 'Do the step.', '']),
   ].join('\n'));
 
-  for (const [inputs, expected] of [[null, /^Next: report$/m], [{ quiet: true }, /^Next: wrap-up — skipped: report$/m]]) {
+  for (const [inputs, expected] of [[null, /^Next: Report$/m], [{ quiet: true }, /^Next: Wrap Up — skipped: Report$/m]]) {
     const run_ = inputs ? scratch(t) : run;
     freeze(run_, { definition, inputs });
     write(run_, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
@@ -305,7 +305,7 @@ test('gate-brief: a downstream node blocked on a pending parallel branch is wait
   write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: waiting on aside$/m);
+  assert.match(result.stdout, /^Next: waiting on Aside$/m);
 });
 
 test('gate-brief: an unreadable definition with no frozen needs degrades to the nearest recorded summary', t => {
@@ -387,7 +387,7 @@ test('gate-brief: a long brief is trimmed inside the budget, and Next, Recommend
   assert.equal(result.code, 0, result.stderr);
   assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
   const lines = result.stdout.split('\n');
-  assert.deepEqual(lines.slice(-4), ['Next: implementation', 'Recommended: continue', runLine(run), '']);
+  assert.deepEqual(lines.slice(-4), ['Next: Implementation', 'Recommended: continue', runLine(run), '']);
   assert.match(result.stdout, /\(\+\d+ more — see the dashboard\)/);
   assert.match(result.stdout, /^Sentence 0 restates/);
   assert.match(result.stdout, /^Risks:$/m, 'a trimmed brief still shows its first risk');
@@ -399,7 +399,7 @@ test('gate-brief: --oneline keeps the same budget and never trims its tail', t =
   const result = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--oneline']);
   assert.equal(result.code, 0, result.stderr);
   assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
-  assert.ok(result.stdout.endsWith(` · Next: implementation · Recommended: continue · ${runLine(run)}\n`), result.stdout);
+  assert.ok(result.stdout.endsWith(` · Next: Implementation · Recommended: continue · ${runLine(run)}\n`), result.stdout);
   assert.doesNotMatch(result.stdout.slice(0, -1), /[\r\n"]/);
   assert.doesNotThrow(() => scalar(result.stdout.slice(0, -1)));
 });
@@ -446,7 +446,7 @@ test('gate-brief: when the closing lines nearly fill the budget the brief still 
   // A run directory long enough that Next, Recommended and the run line leave
   // about twenty characters for everything else.
   const rootLength = path.join(os.tmpdir(), 'maister-engine-XXXXXX').length;
-  const fixed = 'Next: implementation\nRecommended: continue\n'.length + 1;
+  const fixed = 'Next: Implementation\nRecommended: continue\n'.length + 1;
   const dirLength = Math.floor((BUDGET - 20 - fixed - runLineLength(0)) / 2);
   const nameLength = dirLength - rootLength - '/.maister/tasks/development/'.length;
   const segments = [];
@@ -457,5 +457,5 @@ test('gate-brief: when the closing lines nearly fill the budget the brief still 
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
   assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
-  assert.deepEqual(result.stdout.split('\n').slice(-4), ['Next: implementation', 'Recommended: continue', runLine(run), '']);
+  assert.deepEqual(result.stdout.split('\n').slice(-4), ['Next: Implementation', 'Recommended: continue', runLine(run), '']);
 });

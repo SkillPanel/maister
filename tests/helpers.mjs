@@ -91,10 +91,13 @@ export function write(run, patch) {
 /**
  * Freeze a definition into a run: `resolve`, then the one `write-state` that
  * installs the task, the `workflow:` block with every node pending, and the
- * run's inputs — the engine's Step 4. Returns the resolved graph.
+ * run's inputs — the engine's Step 4. `overlays` and `profile` are passed to
+ * `resolve` and recorded as the freeze records them. Returns the resolved graph.
  */
-export function freeze(run, { definition = SAMPLE, task = {}, orchestrator = {}, inputs = null } = {}) {
-  const resolved = verb(['resolve', `--definition=${definition}`]);
+export function freeze(run, { definition = SAMPLE, overlays = [], profile = null, task = {}, orchestrator = {}, inputs = null } = {}) {
+  const args = ['resolve', `--definition=${definition}`, ...overlays.map(overlay => `--overlay=${overlay}`)];
+  if (profile !== null) args.push(`--profile=${profile}`);
+  const resolved = verb(args);
   if (resolved.code !== 0) throw new Error(`resolve exited ${resolved.code}: ${resolved.stdout}${resolved.stderr}`);
   const graph = JSON.parse(resolved.stdout);
   const nodes = {};

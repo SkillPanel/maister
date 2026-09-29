@@ -108,8 +108,12 @@ const BREAK = '<br/>';
  * newline. Nothing is read from the outside and nothing in the input is
  * mutated, so the caller may render the same object twice — and does, in the
  * assertions — and get one answer.
+ *
+ * `titles` is the merged `display.titles` map (`display.mjs`), passed in beside
+ * the graph because the resolved graph deliberately carries no display data —
+ * it is outside the hash. A node it titles leads its label with the title.
  */
-export function render(resolved) {
+export function render(resolved, { titles = null } = {}) {
   const nodes = Array.isArray(resolved?.nodes) ? resolved.nodes : [];
   const lines = [];
 
@@ -127,7 +131,7 @@ export function render(resolved) {
   lines.push('');
   lines.push(HEADER);
 
-  for (const node of nodes) lines.push(INDENT + declare(node));
+  for (const node of nodes) lines.push(INDENT + declare(node, titles));
 
   // Edges after every declaration rather than interleaved: a node that is
   // declared only where it is first referenced would take its shape from
@@ -151,9 +155,9 @@ export function render(resolved) {
 // ---------------------------------------------------------------------------
 
 /** One node declaration: its Mermaid id, its shape, and its label. */
-function declare(node) {
+function declare(node, titles) {
   const [open, close] = SHAPES[shapeOf(node)];
-  return `${mermaidId(node.id)}${open}${label(node)}${close}`;
+  return `${mermaidId(node.id)}${open}${label(node, titles)}${close}`;
 }
 
 /**
@@ -177,7 +181,10 @@ function classesOf(node) {
 }
 
 /**
- * The label: the id, then only the fields that change how the run behaves.
+ * The label: the node's title when the definition gives one, then the id, then
+ * only the fields that change how the run behaves. The id stays whatever the
+ * title says, because it is what an overlay attaches to; an untitled node shows
+ * the id alone rather than a humanized copy of it.
  * `with` and `outputs` are deliberately absent — they are the bulk of a node
  * and none of its control flow, and a diagram that reprints the definition is
  * a worse definition rather than a better picture.
@@ -187,8 +194,10 @@ function classesOf(node) {
  * that showed a stopping point without showing what is asked or which answer
  * continues would be a picture of the run nobody has to make a decision in.
  */
-function label(node) {
-  const parts = [text(node.id)];
+function label(node, titles) {
+  const parts = [];
+  if (titles && Object.hasOwn(titles, node.id)) parts.push(text(titles[node.id]));
+  parts.push(text(node.id));
   if (typeof node.uses === 'string' && node.uses !== '') parts.push(text(node.uses));
   if (node.type === TYPE_GATE) parts.push(text('gate'));
   if (node.type === TYPE_GATE && typeof node.ask === 'string' && node.ask !== '') parts.push(text(node.ask));
