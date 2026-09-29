@@ -203,6 +203,10 @@ cannot step around a gate with it. It is refused when it names a node the graph 
 needs, which would close a cycle. The graph is the same one an eject declaring those edges by
 hand would give, and it hashes the same.
 
+An added node is a full node of the run. Its declared artifacts are registered on its summary
+when it completes, its icon and title come from the overlay's `display:` block, and a plan
+executor added in place of the built-in's carries the plan's progress on the dashboard.
+
 **The node ids you attach to are a public API.** An overlay names nodes of the built-in —
 in `needs`, in `before`, in `disable`, in `tune` — so a rename in a built-in would unresolve every
 overlay in every project at once, silently and all on the same upgrade. Renaming one is

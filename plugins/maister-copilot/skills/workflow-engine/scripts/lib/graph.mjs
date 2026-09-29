@@ -417,6 +417,27 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
   };
 }
 
+/**
+ * The document a run executes: the base definition with its `nodes` replaced by
+ * the map its overlays and profile fold to, so a reader looking a node up by id
+ * finds the nodes an overlay added and not the ones it disabled.
+ *
+ * For readers that need a node's declared data — its outputs, what it uses —
+ * and not the verdict: nothing is validated or hashed here, so it costs no
+ * target lookup. The base document is returned unchanged when there is no
+ * overlay to fold, and when the fold itself finds anything wrong, because a
+ * half-folded map would be a graph no run froze. Never throws on a malformed
+ * document; returns null only when the base cannot be read as a mapping.
+ */
+export function foldDefinition({ definition, overlays = [], profile = null }) {
+  const base = isMap(definition?.doc) ? definition.doc : null;
+  if (base === null || overlays.length === 0) return base;
+  const errors = [];
+  const graph = buildGraph({ definition, overlays, profile, errors });
+  if (!graph || errors.length) return base;
+  return { ...base, nodes: Object.fromEntries(graph.nodes) };
+}
+
 // ---------------------------------------------------------------------------
 // located errors
 // ---------------------------------------------------------------------------
