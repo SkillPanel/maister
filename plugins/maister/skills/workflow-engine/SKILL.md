@@ -389,15 +389,19 @@ a word — is a misspelling of this grammar, not a newer one, and `validate` ref
 
 ### The ready set
 
-A node is ready when both hold:
+A node is ready when all three hold:
 
-1. **Every `needs` entry is satisfied.** `completed` and `skipped` satisfy; `failed` and
-   `stopped` satisfy only for a node that declares `on: failure` or `on: always`.
-2. **Its `when` guard evaluates true** against the values declared by completed nodes.
+1. **Every `needs` entry is satisfied.** Under the default, `on: success`, `completed` and
+   `skipped` satisfy. Under `on: failure` and `on: always`, `failed` and `stopped` satisfy
+   too — any need that has ended.
+2. **An `on: failure` node has something to recover from:** at least one need ended `failed`
+   or `stopped`. When every need ended `completed` or `skipped`, the node is not run.
+3. **Its `when` guard evaluates true** against the values declared by completed nodes.
 
-A node whose guard is false is marked `skipped`, and **a skip satisfies everything
-downstream** — that is how a definition expresses an optional phase without any routing
-construct.
+A node whose guard is false, and an `on: failure` node with nothing that failed, is marked
+`skipped`, and **a skip satisfies everything downstream** — that is how a definition expresses
+an optional phase without any routing construct. `on: always` runs once every need has ended,
+however it ended.
 
 **A `waiting` node is not ready.** It is a `workflow:` node whose child run has not reached a
 terminal status, and three separate readers need to be told so separately: it is not ready, so

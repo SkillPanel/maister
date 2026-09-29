@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { verb } from '../helpers.mjs';
+import { freeze, scratch, verb, write } from '../helpers.mjs';
 
 // A version 1 document is closed: everything the file in hand can decide is
 // decided at validate time. Each case below starts from BASE — an intake node,
@@ -403,4 +403,62 @@ test('validating the eject itself warns about the overlay beside it, unless it w
   const layered = validate(eject, `--overlay=${lay}`);
   assert.equal(layered.code, 0, JSON.stringify(layered.report.errors));
   assert.deepEqual(layered.report.warnings, []);
+});
+
+// ---------------------------------------------------------------------------
+// on: failure runs only when a need failed; on: always runs once every need ended
+// ---------------------------------------------------------------------------
+
+/**
+ * A run frozen at its gate, with an audit behind it and three followers:
+ * `finalize` (the default), `cleanup` (`on: always`) and `recover`
+ * (`on: failure`), each needing the audit. `statuses` is what the nodes after
+ * the gate have recorded when the brief is composed.
+ */
+function atGateWithFollowers(t, statuses) {
+  const run = scratch(t);
+  const file = path.join(run.root, 'acme.yml');
+  fs.writeFileSync(file, [
+    'name: acme', 'version: 1', 'nodes:',
+    '  review: {uses: "direct:review", needs: []}',
+    '  review-approval:', '    type: gate', '    needs: [review]', '    ask: "Reviewed. Audit it?"',
+    '    options: {continue-on: continue, stop-here: stop}',
+    '  audit: {uses: "direct:audit", needs: [review-approval]}',
+    '  finalize: {uses: "direct:finalize", needs: [audit]}',
+    '  cleanup: {uses: "direct:cleanup", needs: [audit], on: always}',
+    '  recover: {uses: "direct:recover", needs: [audit], on: failure}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'acme.md'),
+    ['review', 'audit', 'finalize', 'cleanup', 'recover'].map(id => `## \`${id}\`\n\nDo it.\n`).join('\n'));
+  freeze(run, { definition: file });
+  const nodes = { review: { status: 'completed' }, 'review-approval': { status: 'completed' } };
+  for (const [id, status] of Object.entries(statuses)) nodes[id] = { status };
+  write(run, { nodes, node_summaries: { review: { status: 'completed', summary: 'Reviewed.' } } });
+  return run;
+}
+
+function nextAt(run) {
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=review-approval']);
+  assert.equal(result.code, 0, result.stderr);
+  return result.stdout.split('\n').find(line => line.startsWith('Next: '));
+}
+
+test('on: failure is skipped when every need completed, rather than running on the happy path', t => {
+  const run = atGateWithFollowers(t, { audit: 'completed', finalize: 'completed', cleanup: 'completed' });
+  assert.equal(nextAt(run), 'Next: end of run — skipped: Recover');
+});
+
+test('on: failure runs when a need failed', t => {
+  const run = atGateWithFollowers(t, { audit: 'failed', cleanup: 'completed' });
+  assert.equal(nextAt(run), 'Next: Recover');
+});
+
+test('on: always runs once its need has ended, even when it failed', t => {
+  const run = atGateWithFollowers(t, { audit: 'failed' });
+  assert.equal(nextAt(run), 'Next: Cleanup');
+});
+
+test('on: failure waits while its need has not ended, and is not skipped early', t => {
+  const run = atGateWithFollowers(t, {});
+  assert.equal(nextAt(run), 'Next: Audit');
 });

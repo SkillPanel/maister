@@ -65,7 +65,7 @@ const NEWER_FORMAT = 'newer-format';
 /** Statuses that satisfy a `needs` entry under the default `on`. */
 const ENDED_OK = new Set(['completed', 'skipped']);
 
-/** Statuses that satisfy a `needs` entry only under `on: failure|always`. */
+/** Statuses that end a need badly: what `on: failure` runs on and `on: always` runs through. */
 const ENDED_BADLY = new Set(['failed', 'stopped']);
 
 /** Statuses under which a node's declared values read as false. */
@@ -370,8 +370,10 @@ function list(value) {
  *
  * The gate is simulated as completed, carrying its continue option's `values`.
  * Then, in resolved order, the first pending in-scope node whose needs are all
- * satisfied is taken: without a `when` it is next; with one, a true guard makes it
- * next and a false one simulates a skip and the loop goes on.
+ * settled is taken. An `on: failure` node none of whose needs ended badly is
+ * simulated as skipped and the loop goes on; otherwise, without a `when` it is
+ * next, and with one a true guard makes it next and a false one simulates a
+ * skip and the loop goes on.
  */
 export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, options = null }) {
   const nodes = graph?.nodes ?? [];
@@ -387,8 +389,15 @@ export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, option
   for (;;) {
     const ready = nodes.find(entry => downstream.has(entry.id)
       && status.get(entry.id) === 'pending'
-      && list(entry.needs).every(need => satisfies(status.get(need), entry.on)));
+      && list(entry.needs).every(need => settles(status.get(need), entry.on)));
     if (!ready) return { ok: true, next: null, skipped, waiting: blockers(nodes, downstream, status) };
+    // An `on: failure` node whose needs all ended well has nothing to recover
+    // from: it is skipped exactly as a false guard skips a node.
+    if (ready.on === 'failure' && !list(ready.needs).some(need => ENDED_BADLY.has(status.get(need)))) {
+      status.set(ready.id, 'skipped');
+      skipped.push(ready.id);
+      continue;
+    }
     if (typeof ready.when !== 'string') return { ok: true, next: ready.id, skipped };
 
     const guard = evaluate(ready.when, { byId, recorded, status, values, inputs, defaults });
@@ -411,7 +420,7 @@ function blockers(nodes, downstream, status) {
   for (const entry of nodes) {
     if (!pending.has(entry.id)) continue;
     for (const need of list(entry.needs)) {
-      if (!pending.has(need) && !satisfies(status.get(need), entry.on)) waiting.add(need);
+      if (!pending.has(need) && !settles(status.get(need), entry.on)) waiting.add(need);
     }
   }
   return nodes.map(entry => entry.id).filter(id => waiting.has(id));
@@ -434,12 +443,16 @@ function downstreamOf(nodes, gate) {
   return found;
 }
 
-/** Whether a predecessor in `state` lets a node with this `on` run. */
-function satisfies(state, on) {
+/**
+ * Whether a predecessor in `state` no longer holds back a node with this `on`.
+ * Under the default (`success`) only a need that ended well does; under
+ * `failure` and `always` any need that has ended does. Which of those a
+ * `failure` node then does — run, or be skipped because nothing failed — is
+ * the walker's decision, made once every need has settled.
+ */
+function settles(state, on) {
   if (ENDED_OK.has(state)) return true;
-  if (!ENDED_BADLY.has(state)) return false;
-  const modes = Array.isArray(on) ? on : [on];
-  return modes.includes('failure') || modes.includes('always');
+  return ENDED_BADLY.has(state) && (on === 'failure' || on === 'always');
 }
 
 /** The continue option's `values`, when it uses the `{effect, values}` form. */

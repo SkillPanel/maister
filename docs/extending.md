@@ -33,7 +33,9 @@ prose companion `.maister/workflows/<name>.md` beside it. A node is one entry un
 A gate is a node with `type: gate`, a question under `ask:` and its answers under `options:`,
 exactly one of which continues the run and at least one of which stops it. Nodes declare their
 dependencies with `needs:`, their guards with `when:`, and the values they hand downstream with
-`outputs:`. The definition's `name` is lower-case letters, digits and dashes, starting with a letter;
+`outputs:`. A node's `on:` says which endings of its needs let it run: `success`, the default, needs
+every one completed or skipped; `failure` runs only when one of them failed, and is skipped when
+none did; `always` runs once they have all ended, however. The definition's `name` is lower-case letters, digits and dashes, starting with a letter;
 `version: 1` is the bare number, never quoted; and each entry under `inputs:` declares its `type` as
 `string`, `bool` or `path`. A declared artifact is a literal path relative to the run's task
 directory: `${…}` references belong in `with:`, `dir:` and `ask:`, and one inside an artifact path,
