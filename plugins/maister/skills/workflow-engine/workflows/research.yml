@@ -72,6 +72,16 @@ display:
     high-level-design:        spec
     design-approval:          spec
     completion:               done
+  titles:
+    research-foundation:      "Research foundation"
+    foundation-approval:      "Approve research foundation"
+    optional-phases-decision: "Choose optional phases"
+    solution-generation:      "Solution brainstorming"
+    solution-convergence:     "Solution convergence"
+    convergence-approval:     "Approve brainstorming"
+    high-level-design:        "High-level design"
+    design-approval:          "Approve design"
+    completion:               "Completion"
 
 nodes:
   research-foundation:

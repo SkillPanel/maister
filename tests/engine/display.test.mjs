@@ -146,6 +146,13 @@ function withoutDisplay(read) {
 for (const file of BUILTINS) {
   const name = path.basename(file, '.yml');
 
+  test(`built-in ${name} titles every node`, () => {
+    const definition = readDefinition(file);
+    const { titles } = displayOf({ definition });
+    const untitled = Object.keys(definition.doc.nodes).filter(id => !Object.hasOwn(titles, id));
+    assert.deepEqual(untitled, []);
+  });
+
   test(`built-in ${name}: the display block leaves the graph hash where it was`, () => {
     const definition = readDefinition(file);
     const withDisplay = resolve({ definition });

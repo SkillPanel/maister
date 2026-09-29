@@ -71,6 +71,23 @@ display:
     resolution-approval:    verify
     documentation:          docs
     finalization:           done
+  titles:
+    intake:                 "Intake"
+    current-state-analysis: "Current state analysis"
+    gap-analysis:           "Gap analysis"
+    gap-approval:           "Approve gap analysis"
+    specification:          "Specification"
+    specification-approval: "Approve specification"
+    planning:               "Migration planning"
+    planning-approval:      "Approve migration plan"
+    execution:              "Migration execution"
+    execution-approval:     "Approve migration execution"
+    verification:           "Verification"
+    verification-approval:  "Approve verification"
+    issue-resolution:       "Issue resolution"
+    resolution-approval:    "Approve issue resolution"
+    documentation:          "Documentation"
+    finalization:           "Finalization"
 
 nodes:
   intake:

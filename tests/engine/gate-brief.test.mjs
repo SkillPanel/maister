@@ -118,7 +118,7 @@ test('gate-brief: a false guard skips its stretch, and the Next line names the n
   const { run, graph } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: true });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: User Docs — skipped: E2e Verification, E2e Approval$/m);
+  assert.match(result.stdout, /^Next: User documentation — skipped: E2E verification, Approve E2E verification$/m);
   assert.match(result.stdout, new RegExp(`^Recommended: ${continueOf(graph, 'verification-approval')}$`, 'm'));
   assert.match(result.stdout, /^Verification passed with 2 warnings\.$/m);
 });
@@ -127,12 +127,12 @@ test('gate-brief: with every optional stretch off, the Next line lands on finali
   const { run } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: false });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: Finalization — skipped: E2e Verification, E2e Approval, User Docs, Docs Approval$/m);
+  assert.match(result.stdout, /^Next: Finalization — skipped: E2E verification, Approve E2E verification, User documentation, Approve documentation$/m);
 });
 
 test('gate-brief: an unguarded next node carries no skipped list', t => {
   const { run } = atVerificationApproval(t, { browser_tests_enabled: true, user_docs_enabled: true });
-  assert.match(brief(run, 'verification-approval').stdout, /^Next: E2e Verification$/m);
+  assert.match(brief(run, 'verification-approval').stdout, /^Next: E2E verification$/m);
 });
 
 test('gate-brief: a risk that recommends stopping makes the stop option the recommended one', t => {
@@ -241,7 +241,7 @@ test('gate-brief: a skipped node\'s values read as false', t => {
   write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Verified.' } } });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: Finalization — skipped: E2e Verification, E2e Approval, User Docs, Docs Approval$/m);
+  assert.match(result.stdout, /^Next: Finalization — skipped: E2E verification, Approve E2E verification, User documentation, Approve documentation$/m);
 });
 
 test('gate-brief: an input the run never recorded takes the definition\'s default', t => {
@@ -256,7 +256,7 @@ test('gate-brief: an input the run never recorded takes the definition\'s defaul
   write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Compatible.' } } });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: Finalization — skipped: Issue Resolution, Resolution Approval, Documentation$/m);
+  assert.match(result.stdout, /^Next: Finalization — skipped: Issue resolution, Approve issue resolution, Documentation$/m);
 });
 
 test('gate-brief: a negated guard is honoured, and a pending node outside the gate\'s downstream is never Next', t => {
