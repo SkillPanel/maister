@@ -96,7 +96,7 @@ const { Refusal, flow } = canonical;
 /**
  * This writer's own names for the two refusals the shared publish path can
  * raise. They are passed in rather than emitted by `canonical.mjs` so this
- * module keeps its closed nineteen-code vocabulary, which the contract suite
+ * module keeps its closed twenty-one-code vocabulary, which the contract suite
  * reads back out of the refusals themselves.
  */
 const COMMIT_CODES = { unwritable: 'state-unwritable', tempExists: 'state-temp-exists' };
@@ -138,7 +138,7 @@ const VIEWER_SOURCE = fileURLToPath(new URL('../../../orchestrator-framework/ass
  * They are caught at the projection call site and turned into warning entries,
  * because the projection runs *after* the state rename: a refusal there could not
  * un-publish the state write and reporting one would turn a landed write into a
- * reported failure. So the writer's documented nineteen-code vocabulary does not
+ * reported failure. So the writer's documented twenty-one-code vocabulary does not
  * grow and neither code is owed a recovery row.
  */
 const DASHBOARD_CODES = { unwritable: 'dashboard-unwritable', tempExists: 'dashboard-temp-exists' };
@@ -222,6 +222,15 @@ const STATUS_MIRROR = {
  */
 const STARTS = new Set(['running']);
 const ENDS = new Set(['completed', 'failed', 'skipped']);
+
+/**
+ * The eight statuses a node may be recorded with — the state contract's own
+ * node-status enum, closed here for the reason the patch vocabulary is closed.
+ * A status outside it was written to disk and projected as `pending`, so a node
+ * recorded `done` or `in_progress` read, to every reader, as a node that had
+ * never started — and nothing downstream of it could become ready.
+ */
+const NODE_STATUSES = ['pending', 'running', 'waiting', 'suspended', 'completed', 'skipped', 'failed', 'stopped'];
 const ONGOING = new Set(['running', 'waiting', 'suspended']);
 
 /**
@@ -1304,6 +1313,7 @@ function provenNodes(doc, workflow, runDir) {
       + 'Send one entry per resolved node and no other, recording a gate as gate, a workflow: node as workflow '
       + 'and every other node as task');
   }
+  for (const [id, entry] of Object.entries(nodes)) assertStatus(id, entry);
 
   const missing = missingInputs(doc, inputs);
   if (missing.length) {
@@ -1495,6 +1505,16 @@ function applyNodes(doc, nodes, now, changed, ignored) {
     if (!isPlainObject(patchEntry)) {
       throw new Refusal('state-patch-invalid', `the patch for node ${id} must be an object`);
     }
+    // The frozen node map is the run's graph, so a node it does not carry is
+    // one no reader will lay out correctly: it was written, joined the
+    // dashboard's phases and satisfied nothing, because no node needs it.
+    if (!Object.hasOwn(existing, id)) {
+      throw new Refusal('state-node-unknown',
+        `node ${id} is not in this run's frozen graph, which carries ${Object.keys(existing).join(', ')}. Nothing was `
+        + 'written. Correct the node id; a run records progress only on the nodes it froze, and a node its definition '
+        + 'gained since belongs to the next run');
+    }
+    assertStatus(id, patchEntry);
     // `NODE_ID` admits `constructor`, and the entry map is a bare object
     // literal, so an unguarded read here would merge `Object.prototype`'s
     // member in as the existing entry. Same rule as everywhere else.
@@ -1527,6 +1547,19 @@ function serializeNode(id, merged, patchEntry, now) {
     throw new Refusal('state-entry-unserializable',
       `the entry already in the file for node ${id} cannot be re-serialised (${err.message}); the patch itself is fine, so the line has to be repaired before this node can be written`);
   }
+}
+
+/**
+ * A node entry's status, when it carries one, is one of `NODE_STATUSES`. An
+ * entry that carries none keeps the status it has, or `pending` at the freeze.
+ */
+function assertStatus(id, entry) {
+  if (!Object.hasOwn(entry, 'status')) return;
+  const status = entry.status;
+  if (typeof status === 'string' && NODE_STATUSES.includes(status)) return;
+  throw new Refusal('state-node-status-unknown',
+    `node ${id} cannot be recorded with the status ${JSON.stringify(status)}: a node status is one of `
+    + `${NODE_STATUSES.join(', ')}. Nothing was written. Map the node's outcome onto one of them and send the write again`);
 }
 
 /**

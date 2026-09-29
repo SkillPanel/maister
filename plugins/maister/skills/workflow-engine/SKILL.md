@@ -535,6 +535,14 @@ schemes:
 | Budget exhausted, the operator chose to skip | `skipped` | satisfies `needs`; declared boolean outputs default false, declared string outputs to null |
 | Hard failure with no operator path | `failed` | satisfies nothing by default; the run stops with `RUN-FAILED` |
 
+**A node is recorded only with one of eight statuses, and only if the run froze it.** The
+statuses are `pending`, `running`, `waiting`, `suspended`, `completed`, `skipped`, `failed` and
+`stopped`. Any other status is refused with `state-node-status-unknown`, including the summary
+spelling `in_progress`: no reader knows what it means, and every reader would otherwise read the
+node as never started. A node the frozen graph does not carry is refused with
+`state-node-unknown`, because a node the graph lacks has no place in it, and nothing downstream
+would ever wait on it.
+
 **A `workflow:` node's outcome is the child run's, mapped rather than judged.** The node has no
 self-check of its own — the child ran its own — so the parent reads the child's `task.status` at
 the node's recorded `values.task_path` and maps it:
@@ -1073,7 +1081,7 @@ one call, arriving from the other side.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-nineteen, each with its response below; one more, `edition-collision`, is raised before the
+twenty-one, each with its response below; one more, `edition-collision`, is raised before the
 writer runs. Exit `2` carries no code at all and is the table's last row:
 
 | Refusal | Response |
@@ -1089,6 +1097,8 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-freeze-name-mismatch` | `workflow.name` is absent, or is not the name of the definition the freeze resolves. Nothing was written. Send the `name` `resolve` printed and freeze again. Never relabel a run to borrow another workflow's context block: every reader keyed by the name would then read it as that workflow. |
 | `state-freeze-nodes-mismatch` | The freeze's nodes are not exactly the nodes `resolve` printed — one added, one left out, or one recorded under a kind its node cannot have; the message names each. Nothing was written. Send one entry per resolved node with the kind Step 4 gives it, and freeze again. |
 | `state-freeze-input-missing` | The definition requires an input the freeze records no value for. Nothing was written. Add the value the run was started with under `orchestrator.options.inputs` in the same freeze and send it again. When the invocation never carried one, ask the operator for it in a terminal run; a driven run stops with `RUN-FAILED: state-freeze-input-missing`, because an invented input is a defect. |
+| `state-node-status-unknown` | A node was sent with a status outside the eight (*Recording an outcome*). The message lists them. Nothing was written. Map the outcome onto one of the eight and send the write again. `in_progress` belongs to the summary vocabulary, and `running` is the node status that means the same. |
+| `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo or a phase key used as a node id, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
 | exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |

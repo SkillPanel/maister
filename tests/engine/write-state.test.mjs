@@ -170,7 +170,7 @@ test('viewer: a later write that is not the freeze copies nothing', t => {
   const run = scratch(t);
   write(run, FROZEN());
   fs.rmSync(path.join(run.dir, 'dashboard.html'));
-  const result = write(run, { nodes: { analysis: { status: 'in_progress' } } });
+  const result = write(run, { nodes: { analysis: { status: 'running' } } });
   assert.equal(fs.existsSync(path.join(run.dir, 'dashboard.html')), false);
   assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
 });

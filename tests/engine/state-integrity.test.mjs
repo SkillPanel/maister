@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DECLARED, FIXTURES, freezePatch, readState, scratch, verb, write } from '../helpers.mjs';
+import { DECLARED, FIXTURES, freeze, freezePatch, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 
 // The writer holds a run to the definition it froze: the freeze is refused
-// unless the graph it records re-resolves from the provenance it records.
+// unless the graph it records re-resolves from the provenance it records, and
+// every later node write is held to the frozen node set and the node-status
+// vocabulary.
 
 const OVERLAY = path.join(FIXTURES, 'definitions/sample.overlay.yml');
 const SUBJECT = { subject: 'acme-api' };
@@ -129,3 +131,48 @@ test('freeze: a graph resolved with an overlay and a profile, recorded with both
   assert.deepEqual(state.workflow.nodes.review.needs, ['implementation']);
 });
 
+
+test('freeze: a node status outside the vocabulary is refused', t => {
+  const run = scratch(t, { type: 'survey' });
+  const { patch } = declared();
+  patch.workflow.nodes.scan = { kind: 'direct', status: 'bogus' };
+  refused(run, patch, 'state-node-status-unknown');
+});
+
+// ---------------------------------------------------------------------------
+// node writes
+// ---------------------------------------------------------------------------
+
+test('nodes: a status outside the vocabulary is refused, naming the vocabulary', t => {
+  const run = scratch(t, { type: 'survey' });
+  freeze(run, { definition: DECLARED, inputs: SUBJECT });
+  const result = refused(run, { nodes: { scan: { status: 'bogus' } } }, 'state-node-status-unknown');
+  assert.match(result.stderr, /pending, running, waiting, suspended, completed, skipped, failed, stopped/);
+  refused(run, { nodes: { scan: { status: 'in_progress' } } }, 'state-node-status-unknown');
+  refused(run, { nodes: { scan: { status: null } } }, 'state-node-status-unknown');
+});
+
+test('nodes: each of the eight statuses is accepted', t => {
+  const run = scratch(t, { type: 'survey' });
+  freeze(run, { definition: DECLARED, inputs: SUBJECT });
+  for (const status of ['pending', 'running', 'waiting', 'suspended', 'completed', 'skipped', 'failed', 'stopped']) {
+    write(run, { nodes: { scan: { status } } });
+    assert.equal(readState(run).workflow.nodes.scan.status, status);
+  }
+});
+
+test('nodes: a node the frozen graph does not carry is refused, and never reaches the dashboard', t => {
+  const run = scratch(t, { type: 'survey' });
+  freeze(run, { definition: DECLARED, inputs: SUBJECT });
+  const result = refused(run, { nodes: { ghost: { status: 'completed', values: { x: true } } } }, 'state-node-unknown');
+  assert.match(result.stderr, /ghost/);
+  assert.match(result.stderr, /scan, review, probe/);
+  assert.equal(readDashboard(run).phases.some(phase => phase.id === 'ghost'), false);
+});
+
+test('an adopted run keeps its frozen node set and the status vocabulary', t => {
+  const run = scratch(t, { fixture: 'adopted' });
+  refused(run, { nodes: { approval: { status: 'answered' } } }, 'state-node-status-unknown');
+  refused(run, { nodes: { implementation: { status: 'running' } } }, 'state-node-unknown');
+  write(run, { nodes: { approval: { status: 'completed' } } });
+});
