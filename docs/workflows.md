@@ -381,6 +381,34 @@ which dispatches them into a member repository. They are a Pro Edition feature �
 
 ---
 
+## Your Own Workflows
+
+A workflow your project defines, as `.maister/workflows/<name>.yml` with its prose in
+`<name>.md`, runs on the same engine as the built-ins. Writing one is covered in
+[Extending maister](extending.md).
+
+| To | Type |
+|----|------|
+| Start it | `/maister:run <name> [key=value ...]` |
+| Resume it | `/maister:run <task-path>` or `/maister:work <task-path>` |
+| See what the project defines | `/maister:run --list` |
+
+`/maister:work` offers one of these workflows when your task description matches what it is for.
+
+`/maister:run` works in a few steps:
+1. It looks the name up in `.maister/workflows/`, then in `generated/`, then as an overlay over a
+   built-in, then as a built-in. This means it can also start a built-in, with a `--profile` of
+   your choosing.
+2. It validates the definition.
+3. It asks for any required input you did not give.
+4. It hands the run to the engine. The run then has the same dashboard, gates and resume as a
+   built-in.
+
+`/maister:run` will not start a *chain*, meaning a definition whose nodes dispatch into member
+repositories. Chains are started from maister cockpit.
+
+---
+
 ## Task Directory Structure
 
 All workflows create structured directories in `.maister/tasks/`:
@@ -394,7 +422,8 @@ All workflows create structured directories in `.maister/tasks/`:
 ├── product-design/        # Product design
 ├── plan/                  # Chain-only plan runs
 ├── change/                # Chain-only bounded-change runs
-└── fix/                   # Chain-only defect-fix runs
+├── fix/                   # Chain-only defect-fix runs
+└── <name>/                # A workflow your project defines, started by name
 ```
 
 Each task folder follows the pattern `YYYY-MM-DD-task-name/` and always starts with the same three files:
@@ -427,6 +456,7 @@ A run started by another run is listed here too, because it is nothing special:
 | Kind of run | Where its directory goes |
 |----------|----------------|
 | **started by a command or the cockpit** | `.maister/tasks/<type>/YYYY-MM-DD-task-name/` |
+| **started by name** (`/maister:run <name>`) | `.maister/tasks/<name>/YYYY-MM-DD-task-name/` — a workflow's name is its type |
 | **started by another run** | `.maister/tasks/<its own type>/<parent's date>-<parent's name>-<node>/` — a **sibling** of the run that started it, under the folder of its own type, **never nested** inside the parent's directory |
 
 The child's state records which run and which node started it, and that link is what ties the two
@@ -531,4 +561,4 @@ own. Each one declares that in its own frontmatter, which is where this table co
 | **implementation-plan-executor** | Runs an implementation plan by handing each task group to an implementer subagent, then records progress and the work log |
 | **implementation-verifier** | Delegates verification to specialists -- completeness, test suite, code review, pragmatic review, production readiness, reality check -- and compiles one report. It reports; it never fixes |
 | **orchestrator-framework** | Not executable at all: the shared patterns every orchestrator reads for phase execution, state, gates and initialization |
-| **workflow-engine** | Runs a workflow definition as a graph -- resolves it, freezes it into the run's state, executes the ready set, and asks or suspends at each gate according to the run's driver |
+| **workflow-engine** | Runs a workflow definition as a graph -- resolves it, freezes it into the run's state, executes the ready set, and asks or suspends at each gate according to the run's driver. Handed its runs by a workflow's own command, or by `/maister:run` for a workflow started by name |
