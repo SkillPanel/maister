@@ -10,8 +10,11 @@ the exit code, stdout, stderr and the files left behind. Only the dashboard norm
 
 - `helpers.mjs` — the scratch project (`<tmp>/.maister/tasks/<type>/<name>/`), the verb runner, the freeze.
 - `fixtures/definitions/` — a small definition covering a direct node, a gate, the plan executor and a
-  `workflow:` sub-run node, plus one the validator rejects, and one of its own name whose nodes declare
-  typed values, a file and a directory artifact, a three-option gate and the artifacts of a sub-run.
+  `workflow:` sub-run node, plus one the validator rejects. `closing.yml`, its sub-run child
+  `closing-child.yml` and `closing.overlay.yml` carry the guards, `on:` edges and declared artifacts
+  the `run-complete` checks judge. `recovery.yml` holds an `on: failure` node on the happy path.
+  `declared-outputs.yml` is a workflow of its own name whose nodes declare typed values, a file and
+  a directory artifact, a three-option gate and the artifacts of a sub-run.
 - `fixtures/runs/` — run directories copied into a scratch project per test: a plan with its companion
   and work log, a pending gate request, a state file written by a prose orchestrator.
 - `fixtures/gates/` — answered request documents a test copies over the pending one.

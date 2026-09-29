@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { artifactOf, decisionOf, deriveProgress, issueOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/dashboard.mjs';
-import { FIXTURES, freeze, readDashboard, scratch, write } from '../helpers.mjs';
+import { FIXTURES, freeze, readDashboard, readState, scratch, write } from '../helpers.mjs';
 
 // ---------------------------------------------------------------------------
 // the projection, through write-state
@@ -235,4 +236,59 @@ test('deriveProgress: a reverted group is labelled with its reason', () => {
     skipped: [],
     reverted: ['Group 4 — migration left the schema half-applied'],
   });
+});
+
+// ---------------------------------------------------------------------------
+// nodes an overlay added
+// ---------------------------------------------------------------------------
+
+/** An overlay over the sample, written to a scratch directory removed when the test ends. */
+function sampleOverlay(t, lines) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-overlay-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'sample.overlay.yml');
+  fs.writeFileSync(file, `${['extends: sample.yml', ...lines].join('\n')}\n`);
+  return file;
+}
+
+test('a node an overlay added gets its declared artifact registered on completion, and its icon', t => {
+  const overlay = sampleOverlay(t, [
+    'display:',
+    '  icons:',
+    '    check: verify',
+    'add:',
+    '  check:',
+    '    uses: skill:implementation-verifier',
+    '    needs: [analysis]',
+    '    before: [approval]',
+    '    outputs:',
+    '      artifacts:',
+    '        report: check/report.md',
+  ]);
+  const run = scratch(t);
+  freeze(run, { overlays: [overlay] });
+  fs.mkdirSync(path.join(run.dir, 'check'));
+  fs.writeFileSync(path.join(run.dir, 'check/report.md'), '# Check\n');
+  write(run, { nodes: { analysis: { status: 'completed' }, check: { status: 'completed' } }, node_summaries: { check: { summary: 'Checked.' } } });
+  const expected = [{ path: 'check/report.md', label: null, html: null }];
+  assert.deepEqual(readState(run).node_summaries.check.artifacts, expected);
+  const phase = readDashboard(run).phases.find(entry => entry.id === 'check');
+  assert.equal(phase.icon_hint, 'verify');
+  assert.deepEqual(phase.artifacts, expected);
+});
+
+test('an executor node an overlay added in place of the base\'s carries the plan progress', t => {
+  const overlay = sampleOverlay(t, [
+    'disable: [implementation]',
+    'add:',
+    '  build:',
+    '    uses: skill:implementation-plan-executor',
+    '    needs: [approval]',
+    '    before: [research]',
+  ]);
+  const run = scratch(t, { fixture: 'plan' });
+  freeze(run, { overlays: [overlay] });
+  const phases = readDashboard(run).phases;
+  assert.equal(phases.find(phase => phase.id === 'build').progress?.groups_total, 3);
+  assert.ok(phases.every(phase => phase.id === 'build' || !Object.hasOwn(phase, 'progress')));
 });

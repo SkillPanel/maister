@@ -83,7 +83,7 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { locateWorkflow, resolve as resolveGraph } from './graph.mjs';
+import { foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf } from './display.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
@@ -659,12 +659,25 @@ export function htmlOutput(doc) {
  * name, then the run's own `workflow.name` for the state files that record a bare
  * literal `builtin` as their source.
  *
- * Any failure at any step yields null and never fails the write.
+ * The run's overlays and profile are folded in, read by the same `sourcesOf` the
+ * display is: a node an overlay added declares its outputs and what it uses only
+ * in the overlay, so a base-only read would register none of its artifacts and
+ * hang no progress on it. An overlay that cannot be read leaves the base as it
+ * is.
+ *
+ * Any failure at any step yields null, or the base alone, and never fails the
+ * write.
  */
 function definitionOf(doc, runDir) {
-  const file = definitionPathOf(doc, runDir);
-  if (file === null) return null;
-  return readDefinition(file).doc ?? null;
+  const sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
+  if (sources === null) return null;
+  const base = sources.definition.doc ?? null;
+  if (sources.overlays.some(overlay => overlay.doc === null || overlay.errors.length)) return base;
+  try {
+    return foldDefinition(sources);
+  } catch {
+    return base;
+  }
 }
 
 /**

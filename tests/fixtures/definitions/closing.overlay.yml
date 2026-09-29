@@ -1,0 +1,11 @@
+# Overlays the closing definition with a dangling leaf: a verifier nothing
+# downstream waits for, declaring an artifact of its own.
+extends: closing.yml
+
+add:
+  security-review:
+    uses: skill:implementation-verifier
+    needs: [audit]
+    outputs:
+      artifacts:
+        report: verification/security.md

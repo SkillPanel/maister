@@ -467,9 +467,10 @@ function readStdinJson(what) {
  * Reported unlike the other two state verbs, because what a caller needs from
  * it is not a list of files but one line to print: the marker is the **last**
  * line of stdout either way, and the refusal that explains it goes to stderr, so
- * a turn that ends on this verb ends on a line the C5 vocabulary matches. A
- * stopped run's notice is the one other stdout line, and it goes above the
- * marker, never below it.
+ * a turn that ends on this verb ends on a line the C5 vocabulary matches. The
+ * other stdout lines — one `missing-artifact:` line per declared artifact not
+ * on disk, then a stopped run's notice — go above the marker, never below it.
+ * A warning goes to stderr, opening with `warning:`, and moves no exit code.
  */
 async function runRunComplete(flags) {
   if (!flags.state) throw new UsageError('run-complete needs --state');
@@ -479,6 +480,8 @@ async function runRunComplete(flags) {
   if (!result.ok) {
     for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   }
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+  for (const line of result.missing || []) process.stdout.write(`${line}\n`);
   if (result.notice) process.stdout.write(`${result.notice}\n`);
   process.stdout.write(`${result.marker}\n`);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
