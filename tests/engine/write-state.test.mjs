@@ -3,9 +3,22 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DECLARED, ENGINE_DIR, SAMPLE, freeze, freezePatch, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, FIXTURES, SAMPLE, freeze, freezePatch, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
+const CLOSING_CHILD = path.join(FIXTURES, 'definitions/closing-child.yml');
+
+/**
+ * The adopted prose-written run under another workflow name: a state no freeze
+ * proves, which is how a name no definition carries — and one no freeze would
+ * accept — reaches the writer at all.
+ */
+function renamed(t, name) {
+  const run = scratch(t, { fixture: 'adopted' });
+  const text = fs.readFileSync(run.state, 'utf8');
+  fs.writeFileSync(run.state, text.replace('  name: development\n', `  name: ${JSON.stringify(name)}\n`));
+  return run;
+}
 
 /**
  * The state text without its write stamp: every landed write re-stamps
@@ -484,11 +497,92 @@ test('refusal: a patch key outside the closed vocabulary', t => {
   assert.match(result.stderr, /^state-patch-unknown-key\b/);
 });
 
-test('refusal: a workflow name no context block derives from', t => {
+test('context: a workflow of its own name writes into <name>_context, with the node status the patch carried', t => {
   const run = scratch(t);
   const { patch } = freezePatch({ definition: DECLARED, inputs: { subject: 'acme-api' } });
-  const result = refused(run, { ...patch, context: { risk_level: 'low' } });
+  write(run, { ...patch, context: { risk_level: 'low' } });
+  write(run, {
+    nodes: { scan: { status: 'running' } },
+    phase_summaries: { scanning: { node: 'scan', summary: 'Scanning the api.', decisions: ['scan the api only'], risks: [] } },
+  });
+  const state = readState(run);
+  assert.equal(state.workflow.name, 'survey');
+  assert.equal(state.survey_context.risk_level, 'low');
+  assert.deepEqual(Object.keys(state.survey_context.phase_summaries), ['scanning']);
+  assert.deepEqual(state.survey_context.phase_summaries.scanning.decisions, ['scan the api only']);
+  assert.equal(state.workflow.nodes.scan.status, 'running');
+});
+
+test('context: a dashed workflow name derives its block with the dashes as underscores', t => {
+  const run = scratch(t, { type: 'closing-child' });
+  freeze(run, { definition: CLOSING_CHILD, inputs: { subject: 'acme-api' } });
+  write(run, { context: { scope: 'api' } });
+  assert.deepEqual(readState(run).closing_child_context, { phase_summaries: {}, scope: 'api' });
+});
+
+test('context: every name a built-in run is recorded under keeps the block it always derived', t => {
+  const expected = {
+    development: 'task_context',
+    'product-design': 'design_context',
+    design: 'design_context',
+    research: 'research_context',
+    performance: 'performance_context',
+    migration: 'migration_context',
+    task: 'task_context',
+  };
+  for (const [name, block] of Object.entries(expected)) {
+    const run = renamed(t, name);
+    write(run, { context: { probe: name } });
+    const state = readState(run);
+    assert.equal(state[block]?.probe, name, `${name} derives ${block}`);
+    assert.deepEqual(Object.keys(state).filter(key => key.endsWith('_context')), ['project_context', block], name);
+  }
+});
+
+test('context: a workflow named like a prototype member derives an ordinary block', t => {
+  const run = renamed(t, 'constructor');
+  write(run, { context: { probe: 'x' } });
+  const text = fs.readFileSync(run.state, 'utf8');
+  assert.match(text, /^constructor_context:$/m);
+  assert.doesNotMatch(text, /function Object/);
+});
+
+test('context: a file with one derived block and no workflow name writes into that block', t => {
+  const run = renamed(t, 'survey');
+  write(run, { context: { first: 'x' } });
+  fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8').replace(/^ {2}name: .*\n/m, ''));
+  write(run, { context: { second: 'y' } });
+  const state = readState(run);
+  assert.equal(state.workflow.name, undefined);
+  assert.deepEqual(state.survey_context, { phase_summaries: {}, first: 'x', second: 'y' });
+});
+
+test('refusal: a workflow name whose block the state file reserves', t => {
+  for (const name of ['project', 'verification']) {
+    const run = renamed(t, name);
+    const result = refused(run, { context: { probe: 'x' } });
+    assert.match(result.stderr, /^state-context-block-unknown\b/);
+    assert.match(result.stderr, new RegExp(`derives ${name}_context\\b`));
+    assert.match(result.stderr, /rename the workflow/);
+  }
+});
+
+test('refusal: a workflow name outside the grammar\'s character set derives no block', t => {
+  for (const name of ['Acme Tool', '__proto__', 'toString']) {
+    const run = renamed(t, name);
+    const result = refused(run, { phase_summaries: { scanning: { summary: 'x' } } });
+    assert.match(result.stderr, /^state-context-block-unknown\b/);
+    assert.match(result.stderr, /character set/);
+  }
+});
+
+test('refusal: a workflow name whose block would be a second one', t => {
+  const run = renamed(t, 'development');
+  write(run, { context: { probe: 'x' } });
+  fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8').replace(/^ {2}name: .*$/m, '  name: survey'));
+  const result = refused(run, { context: { probe: 'y' } });
   assert.match(result.stderr, /^state-context-block-unknown\b/);
+  assert.match(result.stderr, /derives survey_context but the state file already carries task_context/);
 });
 
 test('refusal: a workflow block without a task block', t => {

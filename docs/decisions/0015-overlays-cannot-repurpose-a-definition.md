@@ -65,3 +65,13 @@ the run's close and the dashboard all ignored it. It is removed from the grammar
 now. The tuning surface is therefore two keys, `with` and `provider`, and an overlay that tunes
 `optional` is refused like any other untunable key. The argument above does not change: `needs`,
 `uses`, `ask`, `when` and `outputs` stay immutable.
+
+### Amendment 2026-09-30 — the context block is derived from any workflow name
+The name-to-block map now holds only the names a built-in run is recorded under. Every other
+name derives its block: `<name>_context`, the name's dashes written as underscores. A workflow
+of its own name used to be refused at its first context write, which kept `phase_summaries` and
+the prior-phase renderer to the built-ins. The refusal now covers only a name outside the
+grammar's character set, a name whose block the state file already reserves (`project`,
+`verification`), and a block that would be a second one. The argument above does not change:
+an overlay does not rename its base, so a run over an overlay of `development` still derives
+development's block.

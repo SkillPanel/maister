@@ -25,11 +25,13 @@
  * is a key A1 already freezes and the run already carries, and nothing here
  * depends on a shape that is not already in the contract.
  *
- * Generic on purpose. The per-workflow context block is *found*, not named by a
- * flag: the root carries exactly one of the five, so a workflow key would be a
- * second place to get the same fact wrong. Every workflow whose context block
- * carries `phase_summaries` — development, research, product-design, migration,
- * performance — is served by the same call with the same flag.
+ * Generic on purpose. The context block is *found*, by its suffix, not named by
+ * a flag: the root carries exactly one, so a workflow key would be a second
+ * place to get the same fact wrong. Every workflow is served by the same call
+ * with the same flag — a built-in's block and one derived from any other
+ * workflow's name alike. A run with no context block at all, a workflow whose
+ * nodes record only `node_summaries`, has those rendered instead: they are the
+ * run's prior record, and a refusal would hand its next delegate nothing.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -38,9 +40,11 @@ import fs from 'node:fs';
 // The one state reader (`state-read.mjs`): this module used to carry its own,
 // which is exactly the duplication that reader exists to end.
 import { parse, isPlainObject } from './state-read.mjs';
-
-/** The five per-workflow context blocks (A1 layer 2). Exactly one is present. */
-const CONTEXT_BLOCKS = ['task_context', 'research_context', 'design_context', 'performance_context', 'migration_context'];
+// The writer decides which keys are context blocks, so the reader asks it
+// rather than keeping a list of its own: a block the writer derives is a block
+// this module finds, and a reserved `project_context` is one neither mistakes
+// for the run's.
+import { isContextBlock } from './state.mjs';
 
 /**
  * The two fields the R3 contract is written against. They lead every phase
@@ -77,19 +81,28 @@ export function priorContext({ state }) {
     return refuse('state-unreadable', `${state} cannot be read as a state document: ${err.message}`);
   }
 
-  const key = CONTEXT_BLOCKS.find(name => isPlainObject(doc[name]));
-  if (!key) {
-    return refuse('prior-context-absent',
-      `${state} carries none of the per-workflow context blocks (${CONTEXT_BLOCKS.join(', ')}), so there is no prior-phase context to render`);
+  const key = Object.keys(doc).find(name => isContextBlock(name) && isPlainObject(doc[name]));
+  if (key) {
+    const summaries = doc[key].phase_summaries;
+    if (summaries !== undefined && summaries !== null && !isPlainObject(summaries)) {
+      return refuse('prior-context-absent',
+        `${key}.phase_summaries is not a map, so its entries cannot be rendered`);
+    }
+    return { ok: true, text: render(`${key}.phase_summaries`, 'phase', isPlainObject(summaries) ? summaries : {}), errors: [] };
   }
 
-  const summaries = doc[key].phase_summaries;
-  if (summaries !== undefined && summaries !== null && !isPlainObject(summaries)) {
+  // No context block. A run — one the engine froze, or one whose nodes have
+  // recorded summaries — is rendered from `node_summaries`; a file that is
+  // neither is not a run this verb can say anything about.
+  const nodes = doc.node_summaries;
+  if (!isPlainObject(doc.workflow) && (nodes === undefined || nodes === null)) {
     return refuse('prior-context-absent',
-      `${key}.phase_summaries is not a map, so its entries cannot be rendered`);
+      `${state} carries no context block, no node_summaries and no workflow block, so there is no prior context to render`);
   }
-
-  return { ok: true, text: render(key, isPlainObject(summaries) ? summaries : {}), errors: [] };
+  if (nodes !== undefined && nodes !== null && !isPlainObject(nodes)) {
+    return refuse('prior-context-absent', 'node_summaries is not a map, so its entries cannot be rendered');
+  }
+  return { ok: true, text: render('node_summaries', 'node', isPlainObject(nodes) ? nodes : {}), errors: [] };
 }
 
 function refuse(code, message) {
@@ -104,9 +117,11 @@ function refuse(code, message) {
  * The paste-ready block.
  *
  * Markdown, because that is what a delegate prompt already is, and because a
- * bullet is the one form that cannot quietly hold two items.
+ * bullet is the one form that cannot quietly hold two items. `source` is the
+ * map's path in state and `unit` what one of its entries records — a phase for
+ * a context block's `phase_summaries`, a node for `node_summaries`.
  */
-function render(contextKey, summaries) {
+function render(source, unit, summaries) {
   // A phase recorded as a bare sequence is a list of decisions and nothing
   // else — a shape one frozen run fixture carries. It is adopted rather than
   // skipped: an entry this module declines to read is an entry whose items
@@ -125,15 +140,15 @@ function render(contextKey, summaries) {
 
   out.push('## Prior-phase context — decisions and risks carried forward');
   out.push('');
-  out.push(`Pasted from \`${contextKey}.phase_summaries\` in this run's \`orchestrator-state.yml\`: `
-    + `${entries.length} ${entries.length === 1 ? 'phase' : 'phases'}, ${decisions} `
+  out.push(`Pasted from \`${source}\` in this run's \`orchestrator-state.yml\`: `
+    + `${entries.length} ${entries.length === 1 ? unit : `${unit}s`}, ${decisions} `
     + `${decisions === 1 ? 'decision' : 'decisions'}, ${risks} ${risks === 1 ? 'risk' : 'risks'}. `
     + 'These are binding. Every item below is one item in state — do not drop one, '
     + 'do not merge two, and do not re-word them.');
   out.push('');
 
   if (!entries.length) {
-    out.push('No phase has recorded a summary yet: this is the run\'s first artifact-writing node, '
+    out.push(`No ${unit} has recorded a summary yet: this is the run's first artifact-writing node, `
       + 'and there is no prior decision or risk to carry forward.');
     out.push('');
     return `${out.join('\n')}\n`;

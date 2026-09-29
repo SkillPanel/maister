@@ -145,7 +145,8 @@ declares `required` with no default has no value under `orchestrator.options.inp
 
 **The freeze patch must carry `workflow.name`** — the definition's own `name`, as `resolve`
 printed it; for a built-in, that is the bare name after the prefix strip. The
-writer derives the run's per-workflow context block from it, so a later write to `context` or
+writer derives the run's context block, `<name>_context`, from it (§ Writing state has the
+rule), so a later write to `context` or
 `phase_summaries` with no name recorded is refused with `state-context-block-unknown` rather
 than landing in some default block. The name is already part of the frozen key order, so
 this costs nothing at freeze time and cannot be recovered later without re-installing the
@@ -532,8 +533,10 @@ to, and a sliced passage is a trimmed one. It renders
 every `phase_summaries` entry the run has accumulated: the phase key, the node that owns it,
 its summary line, then its decisions and its risks as one bullet each with the count beside
 the heading, so a truncation is visible as a number that disagrees with its own bullets. It
-finds the run's context block itself — every workflow whose context block carries
-`phase_summaries` is served by the same call. Re-using a rendering produced for an earlier
+finds the run's context block itself, by its `_context` suffix, so every workflow is served by
+the same call. A run with no context block — one whose nodes record only `node_summaries` —
+gets those rendered instead, one section per node, and a freshly frozen run gets the sentence
+saying nothing has been recorded yet. Re-using a rendering produced for an earlier
 delegate is not licensed however recent it looks: a summary written in between makes it stale,
 the prompt records nothing about when it was taken, and a prompt that happens to be current is
 current by timing rather than by construction. The verb reads the run and writes nothing, so
@@ -1055,9 +1058,14 @@ able to write:
   edited in place afterwards. Never send a node's `started` or `completed`, or
   `orchestrator.updated`: the writer stamps all three from its own clock on each status change
   and drops, with a `note:` line on stderr, any value a patch carries for them.
-- `context` and `phase_summaries` — written into whichever per-workflow context block the
-  run's name resolves to (`task_context` for development, `research_context` for research,
-  `performance_context` for performance, `migration_context` for migration); `node_summaries` is its own top-level block, keyed by node id.
+- `context` and `phase_summaries` — written into the run's context block, whose name the
+  writer derives from `workflow.name`: `<name>_context`, the name's dashes written as
+  underscores, so `acme-review` writes `acme_review_context`. Two built-ins keep the blocks they
+  had before the name was the rule: `development` writes `task_context` and `product-design`
+  writes `design_context`. A workflow named `project` or `verification` would derive one of
+  the shared blocks below, so its context writes are refused with
+  `state-context-block-unknown` and the workflow has to be renamed. `node_summaries` is its
+  own top-level block, keyed by node id.
   A phase summary is always sent as the **top-level** `phase_summaries` patch key, never nested
   under `context`, although the file keeps the map inside the context block: the top-level key
   merges entry by entry, while every `context` key is free-form and replaces whole, so a nested
