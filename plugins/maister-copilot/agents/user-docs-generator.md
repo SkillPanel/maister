@@ -443,29 +443,4 @@ Documentation is complete when:
 
 ---
 
-## Example Invocation
-
-```
-You are the user-docs-generator agent. Your task is to create end-user
-documentation with screenshots for a newly implemented feature.
-
-Task Path: .maister/tasks/development/2025-10-23-task-management
-Spec: .maister/tasks/development/2025-10-23-task-management/implementation/spec.md
-Base URL: http://localhost:3000
-Feature: Task Management
-
-Please:
-1. Read spec.md to understand the feature and target users
-2. Identify user-facing workflows (create, view, edit, delete tasks)
-3. Capture screenshots for each step using Playwright
-4. Write clear, non-technical instructions
-5. Create comprehensive user guide in markdown format
-6. Save to documentation/user-guide.md
-
-Focus on non-technical users. Write in simple, friendly language with
-screenshots for every significant step.
-```
-
----
-
 This agent transforms technical features into accessible user documentation, enabling successful feature adoption by non-technical users.

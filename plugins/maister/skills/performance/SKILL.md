@@ -61,6 +61,7 @@ Cross-cutting rules from `orchestrator-patterns.md` (same as the development orc
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark `in_progress` before delegating), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks — the operator reviews them on the dashboard while answering; status stays `in_progress` until the gate passes), after every phase completion (including skipped phases, with reason), every gate decision, every verification cycle, and at finalization. Every rewrite starts with `date -u` (one call per turn). It is a terse projection of state — never duplicate artifact content into it.
 3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to specification-creator, implementation-planner, and implementation-verifier. Register returned `html_path` values in `phase_summaries.[phase].artifacts[].html` so the dashboard hero cards link HTML first.
 4. **icon_hint values** per phase: 1 `analysis`, 2 `analysis`, 3 `spec`, 4 `verify`, 5 `plan`, 6 `code`, 7 `verify`, 8 `verify`, 9 `done`.
+5. **State writes (§ 4 Write Rule)**: update `orchestrator-state.yml` key by key in place, validate it with a re-read after every write, and stop with `AskUserQuestion` on a malformed file — never continue on a state file the operator tooling cannot read.
 
 ---
 
@@ -137,17 +138,13 @@ Pass `task_type="enhancement"` and the performance-focused description. The code
    - Options: "Yes, let me add files to analysis/user-profiling-data/" | "No, proceed with static analysis only"
 3. If user chooses to add files, wait for them, then proceed
 
-**ANTI-PATTERN — DO NOT DO THIS:**
-- ❌ "Let me analyze the bottlenecks myself..." — STOP. Delegate to bottleneck-analyzer.
-- ❌ "I'll grep for N+1 patterns..." — STOP. Delegate to bottleneck-analyzer.
+Delegate bottleneck analysis to the `maister:bottleneck-analyzer` subagent (Task tool) rather than analyzing code yourself — it writes the report the later phases consume.
 
 **INVOKE NOW** — Task tool call:
 
 4. Task tool - `maister:bottleneck-analyzer` subagent
 
 **Context to pass**: task_path, description, codebase analysis summary from Phase 1, user data paths (if any)
-
-**SELF-CHECK**: Did you just invoke the Task tool with `maister:bottleneck-analyzer`? Or did you start analyzing code yourself? If the latter, STOP and invoke the Task tool.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -176,17 +173,13 @@ AskUserQuestion - "Performance analysis complete. [N] bottlenecks identified ([P
 
 📋 **Standards Discovery**: Read `.maister/docs/INDEX.md` before creating spec.
 
-**ANTI-PATTERN — DO NOT DO THIS:**
-- ❌ "Let me create the specification..." — STOP. Delegate to specification-creator.
-- ❌ "I'll write the spec based on the analysis..." — STOP. Delegate to specification-creator.
+Delegate spec writing to the `maister:specification-creator` subagent (Task tool) regardless of task size — the orchestrator never writes spec.md itself.
 
 **INVOKE NOW** — Task tool call:
 
 4. Task tool - `maister:specification-creator` subagent
 
 **Context to pass**: task_path, task_type="performance", task_description, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md + project_doc_paths from state — all discovered project docs), phase_summaries (codebase_analysis, bottleneck_analysis), html_style_guide_path (for the spec.html companion)
-
-**SELF-CHECK**: Did you just invoke the Task tool with `maister:specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP and invoke the Task tool.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -222,9 +215,7 @@ AskUserQuestion - Display executive summary before asking. Read `verification/sp
 
 📋 **Standards Discovery**: Read `.maister/docs/INDEX.md` before planning.
 
-**ANTI-PATTERN — DO NOT DO THIS:**
-- ❌ "Let me create the implementation plan..." — STOP. Delegate to implementation-planner.
-- ❌ "I'll break this into optimization steps..." — STOP. Delegate to implementation-planner.
+Delegate planning to the `maister:implementation-planner` subagent (Task tool) regardless of task size — the orchestrator never writes implementation-plan.md itself.
 
 **INVOKE NOW** — Task tool call:
 
@@ -233,8 +224,6 @@ AskUserQuestion - Display executive summary before asking. Read `verification/sp
 **State**: Update task groups and dependencies
 
 **Context to pass**: task_path, task_type="performance", task_description, phase_summaries (specification, bottleneck_analysis, codebase_analysis), html_style_guide_path (for the implementation-plan.html companion)
-
-**SELF-CHECK**: Did you just invoke the Task tool with `maister:implementation-planner`? Or did you start writing the plan yourself? If the latter, STOP and invoke the Task tool.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `AskUserQuestion` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -250,17 +239,13 @@ AskUserQuestion - Display executive summary before asking. Read `implementation/
 
 📋 **Standards Discovery**: Implementation reads `.maister/docs/INDEX.md` continuously.
 
-**ANTI-PATTERN — DO NOT DO THIS:**
-- ❌ "Let me implement this directly..." — STOP. Delegate to implementation-plan-executor.
-- ❌ "This is simple enough to code inline..." — STOP. Simplicity is NOT a reason to skip delegation.
+Delegate implementation to the `maister:implementation-plan-executor` skill regardless of task size — it owns wave dispatch, progress tracking, and the work-log; the orchestrator never writes code itself.
 
 **INVOKE NOW** — Skill tool call:
 
 **Execute**: Skill tool - `maister:implementation-plan-executor`
 **Output**: Implemented optimizations, `implementation/work-log.md`
 **State**: Update implementation progress, extract phase_summaries.implementation
-
-**SELF-CHECK**: Did you just invoke the Skill tool with `maister:implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
 
 **⚠️ POST-IMPLEMENTATION CONTINUATION** — After the skill completes and returns control:
 1. **HTML plan reconciliation** (backstop for syncs missed during waves): if `implementation/implementation-plan.html` exists, for every group whose md checkboxes are all `[x]`, run the executor's idempotent marker-flip command (`sed` flipping `data-step="N\.[0-9]*" class="step todo"` and `data-group="N" class="group todo"` to `done`). VERIFY: when all md steps are checked, `grep -c 'class="step todo"' implementation/implementation-plan.html` must return 0.

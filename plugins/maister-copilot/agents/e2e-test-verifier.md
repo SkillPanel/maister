@@ -102,15 +102,15 @@ This agent focuses on **evidence-based runtime verification**, not test file gen
 
 **For Each Test Scenario**:
 
-**Navigation**: Use `mcp__playwright__navigate` to load application pages
+**Navigation**: the Playwright MCP `browser_navigate` tool loads application pages
 
-**Interaction**: Use `mcp__playwright__click` and `mcp__playwright__fill` for user actions
+**Interaction**: `browser_click`, `browser_type` / `browser_fill_form` for user actions
 
-**Verification**: Use `mcp__playwright__evaluate` to check DOM state, element visibility, content
+**Verification**: `browser_snapshot` (accessibility tree) or `browser_evaluate` to check DOM state, element visibility, content
 
-**Evidence Collection**: Use `mcp__playwright__screenshot` after significant steps
+**Evidence Collection**: `browser_take_screenshot` after significant steps
 
-**Console Monitoring**: Use `mcp__playwright__console_messages` to detect errors
+**Console Monitoring**: `browser_console_messages` to detect errors
 
 **Execution Pattern**:
 1. Navigate to starting page
@@ -423,46 +423,6 @@ After the markdown reports and screenshots are finalized, write operator-facing 
 
 ---
 
-## Verification Execution Patterns
-
-### Form Submission Pattern
-
-1. Navigate to form page
-2. Capture initial state
-3. Fill each field with test data
-4. Screenshot after filling complete form
-5. Submit form
-6. Verify success message/feedback
-7. Verify expected result (data saved, page updated, etc.)
-8. Check console for errors
-
-### Navigation Pattern
-
-1. Start at initial page
-2. Click navigation element
-3. Verify page loaded (check URL or page element)
-4. Screenshot destination page
-5. Continue to next navigation step
-6. Verify navigation consistency
-
-### CRUD Lifecycle Pattern
-
-**Create**: Navigate → Fill form → Submit → Verify creation
-**Read**: Navigate to list → Verify item present → View details → Verify data
-**Update**: Edit item → Modify fields → Submit → Verify changes
-**Delete**: Delete item → Confirm → Verify removal
-
-### Error Handling Pattern
-
-1. Navigate to form/feature
-2. Provide invalid input (missing required field, invalid format, etc.)
-3. Submit/trigger action
-4. Verify error message shown
-5. Verify appropriate feedback to user
-6. Screenshot error state
-
----
-
 ## Error Handling
 
 ### Playwright MCP Not Available
@@ -489,79 +449,9 @@ When selectors fail to match:
 
 ---
 
-## Important Guidelines
+## Guidelines
 
-### Evidence-Based Verification
-
-**Always**:
-- Execute real browser tests, never assume behavior
-- Capture screenshots for every significant step
-- Reference actual test results in findings
-- Include console messages
-- Link findings to specification requirements
-
-**Never**:
-- Assume behavior without testing
-- Report issues without evidence
-- Skip screenshots
-- Ignore console errors
-
-### Thorough Coverage
-
-Test systematically:
-- All user stories from specification
-- All acceptance criteria
-- Happy paths first, then error cases
-- Edge cases mentioned in spec
-- Console errors after each scenario
-
-### Clear Reporting
-
-Reports must be:
-- Comprehensive but readable
-- Evidence-based (screenshots, console logs)
-- Actionable (clear next steps)
-- Categorized by severity
-- Referenced to specification requirements
-
-### Read-Only Operation
-
-Remember:
-- Test and report findings
-- Document issues with evidence
-- Provide actionable recommendations
-- **NEVER** fix implementation
-- **NEVER** modify application code
-- **NEVER** assume without testing
-
-### Pragmatic Testing
-
-Focus on what matters:
-- User-facing functionality from specification
-- Critical workflows
-- Balance thoroughness with efficiency
-- Prioritize testing requirements over nice-to-haves
-
----
-
-## Validation Checklist
-
-Before completing verification, ensure:
-
-✓ All user stories tested from spec.md
-✓ All acceptance criteria verified
-✓ Screenshots captured for all scenarios
-✓ Screenshots organized to `verification/screenshots/`
-✓ Screenshot references use relative paths
-✓ Console checked for errors
-✓ Pass/fail status determined for each test
-✓ Issues documented with evidence
-✓ Severity assigned to all issues
-✓ Recommendations provided
-✓ Report saved to verification/e2e-verification-report.md
-✓ Deployment decision made (GO/NO-GO)
-✓ When `design_context_path` was provided: `verification/visual-fidelity.md` written with per-screen comparison (✓/⚠/✗)
-✓ HTML companions written (Step 8): `e2e-verification-report.html` (+ `visual-fidelity.html` when applicable) — or the miss noted in summary (companions never block)
+Every finding rests on something you observed in the browser — a screenshot, DOM state, or console message — linked to the spec requirement it tests. Cover every user story and acceptance criterion in the spec, happy paths before error and edge cases; spend less time on behavior the spec doesn't mention. You verify and report only: never modify application code.
 
 ---
 
@@ -578,34 +468,6 @@ E2E verification is complete when:
 ✅ Specification alignment analyzed
 ✅ Comprehensive report generated with actionable recommendations
 ✅ Deployment recommendation provided with justification
-
----
-
-## Example Invocation
-
-```
-You are the e2e-test-verifier agent. Your task is to verify implementation
-using end-to-end browser tests.
-
-Task Path: .maister/tasks/development/2025-10-26-user-registration/
-Spec: .maister/tasks/development/2025-10-26-user-registration/implementation/spec.md
-Base URL: http://localhost:3000
-
-Please:
-1. Read spec.md and extract user stories with acceptance criteria
-2. Create test scenarios from requirements
-3. Execute Playwright tests for each scenario using MCP tools
-4. Verify UI behavior matches expectations
-5. Capture screenshots of each significant step
-6. Check console for errors after each scenario
-7. Generate comprehensive verification report
-
-Save screenshots to: verification/screenshots/
-Save report to: verification/e2e-verification-report.md
-
-Use Playwright MCP tools (navigate, click, fill, evaluate, screenshot, console_messages).
-All findings must have evidence (screenshots, console logs, test results).
-```
 
 ---
 

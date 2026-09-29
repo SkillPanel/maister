@@ -75,7 +75,7 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 
 ### Phase 2-5: Parallel Discovery
 
-> **CRITICAL: Launch all applicable subagents in ONE message for parallel execution.**
+Launch all applicable subagents in one message so they run in parallel.
 
 **Step 1: Determine which phases to run** based on scope and flags.
 
@@ -83,9 +83,7 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 
 **Step 2: Read prompt templates**
 
-> **STOP — Do NOT skip this step. Do NOT write prompts from memory.**
-
-Use the Read tool to load ONLY the reference files for phases you will execute:
+Read the template for each phase you will run — they define the YAML output schema the aggregation step depends on:
 
 | Phase | Condition | Read This File |
 |-------|-----------|----------------|
@@ -94,14 +92,9 @@ Use the Read tool to load ONLY the reference files for phases you will execute:
 | 4: Documentation | scope != `quick` | `references/docs-extractor-prompt.md` |
 | 5: External Sources | `--skip-external` not set | `references/external-analyzer-prompt.md` |
 
-**SELF-CHECK**: Did you read the template files with the Read tool? If not, go back and read them now.
-
 **Step 3: Adapt templates** — Replace `[scope]`, `[confidence]`, and other placeholders with actual values. Replace the `[output_file]` placeholder in each template with the actual temp file path for that phase (e.g., `{tmpdir}/config.yml`).
 
 **Step 4: Launch subagents in parallel** — Use the Task tool with `subagent_type: general-purpose` for each phase.
-
-> ❌ **WRONG** — launching one agent per message, waiting for result, then launching the next.
-> ✅ **CORRECT** — launching ALL applicable agents (2–4 Task calls) in a SINGLE message.
 
 **Step 5: Wait** for ALL subagents to complete, then read each temp file using the Read tool to collect findings.
 
@@ -164,17 +157,10 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 
 ### Phase 8: Application
 
-> **DELEGATION REQUIRED**: Do NOT write standard files directly using Write/Edit tools. ALL file operations MUST go through the `docs-operator` subagent (Task tool).
->
-> **SELF-CHECK before each file operation**: "Am I about to write a file directly? STOP — invoke docs-operator via Task tool instead."
+Write standard files through the docs-operator subagent rather than Write/Edit, so INDEX.md and CLAUDE.md stay consistent with the files.
 
-For each approved standard:
-
-1. **Prepare content** — Standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each standard as a `###` heading with 1-10 lines description (excluding code snippets). Group related standards into the same topic file. Add brief code examples only when they clarify the practice.
-2. **Check if file exists** — Determine create vs update action
-3. **Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`) — Pass prepared content. For creates: new file. For updates: merge new findings with existing. Wait for completion, then continue with the next standard.
-4. **After all standards applied, invoke `docs-operator` subagent** via Task tool to regenerate INDEX.md. Wait for completion, then continue with step 5.
-5. **Invoke `docs-operator` subagent** via Task tool to verify CLAUDE.md integration — ensure standards directory is referenced. Wait for completion, then display the application summary.
+1. **Prepare content** for every approved standard — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. Note create vs update for each target file.
+2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister:docs-operator`) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then regenerate INDEX.md and confirm CLAUDE.md references the standards directory.
 
 Display application summary: created count, updated count, total active.
 

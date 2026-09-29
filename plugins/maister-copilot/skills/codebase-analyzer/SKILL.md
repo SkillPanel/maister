@@ -76,9 +76,7 @@ State which roles you selected and why (1 sentence).
 
 ### Step 3: Read Prompt Templates and Launch Agents
 
-> **STOP — Do NOT skip this step. Do NOT write prompts from memory.**
->
-> Before launching ANY Explore agent, you MUST use the Read tool to load the prompt template for each selected role. This is non-negotiable.
+Read the template file for each selected role before launching — the templates hold the task-type-specific focus lists and the no-write constraint, which prompts written from memory drop.
 
 **3a. Read templates** — Use the Read tool to load ONLY the files for your selected roles:
 
@@ -98,8 +96,6 @@ If combining roles into one agent, also read `references/combined.md` for mergin
 
 **IMPORTANT**: Every Explore agent prompt MUST include this instruction:
 > IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
-
-**SELF-CHECK**: Did you read the template files with the Read tool? If not, go back to 3a. Do not proceed.
 
 ### Step 4: Delegate Report Generation
 

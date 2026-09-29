@@ -1,7 +1,7 @@
 name: Build Copilot CLI Variant
 on:
   push:
-    branches: [master, v2]
+    branches: [master, v2, 'release/2.x']
     paths: ['plugins/maister/**', 'platforms/**']
 
 jobs:

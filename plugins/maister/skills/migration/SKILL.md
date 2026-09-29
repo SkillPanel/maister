@@ -61,6 +61,7 @@ Cross-cutting rules from `orchestrator-patterns.md` (same as the development orc
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark `in_progress` before delegating), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks — the operator reviews them on the dashboard while answering; status stays `in_progress` until the gate passes), after every phase completion (including skipped phases, with reason), every gate decision, every verification cycle, and at finalization. Every rewrite starts with `date -u` (one call per turn). It is a terse projection of state — never duplicate artifact content into it.
 3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to specification-creator, implementation-planner, and implementation-verifier. Register returned `html_path` values in `phase_summaries.[phase].artifacts[].html` so the dashboard hero cards link HTML first.
 4. **icon_hint values** per phase: 1 `analysis`, 2 `analysis`, 3 `spec`, 4 `plan`, 5 `code`, 6 `verify`, 7 `verify`, 8 `docs`.
+5. **State writes (§ 4 Write Rule)**: update `orchestrator-state.yml` key by key in place, validate it with a re-read after every write, and stop with `AskUserQuestion` on a malformed file — never continue on a state file the operator tooling cannot read.
 
 ---
 
@@ -203,9 +204,7 @@ AskUserQuestion - Display executive summary before asking. Read `implementation/
 
 **Purpose**: Execute migration steps with incremental verification
 
-**ANTI-PATTERN — DO NOT DO THIS:**
-- ❌ "Let me implement this directly..." — STOP. Delegate to implementation-plan-executor.
-- ❌ "This migration is simple enough to code inline..." — STOP. Simplicity is NOT a reason to skip delegation.
+Delegate implementation to the `maister:implementation-plan-executor` skill regardless of task size — it owns wave dispatch, progress tracking, and the work-log; the orchestrator never writes migration code itself.
 
 **INVOKE NOW** — Skill tool call:
 
@@ -214,8 +213,6 @@ AskUserQuestion - Display executive summary before asking. Read `implementation/
 **State**: Update implementation progress, extract `migration_context.phase_summaries.implementation`
 
 📋 **Standards Reminder**: Review `.maister/docs/INDEX.md` before implementing.
-
-**SELF-CHECK**: Did you just invoke the Skill tool with `maister:implementation-plan-executor`? Or did you start writing migration code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
 
 **⚠️ POST-IMPLEMENTATION CONTINUATION** — After the skill completes and returns control:
 1. **HTML plan reconciliation** (backstop for syncs missed during waves): if `implementation/implementation-plan.html` exists, for every group whose md checkboxes are all `[x]`, run the executor's idempotent marker-flip command (`sed` flipping `data-step="N\.[0-9]*" class="step todo"` and `data-group="N" class="group todo"` to `done`). VERIFY: when all md steps are checked, `grep -c 'class="step todo"' implementation/implementation-plan.html` must return 0.

@@ -125,7 +125,7 @@ Options:
 **For Failed Tasks:**
 ```
 Options:
-1. Resume with fresh attempts (--reset-attempts --clear-failures)
+1. Resume with fresh attempts (--reset-attempts)
 2. Retry failed phase
 3. Restart from specific phase
 4. Cancel
@@ -136,13 +136,13 @@ Options:
 ```
 Use Skill tool:
   skill: "maister:[orchestrator-name]"
-  args: "--resume [task_path] [flags]"
+  args: "[task_path] [flags]"
 ```
 
 Examples:
-- Resume development: `skill: "maister:development"` with `args: "--resume .maister/tasks/development/2025-10-23-fix"`
-- Restart from phase: `skill: "maister:development"` with `args: "--resume .maister/tasks/development/2025-10-26-auth --from=verify"`
-- Fresh attempts: `skill: "maister:migration"` with `args: "--resume .maister/tasks/migrations/2025-10-20-redux --reset-attempts"`
+- Resume development: `skill: "maister:development"` with `args: ".maister/tasks/development/2025-10-23-fix"`
+- Restart from phase: `skill: "maister:development"` with `args: ".maister/tasks/development/2025-10-26-auth --from=verify"`
+- Fresh attempts: `skill: "maister:migration"` with `args: ".maister/tasks/migrations/2025-10-20-redux --reset-attempts"`
 
 ### Step 3: Classify & Route New Task
 
@@ -228,11 +228,11 @@ Display:
 
 | Workflow Type | Skill | Args |
 |---------------|-------|------|
-| development | `maister:development` | `--resume [path] [--from=PHASE] [--reset-attempts]` |
-| performance | `maister:performance` | `--resume [path] [--from=PHASE]` |
-| migration | `maister:migration` | `--resume [path] [--from=PHASE]` |
-| research | `maister:research` | `--resume [path] [--from=PHASE]` |
-| product-design | `maister:product-design` | `--resume [path] [--from=PHASE]` |
+| development | `maister:development` | `[path] [--from=PHASE] [--reset-attempts]` |
+| performance | `maister:performance` | `[path] [--from=PHASE]` |
+| migration | `maister:migration` | `[path] [--from=PHASE]` |
+| research | `maister:research` | `[path] [--from=PHASE]` |
+| product-design | `maister:product-design` | `[path] [--from=PHASE]` |
 
 ---
 

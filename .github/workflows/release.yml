@@ -8,10 +8,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Build and validate
         run: make build && make validate
 
+      # Tags from a maintenance line can be pushed after a newer major exists.
+      # Only the highest stable version becomes the latest release, and release
+      # notes compare against the stable tag just below this one.
+      - name: Resolve latest and previous release
+        id: versions
+        run: |
+          stable=$(git tag -l 'v*' --sort=v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+          highest=$(printf '%s\n' "$stable" | tail -n 1)
+          previous=$(printf '%s\n' "$stable" | awk -v t="$GITHUB_REF_NAME" '$0 == t { print p; exit } { p = $0 }')
+          if [ "$GITHUB_REF_NAME" = "$highest" ]; then latest=true; else latest=false; fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          make_latest: ${{ steps.versions.outputs.latest }}
+          previous_tag: ${{ steps.versions.outputs.previous }}

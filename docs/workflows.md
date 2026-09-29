@@ -149,7 +149,7 @@ Multi-source research with synthesis, optional solution brainstorming, and high-
 |---|-------|
 | 1 | Research foundation: initialize → plan methodology → gather information (parallel) → synthesize findings |
 | 2 | Brainstorming decision (evaluate value) |
-| 3 | Solution brainstorming (HMW questions + user preferences) |
+| 3 | Solution brainstorming (HMW questions, evidence-driven) |
 | 4 | High-level design (C4 diagrams + ADR documentation) |
 | 5 | Review outputs |
 | 6 | Verification (optional) |

@@ -84,13 +84,14 @@ Starting Phase 1: Codebase Analysis...
 
 ## Operator Visibility (applies to every phase)
 
-> **Config gate**: these rules assume `options.html_output` is true (read from `.maister/config.yml` at init, default true). When **false**: skip rule 2 entirely (no dashboard — no `dashboard.html`/`dashboard-data.js`, no browser open, no rewrites) and rule 3's companions (do NOT pass `html_style_guide_path`; subagents write md only). Rule 1 (§ 7 TL;DR blocks) and `phase_summaries` in state stay active either way.
+> **Config gate**: these rules assume `options.html_output` is true (read from `.maister/config.yml` at init, default true). When **false**: skip rule 2 entirely (no dashboard — no `dashboard.html`/`dashboard-data.js`, no browser open, no rewrites) and rule 3's companions (do NOT pass `html_style_guide_path`; subagents write md only). Rule 1 (§ 7 TL;DR blocks), rule 4, and `phase_summaries` in state stay active either way.
 
 Cross-cutting rules from `orchestrator-patterns.md` apply throughout this workflow:
 
 1. **Artifact Summary Contract (§ 7)**: every artifact-writing subagent prompt MUST include the contract instruction (artifacts open with TL;DR / Key Decisions / Open Questions / Risks (the writer heading is `## Open Questions / Risks`)). At context extraction, lift `decisions`, `risks`, and `artifacts` into `phase_summaries.[phase]` (shared entry shape, § 4).
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark it `in_progress` before delegating), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks so the operator reviews them on the dashboard while answering — status stays `in_progress` until the gate passes), after every phase completion (including skips, with reason), every gate decision, every verification cycle, and at finalization. It is a terse projection of state — never duplicate artifact content into it.
 3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to specification-creator, implementation-planner, and e2e-test-verifier. Register returned `html_path` values in `phase_summaries.[phase].artifacts[].html`.
+4. **State writes (§ 4 Write Rule)**: update `orchestrator-state.yml` key by key in place, validate it with a re-read after every write, and stop with `ask_user` on a malformed file — never continue on a state file the operator tooling cannot read.
 
 ---
 
@@ -161,10 +162,11 @@ Use for **all development tasks**: bug fixes, enhancements, new features, and an
 **SELF-CHECK** before continuing: "Did the gap-analyzer return `decisions_needed` items? If yes, did I invoke `ask_user`? If I skipped this, STOP and go back."
 
 3. Save scope clarifications to `analysis/scope-clarifications.md`
-4. **Set optional phase defaults** based on detected characteristics:
-   - If `task_characteristics.ui_heavy: true` → set `options.e2e_enabled: true`, `options.user_docs_enabled: true`
-   - If `task_characteristics.creates_new_entities: true` → set `options.user_docs_enabled: true`
-   - Command flags (`--e2e`, `--no-e2e`, `--user-docs`, `--no-user-docs`) override these defaults
+4. **Derive optional phase defaults** from the characteristics now in state, and write both values explicitly (`true` or `false`, never left `null`):
+   - `options.e2e_enabled` = `ui_heavy`
+   - `options.user_docs_enabled` = `ui_heavy` OR `creates_new_entities`
+   - Command flags (`--e2e`, `--no-e2e`, `--user-docs`, `--no-user-docs`) override the derived value
+   - **SELF-CHECK**: "Did I write `e2e_enabled` and `user_docs_enabled` to state? Let me re-read `orchestrator-state.yml` to verify they match the derivation above." Phases 12 and 13 run only when these are true — a missed write drops them silently.
 
 **Output**: `analysis/gap-analysis.md`, `analysis/scope-clarifications.md` (conditional)
 **State**: Update `task_context.task_characteristics`, `task_context.scope_expanded`, `options.e2e_enabled`, `options.user_docs_enabled`, `phase_summaries.gap_analysis`
@@ -183,7 +185,7 @@ Empty `decisions_needed` skips step 1 only. Step 2 is unconditional. There is no
 - ❌ "The UI change is small/simple, skipping Phase 4..." — STOP. If `ui_heavy` is true, Phase 4 runs. The gap-analyzer made this assessment, not you.
 - ❌ "No new screens needed, just a component..." — STOP. `ui_heavy` is a signal from the gap-analyzer. Do NOT override it with your own complexity judgment.
 
-ask_user - Display executive summary before asking. Read `analysis/gap-analysis.md` and extract: task type detected, risk level, key characteristics enabled (TDD gates, UI mockups, E2E, user docs), scope decisions made (if any). Then read `task_context.task_characteristics` from `orchestrator-state.yml` and determine the next phase:
+ask_user - Display executive summary before asking. Read `analysis/gap-analysis.md` and extract: task type detected, risk level, key characteristics enabled (TDD gates, UI mockups), the `e2e_enabled` and `user_docs_enabled` values now in state, scope decisions made (if any). Then read `task_context.task_characteristics` from `orchestrator-state.yml` and determine the next phase:
 - If `has_reproducible_defect` is true → ask "Continue to Phase 3: TDD Red Gate?"
 - If `ui_heavy` is true → ask "Continue to Phase 4: UI Mockup Generation?"
 - Otherwise → ask "Continue to Phase 5: Technical Approach, Requirements & Specification?"
@@ -275,18 +277,13 @@ ask_user - "UI mockups complete — review the live gallery at [companion URL] (
 
 **Part C — Specification Creation (subagent)**:
 
-**ANTI-PATTERN — DO NOT DO THIS:**
-- ❌ "Let me create the specification..." — STOP. Delegate to specification-creator.
-- ❌ "I'll write the spec based on requirements..." — STOP. Delegate to specification-creator.
-- ❌ "The task is simple enough to spec inline..." — STOP. Simplicity is NOT a reason to skip delegation.
+Delegate spec writing to the `maister-specification-creator` subagent (Task tool) regardless of task size — the orchestrator coordinates and never writes spec.md itself, so the spec gets the subagent's reusability search and a clean context.
 
 **INVOKE NOW** — Task tool call:
 
 6. Task tool - `maister-specification-creator` subagent
 
 **Context to pass to subagent**: task_path, task_description, task_characteristics, requirements_path (analysis/requirements.md), project_context_paths (INDEX.md + project_doc_paths from state — all discovered project docs), risk_level, phase_summaries (codebase_analysis, gap_analysis, clarifications, scope_clarifications, ui_mockups, design), research_context (if any), design_reference (if any — points spec-creator to `analysis/design-context/` for mockups and brief), html_style_guide_path (for the spec.html companion)
-
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-specification-creator`? Or did you start writing spec.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 **Output**: `analysis/technical-clarifications.md` (conditional), `analysis/requirements.md`, `implementation/spec.md`
 **State**: Update `task_context.tech_clarified`, `task_context.architecture_decision`, `phase_summaries.specification`
@@ -322,10 +319,7 @@ ask_user - Display executive summary before asking. Read `verification/spec-audi
 
 **Purpose**: Break specification into implementation steps
 
-**ANTI-PATTERN — DO NOT DO THIS:**
-- ❌ "Let me create the implementation plan..." — STOP. Delegate to implementation-planner.
-- ❌ "I'll break this into steps..." — STOP. Delegate to implementation-planner.
-- ❌ "This is simple enough to plan inline..." — STOP. Simplicity is NOT a reason to skip delegation.
+Delegate planning to the `maister-implementation-planner` subagent (Task tool) regardless of task size — the orchestrator never writes implementation-plan.md itself.
 
 **INVOKE NOW** — Task tool call:
 
@@ -334,8 +328,6 @@ ask_user - Display executive summary before asking. Read `verification/spec-audi
 **State**: Update task groups and dependencies
 
 **Context to pass to subagent**: task_path, task_description, task_characteristics, phase_summaries (specification, gap_analysis, codebase_analysis, design), research_context (if any), design_reference (if any — when `analysis/design-context/INDEX.md` exists, planner MUST enumerate every screen/component, map task groups to them via the required `Visual References` field, and produce `implementation/visual-coverage.md` proving every screen is covered by ≥1 group), html_style_guide_path (for the implementation-plan.html companion)
-
-**SELF-CHECK**: Did you just invoke the Task tool with `maister-implementation-planner`? Or did you start writing implementation-plan.md yourself? If the latter, STOP immediately and invoke the Task tool instead.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -349,9 +341,7 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 
 **Purpose**: Execute the implementation plan
 
-**ANTI-PATTERN — DO NOT DO THIS:**
-- ❌ "Let me implement this directly..." — STOP. Delegate to implementation-plan-executor.
-- ❌ "This is simple enough to code inline..." — STOP. Simplicity is NOT a reason to skip delegation.
+Delegate implementation to the `maister-implementation-plan-executor` skill regardless of task size — it owns wave dispatch, progress tracking, and the work-log; the orchestrator never writes code itself.
 
 **INVOKE NOW** — Skill tool call:
 
@@ -359,9 +349,10 @@ ask_user - Display executive summary before asking. Read `implementation/impleme
 **Output**: Implemented code, `implementation/work-log.md`
 **State**: Update implementation progress, extract phase_summaries.implementation
 
-**SELF-CHECK**: Did you just invoke the Skill tool with `maister-implementation-plan-executor`? Or did you start writing code yourself? If the latter, STOP immediately and invoke the Skill tool instead.
-
 **⚠️ POST-IMPLEMENTATION CONTINUATION** — After the skill completes and returns control:
+
+The executor returning ends Phase 8 and nothing more. The plan's last task group is a group inside Phase 8 whatever it is called ("Finalization", "push readiness") — it is never Phase 14. What comes next is the Phase 8 exit gate below, then Phase 9 or Phase 10.
+
 1. **HTML plan reconciliation** (backstop for syncs missed during waves): if `implementation/implementation-plan.html` exists, for every group whose md checkboxes are all `[x]`, run the executor's idempotent marker-flip command (`sed` flipping `data-step="N\.[0-9]*" class="step todo"` and `data-group="N" class="group todo"` to `done`). VERIFY: when all md steps are checked, `grep -c 'class="step todo"' implementation/implementation-plan.html` must return 0 — a non-zero count means unflipped markers remain; flip them before continuing.
 2. Read `orchestrator-state.yml` to confirm you are the orchestrator
 3. Update state: add Phase 8 to `completed_phases`
@@ -399,15 +390,15 @@ ask_user - "TDD gate passed. Continue to Phase 10?"
 **Purpose**: Determine which verification checks to run using tiered decision matrix
 **Execute**: Direct - display plan, confirm/adjust via ask_user
 **Output**: Updated state with all verification options
-**State**: Set `options.code_review_enabled`, `options.pragmatic_review_enabled`, `options.reality_check_enabled`, `options.production_check_enabled`, `options.e2e_enabled`, `options.user_docs_enabled`
-**Auto-set**: `skip_test_suite: true` (full test suite already passed during implementation phase; cleared before re-verification if fixes are applied)
+**State**: Set `options.code_review_enabled`, `options.pragmatic_review_enabled`, `options.reality_check_enabled`, `options.production_check_enabled`, `options.e2e_enabled`, `options.user_docs_enabled`, `options.skip_test_suite`
+**Auto-set**: `skip_test_suite: true` only when the executor's final `work-log.md` entry records the full test suite as passed; otherwise `skip_test_suite: false`, so verification runs it. Cleared before re-verification if fixes are applied.
 
 **Step 1**: Display the verification plan:
 ```
 Verification Plan:
   Obligatory (always run):
     ✓ Completeness check
-    ✓ Test suite (skipped — passed during implementation; re-enabled after fixes)
+    ✓ Test suite (skipped when it passed during implementation — re-enabled after fixes; otherwise runs)
 
   Recommended (adjustable):
     ✓ Code review — quality and security analysis
@@ -425,9 +416,11 @@ Verification Plan:
 **Q1** (always): ask_user (sequential single-select) — "Which standard verifications to run?"
 Options: "Code review (Recommended)", "Pragmatic review (Recommended)", "Reality check (Recommended)", "Production readiness (Recommended)". All pre-selected.
 
-**Q2** (SKIP if `options.e2e_enabled: false` and no `--e2e` flag): ask_user — "Enable E2E browser verification?" Options: "Yes (Recommended)", "No, skip".
+**Q2** (ASK when `options.e2e_enabled` or `task_characteristics.ui_heavy` is true, or the `--e2e` flag was given; SKIP only otherwise or when `--no-e2e` was given): ask_user — "Enable E2E browser verification?" Options: "Yes (Recommended)", "No, skip".
 
-**Q3** (SKIP if `options.user_docs_enabled: false` and no `--user-docs` flag): ask_user — "Generate user documentation?" Options: "Yes (Recommended)", "No, skip".
+**Q3** (ASK when `options.user_docs_enabled`, `ui_heavy`, or `creates_new_entities` is true, or the `--user-docs` flag was given; SKIP only otherwise or when `--no-user-docs` was given): ask_user — "Generate user documentation?" Options: "Yes (Recommended)", "No, skip".
+
+Write each answer to state as an explicit `true`/`false` — Phase 14 reads these to decide whether Phases 12 and 13 were owed.
 
 → **MANDATORY GATE** — fires regardless of permission mode, session-reminders, or prior approval patterns. Invoke `ask_user` now. Proceeding without a user response is a protocol violation (orchestrator-patterns.md § 2 / § 2.1).
 
@@ -544,11 +537,15 @@ ask_user - "Documentation complete. Continue to Phase 14?"
 **Output**: Workflow summary
 **State**: Set `task.status: completed`
 
+**Preconditions** — read `orchestrator-state.yml` before finalizing. Every phase in the Phase Configuration table must be resolved:
+- **Resolved** means the phase is in `completed_phases`, or its activation condition is false in state: Phase 3 (no reproducible defect), Phase 4 (`ui_heavy` false), Phase 6 (`spec_audit_enabled` false), Phase 9 (Phase 3 not run), Phase 12 (`e2e_enabled` false), Phase 13 (`user_docs_enabled` false). Phase 11 has no such condition — it must be completed.
+- **Any unresolved phase blocks finalization.** Name it and use `ask_user` per phase: "Run Phase N now (Recommended)" returns to that phase; "Finalize without it" records the choice and the user's reason in `work-log.md`, the workflow summary, and the phase's dashboard `skip_reason`. Never finalize past an unresolved phase silently.
+
 **Process**:
 1. **Reconcile artifacts against disk** — compare every `artifacts[]` entry in state with what actually exists and name every missing path in the summary (`orchestrator-patterns.md` § 10)
 2. Create workflow summary
 3. Update task status to "completed"
-4. Provide commit message template
+4. Provide commit message template — following the repository's own commit-message rules (its agent instruction files or contributing guide). Those rules outrank generic tool defaults, such as default trailers.
 5. Guide next steps (code review, PR, deployment)
 
 → End of workflow

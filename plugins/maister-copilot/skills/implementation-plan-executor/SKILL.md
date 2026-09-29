@@ -12,17 +12,21 @@ You are an implementation plan executor that delegates task groups to subagents 
 2. **Lazy standards loading**: Load standards per task group, not all upfront
 3. **Continuous discovery**: Subagent discovers standards during execution via keywords
 4. **Test-driven**: Test step (N.1) before implementation steps (N.2+)
-5. **Immediate progress**: Mark checkboxes right after each step completes
-6. **Main agent owns visibility**: Work-log and checkboxes always updated by main agent
+5. **Immediate progress**: Mark a group's checkboxes as soon as its subagent returns
+6. **Main agent owns visibility**: Work-log, checkboxes, and the operator dashboard always updated by main agent
+
+## Dashboard Upkeep
+
+This skill owns the dashboard for the whole implementation phase — the orchestrator marked the phase `in_progress` before delegating and cannot touch it again until control returns, which is hours and many waves later.
+
+- **Gate**: read `orchestrator.options.html_output` from `orchestrator-state.yml` at Phase 1. When false, skip every rewrite below (no dashboard exists). When there is no state file (standalone run), there is no dashboard either — skip.
+- **Rules**: `../orchestrator-framework/references/orchestrator-patterns.md` § 8 (moments 8-9, schema, the `date -u` clock rule). Do not restate them here — read them.
+- **Progress**: the implementation phase carries `progress: {groups_done, groups_total, current_wave, skipped: [], reverted: []}`. `skipped`/`reverted` hold group labels from the failure-recovery path.
+- **Never blocks**: a rewrite that fails gets a warning line in `work-log.md` (`Dashboard rewrite failed after wave N`) and the run continues. A visible miss, never a silent one.
 
 ## Execution Model
 
-**Always delegate.** Every task group is executed by the `task-group-implementer` subagent. The main agent NEVER writes implementation code directly.
-
-**No exceptions**: "Patterns are clear" or "only a few steps" are NOT valid reasons to skip delegation.
-
-❌ Wrong: "Let me read standards..." → Implement directly
-✅ Right: Task tool → Process output → Mark checkboxes
+Every task group is executed by the `task-group-implementer` subagent, however small — the main agent coordinates (Task tool → process output → mark checkboxes) and never writes implementation code itself.
 
 ## Phase 1: Initialize
 
@@ -31,8 +35,9 @@ You are an implementation plan executor that delegates task groups to subagents 
    - `implementation/implementation-plan.md` (required)
    - `implementation/spec.md` (recommended)
    - `.maister/docs/INDEX.md` (required for standards)
-3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (fallback for plans created before task system migration).
-4. **Initialize work-log.md**:
+3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (when the planner created none).
+4. **Regenerate `dashboard-data.js`** from `orchestrator-state.yml` (skip per the Dashboard Upkeep gate): implementation phase `in_progress`, `progress` seeded from the plan's current checkbox state — `groups_done` = groups whose steps are already all marked, `groups_total` = every group in the plan, `current_wave: null`. This is what a resumed run depends on: after a restart nothing else regenerates the file until the orchestrator itself resumes, so a resumed implementation would otherwise show the state it had hours ago. On a fresh run it simply writes `groups_done: 0`.
+5. **Initialize work-log.md**:
    ```markdown
    # Work Log
 
@@ -112,6 +117,8 @@ For each wave:
    - Verify test results are acceptable.
    - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
 
+   Then, once every member of the wave has been processed, **rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate) with the wave's outcome: the implementation phase's `progress.groups_done` raised by the groups that completed, `current_wave` set to this wave's number, and any group the failure-recovery path below skipped or reverted appended to `progress.skipped` / `progress.reverted` with a one-line reason. One rewrite per wave, not one per group.
+
 4. **Partial-wave failure handling**:
    - Do NOT cancel sibling subagents in the same wave — they may produce valid work even when one peer fails.
    - After every wave member has returned, run the existing failure recovery flow (see "Error Handling" → "Subagent Failure") for each failed group individually.
@@ -120,14 +127,13 @@ For each wave:
 
 5. After the wave fully resolves (all members `completed` or recovered), recompute the ready set and proceed to the next wave.
 
-   **SELF-CHECK before dispatching the next wave**: for every group marked `completed` this wave, did you run the HTML marker-flip command (step 3)? If unsure, run it now — it is idempotent.
+   **SELF-CHECK before dispatching the next wave**: for every group marked `completed` this wave, did you run the HTML marker-flip command (step 3) and rewrite `dashboard-data.js`? If unsure, run both now — both are idempotent full rewrites.
 
 ### `--sequential` Opt-Out
 
 Read `orchestrator.options.sequential` from `orchestrator-state.yml` at Phase 2 entry. When true (or when the validation fallback above triggered):
 
 - Treat every wave as size 1: dispatch groups one at a time in plan order, ignoring file-overlap analysis.
-- Functionally equivalent to the legacy serial loop.
 - Use cases: debugging a flaky group, constrained dev environments (single port, single DB schema), users who explicitly want serial execution.
 
 ## Continuous Standards Discovery
@@ -238,6 +244,7 @@ You have access to `.maister/docs/INDEX.md` for continuous standards discovery.
 3. When `Visual References` present: read each mockup before implementing, log per-reference compliance in your report
 4. Report any failures with root cause analysis
 5. Do NOT mark checkboxes - main agent handles that
+6. Do NOT commit - the workflow's finalization owns commits, under the repository's own commit-message rules
 
 ### Expected Output Format
 [See Subagent Output Format section]
@@ -300,19 +307,15 @@ N.n  - Run tests (only this group's tests)
 
 ### Enforcement
 
-Before executing step N.2 or higher:
-
-1. Verify N.1 (test step) is complete
-2. If not complete, use ask_user:
+When processing a group's report, if N.1 (tests) is not marked done while later steps are, ask the user via ask_user:
    ```
    Question: "Test step N.1 not completed. How to proceed?"
    Header: "Tests"
    Options:
-   - "Complete tests first" - Execute N.1 now
-   - "Skip with justification" - Document reason, continue
+   - "Complete tests first" - Re-dispatch the group for N.1
+   - "Accept with justification" - Mark `- [~] N.1 SKIPPED: [reason]`, continue
    - "Stop" - Pause for investigation
    ```
-3. If skipped, mark as `- [~] N.1 SKIPPED: [reason]`
 
 ## Progress Tracking
 
@@ -320,7 +323,7 @@ Before executing step N.2 or higher:
 
 **Format**: `- [ ]` → `- [x]` (or `- [~]` for skipped)
 
-**Timing**: Immediately after step completion. Never batch. Never mark ahead.
+**Timing**: Mark a group's checkboxes as soon as its subagent returns — never before, and never for a group that has not reported.
 
 **Responsibility**: Always main agent — subagent does NOT mark checkboxes.
 
@@ -349,7 +352,7 @@ After each task group:
    - Standards Reading Log is complete
    - All group tasks are `completed` via `TaskList` (cross-validate against markdown checkboxes)
 
-2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas)
+2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas). When the project's instructions restrict local full-suite runs (for example, CI-only), run what they allow instead and record the suite as `not run locally` — never as passed.
 
 3. **Final work-log entry**:
    ```markdown
@@ -357,11 +360,13 @@ After each task group:
 
    **Total Steps**: [N] completed
    **Total Standards**: [M] applied
-   **Test Suite**: [status]
+   **Test Suite**: [passed | failed | not run locally]
    **Duration**: [if tracked]
    ```
 
-4. **Return summary** to calling orchestrator
+4. **Final dashboard rewrite** (skip per the Dashboard Upkeep gate): `progress.groups_done == progress.groups_total`, `current_wave` cleared, `skipped`/`reverted` carrying whatever the run accumulated. The phase status stays `in_progress` — the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
+
+5. **Return summary** to calling orchestrator. Its first line states where control goes next: *Implementation complete — control returns to the calling workflow for its implementation exit gate and verification. This is not the end of the workflow.*
 
 ## Error Handling
 
@@ -399,7 +404,7 @@ Before returning success:
 ### Completion
 - [ ] All steps marked `[x]` or `[~]` (skipped with reason)
 - [ ] All task groups have work-log entries
-- [ ] Full test suite passes
+- [ ] Full test suite passes (or is recorded `not run locally` where the project restricts local runs)
 
 ### Standards
 - [ ] Standards Reading Log complete for all groups
@@ -409,4 +414,5 @@ Before returning success:
 ### Artifacts
 - [ ] implementation-plan.md checkboxes updated
 - [ ] work-log.md complete with timeline
+- [ ] `dashboard-data.js` rewritten at entry, after every wave, and at finalize — or skipped because `html_output` is false
 - [ ] No uncommitted partial changes

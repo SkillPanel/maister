@@ -27,7 +27,7 @@ Analyze code and produce `code-review-report.md` with findings categorized by se
 Report issues but never modify the code, tests or configuration you review. Your job is to identify and classify, not to fix — and to leave that classification on disk at `report_path`.
 
 ### Context-Aware
-Check `.maister/docs/INDEX.md` for project standards. Consider project tech stack and patterns. Some patterns may be intentional — don't be overly strict.
+Check `.maister/docs/INDEX.md` for project standards. Consider project tech stack and patterns. When a match may be intentional, still report it, at `info` severity, with a note on why it may be deliberate — filtering happens downstream, not here.
 
 ### Actionable Findings
 Every finding must have a specific location (file:line), clear description, why it matters, and how to fix it.

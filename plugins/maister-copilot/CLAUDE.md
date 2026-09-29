@@ -596,7 +596,7 @@ Subagents are specialized AI agents invoked by skills and orchestrators. All age
 | `docs-operator` | Internal service agent: executes docs-manager operations mid-workflow via Task tool. Has docs-manager skill preloaded. **Special case**: companion agent pattern only works here because docs-manager does NOT spawn subagents (only file operations). Do not use this pattern for skills that spawn subagents. | init, standards-update, standards-discover | `agents/docs-operator.md` |
 | `task-classifier` | Classifies task descriptions into workflow types with confidence scoring | `/work` command | `agents/task-classifier.md` |
 | `gap-analyzer` | Compares current vs desired state with characteristic-detection-based analysis modules | development orchestrator | `agents/gap-analyzer.md` |
-| `specification-creator` | Creates specs from gathered requirements with reusability search and self-verification | development, migration orchestrators | `agents/specification-creator.md` |
+| `specification-creator` | Creates specs from gathered requirements with reusability search and a requirements-coverage check | development, migration orchestrators | `agents/specification-creator.md` |
 | `implementation-planner` | Breaks specs into task groups with test-driven steps and dependency chains | development, migration orchestrators | `agents/implementation-planner.md` |
 | `codebase-analysis-reporter` | Merges raw Explore agent findings into structured analysis report with deduplication, cross-referencing, and risk assessment | codebase-analyzer skill | `agents/codebase-analysis-reporter.md` |
 

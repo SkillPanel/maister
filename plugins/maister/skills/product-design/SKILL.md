@@ -73,6 +73,7 @@ Cross-cutting rules from `orchestrator-patterns.md` (same as the development and
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark `in_progress` before executing), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks — the operator reviews them on the dashboard while answering; status stays `in_progress` until the gate passes), after every phase completion (including skipped phases 3/7, with reason), every gate decision, after each refinement-loop iteration that changes an artifact, and at finalization. Every rewrite starts with `date -u` (one call per turn). Register Phase 7 mockups as artifacts (`analysis/mockups/{slug}.html` — they ARE html; set both `path` and `html` to the mockup path).
 3. **HTML companions (§ 9) — delegated, because this orchestrator writes its hero artifacts INLINE** (no producing subagent to attach a companion to). Right after each hero md is finalized, invoke the `maister:html-companion-writer` subagent (Task tool) to write its sibling `.html`: `analysis/design-decisions.md` (Phase 5), `analysis/feature-spec.md` (Phase 6), `outputs/product-brief.md` (Phase 8, after final approval). Pass `md_path`, `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`), `artifact_label`, and `report_suite` (the sibling reports that exist, hrefs relative to the md's directory, for the breadcrumb). Register the returned `html_path` in `phase_summaries.[phase].artifacts[].html` so the dashboard hero cards link HTML first. Companion generation never blocks — on `status: failed` keep the md and continue. (`analysis/alternatives.md` already gets a companion from the solution-brainstormer subagent in Phase 4; `problem-statement.md`/`personas.md` are secondary — companion them too if cheap, but the three hero artifacts are the priority.)
 4. **icon_hint values** per phase: 0 `analysis`, 1 `analysis`, 2 `analysis`, 3 `analysis`, 4 `plan`, 5 `plan`, 6 `spec`, 7 `code`, 8 `done`.
+5. **State writes (§ 4 Write Rule)**: update `orchestrator-state.yml` key by key in place, validate it with a re-read after every write, and stop with `AskUserQuestion` on a malformed file — never continue on a state file the operator tooling cannot read.
 
 ---
 
@@ -248,14 +249,10 @@ AskUserQuestion — "I detected these design characteristics. Please confirm or 
 
 **For enhancements** (`is_enhancement = true`):
 
-**ANTI-PATTERN -- DO NOT DO THIS:**
-- "Let me analyze the codebase..." -- STOP. Delegate to codebase-analyzer.
-- "I'll look through the project..." -- STOP. Delegate to codebase-analyzer.
+Delegate codebase analysis to the `maister:codebase-analyzer` skill rather than reading project files yourself — it keeps raw exploration out of the orchestrator's context.
 
 **INVOKE NOW** -- Skill tool call:
 1. Skill tool - `maister:codebase-analyzer` (to understand existing product context, tech stack, UI patterns)
-
-**SELF-CHECK**: Did you invoke the Skill tool with `maister:codebase-analyzer`? Or did you start reading project files yourself? If the latter, STOP and invoke the Skill tool.
 
 **POST-SKILL CONTINUATION**: After codebase-analyzer returns control:
 1. Read `orchestrator-state.yml` to confirm you are the orchestrator
@@ -267,16 +264,12 @@ AskUserQuestion — "I detected these design characteristics. Please confirm or 
 3. Fetch external links collected in Phase 0 using WebFetch tool for each URL in `design_context.collected_urls`
 4. If `design_context.research_topics` is non-empty: launch information-gatherer agents for each topic
 
-   **ANTI-PATTERN -- DO NOT DO THIS:**
-   - "Let me research that topic..." -- STOP. Delegate to information-gatherer.
-   - "I'll look that up..." -- STOP. Delegate to information-gatherer.
+   Delegate each research topic to a `maister:information-gatherer` subagent rather than searching yourself — it keeps raw findings out of the orchestrator's context.
 
    **INVOKE NOW** -- Task tool call (parallel, one per topic):
    Task tool - `maister:information-gatherer` subagent per research topic
 
    **Context to pass**: research topic, scope constraints, task_path
-
-   **SELF-CHECK**: Did you invoke the Task tool with information-gatherer for each research topic? Or did you start searching yourself? If the latter, STOP and invoke the Task tool.
 
 5. **Synthesize ALL sources** into `analysis/design-context.md`:
    - Project documentation: vision, roadmap, tech stack, architecture, and any user-added project docs (from `design_context.project_doc_paths` discovered in Phase 0)
@@ -399,10 +392,7 @@ AskUserQuestion — "Personas defined. Continue to Idea Generation?"
 **Execute**: Agent via Task tool (deliberately non-interactive to avoid anchoring bias)
 **Resume check**: If `analysis/alternatives.md` exists, skip to Phase 5
 
-**ANTI-PATTERN -- DO NOT DO THIS:**
-- "Let me brainstorm some approaches..." -- STOP. Delegate to solution-brainstormer.
-- "Here are some alternatives I see..." -- STOP. Delegate to solution-brainstormer.
-- "The obvious approach would be..." -- STOP. Anchoring bias. Delegate to solution-brainstormer.
+Delegate alternatives to the `maister:solution-brainstormer` subagent rather than proposing them yourself — generating them outside the conversation avoids anchoring on your first idea.
 
 **INVOKE NOW** -- Task tool call:
 

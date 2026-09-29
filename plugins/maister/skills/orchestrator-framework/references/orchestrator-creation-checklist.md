@@ -19,6 +19,7 @@ Before considering an orchestrator complete, verify ALL items:
 - [ ] **Interactive mode** — `AskUserQuestion` at every `→ MANDATORY GATE` transition
 - [ ] **Standards discovery** — `.maister/docs/INDEX.md` referenced in spec, plan, implement, verify phases
 - [ ] **TaskCreate initialization** — Tasks created for all phases at workflow start with `addBlockedBy` dependencies; when `TaskCreate`/`TaskUpdate` are unavailable in the session, record `task_ids: {}` and treat `orchestrator-state.yml` as the sole phase tracker
+- [ ] **Dashboard upkeep** — every orchestrator-owned rewrite moment in `orchestrator-patterns.md` § 8 is implemented, and phases that delegate to `implementation-plan-executor` or `implementation-verifier` leave the phase interior to those skills instead of re-implementing it
 - [ ] **Finalization reconciliation** — Closing phase compares `artifacts[]` in state against disk and names every missing path in the summary (`orchestrator-patterns.md` § 10)
 - [ ] **Auto-recovery table** — Max attempts per phase with recovery strategies
 - [ ] **Domain context schema** — Includes `phase_summaries` structure

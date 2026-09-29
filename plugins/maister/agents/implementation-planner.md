@@ -88,6 +88,8 @@ If no `design-context/` exists, skip this phase and the visual-references and co
 | Payment, billing, checkout | Payment Processing Layer |
 | Migrate existing data | Data Migration Layer |
 
+**Group naming**: name each group for the layer or concern it builds. Never name a group after a workflow phase ("Finalization", "Verification", "Push readiness"), and do not plan commit, push, or pull-request steps — the calling workflow's own verification and finalization phases own those. A plan whose last group reads like the end of the workflow invites the orchestrator to skip the phases between.
+
 #### Complexity Adaptation
 
 | Scope | Groups | Example |
@@ -191,7 +193,7 @@ Create `implementation/implementation-plan.md`:
 # Implementation Plan: [Task Name]
 
 ## TL;DR
-[3-5 lines max — how the work is organized: group count, execution order, parallelism. Conclusions, not process.]
+[3-5 lines max — how the work is organized: group count, execution order, dependencies. Conclusions, not process.]
 
 ## Key Decisions
 - [planning decision, e.g. grouping/sequencing choice] — [one-line rationale]
@@ -215,6 +217,8 @@ Expected Tests: [calculation]
 1. [Group 1] ([N] steps)
 2. [Group 2] ([N] steps, depends on 1)
 ...
+
+[Order and dependencies only. Do not declare groups parallel-safe or assign waves — the executor derives waves from each group's `Dependencies` and `Files to Modify`, and a hand-written wave table can contradict them.]
 
 ## Standards Compliance
 

@@ -13,10 +13,19 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 ## Responsibilities
 
 1. Validate prerequisites exist
-2. Delegate ALL verifications to subagents in parallel (core + optional)
+2. Delegate all verifications: test suite first (when enabled), then the remaining reviews (core + optional) in one parallel batch
 3. Compile all results into verification report
-4. Update roadmap if exists (optional)
-5. Output summary with overall verdict
+4. Keep the operator dashboard current across verification cycles
+5. Update roadmap if exists (optional)
+6. Output summary with overall verdict
+
+## Dashboard Upkeep
+
+This skill owns the dashboard for the duration of the verification phase, including every re-verification cycle after fixes — the orchestrator cannot refresh it while control sits here.
+
+- **Gate**: read `orchestrator.options.html_output` from `orchestrator-state.yml`. When false, or in standalone mode (no state file), there is no dashboard — skip every rewrite.
+- **Rules**: `../orchestrator-framework/references/orchestrator-patterns.md` § 8 (moment 10, schema, the `date -u` clock rule). Do not restate them here — read them.
+- **Never blocks**: a failed rewrite is noted in the Phase 5 summary and the verdict stands regardless.
 
 ## Output Artifacts
 
@@ -67,6 +76,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
    - Subject: "Reality assessment", activeForm: "Running reality assessment" — only if reality_check_enabled
    - Subject: "Compile report", activeForm: "Compiling verification report"
 6. **Set dependencies** using `TaskUpdate` with `addBlockedBy`: "Compile report" blocked by ALL verification tasks above
+7. **Rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate): verification phase `in_progress`, `verification.status` set to the cycle about to run. On a re-verification cycle this is what clears the previous cycle's picture before new results land.
 
 If prerequisites missing, report and stop.
 
@@ -74,17 +84,7 @@ If prerequisites missing, report and stop.
 
 ## Phase 2: Delegate All Verifications
 
-**ANTI-PATTERN — DO NOT DO ANY OF THIS:**
-- ❌ "Let me run the tests..." — STOP. Delegate to test-suite-runner.
-- ❌ "I'll check implementation-plan.md..." — STOP. Delegate to implementation-completeness-checker.
-- ❌ "Let me read the standards..." — STOP. Delegate to implementation-completeness-checker.
-- ❌ "I'll verify the work-log..." — STOP. Delegate to implementation-completeness-checker.
-- ❌ Running any Bash command to execute tests — STOP. Delegate to test-suite-runner.
-- ❌ "Let me review the code quality..." — STOP. Delegate to code-reviewer.
-- ❌ "I'll check for over-engineering..." — STOP. Delegate to code-quality-pragmatist.
-- ❌ "Let me verify production readiness..." — STOP. Delegate to production-readiness-checker.
-- ❌ "I'll assess whether this solves the problem..." — STOP. Delegate to reality-assessor.
-- ❌ Reading source code to find security/performance issues — STOP. Delegate to code-reviewer.
+All analysis is delegated: tests → test-suite-runner; plan/standards/docs completeness → implementation-completeness-checker; quality/security → code-reviewer; over-engineering → code-quality-pragmatist; deployment → production-readiness-checker; problem-fit → reality-assessor. This skill only compiles their reports.
 
 **Verifications run in two sequential steps to avoid parallel test conflicts.**
 
@@ -207,7 +207,8 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Same content as the md — restructure and visualize, never add findings
    - Never block on it: if generation fails, keep the md, note the miss, continue
 5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 5 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
-6. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
+6. **Rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate) with this cycle's outcome: `verification.status`, `issues` (original severity retained, `fixed: true` on the ones fixed), `fixes`, and `reverify_count`. Register the report and its companion in the verification phase's `artifacts`. This is the dashboard counterpart of the **Re-verification rule** above: the canonical report and the dashboard are rewritten together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
+7. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
 ---
 
@@ -293,15 +294,6 @@ issue_counts:
 ✅ Delegate to subagents, compile results, write report, output summary
 ❌ Run tests directly, review code directly, check standards directly, fix anything
 
-### Anti-Patterns to AVOID
-
-- ❌ Running Bash commands to execute tests → Use Task tool with `maister:test-suite-runner`
-- ❌ Reading implementation-plan.md to check completion → Use Task tool with `maister:implementation-completeness-checker`
-- ❌ Reading INDEX.md to check standards compliance → Use Task tool with `maister:implementation-completeness-checker`
-- ❌ Reading source code for quality/security analysis → Use Task tool with `maister:code-reviewer`
-- ❌ Checking config/monitoring/resilience directly → Use Task tool with `maister:production-readiness-checker`
-- ❌ Performing ANY verification work inline → ALL verification is delegated to subagents
-
 ### Clear Communication
 
 - Use consistent status icons in reports
@@ -320,4 +312,5 @@ Before finalizing verification:
 - All subagent results processed
 - Verification report created
 - Overall status determined from aggregated results
+- `dashboard-data.js` rewritten at entry and after this cycle's report — or skipped because `html_output` is false / standalone mode
 - No direct analysis performed (all delegated)

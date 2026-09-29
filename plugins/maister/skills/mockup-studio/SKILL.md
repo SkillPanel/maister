@@ -84,6 +84,7 @@ Read `references/visual-companion.md` for the full protocol. Then:
    Wait ~1s, verify `curl -s http://localhost:${port}/status` returns ok (try 3847–3850).
 3. **Open browser** (best-effort, non-blocking): Playwright MCP `browser_navigate` to `http://localhost:${port}` → fallback `open`/`xdg-open` → fallback log the URL.
 4. **Generate user-facing wireframes** — one screen per relevant view implied by `context`. Title each screen specifically (e.g. "Add New Allergy Form", not "Dashboard"). Bind to discovered tokens/components/CSS variables by their real names. Add `data-screen="slug"` to clickable elements for click-through navigation, and `annotations` for component-reuse / integration / interaction hints (NOT requirements). Generate USER-FACING UI only — never architecture/data-flow/ER diagrams.
+   When discovery found no design resources, choose a plain visual direction that fits the product. Do not use a cream or off-white background, italic accent words in headings, numbered "01/02/03" section labels, monospace labels, or pill-shaped buttons unless the context asks for them.
 5. **POST each screen**: `POST http://localhost:${port}/update` with `{type, title, html, css, annotations}`. Each POST auto-saves `<output_subdir>/{slug}.html`.
 
 ### Step 4b — ASCII path

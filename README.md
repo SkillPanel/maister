@@ -153,6 +153,24 @@ To switch back to stable:
 
 Beta versions may contain features that are not yet fully tested. Use at your own discretion.
 
+## Staying on 2.x
+
+Maister 3.0 does not resume task directories created by 2.x, so a task started on 2.x should be finished on 2.x. To stay on 2.x, install from the 2.x maintenance line:
+
+```bash
+# Add the 2.x marketplace
+/plugin marketplace add SkillPanel/maister#release/2.x
+
+# Install the 2.x plugin
+/plugin install maister@maister-plugins-2x
+```
+
+If another channel is installed, uninstall it first (for example `/plugin uninstall maister@maister-plugins`).
+
+The 2.x line receives fixes only — no new features — for six months after 3.0.0 is released.
+
+On GitHub Copilot CLI, check out the `release/2.x` branch and load its `plugins/maister-copilot` directory with `copilot --plugin-dir`, as described under [Installation](#installation).
+
 ## Best Practices
 
 **Don't use plan mode when starting a workflow.** Planning is a built-in part of every workflow — the orchestrator creates specs, plans, and other files as it goes. Claude Code's plan mode restricts file creation, which conflicts with this. Let the workflow handle planning on its own.

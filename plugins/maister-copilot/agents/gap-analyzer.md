@@ -239,7 +239,7 @@ Layer 3 (User Access):
 
 ### Decision Generation Rules
 
-**CRITICAL: You MUST generate decisions for ANY non-trivial finding. It's ALWAYS better to ask than not to ask. Document-only is for truly minor cosmetic issues.**
+Generate a decision for every finding that affects feature usability or scope — the orchestrator shows the user only what's in `decisions_needed`, so a finding left out is never seen. Purely cosmetic findings can stay in the report without a decision.
 
 **NEVER use "Should Document" for:**
 - Orphaned operations (always needs decision)
@@ -258,7 +258,7 @@ When ANY orphaned operation exists (completeness < 100%):
 | Backend exists, no UI | `decisions_needed.critical` | User cannot access functionality |
 | completeness_score < 75% | Set `scope_expansion_recommended: true` | Major gaps |
 
-**You MUST generate this decision - no exceptions:**
+Generate this decision for every orphaned operation:
 ```yaml
 decisions_needed:
   critical:
@@ -290,10 +290,6 @@ When `missing_touchpoints` is non-empty:
 | Nice-to-have | `decisions_needed.important` with default |
 
 **DO NOT just "document" high-value touchpoints. Ask if they should be included.**
-
-#### Default to Asking
-
-**When in doubt, generate a decision.** The user can always say "proceed with default" but they cannot unsee what wasn't asked.
 
 The orchestrator will present ALL items in `decisions_needed.critical` and `decisions_needed.important` to the user. If an issue matters, put it in one of those arrays.
 
@@ -394,8 +390,6 @@ The orchestrator will present ALL items in `decisions_needed.critical` and `deci
    - Options: [A] [B]
    - Default: [X]
    - Rationale: [reason]
-
-**NOTE: Do NOT create a "Should Document" section. If an issue is worth mentioning, it's worth asking about.**
 
 ## Recommendations
 - [Recommendation 1]

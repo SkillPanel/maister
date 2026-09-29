@@ -59,6 +59,7 @@ Cross-cutting rules from `orchestrator-patterns.md` (same as the development orc
 2. **Dashboard upkeep (§ 8)**: rewrite `dashboard-data.js` at every phase START (mark `in_progress` before delegating), **BEFORE firing every exit gate** (register the finished phase's artifacts/summary/decisions/risks — the operator reviews them on the dashboard while answering; status stays `in_progress` until the gate passes), after every phase completion (including skipped phases 3-5, with reason), every gate decision, and at finalization. **Phase 1 addition**: also refresh after each of its 4 steps completes, registering that step's artifacts — Phase 1 is long and the operator should see brief → plan → findings → report appear incrementally. In particular, after Step 4 the report (`outputs/research-report.md` + `.html`) MUST be registered before the Phase 1 exit gate fires.
 3. **HTML companions (§ 9)**: pass `html_style_guide_path` (absolute path to `../orchestrator-framework/references/html-report-style.md`) to research-synthesizer, solution-brainstormer, and solution-designer. Register returned companion paths in `phase_summaries.[phase].artifacts[].html` so the dashboard hero cards link HTML first.
 4. **icon_hint values** per phase: 1 `analysis`, 2 `plan`, 3 `spec`, 4 `plan`, 5 `spec`, 6 `done`.
+5. **State writes (§ 4 Write Rule)**: update `orchestrator-state.yml` key by key in place, validate it with a re-read after every write, and stop with `ask_user` on a malformed file — never continue on a state file the operator tooling cannot read.
 
 ---
 
@@ -89,7 +90,7 @@ Use when:
 
 | File | When to Use | Purpose |
 |------|-------------|---------|
-| `references/research-methodologies.md` | Phase 1 | Research type classification, methodology selection, gathering strategies, analysis frameworks |
+| `references/research-methodologies.md` | Phase 1 (passed to research-planner) | Research type classification, methodology selection, source identification, analysis frameworks, confidence scoring |
 | `references/brainstorming-techniques.md` | Phase 3 | Divergent/convergent thinking, interactive exploration, scope guardrails |
 | `references/design-techniques.md` | Phase 5 | Decision documentation (MADR), ADR guidance, decision linking |
 
@@ -148,11 +149,9 @@ This phase executes 4 sequential steps. On resume, check existing artifacts to s
 **Artifacts**: `planning/research-plan.md`, `planning/sources.md`
 **Resume check**: If `planning/research-plan.md` AND `planning/sources.md` exist, skip to Step 3
 
-**Read `references/research-methodologies.md` NOW using the Read tool** — research type classification, methodology selection, gathering strategies
-
 **INVOKE NOW**: Use Task tool with `subagent_type: maister-research-planner`
 
-**Context to pass**: task_path, research_brief_path, research_type, research_question, scope, project_doc_paths (from state)
+**Context to pass**: task_path, research_brief_path, research_type, research_question, scope, project_doc_paths (from state), methodology_reference (absolute path to `references/research-methodologies.md`)
 
 Update state: `research_context.methodology`, `sources`
 
