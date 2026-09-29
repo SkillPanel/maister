@@ -543,6 +543,20 @@ node as never started. A node the frozen graph does not carry is refused with
 `state-node-unknown`, because a node the graph lacks has no place in it, and nothing downstream
 would ever wait on it.
 
+**A node's values are held to the outputs it declares.** Each declared type has one form:
+- `bool`: `true` or `false`;
+- `string` or `id`: a string;
+- `enum`: one of its members.
+
+A skipped node records its declared strings and enums as null. Any other value for a declared
+key is refused with `state-value-invalid`, because a guard or a later node would misread it
+without any error: a guard reading `"false"` finds no bool at all. A key the node does not
+declare is still written, and a `warning:` line names it. Nothing reads an undeclared value, so
+the key either belongs in the node's `outputs` or should not be sent. A `workflow:` node's
+`task_path` and `run_id` are exempt: the node records those two about its child itself. This
+check and the gate-answer check (*Terminal mode*) read the definition, so they apply only while
+the frozen block still resolves to its recorded hash.
+
 **A `workflow:` node's outcome is the child run's, mapped rather than judged.** The node has no
 self-check of its own — the child ran its own — so the parent reads the child's `task.status` at
 the node's recorded `values.task_path` and maps it:
@@ -693,7 +707,8 @@ gate is left.
    brief's `Recommended:` line names is listed first and labelled `<id> (Recommended)`. The
    recorded answer is the bare option id.
 2. **Records the answer** — the chosen option id, who answered and when — on the node's
-   summary, and marks the node `completed`.
+   summary, and marks the node `completed`. The option is one of the gate's own ids, spelled as
+   the gate spells it. The writer refuses any other with `state-gate-option-unknown`.
 3. **Writes no `gate_pending` and no gate request file.** The pending marker is only ever
    written as the one-line null form.
 
@@ -1081,7 +1096,7 @@ one call, arriving from the other side.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-twenty-one, each with its response below; one more, `edition-collision`, is raised before the
+twenty-three, each with its response below; one more, `edition-collision`, is raised before the
 writer runs. Exit `2` carries no code at all and is the table's last row:
 
 | Refusal | Response |
@@ -1099,6 +1114,8 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-freeze-input-missing` | The definition requires an input the freeze records no value for. Nothing was written. Add the value the run was started with under `orchestrator.options.inputs` in the same freeze and send it again. When the invocation never carried one, ask the operator for it in a terminal run; a driven run stops with `RUN-FAILED: state-freeze-input-missing`, because an invented input is a defect. |
 | `state-node-status-unknown` | A node was sent with a status outside the eight (*Recording an outcome*). The message lists them. Nothing was written. Map the outcome onto one of the eight and send the write again. `in_progress` belongs to the summary vocabulary, and `running` is the node status that means the same. |
 | `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo or a phase key used as a node id, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
+| `state-value-invalid` | A value recorded under a key the node declares is not of the declared type. The message names the key, the value and the form it should take. Nothing was written. Send the node's whole `values` map again with that key corrected, because values are replaced whole. If the node produced no such value, the node prose decides whether it failed; never coerce one to get past the check. |
+| `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
 | exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |
@@ -1106,7 +1123,9 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
 projection runs after the state rename, so a projection that could not be published leaves the
 state write untouched, `dashboard-data.js` simply absent from the reported files, and the exit
-code at `0`. Read the next write's output rather than re-sending the patch.
+code at `0`. Read the next write's output rather than re-sending the patch. The same holds for
+the warning that names values a node recorded but does not declare: the write landed with them.
+Correct the node prose, or the definition's outputs, before the next run rather than re-sending.
 
 Exit `2` is the one row that is not a refusal at all, which is why it is easy to mishandle:
 there is no code to look up and no patch to correct, so the tempting next step is to record

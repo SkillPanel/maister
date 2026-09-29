@@ -7,8 +7,8 @@ import { DECLARED, FIXTURES, freeze, freezePatch, readDashboard, readState, scra
 
 // The writer holds a run to the definition it froze: the freeze is refused
 // unless the graph it records re-resolves from the provenance it records, and
-// every later node write is held to the frozen node set and the node-status
-// vocabulary.
+// every later node write is held to the frozen node set, the node-status
+// vocabulary, the declared value types and the options each gate offers.
 
 const OVERLAY = path.join(FIXTURES, 'definitions/sample.overlay.yml');
 const SUBJECT = { subject: 'acme-api' };
@@ -29,6 +29,14 @@ function refused(run, patch, code) {
   const after = fs.existsSync(run.state) ? fs.readFileSync(run.state, 'utf8') : null;
   assert.equal(after, before, 'a refused write leaves the state file byte-for-byte as it was');
   return result;
+}
+
+/** A frozen declared-outputs run, its scan node completed, at the review gate. */
+function atReview(t) {
+  const run = scratch(t, { type: 'survey' });
+  write(run, declared().patch);
+  write(run, { nodes: { scan: { status: 'completed', values: { blocking: false, risk_level: 'low', verdict: 'pass' } } } });
+  return run;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,4 +183,88 @@ test('an adopted run keeps its frozen node set and the status vocabulary', t => 
   refused(run, { nodes: { approval: { status: 'answered' } } }, 'state-node-status-unknown');
   refused(run, { nodes: { implementation: { status: 'running' } } }, 'state-node-unknown');
   write(run, { nodes: { approval: { status: 'completed' } } });
+});
+
+// ---------------------------------------------------------------------------
+// declared values
+// ---------------------------------------------------------------------------
+
+for (const [label, values, named] of [
+  ['a bool recorded as a string', { blocking: 'false', risk_level: 'low' }, /blocking.*bool/],
+  ['a bool recorded as null', { blocking: null }, /blocking.*bool/],
+  ['an enum member the declaration does not list', { blocking: false, risk_level: 'maybe' }, /risk_level.*high, medium, low/],
+  ['a string recorded as a number', { verdict: 42 }, /verdict.*string/],
+]) {
+  test(`values: ${label} is refused`, t => {
+    const run = scratch(t, { type: 'survey' });
+    freeze(run, { definition: DECLARED, inputs: SUBJECT });
+    const result = refused(run, { nodes: { scan: { status: 'completed', values } } }, 'state-value-invalid');
+    assert.match(result.stderr, named);
+  });
+}
+
+test('values: declared values land, and a skipped node records its strings as null', t => {
+  const run = scratch(t, { type: 'survey' });
+  freeze(run, { definition: DECLARED, inputs: SUBJECT });
+  const clean = write(run, { nodes: { scan: { status: 'completed', values: { blocking: false, risk_level: 'low', verdict: 'pass' } } } });
+  assert.doesNotMatch(clean.stderr, /^warning:/m);
+  write(run, { nodes: { scan: { status: 'skipped', values: { blocking: false, risk_level: null, verdict: null } } } });
+  assert.deepEqual(readState(run).workflow.nodes.scan.values, { blocking: false, risk_level: null, verdict: null });
+});
+
+test('values: a key the node does not declare lands, with a warning naming it', t => {
+  const run = scratch(t, { type: 'survey' });
+  freeze(run, { definition: DECLARED, inputs: SUBJECT });
+  const result = write(run, { nodes: { scan: { status: 'completed', values: { blocking: false, score: 97 } } } });
+  assert.equal(result.code, 0);
+  assert.match(result.stderr, /^warning: wrote workflow\.nodes\.scan\.values\.score, which the definition does not declare/m);
+  assert.equal(readState(run).workflow.nodes.scan.values.score, 97);
+});
+
+test('values: a workflow node carries task_path and run_id without a warning', t => {
+  const run = scratch(t, { type: 'survey' });
+  freeze(run, { definition: DECLARED, inputs: SUBJECT });
+  const values = { task_path: '.maister/tasks/research/2026-01-05-probe', run_id: '2026-01-05-probe', conclusions: 'two gaps' };
+  const result = write(run, { nodes: { probe: { status: 'completed', values } } });
+  assert.doesNotMatch(result.stderr, /^warning:/m);
+});
+
+test('values: a run whose definition changed since the freeze is not held to it', t => {
+  const run = scratch(t, { type: 'survey' });
+  freeze(run, { definition: DECLARED, inputs: SUBJECT });
+  const text = fs.readFileSync(run.state, 'utf8').replace(/graph_hash: "?sha256:[0-9a-f]+"?/, `graph_hash: "sha256:${'0'.repeat(64)}"`);
+  fs.writeFileSync(run.state, text);
+  const result = write(run, { nodes: { scan: { status: 'completed', values: { blocking: 'false' } } } });
+  assert.doesNotMatch(result.stderr, /^warning:/m);
+});
+
+test('values: an adopted run with no graph to prove is not held to a definition', t => {
+  const run = scratch(t, { fixture: 'adopted' });
+  const result = write(run, { nodes: { analysis: { status: 'completed', values: { anything: 'goes' } } } });
+  assert.doesNotMatch(result.stderr, /^warning:/m);
+});
+
+// ---------------------------------------------------------------------------
+// gate answers
+// ---------------------------------------------------------------------------
+
+const ANSWER = option => ({ option, answered_by: 'operator', at: '2026-01-05T09:05:00Z' });
+
+test('gates: a recorded option the gate does not offer is refused, naming the options it does', t => {
+  const run = atReview(t);
+  const result = refused(run, {
+    nodes: { review: { status: 'completed' } },
+    node_summaries: { review: { decisions: [ANSWER('maybe-later')] } },
+  }, 'state-gate-option-unknown');
+  assert.match(result.stderr, /maybe-later/);
+  assert.match(result.stderr, /abandon, approve, revise/);
+});
+
+test('gates: an offered option lands, and a decision that names no option is not checked', t => {
+  const run = atReview(t);
+  write(run, {
+    nodes: { review: { status: 'completed' } },
+    node_summaries: { review: { decisions: ['looked at the evidence', ANSWER('revise')] } },
+  });
+  assert.equal(readState(run).node_summaries.review.decisions[1].option, 'revise');
 });
