@@ -200,7 +200,7 @@ Need pro features on a private marketplace? Install from the pro channel:
 /plugin install maister@maister-pro
 ```
 
-Because both editions use the plugin name `maister`, uninstall the other channel first — nothing stops you installing both, but which one resolves is then undefined:
+Because both editions use the plugin name `maister`, uninstall the other channel first. With both enabled, Claude Code can load each skill from either edition. Maister detects this: a warning at session start names both editions and the command that disables each, and the workflow engine won't start or resume a run until only one is enabled and Claude Code has been restarted:
 
 ```bash
 /plugin uninstall maister@maister-plugins
