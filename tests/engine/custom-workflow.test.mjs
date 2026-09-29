@@ -642,16 +642,12 @@ test('overlay: the diagram draws the added node into the gate and leaves the dis
 });
 
 // ---------------------------------------------------------------------------
-// waiting on work that has not landed
+// the context block
 // ---------------------------------------------------------------------------
 
-// These wait on the context block derived from any workflow name: `write-state`
-// accepting `context` and `phase_summaries` for a custom name, into
-// `<name>_context` with dashes mapped as the built-ins' names are, and
-// `prior-context` finding the block by its `_context` suffix, falling back to
-// `node_summaries` when a run has none. Today the write is refused with
-// `state-context-block-unknown` and the read with `prior-context-absent`.
-const CONTEXT_BLOCK = 'waits for the context block derived from any workflow name';
+// A custom run's context block is derived from its name — `<name>_context`,
+// dashes mapped as the built-ins' are — and `prior-context` finds it by that
+// suffix, falling back to `node_summaries` when the run wrote none.
 
 const INTAKE_SUMMARY = {
   node: 'intake',
@@ -661,7 +657,7 @@ const INTAKE_SUMMARY = {
   risks: ['the inventory tool is new'],
 };
 
-test('context: a custom run keeps its context and phase summaries in a block named after the workflow', { todo: CONTEXT_BLOCK }, t => {
+test('context: a custom run keeps its context and phase summaries in a block named after the workflow', t => {
   const { run } = frozen(t);
   write(run, { context: { release_train: 'autumn' }, phase_summaries: { intake: INTAKE_SUMMARY } });
   const state = readState(run);
@@ -669,7 +665,7 @@ test('context: a custom run keeps its context and phase summaries in a block nam
   assert.deepEqual(state.release_audit_context.phase_summaries.intake.decisions, INTAKE_SUMMARY.decisions);
 });
 
-test('prior-context: a custom run\'s phase summaries render for the next delegate', { todo: CONTEXT_BLOCK }, t => {
+test('prior-context: a custom run\'s phase summaries render for the next delegate', t => {
   const { run } = frozen(t);
   write(run, { phase_summaries: { intake: INTAKE_SUMMARY } });
   const result = verb(['prior-context', `--state=${run.state}`]);
@@ -679,7 +675,7 @@ test('prior-context: a custom run\'s phase summaries render for the next delegat
   assert.match(result.stdout, /^- the inventory tool is new$/m);
 });
 
-test('prior-context: a custom run with no context block falls back to its node summaries', { todo: CONTEXT_BLOCK }, t => {
+test('prior-context: a custom run with no context block falls back to its node summaries', t => {
   const { run } = frozen(t);
   const { node: _node, ...summary } = INTAKE_SUMMARY;
   write(run, { nodes: { intake: { status: 'completed', values: { needs_security: false, risk_level: 'low' } } }, node_summaries: { intake: summary } });
@@ -689,7 +685,7 @@ test('prior-context: a custom run with no context block falls back to its node s
   assert.match(result.stdout, /the inventory tool is new/);
 });
 
-test('gate-brief: a summary a custom run recorded only in its context block is the brief', { todo: CONTEXT_BLOCK }, t => {
+test('gate-brief: a summary a custom run recorded only in its context block is the brief', t => {
   const { run } = frozen(t);
   write(run, {
     nodes: {
@@ -707,6 +703,10 @@ test('gate-brief: a summary a custom run recorded only in its context block is t
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^Licence scan: No copyleft licences\.$/m);
 });
+
+// ---------------------------------------------------------------------------
+// waiting on work that has not landed
+// ---------------------------------------------------------------------------
 
 // Waits on the projection emitting an unknown task type verbatim: today a type
 // outside the built-in list is coerced to `development`, and the viewer draws
