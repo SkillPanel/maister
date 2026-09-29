@@ -162,6 +162,18 @@ const OPTION_KEYS = ['effect'];
  */
 const ADDED_NODE_KEYS = ['before'];
 
+/**
+ * Keys an earlier grammar accepted at one level and this one does not, each
+ * with the sentence an author migrating a file needs. A did-you-mean would
+ * point `optional` at `options`, which is the wrong fix.
+ */
+const RETIRED_NODE_KEYS = {
+  optional: 'it was accepted without ever changing how a run behaves, and has left the grammar — remove it',
+};
+const RETIRED_OPTION_KEYS = {
+  values: 'an option emits no values; a value a later guard reads is declared by a task node',
+};
+
 /** The declared input types. */
 const INPUT_TYPES = ['string', 'bool', 'path'];
 
@@ -477,9 +489,13 @@ function nodeFor(dotted) {
  * accepted and — when one is a small edit away — the one probably meant.
  * `label` says what the key was taken for: "a node key", "an overlay key".
  */
-function checkKeys(keys, allowed, { file, prefix, label, node = null }, errors) {
+function checkKeys(keys, allowed, { file, prefix, label, node = null, retired = {} }, errors) {
   for (const key of keys) {
     if (allowed.includes(key) || isReservedKey(key)) continue;
+    if (Object.hasOwn(retired, key)) {
+      fail(errors, file, `${prefix}${key}`, `"${key}" is not ${label}: ${retired[key]}`, node);
+      continue;
+    }
     const near = closest(key, allowed);
     const list = allowed.join(', ');
     fail(errors, file, `${prefix}${key}`, near
@@ -1656,7 +1672,7 @@ function checkNodeKeys(node, id, at, file, errors, added) {
       'before attaches a node an overlay adds; a definition\'s own node declares its place with needs', id);
   }
   checkKeys(keys.filter((key) => added || key !== 'before'), allowed,
-    { file, prefix: `${at}.`, label: 'a node key', node: id }, errors);
+    { file, prefix: `${at}.`, label: 'a node key', node: id, retired: RETIRED_NODE_KEYS }, errors);
 
   if (!added || node.before === undefined) return;
   const before = node.before;
@@ -1766,7 +1782,7 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
     }
     if (isMap(authored)) {
       checkKeys(Object.keys(authored), OPTION_KEYS,
-        { file, prefix: `${at}.options.${option}.`, label: 'an option key', node: id }, errors);
+        { file, prefix: `${at}.options.${option}.`, label: 'an option key', node: id, retired: RETIRED_OPTION_KEYS }, errors);
     }
     const effect = optionEffect(authored);
     if (effect === 'continue') continues++;

@@ -470,7 +470,9 @@ test('on: failure waits while its need has not ended, and is not skipped early',
 test('optional is no longer a node key', t => {
   const { code, report } = validate(definition(t, [...BASE, '    optional: true']));
   assert.equal(code, 1);
-  assert.match(errorAt(report, 'nodes.wrapup.optional').message, /"optional" is not a node key/);
+  const { message } = errorAt(report, 'nodes.wrapup.optional');
+  assert.match(message, /"optional" is not a node key: it was accepted without ever changing how a run behaves/);
+  assert.doesNotMatch(message, /did you mean/);
 });
 
 test('optional is no longer tunable by an overlay', t => {
@@ -486,7 +488,7 @@ test('a gate option carries its effect only: values is refused', t => {
     '    options:', '      continue-on: {effect: continue, values: {deep: true}}', '      stop-here: stop');
   const { code, report } = validate(definition(t, lines));
   assert.equal(code, 1);
-  assert.match(errorAt(report, 'nodes.review-approval.options.continue-on.values').message, /"values" is not an option key; the accepted keys are effect/);
+  assert.match(errorAt(report, 'nodes.review-approval.options.continue-on.values').message, /"values" is not an option key: an option emits no values/);
 });
 
 test('a gate declares no outputs, so no guard can read a value it would never record', t => {
