@@ -37,8 +37,27 @@ test('freeze: installs the task and the graph in one write, every node pending',
   assert.equal(state.workflow.source, SAMPLE);
   assert.deepEqual(Object.keys(state.workflow.nodes), graph.nodes.map(node => node.id));
   for (const entry of Object.values(state.workflow.nodes)) assert.equal(entry.status, 'pending');
-  assert.deepEqual(state.workflow.nodes.research, { kind: 'workflow', status: 'pending' });
+  assert.deepEqual(state.workflow.nodes.research, { kind: 'workflow', status: 'pending', needs: ['implementation'] });
   assert.deepEqual(state.orchestrator.options.inputs, { ticket: 'ALPHA-42' });
+});
+
+test('freeze: every node carries its needs from the resolved graph, though the patch sent none', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const nodes = readState(run).workflow.nodes;
+  for (const node of graph.nodes) assert.deepEqual(nodes[node.id].needs, node.needs, node.id);
+  assert.deepEqual(nodes.analysis.needs, [], 'a root node records that it needs nothing');
+});
+
+test('freeze: a graph_hash the definition does not resolve to leaves the entries as sent', t => {
+  const run = scratch(t);
+  const graph = JSON.parse(verb(['resolve', `--definition=${SAMPLE}`]).stdout);
+  const nodes = Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  write(run, {
+    task: { title: 'Sample run', status: 'in_progress' },
+    workflow: { source: SAMPLE, graph_hash: graph.graph_hash.replace(/.$/, last => (last === '0' ? '1' : '0')), grammar_version: 1, name: graph.name, nodes },
+  });
+  for (const entry of Object.values(readState(run).workflow.nodes)) assert.equal(entry.needs, undefined);
 });
 
 test('freeze: resolve names the tracker-key input the freeze reads task.key from', () => {
@@ -242,6 +261,80 @@ test('nodes: a status change stamps its clock field and leaves every other entry
   const untouched = line => line.startsWith('    approval:') || line.startsWith('    research:');
   const after = fs.readFileSync(run.state, 'utf8');
   assert.deepEqual(after.split('\n').filter(untouched), before.split('\n').filter(untouched));
+});
+
+/** A UTC stamp in the writer's spelling, read from this process's clock. */
+const clock = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+const STALE = '2020-01-01T00:00:00Z';
+const NOTE = /^note: ignored the supplied (.+); the writer stamps these from its own clock$/m;
+
+/** Replace one line of the state file, the way a stale earlier write would have left it. */
+function edit(run, from, to) {
+  const text = fs.readFileSync(run.state, 'utf8');
+  assert.ok(from.test(text), `no line matching ${from} to edit`);
+  fs.writeFileSync(run.state, text.replace(from, to));
+}
+
+test('stamps: a started the patch supplies is ignored, the node gets the writer\'s clock, and the drop is noted', t => {
+  const run = scratch(t);
+  freeze(run);
+  const before = clock();
+  const result = write(run, { nodes: { analysis: { status: 'running', started: STALE } } });
+  const { started } = readState(run).workflow.nodes.analysis;
+  assert.match(started, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+  assert.notEqual(started, STALE);
+  assert.ok(started >= before, `${started} is earlier than the write`);
+  assert.equal(result.stderr.match(NOTE)?.[1], 'workflow.nodes.analysis.started');
+});
+
+test('stamps: a completed supplied with the completion is ignored', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  const result = write(run, { nodes: { analysis: { status: 'completed', completed: STALE } } });
+  const node = readState(run).workflow.nodes.analysis;
+  assert.notEqual(node.completed, STALE);
+  assert.ok(node.completed >= node.started);
+  assert.equal(result.stderr.match(NOTE)?.[1], 'workflow.nodes.analysis.completed');
+});
+
+test('stamps: orchestrator.updated moves forward on every write, whatever the patch says', t => {
+  const run = scratch(t);
+  freeze(run);
+  edit(run, /^  updated: .*$/m, `  updated: "${STALE}"`);
+  const before = clock();
+  const quiet = write(run, {});
+  assert.ok(readState(run).orchestrator.updated >= before, 'an empty write re-stamps updated');
+  assert.doesNotMatch(quiet.stderr, NOTE, 'a patch carrying no clock field is not noted');
+
+  edit(run, /^  updated: .*$/m, `  updated: "${STALE}"`);
+  const result = write(run, { orchestrator: { updated: STALE }, nodes: { analysis: { status: 'running' } } });
+  assert.ok(readState(run).orchestrator.updated >= before, 'a supplied updated does not pin the clock');
+  assert.equal(result.stderr.match(NOTE)?.[1], 'orchestrator.updated');
+});
+
+test('stamps: a running node written running again keeps its started', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  edit(run, /started: "?[^,"}]+"?/, `started: "${STALE}"`);
+  write(run, { nodes: { analysis: { status: 'running', values: { note: 'still going' } } } });
+  const node = readState(run).workflow.nodes.analysis;
+  assert.equal(node.started, STALE, 'a rewrite that is not a transition keeps the recorded start');
+  assert.deepEqual(node.values, { note: 'still going' });
+});
+
+test('stamps: a node re-driven after it failed starts a new clock and drops the old completion', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  write(run, { nodes: { analysis: { status: 'failed' } } });
+  edit(run, /started: "?[^,"}]+"?/, `started: "${STALE}"`);
+  const before = clock();
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  const node = readState(run).workflow.nodes.analysis;
+  assert.ok(node.started >= before, 'the re-drive is a new attempt');
+  assert.equal(node.completed, undefined, 'a running node carries no completion');
 });
 
 test('orchestrator.options merges key by key: a later option write keeps html_output', t => {

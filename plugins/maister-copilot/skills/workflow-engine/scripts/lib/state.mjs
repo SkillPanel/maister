@@ -83,7 +83,7 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { readDefinition } from './definition.mjs';
-import { locateWorkflow } from './graph.mjs';
+import { locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -214,9 +214,22 @@ const STATUS_MIRROR = {
  * `waiting` is in neither set on purpose: `started` was stamped when the node
  * went `running`, and `completed` is stamped when the child run ends. A
  * `waiting` stamp would record the node as finished while it is still waiting.
+ *
+ * `ONGOING` is what a node can be while its `started` still describes the
+ * attempt in progress. Going `running` from anything else is a new attempt —
+ * a first start or a re-drive — and gets a new clock.
  */
 const STARTS = new Set(['running']);
 const ENDS = new Set(['completed', 'failed', 'skipped']);
+const ONGOING = new Set(['running', 'waiting', 'suspended']);
+
+/**
+ * The node fields only this writer's clock may fill. A caller has no clock of
+ * its own — a driven session has nothing to read one with — so a value it sends
+ * is a time it already held, and the one it holds is usually the run's
+ * `created`: every node then reads as having run for as long as the whole run.
+ */
+const CLOCK_FIELDS = ['started', 'completed'];
 
 /** Scalars that YAML would read as something other than a string. */
 const RESERVED = /^(?:true|false|yes|no|on|off|null|~)$/i;
@@ -355,7 +368,7 @@ const WORKFLOW_CONTEXT = {
 /**
  * Apply `patch` to the state file at `state`.
  *
- * Returns `{ok, changed, errors, warnings}`. On a refusal `changed` is empty and
+ * Returns `{ok, changed, errors, warnings, ignored}`. On a refusal `changed` is empty and
  * the file on disk is byte-for-byte what it was: every check that can refuse runs
  * before the rename, and the rename is the only thing that publishes a write.
  *
@@ -377,6 +390,9 @@ const WORKFLOW_CONTEXT = {
 export function writeState({ state, patch }) {
   const changed = [];
   const warnings = [];
+  // The clock fields the patch carried and the writer dropped, as dotted
+  // paths. Data rather than a stderr line, for the reason `warnings` is.
+  const ignored = [];
   try {
     checkPatch(patch);
     const doc = readDoc(state);
@@ -389,7 +405,7 @@ export function writeState({ state, patch }) {
     // write that starts a run, and a later write re-sending `workflow:` into a
     // file that already carries one is not that write.
     const hadWorkflow = doc.has('workflow');
-    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)))) allowed.add(key);
+    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)), ignored)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -411,7 +427,7 @@ export function writeState({ state, patch }) {
     project(state, text, now, changed, warnings);
     const freeze = Boolean(patch.workflow) && !hadWorkflow;
     if (freeze) installViewer(state, text, changed, warnings);
-    const result = { ok: true, changed, errors: [], warnings };
+    const result = { ok: true, changed, errors: [], warnings, ignored };
     if (freeze) result.banner = banner(state, text, patch.workflow);
     return result;
   } catch (err) {
@@ -756,22 +772,31 @@ function fallbackExecutor(doc) {
  * a data file stamped a second before the state it describes is a data file whose
  * freshness cannot be reasoned about.
  */
-function apply(doc, patch, changed, now, runDir) {
+function apply(doc, patch, changed, now, runDir, ignored) {
   const intended = new Set(['orchestrator']);
 
+  // `updated` is this write's own stamp, set last below; a patch value for it
+  // is dropped here, before it can land and before its spelling is judged.
+  let orchestrator = patch.orchestrator;
+  if (isPlainObject(orchestrator) && Object.hasOwn(orchestrator, 'updated')) {
+    const { updated: _supplied, ...rest } = orchestrator;
+    orchestrator = rest;
+    ignored.push('orchestrator.updated');
+  }
+
   // Before the patch's own `orchestrator` keys, so the seeded sequences open
-  // the block and a freeze's `parent` still lands last.
-  if (patch.workflow) seedSequences(doc, patch.orchestrator, changed);
-  if (patch.orchestrator) applyScalars(doc, 'orchestrator', patch.orchestrator, changed);
+  // the block and a freeze's `parent` still follows every key the patch sends.
+  if (patch.workflow) seedSequences(doc, orchestrator, changed);
+  if (orchestrator) applyScalars(doc, 'orchestrator', orchestrator, changed);
   if (patch.task) {
     applyScalars(doc, 'task', patch.task, changed);
     intended.add('task');
   }
   if (patch.workflow) {
-    applyWorkflow(doc, patch.workflow, now, changed);
+    applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored);
     intended.add('workflow');
   }
-  if (patch.nodes) applyNodes(doc, patch.nodes, now, changed);
+  if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored);
   if (patch.context || patch.phase_summaries) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
     // the block and writes its summaries in one invocation resolves from the
@@ -795,8 +820,7 @@ function apply(doc, patch, changed, now, runDir) {
 
   // Every write moves the run's clock. Set last so it reflects the whole write
   // rather than the moment the first section was touched.
-  const updated = patch.orchestrator && 'updated' in patch.orchestrator ? patch.orchestrator.updated : now;
-  doc.set(['orchestrator', 'updated'], [`  updated: ${flow(updated, 'orchestrator.updated')}`]);
+  doc.set(['orchestrator', 'updated'], [`  updated: ${flow(now, 'orchestrator.updated')}`]);
   if (!changed.includes('orchestrator.updated')) changed.push('orchestrator.updated');
   return intended;
 }
@@ -1127,7 +1151,7 @@ function splitTopLevel(body) {
  * `nodes:` child no YAML parser accepts, and under it a node no graph declared,
  * recorded `completed` and read back by the ready set. Through the success path.
  */
-function applyWorkflow(doc, workflow, now, changed) {
+function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
   if (!isPlainObject(workflow)) throw new Refusal('state-patch-invalid', 'the workflow patch must be an object');
   const nodes = workflow.nodes;
   if (!isPlainObject(nodes) || Object.keys(nodes).length === 0) {
@@ -1167,8 +1191,8 @@ function applyWorkflow(doc, workflow, now, changed) {
     lines.push(`  ${key}: ${flow(workflow[key], `workflow.${key}`)}`);
   }
   lines.push('  nodes:');
-  for (const [id, entry] of Object.entries(nodes)) {
-    lines.push(nodeLine(id, stamp(entry, {}, now)));
+  for (const [id, entry] of Object.entries(withResolvedNeeds(workflow, runDir))) {
+    lines.push(nodeLine(id, stamp(id, entry, {}, now, ignored)));
     changed.push(`workflow.nodes.${id}`);
   }
   doc.set(['workflow'], lines);
@@ -1176,11 +1200,48 @@ function applyWorkflow(doc, workflow, now, changed) {
 }
 
 /**
+ * The freeze's node entries, each carrying its `needs` from the graph itself.
+ *
+ * The first write is what a reader lays the graph out from, and a caller that
+ * copied only the kinds leaves it with no edges until some later write adds
+ * them. So the writer re-resolves the definition the patch records and takes
+ * the edges from that — but only when the result hashes to the `graph_hash` the
+ * patch is freezing, which is what proves it is the same graph. A resolved
+ * `needs` then replaces whatever the patch carried for that node. Anything
+ * short of that proof — a definition that cannot be found or resolved, an
+ * overlay that cannot be read, a hash that differs — leaves the entries as the
+ * patch sent them: the freeze is never refused over edges a reader can still
+ * take from the definition.
+ */
+function withResolvedNeeds(workflow, runDir) {
+  const nodes = workflow.nodes;
+  try {
+    const file = definitionPathOf({ workflow }, runDir);
+    if (file === null) return nodes;
+    const root = projectRootOf(runDir);
+    const overlays = Array.isArray(workflow.overlays) ? workflow.overlays : [];
+    const sources = [readDefinition(file), ...overlays.map(overlay => readDefinition(path.resolve(root, String(overlay))))];
+    if (sources.some(source => source.errors.length)) return nodes;
+    const [definition, ...rest] = sources;
+    const graph = resolveGraph({ definition, overlays: rest, profile: workflow.profile ?? null, project: root });
+    if (!graph.ok || graph.graph_hash !== workflow.graph_hash) return nodes;
+    const needs = new Map(graph.nodes.map(node => [node.id, node.needs]));
+    const filled = {};
+    for (const [id, entry] of Object.entries(nodes)) {
+      filled[id] = isPlainObject(entry) && needs.has(id) ? { ...entry, needs: needs.get(id) } : entry;
+    }
+    return filled;
+  } catch {
+    return nodes;
+  }
+}
+
+/**
  * How a `workflow` patch differs from the block the file already carries, one
  * phrase per difference; empty when the patch says nothing the file does not.
  * A scalar the patch leaves out is carried forward, so only the ones it sends
- * are compared. A node entry is compared with its `pending` default filled in,
- * because the freeze wrote it that way.
+ * are compared. A node entry is compared with its `pending` default and its
+ * recorded `needs` filled in, because the freeze wrote it that way.
  */
 function frozenDifferences(doc, workflow) {
   let frozen;
@@ -1198,8 +1259,11 @@ function frozenDifferences(doc, workflow) {
   if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
   const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
   if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
+  // `needs` is carried forward like an omitted scalar: the freeze may have
+  // filled it from the resolved graph, so a retry re-sending the same entries
+  // without it is still the same patch.
   const rewritten = Object.keys(workflow.nodes).filter(id => Object.hasOwn(recorded, id)
-    && !sameValue({ status: 'pending', ...workflow.nodes[id] }, recorded[id]));
+    && !sameValue({ status: 'pending', needs: recorded[id]?.needs, ...workflow.nodes[id] }, recorded[id]));
   if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
   return differences;
 }
@@ -1225,7 +1289,7 @@ function sameValue(a, b) {
  * every other entry keeps its own bytes, which is what makes the preservation
  * guarantee hold on a file the engine adopted rather than wrote.
  */
-function applyNodes(doc, nodes, now, changed) {
+function applyNodes(doc, nodes, now, changed, ignored) {
   if (!isPlainObject(nodes)) throw new Refusal('state-patch-invalid', 'the nodes patch must be an object');
   const region = doc.nodesRegion();
   if (!region) {
@@ -1252,7 +1316,7 @@ function applyNodes(doc, nodes, now, changed) {
     // `NODE_ID` admits `constructor`, and the entry map is a bare object
     // literal, so an unguarded read here would merge `Object.prototype`'s
     // member in as the existing entry. Same rule as everywhere else.
-    const merged = stamp(patchEntry, Object.hasOwn(existing, id) ? existing[id] ?? {} : {}, now);
+    const merged = stamp(id, patchEntry, Object.hasOwn(existing, id) ? existing[id] ?? {} : {}, now, ignored);
     doc.setNode(id, serializeNode(id, merged, patchEntry, now));
     changed.push(`workflow.nodes.${id}`);
   }
@@ -1274,7 +1338,7 @@ function serializeNode(id, merged, patchEntry, now) {
   } catch (err) {
     if (!(err instanceof Refusal) || err.code !== 'value-not-flow-safe') throw err;
     try {
-      nodeLine(id, stamp(patchEntry, {}, now));
+      nodeLine(id, stamp(id, patchEntry, {}, now, []));
     } catch {
       throw err;
     }
@@ -1287,13 +1351,33 @@ function serializeNode(id, merged, patchEntry, now) {
  * The clock fields a status change owes, filled from the system clock and never
  * invented for a transition that did not happen. A full UTC date and time, so
  * `started` and `completed` are orderable against each other.
+ *
+ * Only a transition stamps. A rewrite that leaves the node where it was keeps
+ * the stamp it already has — a `running` node written `running` again has not
+ * restarted — and a patch's own `started` or `completed` is dropped and
+ * recorded in `ignored`, whatever it says. A node going `running` again after
+ * it ended is a new attempt: it gets a new `started`, and the old attempt's
+ * `completed` goes, because a running node that reads as finished is the wrong
+ * duration in every reader.
  */
-function stamp(patchEntry, existing, now) {
-  const merged = { ...existing, ...patchEntry };
+function stamp(id, patchEntry, existing, now, ignored) {
+  const supplied = { ...patchEntry };
+  for (const field of CLOCK_FIELDS) {
+    if (!Object.hasOwn(supplied, field)) continue;
+    delete supplied[field];
+    ignored.push(`workflow.nodes.${id}.${field}`);
+  }
+  const before = existing.status === undefined || existing.status === null ? null : String(existing.status);
+  const merged = { ...existing, ...supplied };
   if (!merged.status) merged.status = 'pending';
   const status = String(merged.status);
-  if (STARTS.has(status) && !merged.started) merged.started = now;
-  if (ENDS.has(status) && !merged.completed) merged.completed = now;
+  if (STARTS.has(status) && !ONGOING.has(before)) {
+    merged.started = now;
+    delete merged.completed;
+  } else if (STARTS.has(status) && !merged.started) {
+    merged.started = now;
+  }
+  if (ENDS.has(status) && !(ENDS.has(before) && merged.completed)) merged.completed = now;
   return merged;
 }
 

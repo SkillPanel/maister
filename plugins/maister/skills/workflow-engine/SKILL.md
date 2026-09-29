@@ -756,8 +756,8 @@ A resume always arrives as a first line in one of five shapes — `GATE-ANSWER`,
 `STEER`, `RESUME` or `SUB-RUN-DONE` — and **all five end with `at=<timestamp>`**. That stamp is the turn's
 measured time and it is the only one the engine has: nothing in a resumed turn may read a
 clock of its own or reuse a time from an earlier turn. Record it exactly as a `GATE-ANSWER`
-stamp is recorded — as the `at` of the decision the turn writes, and as the `started` of any
-node the turn begins — on a re-drive and a steer no less than on an answer. A first line with
+stamp is recorded — as the `at` of the decision the turn writes — on a re-drive and a steer
+no less than on an answer. A first line with
 no `at=` is below the contract: print `RUN-FAILED: prompt-line-unstamped`, write nothing, and
 leave the run where it was. Inventing a time there is what puts a midnight timestamp into a
 run's permanent record, and a fabricated stamp is worse than a refused turn.
@@ -970,7 +970,9 @@ able to write:
   different times: a write recording `spec_audit_enabled` leaves an `html_output` an earlier
   node set alone. Send the whole map only when you mean to add to it.
 - `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
-  edited in place afterwards.
+  edited in place afterwards. Never send a node's `started` or `completed`, or
+  `orchestrator.updated`: the writer stamps all three from its own clock on each status change
+  and drops, with a `note:` line on stderr, any value a patch carries for them.
 - `context` and `phase_summaries` — written into whichever per-workflow context block the
   run's name resolves to (`task_context` for development, `research_context` for research,
   `performance_context` for performance, `migration_context` for migration); `node_summaries` is its own top-level block, keyed by node id.
