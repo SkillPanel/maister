@@ -286,3 +286,26 @@ test('an artifact declared as a number or a map is refused', t => {
     assert.match(errorAt(report, `nodes.intake.outputs.artifacts.${key}`).message, /declared as a path relative to the task directory/);
   }
 });
+
+// ---------------------------------------------------------------------------
+// a newer version degrades, and is still refused a cycle
+// ---------------------------------------------------------------------------
+
+test('a newer whole-number version degrades and exits 0 on an acyclic graph', t => {
+  const { code, report } = validate(definition(t, [...replacing('version: 1', 'version: 2'), '    budget: {minutes: 30}']));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(report.degraded, ['newer-format']);
+  assert.deepEqual(report.warnings, ['newer-format']);
+});
+
+test('a newer version with a cycle in needs is refused: the degrade does not switch the cycle check off', t => {
+  const lines = replacing('    needs: []', '    needs: [wrapup]').map(line => (line === 'version: 1' ? 'version: 2' : line));
+  const file = definition(t, lines);
+  const { code, report } = validate(file);
+  assert.equal(code, 1);
+  assert.deepEqual(report.degraded, ['newer-format']);
+  assert.match(errorAt(report, 'nodes').message, /needs forms a cycle: /);
+  const resolved = verb(['resolve', `--definition=${file}`]);
+  assert.equal(resolved.code, 1);
+  assert.equal(JSON.parse(resolved.stdout).graph_hash, null);
+});

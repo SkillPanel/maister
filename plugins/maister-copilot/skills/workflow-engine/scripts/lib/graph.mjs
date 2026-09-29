@@ -401,9 +401,15 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
   // `disable` naming a node the base does not declare — and every one of them
   // is returned. Returning a graph and dropping the errors beside it is the
   // silently-ignored `disable` that `applyOps` exists to make impossible.
+  //
+  // One v1 check is not about the v1 grammar and runs here too: a cycle in
+  // `needs`. The fold below orders the nodes topologically, and on a cycle that
+  // order silently falls back to name order — so a newer document with a cycle
+  // would be hashed as a graph nobody could execute.
   if (degraded.length) {
     const errors = [];
     const graph = buildGraph({ definition, overlays, profile, errors });
+    if (graph) checkCycle(graph.nodes, graph.file, errors);
     if (!graph || errors.length) {
       return { ok: false, errors, warnings: [], ...provenance, degraded, graph_hash: null, nodes: [] };
     }
@@ -1503,10 +1509,12 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
     checkInterpolations(node, id, `nodes.${id}`, origin, errors, { inputs, nodes, closure: closures.get(id) });
   }
 
+  checkCycle(nodes, file, errors);
+}
+
+function checkCycle(nodes, file, errors) {
   const cycle = findCycle(nodes);
-  if (cycle) {
-    fail(errors, file, 'nodes', `needs forms a cycle: ${cycle.join(' -> ')}`, cycle[0]);
-  }
+  if (cycle) fail(errors, file, 'nodes', `needs forms a cycle: ${cycle.join(' -> ')}`, cycle[0]);
 }
 
 /**

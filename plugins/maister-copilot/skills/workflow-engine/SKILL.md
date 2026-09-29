@@ -373,10 +373,13 @@ changes nothing, and one that differs in a node or in any scalar beside `workflo
 forward into the block and nothing is dropped from it.
 
 The patch arrives on stdin so no quoting has to survive a shell — Windows without a POSIX
-shell is a supported target. An unknown version degrades **the same way in every verb** —
-`validate`, `resolve` and `diagram` alike short-circuit on it, render what they recognise,
-warn, and still exit `0` — so a newer definition in a mixed fleet is a diagnostic rather
-than a dead run, and never a document one verb accepts while another rejects it.
+shell is a supported target. A newer version — a whole number above 1 — degrades **the same
+way in every verb** — `validate`, `resolve` and `diagram` alike short-circuit on it, render
+what they recognise, warn, and still exit `0` — so a newer definition in a mixed fleet is a
+diagnostic rather than a dead run, and never a document one verb accepts while another
+rejects it. Two things are still refused on the degraded path: what the structural fold
+itself finds, and a cycle in `needs`. Any other version that is not `1` — quoted, fractional,
+a word — is a misspelling of this grammar, not a newer one, and `validate` refuses it.
 
 ---
 
