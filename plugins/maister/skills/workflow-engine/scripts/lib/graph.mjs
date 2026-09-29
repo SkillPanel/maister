@@ -969,10 +969,14 @@ function scanControlCharacters(value, file, id, dotted, errors) {
  * `removed` is shared by every overlay and profile of one resolution, so an id
  * any of them disabled stays disabled: an `add` naming it is refused rather than
  * accepted as a node its old dependents no longer wait for.
+ *
+ * An added node's `before:` edges land last, once every add of the body is in
+ * (`placeBefore`).
  */
 function applyOps(body, file, prefix, graph, errors) {
   if (!isMap(body)) return;
   const { nodes, origins, removed } = graph;
+  const placing = [];
 
   for (const [index, id] of (Array.isArray(body.disable) ? body.disable : []).entries()) {
     const dotted = `${prefix}disable.${index}`;
@@ -1046,9 +1050,79 @@ function applyOps(body, file, prefix, graph, errors) {
     if (needsOf(node).length === 0) {
       fail(errors, file, `${dotted}.needs`, 'an added node must attach to the graph through needs', id);
     }
-    nodes.set(id, { ...node });
+    // `before` is an instruction to this resolver, not a property of the node:
+    // it becomes edges below and is never carried, so it cannot reach the
+    // canonical form or the hash.
+    const { before, ...added } = node;
+    nodes.set(id, added);
     origins.set(id, file);
+    if (Array.isArray(before)) placing.push({ id, before, at: `${dotted}.before` });
   }
+
+  // Once every add of this body is in, so a node may be placed before another
+  // node the same body adds.
+  for (const { id, before, at } of placing) placeBefore(id, before, at, file, graph, errors);
+}
+
+/**
+ * `add.<id>.before`: every node it names gains the added node in its `needs`,
+ * so the added node runs upstream of them and they wait for it.
+ *
+ * It is the one edge an overlay may write into a node it did not add, and it is
+ * additive only: an existing need is never removed or rerouted, so an overlay
+ * can make a node wait for more but never for less, and no gate can be stepped
+ * around this way. Each refusal is located at the entry that asked for it:
+ * a node the resolved graph does not carry — with the disabling file named when
+ * an overlay removed it — the added node itself, and an edge that would close a
+ * cycle, named by the path it would close. A target whose own `needs` is
+ * malformed is left untouched, so the graph check still reports it.
+ */
+function placeBefore(id, before, at, file, graph, errors) {
+  const { nodes, removed } = graph;
+  for (const [index, target] of before.entries()) {
+    const dotted = `${at}.${index}`;
+    if (typeof target !== 'string') continue;
+    if (target === id) {
+      fail(errors, file, dotted, `before names "${id}" itself; a node cannot wait for itself`, id);
+      continue;
+    }
+    if (!nodes.has(target)) {
+      fail(errors, file, dotted, removed.has(target)
+        ? `before names "${target}", which ${disabler(removed.get(target), file)} disables; name a node the resolved graph still carries`
+        : `before names "${target}", which no node declares`, id);
+      continue;
+    }
+    const cycle = pathThroughNeeds(nodes, id, target);
+    if (cycle) {
+      fail(errors, file, dotted,
+        `before names "${target}", which "${id}" already needs through ${cycle.join(' -> ')}; making "${target}" wait `
+        + `for "${id}" would close a cycle`, id);
+      continue;
+    }
+    const node = nodes.get(target);
+    if (node.needs !== undefined && !Array.isArray(node.needs)) continue;
+    if (!needsOf(node).includes(id)) node.needs = [...needsOf(node), id];
+  }
+}
+
+/** The ids from `from` to `to` through `needs`, both ends included, or null when `to` is not reached. */
+function pathThroughNeeds(nodes, from, to) {
+  const parent = new Map([[from, null]]);
+  const queue = [from];
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === to) {
+      const found = [];
+      for (let at = to; at !== null; at = parent.get(at)) found.unshift(at);
+      return found;
+    }
+    for (const need of needsOf(nodes.get(id))) {
+      if (parent.has(need) || !nodes.has(need)) continue;
+      parent.set(need, id);
+      queue.push(need);
+    }
+  }
+  return null;
 }
 
 /**
@@ -2067,7 +2141,18 @@ function checkOps(body, file, prefix, errors) {
       if (needsOf(node).length === 0) {
         fail(errors, file, `${at}.needs`, 'an added node must attach to the graph through needs', id);
       }
-      checkNodeShape(node, id, at, file, errors);
+      if (node.before !== undefined) {
+        if (!Array.isArray(node.before)) {
+          fail(errors, file, `${at}.before`, 'before is a sequence of the node ids that wait for this one', id);
+        } else {
+          for (const [index, target] of node.before.entries()) {
+            if (!NODE_ID.test(String(target))) fail(errors, file, `${at}.before.${index}`, `"${target}" is not a node id`, id);
+          }
+        }
+      }
+      // The node is judged as the graph will carry it, which is without `before`.
+      const { before: _before, ...shape } = node;
+      checkNodeShape(shape, id, at, file, errors);
     }
   }
 }

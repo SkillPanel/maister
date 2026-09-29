@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, verb } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, SAMPLE, verb } from '../helpers.mjs';
 
 // What an overlay may do to a built-in graph, and what it is refused: the
 // operations are read on the resolved graph, so each test validates or
@@ -150,5 +150,151 @@ test('a tuned with that is not a mapping is refused where it is written', t => {
     const result = verb(['validate', ...args]);
     assert.equal(result.code, 1);
     assert.deepEqual(JSON.parse(result.stdout).errors.map(error => error.path), ['tune.codebase-analysis.with']);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// add.<id>.before
+// ---------------------------------------------------------------------------
+
+const positionOf = (graph, id) => graph.nodes.findIndex(node => node.id === id);
+
+test('before: makes the named nodes wait for an added phase, so it runs ahead of them whatever its id', t => {
+  const overlay = overlayFile(t, [
+    'extends: builtin:development',
+    'add:',
+    '  threat-model:',
+    '    uses: skill:threat-modeler',
+    '    needs: [specification-approval]',
+    '    before: [planning]',
+  ]);
+  const { code, report } = run('resolve', DEVELOPMENT, [overlay]);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(needsOf(report, 'planning'), ['spec-audit-approval', 'threat-model']);
+  assert.ok(positionOf(report, 'threat-model') < positionOf(report, 'planning'));
+  assert.ok(positionOf(report, 'threat-model') < positionOf(report, 'implementation'));
+});
+
+test('an added gate named to sort last still holds the node it is placed before', t => {
+  const overlay = overlayFile(t, [
+    'extends: builtin:development',
+    'add:',
+    '  zz-architecture-signoff:',
+    '    type: gate',
+    '    needs: [planning-approval]',
+    '    before: [implementation]',
+    '    ask: "Does the plan match the architecture decisions?"',
+    '    options: {signed-off: continue, needs-architect: stop}',
+  ]);
+  const { code, report } = run('resolve', DEVELOPMENT, [overlay]);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(needsOf(report, 'implementation'), ['planning-approval', 'zz-architecture-signoff']);
+  assert.ok(positionOf(report, 'zz-architecture-signoff') < positionOf(report, 'implementation'));
+});
+
+test('an added verifier placed before the verification gate is a need of that gate', t => {
+  const overlay = overlayFile(t, [
+    'extends: builtin:development',
+    'add:',
+    '  security-verification:',
+    '    uses: agent:security-verifier',
+    '    needs: [verification]',
+    '    before: [verification-approval]',
+  ]);
+  const { code, report } = run('resolve', DEVELOPMENT, [overlay]);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(needsOf(report, 'verification-approval'), ['security-verification', 'verification']);
+});
+
+test('before: is an edge, never a node key: the resolved graph hashes as an eject declaring the same edge', t => {
+  const overlay = overlayFile(t, [
+    'extends: sample.yml',
+    'add:',
+    '  check:',
+    '    uses: skill:implementation-verifier',
+    '    needs: [analysis]',
+    '    before: [approval]',
+  ]);
+  const overlaid = run('resolve', SAMPLE, [overlay]).report;
+  assert.equal(overlaid.ok, true, JSON.stringify(overlaid.errors));
+  assert.ok(overlaid.nodes.every(node => !('before' in node)));
+
+  const dir = path.dirname(overlay);
+  const eject = path.join(dir, 'eject.yml');
+  fs.copyFileSync(path.join(FIXTURES, 'definitions/sample.md'), path.join(dir, 'eject.md'));
+  const text = fs.readFileSync(SAMPLE, 'utf8');
+  fs.writeFileSync(eject, `${text.replace('    needs: [analysis]\n    ask:', '    needs: [analysis, check]\n    ask:')}
+  check:
+    uses: skill:implementation-verifier
+    needs: [analysis]
+`);
+  const ejected = run('resolve', eject, []).report;
+  assert.equal(ejected.ok, true, JSON.stringify(ejected.errors));
+  assert.equal(overlaid.graph_hash, ejected.graph_hash);
+});
+
+test('a profile may place the node it adds with before:', t => {
+  const overlay = overlayFile(t, [
+    'extends: builtin:development',
+    'profiles:',
+    '  secure:',
+    '    add:',
+    '      security-verification:',
+    '        uses: agent:security-verifier',
+    '        needs: [verification]',
+    '        before: [verification-approval]',
+  ]);
+  const result = verb(['resolve', `--definition=${DEVELOPMENT}`, `--overlay=${overlay}`, '--profile=secure']);
+  assert.equal(result.code, 0, result.stdout);
+  assert.deepEqual(needsOf(JSON.parse(result.stdout), 'verification-approval'), ['security-verification', 'verification']);
+});
+
+/** An overlay over the sample adding `check` after `analysis`, placed before whatever `before` names. */
+function sampleCheck(t, before, extra = []) {
+  return overlayFile(t, [
+    'extends: sample.yml',
+    ...extra,
+    'add:',
+    '  check:',
+    '    uses: skill:implementation-verifier',
+    '    needs: [implementation]',
+    `    before: ${before}`,
+  ]);
+}
+
+test('before: naming a node nothing declares is refused where it is written', t => {
+  const overlay = sampleCheck(t, '[nowhere]');
+  const { code, report } = run('validate', SAMPLE, [overlay]);
+  assert.equal(code, 1);
+  assert.deepEqual(report.errors.map(error => [error.file, error.node, error.path]), [[overlay, 'check', 'add.check.before.0']]);
+  assert.match(report.errors[0].message, /"nowhere", which no node declares/);
+});
+
+test('before: naming a node this overlay disables is refused, and says so', t => {
+  const { code, report } = run('validate', SAMPLE, [sampleCheck(t, '[research]', ['disable: [research]'])]);
+  assert.equal(code, 1);
+  assert.deepEqual(report.errors.map(error => error.path), ['add.check.before.0']);
+  assert.match(report.errors[0].message, /"research", which this overlay disables/);
+});
+
+test('before: naming the added node itself is refused', t => {
+  const { code, report } = run('validate', SAMPLE, [sampleCheck(t, '[check]')]);
+  assert.equal(code, 1);
+  assert.deepEqual(report.errors.map(error => error.path), ['add.check.before.0']);
+});
+
+test('before: that would close a cycle is refused at the entry, naming the path it would close', t => {
+  const { code, report } = run('validate', SAMPLE, [sampleCheck(t, '[research, approval]')]);
+  assert.equal(code, 1);
+  assert.deepEqual(report.errors.map(error => error.path), ['add.check.before.1']);
+  assert.match(report.errors[0].message, /check -> implementation -> approval/);
+});
+
+test('before: must be a sequence of node ids, resolved and standalone', t => {
+  const overlay = sampleCheck(t, 'approval');
+  for (const args of [[`--definition=${SAMPLE}`, `--overlay=${overlay}`], [`--overlay=${overlay}`]]) {
+    const result = verb(['validate', ...args]);
+    assert.equal(result.code, 1);
+    assert.deepEqual(JSON.parse(result.stdout).errors.map(error => error.path), ['add.check.before']);
   }
 });

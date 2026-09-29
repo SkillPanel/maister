@@ -180,8 +180,28 @@ holds nothing, under the name of the one you removed. `validate` refuses it, whi
 profile did the disabling. To change what a node receives, `tune` it; to put a different node in
 its place, add it under a new id and attach it upstream with `before:` (below).
 
+**`before:` puts an added node upstream of existing ones.** An added node's `needs` say what it
+waits for; its `before:` lists the nodes that wait for it, and each of them gains the added node
+in its own `needs`. That is how a phase goes *between* two phases and how a verifier holds a gate:
+
+```yaml
+add:
+  security-verification:
+    uses: agent:security-verifier
+    needs: [verification]
+    before: [verification-approval]
+```
+
+Without `before:`, nothing waits for an added node, so it runs as a side branch wherever the
+frozen order happens to put it — ties are broken by id — and no gate waits for it. `before:`
+only ever adds a wait: it never removes or reroutes a need the built-in declares, so an overlay
+cannot step around a gate with it. It is refused when it names a node the graph does not carry
+(one an overlay disabled included), the added node itself, or a node the added node already
+needs, which would close a cycle. The graph is the same one an eject declaring those edges by
+hand would give, and it hashes the same.
+
 **The node ids you attach to are a public API.** An overlay names nodes of the built-in —
-in `needs`, in `disable`, in `tune` — so a rename in a built-in would unresolve every
+in `needs`, in `before`, in `disable`, in `tune` — so a rename in a built-in would unresolve every
 overlay in every project at once, silently and all on the same upgrade. Renaming one is
 therefore a deprecation, not an edit: the old id keeps working alongside the new one for
 at least two releases, which is time to move. Two rules follow for you. Attach to ids you
