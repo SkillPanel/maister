@@ -51,6 +51,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { nodeOf, readDefinition } from './definition.mjs';
+import { ICON_HINTS, isTitle } from './display.mjs';
 
 // ---------------------------------------------------------------------------
 // the closed vocabularies
@@ -174,6 +175,7 @@ const WARN = {
   subrunOutput: (node, name) => `unresolved-subrun-output:${node}:${name}`,
   exposedDisabled: (path, node) => `exposed-output-disabled:${path}:${node}`,
   iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
+  titleUnknownNode: (path, node) => `title-unknown-node:${path}:${node}`,
 };
 
 /**
@@ -891,18 +893,28 @@ function buildGraph({ definition, overlays, profile, errors }) {
   // definition of its own. Carried raw rather than defaulted to a map, so the
   // shape check below can tell an absent block from a malformed one.
   //
-  // The workflow-level `display:` block is carried the same way and for the
-  // same stated reason — overlay operations apply to nodes, so there is nothing
-  // an overlay could say about it. Unlike `outputs` it is never folded into the
-  // canonical node list and never reaches the hash: an icon hint is cosmetic,
-  // and a graph whose only change is which glyph a viewer draws is the same
-  // executable graph. Were it inside the envelope, every frozen sub-run child
-  // and every frozen dispatched chain would refuse on drift over a picture.
+  // The workflow-level `display:` block is the one workflow-level block an
+  // overlay may speak to: an overlay that adds a node has to be able to title
+  // it, and one that retitles a base node is making the same cosmetic edit the
+  // base could have made. Each block is carried with the file and the path it
+  // came from — base, then each overlay, then each selected profile, the order
+  // `displayOf` merges them in — so a finding names the file to edit. None of
+  // it is ever folded into the canonical node list or reaches the hash: an icon
+  // hint or a title is cosmetic, and a graph whose only change is what a viewer
+  // draws or calls a node is the same executable graph. Were it inside the
+  // envelope, every frozen sub-run child and every frozen dispatched chain
+  // would refuse on drift over a label.
+  const displays = [{ file, prefix: '', block: doc.display }];
+  for (const overlay of overlays) displays.push({ file: overlay.file, prefix: '', block: overlay.doc?.display });
+  for (const overlay of overlays) {
+    const selected = profile === null || !isMap(overlay.doc?.profiles) ? null : overlay.doc.profiles[profile];
+    if (isMap(selected)) displays.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.display });
+  }
   return {
     file,
     inputs: isMap(doc.inputs) ? doc.inputs : {},
     outputs: doc.outputs,
-    display: doc.display,
+    displays,
     nodes,
     origins,
     removed,
@@ -1203,76 +1215,97 @@ function checkOutputs(outputs, nodes, file, errors, removed, warnings) {
 }
 
 /**
- * The icon hints a viewer knows how to draw, in the order the prose tables list
- * them. Closed, and closed as an **error**: the dashboard resolves a hint
- * through a lookup table it ships, so a value outside this set draws the
- * fallback glyph and the author never learns their spelling was ignored. The
- * rule a writer follows is to pick the closest member of this set and never to
- * invent one, which is only enforceable if the set is checked where the writing
- * happens — at validate time, against the file in hand — rather than quietly
- * coerced where the drawing happens.
- *
- * Both halves of a hint entry are decidable here: the value against this list,
- * and the node id against the graph. So nothing about the value warns.
- */
-const ICON_HINTS = ['analysis', 'spec', 'plan', 'code', 'verify', 'docs', 'done'];
-
-/**
- * The workflow-level `display:` block: what a viewer draws beside each node.
- * One sub-map today, `icons`, mapping a node id to one member of `ICON_HINTS`.
+ * The workflow-level `display:` block: what a viewer draws beside each node and
+ * what it calls it. Two sub-maps, `icons` (node id to one member of
+ * `ICON_HINTS`) and `titles` (node id to the words an operator reads).
  *
  * It is definition data and not graph data, which is the whole reason it is a
- * top-level block rather than a per-node field. A hint on a node would enter the
- * canonical node list and therefore the digest, and correcting a glyph would
- * re-hash every definition that carries one — making every frozen sub-run child
- * refuse `subrun-graph-drifted` and every frozen dispatched chain refuse
- * `dispatch-graph-drifted` over a cosmetic edit. Outside the envelope the same
- * edit costs nothing and no chain notices.
+ * top-level block rather than a per-node field. A hint or a title on a node
+ * would enter the canonical node list and therefore the digest, and correcting
+ * one would re-hash every definition that carries it — making every frozen
+ * sub-run child refuse `subrun-graph-drifted` and every frozen dispatched chain
+ * refuse `dispatch-graph-drifted` over a cosmetic edit. Outside the envelope the
+ * same edit costs nothing and no chain notices.
  *
- * **An entry naming a node the graph does not declare warns rather than
- * errors**, unlike the equivalent miss under `outputs:`. The grounds differ: an
- * exposed output is load-bearing — a parent reads it — whereas a hint for an
- * absent node is unread data, and the commonest way a node goes absent is an
- * overlay or a profile legitimately disabling it. A base that could not carry a
- * hint for an optional phase would be unfixably invalid under every overlay
- * that trims that phase, which is the same trap `checkOutputs` documents and
- * the same escape from it.
+ * The icon hints (`ICON_HINTS`, from `display.mjs`) are a closed set, and closed
+ * as an **error**: the dashboard resolves a hint through a lookup table it
+ * ships, so a value outside the set draws the fallback glyph and the author
+ * never learns their spelling was ignored. The rule a writer follows is to pick
+ * the closest member and never to invent one, which is only enforceable if the
+ * set is checked where the writing happens — at validate time, against the file
+ * in hand — rather than quietly coerced where the drawing happens.
+ *
+ * A title is free text with two limits: it says something (a non-empty string)
+ * and it is one line, because the gate brief carries it in a flow-safe value.
+ *
+ * The values are checked on their own, per block — the base's in `checkGraph`,
+ * an overlay's and each of its profiles' in `checkOps`, so standalone mode sees
+ * them too. Whether the node exists is checked separately, against the resolved
+ * graph.
  */
-function checkDisplay(display, nodes, file, errors, warnings) {
+function checkDisplayValues(display, file, prefix, errors) {
   if (display === undefined || display === null) return;
+  const at = `${prefix}display`;
   if (!isMap(display)) {
-    fail(errors, file, 'display', `display is a mapping of icons; ${describe(display)} is not`);
+    fail(errors, file, at, `display is a mapping of icons and titles; ${describe(display)} is not`);
     return;
   }
   const icons = display.icons;
-  if (icons === undefined || icons === null) return;
-  if (!isMap(icons)) {
-    fail(errors, file, 'display.icons',
+  if (icons !== undefined && icons !== null && !isMap(icons)) {
+    fail(errors, file, `${at}.icons`,
       `display.icons is a mapping of node id to icon hint; ${describe(icons)} is not`);
+  } else {
+    for (const [id, hint] of Object.entries(icons ?? {})) {
+      const dotted = `${at}.icons.${id}`;
+      if (typeof hint !== 'string' || hint === '') {
+        fail(errors, file, dotted, `an icon hint is one of ${ICON_HINTS.join(', ')}; ${describe(hint)} is not`, id);
+      } else if (!ICON_HINTS.includes(hint)) {
+        fail(errors, file, dotted,
+          `"${hint}" is not an icon hint; the admitted values are ${ICON_HINTS.join(', ')}`
+          + ' — pick the closest one rather than a new name, because a viewer draws only these seven', id);
+      }
+    }
+  }
+  const titles = display.titles;
+  if (titles !== undefined && titles !== null && !isMap(titles)) {
+    fail(errors, file, `${at}.titles`,
+      `display.titles is a mapping of node id to title; ${describe(titles)} is not`);
     return;
   }
-  for (const [id, hint] of Object.entries(icons)) {
-    const dotted = `display.icons.${id}`;
-    if (typeof hint !== 'string' || hint === '') {
-      fail(errors, file, dotted, `an icon hint is one of ${ICON_HINTS.join(', ')}; ${describe(hint)} is not`, id);
-      continue;
+  for (const [id, title] of Object.entries(titles ?? {})) {
+    if (isTitle(title)) continue;
+    fail(errors, file, `${at}.titles.${id}`,
+      `a title is a non-empty string on one line; ${typeof title === 'string' ? JSON.stringify(title) : describe(title)} is not`, id);
+  }
+}
+
+/**
+ * **An entry naming a node the graph does not declare warns rather than
+ * errors**, unlike the equivalent miss under `outputs:`. The grounds differ: an
+ * exposed output is load-bearing — a parent reads it — whereas a hint or a title
+ * for an absent node is unread data, and the commonest way a node goes absent is
+ * an overlay or a profile legitimately disabling it. A base that could not carry
+ * a title for an optional phase would be unfixably invalid under every overlay
+ * that trims that phase, which is the same trap `checkOutputs` documents and the
+ * same escape from it.
+ */
+function checkDisplayNodes({ prefix, block }, nodes, warnings) {
+  if (!isMap(block)) return;
+  for (const [key, warn] of [['icons', WARN.iconUnknownNode], ['titles', WARN.titleUnknownNode]]) {
+    if (!isMap(block[key])) continue;
+    for (const id of Object.keys(block[key])) {
+      if (!nodes.has(id)) warnings.push(warn(`${prefix}display.${key}.${id}`, id));
     }
-    if (!ICON_HINTS.includes(hint)) {
-      fail(errors, file, dotted,
-        `"${hint}" is not an icon hint; the admitted values are ${ICON_HINTS.join(', ')}`
-        + ' — pick the closest one rather than a new name, because a viewer draws only these seven', id);
-      continue;
-    }
-    if (!nodes.has(id)) warnings.push(WARN.iconUnknownNode(dotted, id));
   }
 }
 
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
-  const { file, inputs, outputs, display, nodes, origins, removed } = graph;
+  const { file, inputs, outputs, displays, nodes, origins, removed } = graph;
 
   checkInputs(inputs, file, errors);
   checkOutputs(outputs, nodes, file, errors, removed, warnings);
-  checkDisplay(display, nodes, file, errors, warnings);
+  checkDisplayValues(displays[0].block, file, '', errors);
+  for (const display of displays) checkDisplayNodes(display, nodes, warnings);
 
   for (const id of nodes.keys()) {
     if (!NODE_ID.test(id)) fail(errors, file, 'nodes',
@@ -1932,6 +1965,8 @@ function checkOverlayBase(overlay, definition, errors) {
 }
 
 function checkOps(body, file, prefix, errors) {
+  checkDisplayValues(body.display, file, prefix, errors);
+
   if (body.disable !== undefined) {
     if (!Array.isArray(body.disable)) fail(errors, file, `${prefix}disable`, 'disable must be a sequence of node ids', null);
     else {

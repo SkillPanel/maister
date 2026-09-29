@@ -53,6 +53,7 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { resolve } from './graph.mjs';
+import { displayOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
@@ -164,7 +165,7 @@ export function gateBrief({ state, node, oneline = false }) {
   } else {
     const walked = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults, options });
     if (!walked.ok) return { ok: false, text: '', errors: walked.errors, warnings };
-    next = nextLine(walked);
+    next = nextLine(walked, current.titles);
   }
 
   const recommended = recommend(options, closing.risks);
@@ -216,14 +217,16 @@ function digest(value) {
 // ---------------------------------------------------------------------------
 
 /**
- * The frozen definition, re-read and re-resolved: `{graph, defaults, digest,
- * drift}`. `graph` is kept even under a hash mismatch — its needs and options
- * are still the best knowledge of the gate — and is null only when nothing
- * resolves. `defaults` is the re-read document's `inputs.<k>.default` map, since
- * the resolved graph carries no inputs.
+ * The frozen definition, re-read and re-resolved: `{graph, defaults, titles,
+ * digest, drift}`. `graph` is kept even under a hash mismatch — its needs and
+ * options are still the best knowledge of the gate — and is null only when
+ * nothing resolves. `defaults` is the re-read document's `inputs.<k>.default`
+ * map, since the resolved graph carries no inputs. `titles` is the merged
+ * `display.titles` the `Next:` line names nodes by — read off the same sources,
+ * so the brief and the dashboard call a node the same thing.
  */
 function reread(doc, workflow, runDir) {
-  const drifted = (graph = null, defaults = {}) => ({ graph, defaults, digest: digest(graph?.graph_hash), drift: true });
+  const drifted = (graph = null, defaults = {}, titles = displayOf().titles) => ({ graph, defaults, titles, digest: digest(graph?.graph_hash), drift: true });
   const file = definitionPathOf(doc, runDir);
   if (file === null) return drifted();
   const definition = readDefinition(file);
@@ -243,11 +246,12 @@ function reread(doc, workflow, runDir) {
   const degraded = version !== undefined && version !== null && version !== KNOWN_VERSION ? [NEWER_FORMAT] : [];
   const graph = resolve({ definition, overlays, profile: workflow.profile ?? null, degraded });
   const defaults = defaultsOf(definition.doc);
-  if (!graph.ok) return drifted(null, defaults);
+  const { titles } = displayOf({ definition, overlays, profile: workflow.profile ?? null });
+  if (!graph.ok) return drifted(null, defaults, titles);
 
   const frozen = digest(workflow.graph_hash);
   const now = digest(graph.graph_hash);
-  return { graph, defaults, digest: now, drift: frozen === null || frozen !== now };
+  return { graph, defaults, titles, digest: now, drift: frozen === null || frozen !== now };
 }
 
 function defaultsOf(definition) {
@@ -499,10 +503,16 @@ function evaluate(when, { byId, recorded, status, values, inputs, defaults }) {
   };
 }
 
-function nextLine({ next, skipped, waiting = [] }) {
-  const suffix = skipped.length ? ` — skipped: ${skipped.join(', ')}` : '';
-  if (next === null && waiting.length) return `Next: waiting on ${waiting.join(', ')}${suffix}`;
-  return `Next: ${next ?? 'end of run'}${suffix}`;
+/**
+ * The `Next:` line, naming each node by its title: the line is read by the
+ * operator, and nothing parses it back. The ids stay everywhere a write or an
+ * answer is keyed — the refusals' patches and the `Recommended:` option.
+ */
+function nextLine({ next, skipped, waiting = [] }, titles) {
+  const name = id => titleOf(titles, id);
+  const suffix = skipped.length ? ` — skipped: ${skipped.map(name).join(', ')}` : '';
+  if (next === null && waiting.length) return `Next: waiting on ${waiting.map(name).join(', ')}${suffix}`;
+  return `Next: ${next == null ? 'end of run' : name(next)}${suffix}`;
 }
 
 // ---------------------------------------------------------------------------

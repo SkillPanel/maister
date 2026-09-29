@@ -84,6 +84,7 @@ import * as dashboard from './dashboard.mjs';
 // make a workspace eject invisible to the projection and decisive at run time.
 import { readDefinition } from './definition.mjs';
 import { locateWorkflow, resolve as resolveGraph } from './graph.mjs';
+import { displayOf } from './display.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -540,7 +541,7 @@ function project(state, text, now, changed, warnings) {
     const definition = definitionOf(doc, runDir);
     const view = {
       state: doc,
-      display: dashboard.iconsOf(definition),
+      display: displayOfRun(doc, runDir),
       gates: gateRequests(runDir),
       progress: progressOf(doc, definition, runDir),
     };
@@ -630,6 +631,43 @@ function definitionOf(doc, runDir) {
   const file = definitionPathOf(doc, runDir);
   if (file === null) return null;
   return readDefinition(file).doc ?? null;
+}
+
+/**
+ * The icons and titles the run's phases are drawn with: the definition's
+ * `display:` block merged with its overlays' and the selected profile's, the way
+ * `display.mjs` merges them — so a node an overlay added carries the title the
+ * overlay gave it. Cosmetic, so an overlay that cannot be read is left out
+ * rather than costing every other title, and any failure yields the empty
+ * display: every phase then shows its humanized id.
+ */
+function displayOfRun(doc, runDir) {
+  try {
+    const sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
+    if (sources === null) return displayOf();
+    return displayOf({ ...sources, overlays: sources.overlays.filter(overlay => overlay.doc) });
+  } catch {
+    return displayOf();
+  }
+}
+
+/**
+ * The definition a run froze and the overlays it recorded, each read as the
+ * reader returns it (`{file, doc, errors}`), plus the profile: `{definition,
+ * overlays, profile}`, or null when no definition is found. Overlay paths are
+ * taken against the project root, as the freeze recorded them. Each caller
+ * decides what an unreadable source costs it.
+ */
+function sourcesOf(workflow, runDir) {
+  const file = definitionPathOf({ workflow }, runDir);
+  if (file === null) return null;
+  const root = projectRootOf(runDir);
+  const overlays = Array.isArray(workflow.overlays) ? workflow.overlays : [];
+  return {
+    definition: readDefinition(file),
+    overlays: overlays.map(overlay => readDefinition(path.resolve(root, String(overlay)))),
+    profile: workflow.profile ?? null,
+  };
 }
 
 /**
@@ -1216,14 +1254,11 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
 function withResolvedNeeds(workflow, runDir) {
   const nodes = workflow.nodes;
   try {
-    const file = definitionPathOf({ workflow }, runDir);
-    if (file === null) return nodes;
-    const root = projectRootOf(runDir);
-    const overlays = Array.isArray(workflow.overlays) ? workflow.overlays : [];
-    const sources = [readDefinition(file), ...overlays.map(overlay => readDefinition(path.resolve(root, String(overlay))))];
-    if (sources.some(source => source.errors.length)) return nodes;
-    const [definition, ...rest] = sources;
-    const graph = resolveGraph({ definition, overlays: rest, profile: workflow.profile ?? null, project: root });
+    const sources = sourcesOf(workflow, runDir);
+    if (sources === null) return nodes;
+    const { definition, overlays, profile } = sources;
+    if ([definition, ...overlays].some(source => source.errors.length)) return nodes;
+    const graph = resolveGraph({ definition, overlays, profile, project: projectRootOf(runDir) });
     if (!graph.ok || graph.graph_hash !== workflow.graph_hash) return nodes;
     const needs = new Map(graph.nodes.map(node => [node.id, node.needs]));
     const filled = {};

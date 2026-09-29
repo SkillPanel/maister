@@ -352,7 +352,9 @@ async function runDiagram(flags) {
 
   const module = await loadModule(VERBS.diagram.module);
   const render = entryOf(module, 'render', VERBS.diagram.module);
-  const text = render(resolved);
+  const displayOf = entryOf(await loadModule('display.mjs'), 'displayOf', 'display.mjs');
+  const { titles } = displayOf({ definition: sources.definition, overlays: sources.overlays, profile: flags.profile ?? null });
+  const text = render(resolved, { titles });
   // stdout and --out carry the same bytes: the diagram is a pure function of
   // the resolved graph, and a golden test that compared two different renderings
   // would not be testing determinism at all.

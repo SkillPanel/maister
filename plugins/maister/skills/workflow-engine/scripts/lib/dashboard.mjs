@@ -43,22 +43,23 @@
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
 
+import { ICON_HINTS, titleOf } from './display.mjs';
+
 // ---------------------------------------------------------------------------
 // the frozen vocabularies
 // ---------------------------------------------------------------------------
 
 /**
- * The seven icon hints a viewer can draw.
+ * The seven icon hints a viewer can draw, and the title fallback.
  *
- * A deliberate twin of `graph.mjs`'s `ICON_HINTS` and of `dashboard.html`'s
- * `ICONS` map: the validator refuses a definition carrying anything else, and
- * this module filters anything else out, so an eighth value cannot reach a
- * viewer from either direction. It is a copy rather than an import for the same
- * reason `state.mjs`'s `NODE_ID` is a copy of the graph's — the two sources sit
- * on opposite sides of an import that must not become a cycle — and like that
- * pair the three lists are kept character-for-character identical on purpose.
+ * Both come from `display.mjs`, the one module every reader that shows a node to
+ * a person shares, so the validator, this projection and the gate brief refuse,
+ * filter and name nodes from one list and one rule. `display.mjs` imports
+ * nothing, so reading it here opens no cycle. `dashboard.html`'s `ICONS` map is
+ * still a twin of the list, character for character: the viewer is a static page
+ * and imports nothing at all.
  */
-export const ICON_HINTS = ['analysis', 'spec', 'plan', 'code', 'verify', 'docs', 'done'];
+export { ICON_HINTS } from './display.mjs';
 
 /**
  * The executor node ids to fall back on when the definition cannot be read.
@@ -174,8 +175,9 @@ const CHARACTERISTIC_KEYS = [
  * The whole file text for one run.
  *
  * `view` is the plain object `state.mjs` assembles — `{state, display, gates,
- * progress}` — where `state` is the parsed state document, `display` maps a node
- * id to an icon hint, `gates` maps a node id to its parsed request document, and
+ * progress}` — where `state` is the parsed state document, `display` is the
+ * resolved `{icons, titles}` pair `display.mjs` merges from the definition and
+ * its overlays, `gates` maps a node id to its parsed request document, and
  * `progress` carries at most one entry keyed by the executor node.
  *
  * `generated` is the **first** top-level key: that is what the register's schema
@@ -187,6 +189,8 @@ export function render(view, { now }) {
   const source = isPlainObject(view) ? view : {};
   const state = isPlainObject(source.state) ? source.state : {};
   const display = isPlainObject(source.display) ? source.display : {};
+  const icons = isPlainObject(display.icons) ? display.icons : {};
+  const titles = isPlainObject(display.titles) ? display.titles : {};
   const gates = isPlainObject(source.gates) ? source.gates : {};
   const progress = isPlainObject(source.progress) ? source.progress : {};
 
@@ -194,7 +198,7 @@ export function render(view, { now }) {
     generated: now,
     task: taskOf(state),
     characteristics: characteristicsOf(state),
-    phases: phasesOf(state, display, gates, progress),
+    phases: phasesOf(state, icons, titles, gates, progress),
     verification: verificationOf(state),
   };
   return `window.MAISTER_DATA = ${JSON.stringify(data, null, 1)};\n`;
@@ -267,7 +271,7 @@ function characteristicsOf(state) {
  * It is never sorted and never re-derived: a second ordering rule beside the
  * resolver's is a second thing to keep in step, and the two would drift.
  */
-function phasesOf(state, display, gates, progress) {
+function phasesOf(state, icons, titles, gates, progress) {
   const workflow = isPlainObject(state.workflow) ? state.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   const summaries = summarySources(state);
@@ -278,11 +282,14 @@ function phasesOf(state, display, gates, progress) {
     const status = Object.hasOwn(STATUS_MIRROR, node.status) ? STATUS_MIRROR[node.status] : STATUS_FALLBACK;
     const text = typeof summary.summary === 'string' && summary.summary !== '' ? summary.summary : null;
 
-    const phase = { id, name: id };
+    // `id` is what every machine reads — gate files, state, the viewer's own
+    // keys — and stays the node id. `name` is what a person reads: the
+    // definition's title, else the id made readable.
+    const phase = { id, name: titleOf(titles, id) };
     // Omitted rather than defaulted, so the fallback glyph lives in exactly one
     // place — the viewer — and a definition that carries no hint for a node is
     // distinguishable from one that hints `plan`.
-    if (Object.hasOwn(display, id) && ICON_HINTS.includes(display[id])) phase.icon_hint = display[id];
+    if (Object.hasOwn(icons, id) && ICON_HINTS.includes(icons[id])) phase.icon_hint = icons[id];
     phase.status = status;
     phase.started = scalar(node.started);
     phase.completed = scalar(node.completed);
@@ -530,29 +537,9 @@ function verificationOf(state) {
 // ---------------------------------------------------------------------------
 
 /**
- * `display.icons` from a workflow definition, filtered to the seven.
- *
- * `{}` for a definition that is absent, malformed or carries no block, which the
- * viewer renders as its own fallback glyph for every phase. The filter is here as
- * well as in the validator on purpose: the validator guards what an author writes
- * and this guards what a viewer is handed, and an ejected or hand-edited
- * definition passes through only one of the two.
- */
-export function iconsOf(definitionDoc) {
-  const icons = Object.create(null);
-  if (!isPlainObject(definitionDoc)) return icons;
-  const block = definitionDoc.display;
-  if (!isPlainObject(block) || !isPlainObject(block.icons)) return icons;
-  for (const [id, hint] of Object.entries(block.icons)) {
-    if (typeof hint === 'string' && ICON_HINTS.includes(hint)) icons[id] = hint;
-  }
-  return icons;
-}
-
-/**
  * The node that runs the implementation plan, or null.
  *
- * Read off the definition already in hand for `display`, which does carry
+ * Read off the definition already in hand, which does carry
  * `nodes.<id>.uses` — so a pro, ejected or workspace definition whose executor
  * node is named anything at all is found, and `EXECUTOR_FALLBACK` is needed only
  * when no definition could be read.
