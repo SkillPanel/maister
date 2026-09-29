@@ -81,6 +81,25 @@
  * before the close-out check, so a run with both defects finishes its work
  * before it publishes the close-out that says it is over.
  *
+ * WHAT IS MISSING FROM DISK. Every ending the verb judges also reconciles what
+ * the run declared against what is there: one `missing-artifact: <node> <path>`
+ * line, above the marker and above a stop's notice, for each artifact a
+ * completed node declared that does not exist. The declarations are the
+ * resolved graph's, overlays included, so a node an overlay added is held to
+ * its own; a `workflow:` node's resolve against its child's task directory, the
+ * one its recorded `task_path` names, and print repository-root-relative. A
+ * node carrying `dir:` is skipped — its work lands in another repository — and
+ * so is an interpolated path, which names someone else's output.
+ *
+ * It is a warning, never a refusal, and the exit code does not move. Whether a
+ * missing artifact is a defect is the node's own call, made before it recorded
+ * `completed`: its prose may sanction the absence, and this verb cannot read
+ * prose, so a refusal would stop runs that are right and that no write could
+ * clear. At the close the only remedy left is re-driving a node that already
+ * completed, which is the operator's decision, and the line is what lets them
+ * make it. When the definition cannot be shown to be the one the run froze,
+ * nothing is checked and a warning says so rather than guessing.
+ *
  * The codes this module raises: `state-missing`, `state-unreadable`,
  * `run-not-ended`, `run-nodes-unfinished` and `closeout-unpublished`. The
  * failed ending's `run-failed` rides beside its marker and is not a refusal.
@@ -95,6 +114,7 @@ import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
 import { atClose } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
+import { projectRootOf } from './state.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
 /** C5's closing markers, spelled here once. */
@@ -111,9 +131,10 @@ const ENDINGS = new Set(['completed', 'failed', 'stopped']);
  * Judge one run's ending.
  *
  * Returns rather than throws, like `writeState` and `gateRequest`: the entry
- * point prints `notice` (when there is one) and then the marker as the last
- * line, and maps `ok` onto the exit code. `ok` is true exactly when the marker
- * is `RUN-COMPLETE`. Only a genuine internal fault escapes.
+ * point prints the `missing` lines, then `notice` (when there is one), then the
+ * marker as the last line, puts each of `warnings` on stderr, and maps `ok`
+ * onto the exit code. `ok` is true exactly when the marker is `RUN-COMPLETE`.
+ * A refusal carries neither list. Only a genuine internal fault escapes.
  */
 export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
   try {
@@ -137,15 +158,17 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
     }
 
     const nodes = nodesOf(doc);
+    const reconciled = reconcile(nodes, close.graph, runDir);
     if (status === 'failed') {
       const reason = failureOf(nodes);
       return {
         ok: false,
         marker: `${FAILED}: ${reason}`,
         errors: [{ code: 'run-failed', message: `the run recorded task.status failed (${reason}). This is its ending, not a refusal to retry: echo the marker as the turn's last line.` }],
+        ...reconciled,
       };
     }
-    const result = { ok: true, marker: COMPLETE, errors: [] };
+    const result = { ok: true, marker: COMPLETE, errors: [], ...reconciled };
     if (status === 'stopped') result.notice = `run stopped: ${stopOf(nodes, doc, runDir)}`;
     return result;
   } catch (err) {
@@ -223,6 +246,52 @@ function nodesOf(doc) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   return Object.entries(nodes).filter(([, entry]) => isPlainObject(entry));
+}
+
+/**
+ * `{missing, warnings}`: one `missing-artifact: <node> <path>` line per artifact
+ * a completed node declared that is not on disk, in graph order, or — when the
+ * run's graph cannot be shown to be the frozen one — no lines and one warning
+ * saying nothing was checked. A run with no frozen nodes has nothing to check.
+ */
+function reconcile(nodes, graph, runDir) {
+  if (!nodes.length) return { missing: [], warnings: [] };
+  if (graph === null) {
+    return {
+      missing: [],
+      warnings: ['declared artifacts were not checked: the definition this run froze cannot be re-read, or has changed since the freeze'],
+    };
+  }
+
+  const byId = new Map(graph.nodes.map(node => [node.id, node]));
+  const root = projectRootOf(runDir);
+  const missing = [];
+  for (const [id, entry] of nodes) {
+    const node = byId.get(id);
+    if (entry.status !== 'completed' || !node || !isPlainObject(node.outputs?.artifacts)) continue;
+    if (typeof node.dir === 'string' && node.dir !== '') continue;
+    const child = typeof node.uses === 'string' && node.uses.startsWith('workflow:');
+    const taskPath = isPlainObject(entry.values) && typeof entry.values.task_path === 'string' && entry.values.task_path !== ''
+      ? entry.values.task_path
+      : null;
+    for (const declared of Object.values(node.outputs.artifacts)) {
+      if (typeof declared !== 'string' || declared === '' || declared.includes('${')) continue;
+      // A child's artifact is the child's to write; without its address it is
+      // nowhere this run can look, so it is missing rather than looked for here.
+      if (child && taskPath === null) {
+        missing.push(missingLine(id, declared));
+        continue;
+      }
+      const shown = child ? path.posix.join(taskPath, declared) : declared;
+      if (!fs.existsSync(path.resolve(child ? root : runDir, shown))) missing.push(missingLine(id, shown));
+    }
+  }
+  return { missing, warnings: [] };
+}
+
+/** The line one absent artifact prints: node id first, then the path. */
+function missingLine(node, file) {
+  return `missing-artifact: ${node} ${file}`;
 }
 
 /** The failed run's reason: the first failed node, or the task when none is. */

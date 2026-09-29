@@ -10,11 +10,15 @@ const RESEARCH = path.join(ENGINE_DIR, 'workflows/research.yml');
 /**
  * A parent whose `workflow:` node has started a child run and is waiting on it:
  * the terminal-driver walk's W1 (the node starts), W2 (the child freezes with
- * its parent link) and W3 (the parent records the link).
+ * its parent link) and W3 (the parent records the link). The report the
+ * parent's completed analysis declares is on disk, so its close prints only
+ * what the sub-run decides.
  */
 function waiting(t) {
   const parent = scratch(t);
   freeze(parent);
+  fs.mkdirSync(path.join(parent.dir, 'analysis'));
+  fs.writeFileSync(path.join(parent.dir, 'analysis/report.md'), '');
   write(parent, {
     nodes: {
       analysis: { status: 'completed' },

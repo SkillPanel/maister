@@ -9,11 +9,24 @@ function complete(run, extra = []) {
   return verb(['run-complete', `--state=${run.state}`, ...extra]);
 }
 
-function ended(t, patch, { orchestrator = {}, fixture = null } = {}) {
+/**
+ * A sample run, frozen and closed by `patch`. The analysis report its first node
+ * declares is on disk unless `report` is false, so a test about the marker
+ * reads the marker alone.
+ */
+function ended(t, patch, { orchestrator = {}, fixture = null, report = true } = {}) {
   const run = scratch(t, { fixture });
   freeze(run, { orchestrator });
+  if (report) put(run.dir, 'analysis/report.md');
   write(run, patch);
   return run;
+}
+
+/** Write an empty file at `relative` under `dir`, creating its directory. */
+function put(dir, relative) {
+  const file = path.join(dir, relative);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, '');
 }
 
 /** The sample's every node recorded `completed`: a completed run that owes nothing. */
@@ -283,7 +296,8 @@ test('a definition changed since the freeze: no guard is evaluated, and recordin
   write(run, { nodes: { review: { status: 'skipped' } } });
   const again = complete(run);
   assert.equal(again.code, 0, again.stderr);
-  assert.equal(lastLine(again.stdout), 'RUN-COMPLETE');
+  assert.equal(again.stdout, 'RUN-COMPLETE\n', 'no artifact is judged against a definition the run did not freeze');
+  assert.match(again.stderr, /^warning: declared artifacts were not checked\b/);
 });
 
 test('only a completed run is judged: a stopped or failed one keeps its own ending', t => {
@@ -371,4 +385,135 @@ test('parent: completed while its sub-run node still waits is refused, naming wh
   const result = closeWith(parent, {});
   assertUnfinished(result, ['audit', 'notify', 'report']);
   assert.match(result.stderr, /audit \(waiting\)/);
+});
+
+// ---------------------------------------------------------------------------
+// the artifacts a completed node declared and did not leave on disk
+// ---------------------------------------------------------------------------
+
+/** Every artifact the closing run's own nodes declare, on disk. */
+function writeClosingArtifacts(run) {
+  put(run.dir, 'analysis/intake.md');
+  put(run.dir, 'outputs/summary.md');
+  fs.mkdirSync(path.join(run.dir, 'outputs/evidence'), { recursive: true });
+}
+
+/** A child run directory beside `run` holding the findings the audit node exposes, and its address. */
+function childWithFindings(run, { findings = true } = {}) {
+  const child = sibling(run, { type: 'closing-child', name: '2026-01-05-child' });
+  if (findings) put(child.dir, 'analysis/findings.md');
+  return { task_path: child.path, run_id: child.name };
+}
+
+test('every declared artifact on disk, a directory among them: the marker alone', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.equal(result.stderr, '');
+});
+
+test('a declared artifact moved away after its node completed: one line above RUN-COMPLETE, exit 0', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  fs.rmSync(path.join(run.dir, 'analysis/intake.md'));
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'missing-artifact: intake analysis/intake.md\nRUN-COMPLETE\n');
+});
+
+test('a closing node that never wrote its outputs: a line per declared path, the directory included', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/intake.md');
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'missing-artifact: report outputs/evidence\nmissing-artifact: report outputs/summary.md\nRUN-COMPLETE\n');
+});
+
+test('a node that did not complete is not held to its artifacts', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/intake.md');
+  const result = closeWith(run, {
+    intake: { status: 'completed', values: { needs_review: false } },
+    review: { status: 'skipped' },
+    'deep-dive': { status: 'skipped' },
+    audit: { status: 'failed' },
+    notify: { status: 'completed' },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n', 'neither the failed audit nor the report it blocked is held to its artifacts');
+});
+
+test('a node an overlay added is held to the artifacts the overlay declared for it', t => {
+  const run = frozen(t, { overlays: [CLOSING_OVERLAY] });
+  writeClosingArtifacts(run);
+  const result = closeWith(run, closingNodes({
+    audit: { status: 'completed', values: childWithFindings(run) },
+    'security-review': { status: 'completed' },
+  }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'missing-artifact: security-review verification/security.md\nRUN-COMPLETE\n');
+});
+
+test('stopped: the lines sit above the stop notice, and the marker stays last', t => {
+  const run = ended(t, {
+    task: { status: 'stopped' },
+    nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'stopped' }, research: { status: 'stopped' } },
+    node_summaries: { approval: { status: 'completed', decisions: [{ option: 'stop-here', answered_by: 'operator', at: '2026-01-05T09:05:00Z' }] } },
+  }, { report: false });
+  const result = complete(run);
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout, 'missing-artifact: analysis analysis/report.md\nrun stopped: approval - stop-here\nRUN-COMPLETE\n');
+});
+
+test('failed: the lines sit above the failure marker, and the exit stays the failure\'s', t => {
+  const run = ended(t, {
+    task: { status: 'failed' },
+    nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'failed' } },
+  }, { report: false });
+  const result = complete(run);
+  assert.equal(result.code, 1);
+  assert.equal(result.stdout, 'missing-artifact: analysis analysis/report.md\nRUN-FAILED: node implementation failed\n');
+});
+
+test('a refusal prints its marker alone, whatever is missing', t => {
+  const run = frozen(t);
+  const result = closeWith(run, closingNodes({ notify: { status: 'pending' } }));
+  assert.equal(result.stdout, 'RUN-FAILED: run-nodes-unfinished\n');
+});
+
+test('parent: a sub-run node\'s artifact is looked for in its child\'s directory, never the parent\'s', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  const address = childWithFindings(run, { findings: false });
+  put(run.dir, 'analysis/findings.md');
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: address } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, `missing-artifact: audit ${address.task_path}/analysis/findings.md\nRUN-COMPLETE\n`);
+});
+
+test('parent: a sub-run node that recorded no child address has nowhere its artifact could be', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  put(run.dir, 'analysis/findings.md');
+  const result = closeWith(run, closingNodes());
+  assert.equal(result.stdout, 'missing-artifact: audit analysis/findings.md\nRUN-COMPLETE\n');
+});
+
+test('parent and child close in turn, each reconciling its own declarations', t => {
+  const { parent, child } = subRun(t);
+  put(child.dir, 'analysis/findings.md');
+  const childResult = closeWith(child, { scan: { status: 'completed', values: { blocking: false } } });
+  assert.equal(childResult.stdout, 'RUN-COMPLETE\n');
+
+  writeClosingArtifacts(parent);
+  fs.rmSync(path.join(parent.dir, 'outputs/summary.md'));
+  const parentResult = closeWith(parent, {
+    audit: { status: 'completed', values: { task_path: child.path, run_id: child.name } },
+    report: { status: 'completed' },
+    notify: { status: 'completed' },
+  });
+  assert.equal(parentResult.code, 0, parentResult.stderr);
+  assert.equal(parentResult.stdout, 'missing-artifact: report outputs/summary.md\nRUN-COMPLETE\n');
 });
