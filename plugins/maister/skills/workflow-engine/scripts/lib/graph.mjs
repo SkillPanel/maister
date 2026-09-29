@@ -176,6 +176,9 @@ const WARN = {
   exposedDisabled: (path, node) => `exposed-output-disabled:${path}:${node}`,
   iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
   titleUnknownNode: (path, node) => `title-unknown-node:${path}:${node}`,
+  addedLeaf: (path, node, position, count, after) => `added-node-no-dependents:${path}:${node} — nothing needs it, `
+    + `so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
+    + 'list the nodes that should wait for it under before:',
 };
 
 /**
@@ -303,7 +306,10 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   for (const overlay of overlays) checkOverlayBase(overlay, definition, errors);
   scanReserved(definition?.doc, warnings);
   const graph = buildGraph({ definition, overlays, profile, errors });
-  if (graph) checkGraph(graph, errors, warnings, resolved, project);
+  if (graph) {
+    checkGraph(graph, errors, warnings, resolved, project);
+    warnAddedLeaves(graph, warnings);
+  }
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
 }
 
@@ -323,6 +329,24 @@ function countsOf(graph) {
   let gates = 0;
   for (const node of graph.nodes.values()) if (node?.type === 'gate') gates += 1;
   return { nodes: graph.nodes.size, gates };
+}
+
+/**
+ * An added node that nothing needs runs as a side branch: no node and no gate
+ * waits for it, and its place in the frozen order comes from the tie-break on
+ * ids rather than from anything the overlay said. It validates — an appended
+ * leaf is sometimes exactly what was meant — so this warns rather than errors,
+ * and says where the node will run and how to make something wait for it.
+ */
+function warnAddedLeaves(graph, warnings) {
+  const needed = new Set();
+  for (const node of graph.nodes.values()) for (const need of needsOf(node)) needed.add(need);
+  const order = topological(graph.nodes);
+  for (const [id, at] of graph.added) {
+    if (!graph.nodes.has(id) || needed.has(id)) continue;
+    const index = order.indexOf(id);
+    warnings.push(WARN.addedLeaf(at, id, index + 1, order.length, index > 0 ? order[index - 1] : null));
+  }
 }
 
 /**
@@ -391,6 +415,27 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     graph_hash: hashNodes(nodes, canonicalOutputs(graph)),
     nodes,
   };
+}
+
+/**
+ * The document a run executes: the base definition with its `nodes` replaced by
+ * the map its overlays and profile fold to, so a reader looking a node up by id
+ * finds the nodes an overlay added and not the ones it disabled.
+ *
+ * For readers that need a node's declared data — its outputs, what it uses —
+ * and not the verdict: nothing is validated or hashed here, so it costs no
+ * target lookup. The base document is returned unchanged when there is no
+ * overlay to fold, and when the fold itself finds anything wrong, because a
+ * half-folded map would be a graph no run froze. Never throws on a malformed
+ * document; returns null only when the base cannot be read as a mapping.
+ */
+export function foldDefinition({ definition, overlays = [], profile = null }) {
+  const base = isMap(definition?.doc) ? definition.doc : null;
+  if (base === null || overlays.length === 0) return base;
+  const errors = [];
+  const graph = buildGraph({ definition, overlays, profile, errors });
+  if (!graph || errors.length) return base;
+  return { ...base, nodes: Object.fromEntries(graph.nodes) };
 }
 
 // ---------------------------------------------------------------------------
@@ -834,7 +879,7 @@ function scanReserved(doc, warnings) {
  * frozen order, with the profile last because it is chosen at invocation and
  * must be able to override what the overlay it lives in decided.
  *
- * Returns `{file, inputs, nodes, origins, removed}` where `origins` records
+ * Returns `{file, inputs, nodes, origins, removed, added}` where `origins` records
  * which file each node came from. Origins never reach the canonical form or the
  * hash; they exist so an error can name the file the operator has to edit, and
  * so a `direct:` target is looked for beside the file that declared it.
@@ -845,6 +890,10 @@ function scanReserved(doc, warnings) {
  * absent because an overlay trimmed it are the same fact, and the workflow-level
  * `outputs:` block — carried out of the base alone, deliberately not overlayable
  * — cannot tell the author's own mistake from the operator's legitimate trim.
+ *
+ * `added` maps every node an overlay or a profile added to the dotted path it
+ * was added at, so a finding about an added node can point at the entry that
+ * wrote it.
  */
 function buildGraph({ definition, overlays, profile, errors }) {
   if (!definition || !definition.doc || typeof definition.doc !== 'object') {
@@ -865,6 +914,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
   const nodes = new Map();
   const origins = new Map();
   const removed = new Map();
+  const added = new Map();
   for (const [id, node] of Object.entries(isMap(doc.nodes) ? doc.nodes : {})) {
     if (!isMap(node)) {
       fail(errors, file, `nodes.${id}`, 'a node must be a mapping', id);
@@ -874,7 +924,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
     origins.set(id, file);
   }
 
-  for (const overlay of overlays) applyOps(overlay.doc, overlay.file, '', { nodes, origins, removed }, errors);
+  for (const overlay of overlays) applyOps(overlay.doc, overlay.file, '', { nodes, origins, removed, added }, errors);
   for (const overlay of overlays) {
     if (profile === null || !isMap(overlay.doc?.profiles)) continue;
     const selected = overlay.doc.profiles[profile];
@@ -882,7 +932,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
       fail(errors, overlay.file, `profiles.${profile}`, `the overlay declares no profile named "${profile}"`, null);
       continue;
     }
-    applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed }, errors);
+    applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed, added }, errors);
   }
 
   for (const [id, node] of nodes) scanControlCharacters(node, origins.get(id) ?? file, id, `nodes.${id}`, errors);
@@ -918,6 +968,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
     nodes,
     origins,
     removed,
+    added,
   };
 }
 
@@ -965,10 +1016,18 @@ function scanControlCharacters(value, file, id, dotted, errors) {
  * operation names an existing node, and naming one that does not exist is a
  * hard error rather than a no-op — a silently ignored `disable` would leave the
  * operator with a graph they believe they trimmed.
+ *
+ * `removed` is shared by every overlay and profile of one resolution, so an id
+ * any of them disabled stays disabled: an `add` naming it is refused rather than
+ * accepted as a node its old dependents no longer wait for.
+ *
+ * An added node's `before:` edges land last, once every add of the body is in
+ * (`placeBefore`).
  */
 function applyOps(body, file, prefix, graph, errors) {
   if (!isMap(body)) return;
-  const { nodes, origins, removed } = graph;
+  const { nodes, origins, removed, added } = graph;
+  const placing = [];
 
   for (const [index, id] of (Array.isArray(body.disable) ? body.disable : []).entries()) {
     const dotted = `${prefix}disable.${index}`;
@@ -1010,12 +1069,25 @@ function applyOps(body, file, prefix, graph, errors) {
     }
     const node = nodes.get(id);
     for (const key of TUNABLE) {
-      if (patch[key] !== undefined) node[key] = patch[key];
+      if (patch[key] === undefined) continue;
+      if (key === 'with') mergeWith(node, patch.with);
+      else node[key] = patch[key];
     }
   }
 
   for (const [id, node] of Object.entries(isMap(body.add) ? body.add : {})) {
     const dotted = `${prefix}add.${id}`;
+    if (removed.has(id)) {
+      // The disable already rewired this node's dependents past it, so a node
+      // added back under the same id would come back attached to nothing: a gate
+      // that blocks nothing, under a name a reviewer reads as the original.
+      fail(errors, file, dotted,
+        `add names "${id}", which ${disabler(removed.get(id), file)} disables; a disabled node cannot come back under `
+        + 'its own id, because its dependents no longer wait for it. To change its inputs, tune its with or provider '
+        + 'instead of disabling it; to put something else in its place, add it under a new id and list the nodes that '
+        + 'should wait for it under before:', id);
+      continue;
+    }
     if (nodes.has(id)) {
       // Adding over an existing id is the back door around uses-immutability,
       // so it is refused by name rather than merged.
@@ -1029,9 +1101,108 @@ function applyOps(body, file, prefix, graph, errors) {
     if (needsOf(node).length === 0) {
       fail(errors, file, `${dotted}.needs`, 'an added node must attach to the graph through needs', id);
     }
-    nodes.set(id, { ...node });
+    // `before` is an instruction to this resolver, not a property of the node:
+    // it becomes edges below and is never carried, so it cannot reach the
+    // canonical form or the hash.
+    const { before, ...carried } = node;
+    nodes.set(id, carried);
     origins.set(id, file);
+    added.set(id, dotted);
+    if (Array.isArray(before)) placing.push({ id, before, at: `${dotted}.before` });
   }
+
+  // Once every add of this body is in, so a node may be placed before another
+  // node the same body adds.
+  for (const { id, before, at } of placing) placeBefore(id, before, at, file, graph, errors);
+}
+
+/**
+ * `add.<id>.before`: every node it names gains the added node in its `needs`,
+ * so the added node runs upstream of them and they wait for it.
+ *
+ * It is the one edge an overlay may write into a node it did not add, and it is
+ * additive only: an existing need is never removed or rerouted, so an overlay
+ * can make a node wait for more but never for less, and no gate can be stepped
+ * around this way. Each refusal is located at the entry that asked for it:
+ * a node the resolved graph does not carry — with the disabling file named when
+ * an overlay removed it — the added node itself, and an edge that would close a
+ * cycle, named by the path it would close. A target whose own `needs` is
+ * malformed is left untouched, so the graph check still reports it.
+ */
+function placeBefore(id, before, at, file, graph, errors) {
+  const { nodes, removed } = graph;
+  for (const [index, target] of before.entries()) {
+    const dotted = `${at}.${index}`;
+    if (typeof target !== 'string') continue;
+    if (target === id) {
+      fail(errors, file, dotted, `before names "${id}" itself; a node cannot wait for itself`, id);
+      continue;
+    }
+    if (!nodes.has(target)) {
+      fail(errors, file, dotted, removed.has(target)
+        ? `before names "${target}", which ${disabler(removed.get(target), file)} disables; name a node the resolved graph still carries`
+        : `before names "${target}", which no node declares`, id);
+      continue;
+    }
+    const cycle = pathThroughNeeds(nodes, id, target);
+    if (cycle) {
+      fail(errors, file, dotted,
+        `before names "${target}", which "${id}" already needs through ${cycle.join(' -> ')}; making "${target}" wait `
+        + `for "${id}" would close a cycle`, id);
+      continue;
+    }
+    const node = nodes.get(target);
+    if (node.needs !== undefined && !Array.isArray(node.needs)) continue;
+    if (!needsOf(node).includes(id)) node.needs = [...needsOf(node), id];
+  }
+}
+
+/** The ids from `from` to `to` through `needs`, both ends included, or null when `to` is not reached. */
+function pathThroughNeeds(nodes, from, to) {
+  const parent = new Map([[from, null]]);
+  const queue = [from];
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === to) {
+      const found = [];
+      for (let at = to; at !== null; at = parent.get(at)) found.unshift(at);
+      return found;
+    }
+    for (const need of needsOf(nodes.get(id))) {
+      if (parent.has(need) || !nodes.has(need)) continue;
+      parent.set(need, id);
+      queue.push(need);
+    }
+  }
+  return null;
+}
+
+/**
+ * A tuned `with` laid over the node's own, key by key: a key the tune names
+ * takes the tuned value, `null` deletes the key, and every key the tune does not
+ * name is kept. Replacing the map whole made "add one input" silently drop every
+ * input the base passed, which is the opposite of what a one-key tune says.
+ *
+ * Shallow on purpose: a key whose value is itself a map is replaced as one
+ * value, so a tune never has to be read against the base's nesting. A map that
+ * ends up empty is dropped, as an absent `with` is. Null-prototyped, so a key
+ * spelled `__proto__` stays an ordinary key. A `with` that is not a mapping is
+ * `checkOps`'s refusal and changes nothing here.
+ */
+function mergeWith(node, patch) {
+  if (!isMap(patch)) return;
+  const merged = Object.assign(Object.create(null), isMap(node.with) ? node.with : {});
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete merged[key];
+    else merged[key] = value;
+  }
+  if (Object.keys(merged).length) node.with = merged;
+  else delete node.with;
+}
+
+/** Who removed a node, as a refusal names it: this overlay, or the file that did. */
+function disabler(removedBy, file) {
+  return removedBy === file ? 'this overlay' : removedBy;
 }
 
 function needsOf(node) {
@@ -1820,9 +1991,8 @@ function canonicalOutputs(graph) {
  * Does this exposed entry name a node an overlay or a profile removed?
  *
  * Only a removal answers yes. A reference to a node nothing ever declared is
- * the author's own error and never reaches a hash, and a node disabled and then
- * added back under the same id is present again, so it is exposed as it always
- * was.
+ * the author's own error and never reaches a hash, and a removed node never
+ * comes back: `applyOps` refuses an add under an id any overlay disabled.
  */
 function isDisabledReference(reference, graph) {
   if (typeof reference !== 'string') return false;
@@ -2000,6 +2170,10 @@ function checkOps(body, file, prefix, errors) {
         if (patch.provider !== undefined && !['claude', 'copilot'].includes(patch.provider)) {
           fail(errors, file, `${at}.provider`, `"${patch.provider}" is not a known provider`, id);
         }
+        if (patch.with !== undefined && !isMap(patch.with)) {
+          fail(errors, file, `${at}.with`,
+            `a tuned with is a mapping laid over the node's own, key by key, with null deleting a key; ${describe(patch.with)} is not a mapping`, id);
+        }
       }
     }
   }
@@ -2019,7 +2193,18 @@ function checkOps(body, file, prefix, errors) {
       if (needsOf(node).length === 0) {
         fail(errors, file, `${at}.needs`, 'an added node must attach to the graph through needs', id);
       }
-      checkNodeShape(node, id, at, file, errors);
+      if (node.before !== undefined) {
+        if (!Array.isArray(node.before)) {
+          fail(errors, file, `${at}.before`, 'before is a sequence of the node ids that wait for this one', id);
+        } else {
+          for (const [index, target] of node.before.entries()) {
+            if (!NODE_ID.test(String(target))) fail(errors, file, `${at}.before.${index}`, `"${target}" is not a node id`, id);
+          }
+        }
+      }
+      // The node is judged as the graph will carry it, which is without `before`.
+      const { before: _before, ...shape } = node;
+      checkNodeShape(shape, id, at, file, errors);
     }
   }
 }

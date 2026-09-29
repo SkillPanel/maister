@@ -226,6 +226,12 @@ the graph never exposes a key no node can produce. Fewer keys means a different 
 deliberately: a run exposing five artifacts is not the same executable graph as one exposing
 six, and a hash that stayed still would say it was.
 
+**A node an overlay or a profile added that nothing needs warns; it does not stop the run.** The
+warning is `added-node-no-dependents:<path>:<node>`, and its text names the position the node
+runs at in the frozen order. No node and no gate waits for it, so it runs where that order puts
+it, like any other ready node; making a later node wait for it is the overlay's `before:`, never
+a decision the run makes.
+
 **A reference to a node the base definition never declared stays a hard error.** The two look
 alike in the resolved graph and are nothing alike in origin: a name no base node carries is the
 author's own mistake, both halves of the contradiction in one file; a name an overlay or profile
@@ -645,6 +651,14 @@ What the operator reads at a gate is rendered by the engine, never composed:
   the warning as-is; the brief still printed, its `Next:` line says the next node is unknown,
   and the gate is still asked. A `gate-brief-needs-unknown` warning beside it says the summary
   is the nearest recorded one, because what the gate closes is unknown; relay it too.
+
+**The brief covers the whole stretch the gate closes.** It renders the summary of the node the
+gate needs and, after it, the summary of every other node back to the previous gate that recorded
+one — a node an overlay placed before this gate among them. With more than one, each summary is
+named by its node's title, their decisions and risks are listed together — the closing node's
+first, so the budget below trims the others before it — and a `recommend stop:` risk from any of
+them makes the stop option the recommended one. A summary further back never
+stands in for the closing node's own: without that, the brief is refused `gate-brief-no-summary`.
 
 The brief stays within 1,600 characters, so that the brief and the ask fit in the picker. A
 longer summary, decision list or risk list is trimmed, and each cut says `(+N more — see the

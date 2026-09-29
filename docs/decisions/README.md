@@ -3,7 +3,7 @@
 **Scope**: this repository — the plugin, its generated Copilot variant, the contract register and the gate hooks · **Format**: MADR · **Normative shapes**: `plugins/maister/skills/orchestrator-framework/references/compatibility-contracts.md`
 
 ## TL;DR
-Twenty-six accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps, ADR-0020 from reading the five per-workflow context blocks against each other once all five existed, ADR-0021 from the pro edition's packaging shape, ADR-0022 from giving the engine's fourth reference scheme a runtime, ADR-0025 from retiring the prose twins in a major release, and ADR-0026 from the two editions sharing one plugin name. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
+Twenty-seven accepted decisions. The first seven come from the contract freeze and the gate-hook work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps, ADR-0020 from reading the five per-workflow context blocks against each other once all five existed, ADR-0021 from the pro edition's packaging shape, ADR-0022 from giving the engine's fourth reference scheme a runtime, ADR-0025 from retiring the prose twins in a major release, ADR-0026 from the two editions sharing one plugin name, and ADR-0027 from overlays that could add a node but not make anything wait for it. ADR-0001 is the load-bearing one — a gate suspends the process and a fail-closed hook makes the suspension real; ADR-0002 to ADR-0004 freeze the three coordination shapes it rests on; ADR-0005 records what measuring the protocol headless changed in it; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
 Alternatives are not restated: each ADR states in its own Considered Options why the ones it rejected were rejected.
 
 ## Key Decisions
@@ -31,6 +31,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - On the engine path the dashboard data file is projected by the state writer after every committed write; a projection failure warns rather than refusing, and icon hints sit outside the hashed envelope so presentation cannot move a graph's identity (ADR-0024)
 - Plugin 3.0 is engine-only: the prose twins and their switch are removed, Node 20 is required, migration switches over, product-design is the one stated prose exception, re-entry is redesigned for 3.1, and a 2.x task directory is refused on resume and finished on a six-month `release/2.x` line (ADR-0025)
 - Two enabled editions of the plugin are detected from the settings scopes, failing open: a session-start hook warns and `write-state` refuses to start or resume a run (ADR-0026)
+- An overlay places an added node upstream with `before:`, an edge that only adds a wait; a disabled node never comes back under its own id, and a tuned `with` merges by key (ADR-0027)
 
 ## Index
 
@@ -52,7 +53,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | Amended 2026-09-27: a completing node summary gains its declared artifacts and companions |
 | [ADR-0013](0013-prose-workflow-twin-is-transitional.md) | The prose workflow twin is transitional | Accepted | 2026-08-26 | — |
 | [ADR-0014](0014-development-ships-as-a-workflow-definition.md) | Development ships as a workflow definition | Accepted | 2026-08-27 | — |
-| [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | — |
+| [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | Amended by ADR-0027: an added node may be placed upstream with `before:` |
 | [ADR-0016](0016-mid-graph-entry-is-not-an-engine-feature.md) | Mid-graph entry is not an engine feature | Accepted | 2026-08-27 | — |
 | [ADR-0017](0017-driver-aware-gate-suspension.md) | Driver-aware gate suspension and the resume-path editor exception | Accepted | 2026-08-30 | Amends ADR-0012 (one bounded editor-tool exception on the resume path); supersedes ADR-0001's terminal-mode-only closing sentence |
 | [ADR-0018](0018-per-run-dispatch-worktrees.md) | Dispatch worktrees are named for the run and the node | Accepted | 2026-09-08 | — |
@@ -64,3 +65,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0024](0024-dashboard-projection-at-write-time.md) | The dashboard is projected at write time | Accepted | 2026-09-26 | Amends ADR-0012 (the all-or-nothing writer contract, for the post-commit projection only); scopes the framework's seven dashboard-rewrite moments to the prose path. Amended 2026-09-27: a phase card's prose is chosen field by field |
 | [ADR-0025](0025-plugin-3-is-engine-only.md) | Plugin 3.0 is engine-only | Accepted | 2026-09-27 | Closes ADR-0013's retirement and ADR-0023's opt-out branch; amends ADR-0006 (resume half, open plugin) and ADR-0016 (the twin route is gone) |
 | [ADR-0026](0026-refuse-two-enabled-editions.md) | Two enabled editions are detected, warned about and refused | Accepted | 2026-09-29 | — |
+| [ADR-0027](0027-overlays-attach-upstream-with-before.md) | Overlays attach added nodes upstream with `before:` | Accepted | 2026-09-30 | Amends ADR-0015 (an additive upstream edge; the same-id re-add refused) |

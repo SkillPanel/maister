@@ -160,8 +160,55 @@ alternatives, selected by name when the graph is resolved. The result is validat
 a node another node still needs is an error, never a silent gap. An overlay, or one of its profiles, may also carry a
 `display:` block that adds or overrides phase icons and titles — the title of a node it adds, say — without changing the graph.
 
+**A tuned `with` is merged into the node's own, key by key.** A key you name takes your value,
+`null` deletes a key, and every key you leave out keeps the value the built-in passes — so a
+one-key tune adds one input rather than replacing them all. The merge is one level deep: a key
+whose value is a map is replaced as a whole. Deleting a key is also how a later node stops
+reading a node you disable:
+
+```yaml
+disable: [ui-mockups, mockup-approval]
+tune:
+  specification: {with: {design_index: null}}
+  planning: {with: {design_index: null}}
+  e2e-verification: {with: {design_context: null}}
+```
+
+**A disabled node stays disabled.** Disabling a node rewires its dependents to wait for whatever it
+waited for, so a node added back under the same id would be attached to nothing — a gate that
+holds nothing, under the name of the one you removed. `validate` refuses it, whichever overlay or
+profile did the disabling. To change what a node receives, `tune` it; to put a different node in
+its place, add it under a new id and attach it upstream with `before:` (below).
+
+**`before:` puts an added node upstream of existing ones.** An added node's `needs` say what it
+waits for; its `before:` lists the nodes that wait for it, and each of them gains the added node
+in its own `needs`. That is how a phase goes *between* two phases and how a verifier holds a gate —
+the gate's brief then shows the verifier's summary beside the node the gate closes, and a stop
+recommendation among its risks becomes the gate's recommendation:
+
+```yaml
+add:
+  security-verification:
+    uses: agent:security-verifier
+    needs: [verification]
+    before: [verification-approval]
+```
+
+Without `before:`, nothing waits for an added node, so it runs as a side branch wherever the
+frozen order happens to put it — ties are broken by id — and no gate waits for it. `validate`
+warns about such a node (`added-node-no-dependents`), naming the position it will run at. `before:`
+only ever adds a wait: it never removes or reroutes a need the built-in declares, so an overlay
+cannot step around a gate with it. It is refused when it names a node the graph does not carry
+(one an overlay disabled included), the added node itself, or a node the added node already
+needs, which would close a cycle. The graph is the same one an eject declaring those edges by
+hand would give, and it hashes the same.
+
+An added node is a full node of the run. Its declared artifacts are registered on its summary
+when it completes, its icon and title come from the overlay's `display:` block, and a plan
+executor added in place of the built-in's carries the plan's progress on the dashboard.
+
 **The node ids you attach to are a public API.** An overlay names nodes of the built-in —
-in `needs`, in `disable`, in `tune` — so a rename in a built-in would unresolve every
+in `needs`, in `before`, in `disable`, in `tune` — so a rename in a built-in would unresolve every
 overlay in every project at once, silently and all on the same upgrade. Renaming one is
 therefore a deprecation, not an edit: the old id keeps working alongside the new one for
 at least two releases, which is time to move. Two rules follow for you. Attach to ids you
