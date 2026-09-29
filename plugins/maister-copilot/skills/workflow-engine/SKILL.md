@@ -86,7 +86,9 @@ subdirectory, then the built-ins shipped beside this file:
 Resolution order is eject → generated → overlay → built-in, and the first hit wins. A
 generated chain is never overlaid and never ejected: there is no `generated/<name>.overlay.yml`
 candidate, and a definition of the same name at the top of the directory would simply win —
-which the planner's collision check prevents. Its path is what the freeze records as
+which the planner's collision check prevents. **An overlay beside an eject or a generated chain
+of its name is never applied.** Say so to the operator when you find one, rather than letting
+them believe it is in effect; `validate` reports the same fact as `overlay-ignored:<name>:<home>`. Its path is what the freeze records as
 `workflow.source`, exactly as for an eject, and the graph hash is computed from the resolved
 graph, never from the path, so where a chain lives changes nothing about the run. Authoring an
 eject or an overlay, and running an arbitrary definition file, are not this skill's business.

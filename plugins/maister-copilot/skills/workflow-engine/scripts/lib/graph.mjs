@@ -219,6 +219,7 @@ const WARN = {
   exposedDisabled: (path, node) => `exposed-output-disabled:${path}:${node}`,
   iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
   titleUnknownNode: (path, node) => `title-unknown-node:${path}:${node}`,
+  overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
 };
 
 /**
@@ -347,6 +348,8 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   for (const overlay of overlays) checkOverlayBase(overlay, definition, errors);
   scanReserved(definition?.doc, warnings);
   checkDefinition(definition, errors);
+  const hidden = hiddenOverlay(definition, overlays);
+  if (hidden) warnings.push(hidden);
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) {
     checkGraph(graph, errors, warnings, resolved, project);
@@ -809,9 +812,10 @@ export function locateTarget(scheme, written, { project = null } = {}) {
 /**
  * Find the file behind a `workflow:` target, searching the four homes the
  * engine's own Step 3 describes — eject, then generated, then overlay, then
- * the built-in shipped beside this module — and returning `{at, from, base}`
- * for the first hit, or null when the name is found in none of them. `from` is
- * one of `eject`, `generated`, `overlay`, `builtin`.
+ * the built-in shipped beside this module — and returning `{at, from, base,
+ * ignored}` for the first hit, or null when the name is found in none of them.
+ * `from` is one of `eject`, `generated`, `overlay`, `builtin`; `ignored` is the
+ * overlay of the same name an eject or a generated chain hides, or null.
  *
  * `base` is the definition file to *read*: the hit itself for the three homes
  * that hold a definition, and the built-in for an overlay, which carries
@@ -841,7 +845,34 @@ export function locateWorkflow(name, root = null) {
     { at: builtin, from: 'builtin', base: null },
   ];
   const hit = homes.find((home_) => isFile(home_.at));
-  return hit ? { at: hit.at, from: hit.from, base: hit.base ?? hit.at } : null;
+  if (!hit) return null;
+  // An eject or a generated chain wins over an overlay of the same name, and
+  // the overlay is then never applied. `ignored` names it, so a caller can say
+  // so instead of letting an operator believe their overlay is in effect.
+  const overlay = homes[2];
+  const ignored = (hit.from === 'eject' || hit.from === 'generated') && isFile(overlay.at) ? overlay.at : null;
+  return { at: hit.at, from: hit.from, base: hit.base ?? hit.at, ignored };
+}
+
+/**
+ * The `overlay-ignored` warning for a definition that is itself the eject or
+ * generated chain of its name, with an overlay of that name beside it which
+ * this validation was not given. Name resolution picks the definition and never
+ * applies the overlay, which is the fact the operator needs before a run.
+ */
+function hiddenOverlay(definition, overlays) {
+  const file = definition?.file;
+  if (typeof file !== 'string' || !/\.ya?ml$/i.test(file)) return null;
+  const stem = path.basename(file).replace(/\.ya?ml$/i, '');
+  if (stem.endsWith('.overlay')) return null;
+  const dir = path.dirname(path.resolve(file));
+  const generated = path.basename(dir) === 'generated';
+  const home = generated ? path.dirname(dir) : dir;
+  if (path.basename(home) !== 'workflows' || path.basename(path.dirname(home)) !== '.maister') return null;
+  const overlay = path.join(home, `${stem}.overlay.yml`);
+  if (!isFile(overlay)) return null;
+  if (overlays.some((each) => typeof each.file === 'string' && path.resolve(each.file) === overlay)) return null;
+  return WARN.overlayIgnored(stem, generated ? 'generated' : 'eject');
 }
 
 /**
@@ -898,7 +929,8 @@ function resolveTarget(uses, origin, project) {
   // All four homes, not the built-in alone: the report says which one answered,
   // and a target no environment in hand can see still warns rather than errors.
   const found = locateWorkflow(name, project);
-  return found ? { resolved: { at: found.at, from: found.from } } : { warning: true };
+  if (!found) return { warning: true };
+  return { resolved: { at: found.at, from: found.from }, notice: found.ignored ? WARN.overlayIgnored(name, found.from) : null };
 }
 
 /** The prose companion's path beside a definition file. */
@@ -1761,6 +1793,10 @@ function checkReference(node, id, at, file, errors, warnings, resolved, project)
   if (verdict.resolved) resolved.push({ node: id, target: node.uses, ...verdict.resolved });
   else if (verdict.warning) warnings.push(WARN.unresolved(id, node.uses));
   else fail(errors, file, `${at}.uses`, verdict.message, id);
+  // A node carrying `dir:` resolves its workflow in the member repository, so
+  // what this project's homes hold says nothing about what it will run.
+  const dispatched = typeof node.dir === 'string' && node.dir !== '';
+  if (verdict.notice && !dispatched && !warnings.includes(verdict.notice)) warnings.push(verdict.notice);
 }
 
 /**

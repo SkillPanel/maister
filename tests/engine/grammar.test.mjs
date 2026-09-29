@@ -366,3 +366,41 @@ test('with two overlays, a profile applies from the one that declares it and the
   assert.equal(result.code, 0, result.stdout);
   assert.deepEqual(JSON.parse(result.stdout).nodes.map(node => node.id), ['intake', 'review-approval']);
 });
+
+// ---------------------------------------------------------------------------
+// an eject or a generated chain hides an overlay of the same name
+// ---------------------------------------------------------------------------
+
+/** A project whose workflow home holds an `acme` eject and an `acme` overlay beside it. */
+function ejectBesideOverlay(t) {
+  const project = workspace(t);
+  const home = path.join(project, '.maister', 'workflows');
+  fs.mkdirSync(home, { recursive: true });
+  const eject = definition(t, BASE, { dir: home });
+  const lay = overlay(eject, ['extends: acme', 'disable: [wrapup]']);
+  return { project, home, eject, overlay: lay };
+}
+
+test('a workflow: node naming an eject that hides an overlay warns that the overlay is ignored', t => {
+  const { project, home } = ejectBesideOverlay(t);
+  const caller = definition(t, [
+    'name: caller', 'version: 1', 'nodes:',
+    '  run-acme: {uses: "workflow:acme", needs: [], with: {topic: "onboarding"}}',
+  ], { dir: home, name: 'caller' });
+  const result = verb(['validate', `--definition=${caller}`], undefined, { CLAUDE_PROJECT_DIR: project });
+  const report = JSON.parse(result.stdout);
+  assert.equal(result.code, 0, JSON.stringify(report.errors));
+  assert.ok(report.warnings.includes('overlay-ignored:acme:eject'), JSON.stringify(report.warnings));
+  assert.equal(report.resolved.find(entry => entry.node === 'run-acme').from, 'eject');
+});
+
+test('validating the eject itself warns about the overlay beside it, unless it was passed in', t => {
+  const { eject, overlay: lay } = ejectBesideOverlay(t);
+  const alone = validate(eject);
+  assert.equal(alone.code, 0, JSON.stringify(alone.report.errors));
+  assert.deepEqual(alone.report.warnings, ['overlay-ignored:acme:eject']);
+
+  const layered = validate(eject, `--overlay=${lay}`);
+  assert.equal(layered.code, 0, JSON.stringify(layered.report.errors));
+  assert.deepEqual(layered.report.warnings, []);
+});

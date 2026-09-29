@@ -177,7 +177,8 @@ definition that resolves is an overlay that still applies.
 change is larger than an overlay expresses well — a different gate, a reordered phase — and keep in
 mind that an ejected definition no longer follows the plugin's updates to that workflow. Its prose
 companion travels with it: `direct:` nodes in an eject resolve against the `.md` beside the eject,
-not against the plugin's copy.
+not against the plugin's copy. An eject also hides any overlay of the same name — the overlay is
+never applied — and validation warns `overlay-ignored` when it finds the two side by side.
 
 A generated chain — one the planner published for a single ticket — is complete in itself and is
 never overlaid or ejected.
