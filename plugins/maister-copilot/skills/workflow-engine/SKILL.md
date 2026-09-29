@@ -536,7 +536,8 @@ node's recorded `values.task_path`, because the path the parent declares is the 
 writes it. The join applies to both readers of a declared artifact — the existence check above and
 `${<node>.artifacts.<key>}` downstream — and the joined value is repository-root-relative.
 Artifacts are therefore never copied into the parent node's values; only declared *values* are.
-Storing the joined path as well would be a third copy of one fact, kept in step by hand.
+Storing the joined path as well would be a third copy of one fact, kept in step by hand. The declared
+path itself is literal: nothing substitutes a `${…}` inside it, so `validate` refuses one there.
 
 **The two budget-exhausted rows need an operator, so they need a driver.** Asking whether to
 retry or to skip is itself an in-node question, and under a `cockpit` or `dispatch` driver

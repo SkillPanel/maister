@@ -1557,6 +1557,11 @@ function checkNodeKeys(node, id, at, file, errors, added) {
  * A node's declared `outputs`: a mapping of `artifacts` and `values`, nothing
  * else. A third kind is a decidable mistake — nothing reads it — and it used to
  * be carried into the hash unread.
+ *
+ * Each declared artifact is a path relative to the run's task directory,
+ * written literally. Nothing substitutes a `${…}` inside one — the writer that
+ * registers declared artifacts skips such a path outright — so a reference
+ * there is a file that is never found, and is refused where it is written.
  */
 function checkNodeOutputs(node, id, at, file, errors) {
   const outputs = node.outputs;
@@ -1566,6 +1571,22 @@ function checkNodeOutputs(node, id, at, file, errors) {
     return;
   }
   checkKeys(Object.keys(outputs), OUTPUT_KINDS, { file, prefix: `${at}.outputs.`, label: 'an output kind', node: id }, errors);
+
+  const artifacts = outputs.artifacts;
+  if (artifacts === undefined || artifacts === null) return;
+  if (!isMap(artifacts)) {
+    fail(errors, file, `${at}.outputs.artifacts`, 'declared artifacts are a mapping of name to path', id);
+    return;
+  }
+  for (const [name, written] of Object.entries(artifacts)) {
+    const dotted = `${at}.outputs.artifacts.${name}`;
+    if (typeof written !== 'string' || written === '') {
+      fail(errors, file, dotted, `an artifact is declared as a path relative to the task directory; ${describe(written)} is not one`, id);
+    } else if (written.includes('${')) {
+      fail(errors, file, dotted,
+        `an artifact path is written literally, and nothing substitutes a reference inside one; "${written}" carries one`, id);
+    }
+  }
 }
 
 /**
@@ -1847,12 +1868,16 @@ function checkWhen(node, id, at, file, errors, scope) {
  * referencing node's `needs` closure — nothing else can have been produced by
  * the time the node runs, so nothing else can be interpolated into it.
  *
- * `with` is the bulk of it, but not the whole: `dir` reaches a file path, `ask`
- * is read aloud to the operator and `on` decides whether the node runs at all.
- * A reference left unchecked in any of them interpolates to nothing at run time,
- * which is a silent wrong answer rather than a rejection.
+ * `with` is the bulk of it, but not the whole: `dir` reaches a file path and
+ * `ask` is read aloud to the operator. A reference left unchecked in any of
+ * them interpolates to nothing at run time, which is a silent wrong answer
+ * rather than a rejection. (`on` is not among them: it is one of three words.)
+ *
+ * A `${` that never closes is not a reference at all, so the pattern never
+ * matches it and it used to pass as literal text — an author who wrote
+ * `${inputs.version` meant a reference and got the characters.
  */
-const INTERPOLATED_KEYS = ['with', 'dir', 'ask', 'on'];
+const INTERPOLATED_KEYS = ['with', 'dir', 'ask'];
 
 function checkInterpolations(node, id, at, file, errors, scope) {
   for (const key of INTERPOLATED_KEYS) visit(node[key], `${at}.${key}`);
@@ -1870,6 +1895,9 @@ function checkInterpolations(node, id, at, file, errors, scope) {
     for (const match of value.matchAll(INTERPOLATION)) {
       const message = referenceProblem(match[1], scope);
       if (message) fail(errors, file, dotted, message, id);
+    }
+    if (value.replace(INTERPOLATION, '').includes('${')) {
+      fail(errors, file, dotted, `${JSON.stringify(value)} opens a reference with \${ and never closes it with }`, id);
     }
   }
 }

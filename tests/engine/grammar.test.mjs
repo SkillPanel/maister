@@ -259,3 +259,30 @@ test('a quoted version is refused, not degraded past every check', t => {
   assert.deepEqual(report.degraded, []);
   assert.match(errorAt(report, 'version').message, /version 1, written as the bare number; the string "1" is not a version/);
 });
+
+// ---------------------------------------------------------------------------
+// references: unclosed, and inside an artifact path
+// ---------------------------------------------------------------------------
+
+test('a reference that opens with ${ and never closes is refused', t => {
+  const lines = replacing('    with: {topic: "${inputs.topic}"}', '    with: {topic: "${inputs.topic"}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.intake.with.topic').message, /opens a reference with \$\{ and never closes it/);
+});
+
+test('a reference inside an artifact path is refused, since nothing substitutes one there', t => {
+  const lines = replacing('      artifacts: {notes: analysis/notes.md}', '      artifacts: {notes: "analysis/${inputs.topic}.md"}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.intake.outputs.artifacts.notes').message, /an artifact path is written literally/);
+});
+
+test('an artifact declared as a number or a map is refused', t => {
+  const lines = replacing('      artifacts: {notes: analysis/notes.md}', '      artifacts: {notes: 42, extra: {path: analysis/extra.md}}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  for (const key of ['notes', 'extra']) {
+    assert.match(errorAt(report, `nodes.intake.outputs.artifacts.${key}`).message, /declared as a path relative to the task directory/);
+  }
+});
