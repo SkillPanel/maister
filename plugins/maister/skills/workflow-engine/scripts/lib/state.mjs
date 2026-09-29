@@ -785,7 +785,7 @@ function apply(doc, patch, changed, now, runDir, ignored) {
   }
 
   // Before the patch's own `orchestrator` keys, so the seeded sequences open
-  // the block and a freeze's `parent` still lands last.
+  // the block and a freeze's `parent` still follows every key the patch sends.
   if (patch.workflow) seedSequences(doc, orchestrator, changed);
   if (orchestrator) applyScalars(doc, 'orchestrator', orchestrator, changed);
   if (patch.task) {

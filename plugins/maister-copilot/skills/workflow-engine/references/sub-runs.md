@@ -44,7 +44,7 @@ are what an author sees first, the refusals are what fail a run.
 |---|---|---|
 | **W1 — the node starts** | `write-state` against the **parent** state | `nodes.<node>`: `kind: workflow`, `status: running`. The writer stamps `started` |
 | — | *no write* | resolve the name, interpolate `with:`, run the checks above, derive the child directory name, create it, `validate` and `resolve` the child definition |
-| **W2 — the child freezes** | one `write-state` against the **child** state | `task` (title, description, status `in_progress`, and `task.key` when the child marks a tracker key input); `workflow` (`source`, `overlays`, `profile`, `graph_hash` exactly as `resolve` printed it, `grammar_version`, `name`) **together with** its `nodes`; `orchestrator.options.inputs` (the interpolated `with:`, plus `embedded: true` when the child declares that input); `orchestrator.driver` (`{kind: terminal}`); `orchestrator.parent` (`{run, node}`); `orchestrator.completed_phases` and `orchestrator.failed_phases`, both `[]`, which the writer seeds at the top of the block when the patch omits them; and `orchestrator.created` and `orchestrator.updated`, carried in the patch like any other run's first write — the writer stamps `updated` *after* applying the patch, by the same append rule that lands a key the region does not already carry at the end of it, so a freeze that omits the two ends the block with `updated` below `parent` and in the opposite key order to the worked block this file draws. A child's freeze is necessarily that run's first write: a state file carrying no `workflow:` block is refused `state-incomplete`, so there is no initialise-first, freeze-second two-step to spread it over. |
+| **W2 — the child freezes** | one `write-state` against the **child** state | `task` (title, description, status `in_progress`, and `task.key` when the child marks a tracker key input); `workflow` (`source`, `overlays`, `profile`, `graph_hash` exactly as `resolve` printed it, `grammar_version`, `name`) **together with** its `nodes`; `orchestrator.options.inputs` (the interpolated `with:`, plus `embedded: true` when the child declares that input); `orchestrator.driver` (`{kind: terminal}`); `orchestrator.parent` (`{run, node}`); `orchestrator.completed_phases` and `orchestrator.failed_phases`, both `[]`, which the writer seeds at the top of the block when the patch omits them; and `orchestrator.created`, carried in the patch like any other run's first write. `updated` is the writer's own: it stamps it *after* applying the patch, by the same append rule that lands a key the region does not already carry at the end of it, so the block ends with `updated` below `parent`. A child's freeze is necessarily that run's first write: a state file carrying no `workflow:` block is refused `state-incomplete`, so there is no initialise-first, freeze-second two-step to spread it over. |
 | **W3 — the parent records the link** | `write-state` against the **parent** state | `nodes.<node>`: `status: waiting`, `values: {task_path, run_id}` |
 | — | *the child runs, in session* | the ordinary engine loop against the child's state. Child gates are asked with the host's question tool and answered in the same turn; the child's own close-out prints its marker |
 | — | *no write: the re-resolve* | read the child's state, re-resolve the definition **it** names, compare hashes, read its declared `outputs:` and the producing nodes' declared paths |
@@ -208,8 +208,9 @@ patch**, so W4 re-sends both beside the copied values; dropping them there is no
 update, it is the parent link deleted.
 
 The child's `orchestrator:` block, written by the freeze in canonical two-space form. `parent`
-lands **last** because the writer appends a key the region does not already carry at the end of
-that region — the position is emitted, not chosen:
+lands after the patch's other keys, and the writer's own `updated` after it, because the writer
+appends a key the region does not already carry at the end of that region — the position is
+emitted, not chosen:
 
 ```
 orchestrator:
@@ -219,9 +220,9 @@ orchestrator:
   driver: {kind: cockpit, cwd: /Users/alex/code/acme-workspace}
   gate_pending: null
   created: "2026-09-21T14:03:11Z"
-  updated: "2026-09-21T14:03:11Z"
   task_path: .maister/tasks/probe/2026-09-21-alpha-42-intake-probe
   parent: {run: .maister/tasks/plan/2026-09-21-alpha-42-intake, node: probe}
+  updated: "2026-09-21T14:03:11Z"
 ```
 
 `parent.run` is the parent's repository-root-relative task directory rather than its id, so a
