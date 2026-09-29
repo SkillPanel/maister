@@ -46,6 +46,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { KNOWN_VERSION, readDefinition } from './lib/definition.mjs';
+// Shared with the session-start hook, which warns on the same detection, so it
+// sits at the plugin root beside `canonical.mjs` rather than in this skill.
+import { findEditionCollision } from '../../../lib/editions.mjs';
 
 /** The exit-code table, named so no call site writes a bare integer. */
 const EXIT = { OK: 0, REJECTED: 1, INTERNAL: 2 };
@@ -82,6 +85,9 @@ const VERBS = {
   // The run's `html_output` switch is looked up from there when a run exists.
   'sync-plan': { module: 'plan-sync.mjs', flags: ['plan'] },
 };
+
+/** This plugin's root, three levels above this file: what the edition check locates. */
+const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 /** The flags that may be given more than once; every other flag is single-valued. */
 const REPEATABLE = new Set(['overlay']);
@@ -176,7 +182,29 @@ function readSources(flags) {
     errors.push(...overlay.errors);
     overlays.push(overlay);
   }
-  return { definition, overlays, errors };
+  return { definition, overlays, errors: withEditionCause(errors) };
+}
+
+/**
+ * A definition that does not exist is, with two editions enabled, most likely
+ * one only the other edition ships: the loader drew this skill from one of
+ * them and the workflow from the other. The missing-file message alone names
+ * the symptom, so the collision is appended to it as the cause. Checked only
+ * when a file is missing, so an ordinary read pays nothing for it.
+ */
+function withEditionCause(errors) {
+  const missing = errors.filter(error => error.file && !fs.existsSync(error.file));
+  if (!missing.length) return errors;
+  const collision = editionCollision(process.env.CLAUDE_PROJECT_DIR || process.cwd());
+  if (!collision) return errors;
+  return errors.map(error => (missing.includes(error)
+    ? { ...error, message: `${error.message}. ${collision.message}` }
+    : error));
+}
+
+/** The edition collision this session is in, or null; see `lib/editions.mjs`. */
+function editionCollision(projectDir) {
+  return findEditionCollision({ pluginRoot: PLUGIN_ROOT, projectDir });
 }
 
 /**
@@ -339,9 +367,18 @@ async function runDiagram(flags) {
 
 async function runWriteState(flags) {
   if (!flags.state) throw new UsageError('write-state needs --state');
-  const patch = readStdinJson('the patch');
   const module = await loadModule(VERBS['write-state'].module);
   const write = entryOf(module, 'writeState', VERBS['write-state'].module);
+  // The verb that freezes a run and carries every write after it, so refusing
+  // here refuses both a start and a resume — including a driven one, where the
+  // session-start warning is never read. Before stdin, so nothing is written.
+  const collision = editionCollision(process.env.CLAUDE_PROJECT_DIR
+    || (typeof module.projectRootOf === 'function' ? module.projectRootOf(path.dirname(path.resolve(flags.state))) : null));
+  if (collision) {
+    process.stderr.write(`edition-collision: ${collision.message}\n`);
+    return EXIT.REJECTED;
+  }
+  const patch = readStdinJson('the patch');
   const result = write({ state: flags.state, patch });
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
   // The freeze's startup banner, after the changed paths and a blank line, so a

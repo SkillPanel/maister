@@ -1052,9 +1052,9 @@ one call, arriving from the other side.
 ### When a write is refused
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
-byte-for-byte what it was. The first token on stderr is the refusal code. There are fifteen,
-and they fall into four responses. Exit `2` carries no code at all and is the table's last
-row:
+byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
+fifteen, and they fall into four responses; one more, `edition-collision`, is raised before the
+writer runs. Exit `2` carries no code at all and is the table's last row:
 
 | Refusal | Response |
 |---|---|
@@ -1066,6 +1066,7 @@ row:
 | `state-gate-pending-form` | The pending-gate marker has two legal spellings and this was neither. It is written as the literal `null`, or as `{node, request, since}` — `request` being `gates/<node>.request.yml` for that same `node`, and `since` a measured UTC timestamp — which the writer puts on one line itself. Send the marker as an object, never as pre-spelled text: text carrying a trailing comment or a quote reaches the file with its own bytes and the reader throws on it. Stop with `RUN-FAILED: state-gate-pending-form` and report the message verbatim. |
 | `state-workflow-frozen` | A `workflow` patch after the freeze differs from the frozen block — a node left out, added or re-typed, or a scalar changed. Nothing was written. The freeze is written once; send node updates under the top-level `nodes` key, never under `workflow`, and never re-type the graph. A re-send identical to the frozen block changes nothing. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
+| `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
 | exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |
 
 A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
