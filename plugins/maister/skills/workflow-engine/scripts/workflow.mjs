@@ -45,7 +45,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { KNOWN_VERSION, readDefinition } from './lib/definition.mjs';
+import { isNewerVersion, readDefinition } from './lib/definition.mjs';
 // Shared with the session-start hook, which warns on the same detection, so it
 // sits at the plugin root beside `canonical.mjs` rather than in this skill.
 import { findEditionCollision } from '../../../lib/editions.mjs';
@@ -208,14 +208,14 @@ function editionCollision(projectDir) {
 }
 
 /**
- * Whether the definition declares a format this build does not know. Only a
- * version that is present and different degrades: an absent version is a
- * missing required key, which is the validator's finding to report, not a
- * reason to stop reading the document.
+ * Whether the definition declares a format newer than this build knows. Only a
+ * whole number above the known version degrades. An absent version is a
+ * missing required key, and a malformed one — quoted, fractional, a word — is a
+ * misspelling of the known grammar: both are the validator's findings to
+ * report, never a reason to stop checking the document.
  */
 function isNewerFormat(definition) {
-  const version = definition?.doc?.version;
-  return version !== undefined && version !== null && version !== KNOWN_VERSION;
+  return isNewerVersion(definition?.doc?.version);
 }
 
 function report(payload) {

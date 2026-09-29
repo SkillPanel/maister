@@ -50,7 +50,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { nodeOf, readDefinition } from './definition.mjs';
+import { KNOWN_VERSION, isNewerVersion, nodeOf, readDefinition } from './definition.mjs';
 import { ICON_HINTS, isTitle } from './display.mjs';
 
 // ---------------------------------------------------------------------------
@@ -129,6 +129,49 @@ const SCHEMES = ['skill', 'agent', 'direct', 'workflow'];
 
 /** The only three node fields an overlay may tune. `uses` is immutable by design. */
 const TUNABLE = ['with', 'optional', 'provider'];
+
+/**
+ * The closed key sets of a version 1 document, one per level. A key outside
+ * its level's set is an error, never carried: every one of them is decidable
+ * from the file in hand, and the silent alternative is the failure this module
+ * exists to prevent — a misspelt `when` that drops a guard, a `need` that turns
+ * a node into a root, a `retries` that looks like a feature and does nothing.
+ * A document that declares a newer format is never judged against these; it
+ * degrades before any of them is read. The reserved keys of contract R are the
+ * one exemption (`isReservedKey`): they parse and warn by design.
+ *
+ * The node set is `NODE_KEYS` below, without `id` — the id is the node's map
+ * key, and an `id:` written inside a node would be ignored.
+ */
+const DEFINITION_KEYS = ['name', 'version', 'inputs', 'outputs', 'display', 'nodes'];
+const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display'];
+const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
+const DISPLAY_KEYS = ['icons', 'titles'];
+
+/**
+ * An authored gate option in its map form carries its effect beside the values
+ * it emits, and nothing else. An option routes nowhere: the answer is the
+ * option id, and the effect is whether the run goes on.
+ */
+const OPTION_KEYS = ['effect', 'values'];
+
+/**
+ * The key a node added by an overlay may carry and a definition's own node may
+ * not: `before` names existing nodes the added one attaches in front of. Its
+ * meaning belongs to the overlay resolution; only its shape is checked here.
+ */
+const ADDED_NODE_KEYS = ['before'];
+
+/** The declared input types. */
+const INPUT_TYPES = ['string', 'bool', 'path'];
+
+/**
+ * When a node may run, given how its needs ended. `success`, the default, needs
+ * every need completed or skipped; `failure` runs only when a need failed or
+ * stopped, and is skipped when every need ended well; `always` runs once every
+ * need has ended, however.
+ */
+const ON_VALUES = ['success', 'failure', 'always'];
 
 /** The declared value types a static check can prove flow-safe. */
 const FLOW_SAFE_TYPES = ['bool', 'id'];
@@ -302,6 +345,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
 
   for (const overlay of overlays) checkOverlayBase(overlay, definition, errors);
   scanReserved(definition?.doc, warnings);
+  checkDefinition(definition, errors);
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) checkGraph(graph, errors, warnings, resolved, project);
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
@@ -413,6 +457,67 @@ function nodeFor(dotted) {
   const parts = String(dotted).split('.');
   if ((parts[0] === 'add' || parts[0] === 'tune') && parts.length >= 2) return parts[1];
   return nodeOf(dotted);
+}
+
+/**
+ * One located error per key outside `allowed`, each naming the keys that are
+ * accepted and — when one is a small edit away — the one probably meant.
+ * `label` says what the key was taken for: "a node key", "an overlay key".
+ */
+function checkKeys(keys, allowed, { file, prefix, label, node = null }, errors) {
+  for (const key of keys) {
+    if (allowed.includes(key) || isReservedKey(key)) continue;
+    const near = closest(key, allowed);
+    const list = allowed.join(', ');
+    fail(errors, file, `${prefix}${key}`, near
+      ? `"${key}" is not ${label}; did you mean "${near}"? The accepted keys are ${list}`
+      : `"${key}" is not ${label}; the accepted keys are ${list}`, node);
+  }
+}
+
+/**
+ * Whether a key is one of contract R's reserved keys, or the first segment of
+ * one (`session` of `session.substrate`). Those parse and warn by design, so a
+ * closed key set never refuses them.
+ */
+function isReservedKey(key) {
+  return RESERVED_PATHS.some((each) => each === key || each.startsWith(`${key}.`));
+}
+
+/**
+ * The candidate a misspelling most probably meant, or null when none is close.
+ * Close is at most two edits — a transposition counting as one — and fewer
+ * than half the word's length, so `whne` finds `when` while a short word is not
+ * matched to an unrelated one.
+ */
+function closest(word, candidates) {
+  const written = String(word);
+  let best = null;
+  let distance = Infinity;
+  for (const candidate of candidates) {
+    const edits = editDistance(written, String(candidate));
+    if (edits < distance) {
+      best = candidate;
+      distance = edits;
+    }
+  }
+  return distance <= 2 && distance < written.length / 2 ? best : null;
+}
+
+/** Edits between two words — insert, delete, substitute, or swap two neighbours. */
+function editDistance(a, b) {
+  const rows = Array.from({ length: a.length + 1 }, (_, i) => [i, ...new Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) rows[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      rows[i][j] = Math.min(rows[i - 1][j] + 1, rows[i][j - 1] + 1, rows[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        rows[i][j] = Math.min(rows[i][j], rows[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return rows[a.length][b.length];
 }
 
 // ---------------------------------------------------------------------------
@@ -1113,14 +1218,12 @@ function checkInputs(inputs, file, errors) {
 }
 
 /**
- * The two sub-maps a workflow-level `outputs:` block may carry, and the order
- * the canonical form emits them in. Closed: both halves of an entry are in the
- * file being validated, so a third sub-map is a decidable mistake and is
- * refused here rather than carried into the hash unread. That is deliberately
- * the opposite of the node rule, where an unrecognised key is carried through
- * because a newer definition must resolve to the document it declared — a node
- * key this build does not know may still mean something to the engine that
- * does, whereas this block is read by this module and nothing else.
+ * The two sub-maps a workflow-level `outputs:` block may carry — and a node's
+ * own `outputs:` alike — and the order the canonical form emits them in.
+ * Closed: both halves of an entry are in the file being validated, so a third
+ * sub-map is a decidable mistake and is refused here rather than carried into
+ * the hash unread, exactly as an unknown node key is refused in a version 1
+ * document.
  *
  * Closed to the *validator*, that is. The canonical form below is not closed to
  * it: a degraded document is hashed without ever reaching the check that would
@@ -1250,6 +1353,9 @@ function checkDisplayValues(display, file, prefix, errors) {
     fail(errors, file, at, `display is a mapping of icons and titles; ${describe(display)} is not`);
     return;
   }
+  // Closed like every other level: a `heroes` or a misspelt `title` would
+  // otherwise pass and simply never be drawn.
+  checkKeys(Object.keys(display), DISPLAY_KEYS, { file, prefix: `${at}.`, label: 'a display key' }, errors);
   const icons = display.icons;
   if (icons !== undefined && icons !== null && !isMap(icons)) {
     fail(errors, file, `${at}.icons`,
@@ -1299,6 +1405,28 @@ function checkDisplayNodes({ prefix, block }, nodes, warnings) {
   }
 }
 
+/**
+ * The top level of a version 1 definition: `DEFINITION_KEYS` and nothing else.
+ *
+ * `profiles:` gets its own message rather than the generic one, because it is
+ * a real grammar key in the wrong file: profiles are selected out of an
+ * overlay, and a definition's own block was never applied — while a
+ * `--profile` naming one of its entries used to be recorded as though it had
+ * been.
+ */
+function checkDefinition(definition, errors) {
+  const doc = definition?.doc;
+  if (!isMap(doc)) return;
+  const file = definition.file;
+  const keys = Object.keys(doc).filter((key) => key !== 'profiles');
+  checkKeys(keys, DEFINITION_KEYS, { file, prefix: '', label: 'a definition key' }, errors);
+  if (doc.profiles !== undefined) {
+    fail(errors, file, 'profiles',
+      'profiles belong to an overlay, never to a definition, and a definition\'s own are never applied; '
+      + 'move them into the overlay beside it (<name>.overlay.yml)', null);
+  }
+}
+
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
   const { file, inputs, outputs, displays, nodes, origins, removed } = graph;
 
@@ -1324,7 +1452,10 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
     for (const [index, need] of needsOf(node).entries()) {
       if (!nodes.has(need)) fail(errors, origin, `${at}.needs.${index}`, `needs names "${need}", which no node declares`, id);
     }
-    checkNodeShape(node, id, at, origin, errors);
+    // A node whose origin is not the definition was added by an overlay, and
+    // only such a node may carry the keys an added node is allowed.
+    checkNodeShape(node, id, at, origin, errors, { added: origin !== file });
+    checkNodeOutputs(node, id, at, origin, errors);
     checkReference(node, id, at, origin, errors, warnings, resolved, project);
     checkDeclaredValues(node, at, origin, errors, warnings, id);
     checkSubrun(node, id, at, origin, errors, warnings, project, children);
@@ -1354,13 +1485,63 @@ function optionEffect(option) {
   return option;
 }
 
+/** What a node may carry: every recognised node key but `id`, which is the node's map key. */
+const NODE_FIELDS = NODE_KEYS.filter((key) => key !== 'id');
+
+/**
+ * A node's keys, against the closed node set — widened by `ADDED_NODE_KEYS`
+ * for a node an overlay adds, and only for one. A definition's own node that
+ * carries `before` is refused by name: it orders itself through `needs`, and
+ * `before` exists because an overlay cannot edit the `needs` of the nodes it
+ * attaches in front of.
+ *
+ * `before` is held to its shape, a non-empty list of node ids written as
+ * strings; what it attaches to, and whether those nodes exist, is the overlay
+ * resolution's judgement, not this one's.
+ */
+function checkNodeKeys(node, id, at, file, errors, added) {
+  const allowed = added ? [...NODE_FIELDS, ...ADDED_NODE_KEYS] : NODE_FIELDS;
+  const keys = Object.keys(node);
+  if (!added && keys.includes('before')) {
+    fail(errors, file, `${at}.before`,
+      'before attaches a node an overlay adds; a definition\'s own node declares its place with needs', id);
+  }
+  checkKeys(keys.filter((key) => added || key !== 'before'), allowed,
+    { file, prefix: `${at}.`, label: 'a node key', node: id }, errors);
+
+  if (!added || node.before === undefined) return;
+  const before = node.before;
+  if (!Array.isArray(before) || before.length === 0
+    || before.some((entry) => typeof entry !== 'string' || entry === '')) {
+    fail(errors, file, `${at}.before`,
+      `before is a non-empty list of node ids; ${Array.isArray(before) ? `[${before.join(', ')}]` : describe(before)} is not`, id);
+  }
+}
+
+/**
+ * A node's declared `outputs`: a mapping of `artifacts` and `values`, nothing
+ * else. A third kind is a decidable mistake — nothing reads it — and it used to
+ * be carried into the hash unread.
+ */
+function checkNodeOutputs(node, id, at, file, errors) {
+  const outputs = node.outputs;
+  if (outputs === undefined || outputs === null) return;
+  if (!isMap(outputs)) {
+    fail(errors, file, `${at}.outputs`, `outputs is a mapping of ${OUTPUT_KINDS.join(' and ')}; ${describe(outputs)} is not`, id);
+    return;
+  }
+  checkKeys(Object.keys(outputs), OUTPUT_KINDS, { file, prefix: `${at}.outputs.`, label: 'an output kind', node: id }, errors);
+}
+
 /**
  * The gate rule and its mirror image. A gate runs nothing and must be able to
  * stop the run; a task node must name something to run. Both halves matter: a
  * gate that cannot stop is not a gate, and a node with no target is a step the
  * engine would silently skip.
  */
-function checkNodeShape(node, id, at, file, errors) {
+function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
+  checkNodeKeys(node, id, at, file, errors, added);
+
   // `provider -> dir`, on the *resolved* node. B1's implication is backed by a
   // schema conditional, which judges a definition as authored and therefore
   // never sees a provider an overlay tuned onto a node that carries no
@@ -1399,6 +1580,10 @@ function checkNodeShape(node, id, at, file, errors) {
   for (const [option, authored] of Object.entries(node.options)) {
     if (!OPTION_ID.test(option)) {
       fail(errors, file, `${at}.options.${option}`, `the option id "${option}" is outside the closed character set`, id);
+    }
+    if (isMap(authored)) {
+      checkKeys(Object.keys(authored), OPTION_KEYS,
+        { file, prefix: `${at}.options.${option}.`, label: 'an option key', node: id }, errors);
     }
     if (isMap(authored) && authored.values !== undefined && !isMap(authored.values)) {
       fail(errors, file, `${at}.options.${option}.values`, 'an option carries the values it emits as a map, never a scalar', id);
@@ -1730,10 +1915,12 @@ function findCycle(nodes) {
  * in — which is the whole basis of the hash.
  *
  * A key this build does not recognise is carried through after the known ones,
- * in sorted order, rather than dropped. A newer definition must resolve to the
- * document it declared — an engine that quietly discarded the half it did not
- * understand would hand a caller a graph missing exactly the fields that made
- * the definition newer, and would hash it as though they had never been written.
+ * in sorted order, rather than dropped. In a version 1 document the validator
+ * has already refused one, so this matters for a newer-format document, which
+ * is folded without being judged: it must resolve to the document it declared
+ * — an engine that quietly discarded the half it did not understand would hand
+ * a caller a graph missing exactly the fields that made the definition newer,
+ * and would hash it as though they had never been written.
  *
  * `needs` is deduplicated and sorted for the same reason. It is a dependency
  * set, not a sequence: execution is driven by the ready set, so the order a
@@ -1919,6 +2106,10 @@ function checkOverlayShape(overlay, errors) {
   if (typeof doc.extends !== 'string' || !BASE_REF.test(doc.extends)) {
     fail(errors, file, 'extends', 'an overlay must declare the base it extends', null);
   }
+  // An overlay speaks only through its operations. A `remove:` or a `nodes:`
+  // block was silently ignored, leaving the operator with a graph they believe
+  // they changed.
+  checkKeys(Object.keys(doc), OVERLAY_KEYS, { file, prefix: '', label: 'an overlay key' }, errors);
   checkOps(doc, file, '', errors);
 
   if (doc.profiles !== undefined) {
@@ -1927,8 +2118,12 @@ function checkOverlayShape(overlay, errors) {
       return;
     }
     for (const [name, ops] of Object.entries(doc.profiles)) {
-      if (!isMap(ops)) fail(errors, file, `profiles.${name}`, 'a profile must be a mapping of operations', null);
-      else checkOps(ops, file, `profiles.${name}.`, errors);
+      if (!isMap(ops)) {
+        fail(errors, file, `profiles.${name}`, 'a profile must be a mapping of operations', null);
+        continue;
+      }
+      checkKeys(Object.keys(ops), PROFILE_KEYS, { file, prefix: `profiles.${name}.`, label: 'a profile key' }, errors);
+      checkOps(ops, file, `profiles.${name}.`, errors);
     }
   }
 }
@@ -2019,7 +2214,7 @@ function checkOps(body, file, prefix, errors) {
       if (needsOf(node).length === 0) {
         fail(errors, file, `${at}.needs`, 'an added node must attach to the graph through needs', id);
       }
-      checkNodeShape(node, id, at, file, errors);
+      checkNodeShape(node, id, at, file, errors, { added: true });
     }
   }
 }

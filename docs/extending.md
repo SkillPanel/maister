@@ -253,6 +253,10 @@ Say what you need on the issue tracker: these are tracked for a future contract 
 that names the chain it would unblock is the most useful form. Until then, the reserved keys the
 validator warns about — `foreach`, `loop`, `routing.tiers` and their kin — parse, warn and do
 nothing, precisely so that a later version can claim them without breaking a file written today.
+Every other key the grammar does not define is an error, at every level of a `version: 1` document —
+the definition, a node, a gate option, `display:`, an overlay and its profiles — and the error lists
+the accepted keys and names the one you probably meant. A misspelt `when:` is refused rather than
+quietly dropping the guard.
 
 ## Related reading
 
