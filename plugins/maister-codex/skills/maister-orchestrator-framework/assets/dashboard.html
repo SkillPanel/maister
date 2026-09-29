@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maister Workflow Dashboard</title>
+<!--
+  Maister operator dashboard — static plugin asset.
+  Copied into each task directory at workflow initialization.
+  Reads sibling dashboard-data.js (window.MAISTER_DATA) — no server, works from file://.
+  DO NOT edit per-task; this file is maintained in
+  plugins/maister-codex/skills/maister-orchestrator-framework/assets/dashboard.html
+-->
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #f0f2f5;
+    --border: #e2e5ea;
+    --text: #1a1d23;
+    --text-dim: #6b7280;
+    --text-faint: #9ca3af;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --ok: #16a34a;
+    --ok-soft: #ecfdf3;
+    --warn: #d97706;
+    --warn-soft: #fffbeb;
+    --crit: #dc2626;
+    --crit-soft: #fef2f2;
+    --info: #2563eb;
+    --info-soft: #eff6ff;
+    --skip: #9ca3af;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(16, 24, 40, .07), 0 1px 2px rgba(16, 24, 40, .04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418;
+      --surface: #1a1f26;
+      --surface-2: #232932;
+      --border: #2e3640;
+      --text: #e6e9ee;
+      --text-dim: #9aa4b2;
+      --text-faint: #6b7480;
+      --accent: #818cf8;
+      --accent-soft: #26294a;
+      --ok: #4ade80;
+      --ok-soft: #11291a;
+      --warn: #fbbf24;
+      --warn-soft: #2e2410;
+      --crit: #f87171;
+      --crit-soft: #321616;
+      --info: #60a5fa;
+      --info-soft: #15233a;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 64px; }
+
+  /* ---------- header ---------- */
+  header { margin-bottom: 20px; }
+  .title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+    padding: 3px 9px; border-radius: 99px; text-transform: uppercase;
+  }
+  .badge.type { background: var(--accent-soft); color: var(--accent); }
+  .badge.st-pending     { background: var(--surface-2); color: var(--text-dim); }
+  .badge.st-in_progress { background: var(--info-soft); color: var(--info); }
+  .badge.st-completed   { background: var(--ok-soft); color: var(--ok); }
+  .badge.st-failed      { background: var(--crit-soft); color: var(--crit); }
+  .badge.st-blocked     { background: var(--warn-soft); color: var(--warn); }
+  .desc { color: var(--text-dim); margin: 8px 0 0; max-width: 920px; }
+  .desc.clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+  .now {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 12px;
+    background: var(--accent-soft); color: var(--accent);
+    font-weight: 600; font-size: 13px; padding: 6px 14px; border-radius: 99px;
+  }
+  .now .live-dot { background: var(--accent); }
+  .meta-row { display: flex; align-items: center; gap: 14px; margin-top: 10px; color: var(--text-faint); font-size: 12.5px; flex-wrap: wrap; }
+  .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); margin-right: 5px; animation: pulse 2.4s infinite; vertical-align: 1px; }
+  .live-dot.stale { background: var(--text-faint); animation: none; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  .progress { height: 6px; background: var(--surface-2); border-radius: 99px; margin-top: 16px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--accent); border-radius: 99px; transition: width .4s ease; }
+
+  .statline { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .stat {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 5px 12px; font-size: 12.5px; color: var(--text-dim);
+  }
+  .stat b { color: var(--text); font-size: 14px; }
+  .stat .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.acc { background: var(--accent); } .dot.warn { background: var(--warn); }
+  .dot.crit { background: var(--crit); } .dot.info { background: var(--info); } .dot.ok { background: var(--ok); }
+
+  /* ---------- hero cards ---------- */
+  .heroes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 20px 0; }
+  .hero {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 7px;
+  }
+  .hero.pending { opacity: .55; box-shadow: none; border-style: dashed; }
+  .hero .h-label { font-size: 11.5px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; }
+  .hero .h-links { display: flex; gap: 12px; font-size: 14px; align-items: baseline; }
+  .hero .h-links .primary { font-weight: 650; font-size: 15px; }
+  .hero .h-sub {
+    color: var(--text-dim); font-size: 12.5px; line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .hero .h-verdict { font-weight: 650; font-size: 15px; }
+
+  /* ---------- layout ---------- */
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); margin-bottom: 18px;
+  }
+  .card > h2, .card .h2row > h2 {
+    font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--text-dim); margin: 0; padding: 13px 18px 11px;
+  }
+  .card > h2 { border-bottom: 1px solid var(--border); }
+  .card .h2row { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .card .h2row .tools { padding-right: 16px; font-size: 12px; }
+  .card .h2row .tools a { color: var(--text-faint); margin-left: 10px; }
+  .card .body { padding: 8px 18px 14px; }
+  .empty { color: var(--text-faint); font-style: italic; padding: 10px 0; }
+
+  /* ---------- timeline ---------- */
+  .timeline { position: relative; }
+  .phase { border-bottom: 1px solid var(--border); position: relative; }
+  .phase:last-child { border-bottom: none; }
+  .phase::before {
+    content: ""; position: absolute; left: 30px; top: 0; bottom: 0; width: 2px;
+    background: var(--border); z-index: 0;
+  }
+  .phase:first-child::before { top: 24px; }
+  .phase:last-child::before { height: 24px; bottom: auto; }
+  .ph-head { display: flex; align-items: center; gap: 12px; padding: 11px 18px; cursor: pointer; user-select: none; position: relative; }
+  .ph-head:hover { background: var(--surface-2); }
+  .ph-icon {
+    width: 26px; height: 26px; border-radius: 50%; flex: none; z-index: 1; position: relative;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+    background: var(--surface); color: var(--text-faint); border: 1.5px solid var(--border);
+  }
+  .ph-icon svg { width: 13px; height: 13px; }
+  .ph-icon.completed { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+  .ph-icon.in_progress { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); animation: pulse 2s infinite; }
+  .ph-icon.failed { background: var(--crit-soft); color: var(--crit); border-color: transparent; }
+  .ph-icon.skipped { background: var(--surface-2); color: var(--skip); border-color: transparent; }
+  .ph-name { font-weight: 600; flex: 1 1 auto; min-width: 0; }
+  .ph-name .skipnote { font-weight: 400; color: var(--text-faint); font-size: 12.5px; }
+  .ph-tags { display: flex; gap: 6px; flex: none; align-items: center; }
+  .mini {
+    font-size: 11px; padding: 2px 7px; border-radius: 99px; background: var(--surface-2); color: var(--text-dim);
+  }
+  .mini.decisions { background: var(--accent-soft); color: var(--accent); }
+  .mini.risks { background: var(--warn-soft); color: var(--warn); }
+  .mini.time { background: none; color: var(--text-faint); padding-right: 0; }
+  .ph-caret { color: var(--text-faint); flex: none; transition: transform .15s; font-size: 11px; }
+  .phase.open .ph-caret { transform: rotate(90deg); }
+  .ph-body { display: none; padding: 2px 18px 14px 56px; }
+  .phase.open .ph-body { display: block; }
+  .ph-summary { color: var(--text-dim); margin: 0 0 8px; }
+  .ph-section { margin: 10px 0 0; }
+  .ph-section > .sec-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 4px; }
+  .ph-section ul { margin: 0; padding-left: 18px; }
+  .ph-section li { margin: 3px 0; }
+  .rationale { color: var(--text-faint); }
+  .art-links { display: flex; flex-direction: column; gap: 4px; }
+  .art-row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .art-row .path { color: var(--text-faint); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .gate-line { margin-top: 10px; font-size: 12.5px; color: var(--text-dim); background: var(--surface-2); border-radius: 6px; padding: 6px 10px; }
+  .gate-line b { color: var(--text); }
+
+  /* ---------- sidebar panels ---------- */
+  .sev { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 1.5px 7px; border-radius: 99px; text-transform: uppercase; margin-right: 7px; vertical-align: 1px; }
+  .sev.critical { background: var(--crit-soft); color: var(--crit); }
+  .sev.warning  { background: var(--warn-soft); color: var(--warn); }
+  .sev.info     { background: var(--info-soft); color: var(--info); }
+  /* tolerate non-canonical severity values orchestrators may emit */
+  .sev.resolved { background: var(--ok-soft); color: var(--ok); }
+  .sev.high { background: var(--crit-soft); color: var(--crit); }
+  .sev.medium { background: var(--warn-soft); color: var(--warn); }
+  .sev.low { background: var(--info-soft); color: var(--info); }
+  .issue.fixed { color: var(--text-faint); }
+  .v-status { font-weight: 650; margin: 10px 0 6px; }
+  .v-status.passed { color: var(--ok); }
+  .v-status.passed_with_issues { color: var(--warn); }
+  .v-status.failed { color: var(--crit); }
+  .issue { padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .issue:last-child { border-bottom: none; }
+  .issue .cat { color: var(--text-faint); font-size: 11.5px; }
+  .fixedtag { color: var(--ok); font-size: 11.5px; font-weight: 600; }
+  .grp-label {
+    font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--text-faint); padding: 10px 0 2px;
+  }
+  .dec-item, .risk-item { padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .dec-item:last-child, .risk-item:last-child { border-bottom: none; }
+  .risk-item.resolved { color: var(--text-faint); text-decoration: line-through; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+  .chip { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: var(--surface-2); color: var(--text-dim); }
+  .chip.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .chip.off { opacity: .4; text-decoration: line-through; }
+
+  /* ---------- drawer ---------- */
+  details.drawer { margin-top: 4px; }
+  details.drawer summary {
+    cursor: pointer; color: var(--text-dim); font-size: 13px; font-weight: 600;
+    padding: 10px 18px; user-select: none; list-style: none;
+  }
+  details.drawer summary::-webkit-details-marker { display: none; }
+  details.drawer summary:before { content: "▸ "; }
+  details.drawer[open] summary:before { content: "▾ "; }
+  details.drawer .body { padding-top: 0; }
+
+  footer { margin-top: 28px; color: var(--text-faint); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="empty" style="padding:60px 0;text-align:center">
+    Waiting for <code>dashboard-data.js</code>… If this persists, the workflow has not written data yet.
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ===== hero artifact importance map, per workflow type ===== */
+const HERO_MAP = {
+  development: [
+    { match: "implementation/spec.md", label: "Specification" },
+    { match: "implementation/implementation-plan.md", label: "Implementation Plan" },
+    { match: "verification/implementation-verification.md", label: "Verification", verdictFallback: true }
+  ],
+  performance: [
+    { match: "implementation/spec.md", label: "Specification" },
+    { match: "implementation/implementation-plan.md", label: "Implementation Plan" },
+    { match: "verification/implementation-verification.md", label: "Verification", verdictFallback: true }
+  ],
+  migration: [
+    { match: "implementation/spec.md", label: "Specification" },
+    { match: "implementation/implementation-plan.md", label: "Implementation Plan" },
+    { match: "verification/implementation-verification.md", label: "Verification", verdictFallback: true }
+  ],
+  research: [
+    { match: "outputs/research-report.md", label: "Research Report" },
+    { match: "outputs/solution-exploration.md", label: "Solution Exploration" },
+    { match: "outputs/high-level-design.md", label: "High-Level Design" },
+    { match: "outputs/decision-log.md", label: "Decision Log" }
+  ],
+  "product-design": [
+    { match: "outputs/product-brief.md", label: "Product Brief" },
+    { match: "analysis/feature-spec.md", label: "Feature Spec" },
+    { match: "analysis/design-decisions.md", label: "Design Decisions" }
+  ]
+};
+
+/* phase type icons (icon_hint), 16x16 stroke SVGs */
+const ICONS = {
+  analysis: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6.7" cy="6.7" r="4.4"/><line x1="10.2" y1="10.2" x2="14" y2="14"/></svg>',
+  spec: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.5h5.5L13 5v9.5H4z"/><line x1="6" y1="8" x2="11" y2="8"/><line x1="6" y1="11" x2="11" y2="11"/></svg>',
+  plan: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="6" y1="3.5" x2="14" y2="3.5"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="6" y1="12.5" x2="14" y2="12.5"/><circle cx="2.8" cy="3.5" r="1"/><circle cx="2.8" cy="8" r="1"/><circle cx="2.8" cy="12.5" r="1"/></svg>',
+  code: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="5.5 4.5 2 8 5.5 11.5"/><polyline points="10.5 4.5 14 8 10.5 11.5"/></svg>',
+  verify: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.2l5.6 2v4.3c0 3.6-2.8 5.6-5.6 7-2.8-1.4-5.6-3.4-5.6-7V3.2z"/><polyline points="5.4 8 7.3 9.8 10.8 6.2"/></svg>',
+  docs: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2.5h4.5A1.8 1.8 0 0 1 8 4v10a1.8 1.8 0 0 0-1.8-1.5H2z"/><path d="M14 2.5H9.5A1.8 1.8 0 0 0 8 4v10a1.8 1.8 0 0 1 1.8-1.5H14z"/></svg>',
+  done: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="3.5" y1="1.5" x2="3.5" y2="14.5"/><path d="M3.5 2.5h8.5l-2 3 2 3H3.5"/></svg>'
+};
+const PH_GLYPH = { completed: "✓", failed: "✕", skipped: "⤼" };
+
+let lastSnapshot = null;   // JSON of last rendered data — change detection is content-based,
+                           // NOT keyed on `generated` (orchestrators may rewrite it unchanged)
+let lastChangeTs = 0;      // when data content last changed (drives "updated Xs ago")
+let lastPollTs = 0;        // when the data file was last successfully read (drives staleness dot)
+const openPhases = new Set();   // preserved across re-renders
+
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function fileName(p) { const seg = String(p).split("/"); return seg[seg.length - 1]; }
+
+function isResolvedRisk(r) { return /^resolved:/i.test(String(r).trim()) || /\(resolved\b/i.test(String(r)); }
+
+function fmtAgo(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return s + "s ago";
+  const m = Math.round(s / 60);
+  if (m < 60) return m + "m ago";
+  return Math.round(m / 60) + "h ago";
+}
+
+function fmtDur(ms) {
+  if (!(ms > 0)) return null;
+  const m = Math.round(ms / 60000);
+  if (m < 1) return "<1m";
+  if (m < 60) return m + "m";
+  return Math.floor(m / 60) + "h " + (m % 60) + "m";
+}
+
+function phaseTime(ph) {
+  const st = ph.started ? Date.parse(ph.started) : NaN;
+  const en = ph.completed ? Date.parse(ph.completed) : NaN;
+  if (ph.status === "completed" && !isNaN(st) && !isNaN(en)) return fmtDur(en - st);
+  if (ph.status === "in_progress" && !isNaN(st)) { const d = fmtDur(Date.now() - st); return d ? d + " elapsed" : null; }
+  return null;
+}
+
+/* md links always open in a new tab (the dashboard stays put) */
+function aLink(href, text, cls) {
+  return '<a href="' + esc(href) + '" target="_blank" rel="noopener"' + (cls ? ' class="' + cls + '"' : '') + '>' + text + '</a>';
+}
+function artifactLinks(a) {
+  return a.html
+    ? aLink(a.html, '<b>' + esc(a.label || fileName(a.path)) + '</b>') + ' ' + aLink(a.path, 'md')
+    : aLink(a.path, esc(a.label || fileName(a.path)));
+}
+
+/* ===== rendering ===== */
+
+function render(d) {
+  const app = document.getElementById("app");
+  if (!d || !d.task) return;
+
+  const phases = Array.isArray(d.phases) ? d.phases : [];
+  const done = phases.filter(p => p.status === "completed" || p.status === "skipped").length;
+  const pct = phases.length ? Math.round(done / phases.length * 100) : 0;
+
+  app.innerHTML =
+    renderHeader(d, done, phases.length, pct) +
+    renderHeroes(d, phases) +
+    '<div class="cols">' +
+      '<div>' + renderTimeline(phases) + renderDrawer(phases) + '</div>' +
+      '<div>' + renderVerification(d.verification) + renderDecisions(phases) + renderRisks(phases) + renderCharacteristics(d.characteristics) + '</div>' +
+    '</div>' +
+    '<footer>Maister workflow dashboard · data: <code>dashboard-data.js</code> · auto-refreshes every 5s</footer>';
+
+  // interactions
+  app.querySelectorAll(".ph-head").forEach(el => {
+    el.addEventListener("click", () => {
+      const ph = el.parentElement, id = ph.dataset.id;
+      ph.classList.toggle("open");
+      ph.classList.contains("open") ? openPhases.add(id) : openPhases.delete(id);
+    });
+  });
+  const desc = app.querySelector(".desc");
+  if (desc) desc.addEventListener("click", () => desc.classList.toggle("clamped"));
+  const expand = document.getElementById("expandAll"), collapse = document.getElementById("collapseAll");
+  if (expand) expand.addEventListener("click", e => { e.preventDefault();
+    app.querySelectorAll(".phase").forEach(ph => { ph.classList.add("open"); openPhases.add(ph.dataset.id); }); });
+  if (collapse) collapse.addEventListener("click", e => { e.preventDefault();
+    app.querySelectorAll(".phase").forEach(ph => { ph.classList.remove("open"); openPhases.delete(ph.dataset.id); }); });
+}
+
+function renderHeader(d, done, total, pct) {
+  const t = d.task;
+  const phases = Array.isArray(d.phases) ? d.phases : [];
+  const running = phases.find(p => p.status === "in_progress");
+  const activity = t.current_activity || (running ? running.name : null);
+
+  // stats: decisions, open risks, issues by severity
+  let decN = 0, riskOpen = 0, riskResolved = 0;
+  for (const ph of phases) {
+    decN += (ph.decisions || []).length;
+    for (const r of (ph.risks || [])) isResolvedRisk(r) ? riskResolved++ : riskOpen++;
+  }
+  const sev = { critical: 0, warning: 0, info: 0 };
+  for (const i of ((d.verification || {}).issues || [])) if (sev[i.severity] != null) sev[i.severity]++;
+  const stats = [];
+  if (decN) stats.push('<span class="stat"><span class="dot acc"></span><b>' + decN + '</b> decisions</span>');
+  if (riskOpen) stats.push('<span class="stat"><span class="dot warn"></span><b>' + riskOpen + '</b> open risk' + (riskOpen > 1 ? 's' : '') + '</span>');
+  if (riskResolved) stats.push('<span class="stat"><span class="dot ok"></span><b>' + riskResolved + '</b> resolved</span>');
+  if (sev.critical) stats.push('<span class="stat"><span class="dot crit"></span><b>' + sev.critical + '</b> critical</span>');
+  if (sev.warning) stats.push('<span class="stat"><span class="dot warn"></span><b>' + sev.warning + '</b> warnings</span>');
+  if (sev.info) stats.push('<span class="stat"><span class="dot info"></span><b>' + sev.info + '</b> info</span>');
+
+  return '<header>' +
+    '<div class="title-row">' +
+      '<h1>' + esc(t.title || "Untitled task") + '</h1>' +
+      '<span class="badge type">' + esc(t.type || "workflow") + '</span>' +
+      '<span class="badge st-' + esc(t.status || "pending") + '">' + esc((t.status || "pending").replace(/_/g, " ")) + '</span>' +
+    '</div>' +
+    (t.description ? '<p class="desc clamped" title="click to expand">' + esc(t.description) + '</p>' : '') +
+    (activity && t.status !== "completed" ? '<div class="now"><span class="live-dot"></span>Now: ' + esc(activity) + '</div>' : '') +
+    '<div class="meta-row">' +
+      '<span><span class="live-dot" id="liveDot"></span><span id="liveTxt">updated just now</span></span>' +
+      '<span>' + done + '/' + total + ' phases</span>' +
+      (t.path ? '<span><code>' + esc(t.path) + '</code></span>' : '') +
+    '</div>' +
+    '<div class="progress"><div style="width:' + pct + '%"></div></div>' +
+    (stats.length ? '<div class="statline">' + stats.join("") + '</div>' : '') +
+  '</header>';
+}
+
+function findArtifact(phases, suffix) {
+  for (const ph of phases) {
+    for (const a of (ph.artifacts || [])) {
+      if (a && a.path && String(a.path).endsWith(suffix)) return { art: a, phase: ph };
+    }
+  }
+  return null;
+}
+
+function renderHeroes(d, phases) {
+  const map = HERO_MAP[d.task.type] || HERO_MAP.development;
+  const v = d.verification || {};
+  const cards = map.map(h => {
+    const hit = findArtifact(phases, h.match);
+    if (!hit) {
+      // verification hero lights up from verification.status even before the report artifact is registered
+      if (h.verdictFallback && v.status) {
+        return '<div class="hero"><div class="h-label">' + esc(h.label) + '</div>' +
+          '<div class="h-verdict v-status ' + esc(v.status) + '" style="margin:0">' + esc(String(v.status).replace(/_/g, " ")) + '</div>' +
+          '<div class="h-sub">report pending — see Verification panel</div></div>';
+      }
+      return '<div class="hero pending"><div class="h-label">' + esc(h.label) + '</div>' +
+        '<div class="h-links">—</div><div class="h-sub">not produced yet</div></div>';
+    }
+    const a = hit.art, ph = hit.phase;
+    const links = [];
+    if (a.html) links.push(aLink(a.html, "Open report", "primary"));
+    links.push(aLink(a.path, a.html ? "markdown" : "open", a.html ? null : "primary"));
+    const sub = ph.summary ? esc(ph.summary) : ("from " + esc(ph.name || ph.id));
+    return '<div class="hero"><div class="h-label">' + esc(h.label) + '</div>' +
+      '<div class="h-links">' + links.join(" ") + '</div>' +
+      '<div class="h-sub" title="' + esc(ph.summary || "") + '">' + sub + '</div></div>';
+  });
+  return '<div class="heroes">' + cards.join("") + '</div>';
+}
+
+function phaseIcon(ph) {
+  const st = ph.status || "pending";
+  if (PH_GLYPH[st]) return PH_GLYPH[st];
+  return ICONS[ph.icon_hint] || ICONS.plan;
+}
+
+function renderTimeline(phases) {
+  if (!phases.length) return '<div class="card"><h2>Phases</h2><div class="body empty">No phases reported yet.</div></div>';
+  const rows = phases.map(ph => {
+    const id = esc(ph.id || ph.name);
+    const st = ph.status || "pending";
+    const decs = (ph.decisions || []).length;
+    const risks = (ph.risks || []).length;
+    const arts = (ph.artifacts || []).length;
+    const hasBody = ph.summary || decs || risks || arts || ph.gate;
+    const open = openPhases.has(id) ? " open" : (st === "in_progress" ? " open" : "");
+    if (open && !openPhases.has(id) && st === "in_progress") openPhases.add(id);
+    const time = phaseTime(ph);
+
+    let body = "";
+    if (hasBody) {
+      body = '<div class="ph-body">' +
+        (ph.summary ? '<p class="ph-summary">' + esc(ph.summary) + '</p>' : "") +
+        (decs ? '<div class="ph-section"><div class="sec-label">Key decisions</div><ul>' +
+          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + '</li>').join("") +
+          '</ul></div>' : "") +
+        (risks ? '<div class="ph-section"><div class="sec-label">Open questions / risks</div><ul>' +
+          ph.risks.map(x => '<li' + (isResolvedRisk(x) ? ' class="risk-item resolved" style="border:none;padding:0"' : '') + '>' + esc(x) + '</li>').join("") + '</ul></div>' : "") +
+        (arts ? '<div class="ph-section"><div class="sec-label">Artifacts</div><div class="art-links">' +
+          ph.artifacts.map(a =>
+            '<div class="art-row">' + artifactLinks(a) +
+              '<span class="path">' + esc(a.path) + '</span>' +
+            '</div>').join("") +
+          '</div></div>' : "") +
+        (ph.gate ? '<div class="gate-line">Gate: ' + esc(ph.gate.question || "") + ' → <b>' + esc(ph.gate.answer || "") + '</b></div>' : "") +
+      '</div>';
+    }
+
+    return '<div class="phase' + open + '" data-id="' + id + '">' +
+      '<div class="ph-head">' +
+        '<div class="ph-icon ' + esc(st) + '">' + phaseIcon(ph) + '</div>' +
+        '<div class="ph-name">' + esc(ph.name || ph.id) +
+          (st === "skipped" && ph.skip_reason ? ' <span class="skipnote">— skipped: ' + esc(ph.skip_reason) + '</span>' : "") +
+        '</div>' +
+        '<div class="ph-tags">' +
+          (decs ? '<span class="mini decisions">' + decs + ' decision' + (decs > 1 ? "s" : "") + '</span>' : "") +
+          (risks ? '<span class="mini risks">' + risks + ' risk' + (risks > 1 ? "s" : "") + '</span>' : "") +
+          (arts ? '<span class="mini">' + arts + ' artifact' + (arts > 1 ? "s" : "") + '</span>' : "") +
+          (time ? '<span class="mini time">' + esc(time) + '</span>' : "") +
+        '</div>' +
+        (hasBody ? '<span class="ph-caret">▶</span>' : '<span class="ph-caret" style="visibility:hidden">▶</span>') +
+      '</div>' + body +
+    '</div>';
+  });
+  return '<div class="card"><div class="h2row"><h2>Phases</h2>' +
+    '<span class="tools"><a href="#" id="expandAll">expand all</a><a href="#" id="collapseAll">collapse all</a></span></div>' +
+    '<div class="timeline">' + rows.join("") + '</div></div>';
+}
+
+function renderDrawer(phases) {
+  const all = [];
+  for (const ph of phases) for (const a of (ph.artifacts || [])) all.push({ a, ph });
+  if (!all.length) return "";
+  const rows = all.map(({ a, ph }) =>
+    '<div class="art-row" style="padding:4px 0">' + artifactLinks(a) +
+      '<span class="path">' + esc(a.path) + '</span>' +
+      '<span class="path">· ' + esc(ph.name || ph.id) + '</span>' +
+    '</div>').join("");
+  return '<div class="card"><details class="drawer"><summary>All artifacts (' + all.length + ')</summary>' +
+    '<div class="body">' + rows + '</div></details></div>';
+}
+
+function renderVerification(v) {
+  if (!v || (!v.status && !(v.issues || []).length)) return "";
+  const issues = v.issues || [];
+  const fixedSet = new Set((v.fixes || []).map(f => typeof f === "string" ? f : (f.issue || f.description || "")));
+  const isFixed = i => i.fixed === true || i.severity === "resolved" || fixedSet.has(i.description);
+  const sevOrder = { critical: 0, high: 0, warning: 1, medium: 1, info: 2, low: 2 };
+  const sorted = issues.slice().sort((a, b) =>
+    (isFixed(a) - isFixed(b)) || ((sevOrder[a.severity] ?? 3) - (sevOrder[b.severity] ?? 3)));  // open first
+  return '<div class="card"><h2>Verification</h2><div class="body">' +
+    (v.status ? '<div class="v-status ' + esc(v.status) + '">' + esc(String(v.status).replace(/_/g, " ")) +
+      (v.reverify_count ? ' <span style="font-weight:400;color:var(--text-faint)">(' + v.reverify_count + ' re-run' + (v.reverify_count > 1 ? "s" : "") + ')</span>' : "") + '</div>' : "") +
+    (sorted.length ? sorted.map(i =>
+      '<div class="issue' + (isFixed(i) ? ' fixed' : '') + '"><span class="sev ' + esc(i.severity || "info") + '">' + esc(i.severity || "info") + '</span>' +
+      esc(i.description || "") +
+      (isFixed(i) && i.severity !== "resolved" ? ' <span class="fixedtag">✓ fixed</span>' : "") +
+      (i.category ? '<div class="cat">' + esc(i.category) + (i.fixable != null ? (i.fixable ? " · auto-fixable" : " · manual") : "") + '</div>' : "") +
+      '</div>').join("") : '<div class="empty">No issues reported.</div>') +
+    ((v.fixes || []).length ? '<div class="ph-section"><div class="sec-label">Fixes applied</div><ul>' +
+      v.fixes.map(f => '<li>' + esc(typeof f === "string" ? f : (f.fix || f.description || JSON.stringify(f))) + '</li>').join("") + '</ul></div>' : "") +
+  '</div></div>';
+}
+
+/* sidebar lists grouped by phase — full text, never truncated */
+function renderDecisions(phases) {
+  let total = 0, html = "";
+  for (const ph of phases) {
+    const decs = ph.decisions || [];
+    if (!decs.length) continue;
+    total += decs.length;
+    html += '<div class="grp-label">' + esc(ph.name || ph.id) + '</div>' +
+      decs.map(dx => '<div class="dec-item">' + esc(dx.decision || dx) +
+        (dx.rationale ? ' <span class="rationale">— ' + esc(dx.rationale) + '</span>' : "") + '</div>').join("");
+  }
+  const body = total ? html : '<div class="empty">No decisions recorded yet.</div>';
+  return '<div class="card"><h2>Decisions</h2><div class="body">' + body + '</div></div>';
+}
+
+function renderRisks(phases) {
+  let total = 0, html = "";
+  for (const ph of phases) {
+    const risks = ph.risks || [];
+    if (!risks.length) continue;
+    total += risks.length;
+    html += '<div class="grp-label">' + esc(ph.name || ph.id) + '</div>' +
+      risks.map(r => '<div class="risk-item' + (isResolvedRisk(r) ? ' resolved' : '') + '">' + esc(r) + '</div>').join("");
+  }
+  if (!total) return "";
+  return '<div class="card"><h2>Open questions / risks</h2><div class="body">' + html + '</div></div>';
+}
+
+function renderCharacteristics(c) {
+  if (!c || !Object.keys(c).length) return "";
+  const entries = Object.entries(c).sort(([, a], [, b]) => (b === true) - (a === true));  // detected first
+  const chips = entries.map(([k, v]) =>
+    '<span class="chip' + (v === true ? " on" : (v === false ? " off" : "")) + '">' +
+    (v === true ? "✓ " : "") + esc(k.replace(/_/g, " ")) + (typeof v !== "boolean" ? ": " + esc(v) : "") + '</span>').join("");
+  return '<div class="card"><h2>Task characteristics</h2><div class="body"><div class="chips">' + chips + '</div></div></div>';
+}
+
+/* ===== data loading & polling (file://-safe: script injection, no fetch) ===== */
+
+function loadData(initial) {
+  const s = document.createElement("script");
+  s.src = "dashboard-data.js?t=" + Date.now();
+  s.onload = () => {
+    const d = window.MAISTER_DATA;
+    if (d) {
+      lastPollTs = Date.now();
+      const snap = JSON.stringify(d);
+      if (snap !== lastSnapshot) {
+        lastSnapshot = snap;
+        lastChangeTs = Date.now();
+        render(d);
+      }
+    }
+    s.remove();
+  };
+  s.onerror = () => s.remove();   // data file not written yet — keep waiting
+  document.body.appendChild(s);
+}
+
+setInterval(() => loadData(false), 5000);
+setInterval(() => {   // freshness indicator
+  const dot = document.getElementById("liveDot"), txt = document.getElementById("liveTxt");
+  if (!dot || !lastChangeTs) return;
+  // dot goes stale when polling itself stops succeeding (file unreadable), not when data is merely unchanged
+  dot.classList.toggle("stale", Date.now() - lastPollTs > 60 * 1000);
+  txt.textContent = "updated " + fmtAgo(lastChangeTs);
+}, 1000);
+loadData(true);
+</script>
+</body>
+</html>

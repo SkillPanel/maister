@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Mockup Studio"
+  short_description: "Create design-system-aware UI mockups."
+  default_prompt: "Use $maister-codex:maister-mockup-studio to create and refine UI mockups for this feature."
