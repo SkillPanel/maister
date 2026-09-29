@@ -65,6 +65,25 @@
  * Under a dispatch driver the close-out check runs for every ending, a failed
  * one included — a failed dispatch still owes its chain a close-out graded
  * `failed`, or the chain waits on it forever.
+ *
+ * WHAT A COMPLETED RUN STILL OWES. `completed` is a claim about the graph, and
+ * the status alone cannot back it: a node an overlay added as a dangling leaf,
+ * a node left running, a recovery node the ready set had made ready — each
+ * closed `RUN-COMPLETE` while it had never run. So a run that recorded
+ * `completed` is refused `run-nodes-unfinished`, naming each node, while any
+ * node has not finished and the ready set cannot rule it out. The judgement is
+ * asked of `gate-brief.mjs`, where the guard evaluation and the ready-set
+ * simulation live, so a pending node is owed exactly when a driver walking the
+ * frozen graph would have run it: a false guard, or a need that ended failed or
+ * stopped which the node's `on` does not accept, keeps it off the path and it is
+ * not owed. Only `completed` is judged. A failed run's untouched nodes are its
+ * failure, and a stop records every unexecuted node `stopped`. The check runs
+ * before the close-out check, so a run with both defects finishes its work
+ * before it publishes the close-out that says it is over.
+ *
+ * The codes this module raises: `state-missing`, `state-unreadable`,
+ * `run-not-ended`, `run-nodes-unfinished` and `closeout-unpublished`. The
+ * failed ending's `run-failed` rides beside its marker and is not a refusal.
  */
 
 import fs from 'node:fs';
@@ -74,6 +93,7 @@ import { scanState } from '../../../../hooks/gate-lib.mjs';
 import { published } from '../../../umbrella/scripts/lib/outbox.mjs';
 import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
+import { atClose } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
@@ -105,6 +125,12 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
         `${state} records task.status ${status === null ? 'as absent' : `"${status}"`}, so the run has not recorded how it ended and no marker can be printed for it. Write the closing patch first — the closing node's outcome with task.status completed or failed, or a stop option's task.status stopped with every unexecuted node — then run this verb again.`);
     }
 
+    const runDir = path.dirname(path.resolve(state));
+    const close = atClose({ doc, runDir });
+    if (status === 'completed' && close.owed.length) {
+      throw new Refusal('run-nodes-unfinished', unfinished(state, close));
+    }
+
     if (scanState(raw).driverKind === 'dispatch') {
       const refusal = closeoutRefusal({ outbox, dispatchId });
       if (refusal) return refusal;
@@ -120,7 +146,7 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
       };
     }
     const result = { ok: true, marker: COMPLETE, errors: [] };
-    if (status === 'stopped') result.notice = `run stopped: ${stopOf(nodes, doc, path.dirname(path.resolve(state)))}`;
+    if (status === 'stopped') result.notice = `run stopped: ${stopOf(nodes, doc, runDir)}`;
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -141,6 +167,25 @@ function closeoutRefusal({ outbox, dispatchId }) {
 
   const sent = messages.map(message => message.type);
   return refused(`the outbox for dispatch ${dispatchId} holds ${sent.length ? `${sent.join(', ')} and no close-out` : 'no message at all'}, so the dispatching chain has not learned this run is over and will wait forever. Publish the close-out with the umbrella runtime's outbox verb (--type=closeout, with the grade and summary the seed's close-out contract asks for), then run this verb again.`);
+}
+
+/**
+ * The unfinished-nodes refusal: every owed node by id and recorded status, why
+ * a guard could not rule one out when that is the reason, and the recovery —
+ * the work that was missed, never a status written over it.
+ */
+function unfinished(state, { owed, drift }) {
+  const named = owed.map(({ id, status, guard }) => (guard
+    ? `${id} (${status}; its guard ${guard} reads a value that was never recorded)`
+    : `${id} (${status})`));
+  const one = owed.length === 1;
+  const count = one ? 'a node has' : `${owed.length} nodes have`;
+  const rule = drift
+    ? 'The definition this run froze cannot be re-read, or has changed since the freeze, so no guard was evaluated: every pending node whose needs are met counts.'
+    : `A pending node counts unless the graph keeps it off the path the run took — a false guard, or a need that ended failed or stopped which the node's on: does not accept — and nothing keeps ${one ? 'this one' : 'these'} off it.`;
+  return `${state} records task.status completed, but ${count} not finished: ${named.join(', ')}. ${rule} `
+    + `Resume the run and run ${one ? 'it' : 'each of them'}, or record skipped for one whose guard is false; then write the closing patch again and run this verb again. `
+    + `A run that cannot finish ${one ? 'it' : 'them'} ends failed, or stopped with every unexecuted node, instead. Never record a node completed that did not run.`;
 }
 
 /** A run that cannot show its close-out, with the recovery in the message. */

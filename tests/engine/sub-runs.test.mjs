@@ -70,7 +70,8 @@ test('waiting: the parent run has not ended, so run-complete refuses it', t => {
 
 test('completion: the child ends, the parent adopts it and ends RUN-COMPLETE', t => {
   const { parent, child } = waiting(t);
-  write(child, { task: { status: 'completed' } });
+  const childNodes = Object.keys(readState(child).workflow.nodes);
+  write(child, { task: { status: 'completed' }, nodes: Object.fromEntries(childNodes.map(id => [id, { status: 'completed' }])) });
   assert.equal(lastLine(complete(child).stdout), 'RUN-COMPLETE');
 
   write(parent, {

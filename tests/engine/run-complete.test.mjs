@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, lastLine, scratch, umbrella, verb, write } from '../helpers.mjs';
+import { FIXTURES, freeze, lastLine, scratch, sibling, umbrella, verb, write } from '../helpers.mjs';
 
 function complete(run, extra = []) {
   return verb(['run-complete', `--state=${run.state}`, ...extra]);
@@ -16,8 +16,16 @@ function ended(t, patch, { orchestrator = {}, fixture = null } = {}) {
   return run;
 }
 
+/** The sample's every node recorded `completed`: a completed run that owes nothing. */
+const SAMPLE_DONE = {
+  analysis: { status: 'completed' },
+  approval: { status: 'completed' },
+  implementation: { status: 'completed' },
+  research: { status: 'completed' },
+};
+
 test('completed: RUN-COMPLETE is the whole of stdout, exit 0', t => {
-  const run = ended(t, { task: { status: 'completed' } });
+  const run = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE });
   const result = complete(run);
   assert.equal(result.code, 0);
   assert.equal(result.stdout, 'RUN-COMPLETE\n');
@@ -87,7 +95,7 @@ test('a missing state file is no run to close: refused, exit 1', t => {
 const DISPATCH = id => ({ driver: { kind: 'dispatch', cwd: `/work/${id}` } });
 
 test('dispatch: completed but no --outbox given is closeout-unpublished', t => {
-  const run = ended(t, { task: { status: 'completed' } }, { orchestrator: DISPATCH('a') });
+  const run = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE }, { orchestrator: DISPATCH('a') });
   const result = complete(run);
   assert.equal(result.code, 1);
   assert.equal(result.stdout, 'RUN-FAILED: closeout-unpublished\n');
@@ -95,7 +103,7 @@ test('dispatch: completed but no --outbox given is closeout-unpublished', t => {
 });
 
 test('dispatch: an outbox holding no close-out is closeout-unpublished', t => {
-  const run = ended(t, { task: { status: 'completed' } }, { orchestrator: DISPATCH('b') });
+  const run = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE }, { orchestrator: DISPATCH('b') });
   const outbox = path.join(run.root, 'outbox');
   const result = complete(run, [`--outbox=${outbox}`, '--dispatch-id=d-1']);
   assert.equal(result.stdout, 'RUN-FAILED: closeout-unpublished\n');
@@ -103,7 +111,7 @@ test('dispatch: an outbox holding no close-out is closeout-unpublished', t => {
 });
 
 test('dispatch: once the close-out is published the run completes', t => {
-  const run = ended(t, { task: { status: 'completed' } }, { orchestrator: DISPATCH('c') });
+  const run = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE }, { orchestrator: DISPATCH('c') });
   const outbox = path.join(run.root, 'outbox');
   const published = umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'success', summary: 'done' });
   assert.equal(published.code, 0, published.stdout);
@@ -118,4 +126,249 @@ test('dispatch: a failed run is still checked for its close-out before its failu
   assert.equal(complete(run, [`--outbox=${outbox}`, '--dispatch-id=d-1']).stdout, 'RUN-FAILED: closeout-unpublished\n');
   umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'failed', summary: 'analysis failed' });
   assert.equal(complete(run, [`--outbox=${outbox}`, '--dispatch-id=d-1']).stdout, 'RUN-FAILED: node analysis failed\n');
+});
+
+// ---------------------------------------------------------------------------
+// a completed run owes every node the ready set can still reach
+// ---------------------------------------------------------------------------
+
+const DEFINITIONS = path.join(FIXTURES, 'definitions');
+const CLOSING = path.join(DEFINITIONS, 'closing.yml');
+const CLOSING_OVERLAY = path.join(DEFINITIONS, 'closing.overlay.yml');
+const CLOSING_CHILD = path.join(DEFINITIONS, 'closing-child.yml');
+const RECOVERY = path.join(DEFINITIONS, 'recovery.yml');
+
+/** A run of `definition`, frozen, with every node pending. */
+function frozen(t, { definition = CLOSING, overlays = [], inputs = null, orchestrator = {} } = {}) {
+  const run = scratch(t, { type: 'closing', name: '2026-01-05-closing' });
+  freeze(run, { definition, overlays, inputs, orchestrator });
+  return run;
+}
+
+/**
+ * The closing run as a driver that never skipped a thing leaves it: every node
+ * completed, the intake recording `needs_review`, with `overrides` laid over.
+ */
+function closingNodes(overrides = {}) {
+  return {
+    intake: { status: 'completed', values: { needs_review: true } },
+    review: { status: 'completed' },
+    'deep-dive': { status: 'completed' },
+    audit: { status: 'completed' },
+    report: { status: 'completed' },
+    notify: { status: 'completed' },
+    ...overrides,
+  };
+}
+
+/** Close the run as `completed` with `nodes`, and judge it. */
+function closeWith(run, nodes, status = 'completed') {
+  write(run, { task: { status }, nodes });
+  return complete(run);
+}
+
+/** The refusal's shape: its marker alone on stdout, its code first on stderr, exit 1. */
+function assertUnfinished(result, named) {
+  assert.equal(result.code, 1, result.stderr);
+  assert.equal(result.stdout, 'RUN-FAILED: run-nodes-unfinished\n');
+  assert.match(result.stderr, /^run-nodes-unfinished\b/);
+  const listed = /not finished: (.*?)\. /.exec(result.stderr)?.[1] ?? '';
+  assert.deepEqual(listed.split(', ').map(item => item.replace(/ \(.*$/, '')), named, result.stderr);
+}
+
+test('completed with every node ended: RUN-COMPLETE', t => {
+  const run = frozen(t);
+  const result = closeWith(run, closingNodes());
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(lastLine(result.stdout), 'RUN-COMPLETE');
+});
+
+test('a node an overlay added and nobody ran is owed; running it lets the run close', t => {
+  const run = frozen(t, { overlays: [CLOSING_OVERLAY] });
+  const result = closeWith(run, closingNodes());
+  assertUnfinished(result, ['security-review']);
+  assert.match(result.stderr, /security-review \(pending\)/);
+  assert.match(result.stderr, /record skipped for one whose guard is false/, 'the refusal names its recovery');
+
+  write(run, { nodes: { 'security-review': { status: 'completed' } } });
+  const again = complete(run);
+  assert.equal(again.code, 0, again.stderr);
+  assert.equal(lastLine(again.stdout), 'RUN-COMPLETE');
+});
+
+test('an on: always node that never ran is owed', t => {
+  const run = frozen(t);
+  assertUnfinished(closeWith(run, closingNodes({ notify: { status: 'pending' } })), ['notify']);
+});
+
+test('a node that started and never ended is owed, whatever its needs', t => {
+  const run = frozen(t);
+  const result = closeWith(run, closingNodes({ report: { status: 'running' } }));
+  assertUnfinished(result, ['report']);
+  assert.match(result.stderr, /report \(running\)/);
+});
+
+test('a suspended gate is owed, and so is every node behind it', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { task: { status: 'completed' }, nodes: { analysis: { status: 'completed' }, approval: { status: 'suspended' } } });
+  const result = complete(run);
+  assertUnfinished(result, ['approval', 'implementation', 'research']);
+  assert.match(result.stderr, /approval \(suspended\)/);
+});
+
+test('a node a false guard keeps off the path is not owed, even left pending', t => {
+  const run = frozen(t);
+  const result = closeWith(run, closingNodes({
+    intake: { status: 'completed', values: { needs_review: false } },
+    review: { status: 'pending' },
+    'deep-dive': { status: 'pending' },
+  }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(lastLine(result.stdout), 'RUN-COMPLETE');
+});
+
+test('a skip satisfies what follows: the nodes behind a false guard are owed', t => {
+  const run = frozen(t);
+  const result = closeWith(run, {
+    intake: { status: 'completed', values: { needs_review: false } },
+  });
+  assertUnfinished(result, ['audit', 'notify', 'report']);
+});
+
+test('a node whose guard is true is owed', t => {
+  const run = frozen(t);
+  assertUnfinished(closeWith(run, closingNodes({ review: { status: 'pending' } })), ['review']);
+});
+
+test('a guard on an input reads the inputs the run froze', t => {
+  const run = frozen(t, { inputs: { deep: true } });
+  assertUnfinished(closeWith(run, closingNodes({ 'deep-dive': { status: 'pending' } })), ['deep-dive']);
+});
+
+test('a guard that reads a value never recorded cannot rule its node out, and the refusal says so', t => {
+  const run = frozen(t);
+  const result = closeWith(run, closingNodes({ intake: { status: 'completed' }, review: { status: 'pending' } }));
+  assertUnfinished(result, ['review']);
+  assert.match(result.stderr, /its guard \$\{intake\.values\.needs_review\} reads a value that was never recorded/);
+});
+
+test('behind a failed need the default on: is off the path, and on: always is not', t => {
+  const run = frozen(t);
+  const failedAudit = closingNodes({ audit: { status: 'failed' }, report: { status: 'pending' }, notify: { status: 'pending' } });
+  assertUnfinished(closeWith(run, failedAudit), ['notify']);
+
+  write(run, { nodes: { notify: { status: 'completed' } } });
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(lastLine(result.stdout), 'RUN-COMPLETE');
+});
+
+test('a definition changed since the freeze: no guard is evaluated, and recording the skip closes the run', t => {
+  const run = scratch(t, { type: 'closing', name: '2026-01-05-drifted' });
+  const copy = path.join(run.root, 'definitions');
+  fs.mkdirSync(copy);
+  for (const name of ['closing.yml', 'closing.md']) fs.copyFileSync(path.join(DEFINITIONS, name), path.join(copy, name));
+  const definition = path.join(copy, 'closing.yml');
+  freeze(run, { definition });
+  fs.writeFileSync(definition, fs.readFileSync(definition, 'utf8').replace('"the intake"', '"the intake, revised"'));
+
+  const result = closeWith(run, closingNodes({
+    intake: { status: 'completed', values: { needs_review: false } },
+    review: { status: 'pending' },
+  }));
+  assertUnfinished(result, ['review']);
+  assert.match(result.stderr, /has changed since the freeze, so no guard was evaluated/);
+
+  write(run, { nodes: { review: { status: 'skipped' } } });
+  const again = complete(run);
+  assert.equal(again.code, 0, again.stderr);
+  assert.equal(lastLine(again.stdout), 'RUN-COMPLETE');
+});
+
+test('only a completed run is judged: a stopped or failed one keeps its own ending', t => {
+  const stopped = frozen(t);
+  const stop = closeWith(stopped, closingNodes({ notify: { status: 'pending' } }), 'stopped');
+  assert.equal(stop.code, 0, stop.stderr);
+  assert.equal(lastLine(stop.stdout), 'RUN-COMPLETE');
+
+  const failed = frozen(t);
+  const fail = closeWith(failed, closingNodes({ audit: { status: 'failed' }, notify: { status: 'pending' } }), 'failed');
+  assert.equal(fail.code, 1);
+  assert.equal(lastLine(fail.stdout), 'RUN-FAILED: node audit failed');
+});
+
+test('dispatch: unfinished nodes are refused before the close-out is checked, published or not', t => {
+  const run = frozen(t, { orchestrator: DISPATCH('e') });
+  const outbox = path.join(run.root, 'outbox');
+  const flags = [`--outbox=${outbox}`, '--dispatch-id=d-1'];
+  assertUnfinished(closeWith(run, closingNodes({ notify: { status: 'pending' } })), ['notify']);
+  assertUnfinished(complete(run, flags), ['notify']);
+
+  umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'success', summary: 'done' });
+  assertUnfinished(complete(run, flags), ['notify']);
+});
+
+test('a state with no workflow block closes on its status alone', t => {
+  const run = scratch(t);
+  fs.writeFileSync(run.state, 'orchestrator:\n  completed_phases: [analysis]\n\ntask:\n  title: Prose run\n  status: completed\n');
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+});
+
+// Passes once the ready-set rule returns a skip for an `on: failure` node whose
+// needs all completed. Until then `recover` reads as ready on the happy path
+// and is owed; drop the todo flag when that rule lands.
+test('an on: failure node whose needs all completed is off the path', { todo: 'needs the failure-only on: rule' }, t => {
+  const run = frozen(t, { definition: RECOVERY });
+  const result = closeWith(run, { work: { status: 'completed' }, finish: { status: 'completed' } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(lastLine(result.stdout), 'RUN-COMPLETE');
+});
+
+// ---------------------------------------------------------------------------
+// the same rule on both sides of a sub-run
+// ---------------------------------------------------------------------------
+
+/**
+ * A closing parent whose `audit` node has started its child run: the child
+ * frozen beside it with its parent link and `embedded` set, the parent node
+ * `waiting` on it with the child's address recorded.
+ */
+function subRun(t) {
+  const parent = frozen(t);
+  write(parent, { nodes: {
+    intake: { status: 'completed', values: { needs_review: false } },
+    review: { status: 'skipped' },
+    'deep-dive': { status: 'skipped' },
+    audit: { status: 'running' },
+  } });
+  const child = sibling(parent, { type: 'closing-child', name: '2026-01-05-child' });
+  freeze(child, {
+    definition: CLOSING_CHILD,
+    inputs: { subject: 'the intake', embedded: true },
+    orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'audit' } },
+  });
+  write(parent, { nodes: { audit: { status: 'waiting', values: { task_path: child.path, run_id: child.name } } } });
+  return { parent, child };
+}
+
+test('child: the guard cascade keeps an unneeded fix and the wrap-up off the path', t => {
+  const { child } = subRun(t);
+  const result = closeWith(child, { scan: { status: 'completed', values: { blocking: false } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(lastLine(result.stdout), 'RUN-COMPLETE');
+});
+
+test('child: a blocking scan owes its fix, and only its fix', t => {
+  const { child } = subRun(t);
+  assertUnfinished(closeWith(child, { scan: { status: 'completed', values: { blocking: true } } }), ['fix']);
+});
+
+test('parent: completed while its sub-run node still waits is refused, naming what waits behind it', t => {
+  const { parent } = subRun(t);
+  const result = closeWith(parent, {});
+  assertUnfinished(result, ['audit', 'notify', 'report']);
+  assert.match(result.stderr, /audit \(waiting\)/);
 });
