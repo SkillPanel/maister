@@ -178,16 +178,16 @@ prompt: |
 
 **Why**: Subagents run in isolated context. Without summaries, they must re-parse entire files and miss prior decisions.
 
-**The prior-phase passage is fetched, not composed.** Four attended runs measured the same thing: the rule holds where the lift is mechanical and happens once, and fails where a phase writes the passage afresh from an artifact it has already read — thirteen items arrived as seven clauses on one line, and nothing in the prompt recorded that they had ever been thirteen. So the composing step is gone, and a hand-written `## CONTEXT FROM PRIOR PHASES` block is the superseded shape. The workflow engine's read-only `prior-context` verb takes the run's state file and prints the whole passage — every phase, its decisions and its risks, one bullet each with the count beside the heading, so a truncation shows up as a number that disagrees with its own bullets. It finds the context block itself: every orchestrator whose `[domain]_context` carries `phase_summaries` is served by the same call (`workflow-engine/SKILL.md` § *Executing a node* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — paste its stdout in, and leave it alone: trimming it, re-ordering it or tightening it is the same defect by hand. Re-using a rendering produced for an earlier delegate is not licensed however recent it looks: a summary written in between makes it stale, the prompt records nothing about when it was taken, and a prompt that happens to be current is current by timing rather than by construction. The verb reads the run and writes nothing, so the extra call costs nothing.
+**The prior-phase passage is fetched, not composed.** Four attended runs measured the same thing: the rule holds where the lift is mechanical and happens once, and fails where a phase writes the passage afresh from an artifact it has already read — thirteen items arrived as seven clauses on one line, and nothing in the prompt recorded that they had ever been thirteen. So the composing step is gone, and a hand-written `## CONTEXT FROM PRIOR PHASES` block is the superseded shape. The workflow engine's read-only `prior-context` verb takes the run's state file and prints the whole passage — every phase, its decisions and its risks, one bullet each with the count beside the heading, so a truncation shows up as a number that disagrees with its own bullets. It finds the run's context block itself, and renders `node_summaries` for a run that has none, so every workflow is served by the same call (`workflow-engine/SKILL.md` § *Executing a node* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — paste its stdout in, and leave it alone: trimming it, re-ordering it or tightening it is the same defect by hand. Re-using a rendering produced for an earlier delegate is not licensed however recent it looks: a summary written in between makes it stale, the prompt records nothing about when it was taken, and a prompt that happens to be current is current by timing rather than by construction. The verb reads the run and writes nothing, so the extra call costs nothing.
 
 ### Context Extraction
 
-After each phase, extract key findings into `[domain]_context.phase_summaries`:
+After each phase, extract key findings into the `phase_summaries` of the run's context block, `<name>_context` (§ 4 Extension Pattern says how the name is derived):
 
 1. Parse subagent output for key fields
 2. Create 1-2 sentence summary
 3. Extract `decisions`, `risks`, and `artifacts` from the artifact's summary block (§ 7)
-4. Update state: `[domain]_context.phase_summaries.[phase_name]`
+4. Update state: `<name>_context.phase_summaries.[phase_name]`
 5. **Prose path only**: refresh the operator dashboard data file (§ 8). On the engine path every successful `write-state` projects it, so there is nothing to refresh here
 
 This enables context passing to downstream phases and supports resume.
@@ -288,7 +288,7 @@ The three keys above are the only `options` keys every orchestrator shares. `opt
 
 ### Extension Pattern
 
-Orchestrators add domain-specific fields using `[domain]_context`, at the **top level** of the state file — never nested under `orchestrator:` (the pro register § A1). The root carries exactly one of the five, or none (a chain run has none):
+Workflows add domain-specific fields in their context block, at the **top level** of the state file — never nested under `orchestrator:` (the pro register § A1). The block's name is derived from the workflow's name: `<name>_context`, with the name's dashes written as underscores, and the state writer applies the rule (`workflow-engine/SKILL.md` § *Writing state*). The root carries exactly one context block, or none (a chain run, or a workflow whose nodes record only `node_summaries`, has none). The built-ins' blocks are below; development and product design are the two whose block does not carry their own name:
 
 | Domain | Context Field | Example Fields |
 |--------|---------------|----------------|
@@ -594,11 +594,12 @@ State records what each phase produced; only disk records what each phase actual
 finalization — the closing phase of every workflow — reconcile the two before declaring the task
 complete.
 
-**What to compare**: every `phase_summaries.[phase].artifacts[].path` and every non-null
-`.html` beside it. Resolve each against the task root and check it exists.
+**What to compare**: every `artifacts[].path` and every non-null `.html` beside it, in the
+`phase_summaries` of the run's context block (`<name>_context`, § 4) and in `node_summaries`.
+Resolve each against the task root and check it exists.
 
 **What to report**: a **Missing artifacts** block in the workflow summary, one line per absent
-path, naming the phase that declared it and the subagent or skill that owed it. When nothing is
+path, naming the phase or node that declared it and the subagent or skill that owed it. When nothing is
 missing, omit the block — silence here means the declaration held.
 
 **What not to do**: reconciliation reports, it never repairs. Do not re-run a phase, regenerate a
