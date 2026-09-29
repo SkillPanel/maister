@@ -193,7 +193,8 @@ add:
 ```
 
 Without `before:`, nothing waits for an added node, so it runs as a side branch wherever the
-frozen order happens to put it — ties are broken by id — and no gate waits for it. `before:`
+frozen order happens to put it — ties are broken by id — and no gate waits for it. `validate`
+warns about such a node (`added-node-no-dependents`), naming the position it will run at. `before:`
 only ever adds a wait: it never removes or reroutes a need the built-in declares, so an overlay
 cannot step around a gate with it. It is refused when it names a node the graph does not carry
 (one an overlay disabled included), the added node itself, or a node the added node already

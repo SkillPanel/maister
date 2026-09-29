@@ -298,3 +298,51 @@ test('before: must be a sequence of node ids, resolved and standalone', t => {
     assert.deepEqual(JSON.parse(result.stdout).errors.map(error => error.path), ['add.check.before']);
   }
 });
+
+// ---------------------------------------------------------------------------
+// an added node nothing waits for
+// ---------------------------------------------------------------------------
+
+const leafWarnings = report => report.warnings.filter(warning => warning.startsWith('added-node-no-dependents:'));
+
+test('an added node nothing needs is warned about, naming where it will run and pointing at before:', () => {
+  const { code, report } = run('validate', SAMPLE, [path.join(FIXTURES, 'definitions/sample.overlay.yml')]);
+  assert.equal(code, 0);
+  assert.deepEqual(leafWarnings(report), [
+    'added-node-no-dependents:add.review:review — nothing needs it, so it runs at position 5 of 5 in the frozen order, '
+    + 'after research; list the nodes that should wait for it under before:',
+  ]);
+});
+
+test('the dangling-node warning names the profile path a profile added the node at', t => {
+  const overlay = overlayFile(t, [
+    'extends: sample.yml',
+    'profiles:',
+    '  checked:',
+    '    add:',
+    '      check:',
+    '        uses: skill:implementation-verifier',
+    '        needs: [analysis]',
+  ]);
+  const result = verb(['validate', `--definition=${SAMPLE}`, `--overlay=${overlay}`, '--profile=checked']);
+  assert.equal(result.code, 0, result.stdout);
+  assert.deepEqual(leafWarnings(JSON.parse(result.stdout)).map(warning => warning.split(' — ')[0]),
+    ['added-node-no-dependents:profiles.checked.add.check:check']);
+});
+
+test('an added node placed with before:, or needed by another added node, is not warned about', t => {
+  const overlay = overlayFile(t, [
+    'extends: sample.yml',
+    'add:',
+    '  check:',
+    '    uses: skill:implementation-verifier',
+    '    needs: [analysis]',
+    '  recheck:',
+    '    uses: skill:implementation-verifier',
+    '    needs: [check]',
+    '    before: [approval]',
+  ]);
+  const { code, report } = run('validate', SAMPLE, [overlay]);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(leafWarnings(report), []);
+});

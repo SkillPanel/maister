@@ -226,6 +226,12 @@ the graph never exposes a key no node can produce. Fewer keys means a different 
 deliberately: a run exposing five artifacts is not the same executable graph as one exposing
 six, and a hash that stayed still would say it was.
 
+**A node an overlay or a profile added that nothing needs warns; it does not stop the run.** The
+warning is `added-node-no-dependents:<path>:<node>`, and its text names the position the node
+runs at in the frozen order. No node and no gate waits for it, so it runs where that order puts
+it, like any other ready node; making a later node wait for it is the overlay's `before:`, never
+a decision the run makes.
+
 **A reference to a node the base definition never declared stays a hard error.** The two look
 alike in the resolved graph and are nothing alike in origin: a name no base node carries is the
 author's own mistake, both halves of the contradiction in one file; a name an overlay or profile

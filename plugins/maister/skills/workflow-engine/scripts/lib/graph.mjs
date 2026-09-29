@@ -176,6 +176,9 @@ const WARN = {
   exposedDisabled: (path, node) => `exposed-output-disabled:${path}:${node}`,
   iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
   titleUnknownNode: (path, node) => `title-unknown-node:${path}:${node}`,
+  addedLeaf: (path, node, position, count, after) => `added-node-no-dependents:${path}:${node} — nothing needs it, `
+    + `so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
+    + 'list the nodes that should wait for it under before:',
 };
 
 /**
@@ -303,7 +306,10 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   for (const overlay of overlays) checkOverlayBase(overlay, definition, errors);
   scanReserved(definition?.doc, warnings);
   const graph = buildGraph({ definition, overlays, profile, errors });
-  if (graph) checkGraph(graph, errors, warnings, resolved, project);
+  if (graph) {
+    checkGraph(graph, errors, warnings, resolved, project);
+    warnAddedLeaves(graph, warnings);
+  }
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
 }
 
@@ -323,6 +329,24 @@ function countsOf(graph) {
   let gates = 0;
   for (const node of graph.nodes.values()) if (node?.type === 'gate') gates += 1;
   return { nodes: graph.nodes.size, gates };
+}
+
+/**
+ * An added node that nothing needs runs as a side branch: no node and no gate
+ * waits for it, and its place in the frozen order comes from the tie-break on
+ * ids rather than from anything the overlay said. It validates — an appended
+ * leaf is sometimes exactly what was meant — so this warns rather than errors,
+ * and says where the node will run and how to make something wait for it.
+ */
+function warnAddedLeaves(graph, warnings) {
+  const needed = new Set();
+  for (const node of graph.nodes.values()) for (const need of needsOf(node)) needed.add(need);
+  const order = topological(graph.nodes);
+  for (const [id, at] of graph.added) {
+    if (!graph.nodes.has(id) || needed.has(id)) continue;
+    const index = order.indexOf(id);
+    warnings.push(WARN.addedLeaf(at, id, index + 1, order.length, index > 0 ? order[index - 1] : null));
+  }
 }
 
 /**
@@ -834,7 +858,7 @@ function scanReserved(doc, warnings) {
  * frozen order, with the profile last because it is chosen at invocation and
  * must be able to override what the overlay it lives in decided.
  *
- * Returns `{file, inputs, nodes, origins, removed}` where `origins` records
+ * Returns `{file, inputs, nodes, origins, removed, added}` where `origins` records
  * which file each node came from. Origins never reach the canonical form or the
  * hash; they exist so an error can name the file the operator has to edit, and
  * so a `direct:` target is looked for beside the file that declared it.
@@ -845,6 +869,10 @@ function scanReserved(doc, warnings) {
  * absent because an overlay trimmed it are the same fact, and the workflow-level
  * `outputs:` block — carried out of the base alone, deliberately not overlayable
  * — cannot tell the author's own mistake from the operator's legitimate trim.
+ *
+ * `added` maps every node an overlay or a profile added to the dotted path it
+ * was added at, so a finding about an added node can point at the entry that
+ * wrote it.
  */
 function buildGraph({ definition, overlays, profile, errors }) {
   if (!definition || !definition.doc || typeof definition.doc !== 'object') {
@@ -865,6 +893,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
   const nodes = new Map();
   const origins = new Map();
   const removed = new Map();
+  const added = new Map();
   for (const [id, node] of Object.entries(isMap(doc.nodes) ? doc.nodes : {})) {
     if (!isMap(node)) {
       fail(errors, file, `nodes.${id}`, 'a node must be a mapping', id);
@@ -874,7 +903,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
     origins.set(id, file);
   }
 
-  for (const overlay of overlays) applyOps(overlay.doc, overlay.file, '', { nodes, origins, removed }, errors);
+  for (const overlay of overlays) applyOps(overlay.doc, overlay.file, '', { nodes, origins, removed, added }, errors);
   for (const overlay of overlays) {
     if (profile === null || !isMap(overlay.doc?.profiles)) continue;
     const selected = overlay.doc.profiles[profile];
@@ -882,7 +911,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
       fail(errors, overlay.file, `profiles.${profile}`, `the overlay declares no profile named "${profile}"`, null);
       continue;
     }
-    applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed }, errors);
+    applyOps(selected, overlay.file, `profiles.${profile}.`, { nodes, origins, removed, added }, errors);
   }
 
   for (const [id, node] of nodes) scanControlCharacters(node, origins.get(id) ?? file, id, `nodes.${id}`, errors);
@@ -918,6 +947,7 @@ function buildGraph({ definition, overlays, profile, errors }) {
     nodes,
     origins,
     removed,
+    added,
   };
 }
 
@@ -975,7 +1005,7 @@ function scanControlCharacters(value, file, id, dotted, errors) {
  */
 function applyOps(body, file, prefix, graph, errors) {
   if (!isMap(body)) return;
-  const { nodes, origins, removed } = graph;
+  const { nodes, origins, removed, added } = graph;
   const placing = [];
 
   for (const [index, id] of (Array.isArray(body.disable) ? body.disable : []).entries()) {
@@ -1053,9 +1083,10 @@ function applyOps(body, file, prefix, graph, errors) {
     // `before` is an instruction to this resolver, not a property of the node:
     // it becomes edges below and is never carried, so it cannot reach the
     // canonical form or the hash.
-    const { before, ...added } = node;
-    nodes.set(id, added);
+    const { before, ...carried } = node;
+    nodes.set(id, carried);
     origins.set(id, file);
+    added.set(id, dotted);
     if (Array.isArray(before)) placing.push({ id, before, at: `${dotted}.before` });
   }
 
