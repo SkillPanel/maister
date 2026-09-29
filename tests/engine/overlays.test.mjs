@@ -93,3 +93,62 @@ test('a profile cannot add back a node its own overlay body disabled', t => {
   assert.deepEqual(report.errors.map(error => error.path), ['profiles.docs.add.user-docs']);
   assert.match(report.errors[0].message, /this overlay disables/);
 });
+
+// ---------------------------------------------------------------------------
+// tune.with
+// ---------------------------------------------------------------------------
+
+const BASE_WITH = {
+  task_description: '${inputs.task_description}',
+  research_context: '${intake.artifacts.research_context}',
+  design_index: '${intake.artifacts.design_index}',
+};
+
+const withOf = (graph, id) => ({ ...graph.nodes.find(node => node.id === id).with });
+
+test('tune.with merges by key: the base inputs stay and the tuned key is added', t => {
+  const overlay = overlayFile(t, ['extends: builtin:development', 'tune:', '  codebase-analysis:', '    with: {depth: deep}']);
+  const { code, report } = run('resolve', DEVELOPMENT, [overlay]);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(withOf(report, 'codebase-analysis'), { ...BASE_WITH, depth: 'deep' });
+});
+
+test('tune.with replaces the value of a key the base declares, and null deletes one', t => {
+  const overlay = overlayFile(t, [
+    'extends: builtin:development',
+    'tune:',
+    '  codebase-analysis:',
+    '    with: {design_index: null, task_description: "Harden the parser"}',
+  ]);
+  const { code, report } = run('resolve', DEVELOPMENT, [overlay]);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  const { design_index: _dropped, ...kept } = BASE_WITH;
+  assert.deepEqual(withOf(report, 'codebase-analysis'), { ...kept, task_description: 'Harden the parser' });
+});
+
+test('a profile tunes with over what its overlay body already tuned, key by key', t => {
+  const overlay = overlayFile(t, [
+    'extends: builtin:development',
+    'tune:',
+    '  codebase-analysis:',
+    '    with: {depth: deep}',
+    'profiles:',
+    '  quick:',
+    '    tune:',
+    '      codebase-analysis:',
+    '        with: {depth: shallow, research_context: null}',
+  ]);
+  const result = verb(['resolve', `--definition=${DEVELOPMENT}`, `--overlay=${overlay}`, '--profile=quick']);
+  assert.equal(result.code, 0, result.stdout);
+  const { research_context: _dropped, ...kept } = BASE_WITH;
+  assert.deepEqual(withOf(JSON.parse(result.stdout), 'codebase-analysis'), { ...kept, depth: 'shallow' });
+});
+
+test('a tuned with that is not a mapping is refused where it is written', t => {
+  const overlay = overlayFile(t, ['extends: builtin:development', 'tune:', '  codebase-analysis:', '    with: deep']);
+  for (const args of [[`--definition=${DEVELOPMENT}`, `--overlay=${overlay}`], [`--overlay=${overlay}`]]) {
+    const result = verb(['validate', ...args]);
+    assert.equal(result.code, 1);
+    assert.deepEqual(JSON.parse(result.stdout).errors.map(error => error.path), ['tune.codebase-analysis.with']);
+  }
+});

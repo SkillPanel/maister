@@ -1014,7 +1014,9 @@ function applyOps(body, file, prefix, graph, errors) {
     }
     const node = nodes.get(id);
     for (const key of TUNABLE) {
-      if (patch[key] !== undefined) node[key] = patch[key];
+      if (patch[key] === undefined) continue;
+      if (key === 'with') mergeWith(node, patch.with);
+      else node[key] = patch[key];
     }
   }
 
@@ -1047,6 +1049,29 @@ function applyOps(body, file, prefix, graph, errors) {
     nodes.set(id, { ...node });
     origins.set(id, file);
   }
+}
+
+/**
+ * A tuned `with` laid over the node's own, key by key: a key the tune names
+ * takes the tuned value, `null` deletes the key, and every key the tune does not
+ * name is kept. Replacing the map whole made "add one input" silently drop every
+ * input the base passed, which is the opposite of what a one-key tune says.
+ *
+ * Shallow on purpose: a key whose value is itself a map is replaced as one
+ * value, so a tune never has to be read against the base's nesting. A map that
+ * ends up empty is dropped, as an absent `with` is. Null-prototyped, so a key
+ * spelled `__proto__` stays an ordinary key. A `with` that is not a mapping is
+ * `checkOps`'s refusal and changes nothing here.
+ */
+function mergeWith(node, patch) {
+  if (!isMap(patch)) return;
+  const merged = Object.assign(Object.create(null), isMap(node.with) ? node.with : {});
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete merged[key];
+    else merged[key] = value;
+  }
+  if (Object.keys(merged).length) node.with = merged;
+  else delete node.with;
 }
 
 /** Who removed a node, as a refusal names it: this overlay, or the file that did. */
@@ -2018,6 +2043,10 @@ function checkOps(body, file, prefix, errors) {
         }
         if (patch.provider !== undefined && !['claude', 'copilot'].includes(patch.provider)) {
           fail(errors, file, `${at}.provider`, `"${patch.provider}" is not a known provider`, id);
+        }
+        if (patch.with !== undefined && !isMap(patch.with)) {
+          fail(errors, file, `${at}.with`,
+            `a tuned with is a mapping laid over the node's own, key by key, with null deleting a key; ${describe(patch.with)} is not a mapping`, id);
         }
       }
     }

@@ -160,6 +160,20 @@ alternatives, selected by name when the graph is resolved. The result is validat
 a node another node still needs is an error, never a silent gap. An overlay, or one of its profiles, may also carry a
 `display:` block that adds or overrides phase icons and titles — the title of a node it adds, say — without changing the graph.
 
+**A tuned `with` is merged into the node's own, key by key.** A key you name takes your value,
+`null` deletes a key, and every key you leave out keeps the value the built-in passes — so a
+one-key tune adds one input rather than replacing them all. The merge is one level deep: a key
+whose value is a map is replaced as a whole. Deleting a key is also how a later node stops
+reading a node you disable:
+
+```yaml
+disable: [ui-mockups, mockup-approval]
+tune:
+  specification: {with: {design_index: null}}
+  planning: {with: {design_index: null}}
+  e2e-verification: {with: {design_context: null}}
+```
+
 **A disabled node stays disabled.** Disabling a node rewires its dependents to wait for whatever it
 waited for, so a node added back under the same id would be attached to nothing — a gate that
 holds nothing, under the name of the one you removed. `validate` refuses it, whichever overlay or
