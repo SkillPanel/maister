@@ -160,7 +160,7 @@ takes effect on the next run of `/maister:development`.
 
 **An overlay changes a built-in without copying it.** It carries `extends: builtin:<name>` and up to
 three operations, applied in a fixed order after the base: `disable` removes nodes by id, `tune`
-adjusts a node's `with`, `optional` or `provider` — and nothing else, `uses` is immutable by design —
+adjusts a node's `with` or `provider` — and nothing else, `uses` is immutable by design —
 and `add` introduces new nodes with their own `needs`. Named `profiles` let one overlay carry
 alternatives, selected by name when the graph is resolved. Every profile is validated whether or not it is
 selected, and selecting one that no overlay declares is an error; a definition carries no profiles of its own. The result is validated as a whole, so an overlay that disables

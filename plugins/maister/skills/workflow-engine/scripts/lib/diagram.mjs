@@ -57,15 +57,13 @@ const SHAPES = {
 /**
  * The classes attached alongside the shapes. Shape is for the reader of the
  * text; a class is for anything that styles the rendered picture without
- * parsing glyphs back out of it. `optional` has no shape of its own — it is a
- * property of how failure propagates, not of where the operator stands.
+ * parsing glyphs back out of it.
  */
 const CLASS_GATE = 'gate';
 const CLASS_CONDITIONAL = 'conditional';
-const CLASS_OPTIONAL = 'optional';
 
 /** The order class statements are emitted in. Fixed here, never derived. */
-const CLASS_ORDER = [CLASS_GATE, CLASS_CONDITIONAL, CLASS_OPTIONAL];
+const CLASS_ORDER = [CLASS_GATE, CLASS_CONDITIONAL];
 
 /** The node type that marks a stopping point. Every other type is a task. */
 const TYPE_GATE = 'gate';
@@ -176,7 +174,6 @@ function classesOf(node) {
   const names = [];
   if (node.type === TYPE_GATE) names.push(CLASS_GATE);
   if (node.when !== undefined && node.when !== null) names.push(CLASS_CONDITIONAL);
-  if (node.optional === true) names.push(CLASS_OPTIONAL);
   return names;
 }
 
@@ -204,7 +201,6 @@ function label(node, titles) {
   if (node.type === TYPE_GATE && options(node) !== '') parts.push(text(options(node)));
   if (node.when !== undefined && node.when !== null) parts.push(text(`when: ${scalar(node.when)}`));
   if (node.on !== undefined && node.on !== null) parts.push(text(`on: ${scalar(node.on)}`));
-  if (node.optional === true) parts.push(text('optional'));
   return parts.join(BREAK);
 }
 

@@ -163,7 +163,7 @@ export function gateBrief({ state, node, oneline = false }) {
   if (current.drift) {
     next = NEXT_UNKNOWN;
   } else {
-    const walked = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults, options });
+    const walked = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults });
     if (!walked.ok) return { ok: false, text: '', errors: walked.errors, warnings };
     next = nextLine(walked, current.titles);
   }
@@ -368,14 +368,13 @@ function list(value) {
  * `needs` closure contains it. Everything else is history or a parallel branch,
  * and neither is what this answer moves forward.
  *
- * The gate is simulated as completed, carrying its continue option's `values`.
- * Then, in resolved order, the first pending in-scope node whose needs are all
+ * The gate is simulated as completed. Then, in resolved order, the first pending in-scope node whose needs are all
  * settled is taken. An `on: failure` node none of whose needs ended badly is
  * simulated as skipped and the loop goes on; otherwise, without a `when` it is
  * next, and with one a true guard makes it next and a false one simulates a
  * skip and the loop goes on.
  */
-export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, options = null }) {
+export function walk({ graph, recorded, gate, inputs = {}, defaults = {} }) {
   const nodes = graph?.nodes ?? [];
   const byId = new Map(nodes.map(entry => [entry.id, entry]));
   const downstream = downstreamOf(nodes, gate);
@@ -383,7 +382,6 @@ export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, option
   const status = new Map();
   for (const entry of nodes) status.set(entry.id, entryOf(recorded, entry.id).status ?? 'pending');
   status.set(gate, 'completed');
-  const values = new Map([[gate, continueValues(options)]]);
 
   const skipped = [];
   for (;;) {
@@ -400,7 +398,7 @@ export function walk({ graph, recorded, gate, inputs = {}, defaults = {}, option
     }
     if (typeof ready.when !== 'string') return { ok: true, next: ready.id, skipped };
 
-    const guard = evaluate(ready.when, { byId, recorded, status, values, inputs, defaults });
+    const guard = evaluate(ready.when, { byId, recorded, status, inputs, defaults });
     if (!guard.ok) return guard;
     if (guard.value) return { ok: true, next: ready.id, skipped };
     status.set(ready.id, 'skipped');
@@ -455,13 +453,6 @@ function settles(state, on) {
   return ENDED_BADLY.has(state) && (on === 'failure' || on === 'always');
 }
 
-/** The continue option's `values`, when it uses the `{effect, values}` form. */
-function continueValues(options) {
-  const key = optionWith(options, 'continue');
-  const option = key === null ? null : options[key];
-  return isPlainObject(option) && isPlainObject(option.values) ? option.values : {};
-}
-
 /** The first option id, in resolved order, whose effect is `effect`; else null. */
 function optionWith(options, effect) {
   if (!isPlainObject(options)) return null;
@@ -476,7 +467,7 @@ function optionWith(options, effect) {
  * value-missing refusal when a completed node never recorded the value its
  * successor is guarded on.
  */
-function evaluate(when, { byId, recorded, status, values, inputs, defaults }) {
+function evaluate(when, { byId, recorded, status, inputs, defaults }) {
   const match = WHEN.exec(when);
   if (!match) return { ok: true, value: false };
   const [, bang, owner, , key] = match;
@@ -492,12 +483,10 @@ function evaluate(when, { byId, recorded, status, values, inputs, defaults }) {
   // reads as false (SKILL.md, recording an outcome).
   if (NO_VALUES.has(status.get(owner))) return negate(false);
 
-  // A gate's values are the answer's; no write ever puts one there, so a
-  // missing key is false rather than a refusal nobody could act on.
-  if (values.has(owner) || entryOf(recorded, owner).kind === 'gate' || byId.get(owner)?.type === 'gate') {
-    const held = values.get(owner) ?? entryOf(recorded, owner).values;
-    return negate(isPlainObject(held) && held[key] === true);
-  }
+  // A gate records the option chosen and no value — the validator refuses a
+  // gate that declares one — so a guard on a gate reads false rather than
+  // refusing over a write nobody could make.
+  if (entryOf(recorded, owner).kind === 'gate' || byId.get(owner)?.type === 'gate') return negate(false);
 
   const held = entryOf(recorded, owner).values;
   if (status.get(owner) === 'completed' && isPlainObject(held) && typeof held[key] === 'boolean') {

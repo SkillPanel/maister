@@ -52,7 +52,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | Amended 2026-09-27: a completing node summary gains its declared artifacts and companions |
 | [ADR-0013](0013-prose-workflow-twin-is-transitional.md) | The prose workflow twin is transitional | Accepted | 2026-08-26 | — |
 | [ADR-0014](0014-development-ships-as-a-workflow-definition.md) | Development ships as a workflow definition | Accepted | 2026-08-27 | — |
-| [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | — |
+| [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | Amended 2026-09-30: `optional` leaves the grammar, so `with` and `provider` are the tunable keys |
 | [ADR-0016](0016-mid-graph-entry-is-not-an-engine-feature.md) | Mid-graph entry is not an engine feature | Accepted | 2026-08-27 | — |
 | [ADR-0017](0017-driver-aware-gate-suspension.md) | Driver-aware gate suspension and the resume-path editor exception | Accepted | 2026-08-30 | Amends ADR-0012 (one bounded editor-tool exception on the resume path); supersedes ADR-0001's terminal-mode-only closing sentence |
 | [ADR-0018](0018-per-run-dispatch-worktrees.md) | Dispatch worktrees are named for the run and the node | Accepted | 2026-09-08 | — |

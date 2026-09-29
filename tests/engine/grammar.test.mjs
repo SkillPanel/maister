@@ -462,3 +462,36 @@ test('on: failure waits while its need has not ended, and is not skipped early',
   const run = atGateWithFollowers(t, {});
   assert.equal(nextAt(run), 'Next: Audit');
 });
+
+// ---------------------------------------------------------------------------
+// optional and gate-option values have left the grammar
+// ---------------------------------------------------------------------------
+
+test('optional is no longer a node key', t => {
+  const { code, report } = validate(definition(t, [...BASE, '    optional: true']));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.wrapup.optional').message, /"optional" is not a node key/);
+});
+
+test('optional is no longer tunable by an overlay', t => {
+  const file = definition(t);
+  const lay = overlay(file, ['extends: acme', 'tune:', '  wrapup: {optional: true}']);
+  const { code, report } = validate(file, `--overlay=${lay}`);
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'tune.wrapup.optional').message, /only with, provider may be tuned; "optional" may not/);
+});
+
+test('a gate option carries its effect only: values is refused', t => {
+  const lines = replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: {effect: continue, values: {deep: true}}', '      stop-here: stop');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.options.continue-on.values').message, /"values" is not an option key; the accepted keys are effect/);
+});
+
+test('a gate declares no outputs, so no guard can read a value it would never record', t => {
+  const lines = replacing('    ask: "Intake done. Continue?"', '    ask: "Intake done. Continue?"', '    outputs: {values: {deep: bool}}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.outputs').message, /a gate records only the option chosen and declares no outputs/);
+});

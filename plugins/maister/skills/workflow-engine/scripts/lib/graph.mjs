@@ -127,8 +127,8 @@ const BASE_REF = /^(?:builtin:)?[a-z][a-z0-9-]*$|^[^/].*\.ya?ml$/;
 /** The four target schemes. The list is closed; anything else is an error. */
 const SCHEMES = ['skill', 'agent', 'direct', 'workflow'];
 
-/** The only three node fields an overlay may tune. `uses` is immutable by design. */
-const TUNABLE = ['with', 'optional', 'provider'];
+/** The only two node fields an overlay may tune. `uses` is immutable by design. */
+const TUNABLE = ['with', 'provider'];
 
 /**
  * The closed key sets of a version 1 document, one per level. A key outside
@@ -149,11 +149,11 @@ const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
 const DISPLAY_KEYS = ['icons', 'titles'];
 
 /**
- * An authored gate option in its map form carries its effect beside the values
- * it emits, and nothing else. An option routes nowhere: the answer is the
- * option id, and the effect is whether the run goes on.
+ * An authored gate option in its map form carries its effect and nothing else.
+ * An option routes nowhere and emits nothing: the answer is the option id,
+ * recorded in state, and the effect is whether the run goes on.
  */
-const OPTION_KEYS = ['effect', 'values'];
+const OPTION_KEYS = ['effect'];
 
 /**
  * The key a node added by an overlay may carry and a definition's own node may
@@ -206,7 +206,7 @@ const RESERVED_PATHS = [
  * same while they asked different questions and stopped on different answers.
  */
 const NODE_KEYS = [
-  'id', 'uses', 'needs', 'when', 'with', 'outputs', 'type', 'ask', 'options', 'on', 'dir', 'provider', 'optional',
+  'id', 'uses', 'needs', 'when', 'with', 'outputs', 'type', 'ask', 'options', 'on', 'dir', 'provider',
 ];
 
 /** The warning vocabulary, so no call site spells a prefix by hand. */
@@ -1626,9 +1626,8 @@ function checkCycle(nodes, file, errors) {
 
 /**
  * An authored gate option is either the bare effect or a map carrying that
- * effect beside the values the option emits. Every effect check reads through
- * here so the two spellings stay one rule. What the values mean is not this
- * version's business; only the effect is.
+ * effect and nothing else (`OPTION_KEYS`). Every effect check reads through
+ * here so the two spellings stay one rule.
  */
 function optionEffect(option) {
   if (isMap(option)) return option.effect;
@@ -1745,6 +1744,12 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
   }
 
   if (node.uses !== undefined) fail(errors, file, `${at}.uses`, 'a gate runs nothing and may not carry uses', id);
+  // A gate records the option chosen and nothing else, so a value it declared
+  // could never be written — and a guard on one would read false forever.
+  if (node.outputs !== undefined) {
+    fail(errors, file, `${at}.outputs`,
+      'a gate records only the option chosen and declares no outputs; a value a later guard reads belongs to a task node', id);
+  }
   if (typeof node.ask !== 'string' || node.ask.trim() === '') {
     fail(errors, file, `${at}.ask`, 'a gate must carry the question it asks', id);
   }
@@ -1762,9 +1767,6 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
     if (isMap(authored)) {
       checkKeys(Object.keys(authored), OPTION_KEYS,
         { file, prefix: `${at}.options.${option}.`, label: 'an option key', node: id }, errors);
-    }
-    if (isMap(authored) && authored.values !== undefined && !isMap(authored.values)) {
-      fail(errors, file, `${at}.options.${option}.values`, 'an option carries the values it emits as a map, never a scalar', id);
     }
     const effect = optionEffect(authored);
     if (effect === 'continue') continues++;
@@ -2377,9 +2379,6 @@ function checkOps(body, file, prefix, errors) {
           if (!TUNABLE.includes(key)) {
             fail(errors, file, `${at}.${key}`, `only ${TUNABLE.join(', ')} may be tuned; "${key}" may not`, id);
           }
-        }
-        if (patch.optional !== undefined && typeof patch.optional !== 'boolean') {
-          fail(errors, file, `${at}.optional`, 'optional is a boolean', id);
         }
         if (patch.provider !== undefined && !['claude', 'copilot'].includes(patch.provider)) {
           fail(errors, file, `${at}.provider`, `"${patch.provider}" is not a known provider`, id);
