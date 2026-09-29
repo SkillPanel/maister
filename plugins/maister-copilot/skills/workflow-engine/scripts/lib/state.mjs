@@ -82,7 +82,7 @@ import * as dashboard from './dashboard.mjs';
 // the reason `locateWorkflow` is exported at all: the prose resolved four homes
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
-import { readDefinition } from './definition.mjs';
+import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf } from './display.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
@@ -96,7 +96,7 @@ const { Refusal, flow } = canonical;
 /**
  * This writer's own names for the two refusals the shared publish path can
  * raise. They are passed in rather than emitted by `canonical.mjs` so this
- * module keeps its closed fifteen-code vocabulary, which the contract suite
+ * module keeps its closed nineteen-code vocabulary, which the contract suite
  * reads back out of the refusals themselves.
  */
 const COMMIT_CODES = { unwritable: 'state-unwritable', tempExists: 'state-temp-exists' };
@@ -138,7 +138,7 @@ const VIEWER_SOURCE = fileURLToPath(new URL('../../../orchestrator-framework/ass
  * They are caught at the projection call site and turned into warning entries,
  * because the projection runs *after* the state rename: a refusal there could not
  * un-publish the state write and reporting one would turn a landed write into a
- * reported failure. So the writer's documented fifteen-code vocabulary does not
+ * reported failure. So the writer's documented nineteen-code vocabulary does not
  * grow and neither code is owed a recovery row.
  */
 const DASHBOARD_CODES = { unwritable: 'dashboard-unwritable', tempExists: 'dashboard-temp-exists' };
@@ -246,6 +246,18 @@ const NUMBERISH = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/;
  * them — reached the file through it.
  */
 const NODE_ID = /^[a-z][a-z0-9-]{1,40}$/;
+
+/**
+ * The kind a task node may be recorded under besides its own scheme. Engine runs
+ * have recorded every non-gate node as `task` since the first freeze, so the
+ * spelling stays legal; a gate is always `gate`, and a `workflow:` node always
+ * `workflow`, because those two are what `gate-brief` and `run-complete` read a
+ * node's kind for.
+ */
+const TASK_KIND = 'task';
+
+/** The warning the verbs resolve a definition of an unknown format under, as `workflow.mjs` spells it. */
+const NEWER_FORMAT = 'newer-format';
 
 /**
  * The three keys of the pending-gate marker, and the two patterns its non-id
@@ -1181,7 +1193,9 @@ function splitTopLevel(body) {
  * patch is identical to it, which is a no-op. `graph_hash` is what makes the
  * frozen graph verifiable against the definition it came from, and the node
  * entries are the run's progress; a re-emission from a patch would replace
- * both with whatever the patch carried.
+ * both with whatever the patch carried. **Before it, the block is proven**
+ * against the definition it records (`provenNodes`), for the same reason: it
+ * is written once, so what it gets wrong stays wrong for the whole run.
  *
  * Both key loops below emit `  ${key}:` raw, so both run the block-key guard
  * first. Without it a key carrying a newline did not produce a bad-looking
@@ -1217,6 +1231,7 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
     return;
   }
 
+  const entries = provenNodes(doc, workflow, runDir);
   const lines = ['workflow:'];
   for (const key of WORKFLOW_KEYS) {
     if (!Object.hasOwn(workflow, key)) continue;
@@ -1229,7 +1244,7 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
     lines.push(`  ${key}: ${flow(workflow[key], `workflow.${key}`)}`);
   }
   lines.push('  nodes:');
-  for (const [id, entry] of Object.entries(withResolvedNeeds(workflow, runDir))) {
+  for (const [id, entry] of Object.entries(entries)) {
     lines.push(nodeLine(id, stamp(id, entry, {}, now, ignored)));
     changed.push(`workflow.nodes.${id}`);
   }
@@ -1238,37 +1253,169 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
 }
 
 /**
- * The freeze's node entries, each carrying its `needs` from the graph itself.
+ * The freeze's node entries, proven against the definition they claim and each
+ * carrying its `needs` from the graph itself.
  *
- * The first write is what a reader lays the graph out from, and a caller that
- * copied only the kinds leaves it with no edges until some later write adds
- * them. So the writer re-resolves the definition the patch records and takes
- * the edges from that — but only when the result hashes to the `graph_hash` the
- * patch is freezing, which is what proves it is the same graph. A resolved
- * `needs` then replaces whatever the patch carried for that node. Anything
- * short of that proof — a definition that cannot be found or resolved, an
- * overlay that cannot be read, a hash that differs — leaves the entries as the
- * patch sent them: the freeze is never refused over edges a reader can still
- * take from the definition.
+ * The freeze is the one write a run cannot take back: every later write is
+ * refused unless it matches the block, and every reader lays the run out from
+ * it. It used to be accepted as sent. A hash that did not re-resolve left every
+ * node without edges, a freeze that left out the overlays it was resolved with
+ * did the same, and a name, a node set or a kind that disagreed with the graph
+ * landed silently and misled every reader after it. So the patch is held to the
+ * graph it records, in this order, and refused at the first disagreement:
+ *
+ *   proof      the recorded `source`, `overlays` and `profile` resolve to the
+ *              recorded `graph_hash` (`provenGraph`);
+ *   name       `workflow.name` is the definition's own, which the context
+ *              block, the dashboard type and every other reader keyed by name
+ *              follow;
+ *   nodes      exactly the resolved node set, each under a kind the graph
+ *              allows (`kindsOf`);
+ *   inputs     every input the definition requires is in
+ *              `orchestrator.options.inputs` as this write leaves it — the
+ *              patch's `orchestrator` keys are applied before this block, so a
+ *              freeze that carries its inputs beside it is read with them.
+ *
+ * A resolved `needs` then replaces whatever the patch carried for that node, so
+ * a caller that copied only the kinds still freezes the edges.
  */
-function withResolvedNeeds(workflow, runDir) {
+function provenNodes(doc, workflow, runDir) {
   const nodes = workflow.nodes;
+  const proof = provenGraph(workflow, runDir);
+  if (!proof.graph) {
+    throw new Refusal('state-freeze-unproven',
+      `this freeze cannot be proven against its definition: ${proof.reason}. Nothing was written. `
+      + 'Run resolve with the --definition, --overlay and --profile the run was started with, and send its '
+      + 'source, overlays, profile, graph_hash and name exactly as resolve printed them');
+  }
+  const { graph, inputs } = proof;
+
+  if (graph.name !== null && workflow.name !== graph.name) {
+    throw new Refusal('state-freeze-name-mismatch',
+      `this freeze records workflow.name as ${JSON.stringify(workflow.name ?? null)}, but the definition it resolves `
+      + `is named ${JSON.stringify(graph.name)}. Nothing was written. Send workflow.name exactly as resolve printed `
+      + 'name: the run\'s context block and every reader keyed by the name follow it');
+  }
+
+  const differences = nodeDifferences(nodes, graph.nodes);
+  if (differences.length) {
+    throw new Refusal('state-freeze-nodes-mismatch',
+      `this freeze's nodes differ from the graph resolve printed (${differences.join('; ')}). Nothing was written. `
+      + 'Send one entry per resolved node and no other, recording a gate as gate, a workflow: node as workflow '
+      + 'and every other node as task');
+  }
+
+  const missing = missingInputs(doc, inputs);
+  if (missing.length) {
+    throw new Refusal('state-freeze-input-missing',
+      `the definition requires the input${missing.length === 1 ? '' : 's'} ${missing.join(', ')}, and this freeze `
+      + 'records no value for it under orchestrator.options.inputs. Nothing was written. Send the value the run was '
+      + 'started with in the same freeze; a required input the invocation did not carry is the operator\'s to give, '
+      + 'never one to invent');
+  }
+
+  const needs = new Map(graph.nodes.map(node => [node.id, node.needs]));
+  const filled = {};
+  for (const [id, entry] of Object.entries(nodes)) filled[id] = { ...entry, needs: needs.get(id) };
+  return filled;
+}
+
+/**
+ * The graph a `workflow` block records, re-resolved from the provenance it
+ * records and proven by its hash: `{graph, inputs}`, or `{reason}` saying why
+ * it cannot be proven.
+ *
+ * The proof is the one `resolve` gives its caller: the recorded `source`,
+ * `overlays` and `profile` resolve, from this run's project root, to exactly the
+ * recorded `graph_hash` — exactly, in the spelling `resolve` prints, because
+ * that is the spelling state records and a re-spelled hash is a run whose
+ * identity no longer matches its graph. A definition declaring a format this
+ * build does not know is resolved on its structure alone, the way the verbs
+ * resolve it. `inputs` is the definition's own `inputs:` map, which the
+ * resolved graph does not carry and which overlays pass through untouched.
+ *
+ * Never throws: a definition that cannot be read or resolved is a reason, and
+ * what that costs is the caller's to decide. Exported so that a reader which
+ * re-resolves a frozen run can prove it by this rule rather than a copy of it.
+ */
+export function provenGraph(workflow, runDir) {
+  const recorded = typeof workflow.graph_hash === 'string' && workflow.graph_hash !== '' ? workflow.graph_hash : null;
+  if (recorded === null) return { reason: 'it records no graph_hash' };
   try {
     const sources = sourcesOf(workflow, runDir);
-    if (sources === null) return nodes;
-    const { definition, overlays, profile } = sources;
-    if ([definition, ...overlays].some(source => source.errors.length)) return nodes;
-    const graph = resolveGraph({ definition, overlays, profile, project: projectRootOf(runDir) });
-    if (!graph.ok || graph.graph_hash !== workflow.graph_hash) return nodes;
-    const needs = new Map(graph.nodes.map(node => [node.id, node.needs]));
-    const filled = {};
-    for (const [id, entry] of Object.entries(nodes)) {
-      filled[id] = isPlainObject(entry) && needs.has(id) ? { ...entry, needs: needs.get(id) } : entry;
+    if (sources === null) {
+      return { reason: `no definition is found at its source ${JSON.stringify(workflow.source ?? null)} or by its name ${JSON.stringify(workflow.name ?? null)}` };
     }
-    return filled;
-  } catch {
-    return nodes;
+    const { definition, overlays, profile } = sources;
+    const unreadable = [definition, ...overlays].find(source => source.doc === null || source.errors.length);
+    if (unreadable) {
+      return { reason: `${unreadable.file} cannot be read (${unreadable.errors[0]?.message ?? 'no document'})` };
+    }
+    const version = definition.doc.version;
+    const degraded = version !== undefined && version !== null && version !== KNOWN_VERSION ? [NEWER_FORMAT] : [];
+    const graph = resolveGraph({ definition, overlays, profile, degraded, project: projectRootOf(runDir) });
+    if (!graph.ok) return { reason: `its definition does not resolve (${graph.errors[0]?.message ?? 'no graph'})` };
+    if (graph.graph_hash !== recorded) {
+      return { reason: `it resolves to ${graph.graph_hash}, not to the recorded ${recorded}` };
+    }
+    return { graph, inputs: isPlainObject(definition.doc.inputs) ? definition.doc.inputs : {} };
+  } catch (err) {
+    return { reason: `its definition cannot be resolved (${err && err.message ? err.message : err})` };
   }
+}
+
+/**
+ * How a freeze's node entries differ from the resolved node list, one phrase
+ * per difference; empty when they agree.
+ */
+function nodeDifferences(nodes, resolved) {
+  const byId = new Map(resolved.map(node => [node.id, node]));
+  const differences = [];
+  const added = Object.keys(nodes).filter(id => !byId.has(id));
+  if (added.length) differences.push(`adds ${added.join(', ')}, which the resolved graph does not carry`);
+  const dropped = [...byId.keys()].filter(id => !Object.hasOwn(nodes, id));
+  if (dropped.length) differences.push(`leaves out ${dropped.join(', ')}`);
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (!byId.has(id)) continue;
+    const allowed = kindsOf(byId.get(id));
+    const kind = isPlainObject(entry) ? entry.kind : undefined;
+    if (allowed.includes(kind)) continue;
+    const recorded = kind === undefined || kind === null ? 'no kind' : JSON.stringify(kind);
+    differences.push(`records ${id} as ${recorded} where the graph allows ${allowed.map(each => JSON.stringify(each)).join(' or ')}`);
+  }
+  return differences;
+}
+
+/**
+ * The kinds a resolved node may be frozen under: `gate` for a gate, `workflow`
+ * for a `workflow:` node, and `task` or the node's own scheme for the rest
+ * (`TASK_KIND` says why both).
+ */
+function kindsOf(node) {
+  if (node.type === 'gate') return ['gate'];
+  const scheme = typeof node.uses === 'string' ? node.uses.slice(0, node.uses.indexOf(':')) : '';
+  return scheme === 'workflow' ? ['workflow'] : [TASK_KIND, scheme];
+}
+
+/**
+ * The inputs the definition requires — `required: true` and no `default` —
+ * that the document as this write leaves it records no value for. A null is
+ * no value.
+ */
+function missingInputs(doc, declared) {
+  const required = Object.entries(declared)
+    .filter(([, input]) => isPlainObject(input) && input.required === true && !Object.hasOwn(input, 'default'))
+    .map(([name]) => name);
+  if (!required.length) return [];
+  let held = {};
+  try {
+    const orchestrator = parseState(doc.text()).orchestrator;
+    const options = isPlainObject(orchestrator) && isPlainObject(orchestrator.options) ? orchestrator.options : {};
+    held = isPlainObject(options.inputs) ? options.inputs : {};
+  } catch {
+    held = {};
+  }
+  return required.filter(name => !Object.hasOwn(held, name) || held[name] === null || held[name] === undefined);
 }
 
 /**

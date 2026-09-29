@@ -22,6 +22,7 @@ export const ENGINE = path.join(ENGINE_DIR, 'scripts/workflow.mjs');
 export const UMBRELLA = path.join(ROOT, 'plugins/maister/skills/umbrella/scripts/umbrella.mjs');
 export const FIXTURES = path.join(ROOT, 'tests/fixtures');
 export const SAMPLE = path.join(FIXTURES, 'definitions/sample.yml');
+export const DECLARED = path.join(FIXTURES, 'definitions/declared-outputs.yml');
 
 /**
  * An empty Claude Code config directory every child process sees, so the
@@ -94,7 +95,18 @@ export function write(run, patch) {
  * run's inputs — the engine's Step 4. `overlays` and `profile` are passed to
  * `resolve` and recorded as the freeze records them. Returns the resolved graph.
  */
-export function freeze(run, { definition = SAMPLE, overlays = [], profile = null, task = {}, orchestrator = {}, inputs = null } = {}) {
+export function freeze(run, options = {}) {
+  const { patch, graph } = freezePatch(options);
+  write(run, patch);
+  return graph;
+}
+
+/**
+ * The freeze patch `freeze` sends, and the graph it was built from, without
+ * sending it: a test that needs one field of a proven freeze altered, or a
+ * block beside it, builds it here and sends it itself.
+ */
+export function freezePatch({ definition = SAMPLE, overlays = [], profile = null, task = {}, orchestrator = {}, inputs = null } = {}) {
   const args = ['resolve', `--definition=${definition}`, ...overlays.map(overlay => `--overlay=${overlay}`)];
   if (profile !== null) args.push(`--profile=${profile}`);
   const resolved = verb(args);
@@ -115,8 +127,7 @@ export function freeze(run, { definition = SAMPLE, overlays = [], profile = null
     },
     orchestrator: { ...orchestrator, ...(inputs ? { options: { inputs } } : {}) },
   };
-  write(run, patch);
-  return graph;
+  return { patch, graph };
 }
 
 /** A node's recorded kind: `gate` for a gate, else the scheme its `uses` names. */

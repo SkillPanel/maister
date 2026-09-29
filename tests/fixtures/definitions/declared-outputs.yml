@@ -1,0 +1,42 @@
+# A workflow of its own name whose nodes declare what they produce: typed
+# values, a file and a directory artifact, a gate with three options, and a
+# sub-run whose artifacts are written into the child's task directory. The
+# input is required, so a freeze that leaves it out has something to refuse.
+name: survey
+version: 1
+inputs:
+  subject: {type: string, required: true}
+
+nodes:
+  scan:
+    uses: direct:scan
+    needs: []
+    outputs:
+      artifacts:
+        notes: analysis/notes.md
+        evidence: analysis/evidence
+      values:
+        blocking: bool
+        risk_level: {enum: [high, medium, low]}
+        verdict: string
+
+  review:
+    type: gate
+    needs: [scan]
+    ask: "Scan complete. Continue?"
+    options:
+      approve: continue
+      revise: stop
+      abandon: stop
+
+  probe:
+    uses: workflow:research
+    needs: [review]
+    with:
+      question: "${inputs.subject}"
+    outputs:
+      artifacts:
+        report: outputs/research-report.md
+        findings_directory: analysis/findings
+      values:
+        conclusions: string

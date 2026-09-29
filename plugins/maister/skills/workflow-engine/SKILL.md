@@ -120,12 +120,29 @@ has frozen a graph whose skills and agents nobody has confirmed resolve to the f
 operator expects. The call is the same for every workflow, whichever orchestrator handed the
 run over.
 
-**Copy `graph_hash` through exactly as `resolve` printed it.** It is the only value the freeze
-carries straight from the resolver into state, and it arrives already in the spelling the
-state block accepts. Reformatting it — adding a prefix it already has, or stripping the one
-it needs — produces a run whose recorded identity no longer matches the graph it is running.
+**The `workflow` block is `resolve`'s output, copied through.** `source`, `overlays`,
+`profile`, `graph_hash` and `name` go into the freeze exactly as `resolve` printed them, beside
+`grammar_version: 1`, and `nodes` carries one entry per node `resolve` printed and no other:
+`kind: gate` for a gate, `kind: workflow` for a `workflow:` node and `kind: task` for every other
+node, each `status: pending`. The writer fills in each node's `needs` from the graph itself. Copy
+`graph_hash` without reformatting it: it arrives in the spelling the state block accepts, and
+adding a prefix it already has, or stripping the one it needs, produces a run whose recorded
+identity no longer matches the graph it is running. The overlays and the profile are the ones
+the run was resolved with; an overlay left out of the freeze describes a graph the run does not
+have.
 
-**The freeze patch must carry `workflow.name`** — the bare name, after the prefix strip. The
+**The writer proves the freeze before it installs it**, because the freeze is written once and
+every reader lays the run out from it. It re-resolves the recorded `source`, `overlays` and
+`profile` from the run's own project root, and writes nothing when the result does not hash to
+the recorded `graph_hash` (`state-freeze-unproven`), when `workflow.name` is not the
+definition's own (`state-freeze-name-mismatch`), when the nodes are not exactly the resolved
+set under the kinds above (`state-freeze-nodes-mismatch`), or when an input the definition
+declares `required` with no default has no value under `orchestrator.options.inputs`
+(`state-freeze-input-missing`). Each is corrected in the patch and the freeze sent again
+(§ When a write is refused).
+
+**The freeze patch must carry `workflow.name`** — the definition's own `name`, as `resolve`
+printed it; for a built-in, that is the bare name after the prefix strip. The
 writer derives the run's per-workflow context block from it, so a later write to `context` or
 `phase_summaries` with no name recorded is refused with `state-context-block-unknown` rather
 than landing in some default block. The name is already part of the frozen key order, so
@@ -1056,7 +1073,7 @@ one call, arriving from the other side.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-fifteen, and they fall into four responses; one more, `edition-collision`, is raised before the
+nineteen, each with its response below; one more, `edition-collision`, is raised before the
 writer runs. Exit `2` carries no code at all and is the table's last row:
 
 | Refusal | Response |
@@ -1068,6 +1085,10 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. Nothing was written. **Do not delete anything**: wait a minute and issue the same write again. A temp older than a minute is a crashed writer's leftover, and the next write reclaims it itself. |
 | `state-gate-pending-form` | The pending-gate marker has two legal spellings and this was neither. It is written as the literal `null`, or as `{node, request, since}` — `request` being `gates/<node>.request.yml` for that same `node`, and `since` a measured UTC timestamp — which the writer puts on one line itself. Send the marker as an object, never as pre-spelled text: text carrying a trailing comment or a quote reaches the file with its own bytes and the reader throws on it. Stop with `RUN-FAILED: state-gate-pending-form` and report the message verbatim. |
 | `state-workflow-frozen` | A `workflow` patch after the freeze differs from the frozen block — a node left out, added or re-typed, or a scalar changed. Nothing was written. The freeze is written once; send node updates under the top-level `nodes` key, never under `workflow`, and never re-type the graph. A re-send identical to the frozen block changes nothing. |
+| `state-freeze-unproven` | The freeze's `workflow` block does not re-resolve to its own `graph_hash` — no hash, a source that is not found, an overlay or a profile left out or changed, or a re-spelled hash. Nothing was written. Run `resolve` again with the `--definition`, `--overlay` and `--profile` the run was started with, and freeze with its output copied through (Step 4). When `resolve` itself fails, or the message says the definition cannot be read from the run's directory, stop with `RUN-FAILED: state-freeze-unproven` and report the message verbatim. |
+| `state-freeze-name-mismatch` | `workflow.name` is absent, or is not the name of the definition the freeze resolves. Nothing was written. Send the `name` `resolve` printed and freeze again. Never relabel a run to borrow another workflow's context block: every reader keyed by the name would then read it as that workflow. |
+| `state-freeze-nodes-mismatch` | The freeze's nodes are not exactly the nodes `resolve` printed — one added, one left out, or one recorded under a kind its node cannot have; the message names each. Nothing was written. Send one entry per resolved node with the kind Step 4 gives it, and freeze again. |
+| `state-freeze-input-missing` | The definition requires an input the freeze records no value for. Nothing was written. Add the value the run was started with under `orchestrator.options.inputs` in the same freeze and send it again. When the invocation never carried one, ask the operator for it in a terminal run; a driven run stops with `RUN-FAILED: state-freeze-input-missing`, because an invented input is a defect. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
 | exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |

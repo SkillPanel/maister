@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, SAMPLE, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, SAMPLE, freeze, freezePatch, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 
@@ -49,15 +49,13 @@ test('freeze: every node carries its needs from the resolved graph, though the p
   assert.deepEqual(nodes.analysis.needs, [], 'a root node records that it needs nothing');
 });
 
-test('freeze: a graph_hash the definition does not resolve to leaves the entries as sent', t => {
+test('freeze: a graph_hash the definition does not resolve to is refused, and nothing is written', t => {
   const run = scratch(t);
-  const graph = JSON.parse(verb(['resolve', `--definition=${SAMPLE}`]).stdout);
-  const nodes = Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
-  write(run, {
-    task: { title: 'Sample run', status: 'in_progress' },
-    workflow: { source: SAMPLE, graph_hash: graph.graph_hash.replace(/.$/, last => (last === '0' ? '1' : '0')), grammar_version: 1, name: graph.name, nodes },
-  });
-  for (const entry of Object.values(readState(run).workflow.nodes)) assert.equal(entry.needs, undefined);
+  const { patch } = freezePatch();
+  patch.workflow.graph_hash = patch.workflow.graph_hash.replace(/.$/, last => (last === '0' ? '1' : '0'));
+  const result = refused(run, patch);
+  assert.match(result.stderr, /^state-freeze-unproven\b/);
+  assert.match(result.stderr, /resolve/);
 });
 
 test('freeze: resolve names the tracker-key input the freeze reads task.key from', () => {
@@ -67,10 +65,7 @@ test('freeze: resolve names the tracker-key input the freeze reads task.key from
 
 test('freeze: seeds completed_phases and failed_phases as empty lists at the top of the block', t => {
   const run = scratch(t);
-  const result = verb(['write-state', `--state=${run.state}`], {
-    task: { title: 'Seeded', status: 'in_progress' },
-    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
-  });
+  const result = verb(['write-state', `--state=${run.state}`], freezePatch({ task: { title: 'Seeded' } }).patch);
   assert.equal(result.code, 0, result.stderr);
   const changed = result.stdout.trim().split('\n');
   assert.deepEqual(changed.slice(0, 2), ['orchestrator.completed_phases', 'orchestrator.failed_phases']);
@@ -80,11 +75,7 @@ test('freeze: seeds completed_phases and failed_phases as empty lists at the top
 
 test('freeze: a sequence the patch supplies is not re-seeded', t => {
   const run = scratch(t);
-  write(run, {
-    task: { title: 'Seeded', status: 'in_progress' },
-    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
-    orchestrator: { completed_phases: ['intake'] },
-  });
+  write(run, freezePatch({ task: { title: 'Seeded' }, orchestrator: { completed_phases: ['intake'] } }).patch);
   const state = readState(run);
   assert.deepEqual(state.orchestrator.completed_phases, ['intake']);
   assert.deepEqual(state.orchestrator.failed_phases, []);
@@ -99,6 +90,7 @@ test('banner: the freeze prints the task, its directory, the dashboard and the f
   const result = verb(['write-state', `--state=${run.state}`], {
     task: { title: 'Fix the parser', status: 'in_progress' },
     workflow: { source: DEVELOPMENT, graph_hash: resolved.graph_hash, grammar_version: 1, name: 'development', nodes },
+    orchestrator: { options: { inputs: { task_description: 'Fix the parser' } } },
   });
   assert.equal(result.code, 0, result.stderr);
   const [paths, banner] = result.stdout.split('\n\n');
@@ -115,11 +107,8 @@ test('banner: the freeze prints the task, its directory, the dashboard and the f
 
 test('banner: with html_output false the dashboard line says there is none', t => {
   const run = scratch(t);
-  const result = verb(['write-state', `--state=${run.state}`], {
-    task: { title: 'Quiet', status: 'in_progress' },
-    orchestrator: { options: { html_output: false } },
-    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
-  });
+  const result = verb(['write-state', `--state=${run.state}`],
+    freezePatch({ task: { title: 'Quiet' }, orchestrator: { options: { html_output: false } } }).patch);
   assert.match(result.stdout, /^Dashboard: none \(html_output is false\)$/m);
 });
 
@@ -151,11 +140,11 @@ test('banner: a retried freeze, the identical patch sent again, is a no-op with 
 // The freeze installs the dashboard viewer beside the data it projects, so an
 // engine-driven run directory opens like any other.
 const VIEWER = path.join(ENGINE_DIR, '..', 'orchestrator-framework', 'assets', 'dashboard.html');
-const FROZEN = { task: { title: 'Viewer', status: 'in_progress' }, workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } } };
+const FROZEN = () => freezePatch({ task: { title: 'Viewer' } }).patch;
 
 test('viewer: the freeze copies dashboard.html into the run directory and reports it before the banner', t => {
   const run = scratch(t);
-  const result = write(run, FROZEN);
+  const result = write(run, FROZEN());
   assert.equal(fs.readFileSync(path.join(run.dir, 'dashboard.html'), 'utf8'), fs.readFileSync(VIEWER, 'utf8'));
   const [paths, banner] = result.stdout.split('\n\n');
   assert.match(paths, /^dashboard\.html$/m);
@@ -165,21 +154,21 @@ test('viewer: the freeze copies dashboard.html into the run directory and report
 test('viewer: the freeze never overwrites a dashboard.html already there', t => {
   const run = scratch(t);
   fs.writeFileSync(path.join(run.dir, 'dashboard.html'), '<!-- the operator\'s own -->\n');
-  const result = write(run, FROZEN);
+  const result = write(run, FROZEN());
   assert.equal(fs.readFileSync(path.join(run.dir, 'dashboard.html'), 'utf8'), '<!-- the operator\'s own -->\n');
   assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
 });
 
 test('viewer: no copy when html_output is false', t => {
   const run = scratch(t);
-  const result = write(run, { ...FROZEN, orchestrator: { options: { html_output: false } } });
+  const result = write(run, { ...FROZEN(), orchestrator: { options: { html_output: false } } });
   assert.equal(fs.existsSync(path.join(run.dir, 'dashboard.html')), false);
   assert.doesNotMatch(result.stdout, /^dashboard\.html$/m);
 });
 
 test('viewer: a later write that is not the freeze copies nothing', t => {
   const run = scratch(t);
-  write(run, FROZEN);
+  write(run, FROZEN());
   fs.rmSync(path.join(run.dir, 'dashboard.html'));
   const result = write(run, { nodes: { analysis: { status: 'in_progress' } } });
   assert.equal(fs.existsSync(path.join(run.dir, 'dashboard.html')), false);
@@ -190,7 +179,7 @@ test('viewer: a link already named dashboard.html is left alone, dangling or not
   const run = scratch(t);
   const link = path.join(run.dir, 'dashboard.html');
   fs.symlinkSync(path.join(run.dir, 'missing-dir', 'dashboard.html'), link);
-  const result = verb(['write-state', `--state=${run.state}`], FROZEN);
+  const result = verb(['write-state', `--state=${run.state}`], FROZEN());
   assert.equal(result.code, 0, result.stderr);
   assert.equal(readState(run).workflow.name, 'development');
   assert.ok(fs.lstatSync(link).isSymbolicLink());
@@ -203,9 +192,7 @@ test('banner: a title spanning lines is folded onto the Task line', t => {
   // The writer refuses a newline in a title it is sent, so only a file it
   // adopted can carry one: a literal block scalar, as a hand-written state has.
   fs.writeFileSync(run.state, 'task:\n  title: |\n    Fix the parser\n      and the lexer\n  status: in_progress\n');
-  const result = verb(['write-state', `--state=${run.state}`], {
-    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
-  });
+  const result = verb(['write-state', `--state=${run.state}`], { workflow: freezePatch().patch.workflow });
   assert.equal(result.code, 0, result.stderr);
   const banner = result.stdout.split('\n\n')[1];
   assert.equal(banner.split('\n').length, 6, banner);
@@ -226,10 +213,9 @@ test('banner: task ids the patch supplies are kept', t => {
 
 test('banner: a freeze with no task title prints the untitled line', t => {
   const run = scratch(t);
-  const result = verb(['write-state', `--state=${run.state}`], {
-    task: { status: 'in_progress' },
-    workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } },
-  });
+  const { patch } = freezePatch();
+  delete patch.task.title;
+  const result = verb(['write-state', `--state=${run.state}`], patch);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^Task: \(untitled\)$/m);
   assert.match(result.stdout, /^First node: analysis$/m);
@@ -484,11 +470,8 @@ test('refusal: a patch key outside the closed vocabulary', t => {
 
 test('refusal: a workflow name no context block derives from', t => {
   const run = scratch(t);
-  const result = refused(run, {
-    task: { title: 'Unnamed', status: 'in_progress' },
-    workflow: { name: 'custom-thing', nodes: { analysis: { kind: 'direct' } } },
-    context: { risk_level: 'low' },
-  });
+  const { patch } = freezePatch({ definition: DECLARED, inputs: { subject: 'acme-api' } });
+  const result = refused(run, { ...patch, context: { risk_level: 'low' } });
   assert.match(result.stderr, /^state-context-block-unknown\b/);
 });
 

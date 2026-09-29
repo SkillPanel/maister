@@ -245,7 +245,7 @@ and does not grow because a key gained a shape check.
 
 Two line-level tokens, printed in the manner of `GATE-INVALID` and `GATE-ALREADY-ANSWERED`, and
 ten run-level codes carried by `RUN-FAILED: <code>` in the manner of `closeout-unpublished`.
-Neither family joins the writer's fifteen refusal codes: nothing here is a write refusal.
+Neither family joins the writer's nineteen refusal codes: nothing here is a write refusal.
 
 | Name | Family | Raised when |
 |---|---|---|
