@@ -1,7 +1,7 @@
 ---
 name: maister:run
-description: Starts or resumes a workflow by name from the terminal — a workflow the project defines in `.maister/workflows/`, an eject or an overlay of a built-in, or a built-in itself. Looks the name up, validates the definition, collects the inputs it declares (asking only for required ones that are missing) and hands the run to the workflow engine, which owns the task directory, the freeze, every node and every gate from there. Given a run's task directory instead of a name, it resumes that run. Chains — definitions whose nodes dispatch into member repositories — are started from maister cockpit, not here.
-argument-hint: "<name> [\"title\"] [key=value ...] [--profile=NAME] [--overlay=PATH ...] | <run directory>"
+description: Starts or resumes a workflow by name from the terminal — a workflow the project defines in `.maister/workflows/`, an eject or an overlay of a built-in, or a built-in itself. Looks the name up, validates the definition, collects the inputs it declares (asking only for required ones that are missing) and hands the run to the workflow engine, which owns the task directory, the freeze, every node and every gate from there. Given a run's task directory instead of a name, it resumes that run; with `--list`, it lists the project's own workflows. Chains — definitions whose nodes dispatch into member repositories — are started from maister cockpit, not here.
+argument-hint: "<name> [\"title\"] [key=value ...] [--profile=NAME] [--overlay=PATH ...] | <run directory> | --list"
 user-invocable: true
 ---
 
@@ -25,12 +25,21 @@ the engine does all of that, under its own rules, and a second copy of them here
 | `--profile=NAME` | A profile one of the run's overlays declares |
 | `--overlay=PATH` | An extra overlay file, laid over the definition after any overlay the lookup finds; repeatable, applied in the order given |
 | `<run directory>` | A run's task directory, or its folder name alone — resume that run instead of starting one |
+| `--list` | List the project's own workflows and start nothing |
 
 The first word decides the mode: a directory holding `orchestrator-state.yml` (tried as given,
-then under `.maister/tasks/*/`) is a resume; anything else is a name. **With no argument**, run
-`locate` with no name and ask with AskUserQuestion which of the listed workflows to start, leaving
-out any entry marked `chain` or carrying an `error`. When the list is empty, say where a workflow
-lives (`.maister/workflows/<name>.yml`, with its prose in `<name>.md`) and stop.
+then under `.maister/tasks/*/`) is a resume; `--list` is a listing; anything else is a name.
+
+**Listing.** Run `locate` with no name. It lists the definitions the project keeps in
+`.maister/workflows/` — overlays, built-in names and generated chains left out — each with its
+name, its companion's title and opening paragraph, whether it is a `chain`, and an `error` when
+it cannot be run by its name. Print one line per workflow, marking chains ("started from maister
+cockpit") and broken ones (with the error), and stop. `/maister:work` reads this list to offer the
+project's workflows beside the built-in ones.
+
+**With no argument**, list them the same way, then ask with AskUserQuestion which to start,
+offering none marked chain or broken. When nothing is listed, say where a workflow lives
+(`.maister/workflows/<name>.yml`, with its prose in `<name>.md`) and stop.
 
 ## Calling the engine's verbs
 

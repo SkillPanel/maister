@@ -60,6 +60,10 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 | migration | `maister:migration` |
 | research | `maister:research` |
 | product-design | `maister:product-design` |
+| workflow (one the project defines) | `maister:run` |
+
+A project's own workflows — definitions in `.maister/workflows/` — are candidates beside the five
+types: Step 3 lists them and the classifier may choose one, which then runs by name.
 
 ---
 
@@ -87,7 +91,12 @@ Auto-classifies tasks and routes to the appropriate workflow orchestrator. Suppo
 
 **When existing task detected:**
 
-1. Read `orchestrator-state.yml` from task folder
+1. Read `orchestrator-state.yml` from task folder.
+
+   **A run started by name** carries a `workflow:` block whose `workflow.name` is none of the five
+   types in the table below. Its folder is that name, which no row maps, so do not look it up:
+   invoke `maister:run` with the Skill tool and the task path as `args`. That skill reads the name,
+   overlays and profile from the state and resumes the run; the rest of this step does not apply.
 2. Determine workflow type from folder path:
 
 | Folder | Workflow Type |
@@ -163,6 +172,12 @@ Pass only the flags the workflow's resume signature lists — see **Resume Skill
 
 **For new task descriptions:**
 
+0. **List the project's own workflows.** Invoke `maister:run` with the Skill tool and
+   `args: "--list"`; it prints the workflows the project defines — each one's name, title and
+   summary — and starts nothing. Keep the entries not marked as a chain (chains are started from
+   maister cockpit) and not marked broken. When none remain, classify among the five types as
+   usual.
+
 1. **Invoke task-classifier subagent** to determine workflow type:
 
 ```
@@ -170,6 +185,8 @@ Use Task tool:
   subagent_type: "maister:task-classifier"
   description: "Classify task type"
   prompt: "Classify this task into a workflow type: [task description].
+           [When step 0 kept any:] The project's own workflows, candidates beside
+           the five types: [one line each — name, title, summary].
            Return structured YAML classification result."
 
 The subagent will:
@@ -184,7 +201,8 @@ The subagent will:
 2. **Parse classification result:**
 ```yaml
 classification:
-  task_type: [development|performance|migration|research|product-design]
+  task_type: [development|performance|migration|research|product-design|workflow]
+  workflow_name: [a listed project workflow, when task_type is workflow]
   confidence: [percentage]
   reasoning: [explanation]
 ```
@@ -200,6 +218,12 @@ Use Skill tool:
   skill: "maister:[orchestrator-name]"
   args: "[description]"
 ```
+
+**When the classification is a project workflow**, offer it rather than route silently — the
+operator may not expect their description to match a workflow their team wrote. Ask with
+AskUserQuestion: run that workflow (recommended, naming its title), choose a built-in workflow
+instead (then the manual selection below), or cancel. On the first answer, invoke `maister:run`
+with the Skill tool and `args: "<workflow_name> \"<description>\""`.
 
 **Routing examples:**
 - development (92%): `skill: "maister:development"` with `args: "Fix login timeout error"`
@@ -224,7 +248,11 @@ Use AskUserQuestion with options:
 4. Research - Investigate and document findings
 5. Product Design - Design features or products before building them
 
-Then route to selected workflow using Skill tool.
+When Step 3 kept any project workflows, offer them too, by name and title. When the choices
+outnumber what one question holds, ask first whether to use a built-in workflow or one of the
+project's own, then which.
+
+Then route to selected workflow using Skill tool — a project workflow through `maister:run`.
 ```
 
 ### User Cancels
@@ -234,7 +262,8 @@ Display:
 "Task cancelled. You can:
 - Run /work again when ready
 - Use specific workflow commands directly:
-  /maister:development, /maister:performance, etc."
+  /maister:development, /maister:performance, etc.
+- Run one of your own workflows by name: /maister:run <name>"
 ```
 
 ---
@@ -248,6 +277,7 @@ Display:
 | migration | `maister:migration` | `[path]` |
 | research | `maister:research` | `[path]` |
 | product-design | `maister:product-design` | `[path] [--from=PHASE]` |
+| any other workflow, started by name | `maister:run` | `[path]` |
 
 A signature is trimmed only for a workflow that has an engine path today: research,
 development, performance and migration. All four are resumed by the workflow engine, which recomputes the
