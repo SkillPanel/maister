@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "maister-plugins",
+  "name": "maister-plugins-2x",
   "version": "2.2.5",
-  "description": "Structured, standards-aware development workflows for Claude Code",
+  "description": "2.x maintenance: Structured, standards-aware development workflows for Claude Code",
   "owner": {
     "name": "Skillpanel",
     "email": "marek@skillpanel.com"
@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "maister",
-      "description": "Structured, standards-aware development workflows for Claude Code",
+      "description": "2.x maintenance: Structured, standards-aware development workflows for Claude Code",
       "source": "./plugins/maister",
       "category": "development"
     },
