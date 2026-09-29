@@ -83,7 +83,7 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { readDefinition } from './definition.mjs';
-import { locateWorkflow } from './graph.mjs';
+import { locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -793,7 +793,7 @@ function apply(doc, patch, changed, now, runDir, ignored) {
     intended.add('task');
   }
   if (patch.workflow) {
-    applyWorkflow(doc, patch.workflow, now, changed, ignored);
+    applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored);
     intended.add('workflow');
   }
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored);
@@ -1151,7 +1151,7 @@ function splitTopLevel(body) {
  * `nodes:` child no YAML parser accepts, and under it a node no graph declared,
  * recorded `completed` and read back by the ready set. Through the success path.
  */
-function applyWorkflow(doc, workflow, now, changed, ignored) {
+function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
   if (!isPlainObject(workflow)) throw new Refusal('state-patch-invalid', 'the workflow patch must be an object');
   const nodes = workflow.nodes;
   if (!isPlainObject(nodes) || Object.keys(nodes).length === 0) {
@@ -1191,7 +1191,7 @@ function applyWorkflow(doc, workflow, now, changed, ignored) {
     lines.push(`  ${key}: ${flow(workflow[key], `workflow.${key}`)}`);
   }
   lines.push('  nodes:');
-  for (const [id, entry] of Object.entries(nodes)) {
+  for (const [id, entry] of Object.entries(withResolvedNeeds(workflow, runDir))) {
     lines.push(nodeLine(id, stamp(id, entry, {}, now, ignored)));
     changed.push(`workflow.nodes.${id}`);
   }
@@ -1200,11 +1200,48 @@ function applyWorkflow(doc, workflow, now, changed, ignored) {
 }
 
 /**
+ * The freeze's node entries, each carrying its `needs` from the graph itself.
+ *
+ * The first write is what a reader lays the graph out from, and a caller that
+ * copied only the kinds leaves it with no edges until some later write adds
+ * them. So the writer re-resolves the definition the patch records and takes
+ * the edges from that — but only when the result hashes to the `graph_hash` the
+ * patch is freezing, which is what proves it is the same graph. A resolved
+ * `needs` then replaces whatever the patch carried for that node. Anything
+ * short of that proof — a definition that cannot be found or resolved, an
+ * overlay that cannot be read, a hash that differs — leaves the entries as the
+ * patch sent them: the freeze is never refused over edges a reader can still
+ * take from the definition.
+ */
+function withResolvedNeeds(workflow, runDir) {
+  const nodes = workflow.nodes;
+  try {
+    const file = definitionPathOf({ workflow }, runDir);
+    if (file === null) return nodes;
+    const root = projectRootOf(runDir);
+    const overlays = Array.isArray(workflow.overlays) ? workflow.overlays : [];
+    const sources = [readDefinition(file), ...overlays.map(overlay => readDefinition(path.resolve(root, String(overlay))))];
+    if (sources.some(source => source.errors.length)) return nodes;
+    const [definition, ...rest] = sources;
+    const graph = resolveGraph({ definition, overlays: rest, profile: workflow.profile ?? null, project: root });
+    if (!graph.ok || graph.graph_hash !== workflow.graph_hash) return nodes;
+    const needs = new Map(graph.nodes.map(node => [node.id, node.needs]));
+    const filled = {};
+    for (const [id, entry] of Object.entries(nodes)) {
+      filled[id] = isPlainObject(entry) && needs.has(id) ? { ...entry, needs: needs.get(id) } : entry;
+    }
+    return filled;
+  } catch {
+    return nodes;
+  }
+}
+
+/**
  * How a `workflow` patch differs from the block the file already carries, one
  * phrase per difference; empty when the patch says nothing the file does not.
  * A scalar the patch leaves out is carried forward, so only the ones it sends
- * are compared. A node entry is compared with its `pending` default filled in,
- * because the freeze wrote it that way.
+ * are compared. A node entry is compared with its `pending` default and its
+ * recorded `needs` filled in, because the freeze wrote it that way.
  */
 function frozenDifferences(doc, workflow) {
   let frozen;
@@ -1222,8 +1259,11 @@ function frozenDifferences(doc, workflow) {
   if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
   const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
   if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
+  // `needs` is carried forward like an omitted scalar: the freeze may have
+  // filled it from the resolved graph, so a retry re-sending the same entries
+  // without it is still the same patch.
   const rewritten = Object.keys(workflow.nodes).filter(id => Object.hasOwn(recorded, id)
-    && !sameValue({ status: 'pending', ...workflow.nodes[id] }, recorded[id]));
+    && !sameValue({ status: 'pending', needs: recorded[id]?.needs, ...workflow.nodes[id] }, recorded[id]));
   if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
   return differences;
 }

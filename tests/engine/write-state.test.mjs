@@ -37,8 +37,27 @@ test('freeze: installs the task and the graph in one write, every node pending',
   assert.equal(state.workflow.source, SAMPLE);
   assert.deepEqual(Object.keys(state.workflow.nodes), graph.nodes.map(node => node.id));
   for (const entry of Object.values(state.workflow.nodes)) assert.equal(entry.status, 'pending');
-  assert.deepEqual(state.workflow.nodes.research, { kind: 'workflow', status: 'pending' });
+  assert.deepEqual(state.workflow.nodes.research, { kind: 'workflow', status: 'pending', needs: ['implementation'] });
   assert.deepEqual(state.orchestrator.options.inputs, { ticket: 'ALPHA-42' });
+});
+
+test('freeze: every node carries its needs from the resolved graph, though the patch sent none', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const nodes = readState(run).workflow.nodes;
+  for (const node of graph.nodes) assert.deepEqual(nodes[node.id].needs, node.needs, node.id);
+  assert.deepEqual(nodes.analysis.needs, [], 'a root node records that it needs nothing');
+});
+
+test('freeze: a graph_hash the definition does not resolve to leaves the entries as sent', t => {
+  const run = scratch(t);
+  const graph = JSON.parse(verb(['resolve', `--definition=${SAMPLE}`]).stdout);
+  const nodes = Object.fromEntries(graph.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  write(run, {
+    task: { title: 'Sample run', status: 'in_progress' },
+    workflow: { source: SAMPLE, graph_hash: graph.graph_hash.replace(/.$/, last => (last === '0' ? '1' : '0')), grammar_version: 1, name: graph.name, nodes },
+  });
+  for (const entry of Object.values(readState(run).workflow.nodes)) assert.equal(entry.needs, undefined);
 });
 
 test('freeze: resolve names the tracker-key input the freeze reads task.key from', () => {

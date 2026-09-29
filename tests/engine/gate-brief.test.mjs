@@ -43,6 +43,14 @@ function loseDefinition(run) {
   fs.writeFileSync(run.state, text);
 }
 
+/**
+ * Drop every node's recorded `needs`, the state a freeze leaves when it could
+ * not prove the graph it was sent — the freeze otherwise fills them itself.
+ */
+function forgetNeeds(run) {
+  fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8').replace(/, needs: \[[^\]]*\]/g, ''));
+}
+
 /** A sample run paused at `approval`, its closing node's summary recorded. */
 function atApproval(t, summary = SUMMARY) {
   const run = scratch(t);
@@ -303,6 +311,7 @@ test('gate-brief: a downstream node blocked on a pending parallel branch is wait
 test('gate-brief: an unreadable definition with no frozen needs degrades to the nearest recorded summary', t => {
   const run = atApproval(t);
   loseDefinition(run);
+  forgetNeeds(run);
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^Two gaps found in the parser\.$/m);
@@ -315,6 +324,7 @@ test('gate-brief: an unreadable definition with no frozen needs degrades to the 
 test('refusal: an unreadable definition and no summary anywhere names no write', t => {
   const run = atApproval(t, null);
   loseDefinition(run);
+  forgetNeeds(run);
   const result = brief(run, 'approval');
   assert.equal(result.code, 1);
   assert.equal(result.stdout, '');
