@@ -126,10 +126,10 @@ export function gateBrief({ state, node, oneline = false }) {
   const graph = current.graph;
   const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
 
-  const candidates = closingCandidates(recorded, byId, node);
+  const { direct: candidates, stretch } = closingCandidates(recorded, byId, node);
   let closing;
   if (candidates.length) {
-    closing = closingNode(doc, candidates);
+    closing = closingStretch(doc, recorded, candidates, stretch, current.titles);
     if (!closing) {
       return refuse('gate-brief-no-summary',
         `no node this gate closes has recorded a summary (looked at: ${candidates.join(', ')}); `
@@ -286,48 +286,108 @@ function isGate(recorded, byId, id) {
 }
 
 /**
- * The nodes this gate closes, in order. A need that is itself a gate is replaced
- * by that gate's own needs, recursively, so the brief never renders another
- * gate's answer as this one's summary.
+ * What this gate closes, as `{direct, stretch}`.
+ *
+ * `direct` is the nodes it needs, in order. A need that is itself a gate is
+ * replaced by that gate's own needs, recursively, so the brief never renders
+ * another gate's answer as this one's summary. One of these must have recorded
+ * a summary, because they are the nodes that just closed.
+ *
+ * `stretch` is everything behind them: their needs, walked back until a gate,
+ * which is where the previous brief already reported. A node an overlay placed
+ * before a node this gate closes is in here, and so is any node since the
+ * previous gate that no gate needed directly — neither was ever shown to the
+ * operator, and this is the gate that moves past them.
  */
 function closingCandidates(recorded, byId, gate) {
-  const out = [];
+  const direct = [];
+  const stretch = [];
   const seen = new Set([gate]);
   const visit = id => {
     for (const need of needsOf(recorded, byId, id)) {
       if (seen.has(need)) continue;
       seen.add(need);
       if (isGate(recorded, byId, need)) visit(need);
-      else out.push(need);
+      else direct.push(need);
+    }
+  };
+  const behind = id => {
+    for (const need of needsOf(recorded, byId, id)) {
+      if (seen.has(need)) continue;
+      seen.add(need);
+      if (isGate(recorded, byId, need)) continue;
+      stretch.push(need);
+      behind(need);
     }
   };
   visit(gate);
-  return out;
+  for (const id of direct) behind(id);
+  return { direct, stretch };
 }
 
 /**
- * The first of `candidates` with a filled summary, as `{id, summary, decisions, risks}`.
+ * Every node of the stretch that recorded a summary, folded into the one
+ * `{id, summary, decisions, risks}` the renderer draws, or null when none of the
+ * `direct` nodes carries one — a summary further back never stands in for the
+ * summary of the node that closed.
  *
- * Each field is picked on its own from the first source carrying it filled — the
- * dashboard's `pick` rule, mirrored rather than imported so the projection stays
- * free to change what it draws. One addition: a context-block entry counts when
- * its key *or* its `node:` names the candidate, because the context blocks are
- * keyed by phase and name the node inside the entry.
+ * The direct nodes come first and the rest after them, each group in frozen
+ * order, so the budget, which trims from the end, gives up the stretch before
+ * the node the gate closes. One node renders exactly as it always has. Several
+ * are each named by title in front of their summary, and their decisions and
+ * risks are pooled in the same order, so a `recommend stop:` from any of them
+ * decides the recommendation.
+ */
+function closingStretch(doc, recorded, direct, stretch, titles) {
+  const sources = summarySources(doc);
+  const order = Object.keys(recorded);
+  const summarized = ids => [...ids]
+    .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+    .map(id => summaryOf(sources, id))
+    .filter(Boolean);
+  const closing = summarized(direct);
+  if (!closing.length) return null;
+  const entries = [...closing, ...summarized(stretch)];
+  if (entries.length === 1) return entries[0];
+  return {
+    id: entries[0].id,
+    summary: entries.map(entry => `${titleOf(titles, entry.id)}: ${entry.summary.trim()}`).join('\n\n'),
+    decisions: entries.flatMap(entry => entry.decisions),
+    risks: entries.flatMap(entry => entry.risks),
+  };
+}
+
+/**
+ * The first of `candidates` with a filled summary — the fallback's nearest
+ * recorded node, when what the gate closes is unknown.
  */
 function closingNode(doc, candidates) {
   const sources = summarySources(doc);
   for (const id of candidates) {
-    const entries = sources.flatMap(source => source(id));
-    const picked = {};
-    for (const field of ['summary', 'decisions', 'risks']) {
-      const entry = entries.find(candidate => filled(candidate[field]));
-      if (entry) picked[field] = entry[field];
-    }
-    if (typeof picked.summary === 'string') {
-      return { id, summary: picked.summary, decisions: list(picked.decisions), risks: list(picked.risks) };
-    }
+    const found = summaryOf(sources, id);
+    if (found) return found;
   }
   return null;
+}
+
+/**
+ * One node's `{id, summary, decisions, risks}`, or null when it carries no summary.
+ *
+ * Each field is picked on its own from the first source carrying it filled — the
+ * dashboard's `pick` rule, mirrored rather than imported so the projection stays
+ * free to change what it draws. One addition: a context-block entry counts when
+ * its key *or* its `node:` names the node, because the context blocks are keyed
+ * by phase and name the node inside the entry.
+ */
+function summaryOf(sources, id) {
+  const entries = sources.flatMap(source => source(id));
+  const picked = {};
+  for (const field of ['summary', 'decisions', 'risks']) {
+    const entry = entries.find(candidate => filled(candidate[field]));
+    if (entry) picked[field] = entry[field];
+  }
+  if (typeof picked.summary !== 'string') return null;
+  return { id, summary: picked.summary, decisions: list(picked.decisions), risks: list(picked.risks) };
 }
 
 /** Each source as a function of a node id to the entries it holds for it. */

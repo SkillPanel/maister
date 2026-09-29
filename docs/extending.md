@@ -182,7 +182,9 @@ its place, add it under a new id and attach it upstream with `before:` (below).
 
 **`before:` puts an added node upstream of existing ones.** An added node's `needs` say what it
 waits for; its `before:` lists the nodes that wait for it, and each of them gains the added node
-in its own `needs`. That is how a phase goes *between* two phases and how a verifier holds a gate:
+in its own `needs`. That is how a phase goes *between* two phases and how a verifier holds a gate —
+the gate's brief then shows the verifier's summary beside the node the gate closes, and a stop
+recommendation among its risks becomes the gate's recommendation:
 
 ```yaml
 add:

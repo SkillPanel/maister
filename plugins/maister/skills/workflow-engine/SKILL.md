@@ -652,6 +652,14 @@ What the operator reads at a gate is rendered by the engine, never composed:
   and the gate is still asked. A `gate-brief-needs-unknown` warning beside it says the summary
   is the nearest recorded one, because what the gate closes is unknown; relay it too.
 
+**The brief covers the whole stretch the gate closes.** It renders the summary of the node the
+gate needs and, after it, the summary of every other node back to the previous gate that recorded
+one — a node an overlay placed before this gate among them. With more than one, each summary is
+named by its node's title, their decisions and risks are listed together — the closing node's
+first, so the budget below trims the others before it — and a `recommend stop:` risk from any of
+them makes the stop option the recommended one. A summary further back never
+stands in for the closing node's own: without that, the brief is refused `gate-brief-no-summary`.
+
 The brief stays within 1,600 characters, so that the brief and the ask fit in the picker. A
 longer summary, decision list or risk list is trimmed, and each cut says `(+N more — see the
 dashboard)`, or `see the run's state file` when the run has no dashboard or its run directory

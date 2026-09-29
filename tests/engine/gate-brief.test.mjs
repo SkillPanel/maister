@@ -459,3 +459,105 @@ test('gate-brief: when the closing lines nearly fill the budget the brief still 
   assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
   assert.deepEqual(result.stdout.split('\n').slice(-4), ['Next: Implementation', 'Recommended: continue', runLine(run), '']);
 });
+
+// ---------------------------------------------------------------------------
+// the stretch a gate closes
+// ---------------------------------------------------------------------------
+
+/** An overlay over development, written to a scratch directory removed when the test ends. */
+function developmentOverlay(t, lines) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-overlay-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'development.overlay.yml');
+  fs.writeFileSync(file, `${['extends: builtin:development', ...lines].join('\n')}\n`);
+  return file;
+}
+
+/** A security verifier added after `needs`, placed before `before`, and titled by the overlay. */
+function securityVerifier(t, { needs, before }) {
+  return developmentOverlay(t, [
+    'display:',
+    '  titles:',
+    '    security-verification: "Security review"',
+    'add:',
+    '  security-verification:',
+    '    uses: agent:security-verifier',
+    `    needs: [${needs}]`,
+    `    before: [${before}]`,
+  ]);
+}
+
+/**
+ * A development run, over `overlays`, paused at `verification-approval`: every
+ * node before the gate ended and `summaries` recorded.
+ */
+function atOverlaidVerificationApproval(t, overlays, summaries) {
+  const run = scratch(t);
+  const graph = freeze(run, { definition: DEVELOPMENT, overlays, inputs: { task_description: 'Fix the parser' } });
+  const nodes = {};
+  for (const node of graph.nodes) {
+    if (node.id === 'verification-approval') break;
+    nodes[node.id] = { status: 'completed' };
+  }
+  nodes['verification-options'] = { status: 'completed', values: { browser_tests_enabled: false, user_docs_enabled: false } };
+  write(run, { nodes, node_summaries: summaries });
+  return run;
+}
+
+const VERIFIED = { status: 'completed', summary: 'Verification passed with 2 warnings.', risks: ['open: 2 warnings in the parser tests'] };
+const SECURITY = {
+  status: 'completed',
+  summary: 'One critical finding in the rate limiter.',
+  risks: ['recommend stop: critical — the rate limiter trusts X-Forwarded-For'],
+};
+
+test('gate-brief: a verifier placed before the gate is reported beside the node it closes, and its stop risk decides the recommendation', t => {
+  const overlay = securityVerifier(t, { needs: 'verification', before: 'verification-approval' });
+  const run = atOverlaidVerificationApproval(t, [overlay], { verification: VERIFIED, 'security-verification': SECURITY });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, [
+    'Verification: Verification passed with 2 warnings.',
+    '',
+    'Security review: One critical finding in the rate limiter.',
+    '',
+    'Risks:',
+    '- open: 2 warnings in the parser tests',
+    '- recommend stop: critical — the rate limiter trusts X-Forwarded-For',
+    '',
+    'Next: Finalization — skipped: E2E verification, Approve E2E verification, User documentation, Approve documentation',
+    'Recommended: stop-development',
+    runLine(run),
+    '',
+  ].join('\n'));
+});
+
+test('gate-brief: a node the closing node waits on is reported too, after it', t => {
+  const overlay = securityVerifier(t, { needs: 'verification-options', before: 'verification' });
+  const run = atOverlaidVerificationApproval(t, [overlay], { verification: VERIFIED, 'security-verification': SECURITY });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Verification: Verification passed with 2 warnings\.\n\nSecurity review: One critical finding in the rate limiter\.\n/);
+  assert.match(result.stdout, /^Recommended: stop-development$/m);
+});
+
+test('gate-brief: the stretch stops at the previous gate, so what an earlier gate reported is not repeated', t => {
+  const run = atOverlaidVerificationApproval(t, [], {
+    planning: { status: 'completed', summary: 'Three task groups planned.' },
+    'verification-options': { status: 'completed', summary: 'Code review and the pragmatic review are on.' },
+    verification: VERIFIED,
+  });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Verification: Verification passed with 2 warnings\.\n\nVerification options: Code review and the pragmatic review are on\.\n/);
+  assert.doesNotMatch(result.stdout, /Three task groups/);
+});
+
+test('refusal: a summary behind the closing node does not stand in for the closing node\'s own', t => {
+  const run = atOverlaidVerificationApproval(t, [], {
+    'verification-options': { status: 'completed', summary: 'Code review and the pragmatic review are on.' },
+  });
+  const result = brief(run, 'verification-approval');
+  assert.equal(result.code, 1);
+  assert.ok(result.stderr.includes('{"node_summaries":{"verification":{"summary":"…"}}}'), result.stderr);
+});
