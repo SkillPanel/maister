@@ -475,10 +475,18 @@ legitimately leaves its hint behind.
 `gap-analysis` becomes `Gap Analysis`. An empty or multi-line title is refused when the definition is
 validated; a title for a node the graph does not declare warns, as a hint does.
 
-The block is cosmetic. It is no part of the graph's identity — correcting a glyph or a title does not move the
+`option_labels` maps a gate id, then each of its option ids, to the words the operator picks at
+that gate — `"Continue to specification"`, `"Stop here"`. An option without one is shown as its id
+in sentence case: `continue-past-analysis` becomes `Continue past analysis`. The answer is still
+recorded by option id. `headers` maps a gate id to the short header shown above its question, at
+most 12 characters; without one the question takes the title of the node the gate closes when it
+fits. An empty value, a multi-line one or an overlong header is refused; a label or a header for a
+node that is not a gate, or a label for an option the gate does not offer, warns.
+
+The block is cosmetic. It is no part of the graph's identity — correcting a glyph, a title or a label does not move the
 definition's hash, so it cannot invalidate a frozen run or a chain built from the same graph — and
 it may be omitted entirely: a definition of your own, or an ejected copy of a shipped one, is valid
-saying nothing about icons or titles at all, and the viewer falls back to its own defaults. The shipped
+saying nothing about icons, titles or labels at all, and the viewer falls back to its own defaults. The shipped
 definitions each carry one, and are the worked examples.
 
 ### Umbrella workspaces
