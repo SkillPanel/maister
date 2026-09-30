@@ -20,6 +20,10 @@
  *   gate-request   --state, --patch-file (or the request as JSON on stdin)
  *                                                             the files written
  *                  (the request file, the gate index and the pending marker)
+ *   gate-revise    --state, --node, --option, --patch-file (or the note as
+ *                  JSON on stdin)                             changed paths
+ *                  (the stretch from the option's rerun node to the gate reset
+ *                  in one write, with the operator's note on the gate)
  *   prior-context  --state                                    the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt — read-only over a run
@@ -92,6 +96,10 @@ const VERBS = {
   // derived from the state file, so there is no second path a caller could get
   // wrong or point at another run.
   'gate-request': { module: 'gate.mjs', flags: ['state', 'patch-file'] },
+  // A gate's revise option, carried out. `--node` and `--option` because the
+  // state records no "current" gate and no chosen option until this write
+  // records it; the note travels in the patch file for `write-state`'s reason.
+  'gate-revise': { module: 'revise.mjs', flags: ['state', 'node', 'option', 'patch-file'] },
   // Three flags, where the other two state verbs take one: the outbox root and
   // the dispatch id are not derivable from a run directory. They are the
   // dispatch's, not the run's, and the worker already holds both — its seed
@@ -425,14 +433,49 @@ async function runWriteState(flags) {
   // The verb that freezes a run and carries every write after it, so refusing
   // here refuses both a start and a resume — including a driven one, where the
   // session-start warning is never read. Before stdin, so nothing is written.
-  const collision = editionCollision(process.env.CLAUDE_PROJECT_DIR
-    || (typeof module.projectRootOf === 'function' ? module.projectRootOf(path.dirname(path.resolve(flags.state))) : null));
-  if (collision) {
-    process.stderr.write(`edition-collision: ${collision.message}\n`);
-    return EXIT.REJECTED;
-  }
+  if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = readInput(flags, 'the patch');
   const result = write({ state: flags.state, patch: input.document });
+  return reportWrite(result, input);
+}
+
+/** `edition-collision` for a verb that writes state, reported before anything is read. */
+function refusedForEditions(module, flags) {
+  const collision = editionCollision(process.env.CLAUDE_PROJECT_DIR
+    || (typeof module.projectRootOf === 'function' ? module.projectRootOf(path.dirname(path.resolve(flags.state))) : null));
+  if (!collision) return false;
+  process.stderr.write(`edition-collision: ${collision.message}\n`);
+  return true;
+}
+
+/**
+ * Send a run back from a gate by one of its revise options.
+ *
+ * Reported exactly like `write-state`, because it is one: the changed paths on
+ * stdout, the refusal on stderr with its code first, the patch file kept on a
+ * refusal and consumed once the write lands. One line follows the paths, after
+ * a blank line, naming what was reset — the next node to run is the rerun one.
+ */
+async function runGateRevise(flags) {
+  if (!flags.state) throw new UsageError('gate-revise needs --state');
+  if (!flags.node) throw new UsageError('gate-revise needs --node');
+  if (!flags.option) throw new UsageError('gate-revise needs --option');
+  const state = await loadModule(VERBS['write-state'].module);
+  if (refusedForEditions(state, flags)) return EXIT.REJECTED;
+  const input = readInput(flags, 'the revise note');
+  const module = await loadModule(VERBS['gate-revise'].module);
+  const revise = entryOf(module, 'gateRevise', VERBS['gate-revise'].module);
+  const result = revise({ state: flags.state, node: flags.node, option: flags.option, input: input.document });
+  const code = reportWrite(result, input);
+  if (result.ok && result.revision) {
+    const { gate, reruns, revision, budget, reset } = result.revision;
+    process.stdout.write(`\nrevised: ${gate} reruns=${reruns} revision=${revision}/${budget} reset=${reset.join(',')}\n`);
+  }
+  return code;
+}
+
+/** The report every state write shares: changed paths, then its notes and warnings, then the exit code. */
+function reportWrite(result, input) {
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
   // The freeze's startup banner, after the changed paths and a blank line, so a
   // caller reading paths line by line stops at the blank and the operator
@@ -696,6 +739,7 @@ const RUNNERS = {
   locate: runLocate,
   'write-state': runWriteState,
   'gate-request': runGateRequest,
+  'gate-revise': runGateRevise,
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
   'gate-brief': runGateBrief,

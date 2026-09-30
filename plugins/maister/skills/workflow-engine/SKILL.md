@@ -302,7 +302,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, ten verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, twelve verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -362,9 +362,10 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `locate` | optional `--name` (bare or `builtin:`-prefixed); with it, repeatable `--overlay` and `--profile` — the run's own | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take (the lookup's own, before any the caller adds), a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `title` is the companion's H1, and `summary` the definition's `description:`, else the paragraph under that H1; `dispatches` names the nodes that carry `dir:` in the graph folded from the definition, every overlay and the profile. Exit `1` when the name is found nowhere, is not a workflow name, finds only an overlay with no built-in beneath it, or finds a file whose `name:` is another. With no name, `{ok, errors[], workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
 | `write-state` | `--state`, `--patch-file` — the patch as JSON in the patch file | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, `--patch-file` — the request as JSON in the patch file | the files written, one per line |
+| `gate-revise` | `--state`, `--node` (the gate), `--option` (its revise option), `--patch-file` — `{note, answered_by?, at?}` in the patch file | the changed paths, one per line, then a blank line and `revised: <gate> reruns=<node> revision=<n>/3 reset=<ids>`; the stretch from the option's rerun node to the gate reset in one write, with the note on the gate (§ Gates) |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
-| `gate-brief` | `--state`, `--node` (the gate), optional `--json` or `--oneline` | the gate brief on stdout — the closing node's summary, at most three decisions and three risks, and a `Next:` line naming the node that actually runs next (with any work a guard skips), kept within 1,600 characters. `--json` returns the in-session picker: `{ok, question, header, options[{id, label, description, recommended}], errors, warnings}`, the recommended option first. `--oneline` is the driven form: every decision and risk, the `Next:` line with every skipped node, a `Recommended: <option id>` and a `Run: <dir> · Dashboard: <path>` section, on one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
+| `gate-brief` | `--state`, `--node` (the gate), optional `--json` or `--oneline` | the gate brief on stdout — the closing node's summary, at most three decisions and three risks, and a `Next:` line naming the node that actually runs next (with any work a guard skips), kept within 1,600 characters. `--json` returns the in-session picker: `{ok, question, header, options[{id, label, description, recommended}], errors, warnings}`, the recommended option first; a revise option adds `note: true`, `reruns`, `revision` and `suggestions[{label, note, recommended}]`. `--oneline` is the driven form: every decision and risk, the `Next:` line with every skipped node, one `revise: <id> reruns=<node> revision=<n>/3` section per revise option still offered, a `Recommended: <option id>` and a `Run: <dir> · Dashboard: <path>` section, on one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
@@ -860,7 +861,8 @@ false)` without a dashboard and `Run: <dir>` alone when the viewer is missing. I
    label. When `options` is empty — the definition changed and no longer holds the gate — ask
    with the gate's own option ids.
 2. **Records the answer** — the chosen option id, who answered and when — on the node's
-   summary, and marks the node `completed`. The option is one of the gate's own ids, spelled as
+   summary, and marks the node `completed`. A revise option — its `note` is `true` — is
+   recorded by `gate-revise` instead (*Revising at a gate*). The option is one of the gate's own ids, spelled as
    the gate spells it. The writer refuses any other with `state-gate-option-unknown`.
 3. **Writes no `gate_pending` and no gate request file.** The pending marker is only ever
    written as the one-line null form.
@@ -1031,7 +1033,67 @@ A stop option ends the run, and ends it completely:
 - no further node executes, and no completion or summary node gets a courtesy run.
 
 A stopped run is a legitimate outcome, not a failure. Do not print `RUN-FAILED` for one, and
-never re-ask a gate the operator has already answered.
+never re-ask a gate the operator has already answered — a gate a revise reset is the one gate
+asked again, because the operator asked for exactly that.
+
+### Revising at a gate
+
+A revise option sends the run back: the stretch from the option's `reruns` node to the gate runs
+again with the operator's note, and the gate is asked again once it has. The grammar's § 6 has
+the rule; here is what the engine does with the answer.
+
+**Terminal mode.** When the operator picks an option whose `note` is `true`, ask one more question
+before writing anything, built from that option's `suggestions` field by field: header `Revise`,
+the question "What should change?", and the suggestions as a multi-select question — each shown
+by its `label` with its `note` as the description, the recommended one first and labelled
+`<label> (Recommended)`. The operator's typed answer, through Other, is the fallback and is added
+to whatever they chose. The note is the chosen suggestions' `note`s joined by `; `, then the
+typed text. When nothing is chosen and nothing typed, there is no note: ask the gate again from
+its brief. Then write `{"note": "<the note>"}` to the patch file and run `gate-revise
+--state=<state> --node=<gate> --option=<id> --patch-file=<the patch file>`. That one call is the
+whole record — the answer, the note, the reset and the dashboard. Take the ready set from the
+state again: the `reruns` node is the next to run, and its prompt carries the note through
+`prior-context`.
+
+**Driver-suspended mode.** The request's revise option carries `effect: revise`, `note: true` and
+the `suggestions` from `gate-brief --json`, beside the brief. The answer's option id arrives on
+`GATE-ANSWER` as any answer does; its note arrives on the answer file the driver writes beside the
+request — `gates/<node>.answer.<operator>.yml`, under `answer.note`. Read it with the read-only
+tools, fold the answer exactly as *Driver-suspended mode — resume* says, run the empty-patch
+re-validation, then write `{"note", "answered_by", "at"}` — `at` the `GATE-ANSWER` stamp — to the
+patch file and run `gate-revise`. It recognises the answer the fold recorded and completes it in
+place. With no note on the answer file, the note is the recommended suggestion's, and the
+decision carries `answered_by` from the line as usual.
+
+**A revise is never recommended.** The brief recommends the continue option, or a stop when a
+closing risk says so; a revise is the operator's choice. A driver that defaults an answer never
+defaults to one.
+
+**What the reset leaves.** Every node of the stretch is `pending` with its clocks and values gone
+and its `attempt` one higher; a guarded node in it is judged again once the rerun node records
+its values, and a gate in it is asked again. The summaries stay until the nodes re-complete and
+replace them, so the brief and the prior context still show what the previous attempt found. The
+gate's decisions keep every revise — its note, the attempt and the target — and a later answer at
+the gate is added after them, never over them.
+
+**Budget.** Three revisions per gate. The brief stops offering the option once they are spent and
+says so on its `Next:` line; the verb refuses a fourth.
+
+**Resume.** A run caught between a driven fold and `gate-revise` — the gate `completed`, its last
+decision a revise option without an `attempt` — is found by `resume-check`, whose `revision`
+field says `applied: false`. Run `gate-revise` for it before anything else, with the note from the
+answer file; do not walk the ready set first, or the run moves past the gate as if the answer
+had been continue.
+
+| Refusal | Response |
+|---|---|
+| `revise-not-a-gate` | `--node` names no node of the run, or a node that is not a gate. Nothing was written. Correct `--node` to the gate the operator answered and run the verb again; no state write fixes this. |
+| `revise-option-unknown` | `--option` is not one of the gate's revise options; the message lists them. Nothing was written. Correct the id — the option's id, never its label. A continue or a stop is recorded as an ordinary answer (*Terminal mode*), not through this verb. |
+| `revise-note-missing` | The patch file carries no note, an empty one, or an `at` that is not a UTC timestamp. Nothing was written and the patch file is kept. Put the note the operator gave — the chosen suggestions and anything typed — into it, send the answer's own stamp or no `at` at all, and run the verb again. |
+| `revise-gate-not-current` | The gate is not the question the run is asking: something it waits on has not ended, it is already answered, a revise already reset it, or a driver's answer is still awaited. Nothing was written. Do not repeat the call; take the ready set from the state and ask the gate the run is actually at. A second call after a revise that landed is refused this way, which is what makes it safe. |
+| `revise-budget-exhausted` | The gate has been revised three times. Nothing was written. Ask it again with its continue and stop options only; the brief no longer offers the revise, and the operator decides between going on and stopping. |
+| `revise-stretch-has-subrun` | The stretch holds a `workflow:` node, whose child run would be adopted rather than run again. Nothing was written. Validation refuses such a definition, so a run reaching this was frozen from one edited by hand: ask the gate again with continue and stop, and report the message. |
+| any `state-*` code | The reset reached the writer and was refused; the writer's table below says what each means. Nothing was written. |
 
 `stopped` is not only a status for unexecuted nodes: a `workflow:` node whose child run stopped
 ran, waited and adopted that outcome, so it is recorded `stopped` **with** a summary, mirrored to
@@ -1376,6 +1438,11 @@ is a directory this engine does not resume, and its `message` is written for the
 - `prose-orchestrator` — a product-design directory, which its own command resumes. Relay the
   `message` and stop.
 - `state-unreadable` — relay it and stop.
+
+When a gate's revise is still open, the exit-`0` report carries `revision: {gate, option, reruns,
+revision, applied}`. `applied: true` means the stretch is reset and waiting to re-run: resume as
+usual, and the rerun node's prompt carries the note. `applied: false` means a driven fold recorded
+the revise and `gate-revise` never ran: run it first (*Revising at a gate*).
 
 Listing, rendering and viewing a 2.x directory are unaffected; only resuming it is refused.
 Step-level resume *inside* a node is that node's prose, not the engine's business.

@@ -295,6 +295,11 @@ function phasesOf(state, icons, titles, gates, progress) {
     // distinguishable from one that hints `plan`.
     if (Object.hasOwn(icons, id) && ICON_HINTS.includes(icons[id])) phase.icon_hint = icons[id];
     phase.status = status;
+    // Additive, and only on a node a revise has reset: the attempt this one is
+    // on. An absent key is a node on its first attempt, which is every node of
+    // a run nobody sent back.
+    const attempt = Number(node.attempt);
+    if (Number.isInteger(attempt) && attempt > 1) phase.attempt = attempt;
     phase.started = scalar(node.started);
     phase.completed = scalar(node.completed);
     // State has no dedicated key: a skipped node's reason is written into its
