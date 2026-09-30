@@ -62,6 +62,9 @@ import { isNewerVersion, readDefinition } from './lib/definition.mjs';
 // Shared with the session-start hook, which warns on the same detection, so it
 // sits at the plugin root beside `canonical.mjs` rather than in this skill.
 import { findEditionCollision } from '../../../lib/editions.mjs';
+// Shared with the umbrella runtime's `--input-file`: one rule for a document
+// read from a fixed file instead of stdin.
+import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
 
 /** The exit-code table, named so no call site writes a bare integer. */
 const EXIT = { OK: 0, REJECTED: 1, INTERNAL: 2 };
@@ -514,12 +517,7 @@ function readInput(flags, what) {
     return { document: parseDocument(text, `${what} on stdin`), file: null };
   }
   const file = patchFileOf(flags);
-  let text;
-  try {
-    text = fs.readFileSync(file, 'utf8');
-  } catch (err) {
-    throw new UsageError(`${what} could not be read from ${file}: ${err.message}`);
-  }
+  const text = readFileText(file, what, UsageError);
   return { document: parseDocument(text, `${what} in ${file}`), file };
 }
 
@@ -535,48 +533,27 @@ function parseDocument(text, where) {
 /**
  * The patch file, once it is known to be the one place a patch is read from:
  * `.state-patch.json` in the directory of `--state`, a regular file, not a link.
- *
- * One fixed name for the reason the state's temp file has one: a name is what a
- * permission rule, a hook and a reviewer can match, and a free path is not. The
- * run directory is the only place, so a patch can never be read from — or, on
- * success, deleted from — anywhere else. A `..` segment is refused even where it
- * would resolve back into the run, because a path that has to be resolved to be
- * judged is one a reader of the command cannot judge. A link is refused because
- * its target is somewhere else. All of these are usage errors: nothing was read.
+ * The run directory is the only place, so a patch can never be read from — or,
+ * on success, deleted from — anywhere else. Why the name is fixed and what is
+ * refused: `lib/input-file.mjs`.
  */
 function patchFileOf(flags) {
-  const given = flags['patch-file'];
-  const expected = path.join(path.dirname(path.resolve(flags.state)), PATCH_FILE);
-  if (given.split(/[\\/]/).includes('..')) {
-    throw new UsageError(`the patch file may not name a parent directory (".."): write it to ${expected}`);
-  }
-  if (path.resolve(given) !== expected) {
-    throw new UsageError(`the patch file must be ${expected}, beside the state file it patches, and was ${given}`);
-  }
-  let stat;
-  try {
-    stat = fs.lstatSync(expected);
-  } catch (err) {
-    throw new UsageError(`the patch file ${expected} could not be read: ${err.message}`);
-  }
-  if (stat.isSymbolicLink()) throw new UsageError(`the patch file ${expected} is a symbolic link; write the file itself there`);
-  if (!stat.isFile()) throw new UsageError(`the patch file ${expected} is not a regular file`);
-  return expected;
+  return anchoredFile({
+    given: flags['patch-file'],
+    expected: path.join(path.dirname(path.resolve(flags.state)), PATCH_FILE),
+    noun: 'the patch file',
+    beside: 'beside the state file it patches',
+    Usage: UsageError,
+  });
 }
 
 /**
  * Delete the patch file once its document has landed, so a file left behind
  * always means "not applied". A refusal keeps it, for the caller to correct and
- * send again. Failing to delete is a warning: the write already landed, and the
- * next write overwrites the file anyway.
+ * send again.
  */
 function consume(input) {
-  if (!input.file) return;
-  try {
-    fs.unlinkSync(input.file);
-  } catch (err) {
-    process.stderr.write(`warning: ${input.file} was not deleted (${err.message}); the write landed\n`);
-  }
+  if (input.file) consumeFile(input.file);
 }
 
 /**
