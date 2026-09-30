@@ -373,6 +373,17 @@ it ("no reproducible defect, so no failing test first"), never by value name; th
 scope decisions made, if any, in `decisions`. The `gap-approval` question is the gate brief rendered from it
 (engine § Gates).
 
+**When re-run after a revise.** `gap-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*, beside
+the previous attempt's summary. Hand the analyzer the note and the existing
+`analysis/gap-analysis.md`, and ask it to revise that analysis in place rather
+than start over. Record the five characteristics, the risk level and all three
+declared values again: a revise clears them, and the guards on the later
+stretches read them afresh — a changed `mockups_needed` or
+`has_reproducible_defect` is how a revise switches a stretch on or off. Ask the
+scope decisions again only where the note reopens one; the earlier answers stand.
+Say in the summary what changed and why.
+
 **Recovery budget**: 2 attempts — re-analyze with the clarifications folded in
 on the second, and ask the operator when the second also comes back thin.
 
@@ -388,7 +399,8 @@ each with `node: gap-analysis` on the entry.
 
 A gate. Ask it as engine § Gates says — the gate brief, then the definition's
 `ask:` — record the answer, and stop the run on the stop option — nothing after
-a stopped node ever becomes ready.
+a stopped node ever becomes ready. Its revise option sends the run back to
+`gap-analysis` with the operator's note (engine § Gates, *Revising at a gate*).
 
 **Its question is deliberately neutral, and that is a recorded divergence.** The
 prose form routes three ways here by reading the task characteristics and names
@@ -459,10 +471,11 @@ bound to — the standards, design system and design skills it found — as
 `task_context.design_resources`, so a later reader can tell what the screens
 were rendered against.
 
-**The revise loop, and why it is not a gate.** After the studio returns, the
-operator may want changes. A gate carries exactly one continue and no back-edge,
-so revise is a third effect the grammar has not got. It lives here instead, as
-an in-node loop the graph and the diagram cannot show: present the rendered
+**The revise loop, and why it stays in the node.** After the studio returns, the
+operator may want changes. A revise option on `mockup-approval` would re-run this
+node from cold and restart the studio for every round; the loop keeps the studio
+running between rounds, so it lives here, as an in-node loop the graph and the
+diagram cannot show: present the rendered
 screens, ask whether to accept or revise — the sixth of the ten in-node
 questions — and on revise re-invoke the studio with the requested changes and
 ask again. **Attempt budget: 3 revise rounds.** After the third, present what
@@ -603,6 +616,19 @@ in `summary`; the architecture approach chosen, if any, in `decisions`; the
 assumptions it makes in `risks`. The `specification-approval` question is the
 gate brief rendered from it (engine § Gates).
 
+**When re-run after a revise.** `specification-approval` or
+`spec-audit-approval` sent the run back, and `prior-context` carries the
+operator's note under *Revision requested*, beside the previous attempt's
+summaries — the audit's findings among them when the audit ran. Keep the answers
+Part A and Part B already have: ask again only a question the note reopens, and
+record what changed in `analysis/technical-clarifications.md` or
+`analysis/requirements.md`. In Part C, hand the specification creator the note,
+the audit's findings when there are any, and the existing `implementation/spec.md`,
+and ask it to revise the specification in place. Do not ask the audit opt-in
+again: the answer given the first time is `orchestrator.options.spec_audit_enabled`,
+and it is recorded as the declared bool once more, because a revise clears it —
+unless the note asks to change it. Say in the summary what changed.
+
 **Recovery budget**: 2 attempts — regenerate the specification on the second
 with the gaps named in the context.
 
@@ -620,7 +646,9 @@ companion path under the specification entry's `artifacts[].html`.
 ## `specification-approval`
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
-definition's `ask:` — record the answer, and stop the run on the stop option.
+definition's `ask:` — record the answer, and stop the run on the stop option. Its
+revise option sends the run back to `specification` with the operator's note
+(engine § Gates, *Revising at a gate*).
 
 The node after it, `spec-audit`, is guarded by the boolean `specification` just
 emitted. The gate brief's `Next:` line names the node that actually runs.
@@ -671,6 +699,11 @@ A gate, guarded by the same condition as the node before it. When the audit was
 declined, this gate is skipped along with `spec-audit` and the run continues to
 planning without asking.
 
+Its revise option sends the run back to `specification` with the operator's
+note, and the audit's findings reach the re-run through the prior context. The
+specification is then approved again at `specification-approval` and audited
+again before this gate asks once more (engine § Gates, *Revising at a gate*).
+
 ---
 
 ## `planning`
@@ -698,6 +731,14 @@ carries, the total number of implementation steps and the estimated complexity
 in `summary`; the key dependencies between groups in `decisions`. The
 `planning-approval` question is the gate brief rendered from it (engine § Gates).
 
+**When re-run after a revise.** `planning-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*. Hand the
+planner the note and the existing `implementation/implementation-plan.md`, and
+ask it to revise the plan in place — regroup, split or reorder what the note
+names and keep the rest — and to check the coverage against the specification
+again, `implementation/visual-coverage.md` included when a design index exists.
+Say in the summary what changed.
+
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 gaps named in the context.
 
@@ -711,7 +752,9 @@ entry's `artifacts[].html`.
 ## `planning-approval`
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
-definition's `ask:` — record the answer, and stop the run on the stop option.
+definition's `ask:` — record the answer, and stop the run on the stop option. Its
+revise option sends the run back to `planning` with the operator's note (engine
+§ Gates, *Revising at a gate*).
 
 ---
 

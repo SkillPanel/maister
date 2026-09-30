@@ -150,11 +150,21 @@ const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
 const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 
 /**
- * An authored gate option in its map form carries its effect and nothing else.
- * An option routes nowhere and emits nothing: the answer is the option id,
- * recorded in state, and the effect is whether the run goes on.
+ * An authored gate option in its map form: its effect, and — for a revise
+ * option only — the node it sends the run back to. An option emits nothing:
+ * the answer is the option id, recorded in state, and the effect is whether the
+ * run goes on, ends, or goes back over the stretch the gate closes.
  */
-const OPTION_KEYS = ['effect'];
+const OPTION_KEYS = ['effect', 'reruns'];
+
+/**
+ * What an option does. `continue` moves the run past the gate and `stop` ends
+ * it. `revise` is the one bounded back-edge: it resets the stretch from the
+ * option's `reruns` node to the gate and asks the gate again once that stretch
+ * has re-run. The edge lives on the option, never in `needs`, so the graph
+ * stays acyclic and every reader of the ready set is unchanged.
+ */
+const OPTION_EFFECTS = ['continue', 'stop', 'revise'];
 
 /**
  * The key a node added by an overlay may carry and a definition's own node may
@@ -2009,6 +2019,7 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
     const origin = origins.get(id) ?? file;
     checkWhen(node, id, `nodes.${id}`, origin, errors, { inputs, nodes, closure: closures.get(id) });
     checkInterpolations(node, id, `nodes.${id}`, origin, errors, { inputs, nodes, closure: closures.get(id) });
+    checkRevise(node, id, `nodes.${id}`, origin, errors, { nodes, closures });
   }
 
   checkCycle(nodes, file, errors);
@@ -2021,8 +2032,8 @@ function checkCycle(nodes, file, errors) {
 
 /**
  * An authored gate option is either the bare effect or a map carrying that
- * effect and nothing else (`OPTION_KEYS`). Every effect check reads through
- * here so the two spellings stay one rule.
+ * effect (`OPTION_KEYS`). Every effect check reads through here so the two
+ * spellings stay one rule.
  */
 function optionEffect(option) {
   if (isMap(option)) return option.effect;
@@ -2175,17 +2186,94 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
     const effect = optionEffect(authored);
     if (effect === 'continue') continues++;
     else if (effect === 'stop') stops++;
-    else fail(errors, file, `${at}.options.${option}`, `an option effect is "continue" or "stop", never "${effect}"`, id);
+    else if (!OPTION_EFFECTS.includes(effect)) {
+      fail(errors, file, `${at}.options.${option}`, `an option effect is "continue", "stop" or "revise", never "${effect}"`, id);
+    }
+    // `reruns` is what a revise option means, and nothing else reads it: on a
+    // continue or a stop it would be hashed and never acted on.
+    const reruns = isMap(authored) ? authored.reruns : undefined;
+    if (effect === 'revise' && (typeof reruns !== 'string' || reruns === '')) {
+      fail(errors, file, `${at}.options.${option}.reruns`,
+        'a revise option names the node it sends the run back to: write it as {effect: revise, reruns: <node>}', id);
+    } else if (effect !== 'revise' && reruns !== undefined) {
+      fail(errors, file, `${at}.options.${option}.reruns`,
+        `reruns belongs to a revise option; a ${effect} option sends the run nowhere back`, id);
+    }
   }
   if (continues !== 1 || stops < 1) {
     fail(
       errors,
       file,
       `${at}.options`,
-      `a gate offers exactly one continue and at least one stop; this one offers ${continues} and ${stops}`,
+      `a gate offers exactly one continue and at least one stop, and any number of revise; this one offers ${continues} and ${stops}`,
       id,
     );
   }
+}
+
+/**
+ * A revise option's target, against the graph. The stretch a revise resets runs
+ * from `reruns` to the gate, so `reruns` must be behind the gate — inside its
+ * needs closure — or there is no stretch at all. It must be a task node: a gate
+ * re-runs nothing, and a `workflow:` node would re-adopt the child run it
+ * already finished, because a child's directory is derived from its parent and
+ * its node. For the same reason no node of the stretch may be a sub-run.
+ */
+function checkRevise(node, id, at, file, errors, { nodes, closures }) {
+  if (node.type !== 'gate' || !isMap(node.options)) return;
+  for (const [option, authored] of Object.entries(node.options)) {
+    if (optionEffect(authored) !== 'revise' || !isMap(authored) || typeof authored.reruns !== 'string') continue;
+    const target = authored.reruns;
+    const dotted = `${at}.options.${option}.reruns`;
+    if (!nodes.has(target)) {
+      fail(errors, file, dotted, `reruns names "${target}", which no node declares`, id);
+      continue;
+    }
+    if (!closures.get(id)?.has(target)) {
+      fail(errors, file, dotted,
+        `reruns names "${target}", which this gate does not wait on; a revise re-runs a node behind its own gate`, id);
+      continue;
+    }
+    if (nodes.get(target).type === 'gate') {
+      fail(errors, file, dotted, `reruns names the gate "${target}"; a revise re-runs a task node, and a gate runs nothing`, id);
+      continue;
+    }
+    const stretch = reviseStretch({
+      ids: [...nodes.keys()], needsOf: each => needsOf(nodes.get(each)), reruns: target, gate: id,
+    });
+    const subrun = stretch.find(each => typeof nodes.get(each)?.uses === 'string'
+      && nodes.get(each).uses.startsWith(WORKFLOW_SCHEME));
+    if (subrun) {
+      fail(errors, file, dotted,
+        `the stretch from "${target}" to this gate holds the sub-run "${subrun}", and a revise cannot re-run a sub-run: `
+        + 'its child run is already finished and would be adopted again rather than run anew', id);
+    }
+  }
+}
+
+/**
+ * The nodes a revise resets, in `ids` order: the `reruns` node, the gate, and
+ * every node that waits on `reruns` and that the gate waits on. A side branch
+ * off `reruns` that the gate does not wait on is not part of it, and nothing
+ * downstream of the gate is. `needsOf` is the edge source — the resolved graph
+ * when validating, the frozen node lines when a run is revised — so the one
+ * rule serves both.
+ */
+export function reviseStretch({ ids, needsOf: edges, reruns, gate }) {
+  const closure = from => {
+    const seen = new Set();
+    const pending = [...edges(from)];
+    while (pending.length) {
+      const next = pending.pop();
+      if (seen.has(next)) continue;
+      seen.add(next);
+      pending.push(...edges(next));
+    }
+    return seen;
+  };
+  const behindGate = closure(gate);
+  return ids.filter(each => each === reruns || each === gate
+    || (behindGate.has(each) && closure(each).has(reruns)));
 }
 
 /**
@@ -2625,10 +2713,11 @@ function isDisabledReference(reference, graph) {
  * spelling. The bare form is the one every shipped definition uses, so no
  * shipped hash moves.
  *
- * A map carrying anything beside the effect is kept whole. The validator
- * refuses one, so only a degraded document reaches this with it, and reducing
- * it would hash a document that says more than this build reads identically
- * to one that says only the effect.
+ * A map carrying anything beside the effect is kept whole: a revise option's
+ * `reruns` is part of what the gate means, and a degraded document's unknown
+ * key reduced away would hash a document that says more than this build reads
+ * identically to one that says only the effect. So a definition moves its hash
+ * by adopting a revise option, and no other definition's hash moves with it.
  */
 function canonicalOptions(options) {
   const canonical = Object.create(null);

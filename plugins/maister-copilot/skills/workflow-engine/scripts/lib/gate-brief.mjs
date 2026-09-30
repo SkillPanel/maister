@@ -66,7 +66,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { resolve } from './graph.mjs';
+import { resolve, reviseStretch } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 
@@ -116,6 +116,29 @@ const SLUG = /^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)+$/;
 
 /** What a stop option says it does, in the picker. */
 const STOP_DESCRIPTION = 'End the run here; nothing further runs.';
+
+/** How many times a gate may send the run back — the engine's constant, which `gate-revise` enforces. */
+const REVISION_BUDGET = 3;
+
+/** The plain form's note on its `Next:` line once a gate's revisions are spent. */
+const BUDGET_SPENT = ' (revision budget spent)';
+
+/**
+ * The most suggestions a revise option carries: a picker offers at most four
+ * options, and the operator's own words are the fallback beside them. The
+ * fewest is two, so the question always has a choice to make.
+ */
+const SUGGESTIONS_MAX = 4;
+const SUGGESTIONS_MIN = 2;
+
+/** How long a suggestion's label may run; its note carries the rest. */
+const LABEL_MAX = 60;
+
+/** A risk's leading marker, which says how the brief treats it and nothing about the change. */
+const RISK_MARKER = /^(?:open|recommend stop):\s*/i;
+
+/** The order a picker lists options in, after the recommended one: on, back, out. */
+const EFFECT_ORDER = { continue: 0, revise: 1, stop: 2 };
 
 /** The least of a summary kept while list items can still be dropped instead. */
 const SUMMARY_FLOOR = 400;
@@ -196,46 +219,145 @@ export function gateBrief({ state, node, oneline = false, json = false }) {
   }
   const { titles } = current.display;
   const recommended = recommend(options, closing.risks);
+  const revisions = revisionsOf(doc, recorded, byId, node, options, titles);
 
   if (oneline) {
     const next = walked ? nextLine(walked, titles) : NEXT_UNKNOWN;
-    const tail = [next, `Recommended: ${recommended}`, runLine(doc, runDir)];
+    const offered = revisions.spent ? [] : revisions.options.map(each => `revise: ${each.id} reruns=${each.reruns} revision=${revisions.revision}/${REVISION_BUDGET}`);
+    const tail = [next, ...offered, `Recommended: ${recommended}`, runLine(doc, runDir)];
     return { ok: true, text: fit(closing, DRIVEN, tail, pointerOf(doc, runDir)), errors: [], warnings };
   }
 
   const gateId = id => isGate(recorded, byId, id);
   const next = walked ? readableNext(walked, titles, gateId) : NEXT_UNKNOWN;
-  const text = fit(closing, READABLE, [next], placeOf(doc, runDir));
+  const spent = revisions.spent && revisions.options.length ? BUDGET_SPENT : '';
+  const text = fit(closing, READABLE, [`${next}${spent}`], placeOf(doc, runDir));
   if (!json) return { ok: true, text, errors: [], warnings };
 
   const ask = typeof gateNode?.ask === 'string' ? gateNode.ask.trim() : '';
   const picker = {
     question: ask ? `${text.trimEnd()}\n\n${ask}` : text.trimEnd(),
     header: headerOf(current.display, node, closing.id),
-    options: pickerOptions(options, recommended, node, current.display.option_labels, next),
+    options: pickerOptions(options, recommended, node, current.display.option_labels, next, revisions),
   };
   return { ok: true, text, picker, errors: [], warnings };
 }
 
 /**
- * The options a picker lists, in the gate's order with the recommended one
- * moved first: each with the id the answer is recorded by, the label the
- * operator reads, and a description — the `Next:` line for the continue option,
- * a plain statement for a stop. Empty when the current definition no longer
- * holds the gate's options, and the caller asks with the gate's own.
+ * The gate's revise options as the brief offers them: `{revision, spent,
+ * options[{id, reruns, description, suggestions}]}`. `revision` is the one the
+ * next revise would be — the gate's attempt — and `spent` says the budget is
+ * gone, which drops every revise option from the picker and the driven form.
+ *
+ * Where each option sends the run is read from the gate's node line, which the
+ * freeze recorded, and only failing that from the re-read definition; the
+ * stretch is walked over the frozen edges, the way `gate-revise` walks it, so
+ * the description names exactly the nodes the verb will reset.
  */
-function pickerOptions(options, recommended, gate, labels, next) {
-  if (!isPlainObject(options)) return [];
-  const listed = Object.entries(options).map(([id, option]) => {
-    const effect = isPlainObject(option) ? option.effect : option;
+function revisionsOf(doc, recorded, byId, gate, options, titles) {
+  const entry = entryOf(recorded, gate);
+  const frozen = isPlainObject(entry.reruns) ? entry.reruns : null;
+  const targets = {};
+  if (frozen) {
+    for (const [id, target] of Object.entries(frozen)) if (typeof target === 'string') targets[id] = target;
+  } else if (isPlainObject(options)) {
+    for (const [id, option] of Object.entries(options)) {
+      if (isPlainObject(option) && option.effect === 'revise' && typeof option.reruns === 'string') targets[id] = option.reruns;
+    }
+  }
+  const attempt = Number(entry.attempt);
+  const revision = Number.isInteger(attempt) && attempt > 0 ? attempt : 1;
+  const ids = Object.keys(recorded).length ? Object.keys(recorded) : [...byId.keys()];
+  const sources = summarySources(doc);
+  const revise = Object.entries(targets).map(([id, reruns]) => {
+    const stretch = reviseStretch({ ids, needsOf: each => needsOf(recorded, byId, each), reruns, gate });
+    const work = stretch.filter(each => !isGate(recorded, byId, each));
+    const names = andList(work.map(each => titleOf(titles, each)));
     return {
       id,
-      label: labelOf(labels, gate, id),
-      description: effect === 'continue' ? next : STOP_DESCRIPTION,
-      recommended: id === recommended,
+      reruns,
+      description: `Re-run ${names} with your note, then ask again (revision ${revision} of ${REVISION_BUDGET}).`,
+      suggestions: suggestionsFor(sources, [...work].reverse(), titleOf(titles, reruns)),
     };
   });
-  return [...listed.filter(option => option.recommended), ...listed.filter(option => !option.recommended)];
+  return { revision, spent: revision > REVISION_BUDGET, options: revise };
+}
+
+/**
+ * What the operator might ask a revise to change, generated from what the
+ * stretch it re-runs found: each open risk as a thing to resolve, then each
+ * decision as a thing to revisit, nearest the gate first — the order the
+ * brief lists them in, most important first. The first is the recommended one.
+ * Duplicates go; at most `SUGGESTIONS_MAX` stay. When the stretch recorded
+ * fewer than `SUGGESTIONS_MIN`, two plain edits of the rerun node make up the
+ * rest, so the question always offers a real choice and never an empty one.
+ */
+function suggestionsFor(sources, stretch, target) {
+  const found = [];
+  const add = (label, note) => {
+    if (!note || found.some(each => each.note === note)) return;
+    found.push({ label: cutLabel(label), note: sliced(note, ITEM_MAX).trimEnd() });
+  };
+  const entries = stretch.map(id => summaryOf(sources, id)).filter(Boolean);
+  for (const entry of entries) {
+    for (const risk of entry.risks) {
+      const text = itemText(risk, true).replace(RISK_MARKER, '');
+      if (text) add(text, `Resolve: ${text}`);
+    }
+  }
+  for (const entry of entries) {
+    for (const decision of entry.decisions) {
+      const text = itemText(decision, true);
+      if (text) add(`Revisit: ${text}`, `Revisit the decision: ${text}`);
+    }
+  }
+  if (found.length < SUGGESTIONS_MIN) {
+    add(`Make ${target} more specific`, `Make ${target} more specific where it is vague`);
+    add(`Cut ${target} to what is needed`, `Cut ${target} down to what the next step needs`);
+  }
+  return found.slice(0, SUGGESTIONS_MAX).map((each, index) => ({ ...each, recommended: index === 0 }));
+}
+
+/**
+ * A suggestion's label: the text with its first letter capitalised, cut at a
+ * word to `LABEL_MAX` with an ellipsis when it runs over.
+ */
+function cutLabel(written) {
+  const text = written.charAt(0).toUpperCase() + written.slice(1);
+  if (text.length <= LABEL_MAX) return text;
+  const cut = sliced(text, LABEL_MAX - 1);
+  const word = cut.lastIndexOf(' ');
+  return `${(word > LABEL_MAX / 2 ? cut.slice(0, word) : cut).trimEnd()}…`;
+}
+
+/**
+ * The options a picker lists: the recommended one first, then continue, the
+ * revise options and the stops, each group in the gate's order. Each carries the
+ * id the answer is recorded by, the label the operator reads, and a description
+ * — the `Next:` line for the continue option, what a revise re-runs, a plain
+ * statement for a stop. A revise option also says that it takes a note and
+ * carries the suggestions the note is chosen from; once the gate's revisions
+ * are spent it is left out. Empty when the current definition no longer holds
+ * the gate's options, and the caller asks with the gate's own.
+ */
+function pickerOptions(options, recommended, gate, labels, next, revisions) {
+  if (!isPlainObject(options)) return [];
+  const revise = new Map(revisions.options.map(each => [each.id, each]));
+  const listed = Object.entries(options).flatMap(([id, option]) => {
+    const effect = isPlainObject(option) ? option.effect : option;
+    const entry = description => ({ id, label: labelOf(labels, gate, id), description, recommended: id === recommended, effect });
+    if (effect === 'continue') return [entry(next)];
+    if (effect !== 'revise') return [entry(STOP_DESCRIPTION)];
+    if (revisions.spent || !revise.has(id)) return [];
+    const { reruns, description, suggestions } = revise.get(id);
+    return [{ ...entry(description), note: true, reruns, revision: revisions.revision, suggestions }];
+  });
+  const rank = option => EFFECT_ORDER[option.effect] ?? EFFECT_ORDER.stop;
+  const ordered = listed
+    .map((option, index) => ({ option, index }))
+    .sort((a, b) => rank(a.option) - rank(b.option) || a.index - b.index)
+    .map(({ option: { effect: _effect, ...option } }) => option);
+  return [...ordered.filter(option => option.recommended), ...ordered.filter(option => !option.recommended)];
 }
 
 function refuse(code, message, warnings = []) {

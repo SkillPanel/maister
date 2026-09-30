@@ -28,6 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { dashboardUrl } from './state.mjs';
+import { openRevision } from './revise.mjs';
 
 /** The one workflow whose own prose orchestrator still resumes its directories. */
 const PROSE_ORCHESTRATOR = 'product-design';
@@ -46,7 +47,8 @@ export const WRITTEN_BY_2X = [
  * Judge the run whose state file is `state`.
  *
  * Returns `{ok: true, workflow: {name, overlays, profile}, title, status, task_path,
- * dashboard}` for a run the engine froze — `dashboard` the `file://` link a
+ * dashboard, revision?}` for a run the engine froze — `revision` only while a
+ * gate's revise is open (`openRevision`) — `dashboard` the `file://` link a
  * resume shows the operator once, or null when the run has none — or
  * `{ok: false, code, message}` for one it does not resume.
  */
@@ -79,6 +81,7 @@ export function resumeCheck({ state }) {
     return refuse('state-unreadable', `${state} carries a workflow block with no name, so there is no workflow to resume`);
   }
   const task = isPlainObject(doc.task) ? doc.task : {};
+  const revision = openRevision(doc);
   return {
     ok: true,
     workflow: {
@@ -90,6 +93,9 @@ export function resumeCheck({ state }) {
     status: typeof task.status === 'string' ? task.status : null,
     task_path: dir,
     dashboard: dashboardUrl(doc, dir),
+    // Additive, and only while a gate's revise is open: a resume that finds it
+    // not yet applied runs `gate-revise` before it walks the ready set.
+    ...(revision ? { revision: { gate: revision.gate, option: revision.option, reruns: revision.reruns, revision: revision.revision, applied: revision.applied } } : {}),
   };
 }
 

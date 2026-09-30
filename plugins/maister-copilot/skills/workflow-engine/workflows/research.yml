@@ -12,6 +12,11 @@
 # makes each gate's stop option actually end the run: nothing after it is ever
 # ready.
 #
+# The one way back is a revise option. The gates that close the research
+# foundation and the high-level design can send the run back to re-run that node
+# with the operator's note; the convergence gate cannot, because its node writes
+# no document and runs its own re-ask loop.
+#
 # Target names are bare on purpose. Resolution is rooted at the plugin root and
 # the provider prefix is applied at invocation, so this one file is correct
 # under every generated variant without a rewrite.
@@ -86,12 +91,14 @@ display:
   option_labels:
     foundation-approval:
       continue-to-evaluation: "Continue to optional phases"
+      revise-research: "Revise the research"
       stop-research: "Stop here"
     convergence-approval:
       continue-to-design: "Continue"
       stop-research: "Stop here"
     design-approval:
       continue-to-completion: "Continue"
+      revise-design: "Revise the design"
       stop-research: "Stop here"
   headers:
     foundation-approval:   "Research"
@@ -127,6 +134,7 @@ nodes:
     ask: "Research foundation complete (initialized, planned, gathered, synthesized). Continue to brainstorming evaluation?"
     options:
       continue-to-evaluation: continue
+      revise-research: {effect: revise, reruns: research-foundation}
       stop-research: stop
 
   optional-phases-decision:
@@ -202,6 +210,7 @@ nodes:
     ask: "Design complete. Continue to output generation?"
     options:
       continue-to-completion: continue
+      revise-design: {effect: revise, reruns: high-level-design}
       stop-research: stop
 
   completion:

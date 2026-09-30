@@ -96,7 +96,7 @@ const { Refusal, flow } = canonical;
 /**
  * This writer's own names for the two refusals the shared publish path can
  * raise. They are passed in rather than emitted by `canonical.mjs` so this
- * module keeps its closed twenty-three-code vocabulary, which the contract suite
+ * module keeps its closed twenty-four-code vocabulary, which the contract suite
  * reads back out of the refusals themselves.
  */
 const COMMIT_CODES = { unwritable: 'state-unwritable', tempExists: 'state-temp-exists' };
@@ -138,7 +138,7 @@ const VIEWER_SOURCE = fileURLToPath(new URL('../../../orchestrator-framework/ass
  * They are caught at the projection call site and turned into warning entries,
  * because the projection runs *after* the state rename: a refusal there could not
  * un-publish the state write and reporting one would turn a landed write into a
- * reported failure. So the writer's documented twenty-three-code vocabulary does not
+ * reported failure. So the writer's documented twenty-four-code vocabulary does not
  * grow and neither code is owed a recovery row.
  */
 const DASHBOARD_CODES = { unwritable: 'dashboard-unwritable', tempExists: 'dashboard-temp-exists' };
@@ -171,8 +171,30 @@ const TOP_LEVEL_BLOCKS = ['project_context', 'related_tasks', 'verification_cont
 const PATCH_KEYS = ['orchestrator', 'task', 'workflow', 'nodes', 'context', 'phase_summaries', 'node_summaries',
   ...TOP_LEVEL_BLOCKS];
 
-/** Fixed key order inside a one-line node entry. */
-const NODE_KEYS = ['kind', 'status', 'started', 'completed', 'needs', 'on', 'values', 'dir', 'provider', 'session'];
+/**
+ * Fixed key order inside a one-line node entry. `attempt` and `reruns` are
+ * written only where they mean something — a node a revise has reset, a gate
+ * that offers a revise — so every other line keeps the bytes it always had.
+ */
+const NODE_KEYS = ['kind', 'status', 'attempt', 'started', 'completed', 'needs', 'reruns', 'on', 'values', 'dir',
+  'provider', 'session'];
+
+/**
+ * The node fields only this writer fills: `attempt` counts the revisions a
+ * node has been reset by, and `reruns` is the freeze's record of where each of
+ * a gate's revise options sends the run. A patch that carries either has them
+ * dropped and noted, like a clock field — a counter a caller could set is a
+ * budget a caller could reset.
+ */
+const WRITER_FIELDS = ['attempt', 'reruns'];
+
+/**
+ * The statuses a node is never sent back to `pending` from by an ordinary
+ * write. Every one of them records something that happened; `pending` records
+ * that nothing has. Going `running` again is a re-drive and keeps its record in
+ * the new clock; going `pending` is only ever a revise, which records why.
+ */
+const RECORDED_ENDS = new Set(['completed', 'failed', 'skipped', 'stopped']);
 
 /** Fixed key order for the scalars beside `nodes:` in the workflow block. */
 const WORKFLOW_KEYS = ['source', 'overlays', 'profile', 'graph_hash', 'grammar_version', 'name'];
@@ -432,7 +454,7 @@ const WORKFLOW_CONTEXT = {
  * had to read a second one and a write could be stamped a second apart from the
  * file describing it.
  */
-export function writeState({ state, patch }) {
+export function writeState({ state, patch, regress = null }) {
   const changed = [];
   const warnings = [];
   // The clock fields the patch carried and the writer dropped, as dotted
@@ -453,7 +475,7 @@ export function writeState({ state, patch }) {
     // write that starts a run, and a later write re-sending `workflow:` into a
     // file that already carries one is not that write.
     const hadWorkflow = doc.has('workflow');
-    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)), ignored, undeclared)) allowed.add(key);
+    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)), ignored, undeclared, regress)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -890,7 +912,7 @@ function fallbackExecutor(doc) {
  * a data file stamped a second before the state it describes is a data file whose
  * freshness cannot be reasoned about.
  */
-function apply(doc, patch, changed, now, runDir, ignored, undeclared) {
+function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = null) {
   const intended = new Set(['orchestrator']);
   // The run's frozen graph, proven, for the checks that need the definition;
   // resolved at most once per write, and only if one of them asks.
@@ -917,7 +939,7 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared) {
     applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored);
     intended.add('workflow');
   }
-  if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared);
+  if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
   if (patch.context || patch.phase_summaries) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
     // the block and writes its summaries in one invocation resolves from the
@@ -1385,7 +1407,8 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
  *              freeze that carries its inputs beside it is read with them.
  *
  * A resolved `needs` then replaces whatever the patch carried for that node, so
- * a caller that copied only the kinds still freezes the edges.
+ * a caller that copied only the kinds still freezes the edges, and a gate that
+ * offers a revise records where each revise option sends the run (`rerunsOf`).
  */
 function provenNodes(doc, workflow, runDir) {
   const nodes = workflow.nodes;
@@ -1423,10 +1446,30 @@ function provenNodes(doc, workflow, runDir) {
       + 'never one to invent');
   }
 
-  const needs = new Map(graph.nodes.map(node => [node.id, node.needs]));
+  const byId = new Map(graph.nodes.map(node => [node.id, node]));
   const filled = {};
-  for (const [id, entry] of Object.entries(nodes)) filled[id] = { ...entry, needs: needs.get(id) };
+  for (const [id, entry] of Object.entries(nodes)) {
+    const { attempt: _attempt, reruns: _reruns, ...sent } = entry;
+    filled[id] = { ...sent, needs: byId.get(id).needs };
+    const reruns = rerunsOf(byId.get(id));
+    if (reruns) filled[id].reruns = reruns;
+  }
   return filled;
+}
+
+/**
+ * A gate's revise options as `{option: node}`, or null when it offers none.
+ * Recorded at the freeze so a revise needs nothing but the state: the options
+ * are otherwise only in the definition, and a definition that changed since the
+ * freeze is exactly the run an operator most wants to send back.
+ */
+function rerunsOf(node) {
+  if (node?.type !== 'gate' || !isPlainObject(node.options)) return null;
+  const reruns = {};
+  for (const [option, value] of Object.entries(node.options)) {
+    if (isPlainObject(value) && value.effect === 'revise' && typeof value.reruns === 'string') reruns[option] = value.reruns;
+  }
+  return Object.keys(reruns).length ? reruns : null;
 }
 
 /**
@@ -1550,11 +1593,12 @@ function frozenDifferences(doc, workflow) {
   if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
   const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
   if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
-  // `needs` is carried forward like an omitted scalar: the freeze may have
-  // filled it from the resolved graph, so a retry re-sending the same entries
-  // without it is still the same patch.
+  // `needs` and `reruns` are carried forward like an omitted scalar: the freeze
+  // filled them from the resolved graph, so a retry re-sending the same entries
+  // without them is still the same patch.
   const rewritten = Object.keys(workflow.nodes).filter(id => Object.hasOwn(recorded, id)
-    && !sameValue({ status: 'pending', needs: recorded[id]?.needs, ...workflow.nodes[id] }, recorded[id]));
+    && !sameValue({ status: 'pending', needs: recorded[id]?.needs, reruns: recorded[id]?.reruns, ...workflow.nodes[id] },
+      recorded[id]));
   if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
   return differences;
 }
@@ -1586,7 +1630,7 @@ function sameValue(a, b) {
  * every run; the third needs the definition, so it holds only while the frozen
  * block still proves against it (`frozenGraphOf`).
  */
-function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared) {
+function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regress = null) {
   if (!isPlainObject(nodes)) throw new Refusal('state-patch-invalid', 'the nodes patch must be an object');
   const region = doc.nodesRegion();
   if (!region) {
@@ -1627,10 +1671,59 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared) {
     // `NODE_ID` admits `constructor`, and the entry map is a bare object
     // literal, so an unguarded read here would merge `Object.prototype`'s
     // member in as the existing entry. Same rule as everywhere else.
-    const merged = stamp(id, patchEntry, Object.hasOwn(existing, id) ? existing[id] ?? {} : {}, now, ignored);
-    doc.setNode(id, serializeNode(id, merged, patchEntry, now));
+    const before = Object.hasOwn(existing, id) ? existing[id] ?? {} : {};
+    const resetting = regress !== null && regress.has(id);
+    if (!resetting) assertForward(id, patchEntry, before);
+    const supplied = { ...patchEntry };
+    for (const field of WRITER_FIELDS) {
+      if (!Object.hasOwn(supplied, field)) continue;
+      delete supplied[field];
+      ignored.push(`workflow.nodes.${id}.${field}`);
+    }
+    const merged = resetting ? reset(before) : stamp(id, supplied, before, now, ignored);
+    doc.setNode(id, serializeNode(id, merged, supplied, now));
     changed.push(`workflow.nodes.${id}`);
   }
+}
+
+/**
+ * A node that ended is not sent back to `pending` by an ordinary write. Its
+ * statuses and clocks are the record of what the run did, and a patch that
+ * rewound one used to land silently: the clocks survived beside a `pending`
+ * status, and nothing said the node had ever run. The one sanctioned way back
+ * is a gate's revise option, which resets the stretch in one write and records
+ * why on the gate (`gate-revise`); a re-drive goes `running` and keeps its
+ * record in the new clock.
+ */
+function assertForward(id, patchEntry, existing) {
+  if (patchEntry.status !== 'pending') return;
+  const before = existing.status === undefined || existing.status === null ? null : String(existing.status);
+  if (!RECORDED_ENDS.has(before)) return;
+  throw new Refusal('state-node-regressed',
+    `node ${id} is recorded ${before}, and this write would send it back to pending. Nothing was written. A node that `
+    + 'ended is not rewound by a write: to run it again, re-drive it (status running), or answer the gate after it '
+    + 'with a revise option, which resets the stretch through gate-revise and records the reason');
+}
+
+/**
+ * One node of a revise's stretch, reset: `pending`, its clocks and values gone
+ * — the next attempt records its own — and its `attempt` one higher, counting
+ * from the first attempt as 1. Nothing else on the line moves: the edges, the
+ * gate's `reruns` and any field a newer build wrote survive as they were.
+ */
+function reset(existing) {
+  const { started: _started, completed: _completed, values: _values, ...kept } = existing;
+  return { ...kept, status: 'pending', attempt: attemptOf(existing) + 1 };
+}
+
+/**
+ * A node's attempt, counting its first as 1. The hook's reader hands a scalar
+ * back as text, so the recorded `2` arrives as `"2"`; anything that is not a
+ * positive whole number is a node that was never reset.
+ */
+export function attemptOf(entry) {
+  const value = Number(isPlainObject(entry) ? entry.attempt : undefined);
+  return Number.isInteger(value) && value > 0 ? value : 1;
 }
 
 /**
@@ -1970,6 +2063,12 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       const gate = resolvedNode(graphOf(), key);
       if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate);
     }
+    if (kind === 'node' && Array.isArray(entry.decisions)) {
+      recorded ??= recordedNodes(doc);
+      if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') {
+        entry.decisions = [...earlierRevisions(doc, key, entry.decisions), ...entry.decisions];
+      }
+    }
     if (!('status' in entry)) {
       const nodeId = kind === 'node' ? key : entry.node;
       // Both reads are own-property reads for the reason `contextBlock` gives:
@@ -1993,6 +2092,29 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     doc.set(at, block(key, entry, kind === 'node' ? 2 : 4));
     changed.push(at.join('.'));
   }
+}
+
+/**
+ * The revise decisions a gate already recorded that this write's `decisions`
+ * leaves out, in the order they were recorded. A gate's decisions are its
+ * history across attempts, and an answer is written the way it always was — the
+ * one decision taken now — so without this a later answer replaced the note
+ * that sent the run back, and nothing said the gate had ever been revised. A
+ * revise decision is the one that carries an `attempt`; any other is replaced
+ * as before.
+ */
+function earlierRevisions(doc, gate, decisions) {
+  let summaries;
+  try {
+    summaries = parseState(doc.text()).node_summaries;
+  } catch (err) {
+    throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
+  }
+  const held = isPlainObject(summaries) && Object.hasOwn(summaries, gate) && isPlainObject(summaries[gate])
+    ? summaries[gate].decisions : null;
+  if (!Array.isArray(held)) return [];
+  return held.filter(decision => isPlainObject(decision) && Object.hasOwn(decision, 'attempt')
+    && !decisions.some(sent => sameValue(sent, decision)));
 }
 
 /**

@@ -497,7 +497,7 @@ function renderTimeline(phases) {
       body = '<div class="ph-body">' +
         (ph.summary ? '<p class="ph-summary">' + esc(ph.summary) + '</p>' : "") +
         (decs ? '<div class="ph-section"><div class="sec-label">Key decisions</div><ul>' +
-          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + '</li>').join("") +
+          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + (x.note ? ' <span class="rationale">— ' + esc(x.note) + '</span>' : '') + '</li>').join("") +
           '</ul></div>' : "") +
         (risks ? '<div class="ph-section"><div class="sec-label">Open questions / risks</div><ul>' +
           ph.risks.map(x => '<li' + (isResolvedRisk(x) ? ' class="risk-item resolved" style="border:none;padding:0"' : '') + '>' + esc(x) + '</li>').join("") + '</ul></div>' : "") +
@@ -521,6 +521,7 @@ function renderTimeline(phases) {
         '</div>' +
         '<div class="ph-tags">' +
           (prog ? '<span class="mini prog">' + esc(prog) + '</span>' : "") +
+          (ph.attempt > 1 ? '<span class="mini">attempt ' + esc(ph.attempt) + '</span>' : "") +
           (decs ? '<span class="mini decisions">' + decs + ' decision' + (decs > 1 ? "s" : "") + '</span>' : "") +
           (risks ? '<span class="mini risks">' + risks + ' risk' + (risks > 1 ? "s" : "") + '</span>' : "") +
           (arts ? '<span class="mini">' + arts + ' artifact' + (arts > 1 ? "s" : "") + '</span>' : "") +

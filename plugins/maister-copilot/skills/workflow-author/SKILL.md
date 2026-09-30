@@ -90,7 +90,8 @@ and stop.
      (§ 13.1).
 4. **Gates.** After which phases should a person approve before the run goes on? Propose one after
    each phase that produces something reviewable; each gate gets exactly one continue option and at
-   least one stop (§ 6).
+   least one stop (§ 6). Where the author wants a way to send a document back, add a revise option
+   naming the node that wrote it, and give that node's section its re-run paragraph (§ 6, § 11).
 5. **Optional stretches.** A phase that runs only sometimes is guarded by a `bool` — an input, or a
    value an earlier node records (§ 7). There is no expression language; say so if the author
    describes a compound condition, and turn it into one recorded `bool`.

@@ -189,7 +189,8 @@ report says so.
 | `opens a reference with ${ and never closes it` | add the closing `}` |
 | `an artifact path is written literally` | write the path literally; pass the varying part through `with:` |
 | `an artifact path stays inside the run's task directory` | write a path relative to the run's task directory: no leading `/` or `\`, no drive letter, no `..` segment |
-| `a gate offers exactly one continue and at least one stop` | make exactly one option `continue` and at least one `stop` |
+| `a gate offers exactly one continue and at least one stop` | make exactly one option `continue` and at least one `stop`; revise options are extra |
+| `a revise option names the node it sends the run back to`, `reruns names` | write the option as `{effect: revise, reruns: <node>}`, naming a task node the gate waits on — not a gate, not a `workflow:` node, and not one whose stretch to the gate holds a `workflow:` node |
 | `a when clause is exactly one reference` | reduce the guard to one quoted `"${…}"`, optionally `!`; a combined condition is a `bool` an earlier node records |
 | `when needs a bool input`, `when needs a declared bool output` | declare that input or value `bool`, or guard on one that is |
 | `no overlay declares a profile named` | select one of the profiles the message lists |
