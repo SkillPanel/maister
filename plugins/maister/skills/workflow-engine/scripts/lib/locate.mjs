@@ -18,6 +18,13 @@
  * definition a chain), and the companion's title and opening paragraph (so a
  * router can say what the workflow is for).
  *
+ * The dispatching nodes are read off the graph a run would freeze, not off the
+ * base file: an overlay or a profile can add a node that carries `dir:`, or
+ * disable one, and a chain judged by its base alone would be started from the
+ * terminal the moment an overlay made it one. So the lookup folds its own
+ * overlay, then any the caller will add, then the profile, exactly in the
+ * order the freeze applies them.
+ *
  * Without a name it lists the project's own workflows: every top-level
  * definition in `.maister/workflows/` that is not an overlay and not named
  * after a built-in. An eject of a built-in is reached through that built-in's
@@ -30,22 +37,25 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readDefinition } from './definition.mjs';
-import { TARGET_NAME, bareWorkflowName, locateWorkflow, orphanOverlay, pluginRoot, projectRoot } from './graph.mjs';
+import { TARGET_NAME, bareWorkflowName, foldDefinition, locateWorkflow, orphanOverlay, pluginRoot, projectRoot } from './graph.mjs';
 
 /** Where definitions live, relative to a project root. */
 const HOME = path.join('.maister', 'workflows');
 
 /**
- * `{name}` looks one workflow up; no name lists the project's own. `project`
- * overrides the root the lookup is rooted at, which is otherwise the host's
- * declared project or the working directory, exactly as for `validate`.
+ * `{name}` looks one workflow up; no name lists the project's own. `overlays`
+ * and `profile` are what the caller will lay over the named workflow beyond the
+ * lookup's own overlay — the run's `--overlay` and `--profile` — and are
+ * folded in only to find the nodes that dispatch. `project` overrides the root
+ * the lookup is rooted at, which is otherwise the host's declared project or
+ * the working directory, exactly as for `validate`.
  */
-export function locate({ name = null, project = null } = {}) {
+export function locate({ name = null, overlays = [], profile = null, project = null } = {}) {
   const root = project ? path.resolve(project) : projectRoot();
-  return name === null ? list(root) : one(String(name), root);
+  return name === null ? list(root) : one(String(name), root, { overlays, profile });
 }
 
-function one(name, root) {
+function one(name, root, { overlays: extra = [], profile = null } = {}) {
   const bare = bareWorkflowName(name);
   if (bare === null) {
     return refused(null, `"${name}" is not a workflow name: expected ${TARGET_NAME.source}, optionally prefixed builtin:`);
@@ -65,6 +75,12 @@ function one(name, root) {
   if (read.errors.length) return { ok: false, errors: read.errors };
   const mismatch = nameMismatch(read.doc, bare, hit.base, root);
   if (mismatch) return refused(shown(hit.base, root), mismatch);
+  // The overlay home names operations, not a document: the built-in is the
+  // definition and the overlay rides on it. Every other home is complete.
+  const located = hit.from === 'overlay' ? [hit.at] : [];
+  const layers = [...located, ...extra].map(file => readDefinition(file));
+  const unreadable = layers.flatMap(layer => layer.errors);
+  if (unreadable.length) return { ok: false, errors: unreadable };
 
   const described = describe(hit.base, root);
   return {
@@ -73,15 +89,17 @@ function one(name, root) {
     name: bare,
     from: hit.from,
     definition: shown(hit.base, root),
-    // The overlay home names operations, not a document: the built-in is the
-    // definition and the overlay rides on it. Every other home is complete.
-    overlays: hit.from === 'overlay' ? [shown(hit.at, root)] : [],
+    overlays: located.map(file => shown(file, root)),
     ignored: hit.ignored ? shown(hit.ignored, root) : null,
     companion: described.companion,
     title: described.title,
     summary: described.summary,
     inputs: isMap(read.doc.inputs) ? read.doc.inputs : {},
-    dispatches: dispatchesOf(read.doc),
+    // A fold that finds anything wrong — an undeclared profile, an overlay
+    // naming a node the base lacks — answers the base unchanged, so the
+    // dispatching nodes are then the base's own. The caller's next step is
+    // `validate` over the same overlays and profile, which refuses the run.
+    dispatches: dispatchesOf(foldDefinition({ definition: read, overlays: layers, profile })),
   };
 }
 

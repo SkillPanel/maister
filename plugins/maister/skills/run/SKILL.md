@@ -62,10 +62,11 @@ did not start — quote its stderr verbatim and stop. Never do by hand what a ve
 
 ### 1. Find it
 
-Run `locate --name=<name>`. It performs the engine's run-by-name lookup — an eject, then a
-generated chain, then an overlay over the built-in, then the built-in, first hit winning — and
-prints what the next steps need: `definition` and `overlays` (the values `validate` takes), the
-declared `inputs`, the nodes that carry `dir:` as `dispatches`, and the companion's `title`.
+Run `locate --name=<name>`, adding each `--overlay` and the `--profile` the operator gave. It
+performs the engine's run-by-name lookup — an eject, then a generated chain, then an overlay over
+the built-in, then the built-in, first hit winning — and prints what the next steps need:
+`definition` and `overlays` (the values `validate` takes), the declared `inputs`, the nodes that
+carry `dir:` as `dispatches`, and the companion's `title`.
 
 - **Exit `1`** — relay the message as printed: the name is found nowhere, is not a workflow name,
   or finds a file whose `name:` says something else. When the name belongs to a workflow that
@@ -76,8 +77,9 @@ declared `inputs`, the nodes that carry `dir:` as `dispatches`, and the companio
 ### 2. Refuse what this entry is not for
 
 - **A chain.** A non-empty `dispatches` means nodes hand work to member repositories. That is a
-  chain, and chains are started and driven from maister cockpit, which owns the dispatch ledger
-  and the workers. Name the dispatching nodes and stop.
+  chain — whether the definition declares those nodes or an overlay or the profile adds them —
+  and chains are started and driven from maister cockpit, which owns the dispatch ledger and the
+  workers. Name the dispatching nodes and stop.
 - **A legacy folder name.** `bug-fixes`, `enhancements`, `new-features`, `refactoring` and
   `mockups` are pre-v3 task folders that every run reader skips as inventory, and a run's folder
   is its workflow's name — so a run started under one of them could never be found again. Say

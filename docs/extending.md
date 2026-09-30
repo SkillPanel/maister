@@ -137,8 +137,8 @@ exactly as they do for a built-in (below).
 learns that from the companion, so open `<name>.md` with a `# Title` line and a paragraph saying
 what the workflow does. `/maister:run --list` shows what `/maister:work` will see.
 
-**Where a chain runs.** A definition whose nodes carry `dir:` dispatches work into member
-repositories, which makes it a chain. A chain is started from the cockpit's Start-a-chain form and
+**Where a chain runs.** A definition whose nodes carry `dir:` — its own, or one an overlay or a
+profile adds — dispatches work into member repositories, which makes it a chain. A chain is started from the cockpit's Start-a-chain form and
 driven there, and `/maister:run` refuses it. Everything else on this page runs in a single project
 from the terminal.
 
