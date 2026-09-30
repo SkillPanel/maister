@@ -10,7 +10,9 @@ import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 // `gate-brief` renders what the operator reads at a gate — the closing node's
 // summary, the node that will actually run next and the recommended option —
 // from the state and the frozen graph, so that no gate depends on the model
-// composing a summary it may keep to itself.
+// composing a summary it may keep to itself. The plain form is what the
+// operator reads in session; `--json` is the picker built on it; `--oneline` is
+// the driven form, which keeps the recommendation and the run line.
 
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 const MIGRATION = path.join(ENGINE_DIR, 'workflows/migration.yml');
@@ -27,7 +29,30 @@ function brief(run, node) {
   return verb(['gate-brief', `--state=${run.state}`, `--node=${node}`]);
 }
 
-/** The line every brief ends with: where the run lives and where its dashboard is. */
+function oneline(run, node) {
+  return verb(['gate-brief', `--state=${run.state}`, `--node=${node}`, '--oneline']);
+}
+
+/** The picker `--json` returns, parsed; the exit code beside it. */
+function picker(run, node) {
+  const result = verb(['gate-brief', `--state=${run.state}`, `--node=${node}`, '--json']);
+  return { code: result.code, stderr: result.stderr, ...JSON.parse(result.stdout) };
+}
+
+/** The graph hash a run froze. */
+function readGraphHash(run) {
+  return fs.readFileSync(run.state, 'utf8').match(/graph_hash: "?(sha256:[0-9a-f]+)"?/)[1];
+}
+
+/** The option the picker recommends: always its first. */
+function recommendedOf(run, node) {
+  const { options } = picker(run, node);
+  assert.equal(options.filter(option => option.recommended).length, 1);
+  assert.equal(options[0].recommended, true);
+  return options[0].id;
+}
+
+/** The line every driven brief ends with: where the run lives and where its dashboard is. */
 function runLine(run, dashboard = path.join(run.dir, 'dashboard.html')) {
   return `Run: ${run.dir} · Dashboard: ${dashboard}`;
 }
@@ -85,24 +110,110 @@ const continueOf = (graph, id) => {
   });
 };
 
-test('gate-brief: renders the closing summary, its decisions and risks, the next node and the recommended option', t => {
+test('gate-brief: renders the closing summary, its decisions and risks and the next node, with no recommendation and no paths', t => {
   const run = atApproval(t);
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
   assert.equal(result.stdout, [
     'Two gaps found in the parser.',
-    '',
-    'Decisions:',
-    '- Patch the tokenizer — smallest change',
-    'Risks:',
-    '- The fixture corpus is thin',
-    '',
+    'Decisions: Patch the tokenizer — smallest change',
+    'Risks: The fixture corpus is thin',
     'Next: Implementation',
-    'Recommended: continue',
-    runLine(run),
     '',
   ].join('\n'));
+  assert.doesNotMatch(result.stdout, /Recommended|Run: |Dashboard|\//);
+});
+
+test('gate-brief --json: the question is the brief and the ask; the options are labelled, recommended first, each keeping its id', t => {
+  const run = atApproval(t);
+  const result = picker(run, 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.ok, true);
+  assert.equal(result.question, [
+    'Two gaps found in the parser.',
+    'Decisions: Patch the tokenizer — smallest change',
+    'Risks: The fixture corpus is thin',
+    'Next: Implementation',
+    '',
+    'Analysis complete. Continue to implementation?',
+  ].join('\n'));
+  // The sample titles its closing node "Scope analysis", which does not fit a
+  // chip; the gate's own title "Approve the scope" is cut to fit.
+  assert.equal(result.header, 'Approve the…');
+  assert.deepEqual(result.options, [
+    { id: 'continue', label: 'Continue', description: 'Next: Implementation', recommended: true },
+    { id: 'stop-here', label: 'Stop here', description: 'End the run here; nothing further runs.', recommended: false },
+  ]);
+});
+
+test('gate-brief --json: a stop recommendation moves the stop option first', t => {
+  const run = atApproval(t, { ...SUMMARY, risks: ['recommend stop: nothing in the verdict is fixable'] });
+  const { options } = picker(run, 'approval');
+  assert.deepEqual(options.map(option => [option.id, option.recommended]), [['stop-here', true], ['continue', false]]);
+});
+
+test('gate-brief --json: a built-in gate reads its labels and header from the definition, and records by id', t => {
+  const { run } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: true });
+  const result = picker(run, 'verification-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.header, 'Verification');
+  assert.deepEqual(result.options.map(option => [option.id, option.label]), [
+    ['continue-past-verification', 'Continue'],
+    ['stop-development', 'Stop here'],
+  ]);
+  assert.equal(result.options[0].description, 'Next: User documentation (skipping E2E verification)');
+});
+
+test('gate-brief --json: an overlay relabels an option and sets the header, and neither moves the frozen graph', t => {
+  const overlay = developmentOverlay(t, [
+    'display:',
+    '  option_labels:',
+    '    verification-approval:',
+    '      continue-past-verification: "Ship it"',
+    '  headers:',
+    '    verification-approval: "Checks"',
+  ]);
+  const plain = atOverlaidVerificationApproval(t, [], { verification: VERIFIED });
+  const run = atOverlaidVerificationApproval(t, [overlay], { verification: VERIFIED });
+  assert.equal(readGraphHash(run), readGraphHash(plain));
+  const result = picker(run, 'verification-approval');
+  assert.equal(result.header, 'Checks');
+  assert.deepEqual(result.options.map(option => [option.id, option.label]), [
+    ['continue-past-verification', 'Ship it'],
+    ['stop-development', 'Stop here'],
+  ]);
+});
+
+test('gate-brief --json: a gate without labels shows its option ids in sentence case', t => {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'bare.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    '  analysis: {uses: "direct:analysis", needs: []}',
+    '  approval:', '    type: gate', '    needs: [analysis]', '    ask: "Done?"',
+    '    options: {continue-past-analysis: continue, stop-development: stop}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'bare.md'), '# Bare workflow — node prose\n\n## `analysis`\n\nWrite the report.\n');
+  freeze(run, { definition });
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
+  const result = picker(run, 'approval');
+  assert.equal(result.header, 'Analysis');
+  assert.deepEqual(result.options.map(option => option.label), ['Continue past analysis', 'Stop development']);
+});
+
+test('gate-brief --json: a refusal is the same JSON with ok false, exit 1', t => {
+  const result = picker(atApproval(t, null), 'approval');
+  assert.equal(result.code, 1);
+  assert.equal(result.ok, false);
+  assert.equal(result.errors[0].code, 'gate-brief-no-summary');
+});
+
+test('gate-brief: --json and --oneline together are refused', t => {
+  const run = atApproval(t);
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--json', '--oneline']);
+  assert.notEqual(result.code, 0);
+  assert.match(result.stderr, /--oneline or --json/);
 });
 
 test('gate-brief: writes nothing', t => {
@@ -118,16 +229,18 @@ test('gate-brief: a false guard skips its stretch, and the Next line names the n
   const { run, graph } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: true });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: User documentation — skipped: E2E verification, Approve E2E verification$/m);
-  assert.match(result.stdout, new RegExp(`^Recommended: ${continueOf(graph, 'verification-approval')}$`, 'm'));
+  assert.match(result.stdout, /^Next: User documentation \(skipping E2E verification\)$/m);
+  assert.equal(recommendedOf(run, 'verification-approval'), continueOf(graph, 'verification-approval'));
   assert.match(result.stdout, /^Verification passed with 2 warnings\.$/m);
+  assert.match(oneline(run, 'verification-approval').stdout,
+    / · Next: User documentation — skipped: E2E verification, Approve E2E verification · /, 'the driven form keeps its list');
 });
 
 test('gate-brief: with every optional stretch off, the Next line lands on finalization', t => {
   const { run } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: false });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: Finalization — skipped: E2E verification, Approve E2E verification, User documentation, Approve documentation$/m);
+  assert.match(result.stdout, /^Next: Finalization \(skipping E2E verification and User documentation\)$/m);
 });
 
 test('gate-brief: an unguarded next node carries no skipped list', t => {
@@ -137,7 +250,8 @@ test('gate-brief: an unguarded next node carries no skipped list', t => {
 
 test('gate-brief: a risk that recommends stopping makes the stop option the recommended one', t => {
   const run = atApproval(t, { ...SUMMARY, risks: ['recommend stop: nothing in the verdict is fixable'] });
-  assert.match(brief(run, 'approval').stdout, /^Recommended: stop-here$/m);
+  assert.equal(recommendedOf(run, 'approval'), 'stop-here');
+  assert.match(oneline(run, 'approval').stdout, / · Recommended: stop-here · /);
 });
 
 test('gate-brief: the last gate of a run names the end of the run', t => {
@@ -194,7 +308,7 @@ test('gate-brief: a definition changed since the freeze degrades the Next line a
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^Two gaps found in the parser\.$/m);
   assert.match(result.stdout, /^Next: unknown — the definition changed since the freeze$/m);
-  assert.match(result.stdout, /^Recommended: continue$/m);
+  assert.equal(recommendedOf(run, 'approval'), 'continue');
   assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
 });
 
@@ -223,11 +337,11 @@ test('gate-brief: a summary recorded only in the context block\'s phase_summarie
   assert.match(result.stdout, /^Scoped from the context block\.$/m);
 });
 
-test('gate-brief: with no decisions and no risks the brief is the summary, a blank line, Next and Recommended', t => {
+test('gate-brief: with no decisions and no risks the brief is the summary and Next', t => {
   const run = atApproval(t, { status: 'completed', summary: 'Nothing to decide.' });
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, ['Nothing to decide.', '', 'Next: Implementation', 'Recommended: continue', runLine(run), ''].join('\n'));
+  assert.equal(result.stdout, ['Nothing to decide.', 'Next: Implementation', ''].join('\n'));
 });
 
 test('gate-brief: a skipped node\'s values read as false', t => {
@@ -241,7 +355,7 @@ test('gate-brief: a skipped node\'s values read as false', t => {
   write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Verified.' } } });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: Finalization — skipped: E2E verification, Approve E2E verification, User documentation, Approve documentation$/m);
+  assert.match(result.stdout, /^Next: Finalization \(skipping E2E verification and User documentation\)$/m);
 });
 
 test('gate-brief: an input the run never recorded takes the definition\'s default', t => {
@@ -256,7 +370,7 @@ test('gate-brief: an input the run never recorded takes the definition\'s defaul
   write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Compatible.' } } });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: Finalization — skipped: Issue resolution, Approve issue resolution, Documentation$/m);
+  assert.match(result.stdout, /^Next: Finalization \(skipping Issue resolution and Documentation\)$/m);
 });
 
 test('gate-brief: a negated guard is honoured, and a pending node outside the gate\'s downstream is never Next', t => {
@@ -277,7 +391,7 @@ test('gate-brief: a negated guard is honoured, and a pending node outside the ga
     ...['analysis', 'aside', 'report', 'wrap-up'].flatMap(id => [`## \`${id}\``, '', 'Do the step.', '']),
   ].join('\n'));
 
-  for (const [inputs, expected] of [[null, /^Next: Report$/m], [{ quiet: true }, /^Next: Wrap Up — skipped: Report$/m]]) {
+  for (const [inputs, expected] of [[null, /^Next: Report$/m], [{ quiet: true }, /^Next: Wrap Up \(skipping Report\)$/m]]) {
     const run_ = inputs ? scratch(t) : run;
     freeze(run_, { definition, inputs });
     write(run_, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
@@ -316,7 +430,8 @@ test('gate-brief: an unreadable definition with no frozen needs degrades to the 
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^Two gaps found in the parser\.$/m);
   assert.match(result.stdout, /^Next: unknown — /m);
-  assert.match(result.stdout, /^Recommended: the continue option$/m);
+  assert.match(oneline(run, 'approval').stdout, / · Recommended: the continue option · /);
+  assert.deepEqual(picker(run, 'approval').options, [], 'without the definition the picker names no option it cannot know');
   assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
   assert.match(result.stderr, /^warning: gate-brief-needs-unknown: .*analysis/m);
 });
@@ -349,28 +464,28 @@ test('refusal: the no-summary patch names the node that closed, not a placeholde
   assert.doesNotMatch(result.stderr, /<id>/);
 });
 
-test('gate-brief: the last line names the run directory and its dashboard', t => {
+test('gate-brief --oneline: the last section names the run directory and its dashboard', t => {
   const run = atApproval(t);
-  const lines = brief(run, 'approval').stdout.split('\n');
-  assert.equal(lines.at(-2), runLine(run));
+  assert.ok(oneline(run, 'approval').stdout.endsWith(` · ${runLine(run)}\n`));
 });
 
-test('gate-brief: without the viewer in the run directory the last line names the run only', t => {
+test('gate-brief: without the viewer in the run directory the driven form names the run only, and both forms point at the state file', t => {
   const run = atApproval(t, LONG);
   fs.rmSync(path.join(run.dir, 'dashboard.html'), { force: true });
+  const driven = oneline(run, 'approval');
+  assert.equal(driven.code, 0, driven.stderr);
+  assert.ok(driven.stdout.endsWith(` · Run: ${run.dir}\n`), driven.stdout);
+  assert.doesNotMatch(driven.stdout, /Dashboard|see the dashboard/);
+  assert.match(driven.stdout, /\(\+\d+ more — see the run's state file\)/);
   const result = brief(run, 'approval');
-  assert.equal(result.code, 0, result.stderr);
-  const lines = result.stdout.split('\n');
-  assert.equal(lines.at(-2), `Run: ${run.dir}`);
-  assert.doesNotMatch(result.stdout, /Dashboard|see the dashboard/);
-  assert.match(result.stdout, /\(\+\d+ more — see the run's state file\)/);
+  assert.doesNotMatch(result.stdout, /dashboard/);
+  assert.match(result.stdout, /\(\+\d+ in the run's state file\)/);
 });
 
-test('gate-brief: with html_output false the last line says there is no dashboard', t => {
+test('gate-brief --oneline: with html_output false the last section says there is no dashboard', t => {
   const run = atApproval(t);
   write(run, { orchestrator: { options: { html_output: false } } });
-  const lines = brief(run, 'approval').stdout.split('\n');
-  assert.equal(lines.at(-2), runLine(run, 'none (html_output is false)'));
+  assert.ok(oneline(run, 'approval').stdout.endsWith(` · ${runLine(run, 'none (html_output is false)')}\n`));
 });
 
 /** A summary, decisions and risks far larger than a picker shows. */
@@ -381,17 +496,54 @@ const LONG = {
   risks: Array.from({ length: 10 }, (_, i) => `Risk ${i}: ${'y'.repeat(150)}`),
 };
 
-test('gate-brief: a long brief is trimmed inside the budget, and Next, Recommended and the run line survive whole', t => {
+test('gate-brief: a long brief is trimmed inside the budget, its lists capped at three, and Next survives whole', t => {
   const run = atApproval(t, LONG);
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
   assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
   const lines = result.stdout.split('\n');
-  assert.deepEqual(lines.slice(-4), ['Next: Implementation', 'Recommended: continue', runLine(run), '']);
-  assert.match(result.stdout, /\(\+\d+ more — see the dashboard\)/);
+  assert.deepEqual(lines.slice(-2), ['Next: Implementation', '']);
   assert.match(result.stdout, /^Sentence 0 restates/);
-  assert.match(result.stdout, /^Risks:$/m, 'a trimmed brief still shows its first risk');
-  assert.match(result.stdout, /^- Risk 0: /m);
+  assert.match(result.stdout, /^Decisions: Decision 0 about the parser — .*\(\+\d+ in the dashboard\)$/m);
+  assert.match(result.stdout, /^Risks: Risk 0: .*\(\+\d+ in the dashboard\)$/m, 'a trimmed brief still shows its first risk');
+});
+
+test('gate-brief: a brief that fits still shows at most three decisions and three risks, pointing at the rest', t => {
+  const run = atApproval(t, {
+    status: 'completed',
+    summary: 'Short.',
+    decisions: ['One', 'Two', 'Three', 'Four', 'Five'],
+    risks: ['Alpha', 'Beta', 'Gamma', 'recommend stop: Delta'],
+  });
+  assert.equal(brief(run, 'approval').stdout, [
+    'Short.',
+    'Decisions: One; Two; Three (+2 in the dashboard)',
+    'Risks: recommend stop: Delta · Alpha · Beta (+1 in the dashboard)',
+    'Next: Implementation',
+    '',
+  ].join('\n'));
+});
+
+test('gate-brief: a slug key leading a decision is dropped, and a prefix that carries meaning is kept', t => {
+  const run = atApproval(t, {
+    status: 'completed',
+    summary: 'Short.',
+    decisions: ['goods-currency-contract: document the currency', { id: 'rate_limit', decision: 'Keep the limit', rationale: 'no load data' }],
+    risks: ['open: the fixture corpus is thin', 'defaulted: kept the old limit'],
+  });
+  const text = brief(run, 'approval').stdout;
+  assert.match(text, /^Decisions: document the currency; Keep the limit — no load data$/m);
+  assert.match(text, /^Risks: open: the fixture corpus is thin · defaulted: kept the old limit$/m);
+  assert.match(oneline(run, 'approval').stdout, /goods-currency-contract: document the currency/, 'the driven form is unchanged');
+});
+
+test('gate-brief: a summary is cut at the end of a sentence and says the rest is in the dashboard', t => {
+  const run = atApproval(t, { ...LONG, decisions: [], risks: [] });
+  const first = brief(run, 'approval').stdout.split('\n')[0];
+  const match = first.match(/^(.*) … \(more in the dashboard\)$/);
+  assert.ok(match, first);
+  assert.match(match[1], /node\.$/, 'the cut lands on a sentence end');
+  assert.ok(LONG.summary.startsWith(match[1]));
 });
 
 test('gate-brief: --oneline keeps the same budget and never trims its tail', t => {
@@ -417,9 +569,9 @@ test('gate-brief: a summary cut inside an emoji never splits the pair', t => {
   }
 });
 
-test('gate-brief: the characters a cut reports are exactly the ones it removed', t => {
+test('gate-brief --oneline: the characters a cut reports are exactly the ones it removed', t => {
   const run = atApproval(t, { ...LONG, decisions: [], risks: [] });
-  const first = brief(run, 'approval').stdout.split('\n')[0];
+  const first = oneline(run, 'approval').stdout.split(' · Next: ')[0];
   const match = first.match(/^(.*) … \(\+(\d+) more characters — see the dashboard\)$/);
   assert.ok(match, first);
   assert.equal(Number(match[2]), LONG.summary.length - match[1].length);
@@ -430,19 +582,23 @@ test('gate-brief: a stop recommendation keeps its risk in view however many risk
   const run = atApproval(t, { ...LONG, risks });
   const result = brief(run, 'approval');
   assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
-  assert.match(result.stdout, /^Recommended: stop-here$/m);
-  assert.match(result.stdout, /^- recommend stop: the build is red$/m, 'the reason for the recommendation is shown');
+  assert.equal(recommendedOf(run, 'approval'), 'stop-here');
+  assert.match(result.stdout, /^Risks: recommend stop: the build is red/m, 'the reason for the recommendation is shown');
+  const driven = oneline(run, 'approval').stdout;
+  assert.ok(driven.length <= BUDGET);
+  assert.match(driven, /Risks: recommend stop: the build is red/);
 });
 
 test('gate-brief: with html_output false a trimmed brief points at the state file', t => {
   const run = atApproval(t, LONG);
   write(run, { orchestrator: { options: { html_output: false } } });
   const result = brief(run, 'approval');
-  assert.doesNotMatch(result.stdout, /see the dashboard/);
-  assert.match(result.stdout, /\(\+\d+ more — see the run's state file\)/);
+  assert.doesNotMatch(result.stdout, /dashboard/);
+  assert.match(result.stdout, /\(\+\d+ in the run's state file\)/);
+  assert.match(oneline(run, 'approval').stdout, /\(\+\d+ more — see the run's state file\)/);
 });
 
-test('gate-brief: when the closing lines nearly fill the budget the brief still keeps inside it', t => {
+test('gate-brief --oneline: when the closing lines nearly fill the budget the brief still keeps inside it', t => {
   // A run directory long enough that Next, Recommended and the run line leave
   // about twenty characters for everything else.
   const rootLength = path.join(os.tmpdir(), 'maister-engine-XXXXXX').length;
@@ -454,10 +610,10 @@ test('gate-brief: when the closing lines nearly fill the budget the brief still 
   const run = scratch(t, { name: segments.join('/').slice(0, nameLength) });
   freeze(run);
   write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: LONG } });
-  const result = brief(run, 'approval');
+  const result = oneline(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
   assert.ok(result.stdout.length <= BUDGET, `brief is ${result.stdout.length} characters`);
-  assert.deepEqual(result.stdout.split('\n').slice(-4), ['Next: Implementation', 'Recommended: continue', runLine(run), '']);
+  assert.ok(result.stdout.endsWith(`Next: Implementation · Recommended: continue · ${runLine(run)}\n`), result.stdout);
 });
 
 // ---------------------------------------------------------------------------
@@ -520,16 +676,11 @@ test('gate-brief: a verifier placed before the gate is reported beside the node 
     'Verification: Verification passed with 2 warnings.',
     '',
     'Security review: One critical finding in the rate limiter.',
-    '',
-    'Risks:',
-    '- open: 2 warnings in the parser tests',
-    '- recommend stop: critical — the rate limiter trusts X-Forwarded-For',
-    '',
-    'Next: Finalization — skipped: E2E verification, Approve E2E verification, User documentation, Approve documentation',
-    'Recommended: stop-development',
-    runLine(run),
+    'Risks: recommend stop: critical — the rate limiter trusts X-Forwarded-For · open: 2 warnings in the parser tests',
+    'Next: Finalization (skipping E2E verification and User documentation)',
     '',
   ].join('\n'));
+  assert.equal(recommendedOf(run, 'verification-approval'), 'stop-development');
 });
 
 test('gate-brief: a node the closing node waits on is reported too, after it', t => {
@@ -538,7 +689,7 @@ test('gate-brief: a node the closing node waits on is reported too, after it', t
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^Verification: Verification passed with 2 warnings\.\n\nSecurity review: One critical finding in the rate limiter\.\n/);
-  assert.match(result.stdout, /^Recommended: stop-development$/m);
+  assert.equal(recommendedOf(run, 'verification-approval'), 'stop-development');
 });
 
 test('gate-brief: the stretch stops at the previous gate, so what an earlier gate reported is not repeated', t => {

@@ -477,7 +477,7 @@ function nextAt(run) {
 
 test('on: failure is skipped when every need completed, rather than running on the happy path', t => {
   const run = atGateWithFollowers(t, { audit: 'completed', finalize: 'completed', cleanup: 'completed' });
-  assert.equal(nextAt(run), 'Next: end of run — skipped: Recover');
+  assert.equal(nextAt(run), 'Next: end of run (skipping Recover)');
 });
 
 test('on: failure runs when a need failed', t => {

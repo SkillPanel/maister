@@ -105,11 +105,6 @@ function complete(run) {
   return verb(['run-complete', `--state=${run.state}`]);
 }
 
-/** The line every brief ends with: where the run lives and where its dashboard is. */
-function runLine(run) {
-  return `Run: ${run.dir} · Dashboard: ${path.join(run.dir, 'dashboard.html')}`;
-}
-
 /**
  * Past the gate and into the sub-run: the operator proceeds, `deep-audit`
  * starts a child of the authored child workflow in a task directory of its own
@@ -329,20 +324,22 @@ test('gate-brief: the fan-out\'s summaries are pooled under their titles, then t
     'Dependency scan: Two advisories, both patched upstream.',
     '',
     'Licence scan: No copyleft licences.',
-    '',
     'Next: Deep Audit',
-    'Recommended: proceed',
-    runLine(run),
     '',
   ].join('\n'));
+  const picker = JSON.parse(brief(run, 'triage', ['--json']).stdout);
+  assert.equal(picker.options[0].id, 'proceed');
+  assert.equal(picker.options[0].recommended, true);
 });
 
 test('gate-brief: a risk recommending a stop makes the gate\'s first stop option the recommended one', t => {
   const { run } = atTriage(t, { risks: ['recommend stop: one advisory has no fix'] });
   const result = brief(run);
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^- recommend stop: one advisory has no fix$/m);
-  assert.match(result.stdout, /^Recommended: abandon$/m, 'options are ordered by id, so abandon is the first stop option');
+  assert.match(result.stdout, /^Risks: recommend stop: one advisory has no fix$/m);
+  const picker = JSON.parse(brief(run, 'triage', ['--json']).stdout);
+  assert.equal(picker.options[0].id, 'abandon', 'options are ordered by id, so abandon is the first stop option');
+  assert.equal(picker.options[0].recommended, true);
 });
 
 test('gate-brief: --oneline folds the custom gate\'s brief onto one line', t => {
@@ -598,10 +595,7 @@ test('overlay: the gate brief reports the added node beside the scans, under the
     'Licence scan: No copyleft licences.',
     '',
     'Quick bill of materials: Inventory of 212 packages.',
-    '',
     'Next: Deep Audit',
-    'Recommended: proceed',
-    runLine(run),
     '',
   ].join('\n'));
 });
