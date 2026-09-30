@@ -516,3 +516,68 @@ test('parent and child close in turn, each reconciling its own declarations', t 
   assert.equal(parentResult.code, 0, parentResult.stderr);
   assert.equal(parentResult.stdout, 'missing-artifact: report outputs/summary.md\nRUN-COMPLETE\n');
 });
+
+// ---------------------------------------------------------------------------
+// an absence the node sanctioned on its own summary is not a gap
+// ---------------------------------------------------------------------------
+
+/** Write `summaries` onto the closing run's node summaries before it closes. */
+function sanction(run, summaries) {
+  write(run, { node_summaries: summaries });
+}
+
+test('a sanctioned absence prints nothing: the marker alone', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/intake.md');
+  put(run.dir, 'outputs/summary.md');
+  sanction(run, { report: { summary: 'written', absent: { evidence: 'nothing to collect for this subject' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+});
+
+test('a sanctioned absence beside a real one: only the real one is printed', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/intake.md');
+  sanction(run, { report: { summary: 'written', absent: { evidence: 'nothing to collect for this subject' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'missing-artifact: report outputs/summary.md\nRUN-COMPLETE\n');
+});
+
+test('an absence sanctioned on another node does not excuse this one', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  fs.rmSync(path.join(run.dir, 'analysis/intake.md'));
+  sanction(run, { report: { summary: 'written', absent: { summary: 'a different node\'s artifact' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.stdout, 'missing-artifact: intake analysis/intake.md\nRUN-COMPLETE\n');
+});
+
+test('parent: a sub-run node sanctions an artifact its child never wrote', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  const address = childWithFindings(run, { findings: false });
+  sanction(run, { audit: { summary: 'the child skipped its scan', absent: { findings: 'the child skipped the node that writes it' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: address } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+});
+
+test('a sanctioned artifact that was written after all is simply present', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  sanction(run, { report: { summary: 'written', absent: { evidence: 'expected none' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+});
+
+test('a hand-edited absence with no reason sanctions nothing', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/intake.md');
+  put(run.dir, 'outputs/summary.md');
+  closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  fs.appendFileSync(run.state, 'node_summaries:\n  report:\n    absent:\n      evidence: ""\n');
+  const result = complete(run);
+  assert.equal(result.stdout, 'missing-artifact: report outputs/evidence\nRUN-COMPLETE\n');
+});
