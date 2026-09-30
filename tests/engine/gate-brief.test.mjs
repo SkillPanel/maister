@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, scratch, verb, write } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 
 // `gate-brief` renders what the operator reads at a gate — the closing node's
@@ -711,4 +711,118 @@ test('refusal: a summary behind the closing node does not stand in for the closi
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 1);
   assert.ok(result.stderr.includes('{"node_summaries":{"verification":{"summary":"…"}}}'), result.stderr);
+});
+
+// ---------------------------------------------------------------------------
+// a gate that can send the run back
+// ---------------------------------------------------------------------------
+
+const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
+
+/** The review loop, at its first gate: the draft, figures skipped, and the review recorded. */
+function atReview(t, { draft = {}, review = {} } = {}) {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } } },
+    node_summaries: { draft: { summary: 'Drafted the guide.', decisions: ['Wrote it for new operators'], risks: ['open: the intro repeats the title'], ...draft } },
+  });
+  write(run, { nodes: { figures: { status: 'skipped' }, 'side-note': { status: 'completed' } } });
+  write(run, {
+    nodes: { review: { status: 'completed' } },
+    node_summaries: { review: { summary: 'Reviewed the draft.', risks: ['open: section 2 contradicts the summary'], ...review } },
+  });
+  return run;
+}
+
+function sendBack(run, note = 'Tighten it') {
+  const result = verb(['gate-revise', `--state=${run.state}`, '--node=review-approval', '--option=send-back'], { note });
+  assert.equal(result.code, 0, result.stderr);
+}
+
+/** Bring the reset stretch back to the gate, as its re-run does. */
+function rerun(run) {
+  write(run, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } } });
+  write(run, { nodes: { figures: { status: 'skipped' } } });
+  write(run, { nodes: { review: { status: 'completed' } } });
+}
+
+test('picker: continue, then revise, then stop, and the revise says what it re-runs and which revision it is', t => {
+  const run = atReview(t);
+  const { options } = picker(run, 'review-approval');
+  assert.deepEqual(options.map(option => option.id), ['publish-draft', 'send-back', 'abandon']);
+  assert.equal(options[0].description, 'Next: Publish', 'the continue option still names what runs next');
+  const revise = options[1];
+  assert.equal(revise.label, 'Send back with notes');
+  assert.equal(revise.description, 'Re-run Draft, Figures and Review with your note, then ask again (revision 1 of 3).');
+  assert.equal(revise.recommended, false, 'a revise is never recommended');
+  assert.equal(revise.note, true);
+  assert.equal(revise.reruns, 'draft');
+  assert.equal(revise.revision, 1);
+  assert.equal(Object.hasOwn(options[0], 'note'), false, 'only a revise takes a note');
+});
+
+test('picker: the suggestions come from what the stretch found, nearest the gate first, the first recommended', t => {
+  const run = atReview(t);
+  const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.deepEqual(suggestions, [
+    { label: 'Section 2 contradicts the summary', note: 'Resolve: section 2 contradicts the summary', recommended: true },
+    { label: 'The intro repeats the title', note: 'Resolve: the intro repeats the title', recommended: false },
+    { label: 'Revisit: Wrote it for new operators', note: 'Revisit the decision: Wrote it for new operators', recommended: false },
+  ]);
+});
+
+test('picker: at most four suggestions, a long one cut at a word in its label only', t => {
+  const long = 'the onboarding chapter explains the dashboard before the operator has any run to look at at all';
+  const run = atReview(t, { review: { risks: ['open: a', 'open: b', 'open: c', `open: ${long}`, 'open: e'] } });
+  const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.equal(suggestions.length, 4);
+  assert.equal(suggestions.filter(each => each.recommended).length, 1);
+  const cut = suggestions[3];
+  assert.ok(cut.label.length <= 60 && cut.label.endsWith('…'), cut.label);
+  assert.equal(cut.note, `Resolve: ${long}`);
+});
+
+test('picker: a stretch that found nothing still offers two concrete edits, never an empty question', t => {
+  const run = atReview(t, { draft: { decisions: [], risks: [] }, review: { risks: [] } });
+  const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.deepEqual(suggestions.map(each => each.note), [
+    'Make Draft more specific where it is vague',
+    'Cut Draft down to what the next step needs',
+  ]);
+  assert.equal(suggestions[0].recommended, true);
+});
+
+test('driven form: a revise section before Recommended, and the recommendation unchanged', t => {
+  const run = atReview(t);
+  const text = oneline(run, 'review-approval').stdout;
+  assert.match(text, / · Next: Publish · revise: send-back reruns=draft revision=1\/3 · Recommended: publish-draft · Run: /);
+});
+
+test('a revised gate counts its revision, and once three are spent the option is gone', t => {
+  const run = atReview(t);
+  sendBack(run);
+  rerun(run);
+  const second = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.match(second.description, /\(revision 2 of 3\)\.$/);
+  assert.match(oneline(run, 'review-approval').stdout, /revision=2\/3/);
+
+  sendBack(run);
+  rerun(run);
+  sendBack(run);
+  rerun(run);
+  const spent = picker(run, 'review-approval');
+  assert.deepEqual(spent.options.map(option => option.id), ['publish-draft', 'abandon']);
+  assert.match(brief(run, 'review-approval').stdout, /^Next: Publish \(revision budget spent\)$/m);
+  assert.doesNotMatch(oneline(run, 'review-approval').stdout, /revise:/);
+});
+
+test('a gate without a revise option renders exactly as before', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
+  const text = brief(run, 'approval').stdout;
+  assert.doesNotMatch(text, /revision/);
+  assert.doesNotMatch(oneline(run, 'approval').stdout, /revise:/);
+  assert.equal(picker(run, 'approval').options.some(option => Object.hasOwn(option, 'suggestions')), false);
 });
