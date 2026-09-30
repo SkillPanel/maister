@@ -39,12 +39,18 @@ none did; `always` runs once they have all ended, however. The definition's `nam
 `version: 1` is the bare number, never quoted; and each entry under `inputs:` declares its `type` as
 `string`, `bool` or `path`. A declared artifact is a literal path relative to the run's task
 directory: `${…}` references belong in `with:`, `dir:` and `ask:`, and one inside an artifact path,
-or one left without its closing `}`, is a validation error. The full node shape, the `dir:` and `provider:` keys and a worked example are in the
-cockpit's [umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md)
-page; [workflows.md](workflows.md) describes the built-in definitions this grammar ships with.
+or one left without its closing `}`, is a validation error. Every key, scheme and rule — the full
+node shape, gates and guards, inputs and outputs, interpolation, overlays, the companion's heading
+rule, and recipes for a child-capable workflow and a fix loop — is in the
+[workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)
+that ships with the plugin. [workflows.md](workflows.md) describes the built-in definitions written
+in it, and the cockpit's
+[umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md)
+page covers what is specific to chains.
 
 **A `direct:` node is yours entirely.** Its body is the section in the prose companion whose
-heading *is* the node id — `## assess-scope`, in backticks or bare, never a heading that merely
+heading *is* the name after `direct:` — conventionally the node id: `uses: direct:assess-scope`
+runs `## assess-scope`, in backticks or bare, at any heading level, never a heading that merely
 mentions it. Write the steps, the fan-outs, the self-checks and the questions the step asks inline;
 the engine reads that section before running the node, not after it fails. A `direct:` target with
 no section is a validation error, because the companion is the one reference a definition fully
@@ -358,6 +364,8 @@ quietly dropping the guard.
 
 ## Related reading
 
+- [Workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)
+  — every key, scheme and rule a definition, its companion and an overlay can use.
 - [Workflow details](workflows.md) — the built-in definitions, their phases and how they resolve.
 - [Command reference](commands.md) — every command, including the workspace verbs.
 - [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md)

@@ -20,6 +20,11 @@ engine command and no engine entry point of its own — which is what
 paragraph cannot disagree. Nothing in a user's mental model needs the word "engine" in
 it.
 
+**The grammar a definition is written in** — its keys, the target schemes and how a
+target resolves, gates, guards, interpolation, the prose companion and overlays — is
+[`references/grammar.md`](references/grammar.md). This skill executes that grammar and
+does not restate it.
+
 **The gate mode follows the run's driver.** With no driver block, or one whose `kind` is
 `terminal`, the engine asks its gates in session and answers them in the same turn. With
 `kind` `cockpit` or `dispatch` it suspends on them instead — request file, pending marker,
