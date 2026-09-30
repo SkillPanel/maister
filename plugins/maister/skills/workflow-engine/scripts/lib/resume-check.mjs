@@ -1,8 +1,8 @@
 /**
  * Whether a task directory is a run this engine resumes, and what it froze.
  *
- * A resume arrives by three routes — `/maister:work <dir>`, `/maister:run <dir>`
- * and a workflow's own command given a directory — and every one of them has to
+ * A resume arrives by three routes — the work command, the run command and a
+ * workflow's own command, each given a directory — and every one of them has to
  * answer the same question before anything runs: was this directory written by
  * the engine? A directory whose state carries a `workflow:` block holds a
  * frozen graph and resumes from it. One without the block was written by a 2.x
@@ -16,6 +16,8 @@
  * `product-design` is the exception. It is still a prose orchestrator, its
  * directories never carry a `workflow:` block, and they are resumed by its own
  * command — so a directory under its folder is sent there rather than refused.
+ * No message here spells a command's namespaced name: this file ships to every
+ * host unchanged, and each host names the plugin's commands its own way.
  *
  * It reads the state file and never writes: not the state, not the dashboard,
  * not anything else in the directory. Zero dependencies, `node:` builtins only,
@@ -66,7 +68,7 @@ export function resumeCheck({ state }) {
   if (!isPlainObject(workflow)) {
     if (path.basename(path.dirname(dir)) === PROSE_ORCHESTRATOR) {
       return refuse('prose-orchestrator',
-        `This task is run by the product-design orchestrator, not the workflow engine. Resume it with \`/maister:product-design ${dir}\`.`);
+        `This task is run by the product-design orchestrator, not the workflow engine. Resume it with the product-design command, giving it ${dir}.`);
     }
     return refuse('written-by-2x', WRITTEN_BY_2X);
   }

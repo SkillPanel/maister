@@ -58,7 +58,7 @@ test('resume-check: a product-design directory is sent to its own command, not r
   const result = resumeCheck(run);
   assert.equal(result.code, 1, result.stderr);
   assert.equal(result.json.code, 'prose-orchestrator');
-  assert.match(result.json.message, /\/maister:product-design /);
+  assert.match(result.json.message, /product-design command/);
 });
 
 test('resume-check: a run the engine froze resumes, with its name, overlays and profile', t => {
