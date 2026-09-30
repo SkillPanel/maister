@@ -52,11 +52,10 @@ All orchestrators follow these principles:
 
 ## Orchestrators Using This Framework
 
-- `development` (bug fixes, enhancements, features)
-- `performance`
-- `migration`
-- `research`
-- `product-design`
+- `development` (bug fixes, enhancements, features), `performance`, `migration`, `research` —
+  through the workflow engine, which runs each one's definition and cites this framework from its
+  node prose
+- `product-design` — a prose orchestrator, following these patterns directly
 
 Library consumers — not orchestrators themselves, but they read and write the same state and artifacts:
 

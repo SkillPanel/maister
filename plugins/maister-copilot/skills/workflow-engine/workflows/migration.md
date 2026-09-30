@@ -36,10 +36,10 @@ never ran would fire and ask an operator to approve nothing.
 
 ## The phase numbers, and where they went
 
-The prose form of this workflow numbers its phases, but no gate question names a
-phase number. This table maps the prose form's phases to nodes:
+The 2.x prose form of this workflow numbered its phases, but no gate question names a
+phase number. This table maps the 2.x prose form's phases to nodes:
 
-| Prose phase | Node | Closing gate |
+| 2.x phase | Node | Closing gate |
 |---|---|---|
 | Initialization steps 1-7 | `intake` | none — it auto-continues |
 | 1 | `current-state-analysis` | none — it auto-continues |
@@ -49,8 +49,8 @@ phase number. This table maps the prose form's phases to nodes:
 | 5 | `execution` | `execution-approval` |
 | 6 | `verification` | `verification-approval` |
 | 7 | `issue-resolution` | `resolution-approval` |
-| 8 | `documentation` | none — the prose form has no gate here either |
-| no twin phase → `finalization` | `finalization` | none — the workflow ends |
+| 8 | `documentation` | none — the 2.x prose form has no gate here either |
+| no 2.x phase → `finalization` | `finalization` | none — the workflow ends |
 
 Both stretches at the end of this workflow can be skipped. A gate question is
 authoring-time constant and covered by the graph hash, so it cannot say where
@@ -178,7 +178,7 @@ read.
    analysis classifies instead. A valid value is written to
    `migration_context.migration_type` and carried unchanged into the gap
    analysis, which declares it as its closed enum.
-   **The task directory survives that failure, and the prose form's does not.**
+   **The task directory survives that failure, and the 2.x prose form's does not.**
    The graph is frozen before the first node runs, so by the time this node can
    reject the value the directory exists. It holds a failed intake and nothing
    else, and the state left behind is what an operator reads before re-invoking
@@ -567,7 +567,7 @@ the node that owns it rather than leaving it to a gate.
 compatibility results, the data integrity status and the rollback test results
 in `summary`; each critical issue still open as an `open:` risk. **When the
 verdict failed and nothing in it is fixable, add a risk starting
-`recommend stop:`** that says why — the prose form stops the workflow by itself
+`recommend stop:`** that says why — the 2.x prose form stops the workflow by itself
 in that case, and the graph has no routing construct to stop with, so the gate
 brief recommending `stop-migration` is what replaces it. The
 `verification-approval` question is the gate brief rendered from this entry,
@@ -585,8 +585,8 @@ never one of those attempts**: it is not retried, it is carried into
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
 definition's `ask:` — record the answer, and stop the run on the stop option.
 
-**Its question is neutral where the prose form's names a phase number, and that
-is a recorded divergence.** The prose form asks "Continue to Phase [7 or 8]?",
+**Its question is neutral where the 2.x prose form's names a phase number, and that
+is a recorded divergence.** The 2.x prose form asks "Continue to Phase [7 or 8]?",
 interpolating the destination it computed. A gate question is authoring-time
 constant and covered by the graph hash, so it cannot carry a destination that
 differs per run. The gate brief's `Next:` line is where the operator reads where
@@ -632,7 +632,7 @@ continue the run, which is why this is a node question rather than a gate. **At 
 
 **Data integrity is never auto-fixed.** On any data integrity issue, stop the
 loop. Under a terminal driver, present the issue and the rollback option to the
-operator first, exactly as the prose form does, and let them decide. Under any
+operator first, exactly as the 2.x prose form does, and let them decide. Under any
 other driver there is nobody to present it to: **record this node `failed`**,
 and the run ends `RUN-FAILED` with the state intact. That is the whole point of
 failing rather than skipping — an operator arrives to the migration's state as
@@ -691,8 +691,8 @@ record the answer, and stop the run on the stop option.
 answering "continue to documentation" is never surprised by a run that ends
 instead.
 
-**It is also the third answer the prose form has and the graph does not.** When
-the fix iterations run out, the prose form asks whether to proceed with warnings
+**It is also the third answer the 2.x prose form has and the graph does not.** When
+the fix iterations run out, the 2.x prose form asks whether to proceed with warnings
 or to roll back. A gate has one continue and one stop and no third effect, so
 the rollback recommendation is a `recommend stop:` risk in the
 `issue-resolution` summary — the gate brief then recommends the stop option —
@@ -720,7 +720,7 @@ Key Decisions item for item into `decisions` — one entry per item, in the
 guide's order, none merged and none reworded — and its open questions and risks
 the same way into `risks`.
 
-**This is a stretch of one, with no gate after it.** The prose form has none
+**This is a stretch of one, with no gate after it.** The 2.x prose form has none
 either, so nothing here repeats its guard onto a following gate — the guard ends
 with the node.
 
@@ -732,7 +732,7 @@ without screenshots, rather than leaving the run without one.
 ## `finalization`
 
 Executed inline, writes no files, and **always runs**. It is the one node in
-this workflow the prose form has no phase for, and it exists because the two
+this workflow the 2.x prose form has no phase for, and it exists because the two
 stretches before it are guarded: a dispatched run has to publish its close-out
 from a node that no guard can skip.
 

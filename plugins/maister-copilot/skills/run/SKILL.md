@@ -130,9 +130,8 @@ The engine owns the run from here: it re-resolves the name, freezes the graph wi
 creates the run's task directory under `.maister/tasks/<name>/`, relays its startup banner, runs
 the nodes and asks every gate. Do not also do any of that here.
 
-`MAISTER_WORKFLOW_PROSE` plays no part in this entry: it selects a built-in's prose twin, and a
-twin is reached only through that workflow's own command. `/maister-copilot:run <built-in>` runs the
-built-in on the engine, which is also the way to give a built-in a profile.
+`/maister-copilot:run <built-in>` runs the built-in on the engine, as its own command does, and is the
+way to give a built-in a profile.
 
 ---
 
@@ -214,13 +213,13 @@ author at the section a problem falls under when the message alone leaves them g
 
 ## Resuming a run
 
-Read the run's `orchestrator-state.yml` with the Read tool and take `workflow.name`,
-`workflow.overlays` and `workflow.profile` from its `workflow:` block, with `task.title` and
-`task.status`.
+Run `resume-check --state=<run directory>/orchestrator-state.yml`. It reads the state, writes
+nothing, and prints the frozen `workflow.name`, `overlays` and `profile` with the run's `title`
+and `status`.
 
-- **No `workflow:` block** — the run was started by a prose orchestrator and has no frozen graph
-  to resume. Say that `/maister-copilot:work <run directory>` resumes those, and stop.
-- **`task.status` is `completed` or `failed`** — there is nothing left to run. Say so, with the
+- **Exit `1`** — a directory the engine does not resume: one started on the 2.x plugin, or a
+  product-design run. Relay its `message` verbatim and stop.
+- **`status` is `completed` or `failed`** — there is nothing left to run. Say so, with the
   run's directory and its dashboard, and stop.
 - **Otherwise** — say which run is resuming: its title, its workflow, its overlays and its
   profile. Then invoke `workflow-engine` with the Skill tool, passing the workflow's name

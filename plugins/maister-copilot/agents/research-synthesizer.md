@@ -378,6 +378,6 @@ After writing research-report.md, write `outputs/research-report.html` — the o
 - `analysis/synthesis.md` (patterns and insights)
 - `outputs/research-report.md` (comprehensive report)
 
-**State Update**: Report back to orchestrator (Phase 1, Step 4 complete)
+**State Update**: Report back to orchestrator (`research-foundation`, Step 4 complete)
 
 **Next Step**: Orchestrator evaluates brainstorming value (Phase 2) then creates deliverables

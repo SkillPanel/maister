@@ -56,12 +56,13 @@ top of them and restates none of them.
 
 ### Step 2: Probe the runtime, before writing anything
 
-Run `node --version` once. On failure, stop immediately: print `RUN-FAILED: node-unavailable`
-and hand the run to the workflow's prose twin — the orchestrator skill's
-`<name>-twin.md` in its `references/` directory, which needs no script — unless there is no twin, in
-which case there is nowhere to hand it to: a
-dispatched worker reports `blocked` through the outbox verb and stops, and a terminal-driver
-run says the same to the operator in session and stops. Never run such a workflow by hand.
+Run `node --version` once. On failure, or on a version below 20, stop immediately, before any
+task directory exists: print `RUN-FAILED: node-unavailable`. A terminal-driver run tells the
+operator that this workflow needs Node.js 20 or newer, and that an install which cannot run it
+stays on the 2.x line (`/plugin marketplace add SkillPanel/maister#release/2.x`, then
+`/plugin install maister@maister-plugins-2x`). A dispatched worker reports `blocked` through the
+outbox verb and stops. There is no second interpreter to hand the run to. Never run such a
+workflow by hand.
 
 **There is deliberately no editor-tool fallback for state writing.** Model-authored state
 is the corruption this engine exists to remove: a state file whose blocks drift out of
@@ -118,21 +119,6 @@ overlays and profile included — has a node carrying `dir:` is a chain, which d
 member repositories and is started and driven by maister cockpit, never under an absent or
 `terminal` driver. Authoring an eject or an overlay is not this
 skill's business either.
-
-**Reading the opt-out switch, on every platform.** A workflow's own orchestrator hands runs
-here by default, and `MAISTER_WORKFLOW_PROSE` is what sends a run to that workflow's prose
-twin instead —
-so the way it is read has to work wherever the plugin runs. Read it as
-`node -p "process.env.MAISTER_WORKFLOW_PROSE ?? ''"`: the same one line is correct under
-zsh, bash, PowerShell and cmd.exe, and `node` is already a hard prerequisite of the engine.
-`printenv` is not — it does not exist in cmd.exe or PowerShell, and a read that fails there
-looks exactly like a variable that was never set.
-
-**Which way a failed read falls matters more now than it did.** While the engine was opt-in,
-a read that silently failed left the operator on the prose path with no engine and no error.
-Now it leaves them on the engine path — so the reading rule above is what keeps an opt-out
-honoured on a platform whose shell has no `printenv`, and the orchestrator that owns the
-branch, not this skill, is where that read belongs.
 
 ### Step 4: Freeze the graph before executing anything
 
@@ -295,23 +281,16 @@ removed is not the base's mistake at all.
 
 ### Step 5: Decline the resume flags the graph cannot express
 
-An invocation may arrive carrying `--from=PHASE` or `--reset-attempts`, because the prose
-orchestrators offer both. Neither has an expression here. Resume recomputes the ready set from
-the frozen graph, so there is no mid-graph entry point to start from; and no attempt counter
+An invocation may arrive carrying `--from=PHASE` or `--reset-attempts`, because operators who
+used the 2.x plugin know both. Neither has an expression here. Resume recomputes the ready set
+from the frozen graph, so there is no mid-graph entry point to start from; and no attempt counter
 lives in state, because budgets are node prose rather than data.
 
-**Say so by name, before the first node runs.** Name the flag that arrived, state which of the
-two facts above makes it inert, and name the route that still serves it — the workflow's prose
-twin, `<name>-twin.md` under that workflow's orchestrator skill's `references/`, reached by setting
-`MAISTER_WORKFLOW_PROSE` to any non-empty value before the workflow's own command. Then continue
-with the flag dropped: an ordinary run, or an ordinary resume from the frozen state.
-
-**Describe that route as the twin actually behaves, which differs by workflow.** Some twins
-document a named entry point and honour `--from=PHASE` directly; others carry no phase flag at
-all and re-enter by artifact presence instead — each step checks whether its own output is
-already on disk and skips ahead when it is, so a plain re-run picks up near where the last one
-stopped. Read that workflow's own `<name>-twin.md` for its resume signature before
-promising an operator either one. Promising a phase jump to a twin that has none replaces one dead flag with another.
+**Say so by name, before the first node runs.** Name the flag that arrived and state which of the
+two facts above makes it inert. No route in this plugin serves either flag: say that re-entry is
+planned for the engine, and that a run which genuinely needs a phase jump today is one to finish
+on the 2.x line. Promise no date. Then continue with the flag dropped: an ordinary run, or an
+ordinary resume from the frozen state.
 
 **Never accept one silently.** Dropping a flag without a word is the failure this step exists
 to prevent — the operator asked to re-enter a run partway, watched it start somewhere else, and
@@ -378,6 +357,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
 | `gate-brief` | `--state`, `--node` (the gate), optional `--oneline` | the gate brief on stdout — the closing node's summary, its decisions and risks, a `Next:` line naming the node that actually runs next (with any guard-skipped nodes), a `Recommended:` option and a last `Run: <dir> · Dashboard: <path>` line, kept within 1,600 characters; `--oneline` folds it onto one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
+| `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile`, or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
 `gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
@@ -1005,8 +985,8 @@ re-validation through the writer.
    (`orchestrator.updated`), and that is the expected result. This is what keeps the editor-
    tool exception honest — model-authored state is accepted only after the writer has read
    it back and agreed.
-6. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run is handed to
-   the workflow's prose orchestrator. **Never repair the state file to get past it** — a
+6. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run
+   stops there: the operator repairs the directory or starts a new task. **Never repair the state file to get past it** — a
    refusal there means the recorded decision did not survive the reader, and editing further
    with the same tools that produced it compounds the drift instead of clearing it.
 
@@ -1251,8 +1231,8 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 
 | Refusal | Response |
 |---|---|
-| `state-non-canonical` | The existing file cannot be re-indented safely. Stop with `RUN-FAILED: state-non-canonical` and hand the run to the prose orchestrator. |
-| `state-unreadable`, `state-unwritable`, `state-incomplete`, `state-candidate-unsound` | The directory is not one the engine can own — unreadable, unwritable, a candidate the reader would not accept, or a candidate carrying a duplicate top-level key or one that neither the pre-write file nor the patch introduced. Stop with `RUN-FAILED: <code>` and hand the run to the prose orchestrator. **Never re-send the same patch**: the candidate is unsound for a reason the patch cannot change. |
+| `state-non-canonical` | The existing file cannot be re-indented safely. Stop with `RUN-FAILED: state-non-canonical`. There is no other interpreter to hand the run to: the operator repairs the file or starts a new task. |
+| `state-unreadable`, `state-unwritable`, `state-incomplete`, `state-candidate-unsound` | The directory is not one the engine can own — unreadable, unwritable, a candidate the reader would not accept, or a candidate carrying a duplicate top-level key or one that neither the pre-write file nor the patch introduced. Stop with `RUN-FAILED: <code>`; the operator repairs the directory or starts a new task. **Never re-send the same patch**: the candidate is unsound for a reason the patch cannot change. |
 | `value-not-flow-safe` | A declared output cannot go on a one-line entry. Record the node `failed` with that reason and stop with `RUN-FAILED: value-not-flow-safe`. |
 | `state-entry-unserializable` | A node entry **already in the file** cannot be re-serialised. The patch is fine; the file needs repair. Stop with `RUN-FAILED: state-entry-unserializable` and report the message verbatim. This is **not** the `value-not-flow-safe` recovery — shortening the value the patch carries changes nothing here, and trying it loops. |
 | `state-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. Nothing was written. **Do not delete anything**: wait a minute and issue the same write again. A temp older than a minute is a crashed writer's leftover, and the next write reclaims it itself. |
@@ -1268,7 +1248,7 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
-| exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable`, report the message verbatim, and hand the run to the workflow's prose orchestrator. |
+| exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable` and report the message verbatim. |
 
 A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
 projection runs after the state rename, so a projection that could not be published leaves the
@@ -1341,28 +1321,31 @@ re-resolves the definition after the freeze, and it only reads: it re-resolves i
 next node and the option ids, and degrades to `Next: unknown` when the definition has drifted.
 
 **A run started by name resumes the same way.** `/maister-copilot:run <run directory>` and
-`/maister-copilot:work <run directory>` read `workflow.name` from the run's state — not from the folder
-it sits in — and hand it here with the directory as the resume target.
+`/maister-copilot:work <run directory>` take `workflow.name` from the run's state, through
+`resume-check` — not from the folder it sits in — and hand it here with the directory as the
+resume target.
 
 **A resume declines the same two flags a first run does.** Step 5's rule is not scoped to a
 fresh run: `--from=PHASE` and `--reset-attempts` are resume flags, so a resume is where they
 usually arrive, and it is where the decline matters most. Resume skips Step 3 and Step 4 — the
-graph is already frozen — but never Step 5. Name the flag, say which fact makes it inert, name
-the route, and continue.
+graph is already frozen — but never Step 5. Name the flag, say which fact makes it inert, say
+that no route in this plugin serves it, and continue.
 
-**A task directory with no `workflow:` block is not engine-resumable.** It carries no frozen
-graph, so hand it to the workflow's prose twin, its orchestrator skill's `<name>-twin.md` — which is
-exactly why that twin is kept rather than deleted. Step-level resume *inside* a node is that node's
-prose, not the engine's business.
+**Every resume starts with `resume-check`**, run right after Step 2's probe and before anything
+else: `resume-check --state=<run directory>/orchestrator-state.yml`. It reads the state and
+writes nothing. Exit `0` prints the frozen workflow's `name`, `overlays` and `profile`. Exit `1`
+is a directory this engine does not resume, and its `message` is written for the operator:
 
-**The prose twin is transitional.** A workflow that exists both as a definition and as a
-prose twin — the orchestrator skill's `<name>-twin.md` reference, which that skill's own
-hand-off is the only route to — keeps the prose copy only while the engine is proving itself:
-it is the escape hatch during rollout, and it is retired once the engine is proven, at which
-point a working script runtime becomes a hard requirement. Retirement then deletes one
-reference file per workflow and the opt-out branch that reaches it, rather than a whole
-orchestrator. Build nothing that assumes a permanent second implementation. The reasoning is
-recorded in the repository's decision log.
+- `written-by-2x` — the state has no `workflow:` block, so the task was started on the 2.x
+  plugin and there is no frozen graph to resume. Relay the `message` verbatim and stop. Write
+  nothing into the directory, the dashboard included, create no task directory, and print no run
+  marker, because no run started. Starting a new task afterwards is an ordinary first run.
+- `prose-orchestrator` — a product-design directory, which its own command resumes. Relay the
+  `message` and stop.
+- `state-unreadable` — relay it and stop.
+
+Listing, rendering and viewing a 2.x directory are unaffected; only resuming it is refused.
+Step-level resume *inside* a node is that node's prose, not the engine's business.
 
 ---
 
@@ -1380,7 +1363,7 @@ The engine honours the framework's contracts; it does not restate them. Follow
   fails is a warning that never blocks. Moments 8-10 still bind: they sit *inside* the
   implementation and verification phases, which the engine does not enter, so
   `implementation-plan-executor` and `implementation-verifier` carry them as prose obligations on
-  the engine path exactly as on the prose one;
+  the engine path;
 - the **HTML companions** (§ 9) and the style guide path passed to artifact-writing
   delegates, following `html-report-style.md`.
 

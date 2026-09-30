@@ -25,6 +25,10 @@
  *                  the closing summary, the node that runs next, the
  *                  recommended option and the run's dashboard, kept inside a
  *                  fixed budget — read-only over a run
+ *   resume-check   --state                                    JSON on stdout
+ *                  (the frozen workflow's name, overlays and profile, or the
+ *                  refusal for a directory the engine does not resume, a 2.x
+ *                  one among them) — read-only over a run
  *   sync-plan      --plan                                     JSON on stdout
  *                  (the plan companion's progress markers set from the
  *                  markdown plan's checkboxes; a no-op without a companion)
@@ -90,6 +94,10 @@ const VERBS = {
   // gate is checked against the frozen graph, so a wrong id is refused rather
   // than rendered. `--oneline` folds the brief for a driven gate request.
   'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline'] },
+  // Read-only as well, and asked first by every resume: whether the directory
+  // holds a run this engine froze, and what it froze. One flag for the reason
+  // the other state verbs take one.
+  'resume-check': { module: 'resume-check.mjs', flags: ['state'] },
   // The plan, not the state file: the executor also runs outside an engine
   // run, and the companion it keeps in step sits beside the plan either way.
   // The run's `html_output` switch is looked up from there when a run exists.
@@ -581,6 +589,22 @@ async function runSyncPlan(flags) {
   return EXIT.REJECTED;
 }
 
+/**
+ * Say whether a task directory is a run this engine resumes.
+ *
+ * Reported like `locate` — the whole JSON result on stdout, exit 1 for a
+ * directory it does not resume — so the refusal's `message`, which is written
+ * for the operator, is read from the same place as the frozen workflow's name.
+ */
+async function runResumeCheck(flags) {
+  if (!flags.state) throw new UsageError('resume-check needs --state');
+  const module = await loadModule(VERBS['resume-check'].module);
+  const check = entryOf(module, 'resumeCheck', VERBS['resume-check'].module);
+  const result = check({ state: flags.state });
+  report(result);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
@@ -591,6 +615,7 @@ const RUNNERS = {
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
   'gate-brief': runGateBrief,
+  'resume-check': runResumeCheck,
   'sync-plan': runSyncPlan,
 };
 
