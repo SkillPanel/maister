@@ -35,10 +35,10 @@ no destination a gate names can go missing before the operator reaches it.
 
 ## The phase numbers, and where they went
 
-No gate question names a phase number; this table maps the prose form's phases
+No gate question names a phase number; this table maps the 2.x prose form's phases
 to nodes:
 
-| Prose phase | Node | Closing gate |
+| 2.x phase | Node | Closing gate |
 |---|---|---|
 | Initialization steps 1-7 | `intake` | none — it auto-continues |
 | 1 | `codebase-analysis` | none — it auto-continues |
@@ -308,7 +308,7 @@ A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
 definition's `ask:` — record the answer, and stop the run on the stop option —
 nothing after a stopped node ever becomes ready.
 
-**Its question drops the prose form's interpolated counts, and that is a
+**Its question drops the 2.x prose form's interpolated counts, and that is a
 recorded divergence.** The prose asks it with the bottleneck count and the P0
 and P1 counts spliced in. A gate question is authoring-time constant and covered
 by the graph hash, so it cannot carry a value that differs per run. The counts

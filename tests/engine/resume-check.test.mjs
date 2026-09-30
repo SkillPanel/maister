@@ -71,6 +71,7 @@ test('resume-check: a run the engine froze resumes, with its name, overlays and 
   assert.deepEqual(result.json.workflow.overlays, []);
   assert.equal(result.json.workflow.profile, null);
   assert.equal(result.json.title, 'Frozen run');
+  assert.equal(result.json.status, 'in_progress');
   assert.equal(result.json.task_path, run.dir);
 });
 

@@ -35,10 +35,10 @@ for a stretch that never ran.
 
 ## The phase numbers, and where they went
 
-No gate question names a phase number; this table maps the prose form's phases
+No gate question names a phase number; this table maps the 2.x prose form's phases
 to nodes:
 
-| Prose phase | Node | Closing gate |
+| 2.x phase | Node | Closing gate |
 |---|---|---|
 | Initialization steps 2-4 | `intake` | none — it auto-continues |
 | 1 | `codebase-analysis` | none — it auto-continues |
@@ -327,7 +327,7 @@ to `task_context.risk_level`.
 
 - `has_reproducible_defect` is the analyzer's own field, carried straight
   through. It guards both TDD stretches and both of their gates.
-- `mockups_needed` folds the prose form's two-clause condition into one bool,
+- `mockups_needed` folds the 2.x prose form's two-clause condition into one bool,
   because a `when` clause accepts exactly one optionally-negated reference and
   no expression language. It is true when the task is UI-heavy **and** the
   design-context mockups directory was not already populated by the intake
@@ -476,7 +476,7 @@ changes says so.
 **Gate brief content: the gallery pointer.** The gate's own question is
 authoring-time constant — it is covered by the graph hash, so it cannot
 interpolate anything — and this is the compensating behaviour, which is a
-recorded divergence from the prose form's interpolated question. When the studio
+recorded divergence from the 2.x prose form's interpolated question. When the studio
 reports a live gallery address, write it verbatim into this node's closing
 `summary`, with the navigation the operator has: the gallery grid, each screen,
 previous and next, and back to the grid. The gate brief renders it in the
@@ -1004,7 +1004,7 @@ the run continues to the user documentation without asking.
 The node after it, `user-docs`, is guarded by a boolean already settled. The gate
 brief's `Next:` line names the node that actually runs.
 
-**The prose form's "return to the phase 12 gate" is dropped, and that is a
+**The 2.x prose form's "return to the phase 12 gate" is dropped, and that is a
 recorded divergence.** A `needs` graph is acyclic and a back-edge fails
 validation. The compensating behaviour is the ordering rule above: the browser
 stretch completes or skips before the documentation stretch starts, so there is

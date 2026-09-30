@@ -1861,7 +1861,7 @@ function applyTopLevel(doc, key, value, changed) {
  * Every built-in definition's intake prose already required it, and three
  * attended runs of the same definition seeded scalars only — the map was
  * inserted several nodes later by whichever node first wrote a summary. A rule
- * stated in the definition, in the framework patterns and in the prose twin,
+ * stated in the definition, in the framework patterns and in the former prose twin,
  * and missed three times out of three, is not a rule prose is carrying; so the
  * writer carries it. The map is what a reader of a half-finished run consults
  * to learn that nothing has been decided yet, and its absence reads instead as

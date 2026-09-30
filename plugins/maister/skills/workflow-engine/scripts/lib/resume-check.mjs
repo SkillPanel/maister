@@ -42,7 +42,7 @@ export const WRITTEN_BY_2X = [
 /**
  * Judge the run whose state file is `state`.
  *
- * Returns `{ok: true, workflow: {name, overlays, profile}, title, task_path}`
+ * Returns `{ok: true, workflow: {name, overlays, profile}, title, status, task_path}`
  * for a run the engine froze, or `{ok: false, code, message}` for one it does
  * not resume.
  */
@@ -83,6 +83,7 @@ export function resumeCheck({ state }) {
       profile: workflow.profile ?? null,
     },
     title: typeof task.title === 'string' ? task.title : null,
+    status: typeof task.status === 'string' ? task.status : null,
     task_path: dir,
   };
 }
