@@ -44,6 +44,12 @@ prose moved into `skills/migration/references/migration-twin.md` and its `SKILL.
 same hand-off, 28,639 B → 3,908 B on the default path. Unlike the other three, this also changed
 what the command runs — before it, `/maister:migration` never reached the engine at all.
 
+**And since, 2026-09-30.** The four prose twins are deleted: 153,650 bytes leave the References
+row (`development` 60,491, `research` 34,245, `performance` 30,084, `migration` 28,830), and each
+hand-off shrinks by about 800 bytes to a pure hand-off to the engine, 3,068–3,153 B. A run's default
+path loaded neither twin, so what a run reads changes only by the hand-offs' own trim; what goes
+is the second implementation nobody ran by default.
+
 ## The session-start footprint: what a session pays before any work
 
 Measured 2026-09-11 and not re-taken: deleting a reference body changes nothing here, because a

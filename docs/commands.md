@@ -93,15 +93,12 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 | `--code-review` | Include code review phase |
 | `--research=PATH` | Start development informed by a completed research task |
 | `--sequential` | Run task groups one at a time instead of in parallel waves |
-| `--from=PHASE` | Prose phases only — see below |
-| `--reset-attempts` | Prose phases only — see below |
+| `--from=PHASE` | Declined by name — see below |
+| `--reset-attempts` | Declined by name — see below |
 
-**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:development` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume an engine run by passing the task path alone.
-
-The prose phases remain, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and they do take `--from=PHASE` — so a mid-workflow re-entry is a real route, on that path. The variable is global to every workflow that has a prose twin, research included, for as long as it is set.
+**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:development` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume a run by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
 
 **Task directory**: `.maister/tasks/development/`
-**Resume phases** (prose only): `analysis`, `gap`, `spec`, `plan`, `implement`, `verify`
 
 ---
 
@@ -113,17 +110,14 @@ Starts performance optimization with static bottleneck analysis (9 phases) or re
 
 | Flag | Description |
 |------|-------------|
-| `--from=PHASE` | Prose phases only — see below |
-| `--reset-attempts` | Prose phases only — see below |
+| `--from=PHASE` | Declined by name — see below |
+| `--reset-attempts` | Declined by name — see below |
 
 You can optionally provide profiling data (flame graphs, APM screenshots) — the workflow creates a directory for these.
 
-**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:performance` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume an engine run by passing the task path alone.
-
-The prose phases remain, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and they do take `--from=PHASE` — so a mid-workflow re-entry is a real route, on that path. The variable is global to every workflow that has a prose twin, so while it is set development, research and migration move onto prose as well.
+**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:performance` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume a run by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
 
 **Task directory**: `.maister/tasks/performance/`
-**Resume phases** (prose only): `analysis`, `specification`, `planning`, `implementation`, `verification`
 
 ---
 
@@ -138,15 +132,12 @@ Starts migration workflow (8 phases) with mandatory rollback planning and risk a
 | `--type=code\|data\|architecture\|general` | Migration type (affects risk focus) |
 | `--user-docs` | Generate the migration guide in the documentation phase |
 | `--sequential` | Run one task group at a time during execution |
-| `--from=PHASE` | Prose phases only — see below |
-| `--reset-attempts` | Prose phases only — see below |
+| `--from=PHASE` | Declined by name — see below |
+| `--reset-attempts` | Declined by name — see below |
 
-**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:migration` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume an engine run by passing the task path alone.
-
-The prose phases remain, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, and they do take `--from=PHASE` — so a mid-workflow re-entry is a real route, on that path. The variable is global to every workflow that has a prose twin, so while it is set development, research and performance move onto prose as well.
+**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:migration` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume a run by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
 
 **Task directory**: `.maister/tasks/migrations/`
-**Resume phases** (prose only): `analysis`, `target`, `spec`, `plan`, `execute`, `verify`, `docs`
 
 ---
 
@@ -161,10 +152,10 @@ Starts research workflow (8 phases) with multi-source gathering, synthesis, and 
 | `--type=technical\|requirements\|literature\|mixed` | Research methodology type |
 | `--brainstorm` | Force brainstorming + design phases |
 | `--no-brainstorm` | Skip brainstorming phases |
-| `--from=PHASE` | Not taken by either interpreter — see below |
-| `--reset-attempts` | Not taken by either interpreter — see below |
+| `--from=PHASE` | Declined by name — see below |
+| `--reset-attempts` | Declined by name — see below |
 
-**Neither flag applies to research.** Research runs on the workflow engine by default, and the engine resumes by recomputing which nodes are ready from the graph frozen into the task's state: there is no mid-graph entry point to jump to, and no attempt counter held in state to reset. A run on the engine declines both by name rather than accepting one it would ignore. The prose phases, selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value, do not implement a phase jump either — they re-enter by artifact presence, skipping each step whose output is already on disk. Resume research by passing the task path alone.
+**Neither flag applies to research.** Research runs on the workflow engine, and the engine resumes by recomputing which nodes are ready from the graph frozen into the task's state: there is no mid-graph entry point to jump to, and no attempt counter held in state to reset. A run on the engine declines both by name rather than accepting one it would ignore. Resume research by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
 
 Research output can feed into development: `/maister:development --research=.maister/tasks/research/...`
 

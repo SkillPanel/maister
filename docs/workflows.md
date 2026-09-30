@@ -24,13 +24,13 @@ The unified development workflow handles features, enhancements, and bug fixes t
 
 When run without arguments, the plugin extracts the task description from your conversation and auto-detects the type (feature, bug, or enhancement). Use `--type=` only when you want to override the auto-detection.
 
-**Flags**: `--type=bug|enhancement|feature`, `--e2e`, `--user-docs`, `--code-review`, `--research=PATH`, `--sequential`; `--from=PHASE` on the prose phases only
+**Flags**: `--type=bug|enhancement|feature`, `--e2e`, `--user-docs`, `--code-review`, `--research=PATH`, `--sequential`
 
-### Interpreter
+### How it runs
 
-This workflow exists twice: as the prose phases in the development skill, and as a workflow
-definition — a graph of nodes with declared dependencies and guards — that the workflow engine
-freezes into the task's state and executes. Both interpreters produce the same task directory.
+This workflow is a workflow definition — a graph of nodes with declared dependencies and guards —
+that the workflow engine freezes into the task's state and executes. It needs Node.js 20 or newer;
+without it the command stops before creating a task directory and says so.
 
 `/maister:development` runs the definition — it ships as `builtin:development`, with a diagram
 generated from it (regenerate that diagram, never edit it). Research, performance and migration
@@ -50,19 +50,6 @@ workspace's `prune` command once its runs have closed. Writing a chain of your o
 own skills and agents from its nodes, and what an overlay may change are covered in
 [Extending maister](extending.md).
 
-`/maister:development` runs on the workflow engine by default. To run its prose phases instead,
-set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
-
-```
-MAISTER_WORKFLOW_PROSE=1 /maister:development "..."
-```
-
-One variable covers every workflow that has a prose twin — its scope is the whole plugin, not a
-single workflow — so while it is set, research, performance and migration run on prose too. The phases it
-selects are a reference file beside the workflow's skill, not the skill body: `development`'s are
-in `skills/development/references/development-twin.md`, and the other three follow the same naming.
-On the default path nothing reads them.
-
 The engine records every state change by running its own writer, which is a shell command, and no
 permission mode covers the shell — so the plugin's gate hook allows those calls itself rather than
 asking you to approve your own workflow several times per phase. It allows only that: a plain
@@ -72,12 +59,12 @@ somewhere else, an unknown verb, a second command chained on the end — is left
 permission settings untouched, and while a run is waiting on a decision at a gate nothing is
 allowed at all, the writer included.
 
-The two resume flags differ by interpreter. The engine resumes by recomputing which nodes are
-ready from the frozen state, so there is no mid-graph entry point to start from and no attempt
-counter in that state to reset — attempt budgets are node prose. An engine-executed run declines
-`--from=PHASE` and `--reset-attempts` by name rather than accepting a flag it would silently
-ignore. Development's prose phases do take `--from=PHASE`, so selecting them is the route when
-you need to re-enter a run partway.
+The engine resumes by recomputing which nodes are ready from the frozen state, so there is no
+mid-graph entry point to start from and no attempt counter in that state to reset — attempt
+budgets are node prose. A run declines `--from=PHASE` and `--reset-attempts` by name rather than
+accepting a flag it would silently ignore. Re-entering a run partway is planned for the engine;
+until then, a run that needs it is one to finish on the 2.x line (see
+[Staying on 2.x](../README.md#staying-on-2x)).
 
 ### Phases
 
@@ -112,14 +99,11 @@ Research artifacts are copied to `analysis/research-context/` and summaries pass
 
 ```
 /maister:development [task-path]
-MAISTER_WORKFLOW_PROSE=1 /maister:development [task-path] [--from=PHASE] [--reset-attempts]
 ```
 
-Resume phases (prose only): `analysis`, `gap`, `spec`, `plan`, `implement`, `verify`
-
-Pass the task path alone to resume on the engine: it recomputes which nodes are ready from the
-frozen graph, and declines `--from=PHASE` and `--reset-attempts` by name. Both flags apply in
-full on the prose phases — see **Interpreter** above.
+Pass the task path to resume: the engine recomputes which nodes are ready from the frozen graph,
+and declines `--from=PHASE` and `--reset-attempts` by name. A task directory started on the 2.x
+plugin is not resumed — see [Task directories from 2.x](#task-directories-from-2x).
 
 ---
 
@@ -148,25 +132,14 @@ Static code analysis to detect bottlenecks, followed by standard spec/plan/imple
 
 **Optional profiling data**: You can provide runtime profiling data, flame graphs, or APM screenshots. The workflow creates `analysis/user-profiling-data/` for these files.
 
-### Interpreter
+### How it runs
 
-This workflow exists twice as well: as the prose phases in the performance skill, and as a
-workflow definition the engine freezes into the task's state and executes. Both interpreters
-produce the same task directory.
+This workflow is a workflow definition the engine freezes into the task's state and executes.
+Like development, it needs Node.js 20 or newer.
 
 `/maister:performance` runs the definition — it ships as `builtin:performance`, and resolves
 eject → generated → overlay → built-in like every other definition, so a project can eject or
 overlay it without patching the plugin.
-
-To run the prose phases instead, set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
-
-```
-MAISTER_WORKFLOW_PROSE=1 /maister:performance "..."
-```
-
-The variable is the same global switch the Development section describes — it selects the prose
-twin for every workflow that has one, not for this workflow alone. This workflow's phases live in
-`skills/performance/references/performance-twin.md`.
 
 ### Resume
 
@@ -176,9 +149,8 @@ twin for every workflow that has one, not for this workflow alone. This workflow
 
 The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no
 mid-graph entry point and no attempt counter: it declines `--from=PHASE` and `--reset-attempts`
-by name. Both flags apply in full on the prose phases only — see **Interpreter** above.
-
-Resume phases (prose phases only): `analysis`, `specification`, `planning`, `implementation`, `verification`
+by name. A task directory started on the 2.x plugin is not resumed — see
+[Task directories from 2.x](#task-directories-from-2x).
 
 ---
 
@@ -213,25 +185,14 @@ Technology, data, and architecture migrations with rollback planning and risk as
 - Halts on data integrity issues (no automatic recovery)
 - External research for version upgrades via web search
 
-### Interpreter
+### How it runs
 
-This workflow exists twice as well: as the prose phases in the migration skill, and as a
-workflow definition the engine freezes into the task's state and executes. Both interpreters
-produce the same task directory.
+This workflow is a workflow definition the engine freezes into the task's state and executes.
+Like development, it needs Node.js 20 or newer.
 
 `/maister:migration` runs the definition — it ships as `builtin:migration`, and resolves
 eject → generated → overlay → built-in like every other definition, so a project can eject or
 overlay it without patching the plugin.
-
-To run the prose phases instead, set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
-
-```
-MAISTER_WORKFLOW_PROSE=1 /maister:migration "..."
-```
-
-The variable is the same global switch the Development section describes — it selects the prose
-twin for every workflow that has one, not for this workflow alone. This workflow's phases live in
-`skills/migration/references/migration-twin.md`.
 
 ### Resume
 
@@ -241,9 +202,8 @@ twin for every workflow that has one, not for this workflow alone. This workflow
 
 The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no
 mid-graph entry point and no attempt counter: it declines `--from=PHASE` and `--reset-attempts`
-by name. Both flags apply in full on the prose phases only — see **Interpreter** above.
-
-Resume phases (prose phases only): `analysis`, `target`, `spec`, `plan`, `execute`, `verify`, `docs`
+by name. A task directory started on the 2.x plugin is not resumed — see
+[Task directories from 2.x](#task-directories-from-2x).
 
 ---
 
@@ -269,24 +229,11 @@ skips the step that exists only to tell an operator the run is over; everything 
 same eight phases, gates included. Nothing about it needs setting up on your side, and a research
 run you start yourself is unaffected.
 
-### Interpreter
+### How it runs
 
-Research runs on the workflow engine by default: the workflow ships as a definition — a graph
-of nodes with declared dependencies and guards — which the engine freezes into the task's state
-and executes. The same phases also exist as prose beside the workflow's own skill, in
-`skills/research/references/research-twin.md`, and both produce the same task directory.
-
-To run the prose phases instead, set `MAISTER_WORKFLOW_PROSE` to any non-empty value:
-
-```
-MAISTER_WORKFLOW_PROSE=1 /maister:research "..."
-```
-
-Use it if the machine has no Node runtime (the engine writes state through a script and needs
-one), or to get the previous behaviour back in one step. Unset it to return to the default.
-
-A task directory created before the engine carries no frozen graph, and is always resumed by
-the prose phases whatever the variable says.
+Research runs on the workflow engine: the workflow ships as a definition — a graph of nodes with
+declared dependencies and guards — which the engine freezes into the task's state and executes.
+Like the other engine workflows, it needs Node.js 20 or newer.
 
 ### Phases
 
@@ -309,12 +256,10 @@ Information gathering runs parallel subagents across multiple source categories 
 /maister:research [task-path]
 ```
 
-Resume takes no phase flag on either interpreter. The engine recomputes which nodes are ready
-from the frozen graph, so there is no phase to enter from and no attempt counter to clear:
-`--from=PHASE` and `--reset-attempts` are declined by name rather than quietly ignored. The
-prose phases carry no phase flag either — they re-enter by artifact presence, skipping every
-phase whose outputs are already on disk, so a plain re-run picks up near where the last one
-stopped.
+Resume takes no phase flag. The engine recomputes which nodes are ready from the frozen graph, so
+there is no phase to enter from and no attempt counter to clear: `--from=PHASE` and
+`--reset-attempts` are declined by name rather than quietly ignored. A task directory started on
+the 2.x plugin is not resumed — see [Task directories from 2.x](#task-directories-from-2x).
 
 ---
 
@@ -332,7 +277,7 @@ When run without arguments, the plugin extracts the design brief from your conve
 
 **Flags**: `--research=PATH`, `--no-visual`, `--from=PHASE`
 
-### Interpreter
+### How it runs
 
 Product design does not run on the workflow engine. It has no workflow definition: it runs
 in-session as its own orchestrator skill, the one workflow in 3.0 that does — development,
@@ -410,6 +355,20 @@ repositories — including one an overlay adds. Chains are started from maister 
 
 ---
 
+## Task directories from 2.x
+
+A task started on the 2.x plugin is finished on 2.x. Its `orchestrator-state.yml` has no
+`workflow:` block — the frozen graph every 3.0 run records — so there is nothing for the engine to
+resume. `/maister:work`, `/maister:run` and each workflow's own command, given such a directory,
+refuse it with a message that says so and change nothing in it. Its artifacts stay readable in
+place, and it is still listed and shown like any other task directory; only resuming it is
+refused. Product-design directories are the exception: that workflow still runs as its own
+orchestrator and resumes its own directories.
+
+To finish a 2.x task, install the 2.x line as the README's
+[Staying on 2.x](../README.md#staying-on-2x) section describes, and resume it there. To start the
+work over on 3.0, run the command again without a task path.
+
 ## Task Directory Structure
 
 All workflows create structured directories in `.maister/tasks/`:
@@ -471,14 +430,14 @@ waits until it is woken.
 
 ### Dashboard data
 
-`dashboard-data.js` is a projection of a run's state rather than a document kept beside it. On the
-engine path the engine writes it: every state change it commits republishes the file from the state
+`dashboard-data.js` is a projection of a run's state rather than a document kept beside it. For the
+engine's workflows the engine writes it: every state change it commits republishes the file from the state
 it has just written, so what the dashboard draws is never older than the state behind it, and no
 turn between phases has to remember to rewrite it. A run with `html_output: false` in
 `.maister/config.yml` gets no data file — if one is already on disk it is removed rather than left
-there to be polled. The prose phases, which have no single writer to ride along with, still rewrite
-the file as each phase turns over — and so do the implementation and verification phases on either
-path, because their interiors run for hours under a skill rather than under the engine, and those
+there to be polled. Product design, which runs as its own orchestrator and has no single writer to
+ride along with, still rewrites the file as each phase turns over — and so do the implementation
+and verification phases of every workflow, because their interiors run for hours under a skill rather than under the engine, and those
 two skills refresh the file from inside them.
 
 **Phase icons and titles — the `display` block.** Which icon a viewer draws beside a phase, and what
