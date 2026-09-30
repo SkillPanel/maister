@@ -148,7 +148,8 @@ run over.
 `profile`, `graph_hash` and `name` go into the freeze exactly as `resolve` printed them, beside
 `grammar_version: 1`, and `nodes` carries one entry per node `resolve` printed and no other:
 `kind: gate` for a gate, `kind: workflow` for a `workflow:` node and `kind: task` for every other
-node, each `status: pending`. The writer fills in each node's `needs` from the graph itself. Copy
+node, each `status: pending`. The writer fills in each node's `needs` from the graph itself, and
+on a gate that offers a revise its `reruns` — where each revise option sends the run. Copy
 `graph_hash` without reformatting it: it arrives in the spelling the state block accepts, and
 adding a prefix it already has, or stripping the one it needs, produces a run whose recorded
 identity no longer matches the graph it is running. The overlays and the profile are the ones
