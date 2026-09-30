@@ -1370,10 +1370,10 @@ The engine honours the framework's contracts; it does not restate them. Follow
   which stay prose; the viewer itself is installed by the freeze write, Step 4, so an engine run
   copies nothing): on the engine path every successful `write-state` projects
   `dashboard-data.js` itself, so an engine run owes none of moments 1-7 and a projection that
-  fails is a warning that never blocks. Moments 8-10 still bind: they sit *inside* the
-  implementation and verification phases, which the engine does not enter, so
-  `implementation-plan-executor` and `implementation-verifier` carry them as prose obligations on
-  the engine path;
+  fails is a warning that never blocks. The projection is the file's only writer: inside the
+  implementation and verification phases, which the engine does not enter,
+  `implementation-plan-executor` and `implementation-verifier` keep it current by sending
+  `write-state` calls, never by writing the file;
 - the **HTML companions** (§ 9) and the style guide path passed to artifact-writing
   delegates, following `html-report-style.md`.
 

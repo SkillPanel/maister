@@ -439,9 +439,11 @@ it has just written, so what the dashboard draws is never older than the state b
 turn between phases has to remember to rewrite it. A run with `html_output: false` in
 `.maister/config.yml` gets no data file — if one is already on disk it is removed rather than left
 there to be polled. Product design, which runs as its own orchestrator and has no single writer to
-ride along with, still rewrites the file as each phase turns over — and so do the implementation
-and verification phases of every workflow, because their interiors run for hours under a skill rather than under the engine, and those
-two skills refresh the file from inside them.
+ride along with, still rewrites the file as each phase turns over. The implementation and
+verification phases run for hours under a skill rather than under the engine, and they keep the
+dashboard live the same way everything else does: by writing state. After each implementation wave
+the plan's progress is republished, and after each verification cycle its verdict is, so the engine
+remains the file's only writer.
 
 **Phase icons and titles — the `display` block.** Which icon a viewer draws beside a phase, and what
 it calls the phase, cannot be worked out from a node id, so a workflow definition may say both. `display` is a top-level key — a sibling of
