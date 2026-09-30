@@ -565,8 +565,8 @@ Ask which additional verification checks to run. This question carries
 the multi-choice flag (see `gate.schema.json`), offering code review, labelled
 `(Recommended)`, and a production-readiness check; the question text carries the
 line `Recommended: code review only`. A gate cannot express it: a gate's options map
-option ids to continue or stop, and this question picks a subset rather than a
-route. The generated Copilot variant additionally rewrites a multi-choice
+option ids to routes — continue, stop or revise — and this question picks a subset
+rather than a route. The generated Copilot variant additionally rewrites a multi-choice
 question into a run of single-choice ones, which is a second reason it belongs
 in a node.
 
@@ -657,7 +657,7 @@ to alter. Other stays a fallback; no useful path runs through it.
 
 **This is where the run takes a change the operator asks for** — an item that
 needs a hand, tackled now, or a change they describe. The verification gate
-after this node only continues or stops. Apply the chosen fixes and requested
+after this node offers no revise, so it only continues or stops. Apply the chosen fixes and requested
 changes, log each one, and clear `skip_test_suite` because code changed.
 Record every one of them as `verification_context.fixes_applied`; a requested
 change spends the same budget as a fix.

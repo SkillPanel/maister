@@ -672,7 +672,7 @@ useful path runs through it.
 
 **This is where the run takes a change the operator asks for** — an item that
 needs a hand, tackled now, or a change they describe. The gate after this node
-only continues or stops. Apply the chosen fixes and requested changes and log
+offers no revise, so it only continues or stops. Apply the chosen fixes and requested changes and log
 each one. Record every one of them as `verification_context.fixes_applied`, and
 add the operator's calls — tackling an item that needs a hand is one — to
 `verification_context.decisions_made`; a requested change spends the same
@@ -754,8 +754,9 @@ instead.
 
 **It is also the third answer the 2.x prose form has and the graph does not.** When
 the fix iterations run out, the 2.x prose form asks whether to proceed with warnings
-or to roll back. A gate has one continue and one stop and no third effect, so
-the rollback recommendation is a `recommend stop:` risk in the
+or to roll back. A gate's third effect, revise, only reruns an earlier node with
+the operator's note, and no effect rolls anything back — this gate offers just its
+continue and its stop — so the rollback recommendation is a `recommend stop:` risk in the
 `issue-resolution` summary — the gate brief then recommends the stop option —
 and the stop option here is what acts on it.
 
