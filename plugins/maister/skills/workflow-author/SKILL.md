@@ -174,13 +174,12 @@ from **nodes** every time. Never disable a node and add it back under the same i
      installed plugin's skills and agents under that plugin's namespace, so the bare name may not
      be callable. Fix: write `skill:<plugin>:<name>` (§ 5.1). A target in no tier is already a
      warning in the report above; add nothing.
-   - **Artifacts** — for each declared artifact path in `resolve`'s nodes: a path with a `..`
-     segment leaves the run's task directory and is never registered on the node. Fix: a path
-     inside the run directory. Then one reminder, once per report, when the definition has
-     artifacts at all: the node prose asks for an artifact's HTML companion (a `direct:` node
-     hands its finished markdown to this plugin's `html-companion-writer` agent and registers the
-     result as that artifact's `html` in its summary), and the closing node reconciles every
-     listed file against disk. The engine does neither on its own.
+   - **Artifacts** — one reminder, once per report, when the definition declares artifacts at
+     all (a path that leaves the run's task directory is already an error in the report above):
+     the node prose asks for an artifact's HTML companion (a `direct:` node hands its finished
+     markdown to this plugin's `html-companion-writer` agent and registers the result as that
+     artifact's `html` in its summary), and the closing node reconciles every listed file against
+     disk. The engine does neither on its own.
    - **Dangling leaves** — a node nothing waits for that is not where the run ends, as
      **preview** describes them. The validator warns only for a node an overlay adds.
    - **Overlay or eject** — when an error is a refusal only an eject lifts (a key that may not be

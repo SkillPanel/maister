@@ -288,7 +288,8 @@ An input named `embedded` has one meaning: the engine sets it when this workflow
 | `artifacts` | A name → the path the node writes, relative to the run's task directory |
 | `values` | A name → the type of a short value the node records in state |
 
-An artifact path is **literal**: no `${…}`, no absolute path. It may name a file or a directory.
+An artifact path is **literal** and stays inside the run's task directory: no `${…}`, no absolute
+path, no `..` segment. It may name a file or a directory.
 A node that does not produce a declared artifact has not completed — unless its prose sanctions
 the absence by name (engine § *Recording an outcome*).
 

@@ -188,6 +188,7 @@ report says so.
 | `which is outside this node's needs closure` | add the named node to this node's `needs` |
 | `opens a reference with ${ and never closes it` | add the closing `}` |
 | `an artifact path is written literally` | write the path literally; pass the varying part through `with:` |
+| `an artifact path stays inside the run's task directory` | write a path under the run's task directory, without a `..` segment |
 | `a gate offers exactly one continue and at least one stop` | make exactly one option `continue` and at least one `stop` |
 | `a when clause is exactly one reference` | reduce the guard to one quoted `"${…}"`, optionally `!`; a combined condition is a `bool` an earlier node records |
 | `when needs a bool input`, `when needs a declared bool output` | declare that input or value `bool`, or guard on one that is |
