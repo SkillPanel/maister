@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, lastLine, scratch, sibling, umbrella, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, scratch, sibling, umbrella, verb, write } from '../helpers.mjs';
+import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
 function complete(run, extra = []) {
   return verb(['run-complete', `--state=${run.state}`, ...extra]);
@@ -580,4 +581,62 @@ test('a hand-edited absence with no reason sanctions nothing', t => {
   fs.appendFileSync(run.state, 'node_summaries:\n  report:\n    absent:\n      evidence: ""\n');
   const result = complete(run);
   assert.equal(result.stdout, 'missing-artifact: report outputs/evidence\nRUN-COMPLETE\n');
+});
+
+// ---------------------------------------------------------------------------
+// a real development run, replayed against the shipped definition
+// ---------------------------------------------------------------------------
+
+/**
+ * The attended development run the fixture was taken from: its state as it
+ * recorded it, and its task directory with every file it wrote (emptied). The
+ * run is frozen afresh against the shipped `development.yml`, so the fixture
+ * does not stale when the definition's hash moves, and then replays the
+ * recorded node outcomes and summaries in one closing write. `absent` is laid
+ * over the recorded summaries by node id.
+ */
+function replayRecorded(t, absent = {}) {
+  const run = scratch(t, { fixture: 'free-delivery-threshold', name: '2026-09-30-free-delivery-threshold-per-country' });
+  const recorded = parse(fs.readFileSync(path.join(run.dir, 'recorded-state.yml'), 'utf8'));
+  freeze(run, {
+    definition: path.join(ENGINE_DIR, 'workflows/development.yml'),
+    inputs: { ...recorded.orchestrator.options.inputs },
+  });
+  const nodes = {};
+  for (const [id, entry] of Object.entries(recorded.workflow.nodes)) {
+    nodes[id] = { status: entry.status, ...(entry.values ? { values: { ...entry.values } } : {}) };
+  }
+  const summaries = {};
+  for (const [id, summary] of Object.entries(recorded.node_summaries)) {
+    summaries[id] = JSON.parse(JSON.stringify(summary));
+    if (Object.hasOwn(absent, id)) summaries[id].absent = absent[id];
+  }
+  write(run, { task: { status: recorded.task.status }, nodes, node_summaries: summaries });
+  return run;
+}
+
+test('recorded run: as it closed, three conditional artifacts read as missing', t => {
+  const result = complete(replayRecorded(t));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, [
+    'missing-artifact: intake analysis/design-context/INDEX.md',
+    'missing-artifact: intake analysis/research-context',
+    'missing-artifact: planning implementation/visual-coverage.md',
+    'RUN-COMPLETE',
+    '',
+  ].join('\n'));
+});
+
+test('recorded run: with the absences its nodes sanction recorded, it ends on RUN-COMPLETE alone', t => {
+  const run = replayRecorded(t, {
+    intake: {
+      research_context: 'no research was passed in',
+      design_index: 'no design context was passed in',
+    },
+    planning: { visual_coverage: 'no design index exists, so there is nothing to cover' },
+  });
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.equal(result.stderr, '');
 });
