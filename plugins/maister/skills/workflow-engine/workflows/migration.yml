@@ -89,6 +89,32 @@ display:
     resolution-approval:    "Approve issue resolution"
     documentation:          "Documentation"
     finalization:           "Finalization"
+  option_labels:
+    gap-approval:
+      continue-to-specification: "Continue to specification"
+      stop-migration: "Stop here"
+    specification-approval:
+      continue-to-planning: "Continue to planning"
+      stop-migration: "Stop here"
+    planning-approval:
+      continue-to-execution: "Continue to execution"
+      stop-migration: "Stop here"
+    execution-approval:
+      continue-to-verification: "Continue to verification"
+      stop-migration: "Stop here"
+    verification-approval:
+      continue-to-issue-resolution: "Continue"
+      stop-migration: "Stop here"
+    resolution-approval:
+      continue-to-documentation: "Continue"
+      stop-migration: "Stop here"
+  headers:
+    gap-approval:            "Gap analysis"
+    specification-approval:  "Spec"
+    planning-approval:       "Plan"
+    execution-approval:      "Migrated"
+    verification-approval:   "Verification"
+    resolution-approval:     "Fixes"
 
 nodes:
   intake:

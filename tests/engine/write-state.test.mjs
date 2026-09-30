@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { DECLARED, ENGINE_DIR, FIXTURES, SAMPLE, freeze, freezePatch, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 
@@ -112,7 +113,7 @@ test('banner: the freeze prints the task, its directory, the dashboard and the f
     'Maister run started',
     'Task: Fix the parser',
     `Directory: ${run.dir}`,
-    `Dashboard: ${path.join(run.dir, 'dashboard.html')}`,
+    `Dashboard: ${pathToFileURL(path.join(run.dir, 'dashboard.html')).href}`,
     'First node: intake',
     '',
   ].join('\n'));

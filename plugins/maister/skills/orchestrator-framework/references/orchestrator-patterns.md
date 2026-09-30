@@ -353,6 +353,8 @@ phase_summaries:
 
 `decisions`, `risks`, and `artifacts` feed the operator dashboard (§ 8) and downstream context passing. Populate them at context extraction time (§ 3) — empty lists are fine when a phase produced none.
 
+`summary`, `decisions` and `risks` are read by the operator, at a gate and on the dashboard, so write them in the operator's words: what was found and what it means, never a state key, a value name, an internal flag or a slug used as a label ("no UI work, so no mockups" — not "ui_heavy false, mockups off"). List decisions and risks most important first; a gate question shows the first three of each.
+
 ---
 
 ## 5. Initialization & Resume
@@ -454,7 +456,8 @@ Workflow artifacts accumulate deep detail for subagent context — but the human
 ```
 
 **Rules**:
-- TL;DR is hard-capped at 5 lines. It states conclusions, not process ("Auth via middleware on 3 routes; no schema changes" — not "This document analyzes...").
+- TL;DR is hard-capped at 5 lines. It states conclusions, not process ("Auth via middleware on 3 routes; no schema changes" — not "This document analyzes..."), in the operator's words rather than state keys or internal flags.
+- List Key Decisions and Open Questions / Risks most important first: a gate question shows only the first three of each.
 - Omit `Key Decisions` / `Open Questions / Risks` sections entirely when empty — never write "None".
 - Full detail follows below the block, unchanged. The block is a lens, not a replacement.
 - Applies to every artifact-writing subagent and skill. Orchestrators MUST include the contract in every artifact-writing prompt (§ 3 context template).

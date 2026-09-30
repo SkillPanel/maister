@@ -27,6 +27,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
+import { dashboardUrl } from './state.mjs';
 
 /** The one workflow whose own prose orchestrator still resumes its directories. */
 const PROSE_ORCHESTRATOR = 'product-design';
@@ -44,9 +45,10 @@ export const WRITTEN_BY_2X = [
 /**
  * Judge the run whose state file is `state`.
  *
- * Returns `{ok: true, workflow: {name, overlays, profile}, title, status, task_path}`
- * for a run the engine froze, or `{ok: false, code, message}` for one it does
- * not resume.
+ * Returns `{ok: true, workflow: {name, overlays, profile}, title, status, task_path,
+ * dashboard}` for a run the engine froze — `dashboard` the `file://` link a
+ * resume shows the operator once, or null when the run has none — or
+ * `{ok: false, code, message}` for one it does not resume.
  */
 export function resumeCheck({ state }) {
   let raw;
@@ -87,6 +89,7 @@ export function resumeCheck({ state }) {
     title: typeof task.title === 'string' ? task.title : null,
     status: typeof task.status === 'string' ? task.status : null,
     task_path: dir,
+    dashboard: dashboardUrl(doc, dir),
   };
 }
 

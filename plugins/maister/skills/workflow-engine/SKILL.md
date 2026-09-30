@@ -239,7 +239,7 @@ block into a file that had none prints five lines:
 Maister run started
 Task: <task.title, or (untitled)>
 Directory: <the run's absolute task directory>
-Dashboard: <that directory>/dashboard.html   (or: none (html_output is false))
+Dashboard: file://<that directory>/dashboard.html   (or: none (html_output is false))
 First node: <the first node of the frozen graph>
 ```
 
@@ -364,8 +364,8 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `gate-request` | `--state`, `--patch-file` — the request as JSON in the patch file | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
-| `gate-brief` | `--state`, `--node` (the gate), optional `--oneline` | the gate brief on stdout — the closing node's summary, its decisions and risks, a `Next:` line naming the node that actually runs next (with any guard-skipped nodes), a `Recommended:` option and a last `Run: <dir> · Dashboard: <path>` line, kept within 1,600 characters; `--oneline` folds it onto one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
-| `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile`, or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
+| `gate-brief` | `--state`, `--node` (the gate), optional `--json` or `--oneline` | the gate brief on stdout — the closing node's summary, at most three decisions and three risks, and a `Next:` line naming the node that actually runs next (with any work a guard skips), kept within 1,600 characters. `--json` returns the in-session picker: `{ok, question, header, options[{id, label, description, recommended}], errors, warnings}`, the recommended option first. `--oneline` is the driven form: every decision and risk, the `Next:` line with every skipped node, a `Recommended: <option id>` and a `Run: <dir> · Dashboard: <path>` section, on one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
+| `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
 `gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
@@ -787,16 +787,20 @@ What the operator reads at a gate is rendered by the engine, never composed:
 
 - **Every node a gate needs writes a non-empty `summary`** in its closing `node_summaries`
   entry, in the same patch that marks it `completed`. Gate-relevant extras go beside it: the
-  choices made in `decisions`, open items in `risks`. A stop recommendation is a risk starting
+  choices made in `decisions`, open items in `risks`, each list most important first — the
+  question shows the first three of each. Write all three for the operator: what was found and
+  what it means, in plain words, never a state key, a value name, an internal flag or a slug
+  used as a label. A stop recommendation is a risk starting
   `recommend stop:`; an open decision or a still-critical issue is a risk starting `open:`; a
   defaulted question is the `defaulted:` decision *In-node questions* describes. The node
   prose's "Gate brief content" paragraph names what belongs there.
-- **Run `gate-brief --state=<state> --node=<gate>` in its own call** before asking the gate,
+- **Run `gate-brief --state=<state> --node=<gate>` in its own call** — with `--json` when the
+  gate is asked in session, with `--oneline` when a driver suspends on it — before asking the gate,
   and only once the closing write — the patch carrying the node's summary and its `completed`
   status — has returned successfully. Never issue the two in parallel: a brief that reads the
-  state before the write lands is refused for a summary that is about to exist. Its stdout is
-  the brief; paste it, never write one by hand, and never print a summary of your own before
-  the gate instead.
+  state before the write lands is refused for a summary that is about to exist. Its output is
+  the question, whole; ask it, never write one by hand, and never print a summary of your own
+  before the gate instead.
 - **`gate-brief-no-summary` or `gate-brief-value-missing`**: send the patch the message names
   through `write-state`, then run the verb again. The value-missing patch carries the node's
   whole `values` map, because a node's values are replaced whole on patch.
@@ -818,27 +822,43 @@ first, so the budget below trims the others before it — and a `recommend stop:
 them makes the stop option the recommended one. A summary further back never
 stands in for the closing node's own: without that, the brief is refused `gate-brief-no-summary`.
 
+**What the operator reads is the plain form.** The summary; one `Decisions:` line and one
+`Risks:` line, each showing at most three items with `(+N in the dashboard)` for the rest; and
+the `Next:` line. A risk that opens `recommend stop:` is always shown first, so the reason for the
+recommendation stays in view. A slug key leading an item (`some-decision-id: …`) is dropped. It
+carries no recommendation — the picker marks the recommended option — and no paths: the
+dashboard link is shown at the run's start, at a resume and at its end instead (*Operator
+visibility*).
+
 The brief stays within 1,600 characters, so that the brief and the ask fit in the picker. A
-longer summary, decision list or risk list is trimmed, and each cut says `(+N more — see the
-dashboard)`, or `see the run's state file` when the run has no dashboard or its run directory
-holds no `dashboard.html`. A risk that opens
-`recommend stop:` is the last risk to go, so the reason for the recommendation stays in view. The
-`Next:`, `Recommended:` and last `Run: <dir> · Dashboard: <path>` lines are never trimmed. The
-last line reads `Dashboard: none (html_output is false)` when the run has no dashboard, and
-names the run alone — `Run: <dir>` — when the viewer is missing from the run directory.
+longer summary is cut at the end of a sentence and says `… (more in the dashboard)`; list items
+are cut and dropped the same way. Each pointer names `the run's state file` instead when the run
+has no dashboard or its run directory holds no `dashboard.html`. The `Next:` line is never
+trimmed.
 
 The brief's `Next:` line names the node that actually runs once the continue option is
-chosen — guards evaluated, skipped nodes listed, each by its title — so no gate question or
-prose needs to say where the run goes next. When that node waits on a branch the gate does not
-reach, the line reads `Next: waiting on <titles>`; `Next: end of run` means nothing after the
-gate is left.
+chosen — guards evaluated, each node by its title — and the work skipped on the way, never a
+gate: `Next: Specification (skipping TDD red and UI mockups)`. No gate question or prose needs
+to say where the run goes next. When that node waits on a branch the gate does not reach, the
+line reads `Next: waiting on <titles>`; `Next: end of run` means nothing after the gate is left.
+
+**The driven form is unchanged.** `--oneline` keeps what a cockpit and a driver read: every
+decision and risk, each cut counted as `(+N more — see the dashboard)`, the `Next:` line with
+every skipped node — gates included — after `— skipped:`, a `Recommended: <option id>`, and a
+last `Run: <dir> · Dashboard: <path>` section, which reads `Dashboard: none (html_output is
+false)` without a dashboard and `Run: <dir>` alone when the viewer is missing. Its `Next:`,
+`Recommended:` and run sections are never trimmed.
 
 ### Terminal mode — asked and answered in one turn
 
-1. **Asks it in session** with `AskUserQuestion`. The question is the `gate-brief` stdout, a
-   blank line, then the node's `ask:` verbatim. The options are the gate's own; the one the
-   brief's `Recommended:` line names is listed first and labelled `<id> (Recommended)`. The
-   recorded answer is the bare option id.
+1. **Asks it in session** with `AskUserQuestion`, built from `gate-brief --json` field by
+   field: `question` is the question, verbatim — the brief, a blank line and the node's `ask:`;
+   `header` is the header; `options` are the options, in the order given, each shown by its
+   `label` with its `description`, and the first — the recommended one — labelled
+   `<label> (Recommended)`. Where the picker has no header or no description, leave them out; the
+   labels still carry the choice. The recorded answer is the chosen option's `id`, never its
+   label. When `options` is empty — the definition changed and no longer holds the gate — ask
+   with the gate's own option ids.
 2. **Records the answer** — the chosen option id, who answered and when — on the node's
    summary, and marks the node `completed`. The option is one of the gate's own ids, spelled as
    the gate spells it. The writer refuses any other with `state-gate-option-unknown`.
@@ -1343,7 +1363,9 @@ that no route in this plugin serves it, and continue.
 
 **Every resume starts with `resume-check`**, run right after Step 2's probe and before anything
 else: `resume-check --state=<run directory>/orchestrator-state.yml`. It reads the state and
-writes nothing. Exit `0` prints the frozen workflow's `name`, `overlays` and `profile`. Exit `1`
+writes nothing. Exit `0` prints the frozen workflow's `name`, `overlays` and `profile`, and the
+run's `dashboard` link: when it is not `null`, show it once as `Dashboard: <link>` as the resume
+begins. Exit `1`
 is a directory this engine does not resume, and its `message` is written for the operator:
 
 - `written-by-2x` — the state has no `workflow:` block, so the task was started on the 2.x
@@ -1381,8 +1403,15 @@ The engine honours the framework's contracts; it does not restate them. Follow
 `titles` — node id to a short one-line title — beside `icons`; an overlay or a profile may add or
 override either, and neither moves `graph_hash`. The dashboard's phase names and the gate brief's
 `Next:` line use them, falling back to the id made readable (`gap-analysis` → `Gap Analysis`);
-name phases the same way in the executive summary. Ids stay wherever something is keyed: state,
-gate files, markers and option ids.
+name phases the same way in the executive summary. The same block's `option_labels` and `headers`
+give a gate's options the words an operator picks and its question a short header; the picker
+`gate-brief --json` returns uses them. Ids stay wherever something is keyed: state, gate files,
+markers and option ids — a gate's answer is recorded by option id, never by label.
+
+**The dashboard link is shown three times, never at a gate**: in the freeze banner as the run
+starts, from `resume-check` as a resume begins, and once more at the end as `Dashboard: <link>`,
+the last line of the closing text before `run-complete` — the same `file://` link the banner or
+`resume-check` gave. A run without a dashboard shows none.
 
 The run's last line is a marker, read by tooling: `RUN-COMPLETE`, `RUN-FAILED: <reason>`, or —
 when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node> run=<child-run-id>`.

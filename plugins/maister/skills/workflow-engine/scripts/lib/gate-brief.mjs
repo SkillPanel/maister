@@ -30,13 +30,26 @@
  * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
  * back on).
  *
+ * Three forms, one reading. The plain form is what an operator reads in
+ * session: the summary, at most three decisions and three risks on one line
+ * each, and a `Next:` line naming the node that runs and any work skipped on the
+ * way — never a gate. It carries no recommendation and no paths: the picker
+ * marks the recommended option, and the dashboard link is shown once, at the
+ * run's start, resume and end, rather than at every gate. `--json` wraps the
+ * plain form into what a picker takes — the question (the brief, a blank line
+ * and the gate's `ask:`), a header of at most `HEADER_MAX` characters, and the
+ * options in order, recommended first, each with its id, its label and a
+ * description — so the model maps fields rather than composing a question.
+ * `--oneline` is the driven form a gate request carries, and it is the shape a
+ * cockpit and a driver read: every line of the brief, `Recommended: <id>` and
+ * the `Run: … · Dashboard: …` line included, folded onto one line.
+ *
  * The budget. A picker cuts a question off at about 2,000 characters, and what
- * it cut was the tail — the risks, `Next:`, `Recommended:` and the ask. So the
- * brief keeps inside `BUDGET`, trimming the summary, the decisions and the risks
- * with a pointer to the dashboard — or to the state file, when the run has no
- * dashboard or its viewer is missing — and never the three closing lines:
- * `Next:`, `Recommended:` and the `Run: … · Dashboard: …` line that says where
- * the run and its full summaries live (the run alone when there is no viewer).
+ * it cut was the tail — the risks, `Next:` and the ask. So the brief keeps
+ * inside `BUDGET`, trimming the summary, the decisions and the risks with a
+ * pointer to the dashboard — or to the state file, when the run has no
+ * dashboard or its viewer is missing — and never its closing lines: `Next:`,
+ * and in the driven form `Recommended:` and the run line.
  *
  * The guard evaluation and the ready-set simulation live here and nowhere else:
  * `walk` for a gate's `Next:` line, `atClose` for what a completed run still owes.
@@ -54,7 +67,7 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { resolve } from './graph.mjs';
-import { displayOf, titleOf } from './display.mjs';
+import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
@@ -89,14 +102,30 @@ export const BUDGET = 1600;
 /** How long one decision or risk may run before it is cut short. */
 const ITEM_MAX = 200;
 
+/** How many decisions, and how many risks, the plain form shows before pointing at the rest. */
+const LIST_CAP = 3;
+
+/**
+ * A slug key leading a list item — `goods-currency-contract: …` — which names
+ * the entry for a machine and says nothing to an operator. At least one dash or
+ * underscore, so the prefixes that carry meaning (`open:`, `defaulted:`,
+ * `recommend stop:`) are never taken for one.
+ */
+const SLUG_KEY = /^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)+:\s+/;
+const SLUG = /^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)+$/;
+
+/** What a stop option says it does, in the picker. */
+const STOP_DESCRIPTION = 'End the run here; nothing further runs.';
+
 /** The least of a summary kept while list items can still be dropped instead. */
 const SUMMARY_FLOOR = 400;
 
 /**
  * Render the brief for the gate `node` of the run whose state file is `state`.
- * `oneline` folds it onto one flow-safe line for a driven gate request.
+ * `oneline` folds it onto one flow-safe line for a driven gate request; `json`
+ * returns the picker — `{question, header, options}` — beside the plain text.
  */
-export function gateBrief({ state, node, oneline = false }) {
+export function gateBrief({ state, node, oneline = false, json = false }) {
   let doc;
   try {
     doc = parse(fs.readFileSync(state, 'utf8'));
@@ -130,7 +159,7 @@ export function gateBrief({ state, node, oneline = false }) {
   const { direct: candidates, stretch } = closingCandidates(recorded, byId, node);
   let closing;
   if (candidates.length) {
-    closing = closingStretch(doc, recorded, candidates, stretch, current.titles);
+    closing = closingStretch(doc, recorded, candidates, stretch, current.display.titles);
     if (!closing) {
       return refuse('gate-brief-no-summary',
         `no node this gate closes has recorded a summary (looked at: ${candidates.join(', ')}); `
@@ -160,19 +189,53 @@ export function gateBrief({ state, node, oneline = false }) {
   const gateNode = byId.get(node);
   const options = gateNode?.type === 'gate' && isPlainObject(gateNode.options) ? gateNode.options : null;
 
-  let next;
-  if (current.drift) {
-    next = NEXT_UNKNOWN;
-  } else {
-    const walked = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults });
+  let walked = null;
+  if (!current.drift) {
+    walked = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults });
     if (!walked.ok) return { ok: false, text: '', errors: walked.errors, warnings };
-    next = nextLine(walked, current.titles);
+  }
+  const { titles } = current.display;
+  const recommended = recommend(options, closing.risks);
+
+  if (oneline) {
+    const next = walked ? nextLine(walked, titles) : NEXT_UNKNOWN;
+    const tail = [next, `Recommended: ${recommended}`, runLine(doc, runDir)];
+    return { ok: true, text: fit(closing, DRIVEN, tail, pointerOf(doc, runDir)), errors: [], warnings };
   }
 
-  const recommended = recommend(options, closing.risks);
-  const tail = [next, `Recommended: ${recommended}`, runLine(doc, runDir)];
-  const text = fit(closing, oneline ? renderOneline : renderPlain, tail, pointerOf(doc, runDir));
-  return { ok: true, text, errors: [], warnings };
+  const gateId = id => isGate(recorded, byId, id);
+  const next = walked ? readableNext(walked, titles, gateId) : NEXT_UNKNOWN;
+  const text = fit(closing, READABLE, [next], placeOf(doc, runDir));
+  if (!json) return { ok: true, text, errors: [], warnings };
+
+  const ask = typeof gateNode?.ask === 'string' ? gateNode.ask.trim() : '';
+  const picker = {
+    question: ask ? `${text.trimEnd()}\n\n${ask}` : text.trimEnd(),
+    header: headerOf(current.display, node, closing.id),
+    options: pickerOptions(options, recommended, node, current.display.option_labels, next),
+  };
+  return { ok: true, text, picker, errors: [], warnings };
+}
+
+/**
+ * The options a picker lists, in the gate's order with the recommended one
+ * moved first: each with the id the answer is recorded by, the label the
+ * operator reads, and a description — the `Next:` line for the continue option,
+ * a plain statement for a stop. Empty when the current definition no longer
+ * holds the gate's options, and the caller asks with the gate's own.
+ */
+function pickerOptions(options, recommended, gate, labels, next) {
+  if (!isPlainObject(options)) return [];
+  const listed = Object.entries(options).map(([id, option]) => {
+    const effect = isPlainObject(option) ? option.effect : option;
+    return {
+      id,
+      label: labelOf(labels, gate, id),
+      description: effect === 'continue' ? next : STOP_DESCRIPTION,
+      recommended: id === recommended,
+    };
+  });
+  return [...listed.filter(option => option.recommended), ...listed.filter(option => !option.recommended)];
 }
 
 function refuse(code, message, warnings = []) {
@@ -190,7 +253,12 @@ function hasViewer(doc, runDir) {
 
 /** Where a trimmed brief sends the reader for the rest: the dashboard, or the state file without one. */
 function pointerOf(doc, runDir) {
-  return hasViewer(doc, runDir) ? 'see the dashboard' : "see the run's state file";
+  return `see ${placeOf(doc, runDir)}`;
+}
+
+/** The place itself, which the plain form names after "more in". */
+function placeOf(doc, runDir) {
+  return hasViewer(doc, runDir) ? 'the dashboard' : "the run's state file";
 }
 
 /**
@@ -218,16 +286,17 @@ function digest(value) {
 // ---------------------------------------------------------------------------
 
 /**
- * The frozen definition, re-read and re-resolved: `{graph, defaults, titles,
+ * The frozen definition, re-read and re-resolved: `{graph, defaults, display,
  * digest, drift}`. `graph` is kept even under a hash mismatch — its needs and
  * options are still the best knowledge of the gate — and is null only when
  * nothing resolves. `defaults` is the re-read document's `inputs.<k>.default`
- * map, since the resolved graph carries no inputs. `titles` is the merged
- * `display.titles` the `Next:` line names nodes by — read off the same sources,
- * so the brief and the dashboard call a node the same thing.
+ * map, since the resolved graph carries no inputs. `display` is the merged
+ * display block: the titles the `Next:` line names nodes by — read off the same
+ * sources, so the brief and the dashboard call a node the same thing — and the
+ * option labels and headers the picker shows.
  */
 function reread(doc, workflow, runDir) {
-  const drifted = (graph = null, defaults = {}, titles = displayOf().titles) => ({ graph, defaults, titles, digest: digest(graph?.graph_hash), drift: true });
+  const drifted = (graph = null, defaults = {}, display = displayOf()) => ({ graph, defaults, display, digest: digest(graph?.graph_hash), drift: true });
   const file = definitionPathOf(doc, runDir);
   if (file === null) return drifted();
   const definition = readDefinition(file);
@@ -247,12 +316,12 @@ function reread(doc, workflow, runDir) {
   const degraded = version !== undefined && version !== null && version !== KNOWN_VERSION ? [NEWER_FORMAT] : [];
   const graph = resolve({ definition, overlays, profile: workflow.profile ?? null, degraded });
   const defaults = defaultsOf(definition.doc);
-  const { titles } = displayOf({ definition, overlays, profile: workflow.profile ?? null });
-  if (!graph.ok) return drifted(null, defaults, titles);
+  const display = displayOf({ definition, overlays, profile: workflow.profile ?? null });
+  if (!graph.ok) return drifted(null, defaults, display);
 
   const frozen = digest(workflow.graph_hash);
   const now = digest(graph.graph_hash);
-  return { graph, defaults, titles, digest: now, drift: frozen === null || frozen !== now };
+  return { graph, defaults, display, digest: now, drift: frozen === null || frozen !== now };
 }
 
 function defaultsOf(definition) {
@@ -572,15 +641,35 @@ function evaluate(when, { byId, recorded, status, inputs, defaults }) {
 }
 
 /**
- * The `Next:` line, naming each node by its title: the line is read by the
- * operator, and nothing parses it back. The ids stay everywhere a write or an
- * answer is keyed — the refusals' patches and the `Recommended:` option.
+ * The driven form's `Next:` line, naming each node by its title: the line is
+ * read by the operator, and nothing parses it back. The ids stay everywhere a
+ * write or an answer is keyed — the refusals' patches and the `Recommended:`
+ * option.
  */
 function nextLine({ next, skipped, waiting = [] }, titles) {
   const name = id => titleOf(titles, id);
   const suffix = skipped.length ? ` — skipped: ${skipped.map(name).join(', ')}` : '';
   if (next === null && waiting.length) return `Next: waiting on ${waiting.map(name).join(', ')}${suffix}`;
   return `Next: ${next == null ? 'end of run' : name(next)}${suffix}`;
+}
+
+/**
+ * The plain form's `Next:` line: the node that runs, and the work skipped on the
+ * way in parentheses — `Next: Specification (skipping TDD red and UI mockups)`.
+ * A skipped gate is left out: it is an approval of work that did not happen,
+ * not work, and naming it only doubles the list.
+ */
+function readableNext({ next, skipped, waiting = [] }, titles, gateId) {
+  const name = id => titleOf(titles, id);
+  const work = skipped.filter(id => !gateId(id)).map(name);
+  const suffix = work.length ? ` (skipping ${andList(work)})` : '';
+  if (next === null && waiting.length) return `Next: waiting on ${andList(waiting.map(name))}${suffix}`;
+  return `Next: ${next == null ? 'end of run' : name(next)}${suffix}`;
+}
+
+/** `A`, `A and B`, `A, B and C`. */
+function andList(names) {
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -692,12 +781,17 @@ function recommend(options, risks) {
 /**
  * One list item on one line. A map is its non-empty scalar values in written
  * order, joined by an em dash, so `{decision, rationale}` reads as a sentence.
+ * `readable` also drops what only a machine reads: a leading slug key, and a
+ * map value that is nothing but a slug.
  */
-function itemText(item) {
+function itemText(item, readable = false) {
   if (isPlainObject(item)) {
-    return Object.values(item).map(scalarText).filter(text => text !== '').join(' — ');
+    return Object.values(item).map(scalarText)
+      .filter(text => text !== '' && !(readable && SLUG.test(text)))
+      .join(' — ');
   }
-  return scalarText(item);
+  const text = scalarText(item);
+  return readable ? text.replace(SLUG_KEY, '') : text;
 }
 
 function scalarText(value) {
@@ -706,62 +800,127 @@ function scalarText(value) {
   return '';
 }
 
-function items(values) {
-  return values.map(itemText).filter(text => text !== '');
+function items(values, readable) {
+  return values.map(value => itemText(value, readable)).filter(text => text !== '');
 }
 
-/** The pointer left where something was trimmed. */
+/** The pointer the driven form leaves where something was trimmed. */
 function more(count, where, unit = '') {
   return `(+${count} more${unit ? ` ${unit}` : ''} — ${where})`;
 }
 
+/** `text` cut short, never inside a surrogate pair. */
+function sliced(text, room) {
+  const cut = text.slice(0, room);
+  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
+}
+
 /**
  * `text` cut to at most `max` characters at a word, the cut named with the
- * exact count it removed. Never inside a surrogate pair. When `max` leaves no
- * room for the note beside some of the text, nothing is kept at all: the note
- * alone would overrun the budget it is there to keep.
+ * exact count it removed — the driven form's cut. When `max` leaves no room
+ * for the note beside some of the text, nothing is kept at all: the note alone
+ * would overrun the budget it is there to keep.
  */
 function shorten(text, max, where) {
   if (text.length <= max) return text;
   // Sized for the largest count it could report, so the real one never makes it longer.
   const room = max - ` … ${more(text.length, where, 'characters')}`.length;
   if (room <= 0) return '';
-  let cut = text.slice(0, room);
-  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+  const cut = sliced(text, room);
   const word = cut.lastIndexOf(' ');
   const kept = (word > room / 2 ? cut.slice(0, word) : cut).trimEnd();
   return `${kept} … ${more(text.length - kept.length, where, 'characters')}`;
+}
+
+/**
+ * `text` cut to at most `max` characters at the end of a sentence — at a word
+ * when no sentence ends far enough in — followed by `… (more in <place>)`: the
+ * plain form's cut, which says where the rest is rather than how long it was.
+ */
+function toSentence(text, max, where) {
+  if (text.length <= max) return text;
+  const note = ` … (more in ${where})`;
+  const room = max - note.length;
+  if (room <= 0) return '';
+  const cut = sliced(text, room);
+  let end = -1;
+  for (const match of text.matchAll(/[.!?](?=\s|$)/g)) {
+    if (match.index + 1 > cut.length) break;
+    end = match.index + 1;
+  }
+  const word = cut.lastIndexOf(' ');
+  const kept = end > room / 3 ? cut.slice(0, end) : (word > room / 2 ? cut.slice(0, word) : cut).trimEnd();
+  return `${kept}${note}`;
 }
 
 /** A risk that decides the recommendation, and so has to stay in view. */
 const decidesStop = text => text.startsWith('recommend stop:');
 
 /**
- * The brief rendered inside `BUDGET`. Nothing is trimmed from one that fits.
- * Otherwise a risk that recommends stopping moves to the front of the risks,
- * so the reason for `Recommended:` is the last risk to go, and then, in order,
- * until it fits: each list item is cut to `ITEM_MAX`; the summary gives up what
- * it can down to `SUMMARY_FLOOR`; decisions are dropped from the end down to
- * one, then risks down to one, then the last decision, then the last risk; the
- * summary gives up the rest; and last the `(+N more — …)` pointers the drops
- * left go too. `tail` is never touched, so a tail longer than the budget on its
- * own is the one brief that exceeds it.
+ * How each form draws and trims. The driven form is the shape a cockpit and a
+ * driver have always read and is kept as it was: every list item, the stop risk
+ * moved first only when trimming starts, and each cut counted. The plain form
+ * shows at most `LIST_CAP` of each list with the stop risk always first, and
+ * says where the rest is.
  */
-function fit(closing, render, tail, where) {
+const DRIVEN = {
+  readable: false,
+  cap: Infinity,
+  stopFirst: false,
+  cut: shorten,
+  pointer: (count, where) => more(count, where),
+  render: renderOneline,
+};
+const READABLE = {
+  readable: true,
+  cap: LIST_CAP,
+  stopFirst: true,
+  cut: toSentence,
+  pointer: (count, where) => `(+${count} in ${where})`,
+  render: renderPlain,
+};
+
+/**
+ * The brief rendered inside `BUDGET`. Nothing is trimmed from one that fits
+ * beyond the form's own list cap. Otherwise a risk that recommends stopping
+ * moves to the front of the risks, so the reason for the recommendation is the
+ * last risk to go, and then, in order, until it fits: each list item is cut to
+ * `ITEM_MAX`; the summary gives up what it can down to `SUMMARY_FLOOR`;
+ * decisions are dropped from the end down to one, then risks down to one, then
+ * the last decision, then the last risk; the summary gives up the rest; and last
+ * the pointers the drops left go too. `tail` is never touched, so a tail longer
+ * than the budget on its own is the one brief that exceeds it.
+ */
+function fit(closing, form, tail, where) {
   const summary = closing.summary.trim();
-  const decisions = items(closing.decisions);
-  let risks = items(closing.risks);
-  const view = { summary: summary.length, item: Infinity, decisions: decisions.length, risks: risks.length, pointers: true };
-  const draw = () => render({
-    summary: shorten(summary, view.summary, where),
-    decisions: shown(decisions, view.decisions, view.item, where, view.pointers),
-    risks: shown(risks, view.risks, view.item, where, view.pointers),
+  const decisions = items(closing.decisions, form.readable);
+  let risks = items(closing.risks, form.readable);
+  const stopFirst = () => {
+    risks = [...risks.filter(decidesStop), ...risks.filter(risk => !decidesStop(risk))];
+  };
+  if (form.stopFirst) stopFirst();
+  const view = {
+    summary: summary.length,
+    item: Infinity,
+    decisions: Math.min(decisions.length, form.cap),
+    risks: Math.min(risks.length, form.cap),
+    pointers: true,
+  };
+  const list = (values, count) => {
+    const kept = values.slice(0, count).map(text => form.cut(text, view.item, where));
+    const rest = values.length - count;
+    return { kept, rest: rest > 0 && view.pointers ? form.pointer(rest, where) : null };
+  };
+  const draw = () => form.render({
+    summary: form.cut(summary, view.summary, where),
+    decisions: list(decisions, view.decisions),
+    risks: list(risks, view.risks),
     tail,
   });
 
   let text = draw();
   if (text.length <= BUDGET) return text;
-  risks = [...risks.filter(decidesStop), ...risks.filter(risk => !decidesStop(risk))];
+  stopFirst();
   view.item = ITEM_MAX;
   text = draw();
   if (text.length > BUDGET && summary.length > SUMMARY_FLOOR) {
@@ -788,23 +947,20 @@ function fit(closing, render, tail, where) {
   return text;
 }
 
-/** The first `count` of `values`, each cut to `max`, and — with `pointer` — a pointer to the rest. */
-function shown(values, count, max, where, pointer) {
-  const kept = values.slice(0, count).map(text => shorten(text, max, where));
-  return values.length > count && pointer ? [...kept, more(values.length - count, where)] : kept;
-}
-
 /**
- * The terminal form: the summary verbatim, the lists, then Next, Recommended
- * and the run line.
+ * The plain form: the summary, then one line each for the decisions and the
+ * risks with any pointer to the rest after them, then `Next:`.
  */
 function renderPlain({ summary, decisions, risks, tail }) {
-  const out = [summary, ''];
-  if (decisions.length) out.push('Decisions:', ...decisions.map(text => `- ${text}`));
-  if (risks.length) out.push('Risks:', ...risks.map(text => `- ${text}`));
-  if (decisions.length || risks.length) out.push('');
+  const out = [summary];
+  const line = (label, { kept, rest }, separator) => {
+    if (!kept.length && !rest) return;
+    out.push(`${label}: ${[kept.join(separator), rest].filter(Boolean).join(' ')}`);
+  };
+  line('Decisions', decisions, '; ');
+  line('Risks', risks, ' · ');
   out.push(...tail);
-  return `${out.join('\n')}\n`;
+  return `${out.filter(text => text !== '').join('\n')}\n`;
 }
 
 /**
@@ -813,9 +969,10 @@ function renderPlain({ summary, decisions, risks, tail }) {
  * line break folds to a space and every `"` becomes `'`.
  */
 function renderOneline({ summary, decisions, risks, tail }) {
+  const all = ({ kept, rest }) => (rest ? [...kept, rest] : kept);
   const sections = [summary];
-  if (decisions.length) sections.push(`Decisions: ${decisions.join('; ')}`);
-  if (risks.length) sections.push(`Risks: ${risks.join('; ')}`);
+  if (all(decisions).length) sections.push(`Decisions: ${all(decisions).join('; ')}`);
+  if (all(risks).length) sections.push(`Risks: ${all(risks).join('; ')}`);
   sections.push(...tail);
   const line = sections.join(' · ').replace(/\s*[\r\n]+\s*/g, ' ').replace(/"/g, "'").trim();
   return `${line}\n`;

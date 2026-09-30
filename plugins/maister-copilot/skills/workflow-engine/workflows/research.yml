@@ -83,6 +83,20 @@ display:
     high-level-design:        "High-level design"
     design-approval:          "Approve design"
     completion:               "Completion"
+  option_labels:
+    foundation-approval:
+      continue-to-evaluation: "Continue to optional phases"
+      stop-research: "Stop here"
+    convergence-approval:
+      continue-to-design: "Continue"
+      stop-research: "Stop here"
+    design-approval:
+      continue-to-completion: "Continue"
+      stop-research: "Stop here"
+  headers:
+    foundation-approval:   "Research"
+    convergence-approval:  "Solutions"
+    design-approval:       "Design"
 
 nodes:
   research-foundation:

@@ -367,9 +367,10 @@ declared bools that guard the two stretches are emitted later, by
 
 **Gate brief content.** Read `analysis/gap-analysis.md` and write into this
 node's closing `node_summaries` entry: the task type detected, the risk level
-and which characteristics are enabled — the TDD stretches, the mockups, browser
-tests, user docs — in `summary`; the scope decisions made, if any, in
-`decisions`. The `gap-approval` question is the gate brief rendered from it
+and which optional work the run will do and why — a failing test first, UI
+mockups, browser tests, user docs — in `summary`, said as the operator would say
+it ("no reproducible defect, so no failing test first"), never by value name; the
+scope decisions made, if any, in `decisions`. The `gap-approval` question is the gate brief rendered from it
 (engine § Gates).
 
 **Recovery budget**: 2 attempts — re-analyze with the clarifications folded in

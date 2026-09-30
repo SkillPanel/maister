@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
-import { displayOf, humanize, titleOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display.mjs';
+import { HEADER_MAX, displayOf, headerOf, humanize, labelOf, sentence, titleOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display.mjs';
 import { resolve } from '../../plugins/maister/skills/workflow-engine/scripts/lib/graph.mjs';
 import { ENGINE_DIR, FIXTURES, SAMPLE, verb } from '../helpers.mjs';
 
@@ -69,6 +69,47 @@ test('displayOf: a malformed title never reaches a reader', () => {
   assert.deepEqual({ ...titles }, { d: 'Fine' });
 });
 
+test('sentence: dashes become spaces and only the first word is capitalized', () => {
+  assert.equal(sentence('continue-past-analysis'), 'Continue past analysis');
+  assert.equal(sentence('stop'), 'Stop');
+});
+
+test('labelOf: the definition\'s label when there is one, else the id in sentence case', () => {
+  const labels = displayOf({ definition: { display: { option_labels: { approval: { continue: 'Go on' } } } } }).option_labels;
+  assert.equal(labelOf(labels, 'approval', 'continue'), 'Go on');
+  assert.equal(labelOf(labels, 'approval', 'stop-here'), 'Stop here');
+  assert.equal(labelOf(null, 'other', 'continue-to-planning'), 'Continue to planning');
+});
+
+test('displayOf: an overlay relabels one option and keeps the base label of the other; a profile has the last word', () => {
+  const base = { display: { option_labels: { approval: { continue: 'Continue', 'stop-here': 'Stop here' } }, headers: { approval: 'Scope' } } };
+  const overlay = { display: { option_labels: { approval: { continue: 'Go on' } } }, profiles: { quick: { display: { headers: { approval: 'Quick scope' } } } } };
+  const plain = displayOf({ definition: base, overlays: [overlay] });
+  assert.deepEqual({ ...plain.option_labels.approval }, { continue: 'Go on', 'stop-here': 'Stop here' });
+  assert.equal(plain.headers.approval, 'Scope');
+  assert.equal(displayOf({ definition: base, overlays: [overlay], profile: 'quick' }).headers.approval, 'Quick scope');
+});
+
+test('displayOf: a malformed label or an overlong header never reaches a reader', () => {
+  const display = displayOf({ definition: { display: {
+    option_labels: { a: { x: '', y: 'two\nlines', z: 'Fine' }, b: 'not a map' },
+    headers: { a: 'Thirteen char', b: 'Twelve chars' },
+  } } });
+  assert.deepEqual({ ...display.option_labels.a }, { z: 'Fine' });
+  assert.equal(Object.hasOwn(display.option_labels, 'b'), false);
+  assert.deepEqual({ ...display.headers }, { b: 'Twelve chars' });
+});
+
+test('headerOf: the own header, else the closing node\'s title when it fits, else the gate\'s title cut to fit', () => {
+  const titles = { analysis: 'Scope analysis', approval: 'Approve the scope', spec: 'Spec' };
+  assert.equal(headerOf({ headers: { approval: 'Scope' }, titles }, 'approval', 'analysis'), 'Scope');
+  assert.equal(headerOf({ headers: {}, titles }, 'approval', 'spec'), 'Spec');
+  const cut = headerOf({ headers: {}, titles }, 'approval', 'analysis');
+  assert.equal(cut, 'Approve the…');
+  assert.ok([...cut].length <= HEADER_MAX);
+  assert.equal(headerOf({ headers: {}, titles: {} }, 'gap-approval', null), 'Gap Approval');
+});
+
 // ---------------------------------------------------------------------------
 // validation
 // ---------------------------------------------------------------------------
@@ -106,6 +147,57 @@ test('a title for a node the graph does not declare warns and does not fail', t 
   const { code, report } = validate([`--definition=${definition}`]);
   assert.equal(code, 0);
   assert.deepEqual(report.warnings, ['title-unknown-node:display.titles.ghost:ghost']);
+});
+
+/**
+ * A scratch copy of the sample with `lines` (raw YAML, indented two spaces)
+ * appended to its `display:` block. Returns the definition's path.
+ */
+function sampleWithDisplay(t, lines) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-display-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const text = fs.readFileSync(SAMPLE, 'utf8');
+  const block = '    approval: "Approve the scope"\n';
+  assert.ok(text.includes(block));
+  fs.writeFileSync(path.join(dir, 'sample.yml'), text.replace(block, `${block}${lines.map(line => `  ${line}\n`).join('')}`));
+  fs.copyFileSync(path.join(FIXTURES, 'definitions/sample.md'), path.join(dir, 'sample.md'));
+  return path.join(dir, 'sample.yml');
+}
+
+test('option labels and a header for a gate validate cleanly', t => {
+  const definition = sampleWithDisplay(t, ['option_labels:', '  approval:', '    continue: "Continue to implementation"',
+    '    stop-here: "Stop here"', 'headers:', '  approval: "Scope"']);
+  const { code, report } = validate([`--definition=${definition}`]);
+  assert.equal(code, 0, JSON.stringify(report));
+  assert.deepEqual(report.warnings, []);
+});
+
+for (const [label, lines, where] of [
+  ['an empty option label', ['option_labels:', '  approval:', '    continue: ""'], 'display.option_labels.approval.continue'],
+  ['a gate entry that is not a mapping', ['option_labels:', '  approval: "Continue"'], 'display.option_labels.approval'],
+  ['an option_labels block that is not a mapping', ['option_labels: [a]'], 'display.option_labels'],
+  ['a header longer than the chip', ['headers:', '  approval: "Approve the scope"'], 'display.headers.approval'],
+  ['a header on two lines', ['headers:', '  approval: "Sc\\nope"'], 'display.headers.approval'],
+]) {
+  test(`validate rejects ${label} with a located error`, t => {
+    const { code, report } = validate([`--definition=${sampleWithDisplay(t, lines)}`]);
+    assert.equal(code, 1);
+    assert.deepEqual(report.errors.map(error => error.path), [where]);
+  });
+}
+
+test('a label or a header for a node that is not a gate, or for an option the gate lacks, warns and does not fail', t => {
+  const definition = sampleWithDisplay(t, ['option_labels:', '  analysis:', '    continue: "Go"', '  ghost:', '    continue: "Go"',
+    '  approval:', '    rescan: "Scan again"', 'headers:', '  analysis: "Scope"', '  ghost: "Ghost"']);
+  const { code, report } = validate([`--definition=${definition}`]);
+  assert.equal(code, 0, JSON.stringify(report));
+  assert.deepEqual(report.warnings.sort(), [
+    'header-unknown-node:display.headers.analysis:analysis',
+    'header-unknown-node:display.headers.ghost:ghost',
+    'option-label-unknown-node:display.option_labels.analysis:analysis',
+    'option-label-unknown-node:display.option_labels.ghost:ghost',
+    'option-label-unknown-option:display.option_labels.approval.rescan:approval',
+  ]);
 });
 
 test('the overlay fixture validates, with and without its profile', () => {
@@ -151,6 +243,19 @@ for (const file of BUILTINS) {
     const { titles } = displayOf({ definition });
     const untitled = Object.keys(definition.doc.nodes).filter(id => !Object.hasOwn(titles, id));
     assert.deepEqual(untitled, []);
+  });
+
+  test(`built-in ${name} labels every gate option and gives every gate a header`, () => {
+    const definition = readDefinition(file);
+    const { option_labels: labels, headers } = displayOf({ definition });
+    const gates = Object.entries(definition.doc.nodes).filter(([, node]) => node.type === 'gate');
+    assert.ok(gates.length > 0);
+    for (const [id, node] of gates) {
+      assert.ok(Object.hasOwn(headers, id), `${name}: ${id} has no header`);
+      for (const option of Object.keys(node.options)) {
+        assert.ok(labels[id] && Object.hasOwn(labels[id], option), `${name}: ${id}.${option} has no label`);
+      }
+    }
   });
 
   test(`built-in ${name}: the display block leaves the graph hash where it was`, () => {
