@@ -262,13 +262,13 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: development orchestrator (Phase 5), migration orchestrator (Phase 2)
+**Invoked by**: the `specification` node of the development, performance and migration workflows
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `implementation/` subdirectories
 - `analysis/requirements.md` exists (created by orchestrator from user Q&A)
-- `analysis/codebase-analysis.md` exists (Phase 1 output)
-- `analysis/gap-analysis.md` exists (Phase 2 output)
+- `analysis/codebase-analysis.md` exists (`codebase-analysis` output)
+- `analysis/gap-analysis.md` exists (`gap-analysis` output)
 
 **Input**: Task path, task_characteristics, description, requirements path, accumulated context
 

@@ -1,6 +1,6 @@
 # ADR-0013 — The prose workflow twin is transitional
 
-**Status**: Accepted · **Date**: 2026-08-26 · **Sources**: `plugins/maister/skills/workflow-engine/SKILL.md` § "Probe the runtime", § "Resume"; `plugins/maister/skills/research/SKILL.md`; `plugins/maister/skills/development/SKILL.md`; `README.md` (requirements); ADR-0009, ADR-0012
+**Status**: Accepted, closed 2026-09-30 · **Date**: 2026-08-26 · **Sources**: `plugins/maister/skills/workflow-engine/SKILL.md` § "Probe the runtime", § "Resume"; `plugins/maister/skills/research/SKILL.md`; `plugins/maister/skills/development/SKILL.md`; `README.md` (requirements); ADR-0009, ADR-0012
 
 ## TL;DR
 A workflow that the engine runs from a definition also exists as a prose orchestrator, and the prose one is the fallback when the script runtime is missing. That pairing is **kept through rollout and then retired**, not maintained forever: two authored copies per workflow, each with its own parity checklist and its own several-hundred-check suite test, is a cost that grows with every workflow that gains a definition, and it polices paths nobody exercises. Retirement turns the runtime requirement from soft to hard, so it is a breaking change with a stated blocker in front of it.
@@ -97,3 +97,12 @@ workflows not switched over, `migration` switches before 3.0 and `product-design
 prose orchestrator until its own definition lands (ADR-0025). The twins,
 the `MAISTER_WORKFLOW_PROSE` switch and the branches that reach them are removed there, by path.
 This record stays as the reason the twin existed.
+
+### Amendment 2026-09-30 — closed: the twins are removed
+The retirement is done. The four prose twins — `development`, `research`, `performance` and
+`migration`, the last added when `migration` switched to the engine — are deleted, the
+`MAISTER_WORKFLOW_PROSE` switch is no longer read anywhere, and each orchestrator `SKILL.md` is a pure
+hand-off to the engine. The engine's runtime probe stops without Node 20 instead of handing the run
+over, and a task directory with no `workflow:` block is refused on resume by the engine's
+`resume-check` verb rather than resumed by a twin. Nothing in this record is live any more; it stays
+as the reason the twin existed.

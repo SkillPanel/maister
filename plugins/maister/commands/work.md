@@ -97,6 +97,11 @@ types: Step 3 lists them and the classifier may choose one, which then runs by n
    types in the table below. Its folder is that name, which no row maps, so do not look it up:
    invoke `maister:run` with the Skill tool and the task path as `args`. That skill reads the name,
    overlays and profile from the state and resumes the run; the rest of this step does not apply.
+
+   **No `workflow:` block under `development/`, `performance/`, `migrations/` or `research/`**
+   means the task was started on the 2.x plugin. Skip the status menu and route it straight to its
+   orchestrator (step 5) with the task path: the workflow engine refuses it before anything runs,
+   and its message — where to finish the task — is the answer to relay.
 2. Determine workflow type from folder path:
 
 | Folder | Workflow Type |
@@ -141,17 +146,10 @@ Options:
 ```
 
 Offer the phase-restart and fresh-attempts options only for workflows whose resume signature
-still lists them. Today that is only product-design; research, development, performance and
-migration have an engine path: the workflow engine resumes them by recomputing which nodes are
-ready from frozen state, so there is no mid-graph entry point and no attempt counter, and it
-declines both flags by name. When an operator needs either on such a task, say so, and be
-accurate about what remains in each case. Research's prose phases carry no phase flag of their
-own: they re-enter by artifact presence — each phase skips ahead when its outputs are already on
-disk — so re-running the prose path resumes near where the last run stopped without any flag.
-The development, performance and migration prose phases do take `--from=PHASE`, so an operator who needs a
-mid-workflow entry has a real route to it there. The prose path is selected by setting `MAISTER_WORKFLOW_PROSE` to any non-empty value,
-and that variable is global, so while it is set every engine-backed workflow runs its prose
-phases.
+still lists them — only product-design. Research, development, performance and migration run on
+the workflow engine, which resumes by recomputing which nodes are ready from frozen state: there
+is no mid-graph entry point and no attempt counter, and it declines both flags by name. When an
+operator asks for either on such a task, say so plainly; re-entry is planned for the engine.
 
 5. **Route using Skill tool:**
 
@@ -163,8 +161,7 @@ Use Skill tool:
 
 Examples:
 - Resume development: `skill: "maister:development"` with `args: ".maister/tasks/development/2025-10-23-fix"`
-- Restart from phase: `MAISTER_WORKFLOW_PROSE=1`, then `skill: "maister:development"` with `args: ".maister/tasks/development/2025-10-26-auth --from=verify"` — the phase flag is a prose-path capability
-- Fresh attempts: `MAISTER_WORKFLOW_PROSE=1`, then `skill: "maister:development"` with `args: ".maister/tasks/development/2025-10-20-redux --reset-attempts"` — attempt counters are a prose-path capability
+- Restart product-design from a phase: `skill: "maister:product-design"` with `args: ".maister/tasks/product-design/2025-10-26-onboarding --from=PHASE"`
 
 Pass only the flags the workflow's resume signature lists — see **Resume Skill Reference** below.
 
@@ -279,19 +276,13 @@ Display:
 | product-design | `maister:product-design` | `[path] [--from=PHASE]` |
 | any other workflow, started by name | `maister:run` | `[path]` |
 
-A signature is trimmed only for a workflow that has an engine path today: research,
-development, performance and migration. All four are resumed by the workflow engine, which recomputes the
-ready set from frozen state. Mid-graph entry and attempt counters have no expression there, so
-`--from=PHASE` and `--reset-attempts` are declined by name rather than silently ignored. The
-prose phases are the fallback path in every case, and they differ in what they offer: research's
-take no phase flag and re-enter by artifact presence, skipping each phase whose outputs already
-exist; the development, performance and migration prose phases do take `--from=PHASE`. Select the prose path by setting `MAISTER_WORKFLOW_PROSE` to any
-non-empty value, remembering that the variable is global and moves every engine-backed workflow
-onto prose while it is set.
+Research, development, performance and migration run on the workflow engine, which resumes by
+recomputing the ready set from frozen state. Mid-graph entry and attempt counters have no
+expression there, so `--from=PHASE` and `--reset-attempts` are declined by name rather than
+silently ignored, and a task directory started on the 2.x plugin is refused with a message that
+says where to finish it.
 
-Every other workflow above runs its own prose phases and honours the flags its row lists. A row
-loses a flag only when that workflow gains an engine path of its own, never merely because a
-definition for it exists.
+Product-design runs its own prose phases and honours the flags its row lists.
 
 ---
 

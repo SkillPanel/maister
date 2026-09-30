@@ -17,7 +17,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - The shipped definition's node ids are public API; no node carries an outcome clause, which is what makes a stop terminate (ADR-0010)
 - The workflow diagram is generated and golden-file tested, and deliberately not a registered shape (ADR-0011)
 - State is written by a script at a mandated canonical indent, gated on the hook's own reader, with no fallback writer (ADR-0012)
-- The prose twin of a definition-backed workflow is the rollout escape hatch and is retired once the engine is proven (ADR-0013)
+- The prose twin of a definition-backed workflow is the rollout escape hatch and is retired once the engine is proven (ADR-0013, closed: the twins are removed)
 - Development is expressed on the grammar as frozen: guards carry its conditional stretches, node prose carries its loops (ADR-0014)
 - An overlay adapts a graph but cannot reshape it, so performance and migration need definitions of their own (ADR-0015)
 - Mid-graph entry and attempt resets have no graph expression, so the engine path declines them rather than ignoring them (ADR-0016)
@@ -27,7 +27,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - The per-workflow context blocks overlap enough to share a thin core, and the factoring is recorded rather than done: typed known keys are what a generic bag would cost (ADR-0020)
 - The pro edition ships as an assembled superset under one plugin name in a new marketplace, with driver mode and the contracts apparatus closing to pro-only and this wave landing only the open repository's inert preparations (ADR-0021)
 - A `workflow:` node runs a child as an ordinary sibling task directory, frozen by the existing path with no new verb, and a definition's declared outputs enter one unconditional hash envelope that moves every built-in's `graph_hash` once (ADR-0022)
-- The prose twin is a maintained reference and the orchestrator SKILL.md a hand-off to it (ADR-0023)
+- The prose twin is a maintained reference and the orchestrator SKILL.md a hand-off to it (ADR-0023, closed: the references are removed and the hand-off goes to the engine alone)
 - On the engine path the dashboard data file is projected by the state writer after every committed write; a projection failure warns rather than refusing, and icon hints sit outside the hashed envelope so presentation cannot move a graph's identity (ADR-0024)
 - Plugin 3.0 is engine-only: the prose twins and their switch are removed, Node 20 is required, migration switches over, product-design is the one stated prose exception, re-entry is redesigned for 3.1, and a 2.x task directory is refused on resume and finished on a six-month `release/2.x` line (ADR-0025)
 - Two enabled editions of the plugin are detected from the settings scopes, failing open: a session-start hook warns and `write-state` refuses to start or resume a run (ADR-0026)
@@ -51,7 +51,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0010](0010-built-in-workflow-node-ids.md) | Built-in workflow node ids as public API | Accepted | 2026-08-26 | — |
 | [ADR-0011](0011-generated-workflow-diagrams.md) | Generated workflow diagrams are non-contractual | Accepted | 2026-08-26 | — |
 | [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | Amended 2026-09-27: a completing node summary gains its declared artifacts and companions |
-| [ADR-0013](0013-prose-workflow-twin-is-transitional.md) | The prose workflow twin is transitional | Accepted | 2026-08-26 | — |
+| [ADR-0013](0013-prose-workflow-twin-is-transitional.md) | The prose workflow twin is transitional | Closed 2026-09-30 | 2026-08-26 | — |
 | [ADR-0014](0014-development-ships-as-a-workflow-definition.md) | Development ships as a workflow definition | Accepted | 2026-08-27 | — |
 | [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | Amended by ADR-0027: an added node may be placed upstream with `before:`; amended 2026-09-30: `optional` leaves the grammar, so `with` and `provider` are the tunable keys |
 | [ADR-0016](0016-mid-graph-entry-is-not-an-engine-feature.md) | Mid-graph entry is not an engine feature | Accepted | 2026-08-27 | — |
@@ -61,7 +61,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0020](0020-context-block-shared-core.md) | The context-block shared core is unblocked, and deferred to its own change | Accepted | 2026-09-16 | — |
 | [ADR-0021](0021-pro-edition-packaging.md) | The pro edition ships as an assembled superset, and W1 lands its packaging foundation only | Accepted | 2026-09-19 | — |
 | [ADR-0022](0022-workflow-nodes-run-as-sub-runs.md) | A `workflow:` node runs as a sub-run | Accepted | 2026-09-22 | Amends ADR-0008 (the four statements that nothing executes a sub-run) |
-| [ADR-0023](0023-prose-twin-as-reference.md) | The prose twin is a reference; the orchestrator SKILL.md is a hand-off | Accepted | 2026-09-21 | Extends ADR-0013 (the twin stays maintained and reachable; only its address changes) |
+| [ADR-0023](0023-prose-twin-as-reference.md) | The prose twin is a reference; the orchestrator SKILL.md is a hand-off | Closed 2026-09-30 | 2026-09-21 | Extends ADR-0013 (the twin stays maintained and reachable; only its address changes) |
 | [ADR-0024](0024-dashboard-projection-at-write-time.md) | The dashboard is projected at write time | Accepted | 2026-09-26 | Amends ADR-0012 (the all-or-nothing writer contract, for the post-commit projection only); scopes the framework's seven dashboard-rewrite moments to the prose path. Amended 2026-09-27: a phase card's prose is chosen field by field |
 | [ADR-0025](0025-plugin-3-is-engine-only.md) | Plugin 3.0 is engine-only | Accepted | 2026-09-27 | Closes ADR-0013's retirement and ADR-0023's opt-out branch; amends ADR-0006 (resume half, open plugin) and ADR-0016 (the twin route is gone) |
 | [ADR-0026](0026-refuse-two-enabled-editions.md) | Two enabled editions are detected, warned about and refused | Accepted | 2026-09-29 | — |

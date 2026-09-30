@@ -4,7 +4,7 @@
  * Why this module exists at all. Every artifact-writing delegate must receive
  * the prior phases' decisions and risks complete — N items in state arriving as
  * N distinct items, none dropped and none merged. That rule was stated in the
- * workflow definitions, in the prose twins and in the framework patterns, and
+ * workflow definitions, in the former prose twins and in the framework patterns, and
  * measured across four attended runs it held in one delegate prompt out of
  * three. The diagnosis the runs support is narrow: the rule holds where the
  * lift is mechanical and happens once — the state write, which a writer now

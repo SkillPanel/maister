@@ -22,7 +22,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 - [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.80+ with the `maister-copilot` variant)
 - `jq` on `PATH` — used by the destructive-command guard
-- Node.js 20 or newer — the workflow engine refuses to start by name without it and says so, and `make build`, `make validate` and HTML mockups need it outright. Per-call gate enforcement outside an in-session answer is a Pro Edition feature with its own Node prerequisite; see [Pro Edition](#pro-edition)
+- Node.js 20 or newer — required. `development`, `research`, `performance` and `migration` run on the workflow engine, which needs it and stops before creating a task directory without it; there are no prose versions of those workflows to fall back to. `make build`, `make validate` and HTML mockups need it too. Per-call gate enforcement outside an in-session answer is a Pro Edition feature with its own Node prerequisite; see [Pro Edition](#pro-edition)
 
 ### Installation
 
@@ -128,6 +128,8 @@ You can always be explicit when you prefer - arguments and flags simply override
 | `/maister:migration` | Changing technologies or patterns |
 | `/maister:product-design` | Product and feature design |
 
+Development, research, performance and migration run on the workflow engine; product design runs as its own orchestrator. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
+
 Task type (feature/bug/enhancement) is auto-detected from context. Override with `--type=feature|bug|enhancement` if needed. Or use `/maister:work` as a single entry point that routes to the right workflow.
 
 Workflows your project defines in `.maister/workflows/` run with `/maister:run <name>`; see [Extending maister](docs/extending.md).
@@ -161,7 +163,7 @@ When a workflow pauses at a gate, you answer it in-session — every ordinary se
 
 ## Compatibility floor
 
-The on-disk shapes are frozen for **task directories written by plugin 2.2.3 or newer**. Anything older is listed by directory name, date and type only — never parsed, rendered from its state, or resumed. There is no migration step and nothing to do: finished task directories are reference material, and a run that predates the floor was finished long before you upgraded. The normative register of every frozen shape, and the rules for changing one, moved to the Pro Edition; see [ADR-0006](docs/decisions/0006-compatibility-floor.md) for why the floor was set and its 2026-09-20 amendment for why the register no longer governs the open tree directly.
+The on-disk shapes are frozen for **task directories written by plugin 2.2.3 or newer**. They stay readable: listed, and shown in the dashboard. Resuming is narrower — 3.0 resumes only a task directory its workflow engine started, so a task started on 2.x is finished on 2.x (see [Staying on 2.x](#staying-on-2x)). Anything older is listed by directory name, date and type only — never parsed, rendered from its state, or resumed. There is no migration step and nothing to do: finished task directories are reference material, and a run that predates the floor was finished long before you upgraded. The normative register of every frozen shape, and the rules for changing one, moved to the Pro Edition; see [ADR-0006](docs/decisions/0006-compatibility-floor.md) for why the floor was set and its 2026-09-20 amendment for why the register no longer governs the open tree directly.
 
 ## Beta Channel
 
@@ -189,6 +191,24 @@ To switch back to stable:
 ```
 
 Beta versions may contain features that are not yet fully tested. Use at your own discretion.
+
+## Staying on 2.x
+
+Maister 3.0 does not resume task directories created by 2.x, so a task started on 2.x should be finished on 2.x. Given such a directory, `/maister:work`, `/maister:run` and each workflow's own command say so and change nothing in it; its artifacts stay readable in place. To stay on 2.x, install from the 2.x maintenance line:
+
+```bash
+# Add the 2.x marketplace
+/plugin marketplace add SkillPanel/maister#release/2.x
+
+# Install the 2.x plugin
+/plugin install maister@maister-plugins-2x
+```
+
+If another channel is installed, uninstall it first (for example `/plugin uninstall maister@maister-plugins`).
+
+The 2.x line receives fixes only — no new features — for six months after 3.0.0 is released.
+
+On GitHub Copilot CLI, check out the `release/2.x` branch and load its `plugins/maister-copilot` directory with `copilot --plugin-dir`, as described under [Installation](#installation).
 
 ## Pro Edition
 

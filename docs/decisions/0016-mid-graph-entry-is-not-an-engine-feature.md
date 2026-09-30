@@ -59,3 +59,8 @@ Plugin 3.0 deletes the prose twins this record named as the sanctioned route for
 in-plugin route: a run that needs a phase jump is finished on the 2.x line. An engine equivalent is
 designed for 3.1 as its own decision, which will amend this one; the graph facts recorded above are
 unchanged until then.
+
+### Amendment 2026-09-30 — the twin route is removed
+The twins are deleted. The engine declines `--from=PHASE` and `--reset-attempts` by name, says no
+route in the plugin serves them and that re-entry is planned for the engine, and names the 2.x line
+for a run that needs a phase jump today. The graph facts recorded above are unchanged.

@@ -808,13 +808,13 @@ The product brief and mockups are consumed by the development orchestrator. Pass
 /maister:development .maister/tasks/product-design/YYYY-MM-DD-task-name/
 ```
 
-The development orchestrator auto-detects the product-design task path during initialization (Step 4: Ingest Design Context) and copies:
+The development workflow auto-detects the product-design task path in its `intake` node (the design-context step) and copies:
 - `outputs/product-brief.md` → `analysis/design-context/brief.md`
 - `analysis/mockups/*` → `analysis/design-context/mockups/`
 
-It then generates `analysis/design-context/INDEX.md` (screen/component inventory with stable IDs) and propagates design context through all subsequent phases via `task_context.phase_summaries.design`. The product brief's Layer 0 maps to requirements, design characteristics map to task characteristics, and mockup references become **binding inputs** to implementation: the implementation-planner attaches `Visual References` to UI task groups, task-group-implementer reads each mockup before coding, and Phase 12 produces a visual-fidelity report comparing rendered screens against source mockups.
+It then generates `analysis/design-context/INDEX.md` (screen/component inventory with stable IDs) and propagates design context through all subsequent phases via `task_context.phase_summaries.design`. The product brief's Layer 0 maps to requirements, design characteristics map to task characteristics, and mockup references become **binding inputs** to implementation: the implementation-planner attaches `Visual References` to UI task groups, task-group-implementer reads each mockup before coding, and the `e2e-verification` node produces a visual-fidelity report comparing rendered screens against source mockups.
 
-**See**: `skills/development/references/development-twin.md` § "Design-Informed Development" for full propagation semantics.
+**See**: `skills/workflow-engine/workflows/development.md` — the `intake`, `ui-mockups` and `e2e-verification` sections — for full propagation semantics.
 
 ### Research Input
 
