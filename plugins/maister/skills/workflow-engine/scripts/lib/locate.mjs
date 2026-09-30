@@ -15,8 +15,17 @@
  * derive: the `--definition` and `--overlay` values `validate` and `resolve`
  * take, the inputs the definition declares (so a caller asks only for what is
  * missing), the nodes that dispatch into a member repository (which make the
- * definition a chain), and the companion's title and opening paragraph (so a
- * router can say what the workflow is for).
+ * definition a chain), and a title and a summary, so a router can say what the
+ * workflow is for. The summary is the definition's own `description:` when it
+ * has one and the companion's opening paragraph otherwise; the title is the
+ * companion's H1, and a workflow without one is labelled by its name.
+ *
+ * The dispatching nodes are read off the graph a run would freeze, not off the
+ * base file: an overlay or a profile can add a node that carries `dir:`, or
+ * disable one, and a chain judged by its base alone would be started from the
+ * terminal the moment an overlay made it one. So the lookup folds its own
+ * overlay, then any the caller will add, then the profile, exactly in the
+ * order the freeze applies them.
  *
  * Without a name it lists the project's own workflows: every top-level
  * definition in `.maister/workflows/` that is not an overlay and not named
@@ -30,28 +39,39 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readDefinition } from './definition.mjs';
-import { TARGET_NAME, bareWorkflowName, locateWorkflow, pluginRoot, projectRoot } from './graph.mjs';
+import {
+  TARGET_NAME, bareWorkflowName, companionSummary, foldDefinition, locateWorkflow, orphanOverlay, pluginRoot, projectRoot,
+} from './graph.mjs';
 
 /** Where definitions live, relative to a project root. */
 const HOME = path.join('.maister', 'workflows');
 
 /**
- * `{name}` looks one workflow up; no name lists the project's own. `project`
- * overrides the root the lookup is rooted at, which is otherwise the host's
- * declared project or the working directory, exactly as for `validate`.
+ * `{name}` looks one workflow up; no name lists the project's own. `overlays`
+ * and `profile` are what the caller will lay over the named workflow beyond the
+ * lookup's own overlay — the run's `--overlay` and `--profile` — and are
+ * folded in only to find the nodes that dispatch. `project` overrides the root
+ * the lookup is rooted at, which is otherwise the host's declared project or
+ * the working directory, exactly as for `validate`.
  */
-export function locate({ name = null, project = null } = {}) {
+export function locate({ name = null, overlays = [], profile = null, project = null } = {}) {
   const root = project ? path.resolve(project) : projectRoot();
-  return name === null ? list(root) : one(String(name), root);
+  return name === null ? list(root) : one(String(name), root, { overlays, profile });
 }
 
-function one(name, root) {
+function one(name, root, { overlays: extra = [], profile = null } = {}) {
   const bare = bareWorkflowName(name);
   if (bare === null) {
     return refused(null, `"${name}" is not a workflow name: expected ${TARGET_NAME.source}, optionally prefixed builtin:`);
   }
   const hit = locateWorkflow(bare, root);
   if (hit === null) {
+    const orphan = orphanOverlay(bare, root);
+    if (orphan !== null) {
+      return refused(shown(orphan, root), `${shown(orphan, root)} is an overlay for "${bare}", but there is no built-in `
+        + `${bare} to lay it over and no ${HOME}/${bare}.yml: an overlay changes a workflow that exists. To make `
+        + `"${bare}" a workflow of its own, write it as ${HOME}/${bare}.yml`);
+    }
     return refused(null, `no workflow named "${bare}": looked for ${HOME}/${bare}.yml, ${HOME}/generated/${bare}.yml, `
       + `${HOME}/${bare}.overlay.yml and a built-in ${bare}.yml, and found none`);
   }
@@ -59,23 +79,31 @@ function one(name, root) {
   if (read.errors.length) return { ok: false, errors: read.errors };
   const mismatch = nameMismatch(read.doc, bare, hit.base, root);
   if (mismatch) return refused(shown(hit.base, root), mismatch);
+  // The overlay home names operations, not a document: the built-in is the
+  // definition and the overlay rides on it. Every other home is complete.
+  const located = hit.from === 'overlay' ? [hit.at] : [];
+  const layers = [...located, ...extra].map(file => readDefinition(file));
+  const unreadable = layers.flatMap(layer => layer.errors);
+  if (unreadable.length) return { ok: false, errors: unreadable };
 
-  const described = describe(hit.base, root);
+  const described = describe(hit.base, read.doc, root);
   return {
     ok: true,
     errors: [],
     name: bare,
     from: hit.from,
     definition: shown(hit.base, root),
-    // The overlay home names operations, not a document: the built-in is the
-    // definition and the overlay rides on it. Every other home is complete.
-    overlays: hit.from === 'overlay' ? [shown(hit.at, root)] : [],
+    overlays: located.map(file => shown(file, root)),
     ignored: hit.ignored ? shown(hit.ignored, root) : null,
     companion: described.companion,
     title: described.title,
     summary: described.summary,
     inputs: isMap(read.doc.inputs) ? read.doc.inputs : {},
-    dispatches: dispatchesOf(read.doc),
+    // A fold that finds anything wrong — an undeclared profile, an overlay
+    // naming a node the base lacks — answers the base unchanged, so the
+    // dispatching nodes are then the base's own. The caller's next step is
+    // `validate` over the same overlays and profile, which refuses the run.
+    dispatches: dispatchesOf(foldDefinition({ definition: read, overlays: layers, profile })),
   };
 }
 
@@ -87,7 +115,7 @@ function list(root) {
     const name = path.basename(file).replace(/\.yml$/, '');
     if (!TARGET_NAME.test(name) || builtins.has(name)) continue;
     const read = readDefinition(file);
-    const described = describe(file, root);
+    const described = describe(file, read.doc, root);
     const error = read.errors.length ? read.errors[0].message : nameMismatch(read.doc, name, file, root);
     workflows.push({
       name,
@@ -121,31 +149,20 @@ function dispatchesOf(doc) {
 }
 
 /**
- * The companion's H1 and its first paragraph, each null when absent. The
- * paragraph is the first run of non-blank lines after the H1 — or from the top
- * when there is none — that is not itself a heading, folded onto one line.
+ * The companion's path and H1, and the summary: the definition's own
+ * `description:` when it carries one, else the companion's first paragraph.
+ * Each is null when absent. The description wins because it is written for
+ * exactly this — saying what the workflow is for — while a companion's opening
+ * paragraph is often about the file rather than the workflow.
  */
-function describe(file, root) {
-  const companion = file.replace(/\.ya?ml$/i, '.md');
-  let text;
-  try {
-    text = fs.readFileSync(companion, 'utf8');
-  } catch {
-    return { companion: null, title: null, summary: null };
-  }
-  const lines = text.split(/\r?\n/);
-  const heading = lines.findIndex(line => /^#\s+\S/.test(line));
-  const title = heading >= 0 ? lines[heading].replace(/^#\s+/, '').trim() : null;
-  const paragraph = [];
-  for (const line of lines.slice(heading + 1)) {
-    const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) {
-      if (paragraph.length) break;
-      continue;
-    }
-    paragraph.push(trimmed);
-  }
-  return { companion: shown(companion, root), title, summary: paragraph.length ? paragraph.join(' ') : null };
+function describe(file, doc, root) {
+  const companion = companionSummary(file);
+  const description = typeof doc?.description === 'string' && doc.description.trim() !== '' ? doc.description.trim() : null;
+  return {
+    companion: companion.companion === null ? null : shown(companion.companion, root),
+    title: companion.title,
+    summary: description ?? companion.summary,
+  };
 }
 
 /** The built-in workflow names this plugin ships, read from its definitions directory. */

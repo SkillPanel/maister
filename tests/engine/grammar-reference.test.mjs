@@ -35,14 +35,6 @@ const ARRAYS = {
 // Object constants whose keys are the vocabulary: keys the grammar retired.
 const OBJECT_KEYS = { graph: ['RETIRED_NODE_KEYS', 'RETIRED_OPTION_KEYS'] };
 
-// Documented ahead of the engine change that adds them to the code. Each entry
-// applies only while the code lacks it, so it goes inert the moment that change
-// merges — delete it then. `null` stands for the whole constant.
-const LANDING = {
-  DEFINITION_KEYS: ['description'],
-  INPUT_KEYS: null,
-};
-
 function arrayConstant(source, name) {
   const match = new RegExp(`(?:export )?const ${name} = \\[([^\\]]*)\\];`).exec(source);
   if (!match) return null;
@@ -97,14 +89,11 @@ const REFERENCE_TEXT = fs.readFileSync(REFERENCE, 'utf8');
 const CODE = vocabularies();
 const TABLES = markedTables(REFERENCE_TEXT);
 
-test('every vocabulary the test reads is found in the source, or is still landing', () => {
+test('every vocabulary the test reads is found in the source', () => {
   for (const [name, values] of CODE) {
-    if (values !== null) {
-      assert.ok(values.length > 0, `${name} was found but read as empty`);
-      continue;
-    }
-    assert.ok(Object.hasOwn(LANDING, name) && LANDING[name] === null,
+    assert.ok(values !== null,
       `${name} is not declared in the engine source; if it was renamed, rename it here and in the reference's marker`);
+    assert.ok(values.length > 0, `${name} was found but read as empty`);
   }
 });
 
@@ -129,20 +118,14 @@ test('each marked table is a table whose rows all name a key', () => {
 
 test('each marked table lists exactly the keys the code accepts', () => {
   for (const table of TABLES) {
-    const present = table.names.filter((name) => CODE.get(name) !== null);
-    if (present.length === 0) continue;
-    const code = new Set(present.flatMap((name) => CODE.get(name)));
-    const landing = new Set(table.names.flatMap((name) => {
-      const keys = LANDING[name];
-      return Array.isArray(keys) ? keys.filter((key) => !code.has(key)) : [];
-    }));
+    const code = new Set(table.names.flatMap((name) => CODE.get(name) ?? []));
     const documented = new Set(table.keys);
     const label = table.names.join(' + ');
 
     const undocumented = [...code].filter((key) => !documented.has(key));
     assert.deepEqual(undocumented, [], `${label} accepts keys grammar.md does not document`);
 
-    const invented = [...documented].filter((key) => !code.has(key) && !landing.has(key));
+    const invented = [...documented].filter((key) => !code.has(key));
     assert.deepEqual(invented, [], `grammar.md documents ${label} keys the code does not accept`);
 
     assert.equal(table.keys.length, documented.size, `grammar.md lists a ${label} key twice`);

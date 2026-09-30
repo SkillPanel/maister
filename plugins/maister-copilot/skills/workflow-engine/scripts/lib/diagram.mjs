@@ -208,11 +208,22 @@ function label(node, titles) {
  * A gate's options, in the order the canonical node carries them — which the
  * resolver already fixed, so nothing is re-sorted here. Each option is printed
  * with its effect, because the id alone would not say which answer ends the run.
+ *
+ * The resolver reduces an option written as `{effect: stop}` to `stop`, so both
+ * spellings arrive here as the bare effect. An option map that still carries an
+ * effect — a degraded document's, holding keys this build does not read — is
+ * printed by that effect too, rather than as the escaped JSON of the whole map.
  */
 function options(node) {
   const map = node.options;
   if (!map || typeof map !== 'object' || Array.isArray(map)) return '';
-  return Object.entries(map).map(([id, effect]) => `${id}: ${scalar(effect)}`).join(', ');
+  return Object.entries(map).map(([id, option]) => `${id}: ${scalar(effectOf(option))}`).join(', ');
+}
+
+/** An option's effect when it is a map carrying one, else the option as it stands. */
+function effectOf(option) {
+  const isMap = !!option && typeof option === 'object' && !Array.isArray(option);
+  return isMap && Object.hasOwn(option, 'effect') ? option.effect : option;
 }
 
 /**

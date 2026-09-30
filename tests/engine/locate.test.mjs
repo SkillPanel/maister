@@ -117,6 +117,26 @@ test('a definition with no companion has no title and no summary', t => {
   assert.equal(report.summary, null);
 });
 
+test('a description: is the summary, ahead of the companion\'s paragraph; the companion\'s H1 stays the title', t => {
+  const described = CUSTOM.replace('version: 1\n', 'version: 1\ndescription: "Sets a new team up with access, tooling and a first task."\n');
+  const root = project(t, { [home('onboarding.yml')]: described, [home('onboarding.md')]: COMPANION });
+  const one = inProject(root, ['locate', '--name=onboarding']).report;
+  assert.equal(one.title, 'Team onboarding');
+  assert.equal(one.summary, 'Sets a new team up with access, tooling and a first task.');
+  const [listed] = inProject(root, ['locate']).report.workflows;
+  assert.deepEqual([listed.title, listed.summary], [one.title, one.summary]);
+});
+
+test('a companion that goes from its title straight to node sections has no summary', t => {
+  const root = project(t, {
+    [home('onboarding.yml')]: CUSTOM,
+    [home('onboarding.md')]: '# Team onboarding\n\n## `survey`\n\nList the repositories.\n',
+  });
+  const { report } = inProject(root, ['locate', '--name=onboarding']);
+  assert.equal(report.title, 'Team onboarding');
+  assert.equal(report.summary, null, 'the prose of the first node section is not what the workflow is for');
+});
+
 test('a built-in is found where the plugin ships it, named either way', t => {
   const root = project(t);
   for (const name of ['research', 'builtin:research']) {
@@ -165,6 +185,65 @@ test('the nodes that dispatch into a member are named', t => {
   assert.deepEqual(report.dispatches, ['build']);
 });
 
+// A node an overlay or a profile adds with `dir:` makes the run a chain as
+// surely as one the base declares, and a node the base declares stops making
+// it one once an overlay disables it: the chain is judged on the graph a run
+// would freeze.
+const SHIP = [
+  '    ship:',
+  '      uses: workflow:development',
+  '      dir: api',
+  '      needs: [research-foundation]',
+];
+
+test('a dir: node an overlay adds over a built-in makes it a chain', t => {
+  const root = project(t, { [home('research.overlay.yml')]: ['extends: builtin:research', 'add:', ...SHIP.map(line => line.slice(2)), ''].join('\n') });
+  const { code, report } = inProject(root, ['locate', '--name=research']);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(report.dispatches, ['ship']);
+});
+
+test('a dir: node a profile adds counts only when that profile is selected', t => {
+  const root = project(t, {
+    [home('research.overlay.yml')]: ['extends: builtin:research', 'profiles:', '  wide:', '    add:', ...SHIP.map(line => `  ${line}`), ''].join('\n'),
+  });
+  assert.deepEqual(inProject(root, ['locate', '--name=research']).report.dispatches, []);
+  const { code, report } = inProject(root, ['locate', '--name=research', '--profile=wide']);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(report.dispatches, ['ship']);
+});
+
+test('the caller\'s own overlays are folded in after the lookup\'s, adding or removing a dir: node', t => {
+  const root = project(t, {
+    [home('rollout.yml')]: CHAIN,
+    [home('onboarding.yml')]: CUSTOM,
+    'lean.overlay.yml': 'extends: rollout\ndisable: [build]\n',
+    'split.overlay.yml': 'extends: onboarding\nadd:\n  handoff:\n    uses: workflow:development\n    dir: api\n    needs: [survey]\n',
+  });
+  const lean = inProject(root, ['locate', '--name=rollout', '--overlay=lean.overlay.yml']);
+  assert.equal(lean.code, 0, JSON.stringify(lean.report.errors));
+  assert.deepEqual(lean.report.dispatches, []);
+  assert.deepEqual(lean.report.overlays, [], 'overlays stays the lookup\'s own, the values validate takes before the caller\'s');
+  const split = inProject(root, ['locate', '--name=onboarding', '--overlay=split.overlay.yml']);
+  assert.deepEqual(split.report.dispatches, ['handoff']);
+});
+
+test('an overlay the caller names that cannot be read is refused with the reader\'s error', t => {
+  const root = project(t, { [home('onboarding.yml')]: CUSTOM });
+  const { code, report } = inProject(root, ['locate', '--name=onboarding', '--overlay=missing.overlay.yml']);
+  assert.equal(code, 1);
+  assert.match(report.errors[0].message, /cannot be read/);
+});
+
+test('--overlay and --profile need a name', t => {
+  const root = project(t);
+  for (const flag of ['--overlay=x.overlay.yml', '--profile=wide']) {
+    const result = inProject(root, ['locate', flag]);
+    assert.equal(result.code, 2, flag);
+    assert.match(result.stderr, /locate takes --overlay and --profile only with --name/);
+  }
+});
+
 test('a name found nowhere is refused with the four homes it was looked for in', t => {
   const root = project(t);
   const { code, report } = inProject(root, ['locate', '--name=nowhere']);
@@ -173,6 +252,16 @@ test('a name found nowhere is refused with the four homes it was looked for in',
   assert.equal(report.errors[0].path, 'name');
   assert.match(report.errors[0].message, /no workflow named "nowhere"/);
   assert.match(report.errors[0].message, /nowhere\.overlay\.yml/);
+});
+
+test('an overlay for a name no built-in carries is refused, naming the overlay and the base it lacks', t => {
+  const root = project(t, { [home('acme.overlay.yml')]: 'extends: acme\n' });
+  const { code, report } = inProject(root, ['locate', '--name=acme']);
+  assert.equal(code, 1);
+  assert.equal(report.ok, false);
+  assert.deepEqual([report.errors[0].file, report.errors[0].path], [home('acme.overlay.yml'), 'name']);
+  assert.match(report.errors[0].message, /is an overlay for "acme", but there is no built-in acme to lay it over/);
+  assert.match(report.errors[0].message, /write it as \.maister\/workflows\/acme\.yml/);
 });
 
 test('a name outside the workflow charset is refused before any path is built', t => {
@@ -253,7 +342,7 @@ test('a project with no workflow directory lists none', t => {
   assert.deepEqual(report.workflows, []);
 });
 
-test('locate takes no flag but --name', () => {
+test('locate takes --name, --overlay and --profile and no other flag', () => {
   const result = run(ENGINE, ['locate', '--definition=x.yml']);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /the verb locate takes no --definition flag/);

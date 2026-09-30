@@ -30,6 +30,7 @@
 # never consults.
 name: development
 version: 1
+description: "Builds a change to the code — a new feature, an enhancement, a bug fix or a refactor — from analysis through specification, planning, implementation and verification, with an operator gate after each phase. Use it for any task that modifies code; the optional stretches (a TDD red/green pair, UI mockups, a specification audit, browser tests, user documentation) run only when the task calls for them."
 inputs:
   task_description: {type: string, required: true}
   research: {type: string, required: false}

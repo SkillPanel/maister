@@ -488,7 +488,7 @@ same keys the child exposes — an artifact by the path the child's producing no
 by its type. Binding is by name, both ways. `task_path` and `run_id` are reserved: the engine
 writes them onto the calling node as the address of its child. Validation warns
 `unresolved-subrun-input` for a `with:` key the child does not declare or a required child input
-not passed — pass it even when the child has a default — and `unresolved-subrun-output` for a key
+with no default that is not passed, and `unresolved-subrun-output` for a key
 the child does not expose. The walks, the refusals and the worked state pair are
 `references/sub-runs.md`.
 
@@ -526,9 +526,9 @@ Warnings never block, and each one is worth reading:
 | `unresolved-reference:<node>:<target>` | A `skill:`, `agent:` or `workflow:` target found in no tier or home — a typo, or something not installed here |
 | `added-node-no-dependents:<path>:<node>` | An added node nothing waits for; list the nodes that should wait under `before:` |
 | `overlay-ignored:<name>:<home>` | An overlay beside an eject or a generated chain of its name, never applied |
-| `workflow-undescribed` | A project workflow with neither a `description:` nor a companion paragraph, which `/maister-copilot:work` cannot offer |
+| `workflow-undescribed:<name>` | A project workflow with neither a `description:` nor a companion paragraph, which `/maister-copilot:work` cannot offer |
 | `exposed-output-disabled:<path>:<node>` | An exposed output whose node an overlay or profile removed; the key is dropped |
-| `unresolved-subrun-input:<node>:<name>` | A child input missing from `with:`, or a `with:` key the child does not declare |
+| `unresolved-subrun-input:<node>:<name>` | A required child input with no default missing from `with:`, or a `with:` key the child does not declare |
 | `unresolved-subrun-output:<node>:<name>` | A key the calling node declares that the child does not expose, or exposes at another path |
 | `undecidable-value-type:<path>` | A `string` value; prefer `bool`, `id` or an `enum` where the value is a handle |
 | `icon-hint-unknown-node:<path>:<node>`, `title-unknown-node:<path>:<node>` | Display for a node the graph does not carry |

@@ -346,3 +346,35 @@ test('an added node placed with before:, or needed by another added node, is not
   assert.equal(code, 0, JSON.stringify(report.errors));
   assert.deepEqual(leafWarnings(report), []);
 });
+
+// ---------------------------------------------------------------------------
+// an overlay with nothing to lay itself over
+// ---------------------------------------------------------------------------
+
+test('an overlay judged on its own is refused when the workflow it names exists nowhere, naming that base', t => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-overlay-base-'));
+  t.after(() => fs.rmSync(project, { recursive: true, force: true }));
+  const home = path.join(project, '.maister/workflows');
+  fs.mkdirSync(home, { recursive: true });
+  const overlay = path.join(home, 'acme.overlay.yml');
+  fs.writeFileSync(overlay, 'extends: acme\ndisable: [review]\n');
+  const env = { CLAUDE_PROJECT_DIR: project };
+
+  const refused = verb(['validate', `--overlay=${overlay}`], undefined, env);
+  assert.equal(refused.code, 1, refused.stdout);
+  const [error] = JSON.parse(refused.stdout).errors;
+  assert.deepEqual([error.file, error.path], [overlay, 'extends']);
+  assert.match(error.message, /extends "acme", but no workflow of that name exists/);
+  assert.match(error.message, /\.maister\/workflows\/acme\.yml/);
+
+  // The same overlay once the project defines the workflow it extends.
+  fs.writeFileSync(path.join(home, 'acme.yml'), 'name: acme\nversion: 1\nnodes:\n  review:\n    uses: skill:quick-plan\n    needs: []\n');
+  const passed = verb(['validate', `--overlay=${overlay}`], undefined, env);
+  assert.equal(passed.code, 0, passed.stdout);
+});
+
+test('a base named by path is not looked for when the overlay is judged on its own', t => {
+  const overlay = overlayFile(t, ['extends: nowhere/absent.yml', 'disable: [review]'], 'absent.overlay.yml');
+  const result = verb(['validate', `--overlay=${overlay}`]);
+  assert.equal(result.code, 0, result.stdout);
+});

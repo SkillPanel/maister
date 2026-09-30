@@ -11,7 +11,7 @@
  *   validate       --definition and/or repeatable --overlay   JSON on stdout
  *   resolve        --definition, --overlay…, --profile        JSON on stdout
  *   diagram        the same, plus optional --out              Mermaid text
- *   locate         optional --name                            JSON on stdout
+ *   locate         optional --name, with it --overlay…, --profile   JSON on stdout
  *                  (one workflow found by the name it is run by, with the
  *                  --definition and --overlay values the three verbs above
  *                  take; without --name, the project's own workflows)
@@ -63,9 +63,11 @@ const VERBS = {
   resolve: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile'] },
   diagram: { module: 'diagram.mjs', flags: ['definition', 'overlay', 'profile', 'out'] },
   // The name lookup the three verbs above do not do: they take paths, and a
-  // run starts from a name. Read-only, and the flag is optional — without it
-  // the verb lists every workflow the project itself can run by name.
-  locate: { module: 'locate.mjs', flags: ['name'] },
+  // run starts from a name. Read-only, and the name is optional — without it
+  // the verb lists every workflow the project itself can run by name. The
+  // overlays and the profile a run would add take part only in whether the
+  // named workflow is a chain, so they need the name.
+  locate: { module: 'locate.mjs', flags: ['name', 'overlay', 'profile'] },
   'write-state': { module: 'state.mjs', flags: ['state'] },
   // One flag, like `write-state`, and for the same reason: everything the verb
   // needs — the run directory, the `gates/` directory and the frozen graph — is
@@ -383,9 +385,12 @@ async function runDiagram(flags) {
  * caller reads the reasons from the same place whatever the outcome.
  */
 async function runLocate(flags) {
+  if (!flags.name && ((flags.overlay || []).length || flags.profile)) {
+    throw new UsageError('locate takes --overlay and --profile only with --name');
+  }
   const module = await loadModule(VERBS.locate.module);
   const find = entryOf(module, 'locate', VERBS.locate.module);
-  const result = find({ name: flags.name ?? null });
+  const result = find({ name: flags.name ?? null, overlays: flags.overlay || [], profile: flags.profile ?? null });
   report(result);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }

@@ -374,11 +374,10 @@ test('workflows: builtin: and the bare name are one name, and a custom one lives
     { bare: eject, prefixed: eject });
 });
 
-// Found by this suite and left for its own change: the overlay home counts as a
-// hit whatever the name, so an overlay for a name no built-in carries resolves
-// clean — `from: overlay`, no warning — while the base it would apply to does
-// not exist, and a run of it has no definition to start from.
-test('workflows: an overlay for a name no built-in carries is not a workflow', { todo: 'the overlay home is a hit even when the built-in it overlays does not exist' }, t => {
+// The overlay home counts only when the built-in it overlays exists: an overlay
+// for a name no built-in carries has no definition behind it, so a run of it
+// would have nothing to start from.
+test('workflows: an overlay for a name no built-in carries is not a workflow', t => {
   const w = world(t);
   put(w, { 'project/.maister/workflows/acme.overlay.yml': 'extends: acme\n' });
   const { found, warnings } = where(w, { child: 'workflow:acme' });

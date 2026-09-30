@@ -141,9 +141,10 @@ const TUNABLE = ['with', 'provider'];
  * one exemption (`isReservedKey`): they parse and warn by design.
  *
  * The node set is `NODE_KEYS` below, without `id` — the id is the node's map
- * key, and an `id:` written inside a node would be ignored.
+ * key, so an `id:` written inside a node is refused like any other key outside
+ * the set.
  */
-const DEFINITION_KEYS = ['name', 'version', 'inputs', 'outputs', 'display', 'nodes'];
+const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes'];
 const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display'];
 const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
 const DISPLAY_KEYS = ['icons', 'titles'];
@@ -176,6 +177,13 @@ const RETIRED_OPTION_KEYS = {
 
 /** The declared input types. */
 const INPUT_TYPES = ['string', 'bool', 'path'];
+
+/**
+ * What one input declaration may carry. Closed like every other key set of a
+ * version 1 document: a misspelt `requried: true` used to pass, leaving an
+ * input the author meant to require optional, and a caller asked for nothing.
+ */
+const INPUT_KEYS = ['type', 'required', 'default', 'tracker_key'];
 
 /**
  * When a node may run, given how its needs ended. `success`, the default, needs
@@ -232,6 +240,9 @@ const WARN = {
   iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
   titleUnknownNode: (path, node) => `title-unknown-node:${path}:${node}`,
   overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
+  undescribed: (name) => `workflow-undescribed:${name} — the work command offers a project workflow by what it is for, `
+    + 'and this one does not say: add a one-paragraph description: to the definition, '
+    + 'or a paragraph under the title of its prose companion',
   addedLeaf: (path, node, position, count, after) => `added-node-no-dependents:${path}:${node} — nothing needs it, `
     + `so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
     + 'list the nodes that should wait for it under before:',
@@ -321,9 +332,12 @@ export function checkSubrunStart({ node, parent = null, project = null } = {}) {
  * Validate a definition, a set of overlays, or both.
  *
  * `mode` is decided by the caller from what was supplied and is not re-derived
- * here. In `standalone` mode the overlays are judged on their own shape and the
- * base is never looked for — which is the only way an overlay over a workflow
- * this build does not ship can be checked at all. In `resolved` mode the full
+ * here. In `standalone` mode the overlays are judged on their own shape, and a
+ * base named by its workflow name must exist somewhere a run could find it — a
+ * built-in, or a definition in the project — because an overlay with nothing
+ * to lay itself over is not a workflow anyone can run. A base named by path is
+ * not looked for: the path is relative to whatever definition the operator
+ * pairs it with, which only resolved mode has. In `resolved` mode the full
  * order applies on top: base-node existence, `uses` immutability and the `tune`
  * whitelist all become reachable because there is a base to compare against.
  *
@@ -353,6 +367,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   }
 
   if (mode === 'standalone') {
+    for (const overlay of overlays) checkOverlayBaseExists(overlay, project, errors);
     checkProfileChoice(overlays, profile, null, errors);
     // No base to build a graph from, so there is nothing to count. `null` rather
     // than zeroes: a caller that renders "0 nodes" for an overlay judged on its
@@ -365,6 +380,8 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   checkDefinition(definition, errors);
   const hidden = hiddenOverlay(definition, overlays);
   if (hidden) warnings.push(hidden);
+  const undescribed = undescribedWorkflow(definition);
+  if (undescribed) warnings.push(undescribed);
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) {
     checkGraph(graph, errors, warnings, resolved, project);
@@ -881,6 +898,15 @@ export function locateTarget(scheme, written, { project = null } = {}) {
  * operations rather than a document of its own. Callers that need the child's
  * declared interface read `base` and never have to branch on `from`.
  *
+ * **An overlay is a hit only when the built-in it lays over exists.** The
+ * overlay home is named after a built-in, and an overlay whose built-in is
+ * absent has nothing to be applied to: no document to read, no run to start.
+ * Counting it anyway reported a workflow — `from: overlay`, no warning — whose
+ * `base` was a file that does not exist, so every reader of that name failed
+ * later and further from the cause. Such a name now resolves nowhere, which
+ * is what it is; `orphanOverlay` below finds the file for a caller that wants
+ * to say why.
+ *
  * The built-in prefix is stripped through `bareWorkflowName`, so `research` and
  * `builtin:research` resolve to the same file and the prefix never reaches a
  * path.
@@ -903,7 +929,7 @@ export function locateWorkflow(name, root = null) {
     { at: path.join(home, `${bare}.overlay.yml`), from: 'overlay', base: builtin },
     { at: builtin, from: 'builtin', base: null },
   ];
-  const hit = homes.find((home_) => isFile(home_.at));
+  const hit = homes.find((home_) => isFile(home_.at) && (home_.from !== 'overlay' || isFile(builtin)));
   if (!hit) return null;
   // An eject or a generated chain wins over an overlay of the same name, and
   // the overlay is then never applied. `ignored` names it, so a caller can say
@@ -911,6 +937,20 @@ export function locateWorkflow(name, root = null) {
   const overlay = homes[2];
   const ignored = (hit.from === 'eject' || hit.from === 'generated') && isFile(overlay.at) ? overlay.at : null;
   return { at: hit.at, from: hit.from, base: hit.base ?? hit.at, ignored };
+}
+
+/**
+ * The overlay a name would have resolved to if its built-in existed, or null.
+ * `locateWorkflow` answers null for such a name, because no workflow is behind
+ * it; this answers where the file is, so a caller refusing the name can say it
+ * found an overlay with nothing to lay it over rather than that it found
+ * nothing at all.
+ */
+export function orphanOverlay(name, root = null) {
+  const bare = bareWorkflowName(name);
+  if (bare === null || locateWorkflow(bare, root) !== null) return null;
+  const overlay = path.join(root ? path.resolve(root) : projectRoot(), '.maister', 'workflows', `${bare}.overlay.yml`);
+  return isFile(overlay) ? overlay : null;
 }
 
 /**
@@ -995,6 +1035,75 @@ function resolveTarget(uses, origin, project) {
 /** The prose companion's path beside a definition file. */
 function companionOf(file) {
   return String(file).replace(/\.ya?ml$/i, '.md');
+}
+
+/**
+ * The prose companion beside a definition, as a reader offering the workflow
+ * sees it: `{companion, title, summary}`, the companion's path, its H1 and the
+ * paragraph directly under it, each null when absent. The paragraph is the
+ * first run of non-blank lines after the H1 — or from the top when there is
+ * none — folded onto one line, and it ends at the next heading. Only prose
+ * that stands under the title describes the workflow: past the first section
+ * heading the text is about one node, and a companion that goes straight from
+ * its title to its node sections has said nothing about what the workflow is
+ * for.
+ *
+ * Exported for `locate`, which reports it, and read here for the
+ * `workflow-undescribed` warning, so the listing and the warning about what the
+ * listing will say are one parse.
+ */
+export function companionSummary(file) {
+  const companion = companionOf(file);
+  let text;
+  try {
+    text = fs.readFileSync(companion, 'utf8');
+  } catch {
+    return { companion: null, title: null, summary: null };
+  }
+  const lines = text.split(/\r?\n/);
+  const heading = lines.findIndex((line) => /^#\s+\S/.test(line));
+  const title = heading >= 0 ? lines[heading].replace(/^#\s+/, '').trim() : null;
+  const paragraph = [];
+  for (const line of lines.slice(heading + 1)) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#')) break;
+    if (trimmed === '') {
+      if (paragraph.length) break;
+      continue;
+    }
+    paragraph.push(trimmed);
+  }
+  return { companion, title, summary: paragraph.length ? paragraph.join(' ') : null };
+}
+
+/**
+ * The `workflow-undescribed` warning, for a project workflow that says nowhere
+ * what it is for.
+ *
+ * The work command offers the project's own workflows beside the built-in ones
+ * and routes a task to one by what it is for — its `description:`, else its
+ * companion's opening paragraph. A workflow carrying neither can be listed but
+ * never matched, so the author hears it here rather than wondering why no task
+ * ever reaches it.
+ *
+ * Only the definitions that listing reads are judged: a file directly in a
+ * project's `.maister/workflows/`, not an overlay, not a generated chain, and
+ * not named after a built-in — an eject of a built-in is reached through that
+ * workflow's own command. A draft kept anywhere else is not offered yet, and
+ * warning about it would be noise.
+ */
+function undescribedWorkflow(definition) {
+  const file = definition?.file;
+  const doc = definition?.doc;
+  if (typeof file !== 'string' || !isMap(doc) || !/\.ya?ml$/i.test(file)) return null;
+  const stem = path.basename(file).replace(/\.ya?ml$/i, '');
+  const home = path.dirname(path.resolve(file));
+  if (stem.endsWith('.overlay') || !TARGET_NAME.test(stem)) return null;
+  if (path.basename(home) !== 'workflows' || path.basename(path.dirname(home)) !== '.maister') return null;
+  if (isFile(path.join(pluginRoot(), 'skills', 'workflow-engine', 'workflows', `${stem}.yml`))) return null;
+  if (typeof doc.description === 'string' && doc.description.trim() !== '') return null;
+  if (companionSummary(file).summary !== null) return null;
+  return WARN.undescribed(stem);
 }
 
 /**
@@ -1503,6 +1612,7 @@ function checkInputs(inputs, file, errors) {
         `an input is declared as a mapping of its type, whether it is required and its default; ${describe(input)} is not`);
       continue;
     }
+    checkKeys(Object.keys(input), INPUT_KEYS, { file, prefix: `inputs.${name}.`, label: 'an input key' }, errors);
     if (input.type !== undefined && !INPUT_TYPES.includes(input.type)) {
       const near = closest(input.type, INPUT_TYPES);
       fail(errors, file, `inputs.${name}.type`,
@@ -1754,6 +1864,16 @@ function checkDefinition(definition, errors) {
   if (isPresent(doc.inputs) && !isMap(doc.inputs)) {
     fail(errors, file, 'inputs', `inputs is a mapping of input name to its declaration; ${describe(doc.inputs)} is not`, null);
   }
+  // What the workflow is for, read by whoever offers it to an operator and
+  // never by a run: outside the hash, like `name` and `display:`. One paragraph
+  // on one line, because it is quoted into a one-line listing and a router's
+  // prompt, where a line break would end it early.
+  if (isPresent(doc.description)
+    && (typeof doc.description !== 'string' || doc.description.trim() === '' || /[\n\r\t]/.test(doc.description))) {
+    fail(errors, file, 'description',
+      `description is one paragraph of plain text saying what the workflow is for and when to use it, on one line; `
+      + `${typeof doc.description === 'string' ? (doc.description.trim() === '' ? 'an empty string' : 'text with a line break or a tab') : describe(doc.description)} is not`, null);
+  }
 }
 
 function isPresent(value) {
@@ -1915,6 +2035,15 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
     if (typeof node.uses !== 'string' || node.uses === '') {
       fail(errors, file, `${at}.uses`, 'a task node must name what it runs', id);
     }
+    // A question and its options are what make a gate. On a task node nothing
+    // asks them and nothing reads them, yet both were hashed — a graph whose
+    // identity moved over keys that do nothing.
+    for (const key of ['ask', 'options']) {
+      if (node[key] === undefined) continue;
+      fail(errors, file, `${at}.${key}`,
+        `${key} belongs to a gate, and this node runs ${typeof node.uses === 'string' ? node.uses : 'a target'}; `
+        + 'add type: gate and drop uses to make it a gate, or remove ask and options', id);
+    }
     return;
   }
 
@@ -2001,7 +2130,7 @@ function checkDeclaredValues(node, at, file, errors, warnings, id) {
     if (isMap(type) && Array.isArray(type.enum) && type.enum.length > 0 && Object.keys(type).length === 1) {
       const bad = type.enum.find((member) => typeof member !== 'string' || member === '');
       if (bad === undefined) continue;
-      fail(errors, file, dotted, 'every enum member must be a non-empty scalar', id);
+      fail(errors, file, dotted, 'every enum member must be a non-empty string', id);
       continue;
     }
     fail(errors, file, dotted, `a declared value type is bool, id, enum or string; ${describe(type)} is none of them`, id);
@@ -2065,9 +2194,14 @@ function checkSubrun(node, id, at, file, errors, warnings, project, children) {
   const child = childInterface(found.base, children);
   if (child === null) return;
 
+  // Required with a default is not missing when omitted: the child's freeze
+  // lets the default stand in and refuses nothing, so warning here would
+  // disagree with the run.
   const passed = isMap(node.with) ? node.with : {};
   for (const [name, input] of Object.entries(child.inputs)) {
-    if (isMap(input) && input.required === true && passed[name] === undefined) warnings.push(WARN.subrunInput(id, name));
+    if (isMap(input) && input.required === true && !Object.hasOwn(input, 'default') && passed[name] === undefined) {
+      warnings.push(WARN.subrunInput(id, name));
+    }
   }
   for (const name of Object.keys(passed)) {
     if (child.inputs[name] === undefined) warnings.push(WARN.subrunInput(id, name));
@@ -2308,6 +2442,7 @@ function canonicalNodes(graph) {
     for (const key of NODE_KEYS) {
       if (key === 'id') canonical.id = id;
       else if (key === 'needs') canonical.needs = [...new Set(needsOf(node))].sort();
+      else if (key === 'options' && isMap(node.options)) canonical.options = canonicalOptions(node.options);
       else if (node[key] !== undefined) canonical[key] = canonicalValue(node[key]);
     }
     for (const key of Object.keys(node).sort()) {
@@ -2380,6 +2515,29 @@ function isDisabledReference(reference, graph) {
   if (typeof reference !== 'string') return false;
   const id = reference.split('.')[0];
   return !graph.nodes.has(id) && (graph.removed?.has(id) ?? false);
+}
+
+/**
+ * A gate's options, each in the one spelling that means it. `rescan: stop` and
+ * `rescan: {effect: stop}` are the same option — the map form carries the
+ * effect and nothing else (`OPTION_KEYS`) — so both reduce to the bare effect,
+ * and a graph does not change identity because an author chose the longer
+ * spelling. The bare form is the one every shipped definition uses, so no
+ * shipped hash moves.
+ *
+ * A map carrying anything beside the effect is kept whole. The validator
+ * refuses one, so only a degraded document reaches this with it, and reducing
+ * it would hash a document that says more than this build reads identically
+ * to one that says only the effect.
+ */
+function canonicalOptions(options) {
+  const canonical = Object.create(null);
+  for (const key of Object.keys(options).sort()) {
+    const option = options[key];
+    const onlyEffect = isMap(option) && Object.keys(option).length === 1 && Object.hasOwn(option, 'effect');
+    canonical[key] = onlyEffect ? canonicalValue(option.effect) : canonicalValue(option);
+  }
+  return canonical;
 }
 
 /** Free-form values keep their content and lose their authoring key order. */
@@ -2522,6 +2680,24 @@ function checkOverlayBase(overlay, definition, errors) {
   const wanted = path.resolve(path.dirname(overlay.file ?? '.'), declared);
   if (path.resolve(source) === wanted || path.basename(source) === path.basename(declared)) return;
   fail(errors, overlay.file, 'extends', `the overlay extends "${declared}", which is not the definition it was applied to`, null);
+}
+
+/**
+ * That a base named by its workflow name exists, for an overlay judged on its
+ * own. Resolved mode never needs this — the base is in hand — and a path-form
+ * base is relative to a definition only resolved mode is given. What remains is
+ * the overlay written for a workflow that is not there: it validated clean on
+ * its shape and then had nothing to be applied to when a run looked for it.
+ */
+function checkOverlayBaseExists(overlay, project, errors) {
+  const declared = overlay?.doc?.extends;
+  if (typeof declared !== 'string' || !BASE_REF.test(declared)) return;
+  const named = bareWorkflowName(declared);
+  if (named === null || locateWorkflow(named, project) !== null) return;
+  fail(errors, overlay.file, 'extends',
+    `the overlay extends "${named}", but no workflow of that name exists: there is no built-in ${named} and no `
+    + `${named}.yml in the project's .maister/workflows/ or its generated/. An overlay changes a workflow that exists; `
+    + `a workflow of your own is written as .maister/workflows/${named}.yml`, null);
 }
 
 function checkOps(body, file, prefix, errors) {

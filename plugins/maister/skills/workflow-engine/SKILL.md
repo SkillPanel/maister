@@ -91,13 +91,14 @@ validated against is the file the lookup found — the same function `validate` 
 |---|---|
 | `.maister/workflows/<name>.yml` | an **eject** — it shadows the built-in entirely |
 | `.maister/workflows/generated/<name>.yml` | a **generated** chain — published by the chain planner for one ticket, complete in itself |
-| `.maister/workflows/<name>.overlay.yml` | an **overlay** — merged over the built-in |
+| `.maister/workflows/<name>.overlay.yml` | an **overlay** — merged over the built-in, and a hit only when that built-in exists |
 | `workflows/<name>.yml` beside this skill | the shipped **built-in** |
 
 Resolution order is eject → generated → overlay → built-in, and the first hit wins. A
 generated chain is never overlaid and never ejected: there is no `generated/<name>.overlay.yml`
 candidate, and a definition of the same name at the top of the directory would simply win —
-which the planner's collision check prevents. **An overlay beside an eject or a generated chain
+which the planner's collision check prevents. An overlay for a name no built-in carries is not a
+workflow: `locate` refuses the name, naming the overlay and the base it lacks. **An overlay beside an eject or a generated chain
 of its name is never applied.** Say so to the operator when you find one, rather than letting
 them believe it is in effect; `validate` reports the same fact as `overlay-ignored:<name>:<home>`. Its path is what the freeze records as
 `workflow.source`, exactly as for an eject, and the graph hash is computed from the resolved
@@ -108,12 +109,14 @@ name, the run's inputs as a map, the overlays, the profile and a title. Its over
 lookup's own followed by any the operator named, in that order, and they and the profile go to
 `validate`, `resolve` and the freeze exactly as given (Step 4); the inputs are the freeze's
 `orchestrator.options.inputs`, and the title is `task.title`. It has already refused a chain and
-validated the definition; both checks are cheap and are run again here regardless.
+validated the definition; both checks are cheap and are run again here regardless, with the same
+overlays and profile.
 
 **A run starts from a name the lookup resolves, never from a path.** A definition file kept
-anywhere else is not a workflow this skill runs, and a definition whose nodes carry `dir:` — a
-chain, which dispatches into member repositories — is started and driven by maister cockpit,
-never under an absent or `terminal` driver. Authoring an eject or an overlay is not this
+anywhere else is not a workflow this skill runs, and a definition whose resolved graph —
+overlays and profile included — has a node carrying `dir:` is a chain, which dispatches into
+member repositories and is started and driven by maister cockpit, never under an absent or
+`terminal` driver. Authoring an eject or an overlay is not this
 skill's business either.
 
 **Reading the opt-out switch, on every platform.** A workflow's own orchestrator hands runs
@@ -366,10 +369,10 @@ One verb, one call. When a step needs two verbs, that is two calls.
 
 | Verb | Flags | Gives |
 |---|---|---|
-| `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead |
+| `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead. An overlay given without `--definition` is judged on its shape, and a base it names by workflow name must exist — a built-in or a project definition. A workflow in the project's `.maister/workflows/` that says nowhere what it is for — no `description:`, no paragraph under its companion's title — warns `workflow-undescribed`, because `/maister:work` cannot match a task to it |
 | `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
-| `locate` | optional `--name` (bare or `builtin:`-prefixed) | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take, a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `dispatches` names the nodes that carry `dir:`. Exit `1` when the name is found nowhere, is not a workflow name, or finds a file whose `name:` is another. With no name, `{ok, workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
+| `locate` | optional `--name` (bare or `builtin:`-prefixed); with it, repeatable `--overlay` and `--profile` — the run's own | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take (the lookup's own, before any the caller adds), a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `title` is the companion's H1, and `summary` the definition's `description:`, else the paragraph under that H1; `dispatches` names the nodes that carry `dir:` in the graph folded from the definition, every overlay and the profile. Exit `1` when the name is found nowhere, is not a workflow name, finds only an overlay with no built-in beneath it, or finds a file whose `name:` is another. With no name, `{ok, errors[], workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |

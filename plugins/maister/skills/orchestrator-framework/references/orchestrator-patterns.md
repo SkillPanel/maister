@@ -501,7 +501,8 @@ window.MAISTER_DATA = {
                                 // § 4 Timestamp Rule; never date-only, never T00:00:00Z.
                                 // (display only — the viewer detects updates by content comparison)
   task: {
-    title: "", type: "development|performance|migration|research|product-design|plan",
+    title: "", type: "development",  // the run's workflow: the <type> folder of its task path,
+                                      // as it is — a project's own workflow is its own type
     status: "pending|in_progress|completed|failed|blocked",
     description: "", path: "",
     current_activity: null        // short present-continuous line for the running phase
@@ -553,7 +554,7 @@ window.MAISTER_DATA = {
 
 **Where a phase card's prose comes from on the engine path.** The projection reads `node_summaries.<node>` first and falls back to `[domain]_context.phase_summaries.<key>` only where the key equals the node id. It chooses **field by field**: `summary`, `decisions`, `risks` and `artifacts` each come from the first of the two that carries them non-empty, and the two are never concatenated — a field filled on both shows the node summary's. A node summary written with empty lists therefore no longer hides what its phase summary recorded, but a node summary that fills a field is the only source for that field.
 
-The viewer decides presentation (hero artifacts per workflow type, collapsed drawers, severity colors) — orchestrators only supply data.
+The viewer decides presentation (hero artifacts per workflow type — none for a type it has no hero map for — collapsed drawers, severity colors) — orchestrators only supply data.
 
 ---
 
