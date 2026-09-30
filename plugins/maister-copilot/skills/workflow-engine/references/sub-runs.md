@@ -46,9 +46,9 @@ are what an author sees first, the refusals are what fail a run.
 | — | *no write* | resolve the name, interpolate `with:`, run the checks above, derive the child directory name, create it, `validate` and `resolve` the child definition |
 | **W2 — the child freezes** | one `write-state` against the **child** state | `task` (title, description, status `in_progress`, and `task.key` when the child marks a tracker key input); `workflow` (`source`, `overlays`, `profile`, `graph_hash` exactly as `resolve` printed it, `grammar_version`, `name`) **together with** its `nodes`; `orchestrator.options.inputs` (the interpolated `with:`, plus `embedded: true` when the child declares that input); `orchestrator.driver` (`{kind: terminal}`); `orchestrator.parent` (`{run, node}`); `orchestrator.completed_phases` and `orchestrator.failed_phases`, both `[]`, which the writer seeds at the top of the block when the patch omits them; and `orchestrator.created`, carried in the patch like any other run's first write. `updated` is the writer's own: it stamps it *after* applying the patch, by the same append rule that lands a key the region does not already carry at the end of it, so the block ends with `updated` below `parent`. A child's freeze is necessarily that run's first write: a state file carrying no `workflow:` block is refused `state-incomplete`, so there is no initialise-first, freeze-second two-step to spread it over. |
 | **W3 — the parent records the link** | `write-state` against the **parent** state | `nodes.<node>`: `status: waiting`, `values: {task_path, run_id}` |
-| — | *the child runs, in session* | the ordinary engine loop against the child's state. Child gates are asked with the host's question tool and answered in the same turn; the child's own close-out prints its marker |
+| — | *the child runs, in session* | the ordinary engine loop against the child's state. Child gates are asked with the host's question tool and answered in the same turn; the child's own close-out runs `run-complete` with no wrap-up, since the parent's own ending carries it |
 | — | *no write: the re-resolve* | read the child's state, re-resolve the definition **it** names, compare hashes, read its declared `outputs:` and the producing nodes' declared paths |
-| **W4 — the parent adopts the outcome** | `write-state` against the **parent** state | `nodes.<node>`: the mapped status, `values` re-sent whole as `{task_path, run_id, …copied values}`; `node_summaries.<node>`, onto which the writer appends every artifact the node declares that the child wrote, spelled relative to the parent's run directory; the `phase_summaries` key the node prose names when it mirrors one |
+| **W4 — the parent adopts the outcome** | `write-state` against the **parent** state | `nodes.<node>`: the mapped status, `values` re-sent whole as `{task_path, run_id, …copied values}`; `node_summaries.<node>`, onto which the writer appends every artifact the node declares that the child wrote, spelled relative to the parent's run directory, and whose `absent` names each declared artifact the child never wrote because a guard skipped the child node that writes it; the `phase_summaries` key the node prose names when it mirrors one |
 | — | continue | the parent resumes its ready-set walk; `${<node>.artifacts.<key>}` and `${<node>.values.<key>}` resolve |
 
 **`WAITING-SUBRUN` is never printed under a terminal driver.** That is a rule, not an implication.
@@ -246,7 +246,7 @@ and does not grow because a key gained a shape check.
 
 Two line-level tokens, printed in the manner of `GATE-INVALID` and `GATE-ALREADY-ANSWERED`, and
 ten run-level codes carried by `RUN-FAILED: <code>` in the manner of `closeout-unpublished`.
-Neither family joins the writer's twenty-four refusal codes: nothing here is a write refusal.
+Neither family joins the writer's twenty-five refusal codes: nothing here is a write refusal.
 
 | Name | Family | Raised when |
 |---|---|---|

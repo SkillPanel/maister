@@ -96,7 +96,7 @@ const { Refusal, flow } = canonical;
 /**
  * This writer's own names for the two refusals the shared publish path can
  * raise. They are passed in rather than emitted by `canonical.mjs` so this
- * module keeps its closed twenty-four-code vocabulary, which the contract suite
+ * module keeps its closed twenty-five-code vocabulary, which the contract suite
  * reads back out of the refusals themselves.
  */
 const COMMIT_CODES = { unwritable: 'state-unwritable', tempExists: 'state-temp-exists' };
@@ -138,7 +138,7 @@ const VIEWER_SOURCE = fileURLToPath(new URL('../../../orchestrator-framework/ass
  * They are caught at the projection call site and turned into warning entries,
  * because the projection runs *after* the state rename: a refusal there could not
  * un-publish the state write and reporting one would turn a landed write into a
- * reported failure. So the writer's documented twenty-four-code vocabulary does not
+ * reported failure. So the writer's documented twenty-five-code vocabulary does not
  * grow and neither code is owed a recovery row.
  */
 const DASHBOARD_CODES = { unwritable: 'dashboard-unwritable', tempExists: 'dashboard-temp-exists' };
@@ -613,6 +613,7 @@ function project(state, text, now, changed, warnings) {
       display: displayOfRun(doc, runDir),
       gates: gateRequests(runDir),
       progress: progressOf(doc, definition, runDir),
+      declared: declaredOf(doc, definition, runDir),
     };
     canonical.commit({
       target,
@@ -885,6 +886,31 @@ function progressOf(doc, definition, runDir) {
   const node = dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc);
   if (node !== null) progress[node] = derived;
   return progress;
+}
+
+/**
+ * Each node's declared artifact paths, keyed by node id and then by artifact
+ * key, spelled the way the node's summary registers them (`registeredPath`), so
+ * a sanctioned absence on the dashboard names the path its hero card and its
+ * phase would have linked. Empty when the definition cannot be read: the
+ * projection then shows the reason without a path rather than guessing one.
+ */
+function declaredOf(doc, definition, runDir) {
+  const declared = {};
+  const nodes = isPlainObject(definition?.nodes) ? definition.nodes : {};
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const run = { runDir, root: projectRootOf(runDir), nodes: isPlainObject(workflow.nodes) ? workflow.nodes : {} };
+  for (const [id, node] of Object.entries(nodes)) {
+    if (!isPlainObject(node) || !isPlainObject(node.outputs?.artifacts)) continue;
+    const registered = registeredPath(node, id, run);
+    const paths = {};
+    for (const [key, declaredPath] of Object.entries(node.outputs.artifacts)) {
+      const spelled = typeof declaredPath === 'string' && !declaredPath.includes('${') ? registered(declaredPath) : null;
+      if (spelled !== null) paths[key] = spelled;
+    }
+    declared[id] = paths;
+  }
+  return declared;
 }
 
 /** The first frozen executor id the run's own node map declares, or null. */
@@ -1865,6 +1891,40 @@ function assertOptions(id, decisions, gate) {
 }
 
 /**
+ * A node's sanctioned absences, held to what they claim. `absent` maps a
+ * declared artifact key to the reason the node completed without it, and
+ * `run-complete` and the dashboard take it at its word, so an entry that names
+ * nothing the node declares, or gives no reason, would silence a real gap or
+ * explain nothing. The shape is judged on every write; the keys only while the
+ * frozen block proves against the definition (`graph` is null otherwise), the
+ * rule every definition-backed check here follows.
+ */
+function assertAbsent(id, absent, graph) {
+  const at = `node_summaries.${id}.absent`;
+  if (!isPlainObject(absent)) {
+    throw new Refusal('state-absent-invalid',
+      `${at} is ${JSON.stringify(absent)}, but it must be a map from a declared artifact key to the reason the node `
+      + 'completed without that artifact. Nothing was written. Send it as {<artifact-key>: "<reason>"}, or leave it '
+      + 'out when every declared artifact was produced');
+  }
+  const node = resolvedNode(graph, id);
+  const declared = node === null ? null : isPlainObject(node.outputs?.artifacts) ? Object.keys(node.outputs.artifacts) : [];
+  for (const [key, reason] of Object.entries(absent)) {
+    if (declared !== null && !declared.includes(key)) {
+      throw new Refusal('state-absent-invalid',
+        `${at} names ${JSON.stringify(key)}, which ${id} does not declare as an artifact; it declares `
+        + `${declared.length ? declared.join(', ') : 'none'}. Nothing was written. Name the artifact by its declared `
+        + 'key, never by its path, and send the write again');
+    }
+    if (typeof reason !== 'string' || reason.trim() === '') {
+      throw new Refusal('state-absent-invalid',
+        `${at}.${key} is ${JSON.stringify(reason)}, but a sanctioned absence carries its reason as text. Nothing was `
+        + 'written. Say in a few words why the node completed without this artifact, and send the write again');
+    }
+  }
+}
+
+/**
  * The clock fields a status change owes, filled from the system clock and never
  * invented for a transition that did not happen. A full UTC date and time, so
  * `started` and `completed` are orderable against each other.
@@ -2050,7 +2110,10 @@ function applyContext(doc, contextKey, context, changed) {
  *
  * A gate's `node_summaries` entry is where its answer is recorded, so its
  * decisions are held to the options the gate offers (`assertOptions`) while the
- * frozen block proves against the definition.
+ * frozen block proves against the definition. A node summary's `absent` map —
+ * the declared artifacts the node sanctioned not producing — is held to the
+ * node's declared keys the same way, and to a reason on every write
+ * (`assertAbsent`).
  */
 function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null, graphOf = null) {
   if (!isPlainObject(summaries)) throw new Refusal('state-patch-invalid', `the ${kind} summaries must be an object`);
@@ -2063,6 +2126,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       const gate = resolvedNode(graphOf(), key);
       if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate);
     }
+    if (kind === 'node' && Object.hasOwn(entry, 'absent')) assertAbsent(key, entry.absent, graphOf === null ? null : graphOf());
     if (kind === 'node' && Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);
       if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') {
