@@ -481,11 +481,12 @@ verb. It reads that status and prints the marker from it:
   stays the last line, and `task.status` on disk is what says the run stopped.
 
 Whatever the ending, one `missing-artifact: <node> <path>` line precedes the marker for each
-artifact a `completed` node declared that is not on disk — a sub-run node's path joined onto its
-child's task directory. It is a warning for the operator, never a refusal, and the exit code does
-not move: whether an absence is a defect was the node's own check to make (*Recording an
-outcome*), and only its prose can sanction one. Echo the lines with the marker; a line the
-node's summary does not explain is the operator's cue to re-drive that node.
+artifact a `completed` node declared that is not on disk and that its summary does not record
+under `absent` — a sub-run node's path joined onto its child's task directory. It is a warning,
+never a refusal, and the exit code does not move: whether an absence is a defect was the node's
+own check to make (*Recording an outcome*). Because a sanctioned absence prints nothing, a line
+that remains is a genuine gap, and the operator's cue to re-drive that node. How the lines reach
+the operator depends on the driver (*Operator visibility*).
 
 A dispatched run that owes a close-out it never published gets `RUN-FAILED:
 closeout-unpublished` whatever its status. Echo the verb's lines, the marker last; do not
@@ -686,6 +687,11 @@ the node's recorded `values.task_path` and maps it:
 | `stopped` | `stopped` | stops outright — one patch carries `task.status: stopped` and every unexecuted node, then `run-complete`. No `RUN-FAILED`: a stop is a legitimate outcome |
 | anything else | unchanged, stays `waiting` | the waiting path runs again (*Sub-runs*) |
 
+A child can complete without an artifact its parent's node declares, when a guard skipped the
+child node that writes it. The write that adopts the outcome records that artifact under the
+parent node's `absent`, with the skip as the reason (*Recording an outcome*). Any other absence
+is left unrecorded, so `run-complete` reports it.
+
 **A declared artifact path resolves against the task directory of the run that wrote it.** Stated
 once, covering every scheme: for a `direct:`, `skill:` or `agent:` node that is the run's own task
 directory, as it always has been; for a `workflow:` node it is the **child's**, named by the
@@ -714,20 +720,31 @@ tells them apart:
 
 | The node prose | The missing path means |
 |---|---|
-| sanctions the absence by name — the artifact's source may legitimately not exist | no such context; record `completed` and say in the summary which declared path was absent and why |
+| sanctions the absence by name — the artifact's source may legitimately not exist | no such context; record `completed` with the absence on the node summary (below) |
 | says nothing about it, or says the file is written either way | the delegate skipped work it was asked to do; the node has **not** completed |
 
 Treat the second as a failed self-check and re-drive the node within its budget, naming the
 missing path in the context handed back. When the budget is exhausted, the node's outcome
 follows the table above rather than being recorded green with a hole in it.
 
+**A sanctioned absence is recorded, not just described.** The completing write's node summary
+carries `absent: {<artifact-key>: "<reason>"}` — one entry per declared artifact the node
+completed without, named by its declared key (never its path), with the reason in a few words.
+Its `summary` still says it in prose for the gate brief. The entry is what the tools read, since
+none of them can read prose: `run-complete` prints no `missing-artifact:` line for it, and the
+dashboard shows the artifact as *not produced* with the reason instead of leaving a gap. The
+writer refuses an entry that names an artifact the node does not declare or gives no reason
+(`state-absent-invalid`). Record it only where the node prose sanctions the absence; an
+artifact the node owed and did not write is the second row above, never an absence to sanction.
+
 The check costs one existence test per declared path and needs nothing the engine does not
 already hold: the definition declares every artifact, so the list is free. Without it, a
 delegate that returns successfully having written nothing is indistinguishable from one that
 wrote everything, and the absence surfaces only when a later node reads the path — or when a
 human compares two lists by hand. `run-complete` repeats the comparison once more at the end,
-over every completed node, but only to report: its `missing-artifact:` lines never refuse,
-because this check — the one that can read the prose — is where the judgement belongs.
+over every completed node and less the absences each node recorded, but only to report: its
+`missing-artifact:` lines never refuse, because this check — the one that can read the prose —
+is where the judgement belongs.
 
 **A phase key is never a node id.** `node_summaries` is keyed by node id, and the workflow's
 own `phase_summaries` map is keyed by the workflow's phase keys. The node prose names the
@@ -1318,7 +1335,7 @@ one call, arriving from the other side.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-twenty-four, each with its response below; one more, `edition-collision`, is raised before the
+twenty-five, each with its response below; one more, `edition-collision`, is raised before the
 writer runs. Exit `2` carries no code at all and is the table's last row:
 
 | Refusal | Response |
@@ -1339,6 +1356,7 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo or a phase key used as a node id, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
 | `state-value-invalid` | A value recorded under a key the node declares is not of the declared type. The message names the key, the value and the form it should take. Nothing was written. Send the node's whole `values` map again with that key corrected, because values are replaced whole. If the node produced no such value, the node prose decides whether it failed; never coerce one to get past the check. |
 | `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. |
+| `state-absent-invalid` | A node summary's `absent` map is not a map, names an artifact the node does not declare, or gives an entry no reason (*Recording an outcome*). The message lists the declared keys. Nothing was written. Name each artifact by its declared key, never by its path, give the reason in a few words, and send the write again. An artifact the node was meant to produce and did not is not an absence to sanction: the node has not completed. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
 | exit `2`, `usage: the patch file …` or `usage: the patch in …` | The document never reached the writer: the flag named another file, or the file is missing, empty or not JSON. Nothing was written and the file is kept. Write the document to the run's own `.state-patch.json`, name that path, and run the verb once more; the same message twice is `RUN-FAILED: writer-unavailable`. |
@@ -1479,17 +1497,36 @@ markers and option ids — a gate's answer is recorded by option id, never by la
 
 **The dashboard link is shown three times, never at a gate**: in the freeze banner as the run
 starts, from `resume-check` as a resume begins, and once more at the end as `Dashboard: <link>`,
-the last line of the closing text before `run-complete` — the same `file://` link the banner or
-`resume-check` gave. A run without a dashboard shows none.
+the last line of the closing text (below) — the same `file://` link the banner or `resume-check`
+gave. A run without a dashboard shows none.
+
+**How a run ends depends on who reads its end.**
+
+- **Under an absent or `terminal` driver a person reads it.** The verb's lines are for the
+  engine, not for them. Write the closing patch and call `run-complete`; settle any refusal first
+  (*When `run-complete` refuses*). Then close with one short wrap-up message:
+  - the outcome in plain words: completed, stopped at a named gate with the option taken, or
+    failed at a named node;
+  - the key files the run wrote;
+  - the workflow's own next steps;
+  - each `missing-artifact:` line the verb printed, restated in plain words as a file a named
+    phase should have written and did not;
+  - `Dashboard: <link>` last.
+
+  Never show the raw `missing-artifact:`, `run stopped:` or `RUN-` lines, and never type a
+  marker. A child run driven in session is the exception: it runs `run-complete` with no wrap-up,
+  because its parent's walk goes on and the parent's own ending carries the wrap-up.
+- **Under a `cockpit` or `dispatch` driver tooling reads it,** and everything below applies.
 
 The run's last line is a marker, read by tooling: `RUN-COMPLETE`, `RUN-FAILED: <reason>`, or —
 when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node> run=<child-run-id>`.
 **The first two come from a verb; the third is typed.** `RUN-COMPLETE` and `RUN-FAILED` are what
 `run-complete` printed — which is what makes a dispatched run's unpublished close-out a
 `RUN-FAILED: closeout-unpublished` instead of a silence its chain waits on forever — so for those
-two, echo the verb's line and do not type a marker it did not give you. Everything the operator
-is meant to read at the end — the executive summary and the full list of next steps — is printed
-before the `run-complete` call, never after it, so the verb's marker stays the last line.
+two, echo the verb's lines — the `missing-artifact:` lines and a stop's notice above the marker —
+and do not type a marker it did not give you. Everything the operator is meant to read at the end —
+the executive summary, the full list of next steps and the dashboard link — is printed before the
+`run-complete` call, never after it, so the verb's marker stays the last line.
 `WAITING-SUBRUN` has no
 verb behind it: no tool the engine ships prints that string, and the driver composes the line
 itself from the node id and the child run id it has just recorded. That is why its grammar is

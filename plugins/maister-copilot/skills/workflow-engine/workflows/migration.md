@@ -672,7 +672,7 @@ useful path runs through it.
 
 **This is where the run takes a change the operator asks for** — an item that
 needs a hand, tackled now, or a change they describe. The gate after this node
-only continues or stops. Apply the chosen fixes and requested changes and log
+offers no revise, so it only continues or stops. Apply the chosen fixes and requested changes and log
 each one. Record every one of them as `verification_context.fixes_applied`, and
 add the operator's calls — tackling an item that needs a hand is one — to
 `verification_context.decisions_made`; a requested change spends the same
@@ -754,8 +754,9 @@ instead.
 
 **It is also the third answer the 2.x prose form has and the graph does not.** When
 the fix iterations run out, the 2.x prose form asks whether to proceed with warnings
-or to roll back. A gate has one continue and one stop and no third effect, so
-the rollback recommendation is a `recommend stop:` risk in the
+or to roll back. A gate's third effect, revise, only reruns an earlier node with
+the operator's note, and no effect rolls anything back — this gate offers just its
+continue and its stop — so the rollback recommendation is a `recommend stop:` risk in the
 `issue-resolution` summary — the gate brief then recommends the stop option —
 and the stop option here is what acts on it.
 
@@ -818,14 +819,17 @@ from a node that no guard can skip.
    once both have been true for a while. Suggest a fresh session for whatever
    comes next rather than continuing in this one.
 
-**Print first, then close.** The executive summary and then every next step
-from step 4 — all four of this workflow's own, then the fresh-session suggestion,
-none dropped or merged — are printed as ordinary text **before** the engine's
-`run-complete` call, and they are the last thing printed ahead of it. Only then
-call `run-complete`. Its marker is the last line of its stdout; after the call,
-print nothing but that line, copied exactly as the verb printed it. Never call
-`run-complete` first and summarize after it, and never type a marker the verb did
-not print.
+**Close for whoever reads the end** (the engine skill's run-end rule). In a
+terminal run a person reads it: write the closing patch and call `run-complete`
+first, then end with one wrap-up message — the outcome from the executive
+summary in a few lines, the key files, every next step from step 4 (all four of
+this workflow's own, then the fresh-session suggestion, none dropped or merged),
+each artifact the verb reported missing named in plain words, and the dashboard
+link last. The verb's own lines are never shown. Under a `cockpit` or `dispatch`
+driver tooling reads it, and the order is reversed: the executive summary and
+every next step are printed as ordinary text **before** the `run-complete` call;
+after it, print nothing but the lines the verb printed, copied exactly, its
+marker last. Never type a marker the verb did not print.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

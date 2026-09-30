@@ -601,7 +601,9 @@ Resolve each against the task root and check it exists.
 
 **What to report**: a **Missing artifacts** block in the workflow summary, one line per absent
 path, naming the phase or node that declared it and the subagent or skill that owed it. When nothing is
-missing, omit the block — silence here means the declaration held.
+missing, omit the block — silence here means the declaration held. A declared artifact that a node
+recorded under its summary's `absent` is not missing: name it as *not produced*, with the reason
+recorded there, apart from the block.
 
 **What not to do**: reconciliation reports, it never repairs. Do not re-run a phase, regenerate a
 companion or delete the stale entry from state; the entry is the evidence that the artifact was

@@ -68,3 +68,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0026](0026-refuse-two-enabled-editions.md) | Two enabled editions are detected, warned about and refused | Accepted | 2026-09-29 | — |
 | [ADR-0027](0027-overlays-attach-upstream-with-before.md) | Overlays attach added nodes upstream with `before:` | Accepted | 2026-09-30 | Amends ADR-0015 (an additive upstream edge; the same-id re-add refused) |
 | [ADR-0028](0028-gates-carry-a-bounded-back-edge.md) | Gates carry a bounded back-edge | Accepted | 2026-09-30 | Amends ADR-0016 (a jump and an attempt counter, scoped to a gate's revise option); narrows ADR-0014 (a loop across nodes, closed by a gate, is the graph's) |
+| [ADR-0029](0029-sanctioned-artifact-absence.md) | A node records the artifacts it completed without, and a terminal run ends in words | Accepted | 2026-09-30 | — |

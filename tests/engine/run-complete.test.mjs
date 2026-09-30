@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, lastLine, scratch, sibling, umbrella, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, scratch, sibling, umbrella, verb, write } from '../helpers.mjs';
+import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
 function complete(run, extra = []) {
   return verb(['run-complete', `--state=${run.state}`, ...extra]);
@@ -515,4 +516,127 @@ test('parent and child close in turn, each reconciling its own declarations', t 
   });
   assert.equal(parentResult.code, 0, parentResult.stderr);
   assert.equal(parentResult.stdout, 'missing-artifact: report outputs/summary.md\nRUN-COMPLETE\n');
+});
+
+// ---------------------------------------------------------------------------
+// an absence the node sanctioned on its own summary is not a gap
+// ---------------------------------------------------------------------------
+
+/** Write `summaries` onto the closing run's node summaries before it closes. */
+function sanction(run, summaries) {
+  write(run, { node_summaries: summaries });
+}
+
+test('a sanctioned absence prints nothing: the marker alone', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/intake.md');
+  put(run.dir, 'outputs/summary.md');
+  sanction(run, { report: { summary: 'written', absent: { evidence: 'nothing to collect for this subject' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+});
+
+test('a sanctioned absence beside a real one: only the real one is printed', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/intake.md');
+  sanction(run, { report: { summary: 'written', absent: { evidence: 'nothing to collect for this subject' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'missing-artifact: report outputs/summary.md\nRUN-COMPLETE\n');
+});
+
+test('an absence sanctioned on another node does not excuse this one', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  fs.rmSync(path.join(run.dir, 'analysis/intake.md'));
+  sanction(run, { report: { summary: 'written', absent: { summary: 'a different node\'s artifact' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.stdout, 'missing-artifact: intake analysis/intake.md\nRUN-COMPLETE\n');
+});
+
+test('parent: a sub-run node sanctions an artifact its child never wrote', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  const address = childWithFindings(run, { findings: false });
+  sanction(run, { audit: { summary: 'the child skipped its scan', absent: { findings: 'the child skipped the node that writes it' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: address } }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+});
+
+test('a sanctioned artifact that was written after all is simply present', t => {
+  const run = frozen(t);
+  writeClosingArtifacts(run);
+  sanction(run, { report: { summary: 'written', absent: { evidence: 'expected none' } } });
+  const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+});
+
+test('a hand-edited absence with no reason sanctions nothing', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/intake.md');
+  put(run.dir, 'outputs/summary.md');
+  closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
+  fs.appendFileSync(run.state, 'node_summaries:\n  report:\n    absent:\n      evidence: ""\n');
+  const result = complete(run);
+  assert.equal(result.stdout, 'missing-artifact: report outputs/evidence\nRUN-COMPLETE\n');
+});
+
+// ---------------------------------------------------------------------------
+// a real development run, replayed against the shipped definition
+// ---------------------------------------------------------------------------
+
+/**
+ * The attended development run the fixture was taken from: its state as it
+ * recorded it, and its task directory with every file it wrote (emptied). The
+ * run is frozen afresh against the shipped `development.yml`, so the fixture
+ * does not stale when the definition's hash moves, and then replays the
+ * recorded node outcomes and summaries in one closing write. `absent` is laid
+ * over the recorded summaries by node id.
+ */
+function replayRecorded(t, absent = {}) {
+  const run = scratch(t, { fixture: 'free-delivery-threshold', name: '2026-09-30-free-delivery-threshold-per-country' });
+  const recorded = parse(fs.readFileSync(path.join(run.dir, 'recorded-state.yml'), 'utf8'));
+  freeze(run, {
+    definition: path.join(ENGINE_DIR, 'workflows/development.yml'),
+    inputs: { ...recorded.orchestrator.options.inputs },
+  });
+  const nodes = {};
+  for (const [id, entry] of Object.entries(recorded.workflow.nodes)) {
+    nodes[id] = { status: entry.status, ...(entry.values ? { values: { ...entry.values } } : {}) };
+  }
+  const summaries = {};
+  for (const [id, summary] of Object.entries(recorded.node_summaries)) {
+    summaries[id] = JSON.parse(JSON.stringify(summary));
+    if (Object.hasOwn(absent, id)) summaries[id].absent = absent[id];
+  }
+  write(run, { task: { status: recorded.task.status }, nodes, node_summaries: summaries });
+  return run;
+}
+
+test('recorded run: as it closed, three conditional artifacts read as missing', t => {
+  const result = complete(replayRecorded(t));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, [
+    'missing-artifact: intake analysis/design-context/INDEX.md',
+    'missing-artifact: intake analysis/research-context',
+    'missing-artifact: planning implementation/visual-coverage.md',
+    'RUN-COMPLETE',
+    '',
+  ].join('\n'));
+});
+
+test('recorded run: with the absences its nodes sanction recorded, it ends on RUN-COMPLETE alone', t => {
+  const run = replayRecorded(t, {
+    intake: {
+      research_context: 'no research was passed in',
+      design_index: 'no design context was passed in',
+    },
+    planning: { visual_coverage: 'no design index exists, so there is nothing to cover' },
+  });
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.equal(result.stderr, '');
 });

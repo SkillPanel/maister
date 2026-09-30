@@ -1,0 +1,636 @@
+orchestrator:
+  completed_phases: [intake, codebase-analysis, gap-analysis, gap-approval, specification, specification-approval, spec-audit, spec-audit-approval, planning, planning-approval, implementation, implementation-approval, verification-options, verification, verification-approval, finalization]
+  failed_phases: []
+  task_ids: {}
+  task_path: .maister/tasks/development/2026-09-30-free-delivery-threshold-per-country
+  created: "2026-09-30T15:04:38Z"
+  options: {html_output: true, mockup_format: html, sequential: false, inputs: {task_description: "Add a free-delivery threshold to the delivery quote, configurable per country"}, e2e_enabled: false, user_docs_enabled: false, spec_audit_enabled: true, code_review_enabled: true, pragmatic_review_enabled: true, reality_check_enabled: true, production_check_enabled: true, skip_test_suite: false}
+  updated: "2026-09-30T17:03:36Z"
+  started_phase: finalization
+
+task:
+  title: "Free-delivery threshold per country"
+  description: "Add a free-delivery threshold to the delivery quote, configurable per country"
+  status: completed
+
+workflow:
+  source: plugins/maister/skills/workflow-engine/workflows/development.yml
+  overlays: []
+  profile: null
+  graph_hash: "sha256:6b0ddb30c778855d6c6e438548da179d7a15696a4e683f9201e816daac74ed0c"
+  grammar_version: 1
+  name: development
+  nodes:
+    intake: {kind: task, status: completed, started: "2026-09-30T15:05:14Z", completed: "2026-09-30T15:05:28Z", needs: []}
+    codebase-analysis: {kind: task, status: completed, started: "2026-09-30T15:05:37Z", completed: "2026-09-30T15:11:11Z", needs: [intake]}
+    gap-analysis: {kind: task, status: completed, started: "2026-09-30T15:11:11Z", completed: "2026-09-30T15:14:52Z", needs: [codebase-analysis], values: {has_reproducible_defect: false, mockups_needed: false, risk_level: low}}
+    gap-approval: {kind: gate, status: completed, completed: "2026-09-30T15:22:23Z", needs: [gap-analysis]}
+    tdd-red: {kind: task, status: skipped, completed: "2026-09-30T15:22:23Z", needs: [gap-approval]}
+    tdd-red-approval: {kind: gate, status: skipped, completed: "2026-09-30T15:22:23Z", needs: [tdd-red]}
+    ui-mockups: {kind: task, status: skipped, completed: "2026-09-30T15:22:23Z", needs: [tdd-red-approval]}
+    mockup-approval: {kind: gate, status: skipped, completed: "2026-09-30T15:22:23Z", needs: [ui-mockups]}
+    specification: {kind: task, status: completed, started: "2026-09-30T15:22:23Z", completed: "2026-09-30T15:31:25Z", needs: [mockup-approval], values: {spec_audit_enabled: true}}
+    specification-approval: {kind: gate, status: completed, completed: "2026-09-30T15:42:08Z", needs: [specification]}
+    spec-audit: {kind: task, status: completed, started: "2026-09-30T15:42:08Z", completed: "2026-09-30T15:44:52Z", needs: [specification-approval]}
+    spec-audit-approval: {kind: gate, status: completed, completed: "2026-09-30T15:55:45Z", needs: [spec-audit]}
+    planning: {kind: task, status: completed, started: "2026-09-30T15:55:45Z", completed: "2026-09-30T16:00:41Z", needs: [spec-audit-approval]}
+    planning-approval: {kind: gate, status: completed, completed: "2026-09-30T16:08:19Z", needs: [planning]}
+    implementation: {kind: task, status: completed, started: "2026-09-30T16:08:19Z", completed: "2026-09-30T16:11:41Z", needs: [planning-approval]}
+    implementation-approval: {kind: gate, status: completed, completed: "2026-09-30T16:17:36Z", needs: [implementation]}
+    tdd-green: {kind: task, status: skipped, completed: "2026-09-30T16:17:36Z", needs: [implementation-approval]}
+    tdd-green-approval: {kind: gate, status: skipped, completed: "2026-09-30T16:17:36Z", needs: [tdd-green]}
+    verification-options: {kind: task, status: completed, started: "2026-09-30T16:17:36Z", completed: "2026-09-30T16:27:52Z", needs: [tdd-green-approval], values: {browser_tests_enabled: false, user_docs_enabled: false}}
+    verification: {kind: task, status: completed, started: "2026-09-30T16:27:52Z", completed: "2026-09-30T17:02:22Z", needs: [verification-options]}
+    verification-approval: {kind: gate, status: completed, completed: "2026-09-30T17:03:27Z", needs: [verification]}
+    e2e-verification: {kind: task, status: skipped, completed: "2026-09-30T17:03:27Z", needs: [verification-approval]}
+    e2e-approval: {kind: gate, status: skipped, completed: "2026-09-30T17:03:27Z", needs: [e2e-verification]}
+    user-docs: {kind: task, status: skipped, completed: "2026-09-30T17:03:27Z", needs: [e2e-approval]}
+    docs-approval: {kind: gate, status: skipped, completed: "2026-09-30T17:03:27Z", needs: [user-docs]}
+    finalization: {kind: task, status: completed, started: "2026-09-30T17:03:27Z", completed: "2026-09-30T17:03:36Z", needs: [docs-approval]}
+
+task_context:
+  phase_summaries:
+    research:
+      node: intake
+      summary: No research reference supplied.
+      decisions: []
+      risks: []
+      artifacts: []
+      status: completed
+    design:
+      node: intake
+      summary: No design context ingested; task description names no mockups or design links.
+      decisions: []
+      risks: []
+      artifacts: []
+      status: completed
+    codebase_analysis:
+      node: codebase-analysis
+      summary: A free-delivery threshold already exists as one global constant (FREE_FROM_CENTS = 5000) in src/delivery-quote.ts, applied to every country whatever its currency. The task is to replace it with a per-country table in that one 39-line file and widen its tests beyond DE.
+      key_files:
+        - src/delivery-quote.ts
+        - test/delivery-quote.test.ts
+        - src/cart.ts
+        - src/payment-methods.ts
+      primary_language: TypeScript
+      decisions:
+        - decision: Add a separate module-private `Readonly<Record<Country, …>>` threshold table in `src/delivery-quote.ts`, not config-file or env infrastructure
+          rationale: this matches the existing `BASE_RATES` pattern, and the compiler then forces a value for every country
+        - decision: Keep thresholds out of `BASE_RATES` / `DeliveryQuote`
+          rationale: "`BASE_RATES` is typed as `DeliveryQuote`, so a threshold field there would leak into the quote output"
+        - decision: "Store each threshold as an integer in its country's minor currency unit (EUR/CHF/PLN)"
+          rationale: required by the money rule in coding-style.md, and it fixes the current 50-PLN inconsistency
+        - decision: Delete `FREE_FROM_CENTS` and extract a small predicate (e.g. `shipsFree(country, goodsCents)`)
+          rationale: the standards forbid dead code and prefer extracting over branching
+        - decision: Keep the `quoteDelivery(address, goodsCents)` signature unchanged
+          rationale: the thresholds are internal constants, so no caller needs to change
+        - decision: Leave `src/cart.ts` and `src/payment-methods.ts` unchanged
+          rationale: they share no delivery configuration
+      risks:
+        - Threshold values for each country (DE, AT, NL, PL, CH) are not specified. The business must supply them.
+        - Can a country have no free delivery at all? This decides between a `number | null` table entry and a mandatory `number`.
+        - The boundary is inclusive (`>=`) and an existing test locks it. It should be confirmed as the intended rule.
+        - "The currency of `goodsCents` is assumed to be the destination's currency, and nothing checks this. The cart carries no currency."
+        - The threshold is compared against the goods total before delivery. No discounts exist today, but they would affect which total should count.
+        - "Should the threshold be visible to callers (for \"spend X more for free delivery\" messages), either in `DeliveryQuote` or through a new exported function? Out of scope unless asked."
+        - "Existing risks, not introduced by this task: nothing checks at runtime for an unknown country (it returns `undefined` below the threshold), and `goodsCents` is not validated (a negative number or NaN passes)."
+        - "The two existing DE tests hard-code 5000 and 490. They need updating if DE's threshold changes."
+      artifacts:
+        - path: analysis/codebase-analysis.md
+          label: Codebase analysis
+          html: null
+      status: completed
+    clarifications:
+      node: codebase-analysis
+      summary: "Four clarifications resolved: 20 EUR (DE/AT/NL), 20 CHF (CH), 85 PLN (PL) as integer minor units; every country has a threshold; inclusive boundary; threshold stays internal."
+      decisions:
+        - decision: "Thresholds: DE/AT/NL 2000 EUR cents, CH 2000 rappen (20 CHF), PL 8500 grosze (85 PLN)"
+          rationale: operator set 20 EUR and accepted the ≈20 EUR conversion for CH and PL
+        - decision: "Every country has a threshold (`Record<Country, number>`), no \"never free\" entry"
+          rationale: simplest, compiler-enforced, and no country needs it today
+        - decision: "Boundary stays inclusive: a goods total exactly at the threshold ships free"
+          rationale: "matches today's behaviour and customer expectation"
+        - decision: "The threshold is not exposed to callers: `quoteDelivery` signature and `DeliveryQuote` shape unchanged"
+          rationale: no caller needs it yet
+      risks:
+        - "Lowering DE/AT/NL from 50 EUR to 20 EUR is a behaviour change: orders between 20 and 50 EUR now ship free, and the two existing DE tests (2999 → 490, 5000 → 0) must be updated"
+      artifacts:
+        - path: analysis/clarifications.md
+          label: Clarifications
+          html: null
+      status: completed
+    gap_analysis:
+      node: gap-analysis
+      summary: "Small, low-risk modificative gap: replace the global threshold with a per-country table in src/delivery-quote.ts; public signature and types unchanged; existing DE threshold tests must be rewritten."
+      integration_points:
+        - "src/delivery-quote.ts:24-25 — replace FREE_FROM_CENTS with a module-private Readonly<Record<Country, number>> (DE/AT/NL 2000, CH 2000, PL 8500) next to BASE_RATES"
+        - "src/delivery-quote.ts:38 — swap the inline `goodsCents >= FREE_FROM_CENTS` for an extracted predicate (e.g. shipsFree(country, goodsCents)); the returned {...rate, cents: 0} / rate is unchanged"
+        - "src/delivery-quote.ts:27-30 — update the quoteDelivery JSDoc"
+        - test/delivery-quote.test.ts — rewrite both threshold tests; add per-country boundary tests and a test that a free quote keeps currency and days
+        - "Not touched: src/cart.ts, src/payment-methods.ts, DeliveryQuote, DeliveryAddress, Country"
+      decisions:
+        - decision: "Classified as modifies_existing_code only (change type: modificative)"
+          rationale: the threshold logic already exists at line 38. Only its data changes, from global to per-country.
+        - decision: has_reproducible_defect set to false
+          rationale: the 50-PLN/50-CHF currency mismatch is a latent flaw fixed as a side effect. Nobody reported a failure, so no defect-reproduction module runs.
+        - decision: involves_data_operations and ui_heavy set to false
+          rationale: the thresholds are compile-time constants with no create, update or delete path, and the service has no UI layer.
+        - decision: "Compatibility requirement is \"moderate\""
+          rationale: exported types and the `quoteDelivery` signature stay strictly unchanged, and the change in quoted amounts is intended.
+      risks:
+        - "PL gets stricter: orders from 50.00 to 84.99 PLN that ship free today will cost 19.90 PLN. The clarifications risk lists only the DE/AT/NL reduction, so the operator should know this before release."
+        - "CH is also lowered: orders from 20 to 49.99 CHF ship free, where they now cost 12.90 CHF."
+        - "`goodsCents` carries no currency. Now that the thresholds differ by currency, a caller passing a EUR total for a PL address would be judged against 8500 grosze. Nothing detects this."
+        - "The existing test `refuses a quote without the full address` uses 2999, which is now above the DE threshold. It still passes, because validation throws first, but the value no longer means \"below threshold\"."
+        - "Existing gaps this task does not introduce: an unknown country at runtime returns `undefined`, and a negative, fractional or NaN `goodsCents` is accepted."
+      artifacts:
+        - path: analysis/gap-analysis.md
+          label: Gap analysis
+          html: null
+      status: completed
+    scope_clarifications:
+      node: gap-analysis
+      summary: "No critical scope decisions; three important ones settled on the recommended option. Scope expanded: no."
+      scope_expanded: false
+      decisions:
+        - decision: "Document the goods-total currency contract in the `quoteDelivery` JSDoc (goods total in the destination's minor currency unit)"
+          rationale: no production caller exists and the signature was fixed in clarifications
+        - decision: Leave the pre-existing unknown-country and `goodsCents` validation gaps out of scope
+          rationale: not introduced by this task; types protect typed callers
+        - decision: Test all five countries in a loop at threshold − 1 (rate) and at the threshold (free)
+          rationale: only a loop over every entry proves the per-country table
+      risks:
+        - "PL gets stricter: orders from 50.00 to 84.99 PLN that ship free today will cost 19.90 PLN (shown to the operator before these decisions)"
+      artifacts:
+        - path: analysis/scope-clarifications.md
+          label: Scope clarifications
+          html: null
+      status: completed
+    specification:
+      node: specification
+      summary: "Specification: Free-delivery threshold per country. Per-country threshold table (DE/AT/NL/CH 2000, PL 8500 minor units) and shipsFree predicate in src/delivery-quote.ts; public API unchanged; 6 core requirements, 4 tests. Audit enabled."
+      decisions:
+        - decision: "Threshold table `FREE_DELIVERY_FROM_CENTS: Readonly<Record<Country, number>>` sits beside `BASE_RATES`, module-private and documented with JSDoc"
+          rationale: reuses the existing per-country table pattern, and the compiler forces one entry per country
+        - decision: Predicate `shipsFree(country, goodsCents)` is module-private and returns `goodsCents >= FREE_DELIVERY_FROM_CENTS[country]`
+          rationale: "\"extract rather than branch\", and it is named for what it returns"
+        - decision: "`FREE_FROM_CENTS` and its JSDoc are deleted"
+          rationale: no dead code
+        - decision: The two existing DE threshold tests are rewritten in place as the two per-country loops, keeping their names; the loops contain DE 1999 → 490 and DE 2000 → 0
+          rationale: one behaviour per test with no duplicate DE-only copy
+        - decision: Expected thresholds and rates are written out as literals in the test, not imported
+          rationale: the table stays private, and the test checks the operator-confirmed values on their own terms
+        - decision: The missing-address test uses 1999 (below the DE threshold)
+          rationale: "the fixture keeps its meaning of \"below threshold\""
+        - decision: Specification audit enabled
+          rationale: operator chose the recommended option at the audit opt-in
+      risks:
+        - "PL gets stricter: orders from 50.00 to 84.99 PLN that ship free today will cost 19.90 PLN. Tell the business before release."
+        - "CH, DE, AT and NL get more generous: orders from 20.00 to 49.99 in the local currency now ship free, where they cost the base rate before."
+        - "`goodsCents` carries no currency, and the contract is documented in JSDoc only. A caller passing a total in the wrong currency gets a silently wrong result."
+        - "Gaps that exist today and remain: an unknown country at runtime returns `undefined`, and a negative, fractional or NaN `goodsCents` is accepted."
+      artifacts:
+        - path: implementation/spec.md
+          label: Specification
+          html: implementation/spec.html
+        - path: analysis/requirements.md
+          label: Requirements
+          html: null
+      status: completed
+    architecture_decision:
+      node: specification
+      summary: "Single approach, no alternatives: module-private per-country threshold table beside BASE_RATES plus an extracted shipsFree predicate in src/delivery-quote.ts."
+      decisions:
+        - decision: Single approach, no alternatives presented
+          rationale: the codebase analysis and gap analysis converged on one design, and nothing about it is open
+      risks: []
+      artifacts:
+        - path: analysis/technical-clarifications.md
+          label: Technical clarifications
+          html: null
+      status: completed
+    spec_audit:
+      node: spec-audit
+      verdict: pass with concerns
+      summary: "Verdict: pass with concerns. 0 critical, 1 warning (no named owner for PL price-increase sign-off), 5 info (loop test failure messages, free-quote shape tested for PL only, fixture data unpinned, unknown-country claim imprecise, suite scope wording)."
+      decisions:
+        - decision: The PL price increase is rated a warning, not critical
+          rationale: "it was decided on purpose and shown to the operator twice (gap_analysis, scope_clarifications). What's missing is a recorded business sign-off before release, not a spec defect."
+        - decision: "Reading \"configurable per country\" as compile-time constants is accepted, not flagged"
+          rationale: "binding codebase_analysis decision 1 and the answer to requirements Q2 (\"no new module\", confirmed) both settle it."
+        - decision: The imprecise unknown-country claim is rated info
+          rationale: it comes from the gap analysis, not the spec. It only affects untyped callers, and those guards are out of scope under binding decision 16.
+      risks:
+        - "Who tells the business about the PL change (orders of 50.00–84.99 PLN that ship free today will cost 19.90 PLN), and when? The spec says \"tell the business before release\" but names no owner and sets no gate."
+        - "`goodsCents` still has no currency, and the only safeguard is JSDoc (FR5). Once the first production caller exists, a EUR total passed for a PL address will give a silently wrong quote."
+      artifacts:
+        - path: verification/spec-audit.md
+          label: Specification audit
+          html: null
+      status: completed
+    implementation_plan:
+      node: planning
+      task_groups: 2
+      summary: "2 task groups, 10 steps, low complexity: Group 1 test-first per-country threshold behaviour (FR1–FR4, FR6); Group 2 JSDoc contract (FR5) and compatibility gate (typecheck, full suite 8/8, two files changed)."
+      decisions:
+        - decision: Two groups, behaviour first and contract second
+          rationale: "Group 1 is the test-first behaviour change. Group 2 is the documentation and release gate that CLAUDE.md requires (`pnpm test` + `pnpm typecheck`), so the full-suite run cannot be skipped as \"only the new tests\"."
+        - decision: Group 2 adds no test cases; its checks are `pnpm typecheck`, a `FREE_FROM_CENTS` grep and a changed-files check
+          rationale: the spec fixes the suite at 4 tests, and JSDoc wording and an unchanged API are proven by the compiler and the diff, not by a unit test.
+        - decision: The loop tests pass the country as the assertion message (`expect(actual, country)`)
+          rationale: "audit I1: a failing case names its country instead of showing only expected and received values."
+        - decision: "Test 3 (\"keeps the currency and delivery days on a free quote\") loops over all five countries with `toEqual` against literal quotes, and the PL case is exactly `{ cents: 0, currency: 'PLN', days: { min: 2, max: 4 } }`"
+          rationale: "audit I2: FR2 applies to every country. It stays one test proving one behaviour, so the scope and test count do not grow."
+        - decision: The fixtures form one `as const` case table of `{ address, threshold, quote }` literals, one row per country in the order DE, AT, NL, PL, CH
+          rationale: "audit I3: the three loop tests share one source of expected values, and the values are still literals, not imports from the private table."
+      risks:
+        - "Release gate (audit W1): PL gets stricter. Orders from 50.00 to 84.99 PLN that ship free today will cost 19.90 PLN. No owner is named to get business sign-off before release. The plan does not resolve this. The operator must record the sign-off, or record that the scope-clarifications acknowledgement counts as it."
+        - "`goodsCents` still carries no currency, and FR5's JSDoc is the only safeguard. A caller that passes a EUR total for a PL address gets a silently wrong quote."
+        - "Untyped callers see a behaviour change for an unknown country (audit I4). Today a total of at least 5000 returns `{ cents: 0 }`. After the change the function always returns `undefined`. Runtime guards stay out of scope (decision 16)."
+      artifacts:
+        - path: implementation/implementation-plan.md
+          label: Implementation plan
+          html: implementation/implementation-plan.html
+      status: completed
+    implementation:
+      node: implementation
+      summary: "2/2 task groups, 10/10 steps: per-country threshold table and shipsFree predicate in src/delivery-quote.ts, FR5 JSDoc, 4 per-country tests; full suite 8/8, typecheck clean."
+      decisions:
+        - decision: Test loops pass the country as the assertion message and share one as-const COUNTRY_CASES table
+          rationale: "audit I1/I3: a failure names its country and expected values stay literals"
+        - decision: "FREE_DELIVERY_FROM_CENTS JSDoc wrapped to the file's multi-line style"
+          rationale: the single line Group 1 wrote was ~130 characters, longer than the rest of the file; comment-only change
+      risks:
+        - "Release gate (audit W1): the PL increase (orders of 50.00–84.99 PLN will cost 19.90 PLN) still has no named owner for business sign-off."
+        - "`goodsCents` still carries no currency; the JSDoc is the only safeguard."
+        - Nothing is committed yet; the two changed files are uncommitted on branch try/v3-dev-run.
+      artifacts:
+        - path: implementation/work-log.md
+          label: Work log
+          html: null
+      status: completed
+  task_description: Add a free-delivery threshold to the delivery quote, configurable per country
+  risk_level: low
+  analysis_summary: A free-delivery threshold already exists as one global constant (FREE_FROM_CENTS = 5000) in src/delivery-quote.ts, applied to every country whatever its currency. The task is to replace it with a per-country table in that one 39-line file and widen its tests beyond DE.
+  key_files:
+    - src/delivery-quote.ts
+    - test/delivery-quote.test.ts
+    - src/cart.ts
+    - src/payment-methods.ts
+  primary_language: TypeScript
+  clarifications_resolved: true
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: false
+    involves_data_operations: false
+    ui_heavy: false
+  scope_expanded: false
+  tech_clarified: true
+  architecture_decision: "Module-private FREE_DELIVERY_FROM_CENTS: Readonly<Record<Country, number>> beside BASE_RATES, plus an extracted module-private shipsFree(country, goodsCents) predicate; FREE_FROM_CENTS deleted; public API unchanged"
+
+node_summaries:
+  intake:
+    summary: Task directory and state initialized; project docs discovered (INDEX.md plus coding-style and testing standards). No research reference and no design context supplied, so both declared context artifacts are legitimately absent.
+    decisions: []
+    risks: []
+    artifacts: []
+    status: completed
+  codebase-analysis:
+    summary: "Free delivery already exists as one global 5000-minor-unit constant in src/delivery-quote.ts; the change replaces it with a per-country table in that file and its test. Clarified: 20 EUR (DE/AT/NL), 20 CHF, 85 PLN; every country has a threshold; inclusive boundary; threshold stays internal."
+    decisions:
+      - decision: "Thresholds: DE/AT/NL 2000 EUR cents, CH 2000 rappen (20 CHF), PL 8500 grosze (85 PLN)"
+        rationale: operator set 20 EUR and accepted the ≈20 EUR conversion for CH and PL
+      - decision: "Every country has a threshold (`Record<Country, number>`), no \"never free\" entry"
+        rationale: simplest, compiler-enforced, and no country needs it today
+      - decision: "Boundary stays inclusive: a goods total exactly at the threshold ships free"
+        rationale: "matches today's behaviour and customer expectation"
+      - decision: "The threshold is not exposed to callers: `quoteDelivery` signature and `DeliveryQuote` shape unchanged"
+        rationale: no caller needs it yet
+    risks:
+      - "Lowering DE/AT/NL from 50 EUR to 20 EUR is a behaviour change: orders between 20 and 50 EUR now ship free, and the two existing DE tests (2999 → 490, 5000 → 0) must be updated"
+    artifacts:
+      - path: analysis/codebase-analysis.md
+        label: Codebase analysis
+        html: null
+      - path: analysis/clarifications.md
+        label: Clarifications
+        html: null
+    status: completed
+  gap-analysis:
+    summary: "Modificative enhancement, low risk, low effort: the global FREE_FROM_CENTS becomes a per-country table in src/delivery-quote.ts with signature and types unchanged. No reproducible defect (TDD stretches off); not UI-heavy (mockups off — ui_heavy clause settled it); browser tests and user docs seeded off. Existing DE test 2999→490 will fail and must move to 1999/2000."
+    decisions:
+      - decision: "goods-currency-contract: document the goods-total currency in the quoteDelivery JSDoc"
+        rationale: operator chose the recommended option; signature stays unchanged
+      - decision: "preexisting-input-guards: leave unknown-country and goodsCents validation gaps out of scope"
+        rationale: operator chose the recommended option; not introduced by this task
+      - decision: "test-breadth: loop over all five countries at threshold - 1 and at the threshold"
+        rationale: operator chose the recommended option; proves every table entry
+    risks:
+      - "PL gets stricter: orders from 50.00 to 84.99 PLN that ship free today will cost 19.90 PLN. The clarifications risk lists only the DE/AT/NL reduction, so the operator should know this before release."
+      - "CH is also lowered: orders from 20 to 49.99 CHF ship free, where they now cost 12.90 CHF."
+      - "`goodsCents` carries no currency. Now that the thresholds differ by currency, a caller passing a EUR total for a PL address would be judged against 8500 grosze. Nothing detects this."
+      - "The existing test `refuses a quote without the full address` uses 2999, which is now above the DE threshold. It still passes, because validation throws first, but the value no longer means \"below threshold\"."
+      - "Existing gaps this task does not introduce: an unknown country at runtime returns `undefined`, and a negative, fractional or NaN `goodsCents` is accepted."
+    artifacts:
+      - path: analysis/gap-analysis.md
+        label: Gap analysis
+        html: null
+      - path: analysis/scope-clarifications.md
+        label: Scope clarifications
+        html: null
+    status: completed
+  gap-approval:
+    summary: Operator approved the gap analysis and continued.
+    answer: continue-past-analysis
+    answered_by: operator
+    answered_at: "2026-09-30T15:22:11Z"
+    status: completed
+  tdd-red:
+    summary: "Skipped: gap analysis found no reproducible defect."
+    status: skipped
+  tdd-red-approval:
+    summary: "Skipped with tdd-red: no reproducible defect."
+    status: skipped
+  ui-mockups:
+    summary: "Skipped: task is not UI-heavy (service has no UI layer)."
+    status: skipped
+  mockup-approval:
+    summary: "Skipped with ui-mockups: mockups not needed."
+    status: skipped
+  specification:
+    summary: "Specification: Free-delivery threshold per country. Included: per-country threshold table in src/delivery-quote.ts (DE/AT/NL/CH 2000, PL 8500 minor units), shipsFree predicate, JSDoc currency contract, 4 tests looping over all five countries. Excluded: cart/payment-methods, public API changes, exposing the threshold, runtime currency or input guards, config/env. 6 core requirements (FR1-FR6) plus compatibility."
+    decisions:
+      - decision: "Threshold table `FREE_DELIVERY_FROM_CENTS: Readonly<Record<Country, number>>` sits beside `BASE_RATES`, module-private and documented with JSDoc"
+        rationale: reuses the existing per-country table pattern, and the compiler forces one entry per country
+      - decision: Predicate `shipsFree(country, goodsCents)` is module-private and returns `goodsCents >= FREE_DELIVERY_FROM_CENTS[country]`
+        rationale: "\"extract rather than branch\", and it is named for what it returns"
+      - decision: "`FREE_FROM_CENTS` and its JSDoc are deleted"
+        rationale: no dead code
+      - decision: The two existing DE threshold tests are rewritten in place as the two per-country loops, keeping their names; the loops contain DE 1999 → 490 and DE 2000 → 0
+        rationale: one behaviour per test with no duplicate DE-only copy
+      - decision: Expected thresholds and rates are written out as literals in the test, not imported
+        rationale: the table stays private, and the test checks the operator-confirmed values on their own terms
+      - decision: The missing-address test uses 1999 (below the DE threshold)
+        rationale: "the fixture keeps its meaning of \"below threshold\""
+      - decision: Specification audit enabled
+        rationale: operator chose the recommended option at the audit opt-in
+    risks:
+      - "PL gets stricter: orders from 50.00 to 84.99 PLN that ship free today will cost 19.90 PLN. Tell the business before release."
+      - "CH, DE, AT and NL get more generous: orders from 20.00 to 49.99 in the local currency now ship free, where they cost the base rate before."
+      - "`goodsCents` carries no currency, and the contract is documented in JSDoc only. A caller passing a total in the wrong currency gets a silently wrong result."
+      - "Gaps that exist today and remain: an unknown country at runtime returns `undefined`, and a negative, fractional or NaN `goodsCents` is accepted."
+    artifacts:
+      - path: implementation/spec.md
+        label: Specification
+        html: implementation/spec.html
+      - path: analysis/requirements.md
+        label: Requirements
+        html: null
+      - path: analysis/technical-clarifications.md
+        label: Technical clarifications
+        html: null
+    status: completed
+  specification-approval:
+    summary: Operator approved the specification and continued.
+    answer: continue-past-specification
+    answered_by: operator
+    answered_at: "2026-09-30T15:42:00Z"
+    status: completed
+  spec-audit:
+    summary: "Verdict: pass with concerns. 0 critical, 1 warning, 5 info. Every concrete code claim in the spec checks out; baseline pnpm test (7/7) and typecheck are green; the new tests are correctly predicted to start red."
+    decisions:
+      - decision: The PL price increase is rated a warning, not critical
+        rationale: "it was decided on purpose and shown to the operator twice (gap_analysis, scope_clarifications). What's missing is a recorded business sign-off before release, not a spec defect."
+      - decision: "Reading \"configurable per country\" as compile-time constants is accepted, not flagged"
+        rationale: "binding codebase_analysis decision 1 and the answer to requirements Q2 (\"no new module\", confirmed) both settle it."
+      - decision: The imprecise unknown-country claim is rated info
+        rationale: it comes from the gap analysis, not the spec. It only affects untyped callers, and those guards are out of scope under binding decision 16.
+    risks:
+      - "Who tells the business about the PL change (orders of 50.00–84.99 PLN that ship free today will cost 19.90 PLN), and when? The spec says \"tell the business before release\" but names no owner and sets no gate."
+      - "`goodsCents` still has no currency, and the only safeguard is JSDoc (FR5). Once the first production caller exists, a EUR total passed for a PL address will give a silently wrong quote."
+    artifacts:
+      - path: verification/spec-audit.md
+        label: Specification audit
+        html: null
+    status: completed
+  spec-audit-approval:
+    summary: Operator accepted the specification audit (pass with concerns, 0 critical) and continued to planning.
+    answer: continue-to-planning
+    answered_by: operator
+    answered_at: "2026-09-30T15:55:37Z"
+    status: completed
+  planning:
+    summary: "2 task groups, 10 implementation steps (Group 1: 6, Group 2: 4), low complexity; 4 feature tests, full suite 7 → 8. Declared implementation/visual-coverage.md is absent by design: no design index exists (no UI surface)."
+    decisions:
+      - decision: Group 2 depends on Group 1 and runs strictly after it
+        rationale: both edit src/delivery-quote.ts, so nothing runs in parallel
+      - decision: Two groups, behaviour first and contract second
+        rationale: "Group 1 is the test-first behaviour change. Group 2 is the documentation and release gate that CLAUDE.md requires (`pnpm test` + `pnpm typecheck`), so the full-suite run cannot be skipped as \"only the new tests\"."
+      - decision: Group 2 adds no test cases; its checks are `pnpm typecheck`, a `FREE_FROM_CENTS` grep and a changed-files check
+        rationale: the spec fixes the suite at 4 tests, and JSDoc wording and an unchanged API are proven by the compiler and the diff, not by a unit test.
+      - decision: The loop tests pass the country as the assertion message (`expect(actual, country)`)
+        rationale: "audit I1: a failing case names its country instead of showing only expected and received values."
+      - decision: "Test 3 (\"keeps the currency and delivery days on a free quote\") loops over all five countries with `toEqual` against literal quotes, and the PL case is exactly `{ cents: 0, currency: 'PLN', days: { min: 2, max: 4 } }`"
+        rationale: "audit I2: FR2 applies to every country. It stays one test proving one behaviour, so the scope and test count do not grow."
+      - decision: The fixtures form one `as const` case table of `{ address, threshold, quote }` literals, one row per country in the order DE, AT, NL, PL, CH
+        rationale: "audit I3: the three loop tests share one source of expected values, and the values are still literals, not imports from the private table."
+    risks:
+      - "Release gate (audit W1): PL gets stricter. Orders from 50.00 to 84.99 PLN that ship free today will cost 19.90 PLN. No owner is named to get business sign-off before release. The plan does not resolve this. The operator must record the sign-off, or record that the scope-clarifications acknowledgement counts as it."
+      - "`goodsCents` still carries no currency, and FR5's JSDoc is the only safeguard. A caller that passes a EUR total for a PL address gets a silently wrong quote."
+      - "Untyped callers see a behaviour change for an unknown country (audit I4). Today a total of at least 5000 returns `{ cents: 0 }`. After the change the function always returns `undefined`. Runtime guards stay out of scope (decision 16)."
+    artifacts:
+      - path: implementation/implementation-plan.md
+        label: Implementation plan
+        html: implementation/implementation-plan.html
+    status: completed
+  planning-approval:
+    summary: Operator approved the implementation plan and continued to implementation.
+    answer: continue-to-implementation
+    answered_by: operator
+    answered_at: "2026-09-30T16:08:12Z"
+    status: completed
+  implementation:
+    summary: "Both task groups completed (2/2, 10/10 steps, 2 waves). Files changed: src/delivery-quote.ts (FREE_DELIVERY_FROM_CENTS table, shipsFree predicate, FREE_FROM_CENTS deleted, FR5 JSDoc) and test/delivery-quote.test.ts (per-country case table, 4 tests). Tests: red run 3 failed/1 passed as predicted, then 4/4 green; full suite 8/8 and typecheck clean."
+    decisions:
+      - decision: Test loops pass the country as the assertion message and share one as-const COUNTRY_CASES table
+        rationale: "audit I1/I3: a failure names its country and expected values stay literals"
+      - decision: "FREE_DELIVERY_FROM_CENTS JSDoc wrapped to the file's multi-line style"
+        rationale: the single line Group 1 wrote was ~130 characters, longer than the rest of the file; comment-only change
+    risks:
+      - "Release gate (audit W1): the PL increase (orders of 50.00–84.99 PLN will cost 19.90 PLN) still has no named owner for business sign-off."
+      - "`goodsCents` still carries no currency; the JSDoc is the only safeguard."
+      - Nothing is committed yet; the two changed files are uncommitted on branch try/v3-dev-run.
+    artifacts:
+      - path: implementation/work-log.md
+        label: Work log
+        html: null
+    status: completed
+  implementation-approval:
+    summary: Operator accepted the implementation and continued.
+    answer: continue-past-implementation
+    answered_by: operator
+    answered_at: "2026-09-30T16:17:28Z"
+    status: completed
+  tdd-green:
+    summary: "Skipped: gap analysis found no reproducible defect."
+    status: skipped
+  tdd-green-approval:
+    summary: "Skipped with tdd-green: no reproducible defect."
+    status: skipped
+  verification-options:
+    summary: Operator kept all four reviews (code, pragmatic, reality check, production readiness); browser verification off; user documentation off.
+    decisions:
+      - decision: Run all four standard reviews
+        rationale: operator chose the recommended set
+      - decision: Browser verification off
+        rationale: operator chose the recommended option; the service has no UI layer
+      - decision: User documentation off
+        rationale: operator chose the recommended option; no end-user surface
+    risks: []
+    status: completed
+  verification:
+    summary: "Final verdict after one fix cycle and one re-verification: passed with issues. 14 issues found in total, 4 fixed (info 3–6). Remaining: 0 critical, 2 warning, 8 info. Suite 20/20, typecheck clean."
+    decisions:
+      - decision: "Operator chose 'Fix all fixable': applied the four fixable info items (3–6)"
+        rationale: the two warnings are not fixable in code
+      - decision: Re-verified once (reverify_count 1); all fixes confirmed resolved
+        rationale: operator chose the recommended re-run; one re-verification is the whole budget
+    risks:
+      - "Release gate: PL's threshold rises from 50 to 85 PLN (orders of 50.00–84.99 PLN go from free to 19.90 PLN) and no business owner has signed off."
+      - "`goodsCents` carries no currency; only the JSDoc states the contract. Nothing in production calls `quoteDelivery` yet."
+    artifacts:
+      - path: verification/implementation-verification.md
+        label: Implementation verification
+        html: verification/implementation-verification.html
+      - path: verification/test-suite-results.md
+        label: Test suite results
+        html: null
+    status: completed
+  verification-approval:
+    summary: Operator accepted the verification (passed with issues, 0 critical) and continued to finalization.
+    answer: continue-past-verification
+    answered_by: operator
+    answered_at: "2026-09-30T17:03:15Z"
+    status: completed
+  e2e-verification:
+    summary: "Skipped: browser verification off (operator choice; the service has no UI layer)."
+    status: skipped
+  e2e-approval:
+    summary: Skipped with e2e-verification.
+    status: skipped
+  user-docs:
+    summary: "Skipped: user documentation off (operator choice; no end-user surface)."
+    status: skipped
+  docs-approval:
+    summary: Skipped with user-docs.
+    status: skipped
+  finalization:
+    summary: "Run complete. Per-country free-delivery thresholds shipped in src/delivery-quote.ts (DE/AT/NL/CH 2000, PL 8500 minor units) with 16 per-country test cases; verification passed with issues (0 critical, 2 warnings). Declared-but-absent paths are all sanctioned: analysis/research-context and analysis/design-context/INDEX.md (no research or design context supplied), implementation/visual-coverage.md (no design index, no UI)."
+    risks:
+      - "Release gate: PL's threshold rises from 50 to 85 PLN and no business owner has signed off."
+      - The two changed files are uncommitted on branch try/v3-dev-run.
+    status: completed
+
+project_context:
+  project_doc_paths:
+    - .maister/docs/INDEX.md
+    - .maister/docs/standards/global/coding-style.md
+    - .maister/docs/standards/global/testing.md
+
+verification_context:
+  last_status: passed_with_issues
+  fixes_applied:
+    - description: "Issue 3: country loops converted to it.each(COUNTRY_CASES) so each country is its own named test case (test/delivery-quote.test.ts)"
+    - description: "Issue 4: 'ships free from the threshold up' now also checks a total well above the threshold (threshold * 10) per country"
+    - description: "Issue 5: spec.md Testing Approach item 3 annotated — widened in planning (audit I2) to all five countries"
+    - description: "Issue 6: leftover placeholder line removed from work-log.md 'Loaded Per Group'"
+    - description: "Post re-check docs: work-log Verification Fix Cycle entry added; per-country test counts annotated in spec.md, spec.html and implementation-plan.md"
+  decisions_made:
+    - "Operator chose 'Fix all fixable': applied the four fixable info items (3–6); the two warnings are not fixable in code"
+  reverify_count: 1
+  issues_found:
+    - id: 1
+      severity: warning
+      source: production
+      description: PL threshold 50 -> 85 PLN (orders of 50.00-84.99 PLN go from free to 19.90 PLN) has no named business sign-off
+      fixable: false
+      fixed: false
+    - id: 2
+      severity: warning
+      source: production
+      description: goodsCents currency contract is JSDoc-only; a wrong-currency total is misjudged silently
+      fixable: false
+      fixed: false
+    - id: 3
+      severity: info
+      source: code_review
+      description: Country loops inside one it() hid later failing countries
+      fixable: true
+      fixed: true
+    - id: 4
+      severity: info
+      source: code_review
+      description: No above-threshold test case
+      fixable: true
+      fixed: true
+    - id: 5
+      severity: info
+      source: completeness
+      description: spec.md Testing Approach item 3 said PL only
+      fixable: true
+      fixed: true
+    - id: 6
+      severity: info
+      source: completeness
+      description: Work-log placeholder line
+      fixable: true
+      fixed: true
+    - id: 7
+      severity: info
+      source: code_review
+      description: "Pre-existing: no guard for unknown country or NaN/negative goodsCents (out of scope)"
+      fixable: false
+      fixed: false
+    - id: 8
+      severity: info
+      source: production
+      description: Thresholds are compile-time constants; changing one needs a deploy (by design)
+      fixable: false
+      fixed: false
+    - id: 9
+      severity: info
+      source: production
+      description: No written rollback note (two-file revert)
+      fixable: true
+      fixed: false
+    - id: 10
+      severity: info
+      source: production
+      description: No CI enforces pnpm test / typecheck (pre-existing)
+      fixable: true
+      fixed: false
+    - id: 11
+      severity: info
+      source: reality
+      description: No production caller of quoteDelivery yet
+      fixable: false
+      fixed: false
+    - id: 12
+      severity: info
+      source: pragmatic
+      description: Literal expected values and a one-line shipsFree helper (deliberate)
+      fixable: false
+      fixed: false
+    - id: 13
+      severity: info
+      source: code_review
+      description: Long it.each lines (109-141 chars), cosmetic
+      fixable: true
+      fixed: false
+    - id: 14
+      severity: info
+      source: pragmatic
+      description: Per-country test style differs between delivery-quote (it.each) and payment-methods (for loop)
+      fixable: false
+      fixed: false

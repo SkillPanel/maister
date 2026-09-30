@@ -91,11 +91,16 @@
  * node carrying `dir:` is skipped — its work lands in another repository — and
  * so is an interpolated path, which names someone else's output.
  *
+ * An artifact the node's own summary sanctions — its key under
+ * `node_summaries.<node>.absent`, with a reason — prints nothing: the node
+ * completed without it on purpose and said why, and a line for it would be a
+ * false alarm the operator learns to ignore, taking the real ones with it.
+ *
  * It is a warning, never a refusal, and the exit code does not move. Whether a
  * missing artifact is a defect is the node's own call, made before it recorded
- * `completed`: its prose may sanction the absence, and this verb cannot read
- * prose, so a refusal would stop runs that are right and that no write could
- * clear. At the close the only remedy left is re-driving a node that already
+ * `completed`: its prose may sanction the absence, and a node that forgot to
+ * record the sanction is still right, so a refusal would stop runs that no
+ * write could clear. At the close the only remedy left is re-driving a node that already
  * completed, which is the operator's decision, and the line is what lets them
  * make it. When the definition cannot be shown to be the one the run froze,
  * nothing is checked and a warning says so rather than guessing.
@@ -158,7 +163,7 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
     }
 
     const nodes = nodesOf(doc);
-    const reconciled = reconcile(nodes, close.graph, runDir);
+    const reconciled = reconcile(nodes, close.graph, runDir, absencesOf(doc));
     if (status === 'failed') {
       const reason = failureOf(nodes);
       return {
@@ -250,11 +255,12 @@ function nodesOf(doc) {
 
 /**
  * `{missing, warnings}`: one `missing-artifact: <node> <path>` line per artifact
- * a completed node declared that is not on disk, in graph order, or — when the
+ * a completed node declared that is not on disk and whose summary does not
+ * sanction its absence, in graph order, or — when the
  * run's graph cannot be shown to be the frozen one — no lines and one warning
  * saying nothing was checked. A run with no frozen nodes has nothing to check.
  */
-function reconcile(nodes, graph, runDir) {
+function reconcile(nodes, graph, runDir, absences) {
   if (!nodes.length) return { missing: [], warnings: [] };
   if (graph === null) {
     return {
@@ -274,8 +280,10 @@ function reconcile(nodes, graph, runDir) {
     const taskPath = isPlainObject(entry.values) && typeof entry.values.task_path === 'string' && entry.values.task_path !== ''
       ? entry.values.task_path
       : null;
-    for (const declared of Object.values(node.outputs.artifacts)) {
+    const sanctioned = absences(id);
+    for (const [key, declared] of Object.entries(node.outputs.artifacts)) {
       if (typeof declared !== 'string' || declared === '' || declared.includes('${')) continue;
+      if (sanctioned.has(key)) continue;
       // A child's artifact is the child's to write; without its address it is
       // nowhere this run can look, so it is missing rather than looked for here.
       if (child && taskPath === null) {
@@ -287,6 +295,20 @@ function reconcile(nodes, graph, runDir) {
     }
   }
   return { missing, warnings: [] };
+}
+
+/**
+ * The artifact keys a node's summary sanctions as not produced, as a function of
+ * the node id. Only a key with a reason counts: the writer refuses any other, and
+ * a hand-edited entry that gives none has not sanctioned anything.
+ */
+function absencesOf(doc) {
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  return id => {
+    const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : {};
+    const absent = isPlainObject(summary.absent) ? summary.absent : {};
+    return new Set(Object.keys(absent).filter(key => typeof absent[key] === 'string' && absent[key].trim() !== ''));
+  };
 }
 
 /** The line one absent artifact prints: node id first, then the path. */

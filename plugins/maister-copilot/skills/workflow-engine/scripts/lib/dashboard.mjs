@@ -175,10 +175,11 @@ const CHARACTERISTIC_KEYS = [
  * The whole file text for one run.
  *
  * `view` is the plain object `state.mjs` assembles — `{state, display, gates,
- * progress}` — where `state` is the parsed state document, `display` is the
+ * progress, declared}` — where `state` is the parsed state document, `display` is the
  * resolved `{icons, titles}` pair `display.mjs` merges from the definition and
  * its overlays, `gates` maps a node id to its parsed request document, and
- * `progress` carries at most one entry keyed by the executor node.
+ * `progress` carries at most one entry keyed by the executor node, and
+ * `declared` maps a node id to its declared artifact paths by key.
  *
  * `generated` is the **first** top-level key: that is what the register's schema
  * spells and what hand-written files already carried, and the cockpit
@@ -193,12 +194,13 @@ export function render(view, { now }) {
   const titles = isPlainObject(display.titles) ? display.titles : {};
   const gates = isPlainObject(source.gates) ? source.gates : {};
   const progress = isPlainObject(source.progress) ? source.progress : {};
+  const declared = isPlainObject(source.declared) ? source.declared : {};
 
   const data = {
     generated: now,
     task: taskOf(state),
     characteristics: characteristicsOf(state),
-    phases: phasesOf(state, icons, titles, gates, progress),
+    phases: phasesOf(state, icons, titles, gates, progress, declared),
     verification: verificationOf(state),
   };
   return `window.MAISTER_DATA = ${JSON.stringify(data, null, 1)};\n`;
@@ -275,10 +277,11 @@ function characteristicsOf(state) {
  * It is never sorted and never re-derived: a second ordering rule beside the
  * resolver's is a second thing to keep in step, and the two would drift.
  */
-function phasesOf(state, icons, titles, gates, progress) {
+function phasesOf(state, icons, titles, gates, progress, declared) {
   const workflow = isPlainObject(state.workflow) ? state.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   const summaries = summarySources(state);
+  const nodeSummaries = isPlainObject(state.node_summaries) ? state.node_summaries : {};
 
   return Object.keys(nodes).map(id => {
     const node = isPlainObject(nodes[id]) ? nodes[id] : {};
@@ -309,6 +312,11 @@ function phasesOf(state, icons, titles, gates, progress) {
     phase.decisions = list(summary.decisions).map(decisionOf).filter((d) => d !== null);
     phase.risks = list(summary.risks);
     phase.artifacts = list(summary.artifacts).map(artifactOf).filter((a) => a !== null);
+    // Additive, and only on a node whose summary sanctioned an absence: the
+    // declared artifacts it completed without, each with its reason, so the
+    // viewer says "not produced" and why instead of leaving a gap.
+    const absent = absencesOf(nodeSummaries, declared, id);
+    if (absent.length) phase.absent = absent;
     phase.gate = Object.hasOwn(gates, id) ? gateCard(gates[id]) : null;
     // Additive and optional everywhere: a run with no plan on disk carries no
     // `progress` key at all rather than an empty one.
@@ -347,6 +355,28 @@ function summarySources(state) {
     sources.push(block.phase_summaries);
   }
   return sources.filter(source => source !== null);
+}
+
+/**
+ * A node's sanctioned absences as `{artifact, path, reason}` entries, in the
+ * order its summary lists them: `node_summaries.<id>.absent` maps a declared
+ * artifact key to the reason the node completed without it. Read from the node
+ * summary alone — a phase summary is keyed by a phase key, which names no
+ * node's artifacts. `path` is the declared path as the summary would register
+ * it, or null when the definition could not be read. An entry with no reason
+ * is dropped: it explains nothing, and the writer refuses one.
+ */
+function absencesOf(nodeSummaries, declared, id) {
+  const summary = Object.hasOwn(nodeSummaries, id) && isPlainObject(nodeSummaries[id]) ? nodeSummaries[id] : {};
+  if (!isPlainObject(summary.absent)) return [];
+  const paths = Object.hasOwn(declared, id) && isPlainObject(declared[id]) ? declared[id] : {};
+  return Object.entries(summary.absent)
+    .filter(([, reason]) => typeof reason === 'string' && reason.trim() !== '')
+    .map(([artifact, reason]) => ({
+      artifact,
+      path: Object.hasOwn(paths, artifact) && typeof paths[artifact] === 'string' ? paths[artifact] : null,
+      reason,
+    }));
 }
 
 /** The fields a phase card takes from a summary, each chosen on its own. */

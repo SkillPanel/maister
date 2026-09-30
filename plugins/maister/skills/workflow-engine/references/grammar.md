@@ -322,7 +322,8 @@ An artifact path is **literal** and stays inside the run's task directory: no `$
 path (a leading `/` or `\`, or a drive letter such as `C:`), no `..` segment. It may name a file or
 a directory.
 A node that does not produce a declared artifact has not completed — unless its prose sanctions
-the absence by name (engine § *Recording an outcome*).
+the absence by name, and the node then records it on its summary under `absent`, keyed by the
+artifact's declared key (engine § *Recording an outcome*).
 
 | Value type | Recorded as |
 |---|---|

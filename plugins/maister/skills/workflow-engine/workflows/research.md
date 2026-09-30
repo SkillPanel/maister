@@ -103,7 +103,9 @@ What a parent may read is the workflow-level `outputs:` block in
 `research_report` on purpose, so a chain authored against
 `${research.artifacts.report}` keeps resolving. Three of the artifacts belong
 to nodes a guard may skip; an entry whose node was skipped is simply absent,
-and the parent's missing-artifact rule decides what follows.
+and the parent records it under its node's `absent` when it adopts this run's
+outcome (engine § *Recording an outcome*), so the absence is not reported as
+missing.
 
 **Nothing is copied and nothing is handed back in prose.** A parent addresses
 this run's artifacts through the child's own `task_path`, so a copy in the
@@ -571,12 +573,16 @@ above is what the operator gets instead.
 
 There is no gate after this node. The workflow ends here.
 
-**The executive summary is not the run's last line; the marker is.** Write the closing patch,
-call `run-complete`, and end the turn's final message with the lines the verb printed, the
-marker last and nothing after it — the engine skill's run-end rule. Do not present the summary
-in a message after the marker. Put it before the marker in the same final message, or in a
-message sent before the verb runs. The same rule holds for the endings that never reach this
-node — an embedded run, whose guard skips it, and a run a gate's stop option ended: each
-still ends its turn on the verb's marker.
+**Close for whoever reads the end** (the engine skill's run-end rule). In a terminal run a
+person reads it: write the closing patch and call `run-complete` first, then end with one
+wrap-up message — the outcome and the key findings in a few lines, the outputs from the
+inventory, the fresh-session suggestion when it applies, each artifact the verb reported
+missing named in plain words, and the dashboard link last. The verb's own lines are never
+shown. Under a `cockpit` or `dispatch` driver tooling reads it: the executive summary goes
+before the `run-complete` call, in the same final message or an earlier one, and the turn ends
+on the lines the verb printed, its marker last and nothing after it. The same rule holds for a
+run a gate's stop option ended, which never reaches this node. An embedded run, whose guard
+skips this node, ends as a sub-run does: in session with no wrap-up, since its parent's ending
+carries it, and under a driver on the verb's marker.
 
 **Recovery budget**: none — this node summarizes and nothing else.

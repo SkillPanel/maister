@@ -565,8 +565,8 @@ Ask which additional verification checks to run. This question carries
 the multi-choice flag (see `gate.schema.json`), offering code review, labelled
 `(Recommended)`, and a production-readiness check; the question text carries the
 line `Recommended: code review only`. A gate cannot express it: a gate's options map
-option ids to continue or stop, and this question picks a subset rather than a
-route. The generated Copilot variant additionally rewrites a multi-choice
+option ids to routes — continue, stop or revise — and this question picks a subset
+rather than a route. The generated Copilot variant additionally rewrites a multi-choice
 question into a run of single-choice ones, which is a second reason it belongs
 in a node.
 
@@ -657,7 +657,7 @@ to alter. Other stays a fallback; no useful path runs through it.
 
 **This is where the run takes a change the operator asks for** — an item that
 needs a hand, tackled now, or a change they describe. The verification gate
-after this node only continues or stops. Apply the chosen fixes and requested
+after this node offers no revise, so it only continues or stops. Apply the chosen fixes and requested
 changes, log each one, and clear `skip_test_suite` because code changed.
 Record every one of them as `verification_context.fixes_applied`; a requested
 change spends the same budget as a fix.
@@ -747,14 +747,17 @@ workflow as a sub-run, so there is no embedded case to guard against.
    Suggest a fresh session for whatever comes next rather than continuing in
    this one.
 
-**Print first, then close.** The executive summary and then every next step
-from step 4 — all four of this workflow's own, then the fresh-session suggestion,
-none dropped or merged — are printed as ordinary text **before** the engine's
-`run-complete` call, and they are the last thing printed ahead of it. Only then
-call `run-complete`. Its marker is the last line of its stdout; after the call,
-print nothing but that line, copied exactly as the verb printed it. Never call
-`run-complete` first and summarize after it, and never type a marker the verb did
-not print.
+**Close for whoever reads the end** (the engine skill's run-end rule). In a
+terminal run a person reads it: write the closing patch and call `run-complete`
+first, then end with one wrap-up message — the outcome from the executive
+summary in a few lines, the key files, every next step from step 4 (all four of
+this workflow's own, then the fresh-session suggestion, none dropped or merged),
+each artifact the verb reported missing named in plain words, and the dashboard
+link last. The verb's own lines are never shown. Under a `cockpit` or `dispatch`
+driver tooling reads it, and the order is reversed: the executive summary and
+every next step are printed as ordinary text **before** the `run-complete` call;
+after it, print nothing but the lines the verb printed, copied exactly, its
+marker last. Never type a marker the verb did not print.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

@@ -170,7 +170,10 @@ keeps off the path. The refusal names each one. A node a false guard skips is no
 neither is one waiting on a need that failed, unless its `on:` says to run anyway. The verb
 also prints one `missing-artifact: <node> <path>` line above the marker for each artifact a
 completed node declared that is not on disk. That line is a warning for you to read, never a
-refusal. Both checks read the resolved graph, overlays included, so a node you add is held to
+refusal. A node that legitimately completes without one of its artifacts — say, a report written
+only when some input was given — says so in its prose, and records it on its summary as
+`absent: {<artifact-key>: "<reason>"}`. The verb prints no line for it, and the dashboard shows
+the artifact as not produced, with that reason. Both checks read the resolved graph, overlays included, so a node you add is held to
 the same rule as the built-in ones.
 
 **Running your workflow.** `/maister:run <name>` starts it from the terminal:

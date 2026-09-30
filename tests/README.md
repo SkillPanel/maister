@@ -29,7 +29,11 @@ scaffolds with `init`. Only the dashboard normalizers
   never read.
 - `fixtures/runs/` — run directories copied into a scratch project per test: a plan with its companion
   and work log, a pending gate request, a state file written by a prose orchestrator, and two task directories
-  written by 2.x (`prose-2x/`, `prose-2x-research/`) that `resume-check` refuses.
+  written by 2.x (`prose-2x/`, `prose-2x-research/`) that `resume-check` refuses, and
+  `free-delivery-threshold/`, a real development run: its state as it recorded it (the definition
+  source made repository-relative) as `recorded-state.yml`, beside every file it wrote, emptied.
+  `run-complete.test.mjs` freezes the shipped `development.yml` afresh and replays the recorded
+  outcomes and summaries onto it, with and without the absences its nodes sanction.
 - `fixtures/gates/` — answered request documents a test copies over the pending one.
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
