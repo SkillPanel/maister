@@ -170,6 +170,71 @@ test('a node an overlay placed inside the stretch is reset with it', t => {
   assert.equal(nodes['fact-check'].attempt, 2);
 });
 
+/** A node's line as the file spells it, so a quoted count is told apart from an integer. */
+function nodeLine(run, id) {
+  return fs.readFileSync(run.state, 'utf8').split('\n').find(line => line.startsWith(`    ${id}: {`)) ?? '';
+}
+
+test('a reset node written again keeps its attempt an integer', t => {
+  const run = atGate(t);
+  revise(run);
+  write(run, { nodes: { draft: { status: 'running' } } });
+  assert.match(nodeLine(run, 'draft'), /[{ ]attempt: 2,/);
+  assert.equal(readState(run).workflow.nodes.draft.attempt, 2);
+});
+
+test('a second revise counts on from the first, and its attempt stays an integer too', t => {
+  const run = atGate(t);
+  revise(run);
+  write(run, { nodes: { draft: { status: 'running' } } });
+  complete(run);
+  const result = revise(run, { note: 'Round 2' });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /revision=2\/3/);
+  write(run, { nodes: { draft: { status: 'running' } } });
+  const nodes = readState(run).workflow.nodes;
+  for (const id of STRETCH) {
+    assert.match(nodeLine(run, id), /[{ ]attempt: 3,/, id);
+    assert.equal(nodes[id].attempt, 3, id);
+  }
+});
+
+test('an attempt a file already holds quoted is read as its number and written back bare', t => {
+  const run = atGate(t);
+  revise(run);
+  fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8').replace(/([{ ]attempt: )2,/g, '$1"2",'));
+  assert.match(nodeLine(run, 'review-approval'), /[{ ]attempt: "2",/);
+
+  write(run, { task: { status: 'in_progress' } });
+  assert.equal(readDashboard(run).phases.find(phase => phase.id === 'review-approval').attempt, 2,
+    'a line nothing rewrote still projects the number');
+  write(run, { nodes: { draft: { status: 'running' } } });
+  assert.match(nodeLine(run, 'draft'), /[{ ]attempt: 2,/, 'the node\'s next write re-emits it as an integer');
+
+  complete(run);
+  const result = revise(run, { note: 'Round 2' });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /revision=2\/3/);
+  for (const id of STRETCH) assert.match(nodeLine(run, id), /[{ ]attempt: 3,/, id);
+});
+
+test('the other counters a run records keep their type through the writes after a revise', t => {
+  const run = atGate(t);
+  write(run, { orchestrator: { auto_fix_attempts: { review: 2 } }, verification_context: { reverify_count: 1 } });
+  revise(run);
+  complete(run);
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'publish-draft', answered_by: 'operator', at: '2026-01-05T11:00:00Z' }] } },
+    orchestrator: { auto_fix_attempts: { draft: 1 } },
+    verification_context: { fixes_applied: ['tightened the intro'] },
+  });
+  const state = readState(run);
+  assert.deepEqual(state.orchestrator.auto_fix_attempts, { review: 2, draft: 1 });
+  assert.equal(state.verification_context.reverify_count, 1);
+  assert.equal(state.node_summaries['review-approval'].decisions[0].attempt, 1);
+});
+
 test('the dashboard carries the attempt and the revise decision', t => {
   const run = atGate(t);
   revise(run);

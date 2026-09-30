@@ -1744,8 +1744,10 @@ function reset(existing) {
 
 /**
  * A node's attempt, counting its first as 1. The hook's reader hands a scalar
- * back as text, so the recorded `2` arrives as `"2"`; anything that is not a
- * positive whole number is a node that was never reset.
+ * back as text, so the recorded `2` arrives as `"2"` — and a file an earlier
+ * build wrote may hold it quoted, until the node's next write re-emits it
+ * through this; anything that is not a positive whole number is a node that
+ * was never reset.
  */
 export function attemptOf(entry) {
   const value = Number(isPlainObject(entry) ? entry.attempt : undefined);
@@ -1963,8 +1965,14 @@ function nodeLine(id, entry) {
   if (!NODE_ID.test(id)) throw new Refusal('state-patch-invalid', `"${id}" is not a usable node id`);
   const fields = [];
   const emit = key => {
-    const value = entry[key];
+    let value = entry[key];
     if (value === undefined || value === null) return;
+    // `attempt` is this writer's own counter, so it is emitted as the integer
+    // it means rather than as whatever the file handed back. The hook's reader
+    // returns every scalar on a node line as text, and the emitter rightly
+    // quotes text that looks like a number: a reset node's `2`, written again,
+    // came back `"2"` — the count held and the type on disk did not.
+    if (key === 'attempt') value = attemptOf(entry);
     // The field name is emitted raw inside the flow map, exactly as a nested
     // flow-map key is, so it is judged by the same rule. Unguarded, a field
     // named `x}, forged: {` closes the entry and opens another one.
