@@ -205,3 +205,37 @@ function trimmedPhases(doc, stretch) {
 function refuse(code, message) {
   return { ok: false, changed: [], errors: [{ code, message: `${code}: ${message}` }], warnings: [] };
 }
+
+/**
+ * The revise a run is in the middle of, or null: the gate whose last decision
+ * is one of its revise options, nothing answered at it since. `applied` says
+ * whether the reset has happened — false only between a driven fold and the
+ * `gate-revise` that follows it, the one moment the run must not walk on.
+ * With several (a revise further on reset an earlier gate that had been
+ * revised before), the latest by its stamp. Read-only, for `prior-context`
+ * and `resume-check`.
+ */
+export function openRevision(doc) {
+  const recorded = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+  const open = [];
+  for (const [gate, entry] of Object.entries(recorded)) {
+    if (!isPlainObject(entry) || entry.kind !== 'gate' || !isPlainObject(entry.reruns)) continue;
+    const decisions = decisionsOf(doc, gate);
+    const latest = decisions.length ? decisions[decisions.length - 1] : null;
+    if (!isPlainObject(latest) || !Object.hasOwn(entry.reruns, latest.option)) continue;
+    const applied = Object.hasOwn(latest, 'attempt');
+    if (!applied && entry.status !== 'completed') continue;
+    open.push({
+      gate,
+      option: latest.option,
+      reruns: String(entry.reruns[latest.option]),
+      revision: applied ? attemptOf(latest) : attemptOf(entry),
+      applied,
+      note: typeof latest.note === 'string' ? latest.note : null,
+      at: typeof latest.at === 'string' ? latest.at : '',
+    });
+  }
+  if (!open.length) return null;
+  const { at: _at, ...latest } = open.reduce((a, b) => (b.at > a.at ? b : a));
+  return latest;
+}

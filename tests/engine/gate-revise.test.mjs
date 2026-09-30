@@ -316,3 +316,52 @@ test('the verb reads its note from the run\'s own patch file and consumes it', t
   assert.equal(fs.existsSync(file), false);
   assert.equal(readState(run).node_summaries['review-approval'].decisions[0].note, 'From the file');
 });
+
+// ---------------------------------------------------------------------------
+// what the re-run reads, and what a resume finds
+// ---------------------------------------------------------------------------
+
+function priorContext(run) {
+  const result = verb(['prior-context', `--state=${run.state}`]);
+  assert.equal(result.code, 0, result.stderr);
+  return result.stdout;
+}
+
+function resumeCheck(run) {
+  return JSON.parse(verb(['resume-check', `--state=${run.state}`]).stdout);
+}
+
+test('prior-context carries the latest revise note under its own heading while the stretch re-runs', t => {
+  const run = atGate(t);
+  assert.doesNotMatch(priorContext(run), /Revision requested/);
+  revise(run, { note: 'Fix section 2; tighten the intro' });
+  const text = priorContext(run);
+  assert.match(text, /^## Revision requested — review-approval$/m);
+  assert.match(text, /re-run `draft` \(revision 1 of 3\)/);
+  assert.match(text, /^Note: Fix section 2; tighten the intro$/m);
+  assert.match(text, /### draft/, 'the previous attempt\'s summaries are still carried forward');
+
+  // Answered past, the note is history and the section goes.
+  complete(run);
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'publish-draft', answered_by: 'operator', at: '2099-01-01T00:00:01Z' }] } },
+  });
+  assert.doesNotMatch(priorContext(run), /Revision requested/);
+});
+
+test('resume-check names an open revise and whether its reset has happened', t => {
+  const run = atGate(t);
+  assert.equal(Object.hasOwn(resumeCheck(run), 'revision'), false, 'a run nobody sent back carries no revision');
+
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'send-back', answered_by: 'cockpit:ana', at: '2026-01-05T09:40:00Z' }] } },
+  });
+  assert.deepEqual(resumeCheck(run).revision,
+    { gate: 'review-approval', option: 'send-back', reruns: 'draft', revision: 1, applied: false });
+
+  revise(run, { note: 'Fix section 2' });
+  assert.deepEqual(resumeCheck(run).revision,
+    { gate: 'review-approval', option: 'send-back', reruns: 'draft', revision: 1, applied: true });
+});
