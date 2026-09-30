@@ -126,6 +126,15 @@ export function render(resolved, { titles = null } = {}) {
   if (typeof resolved?.graph_hash === 'string' && resolved.graph_hash !== '') {
     lines.push(`%% graph_hash: ${oneLine(resolved.graph_hash)}`);
   }
+  // What was laid over the definition, so a drawing of an overlaid graph is
+  // never mistaken for the definition's own. Each overlay by its file name
+  // alone, for the same reason `source` is left out; a plain definition carries
+  // neither line, so its diagram does not move.
+  const overlays = Array.isArray(resolved?.overlays) ? resolved.overlays.filter(o => typeof o === 'string' && o !== '') : [];
+  if (overlays.length) lines.push(`%% overlays: ${overlays.map(file => oneLine(baseName(file))).join(', ')}`);
+  if (typeof resolved?.profile === 'string' && resolved.profile !== '') {
+    lines.push(`%% profile: ${oneLine(resolved.profile)}`);
+  }
   lines.push('');
   lines.push(HEADER);
 
@@ -256,6 +265,12 @@ function text(value) {
   let out = oneLine(value);
   for (const [from, to] of ESCAPES) out = out.split(from).join(to);
   return out;
+}
+
+/** The last segment of a path, split by hand on either separator so no platform decides it. */
+function baseName(file) {
+  const parts = file.split(/[\\/]/);
+  return parts[parts.length - 1];
 }
 
 /** Collapse every line ending so no value can end a line the grammar owns. */
