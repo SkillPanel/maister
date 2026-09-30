@@ -63,11 +63,11 @@ permission settings decide. An allow rule for the plugin's engine script and an 
 `**/.state-patch.json` (or accepting edits for the session) spare you those prompts.
 
 The engine resumes by recomputing which nodes are ready from the frozen state, so there is no
-mid-graph entry point to start from and no attempt counter in that state to reset — attempt
-budgets are node prose. A run declines `--from=PHASE` and `--reset-attempts` by name rather than
-accepting a flag it would silently ignore. Re-entering a run partway is planned for the engine;
-until then, a run that needs it is one to finish on the 2.x line (see
-[Staying on 2.x](../README.md#staying-on-2x)).
+mid-graph entry point to start from. A run declines `--from=PHASE` and `--reset-attempts` by name
+rather than accepting a flag it would silently ignore. The one way back inside a run is a gate's
+revise option ([Sending a run back from a gate](#sending-a-run-back-from-a-gate)). Re-entering a
+run partway at a node of your choosing is planned for the engine; until then, a run that needs it
+is one to finish on the 2.x line (see [Staying on 2.x](../README.md#staying-on-2x)).
 
 ### Phases
 
@@ -328,6 +328,36 @@ which dispatches them into a member repository. They are a Pro Edition feature �
 [Pro Edition](../README.md#pro-edition).
 
 ---
+
+## Sending a run back from a gate
+
+Some approval gates offer a third answer beside continue and stop: **revise**. It sends the run
+back to the phase that wrote the document you are approving, with a note saying what to change.
+That phase runs again over its own output, everything between it and the gate runs again after
+it, and the gate asks you once more.
+
+| Workflow | Gates that offer a revise | Re-runs |
+|---|---|---|
+| Development | gap analysis, specification, specification audit, plan | gap analysis; the specification (from both of its gates); planning |
+| Research | research foundation, design | the research foundation; the high-level design |
+| Performance | bottleneck analysis, specification, specification audit, plan | the bottleneck analysis; the specification; planning |
+| Migration | gap analysis, specification, plan | the gap analysis; the specification; planning |
+
+Gates whose phase already has its own review loop — UI mockups, verification and issue resolution —
+keep that loop instead.
+
+- **The note is chosen, not typed.** After you pick revise, the gate offers up to four suggested
+  changes drawn from what the phase found — its open risks and its decisions — with one
+  recommended. Pick any of them; typing your own is there too, for anything the suggestions miss.
+- **Three revisions per gate.** The option says which revision it would be, and after the third
+  the gate offers only continue and stop. A revise from a later gate that re-runs an earlier gate's
+  phase counts against that earlier gate too, because it asks you again.
+- **What you see.** The dashboard tags each re-run phase with its attempt, and the gate keeps every
+  revise with its note, so the run's record says why each phase ran more than once. A resumed run
+  picks up a revise where it stopped.
+
+A revise is an in-run answer. It does not reopen a run that has finished; to change finished work,
+start a new task.
 
 ## Your Own Workflows
 

@@ -292,6 +292,14 @@ compensating behaviour for the gate's constant question**, which cannot carry
 those counts — the gate brief renders them in the `bottleneck-approval` question
 (engine § Gates).
 
+**When re-run after a revise.** `bottleneck-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*. Do not
+ask about profiling data again unless the note offers some: the directory is
+read as it stands. Hand the analyzer the note and the existing
+`analysis/performance-analysis.md`, and ask it to revise the analysis in place —
+re-rank, add or drop what the note names — then write the structured result to
+state again, because a revise clears it. Say in the summary what changed.
+
 **Recovery budget**: 2 attempts — re-analyze with broader patterns on the
 second, and ask the operator when the second also comes back thin.
 
@@ -306,7 +314,9 @@ entry.
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
 definition's `ask:` — record the answer, and stop the run on the stop option —
-nothing after a stopped node ever becomes ready.
+nothing after a stopped node ever becomes ready. Its revise option sends the run
+back to `bottleneck-analysis` with the operator's note (engine § Gates,
+*Revising at a gate*).
 
 **Its question drops the 2.x prose form's interpolated counts, and that is a
 recorded divergence.** The prose asks it with the bottleneck count and the P0
@@ -362,6 +372,15 @@ planned and the expected impact in `summary`; the approach chosen in
 `decisions`. The `specification-approval` question is the gate brief rendered
 from it (engine § Gates).
 
+**When re-run after a revise.** `specification-approval` or
+`spec-audit-approval` sent the run back, and `prior-context` carries the
+operator's note under *Revision requested*, beside the previous attempt's
+summaries — the audit's findings among them when it was the audit's gate. Keep
+Part A's answers: ask again only what the note reopens, and record the change in
+`analysis/requirements.md`. In Part B, hand the specification creator the note,
+the audit's findings when there are any, and the existing `implementation/spec.md`,
+and ask it to revise the specification in place. Say in the summary what changed.
+
 **Recovery budget**: 2 attempts — regenerate the specification on the second
 with the gaps named in the context.
 
@@ -375,7 +394,9 @@ on the entry, and register the companion path under that entry's
 ## `specification-approval`
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
-definition's `ask:` — record the answer, and stop the run on the stop option.
+definition's `ask:` — record the answer, and stop the run on the stop option. Its
+revise option sends the run back to `specification` with the operator's note
+(engine § Gates, *Revising at a gate*).
 
 Its question names the specification audit, and the audit is what runs next on
 every run of this workflow; the gate brief's `Next:` line says the same.
@@ -420,7 +441,11 @@ verdict.
 ## `spec-audit-approval`
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
-definition's `ask:` — record the answer, and stop the run on the stop option.
+definition's `ask:` — record the answer, and stop the run on the stop option. Its
+revise option sends the run back to `specification` with the operator's note;
+the audit's findings reach the re-run through the prior context, and the
+specification is approved and audited again before this gate asks once more
+(engine § Gates, *Revising at a gate*).
 
 ---
 
@@ -446,6 +471,13 @@ and the total number of steps in `summary`; the key dependencies between groups
 and the optimization sequence in `decisions`. The `planning-approval` question
 is the gate brief rendered from it (engine § Gates).
 
+**When re-run after a revise.** `planning-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*. Hand the
+planner the note and the existing `implementation/implementation-plan.md`, and
+ask it to revise the plan in place — regroup, split or re-sequence what the note
+names and keep the rest — and to check it against the optimization targets
+again. Say in the summary what changed.
+
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 gaps named in the context.
 
@@ -458,7 +490,9 @@ nodes named in the phase-key section above and this is not one of them.
 ## `planning-approval`
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
-definition's `ask:` — record the answer, and stop the run on the stop option.
+definition's `ask:` — record the answer, and stop the run on the stop option. Its
+revise option sends the run back to `planning` with the operator's note (engine
+§ Gates, *Revising at a gate*).
 
 ---
 

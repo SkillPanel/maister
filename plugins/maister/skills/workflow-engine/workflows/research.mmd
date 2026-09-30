@@ -1,16 +1,16 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: research
-%% graph_hash: sha256:9365d6f29c2c98e80323b21080b64510167bd17d2744baa3b0bfeed69b5b8f7b
+%% graph_hash: sha256:9f630c840853fc14cdaf02766ea844823099d7d90e8b9c05dcfd7d3b50e7b4ee
 
 flowchart TD
   n_research_foundation["Research foundation<br/>research-foundation<br/>direct:research-foundation"]
-  n_foundation_approval{{"Approve research foundation<br/>foundation-approval<br/>gate<br/>Research foundation complete (initialized, planned, gathered, synthesized). Continue to brainstorming evaluation?<br/>continue-to-evaluation: continue, stop-research: stop"}}
+  n_foundation_approval{{"Approve research foundation<br/>foundation-approval<br/>gate<br/>Research foundation complete (initialized, planned, gathered, synthesized). Continue to brainstorming evaluation?<br/>continue-to-evaluation: continue, revise-research: revise → research-foundation, stop-research: stop"}}
   n_optional_phases_decision["Choose optional phases<br/>optional-phases-decision<br/>direct:optional-phases-decision"]
   n_solution_generation{"Solution brainstorming<br/>solution-generation<br/>agent:solution-brainstormer<br/>when: ${optional-phases-decision.values.brainstorming_enabled}"}
   n_solution_convergence{"Solution convergence<br/>solution-convergence<br/>direct:solution-convergence<br/>when: ${optional-phases-decision.values.brainstorming_enabled}"}
   n_convergence_approval{{"Approve brainstorming<br/>convergence-approval<br/>gate<br/>Brainstorming complete. Continue to high-level design?<br/>continue-to-design: continue, stop-research: stop<br/>when: ${optional-phases-decision.values.brainstorming_enabled}"}}
   n_high_level_design{"High-level design<br/>high-level-design<br/>direct:high-level-design<br/>when: ${optional-phases-decision.values.design_enabled}"}
-  n_design_approval{{"Approve design<br/>design-approval<br/>gate<br/>Design complete. Continue to output generation?<br/>continue-to-completion: continue, stop-research: stop<br/>when: ${optional-phases-decision.values.design_enabled}"}}
+  n_design_approval{{"Approve design<br/>design-approval<br/>gate<br/>Design complete. Continue to output generation?<br/>continue-to-completion: continue, revise-design: revise → high-level-design, stop-research: stop<br/>when: ${optional-phases-decision.values.design_enabled}"}}
   n_completion{"Completion<br/>completion<br/>direct:completion<br/>when: !${inputs.embedded}"}
   n_research_foundation --> n_foundation_approval
   n_foundation_approval --> n_optional_phases_decision

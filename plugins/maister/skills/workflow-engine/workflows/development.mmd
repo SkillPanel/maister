@@ -1,22 +1,22 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: development
-%% graph_hash: sha256:6b0ddb30c778855d6c6e438548da179d7a15696a4e683f9201e816daac74ed0c
+%% graph_hash: sha256:75bae254120c474dce739333724067944149caf956f20771346359230900dff1
 
 flowchart TD
   n_intake["Intake<br/>intake<br/>direct:intake"]
   n_codebase_analysis["Codebase analysis<br/>codebase-analysis<br/>skill:codebase-analyzer"]
   n_gap_analysis["Gap analysis<br/>gap-analysis<br/>agent:gap-analyzer"]
-  n_gap_approval{{"Approve gap analysis<br/>gap-approval<br/>gate<br/>Gap analysis complete. Continue?<br/>continue-past-analysis: continue, stop-development: stop"}}
+  n_gap_approval{{"Approve gap analysis<br/>gap-approval<br/>gate<br/>Gap analysis complete. Continue?<br/>continue-past-analysis: continue, revise-gap-analysis: revise → gap-analysis, stop-development: stop"}}
   n_tdd_red{"TDD red<br/>tdd-red<br/>direct:tdd-red<br/>when: ${gap-analysis.values.has_reproducible_defect}"}
   n_tdd_red_approval{{"Approve TDD red<br/>tdd-red-approval<br/>gate<br/>TDD red gate complete. Continue?<br/>continue-past-tdd-red: continue, stop-development: stop<br/>when: ${gap-analysis.values.has_reproducible_defect}"}}
   n_ui_mockups{"UI mockups<br/>ui-mockups<br/>skill:mockup-studio<br/>when: ${gap-analysis.values.mockups_needed}"}
   n_mockup_approval{{"Approve UI mockups<br/>mockup-approval<br/>gate<br/>UI mockups complete. Continue to specification?<br/>continue-to-specification: continue, stop-development: stop<br/>when: ${gap-analysis.values.mockups_needed}"}}
   n_specification["Specification<br/>specification<br/>direct:specification"]
-  n_specification_approval{{"Approve specification<br/>specification-approval<br/>gate<br/>Specification complete. Continue?<br/>continue-past-specification: continue, stop-development: stop"}}
+  n_specification_approval{{"Approve specification<br/>specification-approval<br/>gate<br/>Specification complete. Continue?<br/>continue-past-specification: continue, revise-specification: revise → specification, stop-development: stop"}}
   n_spec_audit{"Specification audit<br/>spec-audit<br/>agent:spec-auditor<br/>when: ${specification.values.spec_audit_enabled}"}
-  n_spec_audit_approval{{"Approve specification audit<br/>spec-audit-approval<br/>gate<br/>Specification audit complete. Continue to implementation planning?<br/>continue-to-planning: continue, stop-development: stop<br/>when: ${specification.values.spec_audit_enabled}"}}
+  n_spec_audit_approval{{"Approve specification audit<br/>spec-audit-approval<br/>gate<br/>Specification audit complete. Continue to implementation planning?<br/>continue-to-planning: continue, revise-specification: revise → specification, stop-development: stop<br/>when: ${specification.values.spec_audit_enabled}"}}
   n_planning["Implementation planning<br/>planning<br/>agent:implementation-planner"]
-  n_planning_approval{{"Approve implementation plan<br/>planning-approval<br/>gate<br/>Implementation plan complete. Continue to implementation?<br/>continue-to-implementation: continue, stop-development: stop"}}
+  n_planning_approval{{"Approve implementation plan<br/>planning-approval<br/>gate<br/>Implementation plan complete. Continue to implementation?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-development: stop"}}
   n_implementation["Implementation<br/>implementation<br/>skill:implementation-plan-executor"]
   n_implementation_approval{{"Approve implementation<br/>implementation-approval<br/>gate<br/>Implementation complete. Continue?<br/>continue-past-implementation: continue, stop-development: stop"}}
   n_tdd_green{"TDD green<br/>tdd-green<br/>direct:tdd-green<br/>when: ${gap-analysis.values.has_reproducible_defect}"}

@@ -317,6 +317,14 @@ one-line recap of the work does not replace them — the operator approves the
 strategy from these six lines, which the gate brief renders in the
 `gap-approval` question (engine § Gates).
 
+**When re-run after a revise.** `gap-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*. Hand the
+analyzer the note and the existing `analysis/target-state-plan.md`, and ask it to
+revise the target state in place — the gaps, the strategy or the risk the note
+names — keeping the migration type unless the note changes it. Write the
+structured result to state and record `migration_type` again, because a revise
+clears the declared value. Say in the summary what changed.
+
 **Recovery budget**: 2 attempts — re-prompt for the target details on the
 second, and ask the operator when the second also comes back thin.
 
@@ -330,7 +338,9 @@ and the risk level, and with `node: gap-analysis` on the entry.
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
 definition's `ask:` — record the answer, and stop the run on the stop option —
-nothing after a stopped node ever becomes ready.
+nothing after a stopped node ever becomes ready. Its revise option sends the run
+back to `gap-analysis` with the operator's note (engine § Gates, *Revising at a
+gate*).
 
 Its question names the stage just completed and no later one. The node the run
 reaches next is `specification` — nothing between here and there is guarded —
@@ -399,6 +409,15 @@ Part A was answered — in `summary`; the migration strategy chosen in
 The `specification-approval` question is the gate brief rendered from it
 (engine § Gates).
 
+**When re-run after a revise.** `specification-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*. Keep
+Part A's answers: ask again only what the note reopens. Hand the specification
+creator the note with the existing `implementation/spec.md` and
+`analysis/rollback-plan.md`, and ask it to revise both in place — the rollback
+plan follows any change to the specification it undoes — then record the two
+`migration_context` flags from what landed again. Say in the summary what
+changed.
+
 **Recovery budget**: 2 attempts — re-gather the requirements and regenerate the
 specification and the rollback plan on the second, with the gaps named in the
 context.
@@ -413,7 +432,9 @@ the entry, and register the companion path under that entry's
 ## `specification-approval`
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
-definition's `ask:` — record the answer, and stop the run on the stop option.
+definition's `ask:` — record the answer, and stop the run on the stop option. Its
+revise option sends the run back to `specification` with the operator's note
+(engine § Gates, *Revising at a gate*).
 
 ---
 
@@ -442,6 +463,12 @@ rollback steps are included; the key dependencies between groups and the
 execution sequence go in `decisions`. The `planning-approval` question is the
 gate brief rendered from it (engine § Gates).
 
+**When re-run after a revise.** `planning-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*. Hand the
+planner the note and the existing `implementation/implementation-plan.md`, and
+ask it to revise the plan in place, keeping a rollback step on every group. Say
+in the summary what changed.
+
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 migration constraints named in the context.
 
@@ -454,7 +481,9 @@ nodes named in the phase-key section above and this is not one of them.
 ## `planning-approval`
 
 A gate, unguarded. Ask it as engine § Gates says — the gate brief, then the
-definition's `ask:` — record the answer, and stop the run on the stop option.
+definition's `ask:` — record the answer, and stop the run on the stop option. Its
+revise option sends the run back to `planning` with the operator's note (engine
+§ Gates, *Revising at a gate*).
 
 ---
 

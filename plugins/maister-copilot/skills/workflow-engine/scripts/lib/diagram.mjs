@@ -220,13 +220,19 @@ function label(node, titles) {
  *
  * The resolver reduces an option written as `{effect: stop}` to `stop`, so both
  * spellings arrive here as the bare effect. An option map that still carries an
- * effect — a degraded document's, holding keys this build does not read — is
- * printed by that effect too, rather than as the escaped JSON of the whole map.
+ * effect — a revise option, or a degraded document's holding keys this build
+ * does not read — is printed by that effect too, rather than as the escaped JSON
+ * of the whole map. A revise option adds the node it sends the run back to,
+ * because that edge is on the option and the picture draws no arrow for it.
  */
 function options(node) {
   const map = node.options;
   if (!map || typeof map !== 'object' || Array.isArray(map)) return '';
-  return Object.entries(map).map(([id, option]) => `${id}: ${scalar(effectOf(option))}`).join(', ');
+  return Object.entries(map).map(([id, option]) => {
+    const effect = scalar(effectOf(option));
+    const reruns = effect === 'revise' && typeof option?.reruns === 'string' ? ` → ${option.reruns}` : '';
+    return `${id}: ${effect}${reruns}`;
+  }).join(', ');
 }
 
 /** An option's effect when it is a map carrying one, else the option as it stands. */

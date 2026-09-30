@@ -45,6 +45,8 @@ import { parse, isPlainObject } from './state-read.mjs';
 // this module finds, and a reserved `project_context` is one neither mistakes
 // for the run's.
 import { isContextBlock } from './state.mjs';
+// A revise the run is in the middle of is found the way `resume-check` finds it.
+import { REVISION_BUDGET, openRevision } from './revise.mjs';
 
 /**
  * The two fields the R3 contract is written against. They lead every phase
@@ -88,7 +90,7 @@ export function priorContext({ state }) {
       return refuse('prior-context-absent',
         `${key}.phase_summaries is not a map, so its entries cannot be rendered`);
     }
-    return { ok: true, text: render(`${key}.phase_summaries`, 'phase', isPlainObject(summaries) ? summaries : {}), errors: [] };
+    return { ok: true, text: render(`${key}.phase_summaries`, 'phase', isPlainObject(summaries) ? summaries : {}) + revisionOf(doc), errors: [] };
   }
 
   // No context block. A run — one the engine froze, or one whose nodes have
@@ -102,7 +104,30 @@ export function priorContext({ state }) {
   if (nodes !== undefined && nodes !== null && !isPlainObject(nodes)) {
     return refuse('prior-context-absent', 'node_summaries is not a map, so its entries cannot be rendered');
   }
-  return { ok: true, text: render('node_summaries', 'node', isPlainObject(nodes) ? nodes : {}), errors: [] };
+  return { ok: true, text: render('node_summaries', 'node', isPlainObject(nodes) ? nodes : {}) + revisionOf(doc), errors: [] };
+}
+
+/**
+ * The operator's note, while the run is re-running a stretch they sent back.
+ * It is the one input the re-run has that the first attempt did not, so it is
+ * printed under its own heading after the prior context rather than left among
+ * the gate's decisions, where a delegate would read it as history. Nothing when
+ * no revise is open, or when its reset has not happened yet.
+ */
+function revisionOf(doc) {
+  const open = openRevision(doc);
+  if (!open || !open.applied || !open.note) return '';
+  return [
+    `## Revision requested — ${open.gate}`,
+    '',
+    `The operator sent this run back from \`${open.gate}\` to re-run \`${open.reruns}\` `
+      + `(revision ${open.revision} of ${REVISION_BUDGET}). The note is binding: revise the earlier output in place to `
+      + 'address it, keep what it does not reopen, and say in the summary what changed.',
+    '',
+    `Note: ${scalarText(open.note)}`,
+    '',
+    '',
+  ].join('\n');
 }
 
 function refuse(code, message) {

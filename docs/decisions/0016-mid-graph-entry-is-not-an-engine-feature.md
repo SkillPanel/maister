@@ -64,3 +64,14 @@ unchanged until then.
 The twins are deleted. The engine declines `--from=PHASE` and `--reset-attempts` by name, says no
 route in the plugin serves them and that re-entry is planned for the engine, and names the 2.x line
 for a run that needs a phase jump today. The graph facts recorded above are unchanged.
+
+### Amendment 2026-09-30 — a gate's revise option is the one way back
+ADR-0028 adds a bounded back-edge on a gate option. `{effect: revise, reruns: <node>}` resets the
+stretch from the named node to the gate in one write, records the operator's note on the gate, and
+counts each node's attempt in run state, up to three revisions per gate. Two of the considered
+options this record rejected therefore exist, narrowed to that one route: a jump construct and a
+run-state attempt counter. Neither reaches `needs`: the graph stays acyclic, and the ready set is
+computed as before. An ordinary write that rewinds a node is now refused, which keeps this
+record's point that recorded statuses are evidence. `--from=PHASE` and `--reset-attempts` are still
+declined by name; operator-initiated re-entry at a named node remains planned, and will reuse the
+same reset.
