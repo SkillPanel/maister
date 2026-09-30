@@ -292,3 +292,58 @@ test('an executor node an overlay added in place of the base\'s carries the plan
   assert.equal(phases.find(phase => phase.id === 'build').progress?.groups_total, 3);
   assert.ok(phases.every(phase => phase.id === 'build' || !Object.hasOwn(phase, 'progress')));
 });
+
+// ---------------------------------------------------------------------------
+// a sanctioned absence reads "not produced", with its reason
+// ---------------------------------------------------------------------------
+
+test('a sanctioned absence projects as an additive phase field carrying the declared path and the reason', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, {
+    nodes: { analysis: { status: 'completed' } },
+    node_summaries: { analysis: { summary: 'Nothing to analyse.', absent: { report: 'the ticket names no code' } } },
+  });
+  const phases = readDashboard(run).phases;
+  const analysis = phases.find(phase => phase.id === 'analysis');
+  assert.deepEqual(analysis.absent, [{ artifact: 'report', path: 'analysis/report.md', reason: 'the ticket names no code' }]);
+  assert.deepEqual(analysis.artifacts, [], 'an absence is never listed as an artifact');
+  assert.ok(phases.every(phase => phase.id === 'analysis' || !Object.hasOwn(phase, 'absent')), 'a phase with no absence carries no key');
+});
+
+test('a sub-run node\'s absence names the path in its child\'s directory, as its artifacts are registered', t => {
+  const run = scratch(t, { type: 'closing', name: '2026-01-05-closing' });
+  freeze(run, { definition: path.join(FIXTURES, 'definitions/closing.yml') });
+  const child = '.maister/tasks/closing-child/2026-01-05-child';
+  write(run, {
+    nodes: {
+      intake: { status: 'completed', values: { needs_review: false } },
+      review: { status: 'skipped' },
+      'deep-dive': { status: 'skipped' },
+      audit: { status: 'completed', values: { task_path: child, run_id: '2026-01-05-child' } },
+    },
+    node_summaries: { audit: { summary: 'The child skipped its scan.', absent: { findings: 'the child skipped the node that writes it' } } },
+  });
+  const audit = readDashboard(run).phases.find(phase => phase.id === 'audit');
+  assert.deepEqual(audit.absent, [{
+    artifact: 'findings',
+    path: '../../closing-child/2026-01-05-child/analysis/findings.md',
+    reason: 'the child skipped the node that writes it',
+  }]);
+});
+
+test('with the definition gone the absence keeps its reason and carries no path', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-definition-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const definition = path.join(dir, 'sample.yml');
+  for (const file of ['sample.yml', 'sample.md']) fs.copyFileSync(path.join(FIXTURES, 'definitions', file), path.join(dir, file));
+  const run = scratch(t);
+  freeze(run, { definition });
+  for (const file of ['sample.yml', 'sample.md']) fs.rmSync(path.join(dir, file));
+  write(run, {
+    nodes: { analysis: { status: 'completed' } },
+    node_summaries: { analysis: { absent: { report: 'the ticket names no code' } } },
+  });
+  const analysis = readDashboard(run).phases.find(phase => phase.id === 'analysis');
+  assert.deepEqual(analysis.absent, [{ artifact: 'report', path: null, reason: 'the ticket names no code' }]);
+});

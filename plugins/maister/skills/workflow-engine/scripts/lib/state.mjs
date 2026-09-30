@@ -613,6 +613,7 @@ function project(state, text, now, changed, warnings) {
       display: displayOfRun(doc, runDir),
       gates: gateRequests(runDir),
       progress: progressOf(doc, definition, runDir),
+      declared: declaredOf(doc, definition, runDir),
     };
     canonical.commit({
       target,
@@ -885,6 +886,31 @@ function progressOf(doc, definition, runDir) {
   const node = dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc);
   if (node !== null) progress[node] = derived;
   return progress;
+}
+
+/**
+ * Each node's declared artifact paths, keyed by node id and then by artifact
+ * key, spelled the way the node's summary registers them (`registeredPath`), so
+ * a sanctioned absence on the dashboard names the path its hero card and its
+ * phase would have linked. Empty when the definition cannot be read: the
+ * projection then shows the reason without a path rather than guessing one.
+ */
+function declaredOf(doc, definition, runDir) {
+  const declared = {};
+  const nodes = isPlainObject(definition?.nodes) ? definition.nodes : {};
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const run = { runDir, root: projectRootOf(runDir), nodes: isPlainObject(workflow.nodes) ? workflow.nodes : {} };
+  for (const [id, node] of Object.entries(nodes)) {
+    if (!isPlainObject(node) || !isPlainObject(node.outputs?.artifacts)) continue;
+    const registered = registeredPath(node, id, run);
+    const paths = {};
+    for (const [key, declaredPath] of Object.entries(node.outputs.artifacts)) {
+      const spelled = typeof declaredPath === 'string' && !declaredPath.includes('${') ? registered(declaredPath) : null;
+      if (spelled !== null) paths[key] = spelled;
+    }
+    declared[id] = paths;
+  }
+  return declared;
 }
 
 /** The first frozen executor id the run's own node map declares, or null. */

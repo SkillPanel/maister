@@ -439,6 +439,15 @@ function findArtifact(phases, suffix) {
   return null;
 }
 
+function findAbsence(phases, suffix) {
+  for (const ph of phases) {
+    for (const x of (ph.absent || [])) {
+      if (x && x.path && String(x.path).endsWith(suffix)) return x;
+    }
+  }
+  return null;
+}
+
 function renderHeroes(d, phases) {
   // A type with no hero map draws no hero row: its artifacts are its own, and
   // another workflow's cards would sit "not produced yet" forever. An own-key
@@ -456,8 +465,11 @@ function renderHeroes(d, phases) {
           '<div class="h-verdict v-status ' + esc(v.status) + '" style="margin:0">' + esc(String(v.status).replace(/_/g, " ")) + '</div>' +
           '<div class="h-sub">report pending — see Verification panel</div></div>';
       }
+      // a node that completed without it on purpose says why, instead of "yet"
+      const gone = findAbsence(phases, h.match);
       return '<div class="hero pending"><div class="h-label">' + esc(h.label) + '</div>' +
-        '<div class="h-links">—</div><div class="h-sub">not produced yet</div></div>';
+        '<div class="h-links">—</div><div class="h-sub">' +
+        (gone ? 'not produced: ' + esc(gone.reason) : 'not produced yet') + '</div></div>';
     }
     const a = hit.art, ph = hit.phase;
     const links = [];
@@ -485,9 +497,10 @@ function renderTimeline(phases) {
     const decs = (ph.decisions || []).length;
     const risks = (ph.risks || []).length;
     const arts = (ph.artifacts || []).length;
+    const absent = ph.absent || [];
     const prog = progressLine(ph);
     const notes = progressNotes(ph);
-    const hasBody = ph.summary || decs || risks || arts || ph.gate || notes.length;
+    const hasBody = ph.summary || decs || risks || arts || absent.length || ph.gate || notes.length;
     const open = openPhases.has(id) ? " open" : (st === "in_progress" ? " open" : "");
     if (open && !openPhases.has(id) && st === "in_progress") openPhases.add(id);
     const time = phaseTime(ph);
@@ -507,6 +520,9 @@ function renderTimeline(phases) {
               '<span class="path">' + esc(a.path) + '</span>' +
             '</div>').join("") +
           '</div></div>' : "") +
+        (absent.length ? '<div class="ph-section"><div class="sec-label">Not produced</div><ul>' +
+          absent.map(x => '<li>' + esc(x.path || x.artifact) + ' <span class="rationale">— not produced: ' + esc(x.reason) + '</span></li>').join("") +
+          '</ul></div>' : "") +
         (notes.length ? '<div class="ph-section"><div class="sec-label">Skipped / reverted groups</div><ul>' +
           notes.map(n => '<li><b>' + esc(n.kind) + '</b> — ' + esc(n.text) + '</li>').join("") + '</ul></div>' : "") +
         (ph.gate ? '<div class="gate-line">Gate: ' + esc(ph.gate.question || "") + ' → <b>' + esc(ph.gate.answer || "") + '</b></div>' : "") +
