@@ -107,6 +107,52 @@ display:
     user-docs:               "User documentation"
     docs-approval:           "Approve documentation"
     finalization:            "Finalization"
+  option_labels:
+    gap-approval:
+      continue-past-analysis: "Continue"
+      stop-development: "Stop here"
+    tdd-red-approval:
+      continue-past-tdd-red: "Continue"
+      stop-development: "Stop here"
+    mockup-approval:
+      continue-to-specification: "Continue to specification"
+      stop-development: "Stop here"
+    specification-approval:
+      continue-past-specification: "Continue"
+      stop-development: "Stop here"
+    spec-audit-approval:
+      continue-to-planning: "Continue to planning"
+      stop-development: "Stop here"
+    planning-approval:
+      continue-to-implementation: "Continue to implementation"
+      stop-development: "Stop here"
+    implementation-approval:
+      continue-past-implementation: "Continue"
+      stop-development: "Stop here"
+    tdd-green-approval:
+      continue-to-verification-options: "Continue to verification options"
+      stop-development: "Stop here"
+    verification-approval:
+      continue-past-verification: "Continue"
+      stop-development: "Stop here"
+    e2e-approval:
+      continue-past-e2e: "Continue"
+      stop-development: "Stop here"
+    docs-approval:
+      continue-to-finalization: "Continue to finalization"
+      stop-development: "Stop here"
+  headers:
+    gap-approval:             "Gap analysis"
+    tdd-red-approval:         "TDD red"
+    mockup-approval:          "UI mockups"
+    specification-approval:   "Spec"
+    spec-audit-approval:      "Spec audit"
+    planning-approval:        "Plan"
+    implementation-approval:  "Implemented"
+    tdd-green-approval:       "TDD green"
+    verification-approval:    "Verification"
+    e2e-approval:             "E2E checks"
+    docs-approval:            "User docs"
 
 nodes:
   intake:

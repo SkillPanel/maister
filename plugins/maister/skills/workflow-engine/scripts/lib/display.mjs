@@ -1,11 +1,15 @@
 /**
  * The display data: what a viewer draws beside a node and what it calls it.
  *
- * A definition's top-level `display:` block carries two sub-maps, each keyed by
- * node id: `icons`, one of the seven hints a viewer knows how to draw, and
- * `titles`, the words an operator reads in place of the id. Neither is graph
- * data. Both stay outside the canonical node list and therefore outside the
- * hash, so correcting a glyph or a title moves no frozen run and no chain.
+ * A definition's top-level `display:` block carries four sub-maps: `icons`, one
+ * of the seven hints a viewer knows how to draw, and `titles`, the words an
+ * operator reads in place of the id, each keyed by node id; `option_labels`,
+ * keyed by gate id and then option id, the words an operator picks in place of
+ * an option id; and `headers`, keyed by gate id, the short chip a picker shows
+ * above a gate's question. None is graph data. All stay outside the canonical
+ * node list and therefore outside the hash, so correcting a glyph, a title or a
+ * label moves no frozen run and no chain. An answer is still recorded by its
+ * option id: a label is only what the operator reads.
  *
  * Every reader that shows a node to a person goes through this module — the
  * dashboard projection, the gate brief, the diagram — so the merge order and
@@ -30,6 +34,9 @@ export const ICON_HINTS = ['analysis', 'spec', 'plan', 'code', 'verify', 'docs',
  */
 export const TITLE_BREAKS = /[\r\n\t]/;
 
+/** The most characters a gate header may carry: the width of a picker's chip. */
+export const HEADER_MAX = 12;
+
 /**
  * A node id made readable: dashes become spaces and every word is capitalized,
  * so `gap-analysis` reads `Gap Analysis`. The fallback for any node the
@@ -53,9 +60,48 @@ export function isTitle(value) {
   return typeof value === 'string' && value.trim() !== '' && !TITLE_BREAKS.test(value);
 }
 
+/** Whether a header value is one a picker can show whole: a title within `HEADER_MAX`. */
+export function isHeader(value) {
+  return isTitle(value) && [...value].length <= HEADER_MAX;
+}
+
 /**
- * The display a resolved graph carries: `{icons, titles}`, each a null-prototyped
- * map of node id to value.
+ * An option id made readable as a choice: dashes become spaces and only the
+ * first word is capitalized, so `continue-past-analysis` reads `Continue past
+ * analysis`. The fallback for any option the definition gives no label.
+ */
+export function sentence(id) {
+  const words = String(id).split('-').filter(word => word !== '');
+  if (!words.length) return '';
+  return [words[0][0].toUpperCase() + words[0].slice(1), ...words.slice(1)].join(' ');
+}
+
+/** The label a picker shows for `option` of `gate`: the definition's own, else the readable id. */
+export function labelOf(labels, gate, option) {
+  const own = labels && Object.hasOwn(labels, gate) ? labels[gate] : null;
+  return own && Object.hasOwn(own, option) ? own[option] : sentence(option);
+}
+
+/**
+ * The header a picker shows above `gate`'s question: the definition's own; else
+ * the title of the node the gate closes, when it fits; else the gate's own
+ * title cut to fit. Never longer than `HEADER_MAX`.
+ */
+export function headerOf({ headers, titles }, gate, closing = null) {
+  if (headers && Object.hasOwn(headers, gate)) return headers[gate];
+  if (closing !== null) {
+    const title = titleOf(titles, closing);
+    if ([...title].length <= HEADER_MAX) return title;
+  }
+  const own = [...titleOf(titles, gate)];
+  return own.length <= HEADER_MAX ? own.join('') : `${own.slice(0, HEADER_MAX - 1).join('').trimEnd()}…`;
+}
+
+/**
+ * The display a resolved graph carries: `{icons, titles, option_labels,
+ * headers}`, each a null-prototyped map keyed by node id — `option_labels` one
+ * level deeper, by option id, and merged option by option, so an overlay can
+ * relabel one option of a gate and keep the base's label for the other.
  *
  * Base first, then each overlay's own `display:`, then the `display:` of each
  * overlay's selected profile — the order the resolver applies operations in, so
@@ -73,6 +119,8 @@ export function isTitle(value) {
 export function displayOf({ definition = null, overlays = [], profile = null } = {}) {
   const icons = Object.create(null);
   const titles = Object.create(null);
+  const labels = Object.create(null);
+  const headers = Object.create(null);
   const blocks = [docOf(definition)?.display];
   for (const overlay of overlays) blocks.push(docOf(overlay)?.display);
   if (profile !== null) {
@@ -89,8 +137,19 @@ export function displayOf({ definition = null, overlays = [], profile = null } =
     for (const [id, title] of Object.entries(isMap(block.titles) ? block.titles : {})) {
       if (isTitle(title)) titles[id] = title;
     }
+    for (const [gate, options] of Object.entries(isMap(block.option_labels) ? block.option_labels : {})) {
+      if (!isMap(options)) continue;
+      for (const [option, label] of Object.entries(options)) {
+        if (!isTitle(label)) continue;
+        labels[gate] ??= Object.create(null);
+        labels[gate][option] = label;
+      }
+    }
+    for (const [gate, header] of Object.entries(isMap(block.headers) ? block.headers : {})) {
+      if (isHeader(header)) headers[gate] = header;
+    }
   }
-  return { icons, titles };
+  return { icons, titles, option_labels: labels, headers };
 }
 
 function docOf(source) {

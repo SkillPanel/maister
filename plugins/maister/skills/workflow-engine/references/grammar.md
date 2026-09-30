@@ -74,7 +74,7 @@ judges nothing else — so a newer definition in a mixed fleet is a diagnostic, 
 | `description` | no | One line of plain text: what the workflow is for and when to use it. `/maister:work` offers the workflow by it, ahead of the companion's first paragraph. Outside the recorded identity |
 | `inputs` | no | Input name → declaration (§ 8.1) |
 | `outputs` | no | What a parent run may read when this workflow runs as its child (§ 8.3) |
-| `display` | no | Icons and titles for the dashboard and the gate brief (§ 3.1) |
+| `display` | no | Icons, titles, option labels and gate headers for the dashboard and the gate question (§ 3.1) |
 | `nodes` | yes | Node id → node (§ 4) |
 
 `profiles:` is not a definition key: profiles belong to an overlay, and a definition's own are
@@ -88,6 +88,8 @@ companion's `# Title` line (§ 11).
 |---|---|
 | `icons` | Node id → one icon hint from the table below |
 | `titles` | Node id → a one-line title; a node without one is shown as its id in title case |
+| `option_labels` | Gate id → option id → a one-line label the operator picks; an option without one is shown as its id in sentence case. The recorded answer is still the option id |
+| `headers` | Gate id → a one-line chip of at most 12 characters shown above the gate's question; without one, the title of the node the gate closes when it fits |
 
 <!-- vocabulary: ICON_HINTS -->
 | Icon hint | Reads as |
@@ -100,9 +102,11 @@ companion's `# Title` line (§ 11).
 | `docs` | Writing documentation |
 | `done` | Closing out |
 
-A hint or a title for a node the graph does not carry warns rather than errors. `display:` is
-outside the recorded identity, so retitling a node never invalidates a frozen run. Overlays and
-profiles may carry their own `display:` block; the later one wins, key by key.
+A hint or a title for a node the graph does not carry warns rather than errors, and so does a
+label or a header for a node that is not a gate, or a label for an option its gate does not
+offer. `display:` is outside the recorded identity, so retitling a node or relabelling an option
+never invalidates a frozen run. Overlays and profiles may carry their own `display:` block; the
+later one wins, key by key, and option labels option by option.
 
 ## 4. Nodes
 
@@ -414,7 +418,7 @@ result is validated as a whole: an overlay that breaks the graph is an error, ne
 | `tune` | Node id → changes to that node's tunable keys |
 | `add` | Node id → a new node |
 | `profiles` | Profile name → an alternative set of operations, applied only when selected |
-| `display` | Icons and titles, including for added nodes (§ 3.1) |
+| `display` | Icons, titles, option labels and headers, including for added nodes (§ 3.1) |
 
 **Fold order:** the base, then for each overlay in order its `disable`, its `tune`, its `add`;
 then the selected profile's `disable`, `tune` and `add`. Validation reads the graph that results.
