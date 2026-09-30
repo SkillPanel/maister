@@ -15,17 +15,17 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 1. Validate prerequisites exist
 2. Delegate ALL verifications to subagents — the test suite first and alone, then everything else in parallel with its result
 3. Compile all results into verification report
-4. Keep the operator dashboard current across verification cycles
+4. Record each verification cycle in the workflow state, which keeps the operator dashboard current
 5. Update roadmap if exists (optional)
 6. Output summary with overall verdict
 
-## Dashboard Upkeep
+## State and Dashboard: Through the Engine
 
-This skill owns the dashboard for the duration of the verification phase, including every re-verification cycle after fixes — the orchestrator cannot refresh it while control sits here.
+The verification phase can run many cycles under this skill: the initial pass, then one re-verification after each round of fixes. While control sits here, the orchestrator cannot record any of them. So this skill records each cycle itself, in `verification_context`, and it **never writes `dashboard-data.js`**. The workflow engine's state writer is that file's only writer: it projects the verification panel from `verification_context` on every state write. Each record is one `write-state` call, with the patch in the patch file, following the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract).
 
-- **Gate**: read `orchestrator.options.html_output` from `orchestrator-state.yml`. When false, or in standalone mode (no state file), there is no dashboard — skip every rewrite.
-- **Rules**: `../orchestrator-framework/references/orchestrator-patterns.md` § 8 (moment 10, schema, the `date -u` clock rule). Do not restate them here — read them.
-- **Never blocks**: a failed rewrite is noted in the Phase 5 summary and the verdict stands regardless.
+- **Two writes per cycle**: one at entry, which clears the previous cycle's verdict (Phase 1), and one once this cycle's report is written (Phase 3). `verification_context` merges key by key, so neither write touches `fixes_applied`, `decisions_made` or `reverify_count`. Those belong to the caller's fix loop.
+- **Orchestrator mode only.** A standalone run has no `orchestrator-state.yml`, so it has no workflow run and no dashboard. The report is that run's record, and there is nothing to write. `html_output` does not gate these writes: they are state, and the writer itself decides whether a dashboard is published.
+- **Never blocks**: a refused write is noted in the Phase 5 summary and the verdict stands regardless.
 
 ## Output Artifacts
 
@@ -76,7 +76,7 @@ This skill owns the dashboard for the duration of the verification phase, includ
    - Subject: "Reality assessment", activeForm: "Running reality assessment" — only if reality_check_enabled
    - Subject: "Compile report", activeForm: "Compiling verification report"
 6. **Set dependencies** using `TaskUpdate` with `addBlockedBy`: "Compile report" blocked by ALL verification tasks above
-7. **Rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate): verification phase `in_progress`, `verification.status` set to the cycle about to run. On a re-verification cycle this is what clears the previous cycle's picture before new results land.
+7. **Clear the previous verdict** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status: null` and `issues_found: []`. On a re-verification cycle this clears the previous cycle's picture before new results land, so the dashboard never shows a pre-fix verdict as current.
 
 If prerequisites missing, report and stop.
 
@@ -207,7 +207,7 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Same content as the md — restructure and visualize, never add findings
    - Never block on it: if generation fails, keep the md, note the miss, continue
 5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 5 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
-6. **Rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate) with this cycle's outcome: `verification.status`, `issues` (original severity retained, `fixed: true` on the ones fixed), `fixes`, and `reverify_count`. Register the report and its companion in the verification phase's `artifacts`. On the engine path, where `dashboard-data.js` is projected from state and this file is rewritten on the next state write, the registration belongs in the verification node's `node_summaries` entry. The caller's closing write carries it there. This is the dashboard counterpart of the **Re-verification rule** above: the canonical report and the dashboard are rewritten together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
+6. **Record this cycle** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status` set to this cycle's verdict and `issues_found` set to the report's issues, in the issue shape of `../orchestrator-framework/references/orchestrator-patterns.md` § 4. Keep each issue's original severity, and set `fixed: true` on the ones fixed since. Registering the report and its companion as artifacts is not part of this write: the caller's closing `node_summaries` write carries it. This is the state counterpart of the **Re-verification rule** above. The canonical report and the recorded verdict change together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
 7. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
 ---
@@ -312,5 +312,5 @@ Before finalizing verification:
 - All subagent results processed
 - Verification report created
 - Overall status determined from aggregated results
-- `dashboard-data.js` rewritten at entry and after this cycle's report — or skipped because `html_output` is false / standalone mode
+- `verification_context` cleared at entry and recorded after this cycle's report through `write-state` — or skipped in standalone mode
 - No direct analysis performed (all delegated)

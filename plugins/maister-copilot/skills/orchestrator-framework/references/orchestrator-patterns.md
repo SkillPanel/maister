@@ -487,11 +487,8 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 | 5 | After every gate decision (record the user's choice) | orchestrator |
 | 6 | After verification cycles (issues/fixes update) | orchestrator |
 | 7 | At finalization | orchestrator |
-| 8 | On entry to the implementation phase — regenerate from state, which is what a resumed run depends on | `implementation-plan-executor` |
-| 9 | After every wave resolves, and at implementation finalize — carrying the running phase's `progress` | `implementation-plan-executor` |
-| 10 | After every verification cycle (the initial pass and each re-verification after fixes) | `implementation-verifier` |
 
-**A phase that delegates to a skill does not own that phase's interior — the skill does.** Moments 1-7 keep the dashboard current between phases; moments 8-10 keep it current *inside* the two long phases that run for hours under a skill. Those skills read `orchestrator.options.html_output` from `orchestrator-state.yml` themselves and skip every rewrite when it is false (the same self-resolving pattern as § 9's skill-written companions). Their rewrites never block the work: a failed rewrite gets a warning line in `work-log.md` and the run continues.
+**Phase interiors have no rewrite moment: on the engine path the projection is the file's only writer.** The implementation and verification phases run for hours under a skill, and the skill keeps the dashboard current from inside them by writing state, never the file. `implementation-plan-executor` sends the empty patch through `write-state` at entry, after every wave and at finalize; the projection derives the phase's `progress` from the plan's checkboxes and the work log's wave and revert headings. `implementation-verifier` records each cycle's `last_status` and `issues_found` in `verification_context`, and the verification panel is projected from that block. A skill run standalone, with no workflow run and so no state file, has no dashboard.
 
 **Schema** — the file is exactly one statement, `window.MAISTER_DATA = <strict JSON>;`, with double-quoted keys and nothing else; readers additionally accept an object literal and report it as degraded (the pro register § A2):
 
@@ -524,8 +521,8 @@ window.MAISTER_DATA = {
                                   // path string is read and reported as {path, label: null,
                                   // html: null} (§ A2)
     gate: null,                   // {question, answer} after the exit gate fires
-    progress: null                // interior progress, reported only by the skill that owns the
-                                  // phase interior (moments 8-10 above). Shape:
+    progress: null                // interior progress of the plan-executor phase, derived by the
+                                  // projection from the plan and the work log. Shape:
                                   // {groups_done, groups_total, current_wave, skipped: [], reverted: []}
                                   // skipped/reverted hold group labels ("Group 4 — flaky DB fixture").
                                   // Additive and optional: null/absent on every phase with no
