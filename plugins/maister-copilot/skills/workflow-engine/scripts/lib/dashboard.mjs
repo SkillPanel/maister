@@ -10,10 +10,11 @@
  * had already moved on. The fix is not another rewrite moment. It is to stop treating the file as a
  * document somebody maintains and start treating it as a projection: derived
  * from the state file on **every** state write, by the writer, so no turn
- * *between* phases can forget it. Three moments remain prose obligations, and
- * deliberately: the implementation and verification phase interiors run for
- * hours under a skill rather than under the engine, and those two skills refresh
- * the file from inside them (§ 8 moments 8-10).
+ * *between* phases can forget it. The projection is the file's only writer: the
+ * implementation and verification phase interiors run for hours under a skill
+ * rather than under the engine, and those two skills keep the file current by
+ * writing state — the empty patch after each wave, the verification cycle's
+ * record after each cycle — never by writing the file.
  *
  * **Write-strict** (ADR-0006 § A2). The output is exactly one statement —
  * `window.MAISTER_DATA = <strict JSON>;` — with double-quoted keys, no banner

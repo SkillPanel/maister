@@ -13,16 +13,15 @@ You are an implementation plan executor that delegates task groups to subagents 
 3. **Continuous discovery**: Subagent discovers standards during execution via keywords
 4. **Test-driven**: Test step (N.1) before implementation steps (N.2+)
 5. **Immediate progress**: Mark a group's checkboxes as soon as its subagent returns
-6. **Main agent owns visibility**: Work-log, checkboxes, and the operator dashboard always updated by main agent
+6. **Main agent owns visibility**: Work-log and checkboxes always updated by main agent; the operator dashboard follows them through the engine
 
-## Dashboard Upkeep
+## Dashboard: Re-project Through the Engine
 
-This skill owns the dashboard for the whole implementation phase — the orchestrator marked the phase `in_progress` before delegating and cannot touch it again until control returns, which is hours and many waves later.
+The implementation phase runs for hours under this skill, and the orchestrator cannot touch the dashboard until control returns. The dashboard still stays live, because this skill **never writes `dashboard-data.js`**. The workflow engine's state writer is the file's only writer: it projects the implementation phase's `progress` from the plan's checkboxes and the work log's wave and revert headings (§ Work-Log Updates) on every state write. So at each re-projection moment below, this skill sends one `write-state` call with the empty patch, `{}`, as the patch file's body. The call and the patch file follow the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract). The call changes nothing in state except its `updated` stamp; it only republishes what the plan and the log now say.
 
-- **Gate**: read `orchestrator.options.html_output` from `orchestrator-state.yml` at Phase 1. When false, skip every rewrite below (no dashboard exists). When there is no state file (standalone run), there is no dashboard either — skip.
-- **Rules**: `../orchestrator-framework/references/orchestrator-patterns.md` § 8 (moments 8-9, schema, the `date -u` clock rule). Do not restate them here — read them.
-- **Progress**: the implementation phase carries `progress: {groups_done, groups_total, current_wave, skipped: [], reverted: []}`. `skipped`/`reverted` hold group labels from the failure-recovery path.
-- **Never blocks**: a rewrite that fails gets a warning line in `work-log.md` (`Dashboard rewrite failed after wave N`) and the run continues. A visible miss, never a silent one.
+- **Moments**: at entry, once the work log exists; after every wave resolves; at finalize. One call per moment, not one per group.
+- **Skip** when there is no `orchestrator-state.yml`. A standalone run has no workflow run, so it has nothing to project and no dashboard. The plan, its companion and the work log are that run's record. Also skip when `orchestrator.options.html_output` is false: then there is no dashboard, and the call would only re-publish state.
+- **Never blocks**: a refused or failed call gets a warning line in `work-log.md` (`Dashboard re-projection failed after wave N`) and the run continues. A visible miss, never a silent one.
 
 ## Execution Model
 
@@ -36,8 +35,7 @@ Every task group is executed by the `task-group-implementer` subagent, however s
    - `implementation/spec.md` (recommended)
    - `.maister/docs/INDEX.md` (optional — skip standards loading when absent)
 3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (fallback when task tools are unavailable or the planner created none).
-4. **Regenerate `dashboard-data.js`** from `orchestrator-state.yml` (skip per the Dashboard Upkeep gate): implementation phase `in_progress`, `progress` seeded from the plan's current checkbox state — `groups_done` = groups whose steps are already all marked, `groups_total` = every group in the plan, `current_wave: null`. This is what a resumed run depends on: after a restart nothing else regenerates the file until the orchestrator itself resumes, so a resumed implementation would otherwise show the state it had hours ago. On a fresh run it simply writes `groups_done: 0`.
-5. **Initialize work-log.md**:
+4. **Initialize work-log.md**:
    ```markdown
    # Work Log
 
@@ -51,6 +49,7 @@ Every task group is executed by the `task-group-implementer` subagent, however s
    ### Loaded Per Group
    (Entries added as groups execute)
    ```
+5. **Re-project the dashboard** (§ Dashboard: Re-project Through the Engine). Do this after the work log exists, because the projection derives progress only when both the plan and the log are on disk. A resumed run depends on this call: after a restart, nothing else re-publishes the file until the orchestrator itself resumes, so without it the dashboard would show where the implementation stood hours ago.
 
 **Do NOT read all standards upfront.** Standards are loaded lazily per task group.
 
@@ -116,7 +115,7 @@ For each wave:
    ```
    It sets every `data-group` / `data-step` marker in `implementation-plan.html` to what the plan says, so it is safe to re-run and also returns a reverted group to outstanding; it is a no-op when there is no companion or `html_output` is false. For each group completed this wave that its JSON lists under `missing_groups`, or when it exits non-zero, append a warning to `work-log.md` (`HTML plan sync missed markers for Group N`) — a visible miss, never a silent one. The sync never blocks the wave.
 
-   Then **rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate) with the wave's outcome: the implementation phase's `progress.groups_done` raised by the groups that completed, `current_wave` set to this wave's number, and any group the failure-recovery path below skipped or reverted appended to `progress.skipped` / `progress.reverted` with a one-line reason. One rewrite per wave, not one per group.
+   Then **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), once per wave and after the checkboxes, the work-log entries and the sync. The projection reads the wave's outcome from them: groups done from the checkboxes, `current_wave` from the last `Group N Complete (wave K)` heading, skipped groups from `[~] … SKIPPED:` steps and reverted groups from `Group N Reverted (wave K): reason` entries. A group the failure-recovery path skipped or reverted therefore reaches the dashboard only if those marks are written first.
 
 4. **Partial-wave failure handling**:
    - Do NOT cancel sibling subagents in the same wave — they may produce valid work even when one peer fails.
@@ -126,7 +125,7 @@ For each wave:
 
 5. After the wave fully resolves (all members `completed` or recovered), recompute the ready set and proceed to the next wave.
 
-   **SELF-CHECK before dispatching the next wave**: did you run `sync-plan` (step 3) and rewrite `dashboard-data.js` for this wave? If unsure, run both now — both are idempotent full rewrites.
+   **SELF-CHECK before dispatching the next wave**: did you run `sync-plan` (step 3) and re-project the dashboard for this wave? If unsure, run both now. Both are idempotent, because each one derives its output from the plan as it stands.
 
 ### `--sequential` Opt-Out
 
@@ -379,7 +378,7 @@ for an operator reading the run at a glance.
    **Duration**: [if tracked]
    ```
 
-4. **Final dashboard rewrite** (skip per the Dashboard Upkeep gate): `progress.groups_done == progress.groups_total`, `current_wave` cleared, `skipped`/`reverted` carrying whatever the run accumulated. The phase status stays `in_progress` — the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
+4. **Final re-projection** (§ Dashboard: Re-project Through the Engine), after the final work-log entry. It publishes `groups_done == groups_total`, with the accumulated skipped and reverted groups. Do not complete the phase here: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
 
 5. **Return summary** to calling orchestrator
 
@@ -435,5 +434,5 @@ Before returning success:
 - [ ] implementation-plan.md checkboxes updated
 - [ ] `sync-plan` run after every wave, and any missed marker logged in work-log.md
 - [ ] work-log.md complete with timeline
-- [ ] `dashboard-data.js` rewritten at entry, after every wave, and at finalize — or skipped because `html_output` is false
+- [ ] Dashboard re-projected through `write-state` at entry, after every wave, and at finalize — or skipped because the run is standalone or `html_output` is false
 - [ ] No uncommitted partial changes

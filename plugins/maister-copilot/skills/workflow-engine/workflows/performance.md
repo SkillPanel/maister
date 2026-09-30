@@ -624,11 +624,11 @@ critical after it is **not** proceeded past: it is recorded as an `open:` risk
 in this node's summary, which the gate brief renders at `verification-approval`
 — where an operator answers.
 
-Also record `verification_context.last_status`,
-`verification_context.issues_found` (the issue shape of `orchestrator-patterns.md`
-§ 4) and `verification_context.decisions_made`, so
-a later reader can tell a clean pass from a pass carried by an explicit
-decision.
+Also record `verification_context.decisions_made`, so a later reader can tell
+a clean pass from a pass carried by an explicit decision.
+`verification_context.last_status` and `verification_context.issues_found` are
+already recorded: the verifier writes both on every cycle, and this node does
+not repeat them.
 
 **Exit conditions**: no critical issue remains; or the operator explicitly chose
 to proceed as-is; or the budget below is exhausted, at which point ask once
