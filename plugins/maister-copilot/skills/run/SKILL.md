@@ -1,7 +1,7 @@
 ---
 name: run
-description: Starts or resumes a workflow by name from the terminal — a workflow the project defines in `.maister/workflows/`, an eject or an overlay of a built-in, or a built-in itself. Looks the name up, validates the definition, collects the inputs it declares (asking only for required ones that are missing) and hands the run to the workflow engine, which owns the task directory, the freeze, every node and every gate from there. Given a run's task directory instead of a name, it resumes that run; with `--list`, it lists the project's own workflows. Chains — definitions whose nodes dispatch into member repositories — are started from maister cockpit, not here.
-argument-hint: "<name> [\"title\"] [key=value ...] [--profile=NAME] [--overlay=PATH ...] | <run directory> | --list"
+description: Starts or resumes a workflow by name from the terminal — a workflow the project defines in `.maister/workflows/`, an eject or an overlay of a built-in, or a built-in itself. Looks the name up, validates the definition, collects the inputs it declares (asking only for required ones that are missing) and hands the run to the workflow engine, which owns the task directory, the freeze, every node and every gate from there. Given a run's task directory instead of a name, it resumes that run; with `--list`, it lists the project's own workflows; with `--check`, it validates the named workflow — overlays and profile included — and prints each problem with its file, node and field, starting nothing. Chains — definitions whose nodes dispatch into member repositories — are started from maister cockpit, not here.
+argument-hint: "<name> [\"title\"] [key=value ...] [--profile=NAME] [--overlay=PATH ...] | <name> --check [--profile=NAME] [--overlay=PATH ...] | <run directory> | --list"
 user-invocable: true
 ---
 
@@ -26,9 +26,11 @@ the engine does all of that, under its own rules, and a second copy of them here
 | `--overlay=PATH` | An extra overlay file, laid over the definition after any overlay the lookup finds; repeatable, applied in the order given |
 | `<run directory>` | A run's task directory, or its folder name alone — resume that run instead of starting one |
 | `--list` | List the project's own workflows and start nothing |
+| `--check` | With a name: validate that workflow as it would run, report every problem, and start nothing |
 
 The first word decides the mode: a directory holding `orchestrator-state.yml` (tried as given,
-then under `.maister/tasks/*/`) is a resume; `--list` is a listing; anything else is a name.
+then under `.maister/tasks/*/`) is a resume; `--list` is a listing; anything else is a name. A
+name given with `--check` is a check (*Checking a workflow*), never a start.
 
 **Listing.** Run `locate` with no name. It lists the definitions the project keeps in
 `.maister/workflows/` — overlays, built-in names and generated chains left out — each with its
@@ -131,6 +133,82 @@ the nodes and asks every gate. Do not also do any of that here.
 `MAISTER_WORKFLOW_PROSE` plays no part in this entry: it selects a built-in's prose twin, and a
 twin is reached only through that workflow's own command. `/maister-copilot:run <built-in>` runs the
 built-in on the engine, which is also the way to give a built-in a profile.
+
+---
+
+## Checking a workflow
+
+`<name> --check` answers one question — would this workflow start, and if not, what must
+change — and starts nothing: no input is asked for, no task directory is created, nothing is
+frozen and the engine skill is not invoked. It is the validator a single project uses before a
+run, overlays and profiles included. A title or a `key=value` given with it is ignored, and the
+report says so.
+
+1. **Find it.** Run `locate --name=<name>`, adding each `--overlay` and the `--profile` the
+   operator gave, so a `dir:` node an overlay adds is found too. On exit `1`, the message is the
+   one problem: print it as the report and stop. When `ignored` is set, record a problem — the
+   overlay beside the eject or the generated chain is not applied — and go on.
+2. **Validate.** Run `validate` exactly as Step 3 of *Starting a run* does. Exit `0` and exit `1`
+   both print the whole report on stdout; read it either way. Exit `2` is the only stop.
+3. **Report**, in this order:
+   - **What was judged:** the definition, each overlay in the order applied, and the profile.
+     Say where the definition came from in plain words. `from: eject` is the project's own
+     definition in `.maister/workflows/` — an eject only when a built-in of that name exists.
+     `overlay` is the built-in with the project's overlay laid over it, and `builtin` is the
+     plugin's as shipped.
+   - **Errors,** one line each — `<file> · <node> · <path> — <message>`, with `-` for a node
+     that is null — followed by an indented `fix:` line when the message matches the table
+     below. Never compose a hint the table does not give: a guessed fix is worse than none.
+   - **Warnings,** one line each, with their `fix:` line where the table has one.
+   - **Problems no verb reports:** a non-empty `dispatches` — the workflow is a chain, started
+     from maister cockpit; in the workspace, `/maister-copilot:umbrella validate` adds the member and
+     driver checks the engine cannot make. A name that is a legacy folder name. An `ignored`
+     overlay.
+   - **What resolved:** one line per `skill:`, `agent:` and `workflow:` target from `resolved`,
+     with the tier or home that answered, so a shadowed name shows.
+   - **The inputs** a start would ask for: each required input with no default, by name and
+     type.
+   - **A closing line:** the error and warning counts, the node and gate counts, and "nothing was
+     started". With no errors and no problems, say the workflow would start.
+
+| The message or warning says | `fix:` |
+|---|---|
+| `is not a … key; did you mean "X"?` | rename the key to `X` |
+| `is not a … key; the accepted keys are …` | remove the key, or move it to the level that accepts it (the grammar reference lists each level's keys) |
+| `"optional" is not a node key` | delete the line |
+| `"values" is not an option key` | delete it; declare the value under a task node's `outputs.values` |
+| `this grammar is version 1, written as the bare number` | write `version: 1`, unquoted |
+| `the required key "X" is missing` | add `X:` at the top of the definition |
+| `profiles belong to an overlay` | move the `profiles:` block into `<name>.overlay.yml` |
+| `the prose companion carries no section for "X"` | add a `## X` heading to the `.md` beside the file that declares the node — the overlay's own for a node an overlay adds |
+| `needs names "X", which no node declares` | correct the id, or declare node `X` |
+| `names an input that is not declared`, `when names the input "X", which is not declared` | declare the input under `inputs:`, or correct the name |
+| `which is outside this node's needs closure` | add the named node to this node's `needs` |
+| `opens a reference with ${ and never closes it` | add the closing `}` |
+| `an artifact path is written literally` | write the path literally; pass the varying part through `with:` |
+| `a gate offers exactly one continue and at least one stop` | make exactly one option `continue` and at least one `stop` |
+| `a when clause is exactly one reference` | reduce the guard to one quoted `"${…}"`, optionally `!`; a combined condition is a `bool` an earlier node records |
+| `when needs a bool input`, `when needs a declared bool output` | declare that input or value `bool`, or guard on one that is |
+| `no overlay declares a profile named` | select one of the profiles the message lists |
+| `was selected with no overlay` | pass the overlay that declares the profile with `--overlay`, or drop `--profile` |
+| `may be tuned` | tune only `with` or `provider`; a different target, gate or order is an eject |
+| `a disabled node cannot come back under its own id` | add the node under a new id and attach it with `before:` |
+| `unresolved-reference:` | check the spelling against the tiers in the grammar reference; leave it only when another environment provides the target |
+| `added-node-no-dependents:` | list the nodes that must wait for it under the added node's `before:` |
+| `overlay-ignored:` | fold the overlay's changes into the eject, or delete one of the two |
+| `unresolved-subrun-input:` | pass the child's required input in `with:`, or remove the key the child does not declare |
+| `undecidable-value-type:` | declare the value `bool`, `id` or an `enum` when it is a handle rather than prose |
+| `workflow-undescribed:` | open the companion with a `# Title` line and a paragraph saying what the workflow is for, or add a one-line `description:` |
+| `reserved-key:` | remove the key; it does nothing yet |
+
+A cycle, an unreadable file and every other message print without a hint: the message says what
+is wrong, and the change is the author's call. A finding on a built-in's own node — one no
+project file declares, such as a built-in's `string` value — belongs to the plugin, not the
+author. Report it as the built-in's, with no `fix:` line, and do not count it against the
+author's files.
+
+The grammar every message refers to is the workflow engine's `references/grammar.md`; point the
+author at the section a problem falls under when the message alone leaves them guessing.
 
 ---
 

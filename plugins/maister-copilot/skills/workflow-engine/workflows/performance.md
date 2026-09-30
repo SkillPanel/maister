@@ -59,21 +59,18 @@ node in the table.
 
 ## Run-scoped context
 
-Four fields reach every delegate without appearing in any node's `with:`,
-because they belong to the run rather than to a node:
+The four fields every delegate receives outside `with:` — `task_path`,
+`html_style_guide_path`, the project's documentation paths and the prior-phase
+passage fetched with `prior-context` — and the `${…}` substitution that fills
+`with:` are the engine's, stated once in engine § *Run-scoped context* and
+§ *Interpolating `${…}`*. What this workflow adds:
 
-- `task_path` — the task directory every artifact path is relative to.
-- `html_style_guide_path` — passed **only** when `options.html_output` is true.
-  When it is false, no companion is requested, no dashboard file is written, and an
-  existing data file is removed.
-- `project_doc_paths` — discovered by `intake` and read from state after.
-- the accumulated `phase_summaries` — the full detail of everything decided so
-  far, verbatim, never re-summarized. **Fetch this one; do not write it.** The
-  engine's `prior-context` verb takes the run's state file and prints the whole
-  passage — every phase, its decisions and its risks, one bullet each with the
-  count beside the heading. Run it once for each delegate prompt, in the turn
-  that composes that prompt, and paste its output in under its own heading,
-  unedited.
+- **The documentation paths** are discovered by `intake` and recorded as
+  `project_context.project_doc_paths`; every later node reads them from state.
+- **Three artifacts get an HTML companion** when `html_output` is on: the
+  specification, the implementation plan and the verification report. Each
+  companion path is registered under `artifacts[].html` on the summary entry
+  that owns it.
 
 > **ANTI-PATTERN**: Do NOT re-summarize a summary block. `decisions` and `risks`
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
@@ -83,32 +80,6 @@ because they belong to the run rather than to a node:
 > approve at a gate; writing an empty `[]` because the node has already read
 > the artifact loses it outright, and `decisions: []` beside a specification
 > carrying eight of them is the failure this block exists to stop.
-
-**The prior-phase passage of a delegate prompt is fetched, not composed.** Four
-attended runs measured the same thing: this rule holds where the lift is
-mechanical and happens once, and fails where a node writes the passage afresh
-from an artifact it has already read — thirteen items arrived as seven clauses on
-one line, and nothing in the prompt recorded that they had ever been thirteen. So
-the composing step is gone. Call `prior-context` with the run's state file **at
-each consuming delegate** — one call per prompt, in the turn that composes it —
-paste its stdout into the prompt, and leave it alone: trimming it, re-ordering it
-or tightening it is the same defect by hand. The stdout is pasted as text, whole:
-never slice it with `sed`, `head`, `tail` or the like, and never pass a file path
-or a saved copy in place of the pasted text. Re-using a rendering produced for an
-earlier delegate is not licensed however recent it looks: a summary written in
-between makes it stale, the prompt records nothing about when it was taken, and a
-prompt that happens to be current is current by timing rather than by
-construction. The verb reads the run and writes nothing, so the extra call costs
-nothing — and what it prints at the moment a prompt is composed is what that
-delegate receives.
-
-Anything node-scoped is in `with:` instead. Every prompt that asks a delegate to
-write an artifact also carries the artifact summary contract, so the summary
-this workflow lifts into state is one the delegate wrote rather than one the
-engine invented. Three artifacts additionally get an HTML companion when
-`html_output` is true — the specification, the implementation plan and the
-verification report — and each companion path is registered under
-`artifacts[].html` on the summary entry that owns it.
 
 ---
 

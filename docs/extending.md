@@ -39,12 +39,18 @@ none did; `always` runs once they have all ended, however. The definition's `nam
 `version: 1` is the bare number, never quoted; and each entry under `inputs:` declares its `type` as
 `string`, `bool` or `path`. A declared artifact is a literal path relative to the run's task
 directory: `${…}` references belong in `with:`, `dir:` and `ask:`, and one inside an artifact path,
-or one left without its closing `}`, is a validation error. The full node shape, the `dir:` and `provider:` keys and a worked example are in the
-cockpit's [umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md)
-page; [workflows.md](workflows.md) describes the built-in definitions this grammar ships with.
+or one left without its closing `}`, is a validation error. Every key, scheme and rule — the full
+node shape, gates and guards, inputs and outputs, interpolation, overlays, the companion's heading
+rule, and recipes for a child-capable workflow and a fix loop — is in the
+[workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)
+that ships with the plugin. [workflows.md](workflows.md) describes the built-in definitions written
+in it, and the cockpit's
+[umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md)
+page covers what is specific to chains.
 
 **A `direct:` node is yours entirely.** Its body is the section in the prose companion whose
-heading *is* the node id — `## assess-scope`, in backticks or bare, never a heading that merely
+heading *is* the name after `direct:` — conventionally the node id: `uses: direct:assess-scope`
+runs `## assess-scope`, in backticks or bare, at any heading level, never a heading that merely
 mentions it. Write the steps, the fan-outs, the self-checks and the questions the step asks inline;
 the engine reads that section before running the node, not after it fails. A `direct:` target with
 no section is a validation error, because the companion is the one reference a definition fully
@@ -101,11 +107,47 @@ the wrong form is a `bool` that is not `true` or `false`, or an `enum` value tha
 its members. A value recorded under a key the node does not declare is written with a warning:
 nothing can read it, so declare it under the node's `outputs` if a later node needs it.
 
-**Validate before you run.** `/maister:umbrella validate --definition .maister/workflows/<name>.yml`
-parses the file, checks ids and the graph, resolves every target, checks gate shape and — in a
-workspace — checks every `dir:` against the members the manifest declares. Errors name the file,
-the node and the field. Warnings never block. `/maister:run` runs the same check before it starts
-anything, so a definition that does not validate never becomes a run.
+**Validate before you run.** `/maister:run <name> --check` finds the workflow by name, lays its
+overlays over it — the `<name>.overlay.yml` beside it, then any `--overlay` you add — selects
+`--profile` when you give one, and validates the result without starting anything:
+
+```bash
+/maister:run onboarding --check
+/maister:run development --check --profile=quick   # a profile .maister/workflows/development.overlay.yml declares
+```
+
+It parses the file, checks ids and the graph, resolves every target and checks gate shape. Each
+error names the file, the node and the field, with a one-line fix where the fix is mechanical.
+Warnings never block, and each one is listed. `/maister:run` runs the same check before it starts
+a run, so a definition that does not validate never becomes one. In an umbrella workspace,
+`/maister:umbrella validate --definition .maister/workflows/<name>.yml` also checks every `dir:`
+against the members the manifest declares. It needs that manifest, and it judges each definition
+as written, without overlays.
+
+**Writing the companion.** The companion `<name>.md` is what makes a definition runnable and
+findable:
+
+- **Open it with a `# Title` line and one paragraph** saying what the workflow is for and when to
+  use it. `/maister:work` offers your workflow by that paragraph when a task description matches
+  it, and `/maister:run --list` shows both. A one-line `description:` in the definition does the
+  same job and is preferred when present. A project workflow with neither is valid but warns
+  `workflow-undescribed`, because nothing would offer it. There is no `title:` key: the heading is
+  the title.
+- **Give every `direct:` node one section**, headed with the name after `direct:`. The section
+  holds the node's steps, its self-checks, the questions it asks inline and the answer each takes
+  when nobody is at the keyboard, what it writes into its closing summary for the next gate, and
+  its retry budget.
+- **HTML companions are the node's to ask for.** When a node's artifact deserves an HTML
+  companion and the run's `html_output` is on, the node prose says so. An artifact written by a
+  delegate gets its companion from that delegate, handed the HTML style guide's path. One your
+  `direct:` node writes itself gets one by handing the finished markdown to the plugin's
+  `html-companion-writer` agent. Either way the companion's path is registered as the `html` of
+  that artifact in the node's summary, which is what the dashboard links.
+- **Reconciliation is the closing node's job.** The engine registers each completing node's
+  declared artifacts that exist, and `run-complete` names the declared ones that are missing. A
+  node's summary can list more than the definition declares, though — HTML companions, and files
+  its prose asked for. Have your last node check every path the summaries list against disk, the
+  way the built-ins' finalization nodes do, and report what is missing.
 
 **How a run closes.** Every run ends through the engine's `run-complete` verb, which prints the
 run's closing marker. A run recorded `completed` is refused while a node it can still reach has
@@ -134,10 +176,11 @@ name from the run, so the folder it sits in does not matter. `--profile` and `--
 exactly as they do for a built-in (below).
 
 `/maister:work` also offers your workflow when a task description matches what it is for. It
-learns that from a `description:` line in the definition — one paragraph saying what the workflow
-is for and when to use it — or, without one, from the paragraph under the `# Title` line of
-`<name>.md`. The title labels the offer. Validation warns when a workflow says neither, and
-`/maister:run --list` shows what `/maister:work` will see.
+learns that from a `description:` line in the definition — one line saying what the workflow is
+for and when to use it — or, without one, from the paragraph under the `# Title` line of
+`<name>.md` (*Writing the companion*, above). The title labels the offer. Validation warns
+`workflow-undescribed` when a workflow says neither, and `/maister:run --list` shows what
+`/maister:work` will see.
 
 **Where a chain runs.** A definition whose nodes carry `dir:` — its own, or one an overlay or a
 profile adds — dispatches work into member repositories, which makes it a chain. A chain is started from the cockpit's Start-a-chain form and
@@ -201,7 +244,8 @@ A workflow is resolved by name against four candidates, first hit winning: an **
 `.maister/workflows/<name>.yml`, a **generated** chain at `.maister/workflows/generated/<name>.yml`,
 an **overlay** at `.maister/workflows/<name>.overlay.yml`, then the **built-in** shipped with the
 plugin. So `builtin:development` can be replaced or adjusted from inside a project, and the change
-takes effect on the next run of `/maister:development`.
+takes effect on the next run of `/maister:development`. An overlay needs something to lay itself
+over: one whose name has no eject and no built-in behind it is refused, naming the missing base.
 
 **An overlay changes a built-in without copying it.** It carries `extends: builtin:<name>` and up to
 three operations, applied in a fixed order after the base: `disable` removes nodes by id, `tune`
@@ -360,6 +404,8 @@ quietly dropping the guard.
 
 ## Related reading
 
+- [Workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)
+  — every key, scheme and rule a definition, its companion and an overlay can use.
 - [Workflow details](workflows.md) — the built-in definitions, their phases and how they resolve.
 - [Command reference](commands.md) — every command, including the workspace verbs.
 - [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md)

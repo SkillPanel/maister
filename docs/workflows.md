@@ -392,6 +392,7 @@ A workflow your project defines, as `.maister/workflows/<name>.yml` with its pro
 | Start it | `/maister:run <name> [key=value ...]` |
 | Resume it | `/maister:run <task-path>` or `/maister:work <task-path>` |
 | See what the project defines | `/maister:run --list` |
+| Check it without starting it | `/maister:run <name> --check` |
 
 `/maister:work` offers one of these workflows when your task description matches what it is for.
 
@@ -405,7 +406,7 @@ A workflow your project defines, as `.maister/workflows/<name>.yml` with its pro
    built-in.
 
 `/maister:run` will not start a *chain*, meaning a definition whose nodes dispatch into member
-repositories. Chains are started from maister cockpit.
+repositories — including one an overlay adds. Chains are started from maister cockpit.
 
 ---
 

@@ -20,6 +20,11 @@ engine command and no engine entry point of its own — which is what
 paragraph cannot disagree. Nothing in a user's mental model needs the word "engine" in
 it.
 
+**The grammar a definition is written in** — its keys, the target schemes and how a
+target resolves, gates, guards, interpolation, the prose companion and overlays — is
+[`references/grammar.md`](references/grammar.md). This skill executes that grammar and
+does not restate it.
+
 **The gate mode follows the run's driver.** With no driver block, or one whose `kind` is
 `terminal`, the engine asks its gates in session and answers them in the same turn. With
 `kind` `cockpit` or `dispatch` it suspends on them instead — request file, pending marker,
@@ -524,15 +529,19 @@ The node's `uses` names both the mechanism and the target:
 | `direct:<name>` | inline, by this engine, following the node's section in the definition's prose companion |
 | `workflow:<name>` | with no `dir:`, it **starts a child run** — its own task directory, its own frozen graph, its own driver — and the node waits for it (*Sub-runs*). With `dir:` it keeps its dispatch meaning and is refused as a sub-run |
 
-**A `skill:` or `agent:` target is looked for in the project, then in this plugin, then in
-every installed plugin — first hit wins.** The project is the directory the host declares
-as the project, else the one the verb runs in; both hosts' layouts are searched there
-(`.claude/skills/<name>/SKILL.md` or `.github/skills/<name>/SKILL.md`, and the agent
-files beside them, in either spelling). A target may name the plugin it means with one
-colon — `skill:acme-tools:review` — and is then looked for only in that plugin, this one
-included by its own name. `validate` reports where each target was found in its `resolved`
-list: the node, the target as written, the place (`project`, `plugin` or `installed`) and
-the file.
+**A `skill:` or `agent:` target is looked for in four tiers — the project, then the
+operator's own, then this plugin, then every installed plugin — and the first hit wins.**
+The project is the directory the host declares as the project, else the one the verb runs
+in; both hosts' layouts are searched there (`.claude/skills/<name>/SKILL.md` or
+`.github/skills/<name>/SKILL.md`, and the agent files beside them, in either spelling). The
+operator's own are the same layouts under each host's home, `~/.claude/` (or
+`CLAUDE_CONFIG_DIR`) and `~/.copilot/`, and sit above this plugin because the host resolves
+them first when it runs the node. A target may name the plugin it means with one colon —
+`skill:acme-tools:review` — and is then looked for only in that plugin, this one included
+by its own name, never in the first two tiers. `validate` reports where each target was
+found in its `resolved` list: the node, the target as written, the tier (`project`, `user`,
+`plugin` or `installed`) and the file. The directories each tier searches are in
+`references/grammar.md` § 5.1.
 
 **A target found nowhere warns; it no longer errors.** Like a `workflow:` target, it may
 be provided by an environment `validate` cannot see — a plugin installed later, a project
@@ -579,6 +588,66 @@ A `direct:` node's prose is the node's body: its steps, its fan-outs, its self-c
 questions it asks inline, and how many times it may be re-driven. Read the section before
 executing the node, not after it fails. Whether those inline questions are asked at all
 follows the run's driver — see *In-node questions*.
+
+### Run-scoped context
+
+Four things reach every delegate without appearing in any node's `with:`, because they
+belong to the run rather than to a node. Every workflow's delegates get them; a workflow's
+companion says only what it adds.
+
+- `task_path` — the run's task directory, which every declared artifact path is relative to.
+- `html_style_guide_path` — the absolute path of the framework's `html-report-style.md`,
+  passed **only** when `orchestrator.options.html_output` is not false. When it is false, no
+  companion is requested, no dashboard file is written, and an existing data file is removed.
+- The project's documentation paths, when a node of the workflow has recorded them — its
+  companion names the node and the key.
+- The prior-phase passage — the `prior-context` output, fetched at each consuming delegate as
+  *Delegation by scheme* above says, never composed.
+
+Anything node-scoped is in `with:`, interpolated as below. Every prompt that asks a delegate to
+write an artifact also carries the artifact summary contract (framework § 7), so the summary
+lifted into state is one the delegate wrote rather than one the engine invented. Which artifacts
+also get an HTML companion is the node prose's to say (framework § 9). A delegate that writes one
+is handed `html_style_guide_path`; an artifact a `direct:` node writes inline gets its companion
+from the `html-companion-writer` agent. Each companion is registered under `artifacts[].html` on
+the summary entry that owns the artifact. Reconciling what state lists against what is on disk is
+the closing node's job (framework § 10).
+
+### Interpolating `${…}`
+
+Before a node runs, the driver substitutes every `${…}` in its `with:` — however deeply nested —
+and in its `dir:`. Before a gate is asked, it substitutes the ones in its `ask:`. Nothing else is
+interpolated: an artifact path is literal, a `when` is evaluated by the ready-set rule, and `uses`
+names a target as written. Each reference reads the run's state, never a recollection of it:
+
+| Reference | Resolves to |
+|---|---|
+| `${inputs.<name>}` | `orchestrator.options.inputs.<name>`; else the input's declared `default`; else null |
+| `${<node>.values.<key>}` | the value the node recorded in `workflow.nodes.<node>.values`. A skipped node recorded its bools false and its strings and enums null |
+| `${<node>.artifacts.<key>}` | the path the node declares, joined onto the task directory of the run that wrote it and spelled repository-root-relative (*Recording an outcome*) |
+
+**A value keeps its type when the reference is the whole string.** `with: {deep:
+"${intake.values.deep}"}` hands over the bool `true`, and a null stays null. A reference inside
+longer text becomes text, and a null there becomes empty. That silent empty is why a node never
+interpolates a value that a node which may have been skipped left null. Its prose reads the value
+from state instead, where the absence is visible and can be said.
+
+**The sub-run join.** A `workflow:` node's own `with:` is interpolated first. The result, plus
+`embedded: true` when the child declares that input, is what the child freezes as its inputs (W2
+in *Sub-runs*). Once the parent has adopted the child's outcome (W4), a later node reads the child
+through the parent node:
+
+- `${<node>.values.<key>}` is the value W4 copied from the child onto the node;
+- `${<node>.artifacts.<key>}` is the child's declared path, joined onto the node's recorded
+  `values.task_path`.
+
+Before W4 neither resolves, and nothing downstream of a waiting node is ready anyway.
+
+**A reference never resolves by guessing.** The validator has already refused a reference to an
+undeclared input or output, or to a node outside the referencing node's `needs` closure. A
+reference that still finds nothing in state at run time — a completed node that never recorded a
+declared value — is the earlier node's defect. Re-drive that node, or record the value through
+`write-state`, rather than substituting a plausible one.
 
 ### Recording an outcome
 

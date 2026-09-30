@@ -18,7 +18,7 @@ matches one of them, `/maister:work` offers it beside the best built-in match, a
 selection lists them after the built-ins. A task folder of a workflow started by name resumes the
 same way as any other.
 
-### `/maister:run <name> ["title"] [key=value ...] [--profile=NAME] [--overlay=PATH ...]`
+### `/maister:run <name> ["title"] [key=value ...] [--profile=NAME] [--overlay=PATH ...] [--check]`
 
 Starts a workflow by name: one your project defines in `.maister/workflows/<name>.yml`, an eject
 or an overlay of a built-in, or a built-in itself. It finds the definition, checks that it
@@ -32,6 +32,7 @@ behaves like any built-in one: the same dashboard, the same gates, and the same 
 | `key=value` | One input the definition declares. Quote a value with spaces: `team="Payments Core"` |
 | `--profile=NAME` | A profile one of the run's overlays declares |
 | `--overlay=PATH` | An extra overlay laid over the definition, after any `<name>.overlay.yml` found beside it. Repeatable |
+| `--check` | Validate the workflow as it would run, overlays and profile included, and start nothing |
 
 **Names are looked up in one order, and the first match wins:**
 1. `.maister/workflows/<name>.yml` (your own workflow, or an eject of a built-in);
@@ -50,9 +51,17 @@ profile edited since then does not change it.
 **List** your project's workflows with `/maister:run --list`. With no argument at all, it lists
 them and asks which to start.
 
+**Check** a workflow with `/maister:run <name> --check`, adding `--overlay` and `--profile` as for
+a run. It finds and validates the workflow and starts nothing. Each error names the file, the node
+and the field, with a one-line fix where the fix is mechanical. The report then lists the
+warnings, where each skill and agent was found, and the inputs a start would ask for. This is the
+check to run while writing a definition or an overlay; the
+[workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)
+covers every key it judges.
+
 **What it will not start:**
-- A *chain*, meaning a definition whose nodes dispatch work into member repositories with `dir:`.
-  Chains are started from maister cockpit.
+- A *chain*, meaning a definition whose nodes dispatch work into member repositories with `dir:`,
+  including a `dir:` node an overlay adds. Chains are started from maister cockpit.
 - A workflow named `bug-fixes`, `enhancements`, `new-features`, `refactoring` or `mockups`. Those
   are pre-v3 task folders that nothing reads runs from.
 - A file whose `name:` differs from its file name.
@@ -65,6 +74,7 @@ them and asks which to start.
 /maister:run research "How should retries back off?" --profile=quick   # a profile .maister/workflows/research.overlay.yml declares
 /maister:run .maister/tasks/onboarding/2026-09-30-onboarding-payments
 /maister:run --list
+/maister:run onboarding --check
 ```
 
 ---
@@ -333,10 +343,12 @@ declines to write is named with a reason. A second `init` over an existing manif
 ### `/maister:umbrella validate [--root DIR] [--definition FILE ...]`
 
 Judge the workspace, and any chain files named with it. Deterministic and model-free: it parses,
-checks structure and ids, checks the graph is acyclic, resolves references, applies overlays,
-checks gate shape, checks every `dir:` against the manifest's member list, checks that every
-`dir:` node names a target that can honour a driver, and warns on reserved keys, collecting
-findings per stage rather than stopping at the first.
+checks structure and ids, checks the graph is acyclic, resolves references, checks gate shape,
+checks every `dir:` against the manifest's member list, checks that every `dir:` node names a
+target that can honour a driver, and warns on reserved keys, collecting findings per stage rather
+than stopping at the first. It needs the workspace manifest, and it judges each definition as
+written: no overlay or profile is applied. To check a workflow in a single project, or with its
+overlays, use `/maister:run <name> --check`.
 
 | Flag | Description |
 |------|-------------|
@@ -344,8 +356,8 @@ findings per stage rather than stopping at the first.
 | `--definition FILE` | A chain file to validate with the workspace (repeatable). None judges the workspace alone |
 
 Errors exit `1` and name the file, node and field; warnings alone exit `0`, so a workspace can carry
-advisory findings without being blocked. A freshly scaffolded manifest reports one advisory warning
-about a reserved key — expected and harmless. The report lists each definition it judged and marks
+advisory findings without being blocked. A freshly scaffolded manifest reports no findings at all.
+The report lists each definition it judged and marks
 the ones that sit in the generated home as generated; the rules are identical either way.
 
 **The driver-capability check is new, and a chain that validated before this release can fail now.**
@@ -361,9 +373,10 @@ in the coordinating repository. On a node with no `dir:`, an unresolved `skill:`
 still only warns — the strictness is what dispatch itself requires, not a general tightening.
 
 **Targets are looked for in the workspace first.** A `skill:` or `agent:` name is resolved against
-the workspace's own `.claude/` and `.github/` trees, then the plugin, then every installed plugin;
-`skill:<plugin>:<name>` names one plugin explicitly. The report's `resolved` list says, per node,
-which of the three places answered and which file it found. [Extending maister](extending.md)
+the workspace's own `.claude/` and `.github/` trees, then your own under `~/.claude/` and
+`~/.copilot/`, then the plugin, then every installed plugin; `skill:<plugin>:<name>` names one
+plugin explicitly. The report's `resolved` list says, per node, which of the four places answered
+and which file it found. [Extending maister](extending.md)
 covers the order and the namespacing in full.
 
 **Examples**:
