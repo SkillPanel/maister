@@ -586,6 +586,66 @@ questions it asks inline, and how many times it may be re-driven. Read the secti
 executing the node, not after it fails. Whether those inline questions are asked at all
 follows the run's driver — see *In-node questions*.
 
+### Run-scoped context
+
+Four things reach every delegate without appearing in any node's `with:`, because they
+belong to the run rather than to a node. Every workflow's delegates get them; a workflow's
+companion says only what it adds.
+
+- `task_path` — the run's task directory, which every declared artifact path is relative to.
+- `html_style_guide_path` — the absolute path of the framework's `html-report-style.md`,
+  passed **only** when `orchestrator.options.html_output` is not false. When it is false, no
+  companion is requested, no dashboard file is written, and an existing data file is removed.
+- The project's documentation paths, when a node of the workflow has recorded them — its
+  companion names the node and the key.
+- The prior-phase passage — the `prior-context` output, fetched at each consuming delegate as
+  *Delegation by scheme* above says, never composed.
+
+Anything node-scoped is in `with:`, interpolated as below. Every prompt that asks a delegate to
+write an artifact also carries the artifact summary contract (framework § 7), so the summary
+lifted into state is one the delegate wrote rather than one the engine invented. Which artifacts
+also get an HTML companion is the node prose's to say (framework § 9). A delegate that writes one
+is handed `html_style_guide_path`; an artifact a `direct:` node writes inline gets its companion
+from the `html-companion-writer` agent. Each companion is registered under `artifacts[].html` on
+the summary entry that owns the artifact. Reconciling what state lists against what is on disk is
+the closing node's job (framework § 10).
+
+### Interpolating `${…}`
+
+Before a node runs, the driver substitutes every `${…}` in its `with:` — however deeply nested —
+and in its `dir:`. Before a gate is asked, it substitutes the ones in its `ask:`. Nothing else is
+interpolated: an artifact path is literal, a `when` is evaluated by the ready-set rule, and `uses`
+names a target as written. Each reference reads the run's state, never a recollection of it:
+
+| Reference | Resolves to |
+|---|---|
+| `${inputs.<name>}` | `orchestrator.options.inputs.<name>`; else the input's declared `default`; else null |
+| `${<node>.values.<key>}` | the value the node recorded in `workflow.nodes.<node>.values`. A skipped node recorded its bools false and its strings and enums null |
+| `${<node>.artifacts.<key>}` | the path the node declares, joined onto the task directory of the run that wrote it and spelled repository-root-relative (*Recording an outcome*) |
+
+**A value keeps its type when the reference is the whole string.** `with: {deep:
+"${intake.values.deep}"}` hands over the bool `true`, and a null stays null. A reference inside
+longer text becomes text, and a null there becomes empty. That silent empty is why a node never
+interpolates a value that a node which may have been skipped left null. Its prose reads the value
+from state instead, where the absence is visible and can be said.
+
+**The sub-run join.** A `workflow:` node's own `with:` is interpolated first. The result, plus
+`embedded: true` when the child declares that input, is what the child freezes as its inputs (W2
+in *Sub-runs*). Once the parent has adopted the child's outcome (W4), a later node reads the child
+through the parent node:
+
+- `${<node>.values.<key>}` is the value W4 copied from the child onto the node;
+- `${<node>.artifacts.<key>}` is the child's declared path, joined onto the node's recorded
+  `values.task_path`.
+
+Before W4 neither resolves, and nothing downstream of a waiting node is ready anyway.
+
+**A reference never resolves by guessing.** The validator has already refused a reference to an
+undeclared input or output, or to a node outside the referencing node's `needs` closure. A
+reference that still finds nothing in state at run time — a completed node that never recorded a
+declared value — is the earlier node's defect. Re-drive that node, or record the value through
+`write-state`, rather than substituting a plausible one.
+
 ### Recording an outcome
 
 Every node's outcome maps onto a status deterministically, because a downstream `needs`
