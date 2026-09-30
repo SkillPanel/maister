@@ -485,8 +485,8 @@ artifact a `completed` node declared that is not on disk and that its summary do
 under `absent` — a sub-run node's path joined onto its child's task directory. It is a warning,
 never a refusal, and the exit code does not move: whether an absence is a defect was the node's
 own check to make (*Recording an outcome*). Because a sanctioned absence prints nothing, a line
-that remains is a genuine gap, and the operator's cue to re-drive that node. Echo the lines with
-the marker.
+that remains is a genuine gap, and the operator's cue to re-drive that node. How the lines reach
+the operator depends on the driver (*Operator visibility*).
 
 A dispatched run that owes a close-out it never published gets `RUN-FAILED:
 closeout-unpublished` whatever its status. Echo the verb's lines, the marker last; do not
@@ -1497,17 +1497,36 @@ markers and option ids — a gate's answer is recorded by option id, never by la
 
 **The dashboard link is shown three times, never at a gate**: in the freeze banner as the run
 starts, from `resume-check` as a resume begins, and once more at the end as `Dashboard: <link>`,
-the last line of the closing text before `run-complete` — the same `file://` link the banner or
-`resume-check` gave. A run without a dashboard shows none.
+the last line of the closing text (below) — the same `file://` link the banner or `resume-check`
+gave. A run without a dashboard shows none.
+
+**How a run ends depends on who reads its end.**
+
+- **Under an absent or `terminal` driver a person reads it.** The verb's lines are for the
+  engine, not for them. Write the closing patch and call `run-complete`; settle any refusal first
+  (*When `run-complete` refuses*). Then close with one short wrap-up message:
+  - the outcome in plain words: completed, stopped at a named gate with the option taken, or
+    failed at a named node;
+  - the key files the run wrote;
+  - the workflow's own next steps;
+  - each `missing-artifact:` line the verb printed, restated in plain words as a file a named
+    phase should have written and did not;
+  - `Dashboard: <link>` last.
+
+  Never show the raw `missing-artifact:`, `run stopped:` or `RUN-` lines, and never type a
+  marker. A child run driven in session is the exception: it runs `run-complete` with no wrap-up,
+  because its parent's walk goes on and the parent's own ending carries the wrap-up.
+- **Under a `cockpit` or `dispatch` driver tooling reads it,** and everything below applies.
 
 The run's last line is a marker, read by tooling: `RUN-COMPLETE`, `RUN-FAILED: <reason>`, or —
 when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node> run=<child-run-id>`.
 **The first two come from a verb; the third is typed.** `RUN-COMPLETE` and `RUN-FAILED` are what
 `run-complete` printed — which is what makes a dispatched run's unpublished close-out a
 `RUN-FAILED: closeout-unpublished` instead of a silence its chain waits on forever — so for those
-two, echo the verb's line and do not type a marker it did not give you. Everything the operator
-is meant to read at the end — the executive summary and the full list of next steps — is printed
-before the `run-complete` call, never after it, so the verb's marker stays the last line.
+two, echo the verb's lines — the `missing-artifact:` lines and a stop's notice above the marker —
+and do not type a marker it did not give you. Everything the operator is meant to read at the end —
+the executive summary, the full list of next steps and the dashboard link — is printed before the
+`run-complete` call, never after it, so the verb's marker stays the last line.
 `WAITING-SUBRUN` has no
 verb behind it: no tool the engine ships prints that string, and the driver composes the line
 itself from the node id and the child run id it has just recorded. That is why its grammar is

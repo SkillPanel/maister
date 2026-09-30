@@ -818,14 +818,17 @@ from a node that no guard can skip.
    once both have been true for a while. Suggest a fresh session for whatever
    comes next rather than continuing in this one.
 
-**Print first, then close.** The executive summary and then every next step
-from step 4 — all four of this workflow's own, then the fresh-session suggestion,
-none dropped or merged — are printed as ordinary text **before** the engine's
-`run-complete` call, and they are the last thing printed ahead of it. Only then
-call `run-complete`. Its marker is the last line of its stdout; after the call,
-print nothing but that line, copied exactly as the verb printed it. Never call
-`run-complete` first and summarize after it, and never type a marker the verb did
-not print.
+**Close for whoever reads the end** (the engine skill's run-end rule). In a
+terminal run a person reads it: write the closing patch and call `run-complete`
+first, then end with one wrap-up message — the outcome from the executive
+summary in a few lines, the key files, every next step from step 4 (all four of
+this workflow's own, then the fresh-session suggestion, none dropped or merged),
+each artifact the verb reported missing named in plain words, and the dashboard
+link last. The verb's own lines are never shown. Under a `cockpit` or `dispatch`
+driver tooling reads it, and the order is reversed: the executive summary and
+every next step are printed as ordinary text **before** the `run-complete` call;
+after it, print nothing but the lines the verb printed, copied exactly, its
+marker last. Never type a marker the verb did not print.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out
