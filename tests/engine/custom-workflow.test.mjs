@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { FIXTURES, freeze, freezePatch, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 
@@ -272,7 +273,7 @@ test('freeze: the proven freeze lands under the custom task type, every node pen
     'Maister run started',
     'Task: Audit v2.4.0',
     `Directory: ${run.dir}`,
-    `Dashboard: ${path.join(run.dir, 'dashboard.html')}`,
+    `Dashboard: ${pathToFileURL(path.join(run.dir, 'dashboard.html')).href}`,
     'First node: intake',
     '',
   ].join('\n'));

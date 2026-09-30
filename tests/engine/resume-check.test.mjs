@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { freeze, scratch, verb } from '../helpers.mjs';
 
@@ -73,6 +74,17 @@ test('resume-check: a run the engine froze resumes, with its name, overlays and 
   assert.equal(result.json.title, 'Frozen run');
   assert.equal(result.json.status, 'in_progress');
   assert.equal(result.json.task_path, run.dir);
+  assert.equal(result.json.dashboard, pathToFileURL(path.join(run.dir, 'dashboard.html')).href);
+});
+
+test('resume-check: a run without a dashboard reports none, so a resume shows no link', t => {
+  const run = scratch(t);
+  freeze(run);
+  fs.rmSync(path.join(run.dir, 'dashboard.html'));
+  assert.equal(resumeCheck(run).json.dashboard, null, 'the viewer is missing');
+  const off = scratch(t, { name: '2026-01-06-off' });
+  freeze(off, { orchestrator: { options: { html_output: false } } });
+  assert.equal(resumeCheck(off).json.dashboard, null, 'html_output is false');
 });
 
 test('resume-check: a missing state file is unreadable, not 2.x', t => {

@@ -59,7 +59,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 // The reader lives beside the hooks because the hooks are its other caller. Any
 // emitted plugin tree must therefore carry `hooks/gate-lib.mjs` at this path,
 // whatever else a build does with the hook registrations.
@@ -509,7 +509,7 @@ function banner(state, text, workflow) {
     'Maister run started',
     `Task: ${folded !== '' ? folded : '(untitled)'}`,
     `Directory: ${runDir}`,
-    `Dashboard: ${htmlOutput(doc) ? path.join(runDir, 'dashboard.html') : 'none (html_output is false)'}`,
+    `Dashboard: ${htmlOutput(doc) ? pathToFileURL(path.join(runDir, VIEWER)).href : 'none (html_output is false)'}`,
     `First node: ${nodes.length ? nodes[0] : '(none)'}`,
   ].map(line => `${line}\n`).join('');
 }
@@ -656,6 +656,18 @@ export function htmlOutput(doc) {
   const options = isPlainObject(orchestrator.options) ? orchestrator.options : null;
   if (!options || !Object.hasOwn(options, 'html_output')) return true;
   return options.html_output !== false;
+}
+
+/**
+ * The run's dashboard as a `file://` URL an operator can open from a terminal,
+ * or null when the run has none: `html_output` is false, or the viewer is not in
+ * the run directory. The link is shown once at the run's start (the freeze
+ * banner), at a resume and at the end, never at every gate.
+ */
+export function dashboardUrl(doc, runDir) {
+  if (!htmlOutput(doc)) return null;
+  const viewer = path.join(runDir, VIEWER);
+  return fs.existsSync(viewer) ? pathToFileURL(viewer).href : null;
 }
 
 /**
