@@ -11,10 +11,13 @@
  *   init      --root [--members-root --force --scaffold]        JSON on stdout
  *   validate  --root [--definition…]                            JSON on stdout
  *   prune     --root [--name --dry-run]                         JSON on stdout
- *   envelope  --run --node --ledger --root   overrides on stdin JSON on stdout
+ *   envelope  --run --node --ledger --root [--input-file]        JSON on stdout
+ *             (overrides in the input file, or on stdin)
  *   seed      --envelope [--siblings]                           JSON on stdout
- *   ledger    --ledger --op --actor [--dispatch-id]  args stdin JSON on stdout
- *   outbox    --outbox --dispatch-id --type   the body on stdin JSON on stdout
+ *   ledger    --ledger --op --actor [--dispatch-id]             JSON on stdout
+ *             [--run --input-file] (the op's args in the input file, or on stdin)
+ *   outbox    --outbox --dispatch-id --type [--input-file]      JSON on stdout
+ *             (the body in the input file, or on stdin)
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -24,9 +27,14 @@
  * entry point fronts commits through temp → rename, so a refusal leaves the
  * files on disk byte-for-byte as they were.
  *
- * Why structured input arrives on stdin rather than as an argument: no quoting
- * has to survive a shell, which is the same Windows-without-a-shell constraint
- * that shapes the invocation form.
+ * Why structured input arrives in a file or on stdin rather than as an
+ * argument: no quoting has to survive a shell, which is the same
+ * Windows-without-a-shell constraint that shapes the invocation form. A caller
+ * with a file tool writes the document to the one input file the verb reads
+ * (`.umbrella-input.json`, placed by `anchorOf`) and names it with
+ * `--input-file`; stdin stays for scripts, tests and hosts with no file tool. A
+ * JSON heredoc is the form the shell-safety checks of an agent host refuse, and
+ * a file needs no quoting in any shell.
  *
  * This file is a deliberate copy of the workflow engine's entry point
  * (`../../workflow-engine/scripts/workflow.mjs`) — the verb table, the argument
@@ -51,6 +59,7 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** The exit-code table, named so no call site writes a bare integer. */
@@ -84,7 +93,7 @@ const VERBS = {
   envelope: {
     module: 'envelope.mjs',
     entry: 'envelope',
-    flags: ['run', 'node', 'ledger', 'root'],
+    flags: ['run', 'node', 'ledger', 'root', 'input-file'],
     required: ['run', 'node', 'ledger', 'root'],
   },
   seed: {
@@ -96,13 +105,15 @@ const VERBS = {
   ledger: {
     module: 'ledger.mjs',
     entry: 'ledger',
-    flags: ['ledger', 'op', 'actor', 'dispatch-id'],
+    // `--run` names the calling run, and only to place the input file: the
+    // ledger itself is shared by every run in the workspace (`anchorOf`).
+    flags: ['ledger', 'op', 'actor', 'dispatch-id', 'run', 'input-file'],
     required: ['ledger', 'op', 'actor'],
   },
   outbox: {
     module: 'outbox.mjs',
     entry: 'outbox',
-    flags: ['outbox', 'dispatch-id', 'type'],
+    flags: ['outbox', 'dispatch-id', 'type', 'input-file'],
     required: ['outbox', 'dispatch-id', 'type'],
   },
 };
@@ -191,37 +202,122 @@ function checkFlags(verb, flags) {
 // ---------------------------------------------------------------------------
 
 /**
- * Structured input, read whole from stdin as JSON. An unreadable or non-JSON
- * document never ran, so it is a usage error rather than a refusal: there is no
- * report to print reasons into.
+ * Structured input: `{document, file}`, from the input file when
+ * `--input-file` names one, else read whole from stdin. An unreadable or
+ * non-JSON document never ran, so it is a usage error rather than a refusal:
+ * there is no report to print reasons into.
  *
- * `required: false` treats an absent or empty stdin as an empty document. Two
+ * `required: false` treats an absent or empty input as an empty document. Two
  * verbs take optional input — `envelope` overrides and the `args` of the ledger
  * ops that need none — and demanding an explicit `{}` from a caller who has
- * nothing to say would be a quoting rule for no gain.
+ * nothing to say would be a quoting rule for no gain. Both sources go through
+ * the same parse, so one document lands the same bytes whichever way it
+ * arrived. Given a file, stdin is never read, so a caller with a terminal on
+ * stdin does not block.
  */
-function readStdin({ required }) {
-  let text;
-  try {
-    text = fs.readFileSync(0, 'utf8');
-  } catch (err) {
-    if (!required) return {};
-    throw new UsageError(`the input could not be read from stdin: ${err.message}`);
+async function readDocument(verb, flags, { required }) {
+  if (flags['input-file'] === undefined) {
+    let text;
+    try {
+      text = fs.readFileSync(0, 'utf8');
+    } catch (err) {
+      if (!required) return { document: {}, file: null };
+      throw new UsageError(`the input could not be read from stdin: ${err.message}`);
+    }
+    return { document: parseObject(text, 'the input on stdin', required), file: null };
   }
+  const lib = await inputFileLibrary();
+  const anchor = anchorOf(verb, flags);
+  const file = lib.anchoredFile({
+    given: flags['input-file'],
+    expected: anchor.file,
+    noun: 'the input file',
+    beside: anchor.beside,
+    Usage: UsageError,
+  });
+  const text = lib.readFileText(file, 'the input', UsageError);
+  return { document: parseObject(text, `the input in ${file}`, required), file, consume: lib.consume };
+}
+
+function parseObject(text, where, required) {
   if (text.trim() === '') {
     if (!required) return {};
-    throw new UsageError('the input on stdin is empty');
+    throw new UsageError(`${where} is empty`);
   }
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch (err) {
-    throw new UsageError(`the input on stdin is not JSON: ${err.message}`);
+    throw new UsageError(`${where} is not JSON: ${err.message}`);
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new UsageError('the input on stdin must be a JSON object');
+    throw new UsageError(`${where} must be a JSON object`);
   }
   return parsed;
+}
+
+/** The one name an input file may carry, in the one place each verb reads it from. */
+const INPUT_FILE = '.umbrella-input.json';
+
+/** A dispatch id that can name a directory: the outbox writer's own short-id rule. */
+const DISPATCH_DIR = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/**
+ * Where a verb reads its input file from: a place **no two concurrent callers
+ * share**, because a fixed name in a shared place is a race — one caller writes,
+ * another overwrites, and the first verb applies the second caller's document.
+ *
+ *   outbox    <outbox>/<dispatch-id>/  the directory the message is appended
+ *             to. Not the outbox root: every worker of a wave shares that. One
+ *             dispatch has one worker. The writer and every reader count only
+ *             sequenced message names, so the file is never read as a message.
+ *   envelope  <run>/dispatch/  where the envelope is published, and a place
+ *             even when nothing is. One driver serves a run.
+ *   ledger    <run>/dispatch/  of the calling run, named by `--run`. Not the
+ *             ledger directory: every run in the workspace writes that ledger.
+ *             The run's driver is the one caller that reads a file there, the
+ *             same one that builds the run's envelopes, one call at a time.
+ */
+function anchorOf(verb, flags) {
+  if (verb === 'outbox') {
+    const id = flags['dispatch-id'];
+    if (!DISPATCH_DIR.test(id)) {
+      throw new UsageError(`the dispatch id "${id}" cannot name the dispatch directory an input file is read from; send the body on stdin, or fix the id`);
+    }
+    return {
+      file: path.join(path.resolve(flags.outbox), id, INPUT_FILE),
+      beside: 'in the directory of the dispatch the message is appended to',
+    };
+  }
+  return {
+    file: path.join(path.resolve(flags.run), 'dispatch', INPUT_FILE),
+    beside: verb === 'envelope'
+      ? "in the run's dispatch directory, where its envelopes are published"
+      : "in the calling run's dispatch directory, the one place no other run writes to",
+  };
+}
+
+/**
+ * The shared input-file rule, loaded only when `--input-file` is given: a call
+ * on stdin never depends on a file outside this skill, and a missing library is
+ * a named internal failure, like a missing verb module.
+ */
+async function inputFileLibrary() {
+  const specifier = new URL('../../../lib/input-file.mjs', import.meta.url);
+  if (!fs.existsSync(fileURLToPath(specifier))) {
+    throw new Error('the plugin library lib/input-file.mjs is not present in this build, so --input-file cannot be read');
+  }
+  return import(specifier.href);
+}
+
+/**
+ * Delete the input file once the verb has accepted its document — exit 0,
+ * including an outbox write that degraded onto a printed line, since that line
+ * now carries the message. A refusal keeps it, for the caller to correct.
+ */
+function settle(code, input) {
+  if (code === EXIT.OK && input.file) input.consume(input.file);
+  return code;
 }
 
 /**
@@ -325,16 +421,19 @@ async function runPrune(flags) {
  * the run directory would guess at which workspace owns the run.
  */
 async function runEnvelope(flags) {
-  const overrides = readStdin({ required: false });
+  const input = await readDocument('envelope', flags, { required: false });
   const envelope = await implementationOf('envelope');
-  return finish(
-    envelope({
-      run: flags.run,
-      node: flags.node,
-      ledger: flags.ledger,
-      root: flags.root,
-      overrides,
-    }),
+  return settle(
+    finish(
+      envelope({
+        run: flags.run,
+        node: flags.node,
+        ledger: flags.ledger,
+        root: flags.root,
+        overrides: input.document,
+      }),
+    ),
+    input,
   );
 }
 
@@ -347,22 +446,33 @@ async function runSeed(flags) {
 /**
  * One ledger op. `--dispatch-id` addresses an existing entry and is therefore
  * required for every op but the allocating one, which chooses its own id.
+ * `--run` and `--input-file` come together: the run places the file, and a run
+ * with no file to place is a flag that does nothing.
  */
 async function runLedger(flags) {
   const dispatchId = flags['dispatch-id'] ?? null;
   if (flags.op !== ALLOCATING_OP && dispatchId === null) {
     throw new UsageError(`the ledger op ${flags.op} needs --dispatch-id`);
   }
-  const args = readStdin({ required: false });
+  if (flags['input-file'] !== undefined && flags.run === undefined) {
+    throw new UsageError('ledger reads --input-file from the calling run\'s dispatch directory, so it needs --run');
+  }
+  if (flags.run !== undefined && flags['input-file'] === undefined) {
+    throw new UsageError('ledger takes --run only to place --input-file, and no --input-file was given');
+  }
+  const input = await readDocument('ledger', flags, { required: false });
   const ledger = await implementationOf('ledger');
-  return finish(
-    ledger({
-      ledger: flags.ledger,
-      op: flags.op,
-      actor: flags.actor,
-      dispatch_id: dispatchId,
-      args,
-    }),
+  return settle(
+    finish(
+      ledger({
+        ledger: flags.ledger,
+        op: flags.op,
+        actor: flags.actor,
+        dispatch_id: dispatchId,
+        args: input.document,
+      }),
+    ),
+    input,
   );
 }
 
@@ -372,15 +482,18 @@ async function runLedger(flags) {
  * of them.
  */
 async function runOutbox(flags) {
-  const body = readStdin({ required: true });
+  const input = await readDocument('outbox', flags, { required: true });
   const outbox = await implementationOf('outbox');
-  return finish(
-    outbox({
-      outbox: flags.outbox,
-      dispatch_id: flags['dispatch-id'],
-      type: flags.type,
-      body,
-    }),
+  return settle(
+    finish(
+      outbox({
+        outbox: flags.outbox,
+        dispatch_id: flags['dispatch-id'],
+        type: flags.type,
+        body: input.document,
+      }),
+    ),
+    input,
   );
 }
 
