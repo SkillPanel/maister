@@ -33,6 +33,9 @@ const BASE = [
   '    needs: [review-approval]',
 ];
 
+/** BASE saying what it is for, as a workflow kept in a project's own home does. */
+const DESCRIBED = ['name: acme', 'version: 1', 'description: "Walks a topic from intake to a wrap-up, with one approval between."', ...BASE.slice(2)];
+
 const PROSE = '# Acme — node prose\n\n## `intake`\n\nRead the topic.\n\n## `wrapup`\n\nClose out.\n';
 
 function workspace(t) {
@@ -89,7 +92,7 @@ test('an unknown top-level key is refused, located and listed against the accept
   assert.equal(code, 1);
   const error = errorAt(report, 'descripton');
   assert.equal(error.node, null);
-  assert.match(error.message, /"descripton" is not a definition key; the accepted keys are name, version, inputs, outputs, display, nodes/);
+  assert.match(error.message, /"descripton" is not a definition key; did you mean "description"\? The accepted keys are name, version, description, inputs, outputs, display, nodes/);
 });
 
 test('node: for nodes: is named, with the key it most probably meant', t => {
@@ -368,7 +371,7 @@ function ejectBesideOverlay(t) {
   const project = workspace(t);
   const home = path.join(project, '.maister', 'workflows');
   fs.mkdirSync(home, { recursive: true });
-  const eject = definition(t, BASE, { dir: home });
+  const eject = definition(t, DESCRIBED, { dir: home });
   const lay = overlay(eject, ['extends: acme', 'disable: [wrapup]']);
   return { project, home, eject, overlay: lay };
 }
@@ -488,4 +491,156 @@ test('a gate declares no outputs, so no guard can read a value it would never re
   const { code, report } = validate(definition(t, lines));
   assert.equal(code, 1);
   assert.match(errorAt(report, 'nodes.review-approval.outputs').message, /a gate records only the option chosen and declares no outputs/);
+});
+
+// ---------------------------------------------------------------------------
+// a gate option's two spellings are one option
+// ---------------------------------------------------------------------------
+
+test('a gate option written as a map hashes and draws exactly as its bare effect', t => {
+  const bare = definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: continue', '      stop-here: stop'));
+  const mapped = definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: {effect: continue}', '      stop-here: {effect: stop}'));
+
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout);
+  const [left, right] = [hashOf(bare), hashOf(mapped)];
+  assert.equal(left.ok, true, JSON.stringify(left.errors));
+  assert.equal(right.graph_hash, left.graph_hash);
+  const gate = right.nodes.find(node => node.id === 'review-approval');
+  assert.deepEqual({ ...gate.options }, { 'continue-on': 'continue', 'stop-here': 'stop' });
+
+  const [drawnBare, drawnMapped] = [bare, mapped].map(file => verb(['diagram', `--definition=${file}`]));
+  assert.equal(drawnMapped.code, 0, drawnMapped.stderr);
+  assert.equal(drawnMapped.stdout, drawnBare.stdout);
+  assert.match(drawnMapped.stdout, /continue-on: continue, stop-here: stop/);
+  assert.doesNotMatch(drawnMapped.stdout, /#quot;|effect/);
+});
+
+// ---------------------------------------------------------------------------
+// description: what the workflow is for, outside the hash
+// ---------------------------------------------------------------------------
+
+
+test('a description validates and leaves the graph hash where it was', t => {
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout);
+  const plain = hashOf(definition(t));
+  const described = hashOf(definition(t, DESCRIBED));
+  assert.equal(described.ok, true, JSON.stringify(described.errors));
+  assert.deepEqual(described.warnings, []);
+  assert.equal(described.graph_hash, plain.graph_hash);
+});
+
+test('a description is one paragraph of text on one line', t => {
+  for (const written of ['description: {what: acme}', 'description: ""', 'description: "Two lines:\\nhere."', 'description: 42']) {
+    const { code, report } = validate(definition(t, ['name: acme', 'version: 1', written, ...BASE.slice(2)]));
+    assert.equal(code, 1, written);
+    assert.match(errorAt(report, 'description').message, /description is one paragraph of plain text/, written);
+  }
+});
+
+test('an overlay says nothing about what the workflow is for', t => {
+  const file = definition(t);
+  const lay = overlay(file, ['extends: acme', 'description: "A lighter acme."']);
+  const { code, report } = validate(file, `--overlay=${lay}`);
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'description').message, /"description" is not an overlay key/);
+});
+
+/** A project's `.maister/workflows/` (or `generated/` under it) in a scratch root. */
+function projectHome(t, sub = '') {
+  const dir = path.join(workspace(t), '.maister', 'workflows', sub);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+const undescribed = report => report.warnings.filter(warning => warning.startsWith('workflow-undescribed:'));
+
+test('a project workflow that says nowhere what it is for is warned about, naming both places to say it', t => {
+  const { code, report } = validate(definition(t, BASE, { dir: projectHome(t) }));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.equal(undescribed(report).length, 1);
+  assert.match(undescribed(report)[0], /^workflow-undescribed:acme — the work command offers a project workflow by what it is for/);
+  assert.match(undescribed(report)[0], /description:/);
+  assert.match(undescribed(report)[0], /prose companion/);
+});
+
+test('a description, or a paragraph under the companion\'s title, is enough', t => {
+  const described = validate(definition(t, DESCRIBED, { dir: projectHome(t) })).report;
+  assert.deepEqual(undescribed(described), []);
+
+  const file = definition(t, BASE, { dir: projectHome(t) });
+  fs.writeFileSync(file.replace(/\.yml$/, '.md'), PROSE.replace('\n\n## `intake`', '\n\nWalks a topic from intake to a wrap-up.\n\n## `intake`'));
+  assert.deepEqual(undescribed(validate(file).report), []);
+});
+
+test('only the definitions the work command lists are judged', t => {
+  // Outside a project's workflow home: a draft, or a fixture.
+  assert.deepEqual(undescribed(validate(definition(t)).report), []);
+  // A generated chain belongs to the ticket it was planned for.
+  assert.deepEqual(undescribed(validate(definition(t, BASE, { dir: projectHome(t, 'generated') })).report), []);
+  // An eject of a built-in is reached through that workflow's own command.
+  const eject = ['name: research', 'version: 1', 'nodes:', '  look:', '    uses: skill:quick-plan', '    needs: []'];
+  assert.deepEqual(undescribed(validate(definition(t, eject, { dir: projectHome(t), name: 'research' })).report), []);
+});
+
+// ---------------------------------------------------------------------------
+// an input declares its type, required, default and tracker_key, and nothing else
+// ---------------------------------------------------------------------------
+
+test('a misspelt input key is refused with the key it most probably meant', t => {
+  const lines = replacing('  topic: {type: string, required: true}', '  topic: {type: string, requried: true}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'inputs.topic.requried').message,
+    /"requried" is not an input key; did you mean "required"\? The accepted keys are type, required, default, tracker_key/);
+});
+
+// ---------------------------------------------------------------------------
+// ask and options make a gate, and only a gate carries them
+// ---------------------------------------------------------------------------
+
+test('a task node carrying a gate\'s question or options is refused, key by key', t => {
+  const lines = replacing('    uses: direct:wrapup', '    uses: direct:wrapup', '    ask: "Wrap up?"', '    options: {go: continue, halt: stop}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  for (const key of ['ask', 'options']) {
+    const error = errorAt(report, `nodes.wrapup.${key}`);
+    assert.equal(error.node, 'wrapup');
+    assert.match(error.message, new RegExp(`${key} belongs to a gate, and this node runs direct:wrapup; add type: gate`));
+  }
+});
+
+// ---------------------------------------------------------------------------
+// a sub-run's required inputs: a default stands in, as it does at the freeze
+// ---------------------------------------------------------------------------
+
+test('a child input that is required but carries a default is not missing when the parent omits it', t => {
+  const project = workspace(t);
+  const home = path.join(project, '.maister', 'workflows');
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, 'kid.yml'), [
+    'name: kid', 'version: 1', 'description: "A child for the sub-run input check."',
+    'inputs:',
+    '  subject: {type: string, required: true}',
+    '  depth: {type: string, required: true, default: standard}',
+    'nodes:', '  look: {uses: "skill:quick-plan", needs: []}', '',
+  ].join('\n'));
+  const parent = passed => definition(t, [
+    'name: parent', 'version: 1', 'nodes:',
+    `  run-kid: {uses: "workflow:kid", needs: []${passed ? `, with: ${passed}` : ''}}`,
+  ], { name: 'parent' });
+  const warningsOf = file => {
+    const result = verb(['validate', `--definition=${file}`], undefined, { CLAUDE_PROJECT_DIR: project });
+    return JSON.parse(result.stdout).warnings.filter(warning => warning.startsWith('unresolved-subrun-input:'));
+  };
+  assert.deepEqual(warningsOf(parent('{subject: "the api"}')), []);
+  assert.deepEqual(warningsOf(parent(null)), ['unresolved-subrun-input:run-kid:subject']);
+});
+
+test('an enum member that is not a string is refused as one', t => {
+  const lines = replacing('      values: {deep: bool}', '      values: {depth: {enum: [shallow, 3]}}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.intake.outputs.values.depth').message, /every enum member must be a non-empty string/);
 });

@@ -106,13 +106,12 @@ const STATUS_MIRROR = {
 const STATUS_FALLBACK = 'pending';
 
 /**
- * The task types the viewer's `HERO_MAP` is keyed by.
- *
- * The type comes from the `<type>` path segment rather than from
- * `workflow.name`, because that segment is what `HERO_MAP` looks up and a run
- * whose workflow is named otherwise would light up no hero cards at all.
+ * What a task type may be: the workflow-name charset, because a run's type is
+ * the folder its workflow's name made. It is `TARGET_NAME` in `graph.mjs`,
+ * spelled again here rather than imported because that module reads the
+ * filesystem and this one reads nothing.
  */
-const TASK_TYPES = ['development', 'performance', 'migration', 'research', 'product-design', 'plan'];
+const TYPE_NAME = /^[a-z][a-z0-9-]*$/;
 
 /** The context blocks a run's `phase_summaries` can live under (A1 layer 2). */
 const CONTEXT_SUFFIX = '_context';
@@ -231,21 +230,25 @@ function taskOf(state) {
 
 /**
  * The `<type>` segment of `.maister/tasks/<type>/<date-name>`, then the workflow
- * name, then `development`.
+ * name, then `development` — each emitted as it is.
  *
- * The path segment is authoritative because the viewer's `HERO_MAP` is keyed by
- * it; the workflow name is the fallback for a run whose `task_path` is absent or
- * spelled some other way, and `development` is the last resort because a run with
- * no type at all still has to render.
+ * The path segment is authoritative because it is where the run lives and what
+ * the viewer's `HERO_MAP` is keyed by; the workflow name is the fallback for a
+ * run whose `task_path` is absent or spelled some other way. Neither is coerced:
+ * a workflow the project defines is its own type, and the viewer draws no hero
+ * cards for a type it has no map for. Projecting such a run as `development`
+ * drew that workflow's three cards, forever "not produced yet", for a run that
+ * produces none of them. `development` is only the last resort for a run with
+ * no type at all, which still has to render.
  */
 function typeOf(taskPath, name) {
   if (typeof taskPath === 'string') {
     const segments = taskPath.split('/').filter(segment => segment !== '');
     const index = segments.lastIndexOf('tasks');
     const segment = index >= 0 ? segments[index + 1] : undefined;
-    if (TASK_TYPES.includes(segment)) return segment;
+    if (typeof segment === 'string' && TYPE_NAME.test(segment)) return segment;
   }
-  if (typeof name === 'string' && TASK_TYPES.includes(name)) return name;
+  if (typeof name === 'string' && TYPE_NAME.test(name)) return name;
   return 'development';
 }
 

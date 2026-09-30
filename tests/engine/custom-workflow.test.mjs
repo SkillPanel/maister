@@ -705,14 +705,19 @@ test('gate-brief: a summary a custom run recorded only in its context block is t
 });
 
 // ---------------------------------------------------------------------------
-// waiting on work that has not landed
+// the task type
 // ---------------------------------------------------------------------------
 
-// Waits on the projection emitting an unknown task type verbatim: today a type
-// outside the built-in list is coerced to `development`, and the viewer draws
-// that workflow's hero cards for a run that produces none of them.
-test('dashboard: a custom task type is projected as it is, not coerced', { todo: 'waits for the projection to emit an unknown task type verbatim' }, t => {
+// A type outside the built-in list used to be coerced to `development`, and the
+// viewer drew that workflow's hero cards for a run that produces none of them.
+test('dashboard: a custom task type is projected as it is, not coerced', t => {
   const { run } = frozen(t);
   write(run, { orchestrator: { task_path: run.path } });
   assert.equal(readDashboard(run).task.type, 'audits');
+});
+
+test('dashboard: with no task path, the type is the workflow\'s own name', t => {
+  const { run } = frozen(t);
+  assert.equal(readState(run).orchestrator?.task_path ?? null, null, 'the freeze records no task path of its own');
+  assert.equal(readDashboard(run).task.type, 'release-audit');
 });
