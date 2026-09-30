@@ -175,8 +175,9 @@ is the workspace root. Both hosts' layouts are searched whatever host is running
   case caught early.
 
 A node that carries `dir:` is stricter: its target must resolve and must be able to run with
-nobody at the keyboard. The workspace validator judges that (`docs/extending.md`, *Making a
-skill dispatchable*).
+nobody at the keyboard. The workspace validator judges that: a `workflow:` target always
+qualifies, because the engine runs it, and a `skill:` target qualifies only when its `SKILL.md`
+frontmatter declares `driver_aware: true`.
 
 ### 5.2 `workflow:` targets
 

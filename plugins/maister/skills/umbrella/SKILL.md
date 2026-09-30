@@ -139,7 +139,7 @@ report is for machines; what goes back to the user is plain language:
 
 Any other first word — `envelope`, `seed`, `ledger`, `outbox`, or a word that
 is no verb at all — is not a user command. Say so, run nothing, and point at the
-plugin's command reference (`docs/commands.md`, *Umbrella*), where the
+plugin's command reference, under *Umbrella*, where the
 machine-facing verbs are documented for an operator reading a ledger or an
 outbox by hand. Never guess which of the four was meant and never run one to be
 helpful: a ledger op typed by hand is the drift this runtime exists to remove.

@@ -59,6 +59,13 @@ validate:
 	@for rel in $$(grep -o 'hooks/[A-Za-z0-9_.-]*\.\(sh\|mjs\)' plugins/maister/hooks/hooks.json | sort -u); do test -f "plugins/maister/$$rel" || { echo "FAIL: hooks.json names plugins/maister/$$rel, which does not exist"; exit 1; }; done
 	@echo "Checking no shipped file names the pro-only compatibility register..."
 	@! grep -rn 'compatibility-contracts\.md' plugins/maister/ || (echo "FAIL: a shipped file names the pro register" && exit 1)
+	@echo "Checking shipped files cite only shipped files, never this repository's docs/..."
+	@# The list is read from docs/ itself, so a document added there is covered
+	@# without an edit. A consumer project's own docs/ and .maister/docs/ are
+	@# legitimate subjects of shipped prose and are not matched.
+	@docs=$$(ls docs | sed -n 's/\.md$$//p' | paste -sd'|' -); \
+	! grep -rnE "docs/(($$docs)\.md|decisions/([0-9]|README))" plugins/maister/ | grep -v '\.maister/docs/' \
+	  || (echo "FAIL: a shipped file cites this repository's docs/, which a plugin install does not include" && exit 1)
 	@echo "Checking every shipped workflow diagram matches a fresh regeneration..."
 	@tmp=$$(mktemp); \
 	for definition in $(ENGINE)/workflows/*.yml; do \
