@@ -343,10 +343,12 @@ declines to write is named with a reason. A second `init` over an existing manif
 ### `/maister:umbrella validate [--root DIR] [--definition FILE ...]`
 
 Judge the workspace, and any chain files named with it. Deterministic and model-free: it parses,
-checks structure and ids, checks the graph is acyclic, resolves references, applies overlays,
-checks gate shape, checks every `dir:` against the manifest's member list, checks that every
-`dir:` node names a target that can honour a driver, and warns on reserved keys, collecting
-findings per stage rather than stopping at the first.
+checks structure and ids, checks the graph is acyclic, resolves references, checks gate shape,
+checks every `dir:` against the manifest's member list, checks that every `dir:` node names a
+target that can honour a driver, and warns on reserved keys, collecting findings per stage rather
+than stopping at the first. It needs the workspace manifest, and it judges each definition as
+written: no overlay or profile is applied. To check a workflow in a single project, or with its
+overlays, use `/maister:run <name> --check`.
 
 | Flag | Description |
 |------|-------------|
@@ -354,8 +356,8 @@ findings per stage rather than stopping at the first.
 | `--definition FILE` | A chain file to validate with the workspace (repeatable). None judges the workspace alone |
 
 Errors exit `1` and name the file, node and field; warnings alone exit `0`, so a workspace can carry
-advisory findings without being blocked. A freshly scaffolded manifest reports one advisory warning
-about a reserved key — expected and harmless. The report lists each definition it judged and marks
+advisory findings without being blocked. A freshly scaffolded manifest reports no findings at all.
+The report lists each definition it judged and marks
 the ones that sit in the generated home as generated; the rules are identical either way.
 
 **The driver-capability check is new, and a chain that validated before this release can fail now.**
