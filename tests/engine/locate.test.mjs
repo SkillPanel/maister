@@ -117,6 +117,26 @@ test('a definition with no companion has no title and no summary', t => {
   assert.equal(report.summary, null);
 });
 
+test('a description: is the summary, ahead of the companion\'s paragraph; the companion\'s H1 stays the title', t => {
+  const described = CUSTOM.replace('version: 1\n', 'version: 1\ndescription: "Sets a new team up with access, tooling and a first task."\n');
+  const root = project(t, { [home('onboarding.yml')]: described, [home('onboarding.md')]: COMPANION });
+  const one = inProject(root, ['locate', '--name=onboarding']).report;
+  assert.equal(one.title, 'Team onboarding');
+  assert.equal(one.summary, 'Sets a new team up with access, tooling and a first task.');
+  const [listed] = inProject(root, ['locate']).report.workflows;
+  assert.deepEqual([listed.title, listed.summary], [one.title, one.summary]);
+});
+
+test('a companion that goes from its title straight to node sections has no summary', t => {
+  const root = project(t, {
+    [home('onboarding.yml')]: CUSTOM,
+    [home('onboarding.md')]: '# Team onboarding\n\n## `survey`\n\nList the repositories.\n',
+  });
+  const { report } = inProject(root, ['locate', '--name=onboarding']);
+  assert.equal(report.title, 'Team onboarding');
+  assert.equal(report.summary, null, 'the prose of the first node section is not what the workflow is for');
+});
+
 test('a built-in is found where the plugin ships it, named either way', t => {
   const root = project(t);
   for (const name of ['research', 'builtin:research']) {

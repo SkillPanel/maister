@@ -28,6 +28,7 @@
 # never consults.
 name: performance
 version: 1
+description: "Finds and fixes performance problems by static analysis of the code — N+1 queries, missing indexes, quadratic algorithms, blocking I/O, memory leaks — informed by profiling data when the operator supplies it, then specifies, plans, implements and verifies the optimisation. Use it when the task is to make something faster or leaner rather than to change what it does."
 inputs:
   task_description: {type: string, required: true}
   sequential: {type: bool, required: false, default: false}

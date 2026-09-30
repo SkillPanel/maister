@@ -22,6 +22,7 @@
 # this file alone cannot see them, and neither can the generated diagram.
 name: research
 version: 1
+description: "Answers a question by gathering evidence from the codebase, its documentation and the web, and synthesising it into a research report, optionally followed by solution brainstorming and a high-level design. Use it when the task is to investigate, compare options or decide an approach before any code is written, whether on its own or as a step inside another run."
 inputs:
   question: {type: string, required: true}
   research_type: {type: string, required: false}

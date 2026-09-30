@@ -15,8 +15,10 @@
  * derive: the `--definition` and `--overlay` values `validate` and `resolve`
  * take, the inputs the definition declares (so a caller asks only for what is
  * missing), the nodes that dispatch into a member repository (which make the
- * definition a chain), and the companion's title and opening paragraph (so a
- * router can say what the workflow is for).
+ * definition a chain), and a title and a summary, so a router can say what the
+ * workflow is for. The summary is the definition's own `description:` when it
+ * has one and the companion's opening paragraph otherwise; the title is the
+ * companion's H1, and a workflow without one is labelled by its name.
  *
  * The dispatching nodes are read off the graph a run would freeze, not off the
  * base file: an overlay or a profile can add a node that carries `dir:`, or
@@ -37,7 +39,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readDefinition } from './definition.mjs';
-import { TARGET_NAME, bareWorkflowName, foldDefinition, locateWorkflow, orphanOverlay, pluginRoot, projectRoot } from './graph.mjs';
+import {
+  TARGET_NAME, bareWorkflowName, companionSummary, foldDefinition, locateWorkflow, orphanOverlay, pluginRoot, projectRoot,
+} from './graph.mjs';
 
 /** Where definitions live, relative to a project root. */
 const HOME = path.join('.maister', 'workflows');
@@ -82,7 +86,7 @@ function one(name, root, { overlays: extra = [], profile = null } = {}) {
   const unreadable = layers.flatMap(layer => layer.errors);
   if (unreadable.length) return { ok: false, errors: unreadable };
 
-  const described = describe(hit.base, root);
+  const described = describe(hit.base, read.doc, root);
   return {
     ok: true,
     errors: [],
@@ -111,7 +115,7 @@ function list(root) {
     const name = path.basename(file).replace(/\.yml$/, '');
     if (!TARGET_NAME.test(name) || builtins.has(name)) continue;
     const read = readDefinition(file);
-    const described = describe(file, root);
+    const described = describe(file, read.doc, root);
     const error = read.errors.length ? read.errors[0].message : nameMismatch(read.doc, name, file, root);
     workflows.push({
       name,
@@ -145,31 +149,20 @@ function dispatchesOf(doc) {
 }
 
 /**
- * The companion's H1 and its first paragraph, each null when absent. The
- * paragraph is the first run of non-blank lines after the H1 — or from the top
- * when there is none — that is not itself a heading, folded onto one line.
+ * The companion's path and H1, and the summary: the definition's own
+ * `description:` when it carries one, else the companion's first paragraph.
+ * Each is null when absent. The description wins because it is written for
+ * exactly this — saying what the workflow is for — while a companion's opening
+ * paragraph is often about the file rather than the workflow.
  */
-function describe(file, root) {
-  const companion = file.replace(/\.ya?ml$/i, '.md');
-  let text;
-  try {
-    text = fs.readFileSync(companion, 'utf8');
-  } catch {
-    return { companion: null, title: null, summary: null };
-  }
-  const lines = text.split(/\r?\n/);
-  const heading = lines.findIndex(line => /^#\s+\S/.test(line));
-  const title = heading >= 0 ? lines[heading].replace(/^#\s+/, '').trim() : null;
-  const paragraph = [];
-  for (const line of lines.slice(heading + 1)) {
-    const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) {
-      if (paragraph.length) break;
-      continue;
-    }
-    paragraph.push(trimmed);
-  }
-  return { companion: shown(companion, root), title, summary: paragraph.length ? paragraph.join(' ') : null };
+function describe(file, doc, root) {
+  const companion = companionSummary(file);
+  const description = typeof doc?.description === 'string' && doc.description.trim() !== '' ? doc.description.trim() : null;
+  return {
+    companion: companion.companion === null ? null : shown(companion.companion, root),
+    title: companion.title,
+    summary: description ?? companion.summary,
+  };
 }
 
 /** The built-in workflow names this plugin ships, read from its definitions directory. */

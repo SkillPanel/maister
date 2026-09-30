@@ -33,6 +33,9 @@ const BASE = [
   '    needs: [review-approval]',
 ];
 
+/** BASE saying what it is for, as a workflow kept in a project's own home does. */
+const DESCRIBED = ['name: acme', 'version: 1', 'description: "Walks a topic from intake to a wrap-up, with one approval between."', ...BASE.slice(2)];
+
 const PROSE = '# Acme — node prose\n\n## `intake`\n\nRead the topic.\n\n## `wrapup`\n\nClose out.\n';
 
 function workspace(t) {
@@ -89,7 +92,7 @@ test('an unknown top-level key is refused, located and listed against the accept
   assert.equal(code, 1);
   const error = errorAt(report, 'descripton');
   assert.equal(error.node, null);
-  assert.match(error.message, /"descripton" is not a definition key; the accepted keys are name, version, inputs, outputs, display, nodes/);
+  assert.match(error.message, /"descripton" is not a definition key; did you mean "description"\? The accepted keys are name, version, description, inputs, outputs, display, nodes/);
 });
 
 test('node: for nodes: is named, with the key it most probably meant', t => {
@@ -368,7 +371,7 @@ function ejectBesideOverlay(t) {
   const project = workspace(t);
   const home = path.join(project, '.maister', 'workflows');
   fs.mkdirSync(home, { recursive: true });
-  const eject = definition(t, BASE, { dir: home });
+  const eject = definition(t, DESCRIBED, { dir: home });
   const lay = overlay(eject, ['extends: acme', 'disable: [wrapup]']);
   return { project, home, eject, overlay: lay };
 }
@@ -512,4 +515,71 @@ test('a gate option written as a map hashes and draws exactly as its bare effect
   assert.equal(drawnMapped.stdout, drawnBare.stdout);
   assert.match(drawnMapped.stdout, /continue-on: continue, stop-here: stop/);
   assert.doesNotMatch(drawnMapped.stdout, /#quot;|effect/);
+});
+
+// ---------------------------------------------------------------------------
+// description: what the workflow is for, outside the hash
+// ---------------------------------------------------------------------------
+
+
+test('a description validates and leaves the graph hash where it was', t => {
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout);
+  const plain = hashOf(definition(t));
+  const described = hashOf(definition(t, DESCRIBED));
+  assert.equal(described.ok, true, JSON.stringify(described.errors));
+  assert.deepEqual(described.warnings, []);
+  assert.equal(described.graph_hash, plain.graph_hash);
+});
+
+test('a description is one paragraph of text on one line', t => {
+  for (const written of ['description: {what: acme}', 'description: ""', 'description: "Two lines:\\nhere."', 'description: 42']) {
+    const { code, report } = validate(definition(t, ['name: acme', 'version: 1', written, ...BASE.slice(2)]));
+    assert.equal(code, 1, written);
+    assert.match(errorAt(report, 'description').message, /description is one paragraph of plain text/, written);
+  }
+});
+
+test('an overlay says nothing about what the workflow is for', t => {
+  const file = definition(t);
+  const lay = overlay(file, ['extends: acme', 'description: "A lighter acme."']);
+  const { code, report } = validate(file, `--overlay=${lay}`);
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'description').message, /"description" is not an overlay key/);
+});
+
+/** A project's `.maister/workflows/` (or `generated/` under it) in a scratch root. */
+function projectHome(t, sub = '') {
+  const dir = path.join(workspace(t), '.maister', 'workflows', sub);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+const undescribed = report => report.warnings.filter(warning => warning.startsWith('workflow-undescribed:'));
+
+test('a project workflow that says nowhere what it is for is warned about, naming both places to say it', t => {
+  const { code, report } = validate(definition(t, BASE, { dir: projectHome(t) }));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.equal(undescribed(report).length, 1);
+  assert.match(undescribed(report)[0], /^workflow-undescribed:acme — the work command offers a project workflow by what it is for/);
+  assert.match(undescribed(report)[0], /description:/);
+  assert.match(undescribed(report)[0], /prose companion/);
+});
+
+test('a description, or a paragraph under the companion\'s title, is enough', t => {
+  const described = validate(definition(t, DESCRIBED, { dir: projectHome(t) })).report;
+  assert.deepEqual(undescribed(described), []);
+
+  const file = definition(t, BASE, { dir: projectHome(t) });
+  fs.writeFileSync(file.replace(/\.yml$/, '.md'), PROSE.replace('\n\n## `intake`', '\n\nWalks a topic from intake to a wrap-up.\n\n## `intake`'));
+  assert.deepEqual(undescribed(validate(file).report), []);
+});
+
+test('only the definitions the work command lists are judged', t => {
+  // Outside a project's workflow home: a draft, or a fixture.
+  assert.deepEqual(undescribed(validate(definition(t)).report), []);
+  // A generated chain belongs to the ticket it was planned for.
+  assert.deepEqual(undescribed(validate(definition(t, BASE, { dir: projectHome(t, 'generated') })).report), []);
+  // An eject of a built-in is reached through that workflow's own command.
+  const eject = ['name: research', 'version: 1', 'nodes:', '  look:', '    uses: skill:quick-plan', '    needs: []'];
+  assert.deepEqual(undescribed(validate(definition(t, eject, { dir: projectHome(t), name: 'research' })).report), []);
 });

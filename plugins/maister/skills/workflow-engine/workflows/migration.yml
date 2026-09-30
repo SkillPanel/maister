@@ -38,6 +38,7 @@
 # never consults.
 name: migration
 version: 1
+description: "Moves code from one technology, platform or architecture pattern to another: it analyses the current state, plans an incremental migration with a rollback path, implements it and verifies compatibility. Use it for a framework or library upgrade, a platform change, a data or schema migration, or a move to a new architectural pattern."
 inputs:
   task_description: {type: string, required: true}
   type: {type: string, required: false}

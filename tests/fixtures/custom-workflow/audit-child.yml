@@ -3,6 +3,7 @@
 # guard behind its first node.
 name: audit-child
 version: 1
+description: "Inspects one subject in depth and remediates what it finds blocking; started by a release audit as a sub-run."
 inputs:
   subject: {type: string, required: true}
   depth: {type: string, required: false, default: standard}

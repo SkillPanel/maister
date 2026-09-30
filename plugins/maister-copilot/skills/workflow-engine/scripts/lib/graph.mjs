@@ -143,7 +143,7 @@ const TUNABLE = ['with', 'provider'];
  * The node set is `NODE_KEYS` below, without `id` — the id is the node's map
  * key, and an `id:` written inside a node would be ignored.
  */
-const DEFINITION_KEYS = ['name', 'version', 'inputs', 'outputs', 'display', 'nodes'];
+const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes'];
 const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display'];
 const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
 const DISPLAY_KEYS = ['icons', 'titles'];
@@ -232,6 +232,9 @@ const WARN = {
   iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
   titleUnknownNode: (path, node) => `title-unknown-node:${path}:${node}`,
   overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
+  undescribed: (name) => `workflow-undescribed:${name} — the work command offers a project workflow by what it is for, `
+    + 'and this one does not say: add a one-paragraph description: to the definition, '
+    + 'or a paragraph under the title of its prose companion',
   addedLeaf: (path, node, position, count, after) => `added-node-no-dependents:${path}:${node} — nothing needs it, `
     + `so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
     + 'list the nodes that should wait for it under before:',
@@ -369,6 +372,8 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   checkDefinition(definition, errors);
   const hidden = hiddenOverlay(definition, overlays);
   if (hidden) warnings.push(hidden);
+  const undescribed = undescribedWorkflow(definition);
+  if (undescribed) warnings.push(undescribed);
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) {
     checkGraph(graph, errors, warnings, resolved, project);
@@ -1022,6 +1027,75 @@ function resolveTarget(uses, origin, project) {
 /** The prose companion's path beside a definition file. */
 function companionOf(file) {
   return String(file).replace(/\.ya?ml$/i, '.md');
+}
+
+/**
+ * The prose companion beside a definition, as a reader offering the workflow
+ * sees it: `{companion, title, summary}`, the companion's path, its H1 and the
+ * paragraph directly under it, each null when absent. The paragraph is the
+ * first run of non-blank lines after the H1 — or from the top when there is
+ * none — folded onto one line, and it ends at the next heading. Only prose
+ * that stands under the title describes the workflow: past the first section
+ * heading the text is about one node, and a companion that goes straight from
+ * its title to its node sections has said nothing about what the workflow is
+ * for.
+ *
+ * Exported for `locate`, which reports it, and read here for the
+ * `workflow-undescribed` warning, so the listing and the warning about what the
+ * listing will say are one parse.
+ */
+export function companionSummary(file) {
+  const companion = companionOf(file);
+  let text;
+  try {
+    text = fs.readFileSync(companion, 'utf8');
+  } catch {
+    return { companion: null, title: null, summary: null };
+  }
+  const lines = text.split(/\r?\n/);
+  const heading = lines.findIndex((line) => /^#\s+\S/.test(line));
+  const title = heading >= 0 ? lines[heading].replace(/^#\s+/, '').trim() : null;
+  const paragraph = [];
+  for (const line of lines.slice(heading + 1)) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#')) break;
+    if (trimmed === '') {
+      if (paragraph.length) break;
+      continue;
+    }
+    paragraph.push(trimmed);
+  }
+  return { companion, title, summary: paragraph.length ? paragraph.join(' ') : null };
+}
+
+/**
+ * The `workflow-undescribed` warning, for a project workflow that says nowhere
+ * what it is for.
+ *
+ * The work command offers the project's own workflows beside the built-in ones
+ * and routes a task to one by what it is for — its `description:`, else its
+ * companion's opening paragraph. A workflow carrying neither can be listed but
+ * never matched, so the author hears it here rather than wondering why no task
+ * ever reaches it.
+ *
+ * Only the definitions that listing reads are judged: a file directly in a
+ * project's `.maister/workflows/`, not an overlay, not a generated chain, and
+ * not named after a built-in — an eject of a built-in is reached through that
+ * workflow's own command. A draft kept anywhere else is not offered yet, and
+ * warning about it would be noise.
+ */
+function undescribedWorkflow(definition) {
+  const file = definition?.file;
+  const doc = definition?.doc;
+  if (typeof file !== 'string' || !isMap(doc) || !/\.ya?ml$/i.test(file)) return null;
+  const stem = path.basename(file).replace(/\.ya?ml$/i, '');
+  const home = path.dirname(path.resolve(file));
+  if (stem.endsWith('.overlay') || !TARGET_NAME.test(stem)) return null;
+  if (path.basename(home) !== 'workflows' || path.basename(path.dirname(home)) !== '.maister') return null;
+  if (isFile(path.join(pluginRoot(), 'skills', 'workflow-engine', 'workflows', `${stem}.yml`))) return null;
+  if (typeof doc.description === 'string' && doc.description.trim() !== '') return null;
+  if (companionSummary(file).summary !== null) return null;
+  return WARN.undescribed(stem);
 }
 
 /**
@@ -1780,6 +1854,16 @@ function checkDefinition(definition, errors) {
   }
   if (isPresent(doc.inputs) && !isMap(doc.inputs)) {
     fail(errors, file, 'inputs', `inputs is a mapping of input name to its declaration; ${describe(doc.inputs)} is not`, null);
+  }
+  // What the workflow is for, read by whoever offers it to an operator and
+  // never by a run: outside the hash, like `name` and `display:`. One paragraph
+  // on one line, because it is quoted into a one-line listing and a router's
+  // prompt, where a line break would end it early.
+  if (isPresent(doc.description)
+    && (typeof doc.description !== 'string' || doc.description.trim() === '' || /[\n\r\t]/.test(doc.description))) {
+    fail(errors, file, 'description',
+      `description is one paragraph of plain text saying what the workflow is for and when to use it, on one line; `
+      + `${typeof doc.description === 'string' ? (doc.description.trim() === '' ? 'an empty string' : 'text with a line break or a tab') : describe(doc.description)} is not`, null);
   }
 }
 

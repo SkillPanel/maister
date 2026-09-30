@@ -134,8 +134,10 @@ name from the run, so the folder it sits in does not matter. `--profile` and `--
 exactly as they do for a built-in (below).
 
 `/maister:work` also offers your workflow when a task description matches what it is for. It
-learns that from the companion, so open `<name>.md` with a `# Title` line and a paragraph saying
-what the workflow does. `/maister:run --list` shows what `/maister:work` will see.
+learns that from a `description:` line in the definition — one paragraph saying what the workflow
+is for and when to use it — or, without one, from the paragraph under the `# Title` line of
+`<name>.md`. The title labels the offer. Validation warns when a workflow says neither, and
+`/maister:run --list` shows what `/maister:work` will see.
 
 **Where a chain runs.** A definition whose nodes carry `dir:` — its own, or one an overlay or a
 profile adds — dispatches work into member repositories, which makes it a chain. A chain is started from the cockpit's Start-a-chain form and
