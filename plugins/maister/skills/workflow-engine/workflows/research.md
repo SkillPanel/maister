@@ -103,7 +103,9 @@ What a parent may read is the workflow-level `outputs:` block in
 `research_report` on purpose, so a chain authored against
 `${research.artifacts.report}` keeps resolving. Three of the artifacts belong
 to nodes a guard may skip; an entry whose node was skipped is simply absent,
-and the parent's missing-artifact rule decides what follows.
+and the parent records it under its node's `absent` when it adopts this run's
+outcome (engine § *Recording an outcome*), so the absence is not reported as
+missing.
 
 **Nothing is copied and nothing is handed back in prose.** A parent addresses
 this run's artifacts through the child's own `task_path`, so a copy in the

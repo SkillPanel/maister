@@ -247,7 +247,10 @@ freeze persisted it. A non-terminal run that has no description is
 
 Both declared artifacts are directories or an index inside one, and either may
 be absent at run time when its source was: a node reading one must treat an
-absent path as "no such context" rather than as a failure.
+absent path as "no such context" rather than as a failure. Record each one that
+was not written under this node's `absent` — `research_context` when no research
+was named, `design_index` when nothing was ingested — with that as the reason
+(engine § *Recording an outcome*).
 
 **There is no gate after this node.** It auto-continues into the analysis node.
 
@@ -548,7 +551,10 @@ written against a decided architecture rather than around an open one. Skip this
 part entirely for a simple, low-risk task with one obvious approach. Save what
 was asked to `analysis/technical-clarifications.md`, then set
 `task_context.tech_clarified` to true. A run that skipped this part still sets
-it: it settled the technical questions by having none to ask.
+it: it settled the technical questions by having none to ask. When it wrote no
+clarifications file, it records `technical_clarifications` under this node's
+`absent`, with the reason that there was one obvious approach (engine
+§ *Recording an outcome*).
 
 **Default under a non-terminal driver** (`technical-questions`): the recommended
 approach is the chosen one, and the specification is written against it. When no
@@ -719,7 +725,9 @@ a design index exists, it must enumerate every screen and component in it, map
 each task group to the ones it implements through the visual-reference field,
 and produce `implementation/visual-coverage.md` proving every screen is covered
 by at least one group. When no design index exists, that artifact is not written
-and the field is omitted entirely — a task with no UI surface sees no change.
+and the field is omitted entirely — a task with no UI surface sees no change —
+and this node records `visual_coverage` under its `absent`, with the reason that
+there is no design index to cover (engine § *Recording an outcome*).
 
 If the planner returns without `implementation/implementation-plan.md`, or with
 groups that leave a specification requirement uncovered, re-invoke it with the
@@ -1053,7 +1061,12 @@ test files are written here.
 Pass the specification, the verification report and, when design context exists,
 the mockup directory — with it the agent additionally performs a structural
 visual-fidelity comparison and writes `verification/visual-fidelity.md`. That
-report is informational: it never decides whether this node succeeded.
+report is informational: it never decides whether this node succeeded. Decide
+whether design context exists on disk: the mockup reference resolves to its
+declared path even when the mockup stretch was skipped. When it does not exist,
+pass no mockup directory and record `fidelity` under this node's `absent`, with
+the reason that there was no design to compare against (engine § *Recording an
+outcome*).
 
 **This node and `user-docs` share one browser.** They must run strictly one
 after the other, which the linear chain already guarantees — but never dispatch

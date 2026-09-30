@@ -481,11 +481,12 @@ verb. It reads that status and prints the marker from it:
   stays the last line, and `task.status` on disk is what says the run stopped.
 
 Whatever the ending, one `missing-artifact: <node> <path>` line precedes the marker for each
-artifact a `completed` node declared that is not on disk — a sub-run node's path joined onto its
-child's task directory. It is a warning for the operator, never a refusal, and the exit code does
-not move: whether an absence is a defect was the node's own check to make (*Recording an
-outcome*), and only its prose can sanction one. Echo the lines with the marker; a line the
-node's summary does not explain is the operator's cue to re-drive that node.
+artifact a `completed` node declared that is not on disk and that its summary does not record
+under `absent` — a sub-run node's path joined onto its child's task directory. It is a warning,
+never a refusal, and the exit code does not move: whether an absence is a defect was the node's
+own check to make (*Recording an outcome*). Because a sanctioned absence prints nothing, a line
+that remains is a genuine gap, and the operator's cue to re-drive that node. Echo the lines with
+the marker.
 
 A dispatched run that owes a close-out it never published gets `RUN-FAILED:
 closeout-unpublished` whatever its status. Echo the verb's lines, the marker last; do not
@@ -686,6 +687,11 @@ the node's recorded `values.task_path` and maps it:
 | `stopped` | `stopped` | stops outright — one patch carries `task.status: stopped` and every unexecuted node, then `run-complete`. No `RUN-FAILED`: a stop is a legitimate outcome |
 | anything else | unchanged, stays `waiting` | the waiting path runs again (*Sub-runs*) |
 
+A child can complete without an artifact its parent's node declares, when a guard skipped the
+child node that writes it. The write that adopts the outcome records that artifact under the
+parent node's `absent`, with the skip as the reason (*Recording an outcome*). Any other absence
+is left unrecorded, so `run-complete` reports it.
+
 **A declared artifact path resolves against the task directory of the run that wrote it.** Stated
 once, covering every scheme: for a `direct:`, `skill:` or `agent:` node that is the run's own task
 directory, as it always has been; for a `workflow:` node it is the **child's**, named by the
@@ -714,20 +720,31 @@ tells them apart:
 
 | The node prose | The missing path means |
 |---|---|
-| sanctions the absence by name — the artifact's source may legitimately not exist | no such context; record `completed` and say in the summary which declared path was absent and why |
+| sanctions the absence by name — the artifact's source may legitimately not exist | no such context; record `completed` with the absence on the node summary (below) |
 | says nothing about it, or says the file is written either way | the delegate skipped work it was asked to do; the node has **not** completed |
 
 Treat the second as a failed self-check and re-drive the node within its budget, naming the
 missing path in the context handed back. When the budget is exhausted, the node's outcome
 follows the table above rather than being recorded green with a hole in it.
 
+**A sanctioned absence is recorded, not just described.** The completing write's node summary
+carries `absent: {<artifact-key>: "<reason>"}` — one entry per declared artifact the node
+completed without, named by its declared key (never its path), with the reason in a few words.
+Its `summary` still says it in prose for the gate brief. The entry is what the tools read, since
+none of them can read prose: `run-complete` prints no `missing-artifact:` line for it, and the
+dashboard shows the artifact as *not produced* with the reason instead of leaving a gap. The
+writer refuses an entry that names an artifact the node does not declare or gives no reason
+(`state-absent-invalid`). Record it only where the node prose sanctions the absence; an
+artifact the node owed and did not write is the second row above, never an absence to sanction.
+
 The check costs one existence test per declared path and needs nothing the engine does not
 already hold: the definition declares every artifact, so the list is free. Without it, a
 delegate that returns successfully having written nothing is indistinguishable from one that
 wrote everything, and the absence surfaces only when a later node reads the path — or when a
 human compares two lists by hand. `run-complete` repeats the comparison once more at the end,
-over every completed node, but only to report: its `missing-artifact:` lines never refuse,
-because this check — the one that can read the prose — is where the judgement belongs.
+over every completed node and less the absences each node recorded, but only to report: its
+`missing-artifact:` lines never refuse, because this check — the one that can read the prose —
+is where the judgement belongs.
 
 **A phase key is never a node id.** `node_summaries` is keyed by node id, and the workflow's
 own `phase_summaries` map is keyed by the workflow's phase keys. The node prose names the
