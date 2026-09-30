@@ -268,3 +268,61 @@ test('gates: an offered option lands, and a decision that names no option is not
   });
   assert.equal(readState(run).node_summaries.review.decisions[1].option, 'revise');
 });
+
+// ---------------------------------------------------------------------------
+// sanctioned absences
+// ---------------------------------------------------------------------------
+
+/** A frozen sample run whose analysis node completes with `absent` on its summary. */
+function absentPatch(absent) {
+  return { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'no report needed', absent } } };
+}
+
+test('absent: a declared artifact key with a reason lands on the node summary', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, absentPatch({ report: 'nothing to analyse' }));
+  assert.deepEqual(readState(run).node_summaries.analysis.absent, { report: 'nothing to analyse' });
+});
+
+test('absent: a key the node does not declare is refused, naming the keys it does', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = refused(run, absentPatch({ 'analysis/report.md': 'named by its path' }), 'state-absent-invalid');
+  assert.match(result.stderr, /does not declare as an artifact; it declares report\./);
+});
+
+test('absent: a node that declares no artifacts sanctions none', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = refused(run, {
+    nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'completed' } },
+    node_summaries: { implementation: { absent: { plan: 'no plan' } } },
+  }, 'state-absent-invalid');
+  assert.match(result.stderr, /it declares none/);
+});
+
+for (const [label, reason] of [['empty', ''], ['blank', '   '], ['non-string', 42], ['null', null]]) {
+  test(`absent: an ${label} reason is refused`, t => {
+    const run = scratch(t);
+    freeze(run);
+    const result = refused(run, absentPatch({ report: reason }), 'state-absent-invalid');
+    assert.match(result.stderr, /carries its reason as text/);
+  });
+}
+
+test('absent: a map is the only shape', t => {
+  const run = scratch(t);
+  freeze(run);
+  for (const absent of [['report'], 'report', true]) refused(run, absentPatch(absent), 'state-absent-invalid');
+});
+
+test('absent: a definition changed since the freeze still holds the reason, never the key', t => {
+  const run = scratch(t);
+  freeze(run);
+  const text = fs.readFileSync(run.state, 'utf8').replace(/graph_hash: "?sha256:[0-9a-f]+"?/, `graph_hash: "sha256:${'0'.repeat(64)}"`);
+  fs.writeFileSync(run.state, text);
+  refused(run, absentPatch({ report: '' }), 'state-absent-invalid');
+  write(run, absentPatch({ anything: 'the key cannot be judged without the frozen graph' }));
+  assert.deepEqual(Object.keys(readState(run).node_summaries.analysis.absent), ['anything']);
+});
