@@ -204,23 +204,48 @@ spec-approval:
   ask: "The specification is ready. Continue to planning?"
   options:
     approve: continue
-    revise: {effect: stop}
+    revise-spec: {effect: revise, reruns: specification}
     abandon: stop
 ```
 
-An option is written either as its bare effect or as a map carrying the effect and nothing else;
-the two spellings mean the same thing.
+An option is written either as its bare effect or as a map. The map carries the effect and, on a
+revise option only, `reruns`; `approve: continue` and `approve: {effect: continue}` mean the same.
 
 <!-- vocabulary: OPTION_KEYS -->
 | Option key | Meaning |
 |---|---|
-| `effect` | `continue` or `stop` |
+| `effect` | what the option does — one of the effects below |
+| `reruns` | a revise option's target: the task node the run is sent back to |
 
-**The gate rule:** exactly one option continues and at least one stops. An option id is
-lower-case letters, digits and dashes, starting with a letter. An option routes nowhere and emits
-nothing: what happens next is decided by the graph and the guards, and the gate brief's `Next:`
-line names the node that actually runs. Under the default `on:`, nothing downstream of a stopped
-gate ever becomes ready, which is what makes a stop end the run.
+<!-- vocabulary: OPTION_EFFECTS -->
+| Effect | What the answer does |
+|---|---|
+| `continue` | the run goes on past the gate |
+| `stop` | the run ends here; nothing downstream becomes ready |
+| `revise` | the stretch from `reruns` to the gate runs again, with the operator's note, and the gate is asked again |
+
+**The gate rule:** exactly one option continues, at least one stops, and any number revise. An
+option id is lower-case letters, digits and dashes, starting with a letter. A continue or a stop
+routes nowhere and emits nothing: what happens next is decided by the graph and the guards, and the
+gate brief's `Next:` line names the node that actually runs. Under the default `on:`, nothing
+downstream of a stopped gate ever becomes ready, which is what makes a stop end the run.
+
+**A revise option is the one way back, and it is bounded.** Its `reruns` names a task node the gate
+waits on — inside its `needs` closure, never a gate, never a `workflow:` node. Choosing it resets
+the *stretch*: the `reruns` node, the gate, and every node between them — each node that waits on
+`reruns` and that the gate waits on. A side branch off `reruns` the gate does not wait on is left
+alone, and so is everything downstream of the gate. The reset nodes run again in the usual order,
+an earlier gate inside the stretch is asked again, and so is this one. The edge lives on the
+option, not in `needs`, so the graph stays acyclic and the ready set is computed exactly as before.
+
+- **Budget.** Each gate allows three revisions; the engine counts them, and once they are spent the
+  option is no longer offered. A revise from a later gate that resets an earlier one spends one of
+  the earlier gate's too, because that gate is asked again.
+- **Sub-runs.** A stretch that holds a `workflow:` node is refused: the child run it started is
+  already finished, and running the node again would adopt it rather than run it anew.
+- **The note.** The operator's reason travels with the answer, and the re-run node reads it from
+  the prior context. The node prose of a `reruns` target says how it re-runs over its own earlier
+  output (§ 11).
 
 When the question needs a value from earlier in the run, interpolate it into `ask` (§ 9). The
 gate brief — the closing node's summary, decisions, risks and a recommended option — is rendered
@@ -397,6 +422,12 @@ the node writes into its closing summary for the gate brief, and its recovery bu
 reads it before running the node, not after it fails. Recovery budgets live here and never in
 `with:`, where they would be inert data.
 
+**A node a revise option names says how it runs again.** Its section carries a paragraph headed
+*When re-run after a revise*: read the note from the prior context, revise its own artifacts in
+place rather than start over, keep the answers it already has unless the note reopens them, record
+its declared values again (a revise clears them), and say in the summary what changed. Without it
+the node repeats its first attempt, or skips work because its artifacts already exist.
+
 **The top of the companion introduces the workflow.** Its `# Title` line is the workflow's title,
 and its first paragraph is the summary `/maister:run --list` shows and `/maister:work` offers the
 workflow by — unless the definition carries a `description:`, which is preferred. A project
@@ -514,9 +545,30 @@ in its prose:
 - **It keeps the artifact current.** The report the gate is answered against must carry the
   final verdict, not the first one.
 - **A decision that belongs to a person is a gate after the node,** not a question inside the
-  loop. The gate's stop option is the operator's way out; re-driving the node is the way back.
+  loop. The gate's stop option is the operator's way out; a revise option on it is the way back
+  (§ 13.3).
 
 The built-in development workflow's `verification` node is a worked example.
+
+### 13.3 A review loop across nodes
+
+When a person, or a reviewing node, sends a draft back, the loop belongs on the gate: draft, then
+review, then a gate whose revise option re-runs the draft.
+
+```yaml
+  review-approval:
+    type: gate
+    needs: [review]
+    ask: "Review complete. Publish the draft?"
+    options:
+      publish: continue
+      send-back: {effect: revise, reruns: draft}
+      abandon: stop
+```
+
+Choosing *send back* resets `draft`, `review` and the gate; `draft` re-runs with the note, `review`
+reviews the new draft, and the gate asks again. After three revisions the gate offers only publish
+and abandon. The `draft` section carries its *When re-run after a revise* paragraph (§ 11).
 
 ## 14. Checking a definition
 

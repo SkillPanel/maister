@@ -398,7 +398,8 @@ cannot add to:
 - **The target schemes.** `skill:`, `agent:`, `direct:` and `workflow:` are the four; a fifth is a
   grammar change.
 - **The node types.** `type: gate` is the only typed node; everything else is a task node.
-- **The gate effects.** An option continues or stops, and a gate offers exactly one continue.
+- **The gate effects.** An option continues, stops or revises, and a gate offers exactly one
+  continue. A revise sends the run back to a node before the gate, at most three times per gate.
 - **The declared value types**, `bool`, `id`, `enum` and `string`.
 - **The one-line shapes the cockpit and the gate hooks read.** They are fixed, and naming them is
   the point — a chain of yours consumes them, it does not add to them:

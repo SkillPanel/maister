@@ -681,3 +681,122 @@ test('an enum member that is not a string is refused as one', t => {
   assert.equal(code, 1);
   assert.match(errorAt(report, 'nodes.intake.outputs.values.depth').message, /every enum member must be a non-empty string/);
 });
+
+// ---------------------------------------------------------------------------
+// the revise effect: one bounded back-edge, carried on the option
+// ---------------------------------------------------------------------------
+
+/** BASE with a draft node before intake's gate, and the gate offering `revise` to `target`. */
+function revising(target, extra = []) {
+  return [
+    ...BASE.slice(0, BASE.indexOf('  review-approval:')),
+    ...extra,
+    '  review-approval:',
+    '    type: gate',
+    '    needs: [intake]',
+    '    ask: "Intake done. Continue?"',
+    '    options:',
+    '      continue-on: continue',
+    `      send-back: {effect: revise, reruns: ${target}}`,
+    '      stop-here: stop',
+    '  wrapup:',
+    '    uses: direct:wrapup',
+    '    needs: [review-approval]',
+  ];
+}
+
+test('a revise option naming a task node behind its gate is accepted', t => {
+  const { code, report } = validate(definition(t, revising('intake')));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+});
+
+test('a revise option must name a node its gate waits on', t => {
+  const { code, report } = validate(definition(t, revising('wrapup')));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.options.send-back.reruns').message,
+    /reruns names "wrapup", which this gate does not wait on/);
+});
+
+test('a revise option naming a node nobody declares is refused', t => {
+  const { code, report } = validate(definition(t, revising('draft')));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.options.send-back.reruns').message, /which no node declares/);
+});
+
+test('a revise option may not name a gate', t => {
+  const lines = [
+    ...BASE.slice(0, BASE.indexOf('  review-approval:')),
+    '  first-approval:',
+    '    type: gate',
+    '    needs: [intake]',
+    '    ask: "First?"',
+    '    options: {go: continue, halt: stop}',
+    '  review-approval:',
+    '    type: gate',
+    '    needs: [first-approval]',
+    '    ask: "Again?"',
+    '    options:',
+    '      continue-on: continue',
+    '      send-back: {effect: revise, reruns: first-approval}',
+    '      stop-here: stop',
+  ];
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.options.send-back.reruns').message, /names the gate "first-approval"/);
+});
+
+test('a revise option may not re-run a sub-run, nor a stretch that holds one', t => {
+  const lines = revising('intake', ['  child:', '    uses: "workflow:kid"', '    needs: [intake]']);
+  lines[lines.indexOf('  review-approval:') + 2] = '    needs: [child]';
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.options.send-back.reruns').message,
+    /holds the sub-run "child", and a revise cannot re-run a sub-run/);
+});
+
+test('a revise option carries reruns, and no other effect does', t => {
+  const bare = validate(definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: continue', '      send-back: revise', '      stop-here: stop')));
+  assert.equal(bare.code, 1);
+  assert.match(errorAt(bare.report, 'nodes.review-approval.options.send-back.reruns').message,
+    /a revise option names the node it sends the run back to/);
+
+  const stray = validate(definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: continue', '      stop-here: {effect: stop, reruns: intake}')));
+  assert.equal(stray.code, 1);
+  assert.match(errorAt(stray.report, 'nodes.review-approval.options.stop-here.reruns').message, /reruns belongs to a revise option/);
+});
+
+test('an unknown effect names all three', t => {
+  const { code, report } = validate(definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: continue', '      jump: goto', '      stop-here: stop')));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.options.jump').message, /an option effect is "continue", "stop" or "revise", never "goto"/);
+});
+
+test('several revise options are accepted; a second continue is still refused', t => {
+  const several = [...revising('intake')];
+  several.splice(several.indexOf('      stop-here: stop'), 0, '      redo-intake: {effect: revise, reruns: intake}');
+  assert.equal(validate(definition(t, several)).code, 0);
+
+  const twice = [...revising('intake')];
+  twice.splice(twice.indexOf('      stop-here: stop'), 0, '      also-on: continue');
+  const { code, report } = validate(definition(t, twice));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.options').message,
+    /exactly one continue and at least one stop, and any number of revise; this one offers 2 and 1/);
+});
+
+test('a revise option is hashed whole: it moves the hash of the definition that adopts it and draws its target', t => {
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout);
+  const plain = hashOf(definition(t));
+  const revised = hashOf(definition(t, revising('intake')));
+  assert.equal(revised.ok, true, JSON.stringify(revised.errors));
+  assert.notEqual(revised.graph_hash, plain.graph_hash);
+  const gate = revised.nodes.find(node => node.id === 'review-approval');
+  assert.deepEqual({ ...gate.options['send-back'] }, { effect: 'revise', reruns: 'intake' });
+
+  const drawn = verb(['diagram', `--definition=${definition(t, revising('intake'))}`]);
+  assert.equal(drawn.code, 0, drawn.stderr);
+  assert.match(drawn.stdout, /send-back: revise → intake/);
+});
