@@ -383,7 +383,7 @@ visual_coverage:  # present only when design-context/INDEX.md existed
 
 ## Integration
 
-**Invoked by**: development orchestrator (Phase 7), migration orchestrator (Phase 3)
+**Invoked by**: the `planning` node of the development, performance and migration workflows
 
 **Prerequisites**:
 - Task directory exists with `implementation/` subdirectory

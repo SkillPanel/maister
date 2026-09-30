@@ -47,5 +47,5 @@ Before considering an orchestrator complete, verify ALL items:
 ## Reference
 
 - **`orchestrator-patterns.md`** — Execution rules, schemas, and patterns
-- **Existing orchestrators** — Use as implementation examples (development, performance, migration, research, product-design)
+- **Existing orchestrators** — `product-design` is the prose orchestrator to use as an implementation example; development, performance, migration and research are workflow definitions under `workflow-engine/workflows/`
 - **Library consumers** — `implementation-plan-executor` and `implementation-verifier` read and write the same state and artifacts without being orchestrators

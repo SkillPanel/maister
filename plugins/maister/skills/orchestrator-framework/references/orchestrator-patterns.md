@@ -242,7 +242,7 @@ mockup_format: html   # UI mockups: html (visual companion) or ascii (ascii-mock
 | Key | Default | Effect |
 |-----|---------|--------|
 | `html_output` | `true` | When `false`, workflows skip the operator dashboard (§ 8) AND the HTML companion reports (§ 9): no `dashboard.html`/`dashboard-data.js`, no browser auto-open, no `.html` companions. Markdown artifacts, their § 7 TL;DR blocks, and `orchestrator-state.yml` are produced regardless. |
-| `mockup_format` | `html` | How UI mockups are rendered when a workflow generates them (development Phase 4, product-design Phase 7, standalone `/maister:mockup-studio`). `html` → the `mockup-studio` visual companion (browser preview, `.html` files). `ascii` → the `ascii-mockup-generator` agent (no Node/browser). Auto-falls back to `ascii` when Node.js is unavailable. Independent of `html_output` (mockups are design deliverables, not report companions). In product-design, `mockup_format: ascii` is equivalent to the `--no-visual` flag; the flag is a per-run override (flag > config). |
+| `mockup_format` | `html` | How UI mockups are rendered when a workflow generates them (development's `ui-mockups` node, product-design Phase 7, standalone `/maister:mockup-studio`). `html` → the `mockup-studio` visual companion (browser preview, `.html` files). `ascii` → the `ascii-mockup-generator` agent (no Node/browser). Auto-falls back to `ascii` when Node.js is unavailable. Independent of `html_output` (mockups are design deliverables, not report companions). In product-design, `mockup_format: ascii` is equivalent to the `--no-visual` flag; the flag is a per-run override (flag > config). |
 
 **How it is read**: at initialization (§ 5) the orchestrator reads `.maister/config.yml` if present and seeds `orchestrator.options.html_output` and `orchestrator.options.mockup_format` into state (defaults `true` / `html` when the file or key is absent). All downstream gates read these from state, not the file — so resume is consistent and the file is read once.
 
@@ -262,7 +262,7 @@ orchestrator:
   options:
     sequential: true | false | null  # Set by --sequential. Read by implementation-plan-executor Phase 2 to disable parallel wave dispatch.
     html_output: true | false        # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions — see "Project Configuration" below.
-    mockup_format: html | ascii      # Seeded from .maister/config.yml at init (default html). Passed to mockup-studio (development Phase 4 / product-design Phase 7). See "Project Configuration" below.
+    mockup_format: html | ascii      # Seeded from .maister/config.yml at init (default html). Passed to mockup-studio (development's ui-mockups node / product-design Phase 7). See "Project Configuration" below.
     # per-orchestrator keys (development's e2e_enabled, user_docs_enabled, code_review_enabled, …) live here too
 
   # Timestamps
@@ -284,7 +284,7 @@ task:
   priority: null  # high | medium | low
 ```
 
-The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-orchestrator keys are listed in each SKILL.md "Domain Context" section (the pro register § A1).
+The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`), and in product-design's `SKILL.md` "Domain Context" section (the pro register § A1).
 
 ### Extension Pattern
 
@@ -298,7 +298,7 @@ Workflows add domain-specific fields in their context block, at the **top level*
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |
 | Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
-Every context carries `phase_summaries`. See each orchestrator's SKILL.md "Domain Context" section for the full schema.
+Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/SKILL.md` § *Writing state*); the full schema of each block is in that workflow's node prose, `workflow-engine/workflows/<name>.md` ("Run-scoped context", "Phase summary keys"), and for product-design in its `SKILL.md` "Domain Context" section.
 
 ### Shared: research_reference
 

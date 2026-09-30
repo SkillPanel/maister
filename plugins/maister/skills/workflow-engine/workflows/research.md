@@ -208,15 +208,17 @@ cannot be told apart from one that silently fell back.
 
 **CRITICAL: Launch all N agents in ONE message for parallel execution.** Sequential launches turn a parallel step into an N-times-longer one for no benefit.
 
-Context for each gatherer: its own `source_category`, and the findings file
-prefix it writes under `analysis/findings/`.
+Each gatherer is the `maister:information-gatherer` agent, invoked through the
+Task tool. Context for each gatherer: its own `source_category`, and the findings
+file prefix it writes under `analysis/findings/`.
 
 ### Step 4 — synthesize (delegate)
 
 *Writes* `analysis/synthesis.md`, `outputs/research-report.md`. *Resume check*:
 if both exist, this node is complete.
 
-Invoke the research synthesizer through the Task tool.
+Invoke the research synthesizer, the `maister:research-synthesizer` agent, through
+the Task tool.
 
 Context for the synthesizer: `task_path`, the findings directory path, the
 research question, the research type and the methodology.
@@ -323,7 +325,8 @@ synthesis reads unclearly.
 ## `solution-generation`
 
 Delegated to the solution brainstormer through the Task tool. Read the
-brainstorming-techniques reference first — divergent and convergent techniques,
+brainstorming-techniques reference first,
+`${CLAUDE_PLUGIN_ROOT}/skills/research/references/brainstorming-techniques.md` — divergent and convergent techniques,
 scope guardrails.
 
 The `maister:solution-brainstormer` agent generates the alternatives rather than
@@ -459,7 +462,8 @@ continues to the design stretch without asking.
 
 ## `high-level-design`
 
-Executed inline in three parts. Read the design-techniques reference first —
+Executed inline in three parts. Read the design-techniques reference first,
+`${CLAUDE_PLUGIN_ROOT}/skills/research/references/design-techniques.md` —
 decision-record format and decision-documentation patterns.
 
 **Part A — design direction (inline).** When convergence ran, confirm the

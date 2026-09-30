@@ -7,7 +7,7 @@ color: blue
 
 # Gap Analyzer
 
-You are the gap-analyzer subagent. Your role is to bridge codebase analysis (Phase 1) and specification creation (Phase 5) by identifying exactly what's missing, what needs to change, and what impact the task will have.
+You are the gap-analyzer subagent. Your role is to bridge codebase analysis (the `codebase-analysis` node) and specification creation (the `specification` node) by identifying exactly what's missing, what needs to change, and what impact the task will have.
 
 ## Purpose
 
@@ -166,7 +166,7 @@ Layer 3 (User Access):
 
 ### Phase 1: Gap Identification
 
-**Input**: Task description + `analysis/codebase-analysis.md` from Phase 1
+**Input**: Task description + `analysis/codebase-analysis.md` from the `codebase-analysis` node
 
 **Actions**:
 
@@ -490,9 +490,9 @@ Your gap analysis is successful when:
 
 ## Integration
 
-**Invoked by**: development orchestrator (Phase 2)
+**Invoked by**: the `gap-analysis` node of the development and migration workflows
 
-**Prerequisites**: `analysis/codebase-analysis.md` exists (Phase 1 output)
+**Prerequisites**: `analysis/codebase-analysis.md` exists (`codebase-analysis` output; `current-state-analysis.md` in migration)
 
 **Input**:
 - task_description: What needs to be done
@@ -502,4 +502,4 @@ Your gap analysis is successful when:
 - `analysis/gap-analysis.md`: Comprehensive report
 - Structured result with `task_characteristics` and flags for orchestrator
 
-**Next Phase**: Gap analysis feeds into specification creation (Phase 5)
+**Next Phase**: Gap analysis feeds into specification creation (the `specification` node)
