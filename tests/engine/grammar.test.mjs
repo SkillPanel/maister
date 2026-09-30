@@ -290,6 +290,26 @@ test('an artifact path whose name merely contains two dots is not a .. segment',
   assert.equal(code, 0, JSON.stringify(report.errors));
 });
 
+test('an absolute artifact path is refused where it is declared, POSIX, drive letter and UNC alike', t => {
+  const absolute = ['/tmp/notes.md', '\\analysis\\notes.md', 'C:\\notes.md', 'c:/notes.md', 'C:notes.md', '\\\\host\\share\\notes.md'];
+  for (const written of absolute) {
+    const lines = replacing('      artifacts: {notes: analysis/notes.md}', `      artifacts: {notes: '${written}'}`);
+    const { code, report } = validate(definition(t, lines));
+    assert.equal(code, 1, written);
+    const error = errorAt(report, 'nodes.intake.outputs.artifacts.notes');
+    assert.equal(error.node, 'intake');
+    assert.ok(error.message.includes(`stays inside the run's task directory; "${written}" is absolute`), error.message);
+  }
+});
+
+test('a relative artifact path is accepted, a colon in a later segment included', t => {
+  for (const written of ['analysis/notes.md', 'analysis/a:b.md']) {
+    const lines = replacing('      artifacts: {notes: analysis/notes.md}', `      artifacts: {notes: '${written}'}`);
+    const { code, report } = validate(definition(t, lines));
+    assert.equal(code, 0, `${written}: ${JSON.stringify(report.errors)}`);
+  }
+});
+
 test('an artifact declared as a number or a map is refused', t => {
   const lines = replacing('      artifacts: {notes: analysis/notes.md}', '      artifacts: {notes: 42, extra: {path: analysis/extra.md}}');
   const { code, report } = validate(definition(t, lines));

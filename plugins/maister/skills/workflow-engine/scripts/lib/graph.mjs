@@ -2003,7 +2003,9 @@ function checkNodeKeys(node, id, at, file, errors, added) {
  * registers declared artifacts skips such a path outright — so a reference
  * there is a file that is never found, and is refused where it is written.
  * A `..` segment is refused for the same reason: it names a file outside the
- * task directory, which the writer never registers on the node.
+ * task directory, which the writer never registers on the node. So is an
+ * absolute path — a leading `/` or `\`, which covers a UNC share, or a drive
+ * letter; a colon later in the path is part of a file name.
  */
 function checkNodeOutputs(node, id, at, file, errors) {
   const outputs = node.outputs;
@@ -2027,6 +2029,9 @@ function checkNodeOutputs(node, id, at, file, errors) {
     } else if (written.includes('${')) {
       fail(errors, file, dotted,
         `an artifact path is written literally, and nothing substitutes a reference inside one; "${written}" carries one`, id);
+    } else if (/^(?:[\\/]|[A-Za-z]:)/.test(written)) {
+      fail(errors, file, dotted,
+        `an artifact path stays inside the run's task directory; "${written}" is absolute`, id);
     } else if (written.split(/[\\/]/).includes('..')) {
       fail(errors, file, dotted,
         `an artifact path stays inside the run's task directory; "${written}" carries a .. segment`, id);
