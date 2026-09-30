@@ -3,10 +3,12 @@
 `make test` runs `node --test tests/engine/*.test.mjs` — Node 20 or newer, nothing installed.
 
 Each test drives `plugins/maister/skills/workflow-engine/scripts/workflow.mjs` the way a workflow
-driver does: one verb per child process, the patch or request as JSON on stdin, and assertions on
+driver does: one verb per child process, the patch or request as JSON on stdin (`patch-file.test.mjs`
+holds the patch-file route to the same results), and assertions on
 the exit code, stdout, stderr and the files left behind. Only the dashboard normalizers
 (`issueOf`, `artifactOf`, `decisionOf`, `deriveProgress`) and the gate hook's command recogniser
-(`engineInvocation`, in `gate-hook.test.mjs`) are imported directly.
+(`engineInvocation`, in `gate-hook.test.mjs`, and `enginePatchWrite`, in `patch-file.test.mjs`) are
+imported directly.
 
 - `helpers.mjs` — the scratch project (`<tmp>/.maister/tasks/<type>/<name>/`), the verb runner, the freeze.
 - `fixtures/definitions/` — a small definition covering a direct node, a gate, the plan executor and a

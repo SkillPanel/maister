@@ -50,7 +50,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0009](0009-terminal-mode-gate-state.md) | Terminal-mode gate state | Accepted | 2026-08-26 | — |
 | [ADR-0010](0010-built-in-workflow-node-ids.md) | Built-in workflow node ids as public API | Accepted | 2026-08-26 | — |
 | [ADR-0011](0011-generated-workflow-diagrams.md) | Generated workflow diagrams are non-contractual | Accepted | 2026-08-26 | — |
-| [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | Amended 2026-09-27: a completing node summary gains its declared artifacts and companions |
+| [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | Amended 2026-09-27: a completing node summary gains its declared artifacts and companions; amended 2026-09-30: the patch travels in a fixed patch file beside the state, not a heredoc |
 | [ADR-0013](0013-prose-workflow-twin-is-transitional.md) | The prose workflow twin is transitional | Closed 2026-09-30 | 2026-08-26 | — |
 | [ADR-0014](0014-development-ships-as-a-workflow-definition.md) | Development ships as a workflow definition | Accepted | 2026-08-27 | — |
 | [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | Amended by ADR-0027: an added node may be placed upstream with `before:`; amended 2026-09-30: `optional` leaves the grammar, so `with` and `provider` are the tunable keys |

@@ -320,31 +320,37 @@ holding a space goes in single quotes.
 
 **The invocation is the whole command.** No `cd` in front of it, no `set -e`, no
 variable assigned first and used in it, no second command after it, no redirection,
-no substitution — and never several verbs packed into one shell script. Flag values
-are written bare; a path holding a space goes in single quotes, never double quotes or a
-backslash. The only
-thing that may go with it is the patch or the request document, sent on stdin as a
-quoted heredoc:
+no pipe, no heredoc, no substitution — and never several verbs packed into one shell
+script. Flag values are written bare; a path holding a space goes in single quotes,
+never double quotes or a backslash.
+
+**A patch or a request document travels in the patch file.** Write the JSON to
+`.state-patch.json` in the run directory — beside `orchestrator-state.yml` — with the
+file-writing tool (Write, or the host's own file-creating tool), then name it on the call:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs write-state --state=<state> <<'JSON'
-{"node_summaries": {"<node>": {"summary": "…"}}}
-JSON
+node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs write-state --state=<run>/orchestrator-state.yml --patch-file=<run>/.state-patch.json
 ```
 
-The quotes around the opening `JSON` are what keep the body literal: an apostrophe, a
-`$`, a backslash or a `\r\n` escape inside the JSON reaches the verb exactly as typed,
-in bash and zsh alike. The closing `JSON` stands alone on the last line, and nothing
-follows it. Never send the document as `echo '<json>' | node …` in a POSIX shell: the
-first apostrophe in the text ends the quoted string, and zsh's `echo` turns `\r\n`
-escapes into control characters. Where the shell tool is PowerShell, which has no
-heredoc, `echo '<json>' | node …` is the form, with every apostrophe in the JSON
-doubled. This is not style. The enforcement hook recognises this
-plugin's own call and answers it, so the operator is not asked to approve their own
-workflow once per write — and it recognises the call by reading the command, so a
-command doing anything else is not that call and the prompt comes back. Measured
-2026-09-14: a run that wrapped its verbs in shell scripts was recognised **zero**
-times out of seven.
+That one name, in that one place, is the only file the verbs read a document from:
+any other name or directory, a `..` segment or a link is refused at exit `2`. When the
+write lands, the verb deletes the file, so the next write creates it afresh. When it is
+refused, the file stays: correct it and run the verb again — it is a file this session
+wrote, so the file tool overwrites it; one left by an earlier session is read first.
+Never send the document through a heredoc, `echo`, a pipe or `< file`: an agent
+host's shell-safety check refuses a JSON heredoc outright — braces beside quotes —
+and allow-listing the script does not lift it, while a file needs no quoting in any
+shell, PowerShell included. And the file is written by the file tool, never by the
+shell.
+
+This is not style. The enforcement hook recognises this plugin's own call and answers
+it, so the operator is not asked to approve their own workflow once per write — the
+call by reading the command, and the patch file by its name inside a run — so a command
+doing anything else is not that call and the prompt comes back. Measured 2026-09-14: a
+run that wrapped its verbs in shell scripts was recognised **zero** times out of
+seven. Where no hook answers, the operator's own permission rules decide: an allow
+rule for the script, and an edit rule for `**/.state-patch.json`, spare them the
+prompts.
 
 One verb, one call. When a step needs two verbs, that is two calls.
 
@@ -354,8 +360,8 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; its header names the overlays (by file name) and the profile applied, and a gate box carries its question and its options as `id: effect` |
 | `locate` | optional `--name` (bare or `builtin:`-prefixed); with it, repeatable `--overlay` and `--profile` — the run's own | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take (the lookup's own, before any the caller adds), a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `title` is the companion's H1, and `summary` the definition's `description:`, else the paragraph under that H1; `dispatches` names the nodes that carry `dir:` in the graph folded from the definition, every overlay and the profile. Exit `1` when the name is found nowhere, is not a workflow name, finds only an overlay with no built-in beneath it, or finds a file whose `name:` is another. With no name, `{ok, errors[], workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
-| `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
-| `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |
+| `write-state` | `--state`, `--patch-file` — the patch as JSON in the patch file | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
+| `gate-request` | `--state`, `--patch-file` — the request as JSON in the patch file | the files written, one per line |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt — reads the run, writes nothing |
 | `gate-brief` | `--state`, `--node` (the gate), optional `--oneline` | the gate brief on stdout — the closing node's summary, its decisions and risks, a `Next:` line naming the node that actually runs next (with any guard-skipped nodes), a `Recommended:` option and a last `Run: <dir> · Dashboard: <path>` line, kept within 1,600 characters; `--oneline` folds it onto one flow-safe line within the same budget — reads the run, writes nothing (§ Gates) |
@@ -417,7 +423,7 @@ changes nothing, and one that differs in a node or in any scalar beside `workflo
 `graph_hash` among them — is refused with `state-workflow-frozen`. Nothing is carried
 forward into the block and nothing is dropped from it.
 
-The patch arrives on stdin so no quoting has to survive a shell — Windows without a POSIX
+The patch arrives in a file so no quoting has to survive a shell — Windows without a POSIX
 shell is a supported target. A newer version — a whole number above 1 — degrades **the same
 way in every verb** — `validate`, `resolve` and `diagram` alike short-circuit on it, render
 what they recognise, warn, and still exit `0` — so a newer definition in a mixed fleet is a
@@ -883,7 +889,8 @@ order, and the order is the contract:
    temp file and a rename, regenerates `gates/index.yml`, and then sets
    `orchestrator.gate_pending` to `{node, request, since}` **and** the node's `status` to
    `suspended` through the state writer — one invocation, three writes, in that order. The
-   request document arrives on stdin as JSON: the node id, the kind, the question, its options
+   request document arrives in the patch file as JSON, written before the call, while nothing
+   is pending yet: the node id, the kind, the question, its options
    and the multi-choice flag (`gate.schema.json` declares the shape). The question is the
    node's `ask:`; `context.summary` is the `gate-brief --oneline` stdout without its trailing
    newline; the option the brief recommends carries `recommended: true`. `since` is the request's
@@ -980,8 +987,8 @@ re-validation through the writer.
    **`gate_pending: null` last**. The order matters because the marker is what the hook
    reads: clearing it first would open the tool surface before the decision was recorded.
 5. The instant the marker is null the gate is no longer pending, so the very next action is
-   `write-state --state=<state>` with the empty patch, `{}`, as its heredoc body (§ The
-   invocation contract). It is
+   `write-state --state=<state>` with the empty patch, `{}`, as the patch file's body (§ The
+   invocation contract) — the marker is already null, so the file may be written. It is
    not a no-op: the writer reads the file the editor tools just wrote, self-checks it through
    the enforcement hook's own reader, and re-publishes it. The file changes by one line
    (`orchestrator.updated`), and that is the expected result. This is what keeps the editor-
@@ -1250,7 +1257,8 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
-| exit `2`, any message | The writer itself did not run — a module it imports is missing, the patch on stdin was not JSON, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable` and report the message verbatim. |
+| exit `2`, `usage: the patch file …` or `usage: the patch in …` | The document never reached the writer: the flag named another file, or the file is missing, empty or not JSON. Nothing was written and the file is kept. Write the document to the run's own `.state-patch.json`, name that path, and run the verb once more; the same message twice is `RUN-FAILED: writer-unavailable`. |
+| exit `2`, any other message | The writer itself did not run — a module it imports is missing, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable` and report the message verbatim. |
 
 A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
 projection runs after the state rename, so a projection that could not be published leaves the
