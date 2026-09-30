@@ -15,6 +15,11 @@
 # makes each gate's stop option actually end the run: nothing after it is ever
 # ready.
 #
+# The one way back is a revise option. The gates that close the bottleneck
+# analysis, the specification (at its own approval and after its audit) and the
+# plan can send the run back to re-run that node with the operator's note.
+# Verification keeps its in-node fix loop instead.
+#
 # Target names are bare on purpose. Resolution is rooted at the plugin root and
 # the provider prefix is applied at invocation, so this one file is correct
 # under every generated variant without a rewrite.
@@ -82,15 +87,19 @@ display:
   option_labels:
     bottleneck-approval:
       continue-to-specification: "Continue to specification"
+      revise-analysis: "Revise the bottleneck analysis"
       stop-performance: "Stop here"
     specification-approval:
       continue-to-spec-audit: "Continue to specification audit"
+      revise-specification: "Revise the specification"
       stop-performance: "Stop here"
     spec-audit-approval:
       continue-to-planning: "Continue to planning"
+      revise-specification: "Revise the specification"
       stop-performance: "Stop here"
     planning-approval:
       continue-to-implementation: "Continue to implementation"
+      revise-plan: "Revise the plan"
       stop-performance: "Stop here"
     implementation-approval:
       continue-to-verification-options: "Continue to verification options"
@@ -150,6 +159,7 @@ nodes:
     ask: "Performance analysis complete. Continue to specification?"
     options:
       continue-to-specification: continue
+      revise-analysis: {effect: revise, reruns: bottleneck-analysis}
       stop-performance: stop
 
   specification:
@@ -170,6 +180,7 @@ nodes:
     ask: "Specification complete. Continue to specification audit?"
     options:
       continue-to-spec-audit: continue
+      revise-specification: {effect: revise, reruns: specification}
       stop-performance: stop
 
   spec-audit:
@@ -189,6 +200,7 @@ nodes:
     ask: "Specification audit complete. Continue to implementation planning?"
     options:
       continue-to-planning: continue
+      revise-specification: {effect: revise, reruns: specification}
       stop-performance: stop
 
   planning:
@@ -209,6 +221,7 @@ nodes:
     ask: "Implementation plan complete. Continue to implementation?"
     options:
       continue-to-implementation: continue
+      revise-plan: {effect: revise, reruns: planning}
       stop-performance: stop
 
   implementation:

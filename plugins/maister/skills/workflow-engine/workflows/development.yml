@@ -17,6 +17,12 @@
 # makes each gate's stop option actually end the run: nothing after it is ever
 # ready.
 #
+# The one way back is a revise option. The gates that close a document with no
+# review loop of its own — the gap analysis, the specification (at its own
+# approval and after its audit) and the plan — can send the run back to re-run
+# that node with the operator's note. Mockups and verification keep their
+# in-node loops instead.
+#
 # Target names are bare on purpose. Resolution is rooted at the plugin root and
 # the provider prefix is applied at invocation, so this one file is correct
 # under every generated variant without a rewrite.
@@ -110,6 +116,7 @@ display:
   option_labels:
     gap-approval:
       continue-past-analysis: "Continue"
+      revise-gap-analysis: "Revise the gap analysis"
       stop-development: "Stop here"
     tdd-red-approval:
       continue-past-tdd-red: "Continue"
@@ -119,12 +126,15 @@ display:
       stop-development: "Stop here"
     specification-approval:
       continue-past-specification: "Continue"
+      revise-specification: "Revise the specification"
       stop-development: "Stop here"
     spec-audit-approval:
       continue-to-planning: "Continue to planning"
+      revise-specification: "Revise the specification"
       stop-development: "Stop here"
     planning-approval:
       continue-to-implementation: "Continue to implementation"
+      revise-plan: "Revise the plan"
       stop-development: "Stop here"
     implementation-approval:
       continue-past-implementation: "Continue"
@@ -204,6 +214,7 @@ nodes:
     ask: "Gap analysis complete. Continue?"
     options:
       continue-past-analysis: continue
+      revise-gap-analysis: {effect: revise, reruns: gap-analysis}
       stop-development: stop
 
   tdd-red:
@@ -277,6 +288,7 @@ nodes:
     ask: "Specification complete. Continue?"
     options:
       continue-past-specification: continue
+      revise-specification: {effect: revise, reruns: specification}
       stop-development: stop
 
   spec-audit:
@@ -298,6 +310,7 @@ nodes:
     ask: "Specification audit complete. Continue to implementation planning?"
     options:
       continue-to-planning: continue
+      revise-specification: {effect: revise, reruns: specification}
       stop-development: stop
 
   planning:
@@ -319,6 +332,7 @@ nodes:
     ask: "Implementation plan complete. Continue to implementation?"
     options:
       continue-to-implementation: continue
+      revise-plan: {effect: revise, reruns: planning}
       stop-development: stop
 
   implementation:

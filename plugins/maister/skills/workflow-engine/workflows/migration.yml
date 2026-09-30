@@ -25,6 +25,10 @@
 # makes each gate's stop option actually end the run: nothing after it is ever
 # ready.
 #
+# The one way back is a revise option. The gates that close the gap analysis,
+# the specification and the plan can send the run back to re-run that node with
+# the operator's note. Verification and issue resolution keep their own loops.
+#
 # Target names are bare on purpose. Resolution is rooted at the plugin root and
 # the provider prefix is applied at invocation, so this one file is correct
 # under every generated variant without a rewrite.
@@ -92,12 +96,15 @@ display:
   option_labels:
     gap-approval:
       continue-to-specification: "Continue to specification"
+      revise-gap-analysis: "Revise the target-state plan"
       stop-migration: "Stop here"
     specification-approval:
       continue-to-planning: "Continue to planning"
+      revise-specification: "Revise the specification"
       stop-migration: "Stop here"
     planning-approval:
       continue-to-execution: "Continue to execution"
+      revise-plan: "Revise the plan"
       stop-migration: "Stop here"
     execution-approval:
       continue-to-verification: "Continue to verification"
@@ -157,6 +164,7 @@ nodes:
     ask: "Gap analysis complete. Continue?"
     options:
       continue-to-specification: continue
+      revise-gap-analysis: {effect: revise, reruns: gap-analysis}
       stop-migration: stop
 
   specification:
@@ -182,6 +190,7 @@ nodes:
     ask: "Continue to implementation planning?"
     options:
       continue-to-planning: continue
+      revise-specification: {effect: revise, reruns: specification}
       stop-migration: stop
 
   planning:
@@ -202,6 +211,7 @@ nodes:
     ask: "Continue to execute migration?"
     options:
       continue-to-execution: continue
+      revise-plan: {effect: revise, reruns: planning}
       stop-migration: stop
 
   execution:

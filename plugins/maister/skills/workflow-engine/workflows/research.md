@@ -245,6 +245,18 @@ through its step's milestone write — and the report must be registered
 **before** the following gate fires, because the operator reviews it while
 answering.
 
+**When re-run after a revise.** `foundation-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*. The
+resume checks above do not apply to this attempt: every artifact is on disk
+from the first one, and skipping the steps that wrote them would re-run nothing.
+Judge from the note which step it reaches back to, and run that step and every
+step after it again. A note about the question or its scope reaches step 1; one
+about the sources or the method reaches step 2; one about missing evidence
+reaches step 3; one about the conclusions reaches step 4 alone. Each step
+revises its artifacts in place, with the note in its delegate's context, and
+keeps what the note does not touch. Record the declared values again, because a
+revise clears them. Say in the summary which steps ran again and what changed.
+
 **Recovery budgets**: step 1 one attempt, and ask the operator to clarify an
 unclear question rather than guessing; step 2 two attempts, expanding the search
 patterns and falling back to a mixed methodology; step 3 three attempts,
@@ -266,7 +278,9 @@ the entry.
 ## `foundation-approval`
 
 A gate. Ask the question the definition carries, record the answer, and stop the
-run on the stop option — nothing after a stopped node ever becomes ready.
+run on the stop option — nothing after a stopped node ever becomes ready. Its
+revise option sends the run back to `research-foundation` with the operator's
+note (engine § Gates, *Revising at a gate*).
 
 ---
 
@@ -295,8 +309,8 @@ that answer is settled and the question is not asked:
    — options *"Yes, generate design"* and *"No, skip design"*.
 
 Both of these are asked **inside this node** rather than as gate nodes, because
-both answers continue the run: a gate's effect vocabulary is continue or stop
-with exactly one continue, and neither answer here stops anything. A "no" makes
+both answers continue the run: a gate has exactly one continue, and neither
+answer here stops anything or sends the run back. A "no" makes
 the guarded nodes skip, and a skip satisfies everything downstream.
 
 **Default under a non-terminal driver** (`brainstorm-opt-in`): the
@@ -506,6 +520,13 @@ summary: the architecture style and its key components, how many decisions were
 recorded, a one-line highlight per key decision, and the integration points with
 the existing system where there are any.
 
+**When re-run after a revise.** `design-approval` sent the run back, and
+`prior-context` carries the operator's note under *Revision requested*. Keep the
+Part A answer unless the note changes a constraint. In Part B, hand the solution
+designer the note and both existing artifacts, and ask it to revise the design
+and the decision log in place — a decision the note overturns is recorded as
+superseded rather than deleted. Say in the summary what changed.
+
 **Recovery budget**: two attempts, the second with adjusted context.
 
 **Phase summary key**: `phase-5`. Mirror this node's summary into
@@ -517,7 +538,9 @@ the entry.
 ## `design-approval`
 
 A gate, guarded by the design condition. Skipped with the design node when the
-operator declined design.
+operator declined design. Its revise option sends the run back to
+`high-level-design` with the operator's note (engine § Gates, *Revising at a
+gate*).
 
 ---
 
