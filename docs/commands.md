@@ -77,6 +77,32 @@ covers every key it judges.
 /maister:run onboarding --check
 ```
 
+### `/maister:workflow-author <subcommand> [args]`
+
+Helps you write your own workflow definitions and overlays, and check them before a run. It
+writes only under `.maister/workflows/` and never starts, resumes or changes a run. Use
+`/maister:run` to run a workflow.
+
+| Subcommand | What it does |
+|------------|--------------|
+| `new <name>` | Asks what the workflow is for, its inputs, phases, gates, executors and artifacts. Then it writes `<name>.yml` and a `<name>.md` companion with a section for each `direct:` node, and checks both. Ask for a workflow that another workflow can call and it follows the child-capable recipe |
+| `overlay <builtin>` | Shows the built-in's nodes first, then writes `<builtin>.overlay.yml`, plus `.overlay.md` when you add `direct:` nodes. An added phase or verifier gets a `before:`, and changed inputs are a `tune` of `with`. When a change needs an eject rather than an overlay, it tells you |
+| `check [<name> \| --all]` | The `/maister:run <name> --check` report. On top of it, three checks: a project skill or agent whose file name differs from its `name:` or that sits only under `.github/`, an installed plugin's skill named without its plugin, and an artifact path that leaves the run directory. `--all` checks every workflow and overlay in the project |
+| `nodes <builtin>` | The built-in's nodes in order, with needs, guards, values and artifacts. It also lists which nodes can be disabled cleanly and which make good `before:` anchors |
+| `preview <name>` | Draws the resolved graph as ASCII: the overlays and profile applied, every guard in words, and nodes that nothing waits for |
+
+`--overlay=PATH` and `--profile=NAME` work with `check` and `preview` as they do with `/maister:run`.
+
+**Examples**:
+```bash
+/maister:workflow-author new release-notes
+/maister:workflow-author overlay development
+/maister:workflow-author nodes development
+/maister:workflow-author check release-notes
+/maister:workflow-author check --all
+/maister:workflow-author preview development --profile=quick
+```
+
 ---
 
 ## Development

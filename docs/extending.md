@@ -17,6 +17,14 @@ The grammar itself is the same one the built-in workflows use, so a definition y
 by the same validator, frozen into a run's state the same way, and run like any built-in — from
 the terminal with `/maister:run <name>`, or driven by the cockpit. The only surface the plugin keeps closed is the *shape* of that grammar.
 
+**`/maister:workflow-author` helps you write them.** `new <name>` interviews you and writes the
+definition with a companion that already carries a section for every `direct:` node.
+`overlay <builtin>` shows what a built-in lets an overlay attach to or disable, and then writes
+the overlay. `check` validates like `/maister:run --check` and adds checks the validator does not
+make, on the skills and agents your nodes call and on artifact paths. `preview` draws the graph in
+the terminal with every guard in words. It writes only under `.maister/workflows/` and never
+starts a run.
+
 ## Your own workflows
 
 A workflow of your own is a definition the project or workspace owns: `.maister/workflows/<name>.yml`,
@@ -123,6 +131,12 @@ a run, so a definition that does not validate never becomes one. In an umbrella 
 `/maister:umbrella validate --definition .maister/workflows/<name>.yml` also checks every `dir:`
 against the members the manifest declares. It needs that manifest, and it judges each definition
 as written, without overlays.
+
+`/maister:workflow-author check <name>` runs the same check and adds three things. It checks that
+a skill or agent your project provides is registered under the name the node uses. It flags an
+installed plugin's skill named without its plugin, and an artifact path that leaves the run
+directory. `check --all` checks every workflow and overlay in the project at once, which is the
+pass to run after a plugin upgrade.
 
 **Writing the companion.** The companion `<name>.md` is what makes a definition runnable and
 findable:
@@ -317,6 +331,13 @@ mind that an ejected definition no longer follows the plugin's updates to that w
 companion travels with it: `direct:` nodes in an eject resolve against the `.md` beside the eject,
 not against the plugin's copy. An eject also hides any overlay of the same name — the overlay is
 never applied — and validation warns `overlay-ignored` when it finds the two side by side.
+
+**Overlay or eject, in one line each.** An overlay can disable a node, tune its `with` or
+`provider`, add a node with `needs` and `before:`, carry profiles and retitle. Only an eject can
+change what runs a node, reword a gate or change its options, change a guard or a node's `needs`,
+or reorder phases. `/maister:workflow-author nodes <builtin>` lists which nodes disable cleanly
+and which to anchor `before:` on, and `overlay <builtin>` routes each change to the operation that
+does it, or says that it needs an eject.
 
 A generated chain — one the planner published for a single ticket — is complete in itself and is
 never overlaid or ejected.
