@@ -526,15 +526,19 @@ The node's `uses` names both the mechanism and the target:
 | `direct:<name>` | inline, by this engine, following the node's section in the definition's prose companion |
 | `workflow:<name>` | with no `dir:`, it **starts a child run** — its own task directory, its own frozen graph, its own driver — and the node waits for it (*Sub-runs*). With `dir:` it keeps its dispatch meaning and is refused as a sub-run |
 
-**A `skill:` or `agent:` target is looked for in the project, then in this plugin, then in
-every installed plugin — first hit wins.** The project is the directory the host declares
-as the project, else the one the verb runs in; both hosts' layouts are searched there
-(`.claude/skills/<name>/SKILL.md` or `.github/skills/<name>/SKILL.md`, and the agent
-files beside them, in either spelling). A target may name the plugin it means with one
-colon — `skill:acme-tools:review` — and is then looked for only in that plugin, this one
-included by its own name. `validate` reports where each target was found in its `resolved`
-list: the node, the target as written, the place (`project`, `plugin` or `installed`) and
-the file.
+**A `skill:` or `agent:` target is looked for in four tiers — the project, then the
+operator's own, then this plugin, then every installed plugin — and the first hit wins.**
+The project is the directory the host declares as the project, else the one the verb runs
+in; both hosts' layouts are searched there (`.claude/skills/<name>/SKILL.md` or
+`.github/skills/<name>/SKILL.md`, and the agent files beside them, in either spelling). The
+operator's own are the same layouts under each host's home, `~/.claude/` (or
+`CLAUDE_CONFIG_DIR`) and `~/.copilot/`, and sit above this plugin because the host resolves
+them first when it runs the node. A target may name the plugin it means with one colon —
+`skill:acme-tools:review` — and is then looked for only in that plugin, this one included
+by its own name, never in the first two tiers. `validate` reports where each target was
+found in its `resolved` list: the node, the target as written, the tier (`project`, `user`,
+`plugin` or `installed`) and the file. The directories each tier searches are in
+`references/grammar.md` § 5.1.
 
 **A target found nowhere warns; it no longer errors.** Like a `workflow:` target, it may
 be provided by an environment `validate` cannot see — a plugin installed later, a project

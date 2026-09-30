@@ -361,9 +361,10 @@ in the coordinating repository. On a node with no `dir:`, an unresolved `skill:`
 still only warns — the strictness is what dispatch itself requires, not a general tightening.
 
 **Targets are looked for in the workspace first.** A `skill:` or `agent:` name is resolved against
-the workspace's own `.claude/` and `.github/` trees, then the plugin, then every installed plugin;
-`skill:<plugin>:<name>` names one plugin explicitly. The report's `resolved` list says, per node,
-which of the three places answered and which file it found. [Extending maister](extending.md)
+the workspace's own `.claude/` and `.github/` trees, then your own under `~/.claude/` and
+`~/.copilot/`, then the plugin, then every installed plugin; `skill:<plugin>:<name>` names one
+plugin explicitly. The report's `resolved` list says, per node, which of the four places answered
+and which file it found. [Extending maister](extending.md)
 covers the order and the namespacing in full.
 
 **Examples**:
