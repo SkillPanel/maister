@@ -170,6 +170,9 @@ report says so.
      type.
    - **A closing line:** the error and warning counts, the node and gate counts, and "nothing was
      started". With no errors and no problems, say the workflow would start.
+   - **Where to go next,** only when a problem has no `fix:` line or a refusal means the change
+     needs an eject rather than an overlay: `/maister-copilot:workflow-author check <name>` adds the
+     executor and artifact checks and says whether an overlay can do the job.
 
 | The message or warning says | `fix:` |
 |---|---|
