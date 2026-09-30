@@ -92,6 +92,9 @@ const CONTROL_ARGS = new Set(['autonomy', 'statement', 'task', 'closeout_contrac
 /** The input role a triage's research report carries into a dispatch. */
 const RESEARCH_ROLE = 'research';
 
+/** The one file the outbox verb reads a message body from, in the dispatch's directory. */
+const INPUT_FILE = '.umbrella-input.json';
+
 /** C4's message types, named here because the outbox section teaches them. */
 const MESSAGE_TYPES = ['status', 'followup', 'artifact', 'closeout', 'blocked'];
 
@@ -237,7 +240,7 @@ function identityLines({ document, chain, target }) {
     `Member ${oneLine(target.member)}, checked out at ${checkout}${target.worktree ? `, worktree ${where}` : ''}.`,
     root === null
       ? `Work in ${where}. The paths below are relative to the workspace root - the directory holding the member checkouts - and never to your own working directory. The one exception is the read-only inputs under \`# task\`, which are as the dispatching run named them and are anchored to nothing here.`
-      : `Work in ${where}. Every path below is absolute except the read-only inputs under \`# task\`, which are as the dispatching run named them; write nothing outside that directory except through the outbox verb named below.`,
+      : `Work in ${where}. Every path below is absolute except the read-only inputs under \`# task\`, which are as the dispatching run named them; write nothing outside that directory except the outbox input file and through the outbox verb, both named below.`,
     document.autonomy === RELAYED
       // "Wait for that decision" was the wording here too, and it contradicts
       // what `# closeout` now says. A held command is not a pause a turn can
@@ -306,8 +309,8 @@ function taskLines({ document, workflow, pluginRoot }) {
       : 'Run the workflow named by your dispatch.');
   }
   lines.push('You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state - E1 requires the cwd beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run with one call to the engine\'s gate-request verb, never by writing the gate files yourself:');
-  lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml>`);
-  lines.push('with the request as JSON on stdin. It writes the request file, the gate index and the pending marker together; there is no second write and the run is already suspended once it returns. Then print `GATE-PENDING: ` followed by that gate\'s own node id as the last line of the turn, and stop. Never ask a question in session.');
+  lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml> --patch-file=<the .state-patch.json beside it>`);
+  lines.push('having first written the request as JSON with your file tool to `.state-patch.json` beside that state file - never through a heredoc or a pipe. It writes the request file, the gate index and the pending marker together; there is no second write and the run is already suspended once it returns. Then print `GATE-PENDING: ` followed by that gate\'s own node id as the last line of the turn, and stop. Never ask a question in session.');
   // Carrier sentence (kept byte-identical for the lockstep-by-eye property with
   // the other gate carriers, but never rendered): 'ask at every gate; **pro
   // edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or
@@ -361,6 +364,9 @@ function taskLines({ document, workflow, pluginRoot }) {
  * flow-safety refusal that keeps a message readable by the one-line reader.
  * `--outbox` takes the outbox **root**; the writer appends the dispatch id
  * itself, so the seed hands over the root and never the per-dispatch directory.
+ * The body travels in the one input file the verb reads, in the dispatch's own
+ * directory: a JSON heredoc is the shape an agent host's shell-safety checks
+ * refuse, and a file written with the worker's file tool needs no quoting.
  *
  * The fallback names both frozen C5 dispatch lines by their prefixes. A worker
  * told only to "print the message on one line" prints something no reader
@@ -369,10 +375,13 @@ function taskLines({ document, workflow, pluginRoot }) {
  */
 function outboxLines(document, pluginRoot) {
   const root = rootOf(document);
+  const outboxRoot = anchor(root, outboxRootOf(document));
+  const id = oneLine(document.dispatch_id);
+  const input = joinPath(joinPath(outboxRoot, id), INPUT_FILE);
   return [
-    `Report through the outbox verb, never by writing a file under the outbox path yourself:`,
-    `  node ${script(pluginRoot)} outbox --outbox=${anchor(root, outboxRootOf(document))} --dispatch-id=${oneLine(document.dispatch_id)} --type=<type>`,
-    `with the message body as JSON on stdin. Types: ${MESSAGE_TYPES.join(', ')}; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade, commits and prs - prs empty when none was opened. Messages are append-only and the writer never rewrites one.`,
+    `Report through the outbox verb, never by writing a message file under the outbox path yourself. Write the message body as JSON with your file tool to ${input} - the one file you may write there - and then run:`,
+    `  node ${script(pluginRoot)} outbox --outbox=${outboxRoot} --dispatch-id=${id} --type=<type> --input-file=${input}`,
+    `The verb deletes that file once the message lands and keeps it on a refusal, for you to correct and run again; never send the body through a heredoc or a pipe. Types: ${MESSAGE_TYPES.join(', ')}; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade, commits and prs - prs empty when none was opened. Messages are append-only and the writer never rewrites one.`,
     'If the outbox cannot be written the verb hands you a line to print instead: `DISPATCH-RESULT: <grade> <summary>` for a closeout, `DISPATCH-FOLLOWUP: <summary>` for a followup. Print it as the last line of your turn - it is the only form in which the message survives.',
     'The other three types have no such line: run the same write again once the path is writable, or fold what it carried into the closeout summary.',
   ];
