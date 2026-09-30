@@ -440,7 +440,12 @@ function findArtifact(phases, suffix) {
 }
 
 function renderHeroes(d, phases) {
-  const map = HERO_MAP[d.task.type] || HERO_MAP.development;
+  // A type with no hero map draws no hero row: its artifacts are its own, and
+  // another workflow's cards would sit "not produced yet" forever. An own-key
+  // lookup, because a workflow may be named "constructor".
+  const type = d.task && d.task.type;
+  const map = Object.prototype.hasOwnProperty.call(HERO_MAP, type) ? HERO_MAP[type] : null;
+  if (!map) return "";
   const v = d.verification || {};
   const cards = map.map(h => {
     const hit = findArtifact(phases, h.match);
