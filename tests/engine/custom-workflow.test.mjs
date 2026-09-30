@@ -229,6 +229,7 @@ test('diagram: the custom graph is drawn under its name and hash, its gate, guar
   const lines = result.stdout.split('\n');
   assert.equal(lines[1], '%% workflow: release-audit');
   assert.equal(lines[2], `%% graph_hash: ${hash}`);
+  assert.equal(lines[3], '', 'a graph drawn with no overlay and no profile names neither');
   assert.ok(lines.includes('flowchart TD'));
   assert.ok(lines.includes('  n_intake["Release intake<br/>intake<br/>direct:intake"]'), 'a titled node leads with its title');
   assert.ok(lines.includes('  n_deep_audit["deep-audit<br/>workflow:audit-child"]'), 'an untitled node shows its id alone');
@@ -635,6 +636,8 @@ test('overlay: the diagram draws the added node into the gate and leaves the dis
   assert.equal(result.code, 0, result.stderr);
   const lines = result.stdout.split('\n');
   assert.equal(lines[2], `%% graph_hash: ${hash}`);
+  assert.equal(lines[3], '%% overlays: hardening.overlay.yml');
+  assert.equal(lines[4], '%% profile: quick');
   assert.ok(lines.includes('  n_sbom["Quick bill of materials<br/>sbom<br/>direct:sbom"]'));
   assert.ok(lines.includes('  n_intake --> n_sbom'));
   assert.ok(lines.includes('  n_sbom --> n_triage'));

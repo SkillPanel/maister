@@ -273,6 +273,23 @@ test('a reference inside an artifact path is refused, since nothing substitutes 
   assert.match(errorAt(report, 'nodes.intake.outputs.artifacts.notes').message, /an artifact path is written literally/);
 });
 
+test('an artifact path with a .. segment is refused where it is declared, since it leaves the task directory', t => {
+  for (const written of ['../notes.md', 'analysis/../../notes.md', 'analysis\\..\\notes.md']) {
+    const lines = replacing('      artifacts: {notes: analysis/notes.md}', `      artifacts: {notes: '${written}'}`);
+    const { code, report } = validate(definition(t, lines));
+    assert.equal(code, 1, written);
+    const error = errorAt(report, 'nodes.intake.outputs.artifacts.notes');
+    assert.equal(error.node, 'intake');
+    assert.match(error.message, /stays inside the run's task directory; ".*" carries a \.\. segment/);
+  }
+});
+
+test('an artifact path whose name merely contains two dots is not a .. segment', t => {
+  const lines = replacing('      artifacts: {notes: analysis/notes.md}', '      artifacts: {notes: analysis/notes..draft.md}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+});
+
 test('an artifact declared as a number or a map is refused', t => {
   const lines = replacing('      artifacts: {notes: analysis/notes.md}', '      artifacts: {notes: 42, extra: {path: analysis/extra.md}}');
   const { code, report } = validate(definition(t, lines));

@@ -175,8 +175,9 @@ is the workspace root. Both hosts' layouts are searched whatever host is running
   case caught early.
 
 A node that carries `dir:` is stricter: its target must resolve and must be able to run with
-nobody at the keyboard. The workspace validator judges that (`docs/extending.md`, *Making a
-skill dispatchable*).
+nobody at the keyboard. The workspace validator judges that: a `workflow:` target always
+qualifies, because the engine runs it, and a `skill:` target qualifies only when its `SKILL.md`
+frontmatter declares `driver_aware: true`.
 
 ### 5.2 `workflow:` targets
 
@@ -288,7 +289,8 @@ An input named `embedded` has one meaning: the engine sets it when this workflow
 | `artifacts` | A name → the path the node writes, relative to the run's task directory |
 | `values` | A name → the type of a short value the node records in state |
 
-An artifact path is **literal**: no `${…}`, no absolute path. It may name a file or a directory.
+An artifact path is **literal** and stays inside the run's task directory: no `${…}`, no absolute
+path, no `..` segment. It may name a file or a directory.
 A node that does not produce a declared artifact has not completed — unless its prose sanctions
 the absence by name (engine § *Recording an outcome*).
 
@@ -525,6 +527,7 @@ Warnings never block, and each one is worth reading:
 |---|---|
 | `unresolved-reference:<node>:<target>` | A `skill:`, `agent:` or `workflow:` target found in no tier or home — a typo, or something not installed here |
 | `added-node-no-dependents:<path>:<node>` | An added node nothing waits for; list the nodes that should wait under `before:` |
+| `node-no-dependents:<path>:<node>` | A definition's own node nothing waits for and the run does not end on; add it to a later node's `needs`. An `on: failure` or `on: always` node is exempt |
 | `overlay-ignored:<name>:<home>` | An overlay beside an eject or a generated chain of its name, never applied |
 | `workflow-undescribed:<name>` | A project workflow with neither a `description:` nor a companion paragraph, which `/maister-copilot:work` cannot offer |
 | `exposed-output-disabled:<path>:<node>` | An exposed output whose node an overlay or profile removed; the key is dropped |

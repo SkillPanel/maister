@@ -272,7 +272,9 @@ six, and a hash that stayed still would say it was.
 warning is `added-node-no-dependents:<path>:<node>`, and its text names the position the node
 runs at in the frozen order. No node and no gate waits for it, so it runs where that order puts
 it, like any other ready node; making a later node wait for it is the overlay's `before:`, never
-a decision the run makes.
+a decision the run makes. A definition's own node in the same position — nothing needs it, the
+run does not end on it, and it is no `on: failure` or `on: always` handler — warns the same way
+as `node-no-dependents:<path>:<node>`.
 
 **A reference to a node the base definition never declared stays a hard error.** The two look
 alike in the resolved graph and are nothing alike in origin: a name no base node carries is the
@@ -350,7 +352,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 |---|---|---|
 | `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead. An overlay given without `--definition` is judged on its shape, and a base it names by workflow name must exist — a built-in or a project definition. A workflow in the project's `.maister/workflows/` that says nowhere what it is for — no `description:`, no paragraph under its companion's title — warns `workflow-undescribed`, because `/maister:work` cannot match a task to it |
 | `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
-| `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
+| `diagram` | same, plus `--out` | deterministic Mermaid text; its header names the overlays (by file name) and the profile applied, and a gate box carries its question and its options as `id: effect` |
 | `locate` | optional `--name` (bare or `builtin:`-prefixed); with it, repeatable `--overlay` and `--profile` — the run's own | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take (the lookup's own, before any the caller adds), a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `title` is the companion's H1, and `summary` the definition's `description:`, else the paragraph under that H1; `dispatches` names the nodes that carry `dir:` in the graph folded from the definition, every overlay and the profile. Exit `1` when the name is found nowhere, is not a workflow name, finds only an overlay with no built-in beneath it, or finds a file whose `name:` is another. With no name, `{ok, errors[], workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
 | `write-state` | `--state`, the patch as JSON on **stdin** | the changed paths, one per line; the freeze adds a blank line and the startup banner (Step 4) |
 | `gate-request` | `--state`, the request as JSON on **stdin** | the files written, one per line |

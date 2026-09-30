@@ -330,6 +330,64 @@ test('the dangling-node warning names the profile path a profile added the node 
     ['added-node-no-dependents:profiles.checked.add.check:check']);
 });
 
+// A definition's own node nothing waits for gets its own code: its fix is a
+// later node's needs, since a definition's node cannot carry before:.
+const ownLeafWarnings = report => report.warnings.filter(warning => warning.startsWith('node-no-dependents:'));
+
+/** A definition of skill-backed nodes, so no prose companion is needed. */
+function ownDefinition(t, nodes) {
+  const lines = ['name: leaves', 'version: 1', 'nodes:'];
+  for (const [id, extra] of Object.entries(nodes)) {
+    lines.push(`  ${id}:`, '    uses: skill:implementation-verifier', ...extra.map(line => `    ${line}`));
+  }
+  return overlayFile(t, lines, 'leaves.yml');
+}
+
+test('a definition\'s own node nothing needs, short of the end, is warned about, naming where it runs', t => {
+  const definition = ownDefinition(t, {
+    intake: ['needs: []'],
+    notes: ['needs: [intake]'],
+    wrapup: ['needs: [intake]'],
+  });
+  const { code, report } = run('validate', definition, []);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(ownLeafWarnings(report), [
+    'node-no-dependents:nodes.notes:notes — nothing needs it and the run does not end on it, so it runs at '
+    + 'position 2 of 3 in the frozen order, after intake; add it to the needs of the node that should wait for it',
+  ]);
+  assert.deepEqual(leafWarnings(report), []);
+});
+
+test('the node the run ends on, and a failure or always handler, are not dangling leaves', t => {
+  const definition = ownDefinition(t, {
+    intake: ['needs: []'],
+    work: ['needs: [intake]'],
+    'a-cleanup': ['needs: [work]', 'on: always'],
+    'a-recover': ['needs: [work]', 'on: failure'],
+  });
+  const { code, report } = run('validate', definition, []);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(ownLeafWarnings(report), []);
+});
+
+test('an overlay appending a node after the base\'s last node does not turn that node into a dangling leaf', () => {
+  const { code, report } = run('validate', SAMPLE, [path.join(FIXTURES, 'definitions/sample.overlay.yml')]);
+  assert.equal(code, 0);
+  assert.equal(leafWarnings(report).length, 1);
+  assert.deepEqual(ownLeafWarnings(report), []);
+});
+
+test('no built-in carries a dangling leaf of its own', () => {
+  const workflows = path.join(ENGINE_DIR, 'workflows');
+  const builtins = fs.readdirSync(workflows).filter(name => name.endsWith('.yml'));
+  assert.ok(builtins.length > 0);
+  for (const name of builtins) {
+    const { code, report } = run('validate', path.join(workflows, name), []);
+    assert.equal(code, 0, name);
+    assert.deepEqual(ownLeafWarnings(report), [], name);
+  }
+});
+
 test('an added node placed with before:, or needed by another added node, is not warned about', t => {
   const overlay = overlayFile(t, [
     'extends: sample.yml',
