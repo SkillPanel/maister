@@ -112,9 +112,9 @@ and stop.
   `direct:` (§ 11). Each section is a short, honest stub the author will finish: the steps in
   outline, what the node writes and records, what its closing summary must carry for the next
   gate, the questions it may ask with the default each takes when nobody can answer, and its retry
-  budget. A fix loop inside one node follows § 13.2. Close with the reconciliation note from
-  `docs/extending.md` *Writing the companion* on the last node: it checks every path the run's
-  summaries list against disk.
+  budget. A fix loop inside one node follows § 13.2. The last `direct:` node that does work also
+  reconciles: it checks every path the run's node summaries list against disk and reports what
+  is missing, because the engine checks only the artifacts the definition declares.
 
 Then run **check** on the new name and report. End with the next steps: finish each `## <id>`
 section, `/maister:workflow-author preview <name>`, then `/maister:run <name>`.
@@ -177,8 +177,12 @@ from **nodes** every time. Never disable a node and add it back under the same i
    - **Artifacts** — for each declared artifact path in `resolve`'s nodes: a path with a `..`
      segment leaves the run's task directory and is never registered on the node. Fix: a path
      inside the run directory. Then one reminder, once per report, when the definition has
-     artifacts at all: an HTML companion for an artifact, and the end-of-run check that every
-     listed file exists, are the node prose's job (`docs/extending.md` *Writing the companion*).
+     artifacts at all: the node prose asks for an artifact's HTML companion (a `direct:` node
+     hands its finished markdown to this plugin's `html-companion-writer` agent and registers the
+     result as that artifact's `html` in its summary), and the closing node reconciles every
+     listed file against disk. The engine does neither on its own.
+   - **Dangling leaves** — a node nothing waits for that is not where the run ends, as
+     **preview** describes them. The validator warns only for a node an overlay adds.
    - **Overlay or eject** — when an error is a refusal only an eject lifts (a key that may not be
      tuned, a disabled id added back, a guard or a target changed), say so and point to
      *Overlay or eject*.
