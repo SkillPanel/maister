@@ -590,6 +590,8 @@ const HEREDOC_OPEN = /^<<'([A-Za-z_][A-Za-z0-9_]*)'(\r|[ \t]*)$/;
  *     <body>
  *     TAG]
  *
+ * — the documented form being `node <script> <verb> --state=… --patch-file=…`,
+ * all bare words, the patch travelling in a file (`enginePatchWrite`) — and
  * where every word is bare `WORD_CHAR`s and single-quoted spans without a
  * newline or anything PowerShell reads as a quote, glued together, and `<verb>`
  * is the first word after the script — the one the engine dispatches. A heredoc is lifted only in a POSIX shell, and only when the first
@@ -662,6 +664,53 @@ function recognise(tooling) {
     return verb && verbs.has(verb.value) ? { root, script: entry, verb: verb.value } : null;
   }
   return null;
+}
+
+/**
+ * The file a driver writes a patch or request document to before running
+ * `write-state` or `gate-request` with `--patch-file`: one fixed name beside the
+ * state, the only place the engine reads a patch from.
+ */
+export const PATCH_FILE = '.state-patch.json';
+
+/**
+ * Whether an editor write is the first half of the engine's own state write:
+ * one target, and that target is `PATCH_FILE` in one of `runs` — the runs
+ * `findStates` found under `cwd`. Returns `{runDir, file}` or `null`.
+ *
+ * The shell half — `node <script> write-state --state=… --patch-file=…` — is an
+ * ordinary engine invocation and `engineInvocation` recognises it unchanged.
+ * This half exists because the patch now travels through a file, so without it
+ * the operator is asked once for the file and not for the call. The document
+ * itself is never read here: the writer judges it, and refuses what it would
+ * not apply. A link at the name is not the file: its target is somewhere else.
+ *
+ * Like `engineInvocation`, it only recognises. It never denies and never widens
+ * what a pending gate allows; a caller answers for it only where no gate binds
+ * the call, and `PATCH_FILE` is not on the pending allow-list.
+ */
+export function enginePatchWrite(tooling, runs, cwd) {
+  try {
+    if (!tooling || tooling.kind !== 'paths' || tooling.targets.length !== 1) return null;
+    const given = path.resolve(cwd, tooling.targets[0]);
+    if (path.basename(given) !== PATCH_FILE) return null;
+    if (fs.lstatSync(given, { throwIfNoEntry: false })?.isSymbolicLink()) return null;
+    const file = resolvePath(given);
+    for (const run of runs) {
+      if (resolvePath(path.join(run.runDir, PATCH_FILE)) === file) return { runDir: run.runDir, file };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Why a recognised patch-file write was allowed, in the shape `engineReason` takes. */
+export function patchWriteReason(match) {
+  return (
+    `ENGINE ALLOW: the engine's patch file ${match.file}, which the plugin's own writer reads, `
+    + 'judges and deletes; the write is its own and is not put to the operator.'
+  );
 }
 
 /** Strip spaces, tabs and newlines at both ends, in one pass each way. */

@@ -15,8 +15,10 @@
  *                  (one workflow found by the name it is run by, with the
  *                  --definition and --overlay values the three verbs above
  *                  take; without --name, the project's own workflows)
- *   write-state    --state, the patch as JSON on stdin        changed paths
- *   gate-request   --state, the request as JSON on stdin      the files written
+ *   write-state    --state, --patch-file (or the patch as JSON on stdin)
+ *                                                             changed paths
+ *   gate-request   --state, --patch-file (or the request as JSON on stdin)
+ *                                                             the files written
  *                  (the request file, the gate index and the pending marker)
  *   prior-context  --state                                    the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
@@ -38,9 +40,12 @@
  * failed. The separation is what lets a caller distinguish "your definition is
  * wrong" from "the engine is broken" without parsing prose.
  *
- * Why the patch arrives on stdin rather than as an argument: no quoting has to
- * survive a shell, which is the same Windows-without-a-shell constraint that
- * shapes the invocation form.
+ * Why the patch arrives in a file or on stdin rather than as an argument: no
+ * quoting has to survive a shell, which is the same Windows-without-a-shell
+ * constraint that shapes the invocation form. A driver writes the file with its
+ * own file tool and names it with `--patch-file`; stdin stays for scripts, tests
+ * and hosts with no file tool. A JSON heredoc is the form the shell-safety checks
+ * of an agent host refuse, and a file needs no quoting in any shell.
  *
  * This file owns argument parsing, the exit-code table and the unknown-version
  * degradation. Everything else lives in `lib/`, one module per concern, loaded
@@ -72,12 +77,15 @@ const VERBS = {
   // overlays and the profile a run would add take part only in whether the
   // named workflow is a chain, so they need the name.
   locate: { module: 'locate.mjs', flags: ['name', 'overlay', 'profile'] },
-  'write-state': { module: 'state.mjs', flags: ['state'] },
-  // One flag, like `write-state`, and for the same reason: everything the verb
+  // `--patch-file` names the one file a patch may be read from, beside the
+  // state; it is a flag rather than a derived path so the call says what it
+  // reads, and it is checked against that one place (`patchFileOf`).
+  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file'] },
+  // The flags of `write-state`, and for the same reason: everything the verb
   // needs — the run directory, the `gates/` directory and the frozen graph — is
   // derived from the state file, so there is no second path a caller could get
   // wrong or point at another run.
-  'gate-request': { module: 'gate.mjs', flags: ['state'] },
+  'gate-request': { module: 'gate.mjs', flags: ['state', 'patch-file'] },
   // Three flags, where the other two state verbs take one: the outbox root and
   // the dispatch id are not derivable from a run directory. They are the
   // dispatch's, not the run's, and the worker already holds both — its seed
@@ -416,8 +424,8 @@ async function runWriteState(flags) {
     process.stderr.write(`edition-collision: ${collision.message}\n`);
     return EXIT.REJECTED;
   }
-  const patch = readStdinJson('the patch');
-  const result = write({ state: flags.state, patch });
+  const input = readInput(flags, 'the patch');
+  const result = write({ state: flags.state, patch: input.document });
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
   // The freeze's startup banner, after the changed paths and a blank line, so a
   // caller reading paths line by line stops at the blank and the operator
@@ -444,7 +452,10 @@ async function runWriteState(flags) {
     process.stderr.write(`warning: wrote ${result.undeclared.join(', ')}, which the definition does not declare among`
       + ' the node\'s outputs; the write landed, and no guard or ${…} reference reads an undeclared value\n');
   }
-  if (result.ok) return EXIT.OK;
+  if (result.ok) {
+    consume(input);
+    return EXIT.OK;
+  }
   // A refusal is exit 1 and no rename happened: the state file on disk is
   // exactly what it was before the invocation.
   for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
@@ -463,37 +474,108 @@ async function runWriteState(flags) {
  */
 async function runGateRequest(flags) {
   if (!flags.state) throw new UsageError('gate-request needs --state');
-  const request = readStdinJson('the request document');
+  const input = readInput(flags, 'the request document');
   const module = await loadModule(VERBS['gate-request'].module);
   const write = entryOf(module, 'gateRequest', VERBS['gate-request'].module);
-  const result = write({ state: flags.state, request });
+  const result = write({ state: flags.state, request: input.document });
   for (const written of result.changed || []) process.stdout.write(`${written}\n`);
-  if (result.ok) return EXIT.OK;
+  if (result.ok) {
+    consume(input);
+    return EXIT.OK;
+  }
   for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   return EXIT.REJECTED;
 }
 
+/** The one name a patch file may carry: beside the state file it patches. */
+const PATCH_FILE = '.state-patch.json';
+
 /**
- * A structured input, read whole from stdin. Unreadable or non-JSON never ran.
+ * A structured input: `{document, file}`, from the patch file when
+ * `--patch-file` names one, else read whole from stdin. Unreadable or non-JSON
+ * never ran.
  *
- * `what` names the document in the message because two verbs read stdin now,
- * and "the patch on stdin is not JSON" reported for a gate request would send a
- * caller to the wrong document. Empty *stdin* is rejected; an empty *object* is
- * not, and for `write-state` that is a sanctioned call — the validate-and-
- * republish step of a resume.
+ * `what` names the document in the message because two verbs read one, and
+ * "the patch is not JSON" reported for a gate request would send a caller to
+ * the wrong document. An empty input is rejected; an empty *object* is not,
+ * and for `write-state` that is a sanctioned call — the validate-and-republish
+ * step of a resume. Both sources go through the same parse, so one document
+ * lands the same bytes whichever way it arrived. Given a file, stdin is never
+ * read, so a caller with a terminal on stdin does not block.
  */
-function readStdinJson(what) {
+function readInput(flags, what) {
+  if (flags['patch-file'] === undefined) {
+    let text;
+    try {
+      text = fs.readFileSync(0, 'utf8');
+    } catch (err) {
+      throw new UsageError(`${what} could not be read from stdin: ${err.message}`);
+    }
+    return { document: parseDocument(text, `${what} on stdin`), file: null };
+  }
+  const file = patchFileOf(flags);
   let text;
   try {
-    text = fs.readFileSync(0, 'utf8');
+    text = fs.readFileSync(file, 'utf8');
   } catch (err) {
-    throw new UsageError(`${what} could not be read from stdin: ${err.message}`);
+    throw new UsageError(`${what} could not be read from ${file}: ${err.message}`);
   }
-  if (text.trim() === '') throw new UsageError(`${what} on stdin is empty`);
+  return { document: parseDocument(text, `${what} in ${file}`), file };
+}
+
+function parseDocument(text, where) {
+  if (text.trim() === '') throw new UsageError(`${where} is empty`);
   try {
     return JSON.parse(text);
   } catch (err) {
-    throw new UsageError(`${what} on stdin is not JSON: ${err.message}`);
+    throw new UsageError(`${where} is not JSON: ${err.message}`);
+  }
+}
+
+/**
+ * The patch file, once it is known to be the one place a patch is read from:
+ * `.state-patch.json` in the directory of `--state`, a regular file, not a link.
+ *
+ * One fixed name for the reason the state's temp file has one: a name is what a
+ * permission rule, a hook and a reviewer can match, and a free path is not. The
+ * run directory is the only place, so a patch can never be read from — or, on
+ * success, deleted from — anywhere else. A `..` segment is refused even where it
+ * would resolve back into the run, because a path that has to be resolved to be
+ * judged is one a reader of the command cannot judge. A link is refused because
+ * its target is somewhere else. All of these are usage errors: nothing was read.
+ */
+function patchFileOf(flags) {
+  const given = flags['patch-file'];
+  const expected = path.join(path.dirname(path.resolve(flags.state)), PATCH_FILE);
+  if (given.split(/[\\/]/).includes('..')) {
+    throw new UsageError(`the patch file may not name a parent directory (".."): write it to ${expected}`);
+  }
+  if (path.resolve(given) !== expected) {
+    throw new UsageError(`the patch file must be ${expected}, beside the state file it patches, and was ${given}`);
+  }
+  let stat;
+  try {
+    stat = fs.lstatSync(expected);
+  } catch (err) {
+    throw new UsageError(`the patch file ${expected} could not be read: ${err.message}`);
+  }
+  if (stat.isSymbolicLink()) throw new UsageError(`the patch file ${expected} is a symbolic link; write the file itself there`);
+  if (!stat.isFile()) throw new UsageError(`the patch file ${expected} is not a regular file`);
+  return expected;
+}
+
+/**
+ * Delete the patch file once its document has landed, so a file left behind
+ * always means "not applied". A refusal keeps it, for the caller to correct and
+ * send again. Failing to delete is a warning: the write already landed, and the
+ * next write overwrites the file anyway.
+ */
+function consume(input) {
+  if (!input.file) return;
+  try {
+    fs.unlinkSync(input.file);
+  } catch (err) {
+    process.stderr.write(`warning: ${input.file} was not deleted (${err.message}); the write landed\n`);
   }
 }
 
