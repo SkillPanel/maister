@@ -1042,10 +1042,10 @@ A revise option sends the run back: the stretch from the option's `reruns` node 
 again with the operator's note, and the gate is asked again once it has. The grammar's § 6 has
 the rule; here is what the engine does with the answer.
 
-**Terminal mode.** When the operator picks an option whose `note` is `true`, ask one more question
-before writing anything, built from that option's `suggestions` field by field: header `Revise`,
-the question "What should change?", and the suggestions as a multi-select question — each shown
-by its `label` with its `note` as the description, the recommended one first and labelled
+**Terminal mode.** When the operator picks an option whose `note` is `true`, ask what should change
+before writing anything: offer that option's `suggestions` to pick from, multi-select, built field
+by field — header `Revise`, the question "What should change?", each suggestion shown by its
+`label` with its `note` as the description, the recommended one first and labelled
 `<label> (Recommended)`. The operator's typed answer, through Other, is the fallback and is added
 to whatever they chose. The note is the chosen suggestions' `note`s joined by `; `, then the
 typed text. When nothing is chosen and nothing typed, there is no note: ask the gate again from
