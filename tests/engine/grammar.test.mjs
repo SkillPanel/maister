@@ -610,3 +610,37 @@ test('a task node carrying a gate\'s question or options is refused, key by key'
     assert.match(error.message, new RegExp(`${key} belongs to a gate, and this node runs direct:wrapup; add type: gate`));
   }
 });
+
+// ---------------------------------------------------------------------------
+// a sub-run's required inputs: a default stands in, as it does at the freeze
+// ---------------------------------------------------------------------------
+
+test('a child input that is required but carries a default is not missing when the parent omits it', t => {
+  const project = workspace(t);
+  const home = path.join(project, '.maister', 'workflows');
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, 'kid.yml'), [
+    'name: kid', 'version: 1', 'description: "A child for the sub-run input check."',
+    'inputs:',
+    '  subject: {type: string, required: true}',
+    '  depth: {type: string, required: true, default: standard}',
+    'nodes:', '  look: {uses: "skill:quick-plan", needs: []}', '',
+  ].join('\n'));
+  const parent = passed => definition(t, [
+    'name: parent', 'version: 1', 'nodes:',
+    `  run-kid: {uses: "workflow:kid", needs: []${passed ? `, with: ${passed}` : ''}}`,
+  ], { name: 'parent' });
+  const warningsOf = file => {
+    const result = verb(['validate', `--definition=${file}`], undefined, { CLAUDE_PROJECT_DIR: project });
+    return JSON.parse(result.stdout).warnings.filter(warning => warning.startsWith('unresolved-subrun-input:'));
+  };
+  assert.deepEqual(warningsOf(parent('{subject: "the api"}')), []);
+  assert.deepEqual(warningsOf(parent(null)), ['unresolved-subrun-input:run-kid:subject']);
+});
+
+test('an enum member that is not a string is refused as one', t => {
+  const lines = replacing('      values: {deep: bool}', '      values: {depth: {enum: [shallow, 3]}}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.intake.outputs.values.depth').message, /every enum member must be a non-empty string/);
+});

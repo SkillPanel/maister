@@ -141,7 +141,8 @@ const TUNABLE = ['with', 'provider'];
  * one exemption (`isReservedKey`): they parse and warn by design.
  *
  * The node set is `NODE_KEYS` below, without `id` — the id is the node's map
- * key, and an `id:` written inside a node would be ignored.
+ * key, so an `id:` written inside a node is refused like any other key outside
+ * the set.
  */
 const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes'];
 const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display'];
@@ -2129,7 +2130,7 @@ function checkDeclaredValues(node, at, file, errors, warnings, id) {
     if (isMap(type) && Array.isArray(type.enum) && type.enum.length > 0 && Object.keys(type).length === 1) {
       const bad = type.enum.find((member) => typeof member !== 'string' || member === '');
       if (bad === undefined) continue;
-      fail(errors, file, dotted, 'every enum member must be a non-empty scalar', id);
+      fail(errors, file, dotted, 'every enum member must be a non-empty string', id);
       continue;
     }
     fail(errors, file, dotted, `a declared value type is bool, id, enum or string; ${describe(type)} is none of them`, id);
@@ -2193,9 +2194,14 @@ function checkSubrun(node, id, at, file, errors, warnings, project, children) {
   const child = childInterface(found.base, children);
   if (child === null) return;
 
+  // Required with a default is not missing when omitted: the child's freeze
+  // lets the default stand in and refuses nothing, so warning here would
+  // disagree with the run.
   const passed = isMap(node.with) ? node.with : {};
   for (const [name, input] of Object.entries(child.inputs)) {
-    if (isMap(input) && input.required === true && passed[name] === undefined) warnings.push(WARN.subrunInput(id, name));
+    if (isMap(input) && input.required === true && !Object.hasOwn(input, 'default') && passed[name] === undefined) {
+      warnings.push(WARN.subrunInput(id, name));
+    }
   }
   for (const name of Object.keys(passed)) {
     if (child.inputs[name] === undefined) warnings.push(WARN.subrunInput(id, name));
