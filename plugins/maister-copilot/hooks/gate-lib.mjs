@@ -713,6 +713,69 @@ export function patchWriteReason(match) {
   );
 }
 
+/**
+ * The file a caller writes an umbrella verb's structured input to before
+ * running `envelope`, `ledger` or `outbox` with `--input-file`: one fixed name,
+ * in the one place each verb reads it from.
+ */
+export const UMBRELLA_INPUT_FILE = '.umbrella-input.json';
+
+/** A dispatch id that names a directory: the outbox writer's own short-id rule. */
+const DISPATCH_DIR = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/**
+ * Whether an editor write is the first half of an umbrella verb's own call:
+ * one target, named `UMBRELLA_INPUT_FILE`, in one of the places the runtime
+ * reads it from. Returns `{place, dir, file}` or `null`.
+ *
+ *   `run`     `<run>/dispatch/`, for a run in `runs` — the input of `envelope`
+ *             and of the run's own `ledger` calls
+ *   `outbox`  `<workspace>/.maister/umbrella/outbox/<dispatch-id>/`, where the
+ *             workspace carries its manifest — a dispatched worker's message.
+ *             Placed by layout rather than by `runs`, because the worker runs
+ *             in a member checkout and the outbox is in the workspace above it.
+ *
+ * The shell half — `node <script> outbox … --input-file=…` — is an ordinary
+ * invocation and `engineInvocation` recognises it unchanged. The document is
+ * never read here, and a link at the name is not the file. Like
+ * `enginePatchWrite`, it only recognises: it never denies and never widens
+ * what a pending gate allows.
+ */
+export function umbrellaInputWrite(tooling, runs, cwd) {
+  try {
+    if (!tooling || tooling.kind !== 'paths' || tooling.targets.length !== 1) return null;
+    const given = path.resolve(cwd, tooling.targets[0]);
+    if (path.basename(given) !== UMBRELLA_INPUT_FILE) return null;
+    if (fs.lstatSync(given, { throwIfNoEntry: false })?.isSymbolicLink()) return null;
+    const file = resolvePath(given);
+    const dir = path.dirname(file);
+    for (const run of runs) {
+      if (resolvePath(path.join(run.runDir, 'dispatch')) === dir) return { place: 'run', dir, file };
+    }
+    const outbox = path.dirname(dir);
+    const umbrella = path.dirname(outbox);
+    const framework = path.dirname(umbrella);
+    const inLayout = DISPATCH_DIR.test(path.basename(dir))
+      && path.basename(outbox) === 'outbox'
+      && path.basename(umbrella) === 'umbrella'
+      && path.basename(framework) === '.maister';
+    if (inLayout && fs.statSync(path.join(framework, 'umbrella.yml'), { throwIfNoEntry: false })?.isFile()) {
+      return { place: 'outbox', dir, file };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Why a recognised umbrella input write was allowed, in the shape `engineReason` takes. */
+export function umbrellaInputReason(match) {
+  return (
+    `ENGINE ALLOW: the umbrella runtime's input file ${match.file}, which the plugin's own runtime reads, `
+    + 'judges and deletes; the write is its own and is not put to the operator.'
+  );
+}
+
 /** Strip spaces, tabs and newlines at both ends, in one pass each way. */
 function trimCommand(command) {
   const blank = char => char === ' ' || char === '\t' || char === '\n';

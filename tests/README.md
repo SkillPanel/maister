@@ -5,10 +5,12 @@
 Each test drives `plugins/maister/skills/workflow-engine/scripts/workflow.mjs` the way a workflow
 driver does: one verb per child process, the patch or request as JSON on stdin (`patch-file.test.mjs`
 holds the patch-file route to the same results), and assertions on
-the exit code, stdout, stderr and the files left behind. Only the dashboard normalizers
+the exit code, stdout, stderr and the files left behind. `umbrella-input-file.test.mjs` does the same
+for the umbrella runtime's `envelope`, `ledger` and `outbox` through `--input-file`, in a workspace it
+scaffolds with `init`. Only the dashboard normalizers
 (`issueOf`, `artifactOf`, `decisionOf`, `deriveProgress`) and the gate hook's command recogniser
-(`engineInvocation`, in `gate-hook.test.mjs`, and `enginePatchWrite`, in `patch-file.test.mjs`) are
-imported directly.
+(`engineInvocation`, in `gate-hook.test.mjs`, `enginePatchWrite`, in `patch-file.test.mjs`, and
+`umbrellaInputWrite`, in `umbrella-input-file.test.mjs`) are imported directly.
 
 - `helpers.mjs` — the scratch project (`<tmp>/.maister/tasks/<type>/<name>/`), the verb runner, the freeze.
 - `fixtures/definitions/` — a small definition covering a direct node, a gate, the plan executor and a

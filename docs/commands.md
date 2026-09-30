@@ -452,8 +452,12 @@ rejected with a named code and **nothing was published**, and exit `2` means the
 not start. Every write commits through a temp file and a rename, so a rejected verb leaves the
 files on disk byte-for-byte what they were.
 
-Both `--flag=value` and `--flag value` are accepted. Structured input arrives on standard input as
-JSON rather than in an argument, so no quoting has to survive a shell.
+Both `--flag=value` and `--flag value` are accepted. Structured input is JSON, never an argument,
+so no quoting has to survive a shell. A caller writes it to `.umbrella-input.json` in the one place
+the verb reads it from and names that file with `--input-file`: the dispatch's own outbox directory
+for `outbox`, and the run's `dispatch/` directory for `envelope` and `ledger`. No two callers
+working at once share a place. The file is deleted once the verb accepts it and kept when the verb
+rejects it. Standard input still works for scripts.
 
 
 **`envelope`** — build and publish one node's dispatch envelope, the contract between the run
@@ -469,7 +473,7 @@ nobody chose.
 | `--node=ID` | The node being dispatched (required) |
 | `--ledger=PATH` | The ledger the dispatch is recorded in (required) |
 | `--root=PATH` | The workspace root, consulted for the member, provider and autonomy tier (required) |
-| *stdin* | Optional overrides, as JSON |
+| `--input-file=PATH` | Optional overrides, as JSON, in `<run>/dispatch/.umbrella-input.json` — or on stdin |
 
 **`seed`** — render the worker's prompt for a published envelope. A pure function of the
 envelope: same envelope, same prompt, every time. The prompt carries a fixed set of sections in
@@ -493,7 +497,8 @@ whose recovery is to re-issue the same op.
 | `--op=NAME` | The op to run (required) |
 | `--actor=NAME` | Who is performing it (required) |
 | `--dispatch-id=ID` | The entry to act on — required by every op except `create-entry`, which allocates its own |
-| *stdin* | The op's arguments, as JSON |
+| `--run=PATH` | The calling run, which places the input file. Given only with `--input-file` |
+| `--input-file=PATH` | The op's arguments, as JSON, in the calling run's `dispatch/.umbrella-input.json` — or on stdin |
 
 **`outbox`** — append one message to a dispatch's outbox, the channel results come back on.
 Messages are `status`, `followup`, `artifact`, `blocked` and `closeout`; they are written
@@ -506,7 +511,7 @@ other three refuse, because a lost status is not a lost result.
 | `--outbox=PATH` | The outbox root (required) |
 | `--dispatch-id=ID` | The dispatch the message belongs to (required) |
 | `--type=NAME` | The message type (required) |
-| *stdin* | The message body, as JSON — required, since each type demands fields an empty body could not carry |
+| `--input-file=PATH` | The message body, as JSON, in `<outbox>/<dispatch id>/.umbrella-input.json` — or on stdin. Required either way, since each type demands fields an empty body could not carry |
 
 **Workspace directory**: `.maister/umbrella/`
 **Verbs**: `init`, `validate`, `prune`, `envelope`, `seed`, `ledger`, `outbox`

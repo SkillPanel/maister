@@ -50,15 +50,15 @@ No shebang and no executable bit — the script is handed to `node` explicitly, 
 a Windows checkout with no POSIX shell behaves exactly like any other. Node 20
 or newer, no dependencies to install.
 
-| Verb | What it is for | Required | Optional | Stdin |
+| Verb | What it is for | Required | Optional | Input |
 |---|---|---|---|---|
 | `init` | Scaffold a workspace: manifest, workflow directory, ledger, outbox | `--root` | `--members-root`, `--force`, `--scaffold` | — |
 | `validate` | Judge the workspace, and the named workflow definitions with it | `--root` | `--definition` (repeatable) | — |
 | `prune` | Delete the generated chains whose runs have all closed | `--root` | `--name`, `--dry-run` | — |
-| `envelope` | Build and publish one node's dispatch envelope | `--run`, `--node`, `--ledger`, `--root` | — | overrides (JSON) |
+| `envelope` | Build and publish one node's dispatch envelope | `--run`, `--node`, `--ledger`, `--root` | `--input-file` | overrides (JSON) |
 | `seed` | Render the worker prompt for an envelope | `--envelope` | `--siblings` | — |
-| `ledger` | Run one ledger op | `--ledger`, `--op`, `--actor` | `--dispatch-id` | the op's `args` (JSON) |
-| `outbox` | Append one message to a dispatch's outbox | `--outbox`, `--dispatch-id`, `--type` | — | the message body (JSON) |
+| `ledger` | Run one ledger op | `--ledger`, `--op`, `--actor` | `--dispatch-id`, `--run` with `--input-file` | the op's `args` (JSON) |
+| `outbox` | Append one message to a dispatch's outbox | `--outbox`, `--dispatch-id`, `--type` | `--input-file` | the message body (JSON) |
 
 Both `--flag=value` and `--flag value` are accepted. `--force`, `--scaffold`
 and `--dry-run` are the only boolean flags: they take the bare form, or an
@@ -66,15 +66,37 @@ explicit `--force=false`, and never consume the following token. `--dispatch-id`
 addresses an entry that already exists, so every ledger op needs it except
 `create-entry`, which allocates its own.
 
-Structured input arrives on stdin rather than in an argument so no quoting has
-to survive a shell. It is required for `outbox` — each message type demands
-fields an empty body could not carry — and optional for `envelope` and `ledger`,
-where an absent document simply means "no overrides" and "no arguments".
+Structured input never travels in an argument, so no quoting has to survive a
+shell. It is required for `outbox` — each message type demands fields an empty
+body could not carry — and optional for `envelope` and `ledger`, where an absent
+document simply means "no overrides" and "no arguments".
 
-**"Optional" means the document may be empty, not that the read is skipped.** `envelope` reads
-stdin unconditionally, so invoked with stdin attached to a terminal it blocks, waiting for a
-document nobody is typing — it looks like a hang and it is not one. Anything scripting a sweep of
-several runs, or an operator calling the verb by hand, closes stdin: append `< /dev/null`.
+**Send it through the input file.** Write the JSON document with your file tool to
+`.umbrella-input.json` in the one place the verb reads it from, then run the verb
+with `--input-file=<that path>`. Never send it through a heredoc or a pipe: a JSON
+heredoc is exactly the command shape an agent host's shell-safety check refuses, and
+a file needs no quoting in any shell. Each place belongs to one caller, so two
+callers working at once never meet at one path:
+
+| Verb | The input file |
+|---|---|
+| `outbox` | `<outbox root>/<dispatch id>/.umbrella-input.json` — the dispatch's own directory, not the root every worker of a wave shares |
+| `envelope` | `<run>/dispatch/.umbrella-input.json` — where the run's envelopes are published |
+| `ledger` | `<run>/dispatch/.umbrella-input.json` of the calling run, named with `--run`. The ledger directory is shared by every run in the workspace, so it is never the place |
+
+Any other name or place, a `..` segment, or a link at the name is refused at exit
+`2` before anything is read, and stdin is not read at all. The file goes through the
+same parse as stdin, so one document lands the same bytes either way. It is deleted
+once the verb exits `0` and kept on a rejection, for you to correct and send again —
+but whether a re-send is right is the refusal row's call, not the file's: a ledger
+refusal can arrive after the entry was already written.
+
+Stdin stays for scripts, tests and hosts with no file tool. **"Optional" means the
+document may be empty, not that the read is skipped.** Without `--input-file`,
+`envelope` reads stdin unconditionally, so invoked with stdin attached to a terminal
+it blocks, waiting for a document nobody is typing — it looks like a hang and it is
+not one. Anything scripting a sweep of several runs, or an operator calling the verb
+by hand, closes stdin: append `< /dev/null`.
 
 ### Exit codes
 
@@ -82,7 +104,7 @@ several runs, or an operator calling the verb by hand, closes stdin: append `< /
 |---|---|---|
 | `0` | The verb ran and was accepted. The JSON report is on stdout. | Continue. Where a verb degrades onto a frozen dispatch line, that line is the **last** line of stdout — read it from the end. |
 | `1` | Rejected. **Nothing was published**: every writer commits through a temp file and a rename, so the files on disk are byte-for-byte what they were. The report is still printed, with a named code per rejection. | Look the code up in the tables below and take its recovery. |
-| `2` | The runtime itself did not run — a missing module, malformed flags, or input on stdin that was not JSON. Nothing was attempted and there is no code to look up. | Report the message verbatim and hand the run to the workflow's prose orchestrator. Do **not** record the change with an editor tool instead. |
+| `2` | The runtime itself did not run — a missing module, malformed flags, input that was not JSON, or an input file named in the wrong place. Nothing was attempted and there is no code to look up. | When the message names the input file, its place or its JSON, write the document where the message says and run the verb once more. Otherwise report the message verbatim and hand the run to the workflow's prose orchestrator. Do **not** record the change with an editor tool instead. |
 
 Exit `2` is the row that is easy to mishandle, because the tempting next step is
 to do by hand what the script would not do. Don't. A runtime that could not
@@ -279,7 +301,7 @@ each of those dispatches raised an approval nobody could satisfy. A node that
 declares nothing still derives exactly as before. A declaration is not a route
 around the reachability rule: a declared `true` the tier can never reach is
 refused, and so is a value that is neither `true` nor `false`, because a
-close-out lowered by a typo is the defect the field exists to remove. A stdin
+close-out lowered by a typo is the defect the field exists to remove. An input
 override outranks the node, since a caller dispatching by hand is answering for
 that dispatch.
 
@@ -503,7 +525,7 @@ tool because the script said no is the drift this whole design removes.
 | `ledger-entry-exists` | Creation was asked for an id that already has an entry. Ids are never reused; this is a caller holding a stale id. |
 | `ledger-entry-unreadable` | The entry is on disk but does not parse. The file needs repair; no op can proceed and repeating one will not help. Report the message verbatim. |
 | `ledger-op-unknown` | The op name is outside the seven. A typo, or a caller built against a different version. |
-| `ledger-args-invalid` | The arguments on stdin do not carry what the op needs. The report says which field. Fix the arguments and re-send — this is the one caller defect where a *corrected* re-send is the whole recovery. |
+| `ledger-args-invalid` | The arguments do not carry what the op needs. The report says which field. Fix the arguments and re-send — this is the one caller defect where a *corrected* re-send is the whole recovery. |
 | `ledger-status-illegal` | A status outside the frozen enum, or a transition out of a closed entry. Closed is terminal by design; reopening a dispatch means creating a new one. |
 | `ledger-unwritable` | The ledger path could not be written. **Read `entry_written` before deciding.** Absent or `false`: nothing was published, so fix the environment and re-issue. `true`: the entry is written and only the index regeneration failed — the index is behind, the next op of any kind regenerates it, and re-issuing *this* op would apply the mutation twice. |
 | `ledger-temp-exists` | **The entry is written and the index is behind** — this code is not reachable as a lock conflict, because a held entry lock is reported as `ledger-locked`. It means the shared index temp stayed held across every retry, after the entry was already committed. Do not re-issue the op; any later op regenerates the index. |

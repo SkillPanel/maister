@@ -71,6 +71,9 @@ const CASES = [
     '{"grade": "done", "commits": [], "prs": []}',
     'JSON',
   ].join('\n') },
+  { name: 'a dispatched worker\'s outbox write through the input file', verb: 'outbox', command: `node ${UMBRELLA} outbox --outbox=/Users/x/workspace/.maister/umbrella/outbox --dispatch-id=d-0001 --type=closeout --input-file=/Users/x/workspace/.maister/umbrella/outbox/d-0001/.umbrella-input.json` },
+  { name: 'a ledger op through the calling run\'s input file', verb: 'ledger', command: `node ${UMBRELLA} ledger --ledger=/Users/x/workspace/.maister/umbrella/ledger --op=update-status --actor=engine --dispatch-id=d-0001 --run=/Users/x/workspace/.maister/umbrella/runs/2026-01-05-a --input-file=/Users/x/workspace/.maister/umbrella/runs/2026-01-05-a/dispatch/.umbrella-input.json` },
+  { name: 'an envelope through the run\'s input file', verb: 'envelope', command: `node ${UMBRELLA} envelope --run=/Users/x/workspace/.maister/umbrella/runs/2026-01-05-a --node=build --ledger=/Users/x/workspace/.maister/umbrella/ledger --root=/Users/x/workspace --input-file=/Users/x/workspace/.maister/umbrella/runs/2026-01-05-a/dispatch/.umbrella-input.json` },
   { name: 'the single-quoted echo pipe', verb: 'write-state', command: `echo '{"a": "b; c | d"}' | node ${ENGINE} write-state --state=/tmp/run/orchestrator-state.yml` },
 
   // C1: a heredoc tag the shell never reads as one.
