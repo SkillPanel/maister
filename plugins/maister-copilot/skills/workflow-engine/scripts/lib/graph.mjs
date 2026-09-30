@@ -51,7 +51,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { KNOWN_VERSION, isNewerVersion, nodeOf, readDefinition } from './definition.mjs';
-import { ICON_HINTS, isTitle } from './display.mjs';
+import { HEADER_MAX, ICON_HINTS, isHeader, isTitle } from './display.mjs';
 
 // ---------------------------------------------------------------------------
 // the closed vocabularies
@@ -147,7 +147,7 @@ const TUNABLE = ['with', 'provider'];
 const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes'];
 const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display'];
 const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
-const DISPLAY_KEYS = ['icons', 'titles'];
+const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 
 /**
  * An authored gate option in its map form carries its effect and nothing else.
@@ -239,6 +239,9 @@ const WARN = {
   exposedDisabled: (path, node) => `exposed-output-disabled:${path}:${node}`,
   iconUnknownNode: (path, node) => `icon-hint-unknown-node:${path}:${node}`,
   titleUnknownNode: (path, node) => `title-unknown-node:${path}:${node}`,
+  labelUnknownNode: (path, node) => `option-label-unknown-node:${path}:${node}`,
+  labelUnknownOption: (path, node) => `option-label-unknown-option:${path}:${node}`,
+  headerUnknownNode: (path, node) => `header-unknown-node:${path}:${node}`,
   overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
   undescribed: (name) => `workflow-undescribed:${name} — the work command offers a project workflow by what it is for, `
     + 'and this one does not say: add a one-paragraph description: to the definition, '
@@ -1791,6 +1794,8 @@ function checkOutputs(outputs, nodes, file, errors, removed, warnings) {
  *
  * A title is free text with two limits: it says something (a non-empty string)
  * and it is one line, because the gate brief carries it in a flow-safe value.
+ * An option label is a title keyed by gate and then option. A header is a title
+ * of at most `HEADER_MAX` characters, because a picker's chip shows no more.
  *
  * The values are checked on their own, per block — the base's in `checkGraph`,
  * an overlay's and each of its profiles' in `checkOps`, so standalone mode sees
@@ -1801,7 +1806,7 @@ function checkDisplayValues(display, file, prefix, errors) {
   if (display === undefined || display === null) return;
   const at = `${prefix}display`;
   if (!isMap(display)) {
-    fail(errors, file, at, `display is a mapping of icons and titles; ${describe(display)} is not`);
+    fail(errors, file, at, `display is a mapping of icons, titles, option labels and headers; ${describe(display)} is not`);
     return;
   }
   // Closed like every other level: a `heroes` or a misspelt `title` would
@@ -1827,12 +1832,42 @@ function checkDisplayValues(display, file, prefix, errors) {
   if (titles !== undefined && titles !== null && !isMap(titles)) {
     fail(errors, file, `${at}.titles`,
       `display.titles is a mapping of node id to title; ${describe(titles)} is not`);
+  } else {
+    for (const [id, title] of Object.entries(titles ?? {})) {
+      if (isTitle(title)) continue;
+      fail(errors, file, `${at}.titles.${id}`,
+        `a title is a non-empty string on one line; ${typeof title === 'string' ? JSON.stringify(title) : describe(title)} is not`, id);
+    }
+  }
+  const labels = display.option_labels;
+  if (labels !== undefined && labels !== null && !isMap(labels)) {
+    fail(errors, file, `${at}.option_labels`,
+      `display.option_labels is a mapping of gate id to a mapping of option id to label; ${describe(labels)} is not`);
+  } else {
+    for (const [gate, options] of Object.entries(labels ?? {})) {
+      if (!isMap(options)) {
+        fail(errors, file, `${at}.option_labels.${gate}`,
+          `display.option_labels.${gate} is a mapping of option id to label; ${describe(options)} is not`, gate);
+        continue;
+      }
+      for (const [option, label] of Object.entries(options)) {
+        if (isTitle(label)) continue;
+        fail(errors, file, `${at}.option_labels.${gate}.${option}`,
+          `an option label is a non-empty string on one line; ${typeof label === 'string' ? JSON.stringify(label) : describe(label)} is not`, gate);
+      }
+    }
+  }
+  const headers = display.headers;
+  if (headers !== undefined && headers !== null && !isMap(headers)) {
+    fail(errors, file, `${at}.headers`,
+      `display.headers is a mapping of gate id to header; ${describe(headers)} is not`);
     return;
   }
-  for (const [id, title] of Object.entries(titles ?? {})) {
-    if (isTitle(title)) continue;
-    fail(errors, file, `${at}.titles.${id}`,
-      `a title is a non-empty string on one line; ${typeof title === 'string' ? JSON.stringify(title) : describe(title)} is not`, id);
+  for (const [gate, header] of Object.entries(headers ?? {})) {
+    if (isHeader(header)) continue;
+    fail(errors, file, `${at}.headers.${gate}`,
+      `a header is a non-empty string on one line of at most ${HEADER_MAX} characters, the width of a picker's chip; `
+      + `${typeof header === 'string' ? JSON.stringify(header) : describe(header)} is not`, gate);
   }
 }
 
@@ -1852,6 +1887,30 @@ function checkDisplayNodes({ prefix, block }, nodes, warnings) {
     if (!isMap(block[key])) continue;
     for (const id of Object.keys(block[key])) {
       if (!nodes.has(id)) warnings.push(warn(`${prefix}display.${key}.${id}`, id));
+    }
+  }
+  // Labels and headers belong to gates, so a node that is not one is as absent
+  // as a node the graph does not declare; an option the gate does not offer is
+  // a label nobody will ever see.
+  const gateOf = id => (nodes.get(id)?.type === 'gate' ? nodes.get(id) : null);
+  if (isMap(block.option_labels)) {
+    for (const [gate, options] of Object.entries(block.option_labels)) {
+      const node = gateOf(gate);
+      if (!node) {
+        warnings.push(WARN.labelUnknownNode(`${prefix}display.option_labels.${gate}`, gate));
+        continue;
+      }
+      if (!isMap(options) || !isMap(node.options)) continue;
+      for (const option of Object.keys(options)) {
+        if (!Object.hasOwn(node.options, option)) {
+          warnings.push(WARN.labelUnknownOption(`${prefix}display.option_labels.${gate}.${option}`, gate));
+        }
+      }
+    }
+  }
+  if (isMap(block.headers)) {
+    for (const gate of Object.keys(block.headers)) {
+      if (!gateOf(gate)) warnings.push(WARN.headerUnknownNode(`${prefix}display.headers.${gate}`, gate));
     }
   }
 }

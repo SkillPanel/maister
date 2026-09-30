@@ -23,10 +23,13 @@
  *   prior-context  --state                                    the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt — read-only over a run
- *   gate-brief     --state, --node, optional --oneline        the gate brief:
- *                  the closing summary, the node that runs next, the
- *                  recommended option and the run's dashboard, kept inside a
- *                  fixed budget — read-only over a run
+ *   gate-brief     --state, --node, optional --oneline or --json
+ *                                                             the gate brief:
+ *                  the closing summary and the node that runs next, kept
+ *                  inside a fixed budget; --json adds the picker (question,
+ *                  header, labelled options, recommended first); --oneline is
+ *                  the driven form, with the recommended option and the run's
+ *                  dashboard — read-only over a run
  *   resume-check   --state                                    JSON on stdout
  *                  (the frozen workflow's name, overlays and profile, or the
  *                  refusal for a directory the engine does not resume, a 2.x
@@ -103,8 +106,9 @@ const VERBS = {
   // The other read-only verb. `--node` because a run has many gates and the
   // state records no "current" one while a question is being composed; the
   // gate is checked against the frozen graph, so a wrong id is refused rather
-  // than rendered. `--oneline` folds the brief for a driven gate request.
-  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline'] },
+  // than rendered. `--oneline` folds the brief for a driven gate request;
+  // `--json` returns what an in-session picker takes.
+  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline', 'json'] },
   // Read-only as well, and asked first by every resume: whether the directory
   // holds a run this engine froze, and what it froze. One flag for the reason
   // the other state verbs take one.
@@ -122,7 +126,7 @@ const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const REPEATABLE = new Set(['overlay']);
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline']);
+const BOOLEAN = new Set(['oneline', 'json']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -609,20 +613,33 @@ async function runPriorContext(flags) {
  *
  * Reported like `prior-context` — stdout is the bytes a caller pastes into the
  * question, a refusal is exit 1 with an empty stdout and the code first on
- * stderr — with one addition: a drifted definition is a warning, not a
+ * stderr — except under `--json`, which reports like `resume-check`, the whole
+ * result on stdout; and with one addition: a drifted definition is a warning, not a
  * refusal, so it goes to stderr beside a brief that still printed, or after
  * the refusal's code when one follows it.
  */
 async function runGateBrief(flags) {
   if (!flags.state) throw new UsageError('gate-brief needs --state');
   if (!flags.node) throw new UsageError('gate-brief needs --node');
+  const json = flags.json === true;
+  if (json && flags.oneline === true) {
+    throw new UsageError('gate-brief takes --oneline or --json, not both: --oneline is the driven form, --json the in-session picker');
+  }
   const module = await loadModule(VERBS['gate-brief'].module);
   const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
-  const result = render({ state: flags.state, node: flags.node, oneline: flags.oneline === true });
+  const result = render({ state: flags.state, node: flags.node, oneline: flags.oneline === true, json });
   // A refusal's code comes first on stderr, and a drift warning is kept after
   // it: a drifted run that also lacks a summary must still say it drifted.
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
+  if (json) {
+    // The picker as data, so nothing is parsed out of prose: a refusal is the
+    // same JSON with `ok: false`, beside the stderr lines above.
+    report(result.ok
+      ? { ok: true, ...result.picker, errors: [], warnings: (result.warnings || []).map(warning => warning.message ?? warning) }
+      : { ok: false, errors: result.errors, warnings: (result.warnings || []).map(warning => warning.message ?? warning) });
+    return result.ok ? EXIT.OK : EXIT.REJECTED;
+  }
   if (!result.ok) return EXIT.REJECTED;
   process.stdout.write(result.text);
   return EXIT.OK;

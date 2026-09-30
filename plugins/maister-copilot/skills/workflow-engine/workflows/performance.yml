@@ -79,6 +79,36 @@ display:
     verification:                  "Verification"
     verification-approval:         "Approve verification"
     finalization:                  "Finalization"
+  option_labels:
+    bottleneck-approval:
+      continue-to-specification: "Continue to specification"
+      stop-performance: "Stop here"
+    specification-approval:
+      continue-to-spec-audit: "Continue to specification audit"
+      stop-performance: "Stop here"
+    spec-audit-approval:
+      continue-to-planning: "Continue to planning"
+      stop-performance: "Stop here"
+    planning-approval:
+      continue-to-implementation: "Continue to implementation"
+      stop-performance: "Stop here"
+    implementation-approval:
+      continue-to-verification-options: "Continue to verification options"
+      stop-performance: "Stop here"
+    verification-options-approval:
+      continue-to-verification: "Continue to verification"
+      stop-performance: "Stop here"
+    verification-approval:
+      continue-to-finalization: "Continue to finalization"
+      stop-performance: "Stop here"
+  headers:
+    bottleneck-approval:            "Bottlenecks"
+    specification-approval:         "Spec"
+    spec-audit-approval:            "Spec audit"
+    planning-approval:              "Plan"
+    implementation-approval:        "Implemented"
+    verification-options-approval:  "Checks"
+    verification-approval:          "Verification"
 
 nodes:
   intake:
