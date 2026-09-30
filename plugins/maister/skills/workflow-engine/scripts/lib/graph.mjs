@@ -178,6 +178,13 @@ const RETIRED_OPTION_KEYS = {
 const INPUT_TYPES = ['string', 'bool', 'path'];
 
 /**
+ * What one input declaration may carry. Closed like every other key set of a
+ * version 1 document: a misspelt `requried: true` used to pass, leaving an
+ * input the author meant to require optional, and a caller asked for nothing.
+ */
+const INPUT_KEYS = ['type', 'required', 'default', 'tracker_key'];
+
+/**
  * When a node may run, given how its needs ended. `success`, the default, needs
  * every need completed or skipped; `failure` runs only when a need failed or
  * stopped, and is skipped when every need ended well; `always` runs once every
@@ -1604,6 +1611,7 @@ function checkInputs(inputs, file, errors) {
         `an input is declared as a mapping of its type, whether it is required and its default; ${describe(input)} is not`);
       continue;
     }
+    checkKeys(Object.keys(input), INPUT_KEYS, { file, prefix: `inputs.${name}.`, label: 'an input key' }, errors);
     if (input.type !== undefined && !INPUT_TYPES.includes(input.type)) {
       const near = closest(input.type, INPUT_TYPES);
       fail(errors, file, `inputs.${name}.type`,
@@ -2025,6 +2033,15 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
   if (node.type !== 'gate') {
     if (typeof node.uses !== 'string' || node.uses === '') {
       fail(errors, file, `${at}.uses`, 'a task node must name what it runs', id);
+    }
+    // A question and its options are what make a gate. On a task node nothing
+    // asks them and nothing reads them, yet both were hashed — a graph whose
+    // identity moved over keys that do nothing.
+    for (const key of ['ask', 'options']) {
+      if (node[key] === undefined) continue;
+      fail(errors, file, `${at}.${key}`,
+        `${key} belongs to a gate, and this node runs ${typeof node.uses === 'string' ? node.uses : 'a target'}; `
+        + 'add type: gate and drop uses to make it a gate, or remove ask and options', id);
     }
     return;
   }

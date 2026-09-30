@@ -583,3 +583,30 @@ test('only the definitions the work command lists are judged', t => {
   const eject = ['name: research', 'version: 1', 'nodes:', '  look:', '    uses: skill:quick-plan', '    needs: []'];
   assert.deepEqual(undescribed(validate(definition(t, eject, { dir: projectHome(t), name: 'research' })).report), []);
 });
+
+// ---------------------------------------------------------------------------
+// an input declares its type, required, default and tracker_key, and nothing else
+// ---------------------------------------------------------------------------
+
+test('a misspelt input key is refused with the key it most probably meant', t => {
+  const lines = replacing('  topic: {type: string, required: true}', '  topic: {type: string, requried: true}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'inputs.topic.requried').message,
+    /"requried" is not an input key; did you mean "required"\? The accepted keys are type, required, default, tracker_key/);
+});
+
+// ---------------------------------------------------------------------------
+// ask and options make a gate, and only a gate carries them
+// ---------------------------------------------------------------------------
+
+test('a task node carrying a gate\'s question or options is refused, key by key', t => {
+  const lines = replacing('    uses: direct:wrapup', '    uses: direct:wrapup', '    ask: "Wrap up?"', '    options: {go: continue, halt: stop}');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  for (const key of ['ask', 'options']) {
+    const error = errorAt(report, `nodes.wrapup.${key}`);
+    assert.equal(error.node, 'wrapup');
+    assert.match(error.message, new RegExp(`${key} belongs to a gate, and this node runs direct:wrapup; add type: gate`));
+  }
+});
