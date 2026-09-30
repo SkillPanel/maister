@@ -30,7 +30,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readDefinition } from './definition.mjs';
-import { TARGET_NAME, bareWorkflowName, locateWorkflow, pluginRoot, projectRoot } from './graph.mjs';
+import { TARGET_NAME, bareWorkflowName, locateWorkflow, orphanOverlay, pluginRoot, projectRoot } from './graph.mjs';
 
 /** Where definitions live, relative to a project root. */
 const HOME = path.join('.maister', 'workflows');
@@ -52,6 +52,12 @@ function one(name, root) {
   }
   const hit = locateWorkflow(bare, root);
   if (hit === null) {
+    const orphan = orphanOverlay(bare, root);
+    if (orphan !== null) {
+      return refused(shown(orphan, root), `${shown(orphan, root)} is an overlay for "${bare}", but there is no built-in `
+        + `${bare} to lay it over and no ${HOME}/${bare}.yml: an overlay changes a workflow that exists. To make `
+        + `"${bare}" a workflow of its own, write it as ${HOME}/${bare}.yml`);
+    }
     return refused(null, `no workflow named "${bare}": looked for ${HOME}/${bare}.yml, ${HOME}/generated/${bare}.yml, `
       + `${HOME}/${bare}.overlay.yml and a built-in ${bare}.yml, and found none`);
   }

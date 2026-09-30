@@ -175,6 +175,16 @@ test('a name found nowhere is refused with the four homes it was looked for in',
   assert.match(report.errors[0].message, /nowhere\.overlay\.yml/);
 });
 
+test('an overlay for a name no built-in carries is refused, naming the overlay and the base it lacks', t => {
+  const root = project(t, { [home('acme.overlay.yml')]: 'extends: acme\n' });
+  const { code, report } = inProject(root, ['locate', '--name=acme']);
+  assert.equal(code, 1);
+  assert.equal(report.ok, false);
+  assert.deepEqual([report.errors[0].file, report.errors[0].path], [home('acme.overlay.yml'), 'name']);
+  assert.match(report.errors[0].message, /is an overlay for "acme", but there is no built-in acme to lay it over/);
+  assert.match(report.errors[0].message, /write it as \.maister\/workflows\/acme\.yml/);
+});
+
 test('a name outside the workflow charset is refused before any path is built', t => {
   const root = project(t);
   for (const name of ['../escape', 'Upper', 'a/b']) {

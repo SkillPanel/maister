@@ -86,13 +86,14 @@ validated against is the file the lookup found — the same function `validate` 
 |---|---|
 | `.maister/workflows/<name>.yml` | an **eject** — it shadows the built-in entirely |
 | `.maister/workflows/generated/<name>.yml` | a **generated** chain — published by the chain planner for one ticket, complete in itself |
-| `.maister/workflows/<name>.overlay.yml` | an **overlay** — merged over the built-in |
+| `.maister/workflows/<name>.overlay.yml` | an **overlay** — merged over the built-in, and a hit only when that built-in exists |
 | `workflows/<name>.yml` beside this skill | the shipped **built-in** |
 
 Resolution order is eject → generated → overlay → built-in, and the first hit wins. A
 generated chain is never overlaid and never ejected: there is no `generated/<name>.overlay.yml`
 candidate, and a definition of the same name at the top of the directory would simply win —
-which the planner's collision check prevents. **An overlay beside an eject or a generated chain
+which the planner's collision check prevents. An overlay for a name no built-in carries is not a
+workflow: `locate` refuses the name, naming the overlay and the base it lacks. **An overlay beside an eject or a generated chain
 of its name is never applied.** Say so to the operator when you find one, rather than letting
 them believe it is in effect; `validate` reports the same fact as `overlay-ignored:<name>:<home>`. Its path is what the freeze records as
 `workflow.source`, exactly as for an eject, and the graph hash is computed from the resolved
@@ -361,7 +362,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 
 | Verb | Flags | Gives |
 |---|---|---|
-| `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead |
+| `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead. An overlay given without `--definition` is judged on its shape, and a base it names by workflow name must exist — a built-in or a project definition |
 | `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; a gate box carries its question and its options as `id: effect` |
 | `locate` | optional `--name` (bare or `builtin:`-prefixed) | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take, a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `dispatches` names the nodes that carry `dir:`. Exit `1` when the name is found nowhere, is not a workflow name, or finds a file whose `name:` is another. With no name, `{ok, workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |

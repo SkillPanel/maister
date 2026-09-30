@@ -321,9 +321,12 @@ export function checkSubrunStart({ node, parent = null, project = null } = {}) {
  * Validate a definition, a set of overlays, or both.
  *
  * `mode` is decided by the caller from what was supplied and is not re-derived
- * here. In `standalone` mode the overlays are judged on their own shape and the
- * base is never looked for — which is the only way an overlay over a workflow
- * this build does not ship can be checked at all. In `resolved` mode the full
+ * here. In `standalone` mode the overlays are judged on their own shape, and a
+ * base named by its workflow name must exist somewhere a run could find it — a
+ * built-in, or a definition in the project — because an overlay with nothing
+ * to lay itself over is not a workflow anyone can run. A base named by path is
+ * not looked for: the path is relative to whatever definition the operator
+ * pairs it with, which only resolved mode has. In `resolved` mode the full
  * order applies on top: base-node existence, `uses` immutability and the `tune`
  * whitelist all become reachable because there is a base to compare against.
  *
@@ -353,6 +356,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   }
 
   if (mode === 'standalone') {
+    for (const overlay of overlays) checkOverlayBaseExists(overlay, project, errors);
     checkProfileChoice(overlays, profile, null, errors);
     // No base to build a graph from, so there is nothing to count. `null` rather
     // than zeroes: a caller that renders "0 nodes" for an overlay judged on its
@@ -881,6 +885,15 @@ export function locateTarget(scheme, written, { project = null } = {}) {
  * operations rather than a document of its own. Callers that need the child's
  * declared interface read `base` and never have to branch on `from`.
  *
+ * **An overlay is a hit only when the built-in it lays over exists.** The
+ * overlay home is named after a built-in, and an overlay whose built-in is
+ * absent has nothing to be applied to: no document to read, no run to start.
+ * Counting it anyway reported a workflow — `from: overlay`, no warning — whose
+ * `base` was a file that does not exist, so every reader of that name failed
+ * later and further from the cause. Such a name now resolves nowhere, which
+ * is what it is; `orphanOverlay` below finds the file for a caller that wants
+ * to say why.
+ *
  * The built-in prefix is stripped through `bareWorkflowName`, so `research` and
  * `builtin:research` resolve to the same file and the prefix never reaches a
  * path.
@@ -903,7 +916,7 @@ export function locateWorkflow(name, root = null) {
     { at: path.join(home, `${bare}.overlay.yml`), from: 'overlay', base: builtin },
     { at: builtin, from: 'builtin', base: null },
   ];
-  const hit = homes.find((home_) => isFile(home_.at));
+  const hit = homes.find((home_) => isFile(home_.at) && (home_.from !== 'overlay' || isFile(builtin)));
   if (!hit) return null;
   // An eject or a generated chain wins over an overlay of the same name, and
   // the overlay is then never applied. `ignored` names it, so a caller can say
@@ -911,6 +924,20 @@ export function locateWorkflow(name, root = null) {
   const overlay = homes[2];
   const ignored = (hit.from === 'eject' || hit.from === 'generated') && isFile(overlay.at) ? overlay.at : null;
   return { at: hit.at, from: hit.from, base: hit.base ?? hit.at, ignored };
+}
+
+/**
+ * The overlay a name would have resolved to if its built-in existed, or null.
+ * `locateWorkflow` answers null for such a name, because no workflow is behind
+ * it; this answers where the file is, so a caller refusing the name can say it
+ * found an overlay with nothing to lay it over rather than that it found
+ * nothing at all.
+ */
+export function orphanOverlay(name, root = null) {
+  const bare = bareWorkflowName(name);
+  if (bare === null || locateWorkflow(bare, root) !== null) return null;
+  const overlay = path.join(root ? path.resolve(root) : projectRoot(), '.maister', 'workflows', `${bare}.overlay.yml`);
+  return isFile(overlay) ? overlay : null;
 }
 
 /**
@@ -2522,6 +2549,24 @@ function checkOverlayBase(overlay, definition, errors) {
   const wanted = path.resolve(path.dirname(overlay.file ?? '.'), declared);
   if (path.resolve(source) === wanted || path.basename(source) === path.basename(declared)) return;
   fail(errors, overlay.file, 'extends', `the overlay extends "${declared}", which is not the definition it was applied to`, null);
+}
+
+/**
+ * That a base named by its workflow name exists, for an overlay judged on its
+ * own. Resolved mode never needs this — the base is in hand — and a path-form
+ * base is relative to a definition only resolved mode is given. What remains is
+ * the overlay written for a workflow that is not there: it validated clean on
+ * its shape and then had nothing to be applied to when a run looked for it.
+ */
+function checkOverlayBaseExists(overlay, project, errors) {
+  const declared = overlay?.doc?.extends;
+  if (typeof declared !== 'string' || !BASE_REF.test(declared)) return;
+  const named = bareWorkflowName(declared);
+  if (named === null || locateWorkflow(named, project) !== null) return;
+  fail(errors, overlay.file, 'extends',
+    `the overlay extends "${named}", but no workflow of that name exists: there is no built-in ${named} and no `
+    + `${named}.yml in the project's .maister/workflows/ or its generated/. An overlay changes a workflow that exists; `
+    + `a workflow of your own is written as .maister/workflows/${named}.yml`, null);
 }
 
 function checkOps(body, file, prefix, errors) {
