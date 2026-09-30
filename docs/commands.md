@@ -18,7 +18,7 @@ matches one of them, `/maister:work` offers it beside the best built-in match, a
 selection lists them after the built-ins. A task folder of a workflow started by name resumes the
 same way as any other.
 
-### `/maister:run <name> ["title"] [key=value ...] [--profile=NAME] [--overlay=PATH ...]`
+### `/maister:run <name> ["title"] [key=value ...] [--profile=NAME] [--overlay=PATH ...] [--check]`
 
 Starts a workflow by name: one your project defines in `.maister/workflows/<name>.yml`, an eject
 or an overlay of a built-in, or a built-in itself. It finds the definition, checks that it
@@ -32,6 +32,7 @@ behaves like any built-in one: the same dashboard, the same gates, and the same 
 | `key=value` | One input the definition declares. Quote a value with spaces: `team="Payments Core"` |
 | `--profile=NAME` | A profile one of the run's overlays declares |
 | `--overlay=PATH` | An extra overlay laid over the definition, after any `<name>.overlay.yml` found beside it. Repeatable |
+| `--check` | Validate the workflow as it would run, overlays and profile included, and start nothing |
 
 **Names are looked up in one order, and the first match wins:**
 1. `.maister/workflows/<name>.yml` (your own workflow, or an eject of a built-in);
@@ -50,9 +51,17 @@ profile edited since then does not change it.
 **List** your project's workflows with `/maister:run --list`. With no argument at all, it lists
 them and asks which to start.
 
+**Check** a workflow with `/maister:run <name> --check`, adding `--overlay` and `--profile` as for
+a run. It finds and validates the workflow and starts nothing. Each error names the file, the node
+and the field, with a one-line fix where the fix is mechanical. The report then lists the
+warnings, where each skill and agent was found, and the inputs a start would ask for. This is the
+check to run while writing a definition or an overlay; the
+[workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)
+covers every key it judges.
+
 **What it will not start:**
-- A *chain*, meaning a definition whose nodes dispatch work into member repositories with `dir:`.
-  Chains are started from maister cockpit.
+- A *chain*, meaning a definition whose nodes dispatch work into member repositories with `dir:`,
+  including a `dir:` node an overlay adds. Chains are started from maister cockpit.
 - A workflow named `bug-fixes`, `enhancements`, `new-features`, `refactoring` or `mockups`. Those
   are pre-v3 task folders that nothing reads runs from.
 - A file whose `name:` differs from its file name.
@@ -65,6 +74,7 @@ them and asks which to start.
 /maister:run research "How should retries back off?" --profile=quick   # a profile .maister/workflows/research.overlay.yml declares
 /maister:run .maister/tasks/onboarding/2026-09-30-onboarding-payments
 /maister:run --list
+/maister:run onboarding --check
 ```
 
 ---
