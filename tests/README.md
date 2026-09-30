@@ -24,7 +24,8 @@ the exit code, stdout, stderr and the files left behind. Only the dashboard norm
   `.claude/` or `.github/` tree is committed and the operator's own `~/.claude` and `~/.copilot` are
   never read.
 - `fixtures/runs/` — run directories copied into a scratch project per test: a plan with its companion
-  and work log, a pending gate request, a state file written by a prose orchestrator.
+  and work log, a pending gate request, a state file written by a prose orchestrator, and two task directories
+  written by 2.x (`prose-2x/`, `prose-2x-research/`) that `resume-check` refuses.
 - `fixtures/gates/` — answered request documents a test copies over the pending one.
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by

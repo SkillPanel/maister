@@ -51,6 +51,7 @@ const CASES = [
   { name: 'locate by name', verb: 'locate', command: `node ${ENGINE} locate --name=onboarding` },
   { name: 'locate with no name, listing the project\'s workflows', verb: 'locate', command: `node ${ENGINE} locate` },
   { name: 'sync-plan with the plan path', verb: 'sync-plan', command: `node ${ENGINE} sync-plan --plan=.maister/tasks/development/2026-09-28-sample/implementation/implementation-plan.md` },
+  { name: 'resume-check with a state path', verb: 'resume-check', command: `node ${ENGINE} resume-check --state=.maister/tasks/development/2026-01-05-a/orchestrator-state.yml` },
   { name: 'prior-context with an absolute state path', verb: 'prior-context', command: `node ${ABSOLUTE} prior-context --state=/Users/x/.maister/tasks/research/2026-01-05-a/orchestrator-state.yml` },
   { name: 'resolve with a definition under the plugin path', verb: 'resolve', command: `node ${ENGINE} resolve --definition=${PLUGIN_ROOT}/skills/workflow-engine/workflows/development.yml` },
   { name: 'a state path with a space, single-quoted', verb: 'write-state', command: [
