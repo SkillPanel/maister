@@ -590,19 +590,46 @@ own companion on the HTML output option.
 severity, with the file and line for each and whether it is fixable
 automatically or needs a hand.
 
-**The fix loop.** When the verdict is anything but a clean pass, ask it as one single-select. The question text is the numbered critical and
-warning list, one line per issue in the shape
-`N. [severity] path:line — description (fixable | needs a hand)`, followed by
-`Which to fix?`. The options are **"Fix all fixable (Recommended)"** and
-**"None — proceed as is"**; a subset is chosen by typing its numbers through
-Other. When nothing on the list is fixable, the `(Recommended)` label moves to
-"None — proceed as is".
-Apply the chosen fixes, log each one,
-and clear `skip_test_suite` because code changed. Record the applied fixes as
-`verification_context.fixes_applied`.
-After "None — proceed as is" nothing was fixed and nothing changed, so there
+**The fix loop.** Sort the report's unfixed items into two sets, whatever their
+severity: **fixable**, every item the verifier marked fixable, and **needs a
+hand**, the rest. When the verdict is anything but a clean pass and either set
+holds an item, ask it as one single-select; when both are empty, say so and
+continue to the gate. The question text opens with the verdict and the counts by
+severity, numbers the fixable items as `N. [severity] path:line — description`,
+then the others as `N. [severity] path:line — description (needs a hand: <why>)`,
+the why taken from the verifier, and ends with `Which to fix?`.
+
+**The options are generated from the two sets — at most four, none of them a
+no-op:**
+
+- **"Fix all N fixable (items …)"**, when anything is fixable.
+- **"Fix only the critical and warning ones (items …)"**, only when the fixable
+  set mixes critical or warning items with info ones.
+- **"Let me pick…"**, when there is a choice to make: two or more fixable
+  items, or any item that needs a hand. It opens a multi-select, four items to a
+  page: the fixable items first; then, for each item that needs a hand, a
+  concrete way to tackle it now, written from the report; last, "Another change
+  — I'll describe it", which asks once for the change. Its question text
+  carries a `Recommended: …` line naming the items the recommended option
+  covers, and those items carry the (Recommended) label.
+- **"Proceed as is"**.
+
+**Exactly one option is recommended**, the first of these that applies:
+"Proceed as is" when nothing is fixable; "Fix only the critical and warning
+ones" when it is offered and the info fixes are risky; "Proceed as is" when
+every fixable item is info and a fix is risky; otherwise "Fix all". A fix is
+risky when it reaches beyond its item into behaviour the change did not set out
+to alter. Other stays a fallback; no useful path runs through it.
+
+**This is where the run takes a change the operator asks for** — an item that
+needs a hand, tackled now, or a change they describe. The verification gate
+after this node only continues or stops. Apply the chosen fixes and requested
+changes, log each one, and clear `skip_test_suite` because code changed.
+Record every one of them as `verification_context.fixes_applied`; a requested
+change spends the same budget as a fix.
+After "Proceed as is" nothing was fixed and nothing changed, so there
 is nothing to re-verify: ask no re-run question and continue to the gate. When
-at least one fix was applied, ask one single-select, `Re-run verification?`,
+at least one fix or change was applied, ask one single-select, `Re-run verification?`,
 with the options
 **"Re-verify now (Recommended)"** and **"No — continue to the gate"**. Only on
 a yes, raise `verification_context.reverify_count` by one and re-invoke the
@@ -612,9 +639,11 @@ what tell the verifier it is running after fixes, and a re-run that cannot see
 them rewrites nothing, leaving the pre-fix report standing. Both answers
 continue the run, which is why this is a node question rather than a gate. **Budget: 3 fix rounds.**
 
-**Default under a non-terminal driver** (`verification-fix-loop`): the
-recommended option — fix every fixable issue and re-verify once, then continue to the gate; with
-nothing fixable, proceed as is and continue to the gate without re-verifying. The default follows
+**Default under a non-terminal driver** (`verification-fix-loop`): the option
+the question labels (Recommended). When it fixes, apply those fixes and
+re-verify once, then continue to the gate; when it is "Proceed as is", continue
+to the gate without re-verifying. No change is requested on the operator's
+behalf, so no item that needs a hand is tackled by default. The default follows
 the same order as an answered loop: apply the fixes, record `fixes_applied`,
 then, when a fix was applied — the recommended answer to the re-run
 question — raise `reverify_count`

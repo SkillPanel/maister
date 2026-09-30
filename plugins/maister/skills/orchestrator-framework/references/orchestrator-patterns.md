@@ -415,7 +415,7 @@ If prerequisites missing, use AskUserQuestion: "Start from Phase 1", "Specify di
 ### Fix-Then-Reverify Loop
 
 1. Read verification results (structured issues)
-2. For each issue: trivial/auto-fixable → fix silently, log action; non-trivial → AskUserQuestion
+2. Ask which to fix, with options generated from the issues: the fixable ones of every severity as concrete choices (fix all, fix a subset, pick, proceed as is), the rest listed with why each needs a hand, one option recommended, and never an option that does nothing. The workflow engine's `verification` node prose is the worked example
 3. If fixes applied → set `skip_test_suite: false` (code changed) → re-run verification
 4. Loop until: passes OR user proceeds with known issues OR max iterations (3)
 

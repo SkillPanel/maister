@@ -282,6 +282,8 @@ issue_counts:
 **Guidelines for `fixable` assessment**:
 - `true`: Lint errors, formatting issues, missing imports, obvious typos, simple config fixes
 - `false`: Architecture decisions, design trade-offs, test logic errors, unclear requirements
+- For a `false`, say in `suggestion` why it needs a hand — the decision, design change or missing sign-off a person has to supply. The caller's fix loop quotes it beside the item.
+- Grade fixability the same way at every severity: the fix loop offers fixable info items too.
 
 **The orchestrator decides** what to actually fix based on this data. Your job is to aggregate subagent results accurately.
 
