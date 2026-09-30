@@ -68,8 +68,12 @@ const executor = name => `---\nname: ${name}\ndescription: A ${name} for the res
  */
 function where(w, targets, { with: passed = null, env = w.env, cwd = undefined } = {}) {
   const lines = ['name: lookup', 'version: 1', '', 'nodes:'];
+  // Chained, one node needing the one before, so the definition ends on its
+  // last node and carries no dangling leaf to warn about.
+  let previous = null;
   for (const [node, target] of Object.entries(targets)) {
-    lines.push(`  ${node}:`, `    uses: ${target}`, '    needs: []');
+    lines.push(`  ${node}:`, `    uses: ${target}`, `    needs: [${previous ?? ''}]`);
+    previous = node;
     if (passed) lines.push('    with:', ...Object.entries(passed).map(([key, value]) => `      ${key}: "${value}"`));
   }
   const file = path.join(w.root, 'definitions/lookup.yml');

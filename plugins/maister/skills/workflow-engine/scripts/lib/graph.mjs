@@ -246,6 +246,9 @@ const WARN = {
   addedLeaf: (path, node, position, count, after) => `added-node-no-dependents:${path}:${node} — nothing needs it, `
     + `so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
     + 'list the nodes that should wait for it under before:',
+  ownLeaf: (path, node, position, count, after) => `node-no-dependents:${path}:${node} — nothing needs it and the run `
+    + `does not end on it, so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
+    + 'add it to the needs of the node that should wait for it',
 };
 
 /**
@@ -386,6 +389,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   if (graph) {
     checkGraph(graph, errors, warnings, resolved, project);
     warnAddedLeaves(graph, warnings);
+    warnOwnLeaves(graph, warnings);
     checkEveryProfile({ definition, overlays, profile, project }, errors);
   }
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
@@ -424,6 +428,33 @@ function warnAddedLeaves(graph, warnings) {
     if (!graph.nodes.has(id) || needed.has(id)) continue;
     const index = order.indexOf(id);
     warnings.push(WARN.addedLeaf(at, id, index + 1, order.length, index > 0 ? order[index - 1] : null));
+  }
+}
+
+/**
+ * The same side branch in the definition's own nodes: a node nothing needs that
+ * is not the node the run ends on. Its own code rather than the added-node one,
+ * because the fix differs — a definition's node cannot carry `before:`, so the
+ * remedy is a later node's `needs` — and because the code says whose file to
+ * open.
+ *
+ * Two kinds of leaf are left alone. A handler (`on: failure` or `on: always`)
+ * is a leaf by design: it reacts to how its needs ended, and nothing waits for
+ * it. And the run's end is judged among the definition's own nodes only, so an
+ * overlay appending a node after it never turns the base's last node into a
+ * warning the base's author cannot act on.
+ */
+function warnOwnLeaves(graph, warnings) {
+  const needed = new Set();
+  for (const node of graph.nodes.values()) for (const need of needsOf(node)) needed.add(need);
+  const order = topological(graph.nodes);
+  const handler = (node) => node?.on === 'failure' || node?.on === 'always';
+  const own = order.filter((id) => !graph.added.has(id) && !handler(graph.nodes.get(id)));
+  const last = own[own.length - 1];
+  for (const id of own) {
+    if (id === last || needed.has(id)) continue;
+    const index = order.indexOf(id);
+    warnings.push(WARN.ownLeaf(`nodes.${id}`, id, index + 1, order.length, index > 0 ? order[index - 1] : null));
   }
 }
 

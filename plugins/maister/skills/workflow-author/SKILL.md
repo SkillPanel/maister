@@ -180,8 +180,8 @@ from **nodes** every time. Never disable a node and add it back under the same i
      markdown to this plugin's `html-companion-writer` agent and registers the result as that
      artifact's `html` in its summary), and the closing node reconciles every listed file against
      disk. The engine does neither on its own.
-   - **Dangling leaves** — a node nothing waits for that is not where the run ends, as
-     **preview** describes them. The validator warns only for a node an overlay adds.
+   - **Dangling leaves** — the validator warns for these itself, for a definition's own node
+     and for one an overlay adds; they are in the report above. Add nothing.
    - **Overlay or eject** — when an error is a refusal only an eject lifts (a key that may not be
      tuned, a disabled id added back, a guard or a target changed), say so and point to
      *Overlay or eject*.
@@ -230,7 +230,9 @@ Run `locate`, then `validate` — with errors, stop and point to `check` — the
   ("runs only if a need failed", "runs however its needs ended").
 - **Dangling leaves:** a node nothing waits for that is not where the run ends. Name each, say
   where the frozen order puts it (ties are broken by id), and say what it means — no gate waits
-  for it, and the run can close past it. For an overlay's added node the fix is `before:`.
+  for it, and the run can close past it. For a definition's own node the fix is a later node's
+  `needs`; for an overlay's added node it is `before:`. An `on: failure` or `on: always` node is a
+  handler, a leaf by design, and is not one.
 
 Never print the Mermaid text itself.
 

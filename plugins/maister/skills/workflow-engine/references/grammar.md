@@ -526,6 +526,7 @@ Warnings never block, and each one is worth reading:
 |---|---|
 | `unresolved-reference:<node>:<target>` | A `skill:`, `agent:` or `workflow:` target found in no tier or home — a typo, or something not installed here |
 | `added-node-no-dependents:<path>:<node>` | An added node nothing waits for; list the nodes that should wait under `before:` |
+| `node-no-dependents:<path>:<node>` | A definition's own node nothing waits for and the run does not end on; add it to a later node's `needs`. An `on: failure` or `on: always` node is exempt |
 | `overlay-ignored:<name>:<home>` | An overlay beside an eject or a generated chain of its name, never applied |
 | `workflow-undescribed:<name>` | A project workflow with neither a `description:` nor a companion paragraph, which `/maister:work` cannot offer |
 | `exposed-output-disabled:<path>:<node>` | An exposed output whose node an overlay or profile removed; the key is dropped |

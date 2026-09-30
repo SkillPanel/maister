@@ -198,6 +198,7 @@ report says so.
 | `a disabled node cannot come back under its own id` | add the node under a new id and attach it with `before:` |
 | `unresolved-reference:` | check the spelling against the tiers in the grammar reference; leave it only when another environment provides the target |
 | `added-node-no-dependents:` | list the nodes that must wait for it under the added node's `before:` |
+| `node-no-dependents:` | add it to the `needs` of the node that must wait for it, or make it the node the run ends on |
 | `overlay-ignored:` | fold the overlay's changes into the eject, or delete one of the two |
 | `unresolved-subrun-input:` | pass the child's required input in `with:`, or remove the key the child does not declare |
 | `undecidable-value-type:` | declare the value `bool`, `id` or an `enum` when it is a handle rather than prose |
