@@ -1,6 +1,6 @@
 # ADR-0023 — The prose twin is a reference; the orchestrator SKILL.md is a hand-off
 
-**Status**: Accepted · **Date**: 2026-09-21 · **Sources**: `plugins/maister/skills/development/SKILL.md`; `plugins/maister/skills/research/SKILL.md`; `plugins/maister/skills/performance/SKILL.md`; `plugins/maister/skills/workflow-engine/SKILL.md` § "Probe the runtime", § "Decline the resume flags", § "Resume"; `plugins/maister/skills/umbrella/scripts/lib/envelope.mjs` (`driverCapability`); `docs/instruction-surface.md`; ADR-0013, ADR-0012, ADR-0017
+**Status**: Accepted, closed 2026-09-30 · **Date**: 2026-09-21 · **Sources**: `plugins/maister/skills/development/SKILL.md`; `plugins/maister/skills/research/SKILL.md`; `plugins/maister/skills/performance/SKILL.md`; `plugins/maister/skills/workflow-engine/SKILL.md` § "Probe the runtime", § "Decline the resume flags", § "Resume"; `plugins/maister/skills/umbrella/scripts/lib/envelope.mjs` (`driverCapability`); `docs/instruction-surface.md`; ADR-0013, ADR-0012, ADR-0017
 
 ## TL;DR
 On the engine path — the default for three of the four definition-backed workflows — a session
@@ -209,3 +209,13 @@ read replaced by a Node check and its "no `workflow:` block" rule replaced by a 
 block stays in each `SKILL.md`, byte-identical, for the two reasons recorded above. The file list
 here — including why `migration` and `product-design` took no hand-off — is history; their 3.0
 shape is decided in ADR-0025.
+
+### Amendment 2026-09-30 — closed: the references and the branch are gone
+The four `references/<name>-twin.md` files — `migration`'s among them, since it took a hand-off of
+the same shape when it switched — and the opt-out branch of each hand-off are deleted. What remains
+of the shape recorded here is the hand-off itself: it names the workflow for the engine, passes the
+resume target and the flags, and keeps the Step-0 gate block byte-identical. The Node requirement is
+enforced by the engine's runtime probe, and the refusal of a 2.x directory by the engine's
+`resume-check` verb, which every resume route reaches, so neither is restated in the hand-off. Three
+`references/` directories are left empty and removed with their only file. This record stays as the
+reason the twin lived where it did.

@@ -331,3 +331,17 @@ Each took the recommended option.
 4. 2.x branch and cut point: `release/2.x`, cut from 2.2.5 released off `beta`.
 5. 2.x scope, window and install path: defect fixes only, six months after 3.0.0, marketplace
    `maister-plugins-2x`.
+
+### Amendment 2026-09-30 — implemented
+The removal list above is carried out, with one addition: `migration` switched to the engine
+after this record was written and took a twin of its own, `skills/migration/references/migration-twin.md`,
+which is deleted with the other three. The resume refusal lives in a read-only engine verb,
+`resume-check`, rather than in each hand-off: `/maister:work <dir>`, `/maister:run <dir>` and each
+workflow's own command all reach the engine's § "Resume", whose first action is that verb, and
+`/maister:run` already needed a state read for the frozen workflow's name, which the verb now
+supplies. The message is kept in one place and tested. It names the two install lines of the
+README's "Staying on 2.x" section and, for another channel already installed, the uninstall line.
+A `product-design` directory, which has no `workflow:` block either, is sent to its own command
+rather than refused. The pro edition follows at its next pin: the twin parity rows and every row
+that reads a twin or the switch retire, and the new verb joins the gate library's list of the
+engine's verbs.
