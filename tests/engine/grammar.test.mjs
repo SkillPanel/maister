@@ -489,3 +489,27 @@ test('a gate declares no outputs, so no guard can read a value it would never re
   assert.equal(code, 1);
   assert.match(errorAt(report, 'nodes.review-approval.outputs').message, /a gate records only the option chosen and declares no outputs/);
 });
+
+// ---------------------------------------------------------------------------
+// a gate option's two spellings are one option
+// ---------------------------------------------------------------------------
+
+test('a gate option written as a map hashes and draws exactly as its bare effect', t => {
+  const bare = definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: continue', '      stop-here: stop'));
+  const mapped = definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: {effect: continue}', '      stop-here: {effect: stop}'));
+
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout);
+  const [left, right] = [hashOf(bare), hashOf(mapped)];
+  assert.equal(left.ok, true, JSON.stringify(left.errors));
+  assert.equal(right.graph_hash, left.graph_hash);
+  const gate = right.nodes.find(node => node.id === 'review-approval');
+  assert.deepEqual({ ...gate.options }, { 'continue-on': 'continue', 'stop-here': 'stop' });
+
+  const [drawnBare, drawnMapped] = [bare, mapped].map(file => verb(['diagram', `--definition=${file}`]));
+  assert.equal(drawnMapped.code, 0, drawnMapped.stderr);
+  assert.equal(drawnMapped.stdout, drawnBare.stdout);
+  assert.match(drawnMapped.stdout, /continue-on: continue, stop-here: stop/);
+  assert.doesNotMatch(drawnMapped.stdout, /#quot;|effect/);
+});

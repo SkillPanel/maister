@@ -2335,6 +2335,7 @@ function canonicalNodes(graph) {
     for (const key of NODE_KEYS) {
       if (key === 'id') canonical.id = id;
       else if (key === 'needs') canonical.needs = [...new Set(needsOf(node))].sort();
+      else if (key === 'options' && isMap(node.options)) canonical.options = canonicalOptions(node.options);
       else if (node[key] !== undefined) canonical[key] = canonicalValue(node[key]);
     }
     for (const key of Object.keys(node).sort()) {
@@ -2407,6 +2408,29 @@ function isDisabledReference(reference, graph) {
   if (typeof reference !== 'string') return false;
   const id = reference.split('.')[0];
   return !graph.nodes.has(id) && (graph.removed?.has(id) ?? false);
+}
+
+/**
+ * A gate's options, each in the one spelling that means it. `rescan: stop` and
+ * `rescan: {effect: stop}` are the same option — the map form carries the
+ * effect and nothing else (`OPTION_KEYS`) — so both reduce to the bare effect,
+ * and a graph does not change identity because an author chose the longer
+ * spelling. The bare form is the one every shipped definition uses, so no
+ * shipped hash moves.
+ *
+ * A map carrying anything beside the effect is kept whole. The validator
+ * refuses one, so only a degraded document reaches this with it, and reducing
+ * it would hash a document that says more than this build reads identically
+ * to one that says only the effect.
+ */
+function canonicalOptions(options) {
+  const canonical = Object.create(null);
+  for (const key of Object.keys(options).sort()) {
+    const option = options[key];
+    const onlyEffect = isMap(option) && Object.keys(option).length === 1 && Object.hasOwn(option, 'effect');
+    canonical[key] = onlyEffect ? canonicalValue(option.effect) : canonicalValue(option);
+  }
+  return canonical;
 }
 
 /** Free-form values keep their content and lose their authoring key order. */
