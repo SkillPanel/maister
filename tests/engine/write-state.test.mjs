@@ -665,3 +665,75 @@ test('refusal: a workflow block without nodes says where node updates go', t => 
   assert.match(result.stderr, /^state-workflow-without-nodes\b/);
   assert.match(result.stderr, /top-level `nodes` key/);
 });
+
+// ---------------------------------------------------------------------------
+// the record only moves forward, and a gate that can revise says where to
+// ---------------------------------------------------------------------------
+
+const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
+
+test('freeze: a gate that offers a revise records where each revise option sends the run', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  const nodes = readState(run).workflow.nodes;
+  assert.deepEqual(nodes['review-approval'], { kind: 'gate', status: 'pending', needs: ['review'], reruns: { 'send-back': 'draft' } });
+  assert.deepEqual(nodes['final-approval'].reruns, { 'redo-draft': 'draft' });
+  assert.equal(Object.hasOwn(nodes.draft, 'reruns'), false, 'only a gate with a revise option carries reruns');
+  assert.match(fs.readFileSync(run.state, 'utf8'),
+    /^ {4}review-approval: \{kind: gate, status: pending, needs: \[review\], reruns: \{send-back: draft\}\}$/m);
+});
+
+test('write-state: an identical re-send of a freeze that recorded reruns changes nothing', t => {
+  const run = scratch(t);
+  const { patch } = freezePatch({ definition: REVISE });
+  write(run, patch);
+  const before = unstamped(fs.readFileSync(run.state, 'utf8'));
+  const again = verb(['write-state', `--state=${run.state}`], patch);
+  assert.equal(again.code, 0, again.stderr);
+  assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), before);
+});
+
+test('refusal: an ordinary write never sends an ended node back to pending (state-node-regressed)', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  for (const ended of ['completed', 'failed', 'skipped', 'stopped']) {
+    write(run, { nodes: { draft: { status: 'running' } } });
+    write(run, { nodes: { draft: { status: ended } } });
+    const before = fs.readFileSync(run.state, 'utf8');
+    const result = verb(['write-state', `--state=${run.state}`], { nodes: { draft: { status: 'pending' } } });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, new RegExp(`^state-node-regressed: node draft is recorded ${ended}`));
+    assert.match(result.stderr, /gate-revise/);
+    assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'a refusal leaves the file byte-identical');
+  }
+  // A re-drive is not a regression: it goes running and gets a new clock.
+  write(run, { nodes: { draft: { status: 'running' } } });
+  assert.equal(readState(run).workflow.nodes.draft.status, 'running');
+});
+
+test('write-state: attempt and reruns are the writer\'s own, and a patch that sends them is ignored', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  const result = verb(['write-state', `--state=${run.state}`],
+    { nodes: { draft: { status: 'running', attempt: 9 }, 'review-approval': { reruns: { 'send-back': 'review' } } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stderr, /workflow\.nodes\.draft\.attempt/);
+  assert.match(result.stderr, /workflow\.nodes\.review-approval\.reruns/);
+  const nodes = readState(run).workflow.nodes;
+  assert.equal(Object.hasOwn(nodes.draft, 'attempt'), false);
+  assert.deepEqual(nodes['review-approval'].reruns, { 'send-back': 'draft' });
+});
+
+test('write-state: a later answer at a revised gate keeps the revise decisions before it', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  const revise = { option: 'send-back', answered_by: 'operator', at: '2026-01-05T09:00:00Z', attempt: 1, reruns: 'draft', note: 'Tighten the intro' };
+  write(run, { node_summaries: { 'review-approval': { decisions: [revise] } } });
+  const answer = { option: 'publish-draft', answered_by: 'operator', at: '2026-01-05T10:00:00Z' };
+  write(run, { nodes: { 'review-approval': { status: 'completed' } }, node_summaries: { 'review-approval': { decisions: [answer] } } });
+  assert.deepEqual(readState(run).node_summaries['review-approval'].decisions, [revise, answer]);
+
+  // Re-sending the whole list does not duplicate it.
+  write(run, { node_summaries: { 'review-approval': { decisions: [revise, answer] } } });
+  assert.deepEqual(readState(run).node_summaries['review-approval'].decisions, [revise, answer]);
+});

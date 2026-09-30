@@ -448,8 +448,16 @@ async function runWriteState(flags) {
   }
   // Clock fields a patch carried are dropped, never refused: a refusal would
   // stop a driver mid-run over a value the writer supplies anyway.
-  if (result.ignored?.length) {
-    process.stderr.write(`note: ignored the supplied ${result.ignored.join(', ')}; the writer stamps these from its own clock\n`);
+  // `attempt` and `reruns` are the writer's too, but no clock fills them: a
+  // revise sets the one and the freeze the other, and the note says so.
+  const owned = (result.ignored || []).filter(field => /\.(?:attempt|reruns)$/.test(field));
+  const clocked = (result.ignored || []).filter(field => !owned.includes(field));
+  if (clocked.length) {
+    process.stderr.write(`note: ignored the supplied ${clocked.join(', ')}; the writer stamps these from its own clock\n`);
+  }
+  if (owned.length) {
+    process.stderr.write(`note: ignored the supplied ${owned.join(', ')}; the freeze records reruns and a revise counts attempts,`
+      + ' so no patch sets either\n');
   }
   // A value the node's definition does not declare is written, never refused,
   // because nothing reads one: no guard and no `${…}` reference may name it.

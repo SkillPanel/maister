@@ -1,0 +1,54 @@
+# A review loop with a bounded back-edge: a draft, an optional figures step, a
+# review and a gate that can send the draft back; then a publish step and a last
+# gate whose revise reaches past the first gate. `side-note` waits on the draft
+# but no gate before `publish` waits on it, so a revise at `review-approval`
+# leaves it alone.
+name: review-loop
+version: 1
+description: "Drafts a document, reviews it, and publishes it once approved."
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []
+    outputs:
+      artifacts: {doc: outputs/draft.md}
+      values: {needs_figures: bool}
+  figures:
+    uses: direct:figures
+    needs: [draft]
+    when: "${draft.values.needs_figures}"
+  review:
+    uses: direct:review
+    needs: [figures]
+  side-note:
+    uses: direct:side-note
+    needs: [draft]
+  review-approval:
+    type: gate
+    needs: [review]
+    ask: "Review complete. Publish the draft?"
+    options:
+      publish-draft: continue
+      send-back: {effect: revise, reruns: draft}
+      abandon: stop
+  publish:
+    uses: direct:publish
+    needs: [review-approval, side-note]
+  final-approval:
+    type: gate
+    needs: [publish]
+    ask: "Published. Close the run?"
+    options:
+      close: continue
+      redo-draft: {effect: revise, reruns: draft}
+      halt: stop
+display:
+  titles:
+    draft: Draft
+    figures: Figures
+    review: Review
+    side-note: Side note
+    publish: Publish
+  option_labels:
+    review-approval: {publish-draft: Publish, send-back: "Send back with notes", abandon: Abandon}
+    final-approval: {close: Close, redo-draft: "Redo the draft", halt: Stop}
