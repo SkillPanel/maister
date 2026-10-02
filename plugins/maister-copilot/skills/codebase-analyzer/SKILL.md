@@ -156,3 +156,4 @@ risk_level: low|low-medium|medium|medium-high|high
 | development | `codebase-analysis` | `codebase-analysis.md` (default) |
 | migration | `current-state-analysis` | `current-state-analysis.md` |
 | performance | `codebase-analysis` | `codebase-analysis.md` (default) |
+| product-design | `context-synthesis`, for an enhancement only | `codebase-analysis.md` (default) |

@@ -4,9 +4,8 @@
  * Why this module exists at all. Every artifact-writing delegate must receive
  * the prior phases' decisions and risks complete — N items in state arriving as
  * N distinct items, none dropped and none merged. That rule was stated in the
- * workflow definitions, in the former prose twins and in the framework patterns, and
- * measured across four attended runs it held in one delegate prompt out of
- * three. The diagnosis the runs support is narrow: the rule holds where the
+ * workflow definitions and in the framework patterns, and measured across four
+ * attended runs it held in one delegate prompt out of three. The diagnosis the runs support is narrow: the rule holds where the
  * lift is mechanical and happens once — the state write, which a writer now
  * performs — and fails where a node *composes a prompt afresh* from an artifact
  * it has already read, under length pressure. Thirteen items become seven
@@ -147,13 +146,9 @@ function refuse(code, message) {
  * a context block's `phase_summaries`, a node for `node_summaries`.
  */
 function render(source, unit, summaries) {
-  // A phase recorded as a bare sequence is a list of decisions and nothing
-  // else — a shape one frozen run fixture carries. It is adopted rather than
-  // skipped: an entry this module declines to read is an entry whose items
-  // never reach the delegate, which is the whole defect.
-  const entries = Object.entries(summaries)
-    .filter(([, value]) => isPlainObject(value) || Array.isArray(value))
-    .map(([key, value]) => [key, Array.isArray(value) ? { decisions: value } : value]);
+  // Every entry the state writer records is a map — it refuses any other shape —
+  // so an entry that is not one was written by hand, and is not read.
+  const entries = Object.entries(summaries).filter(([, value]) => isPlainObject(value));
   const out = [];
 
   let decisions = 0;

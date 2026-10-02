@@ -223,8 +223,8 @@ Run `resume-check --state=<run directory>/orchestrator-state.yml`. It reads the 
 nothing, and prints the frozen `workflow.name`, `overlays` and `profile` with the run's `title`
 and `status`.
 
-- **Exit `1`** — a directory the engine does not resume: one started on the 2.x plugin, or a
-  product-design run. Relay its `message` verbatim and stop.
+- **Exit `1`** — a directory the engine does not resume, such as one started on the 2.x plugin.
+  Relay its `message` verbatim and stop.
 - **`status` is `completed` or `failed`** — there is nothing left to run. Say so, with the
   run's directory and its dashboard, and stop.
 - **Otherwise** — say which run is resuming: its title, its workflow, its overlays and its
