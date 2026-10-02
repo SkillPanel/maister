@@ -345,3 +345,80 @@ A `product-design` directory, which has no `workflow:` block either, is sent to 
 rather than refused. The pro edition follows at its next pin: the twin parity rows and every row
 that reads a twin or the switch retire, and the new verb joins the gate library's list of the
 engine's verbs.
+
+### Amendment 2026-10-02 — `product-design` takes option A: no exception
+The operator reversed decision C on 2026-10-02 and took option A: 3.0 is engine-only with no
+exception. `product-design` ships a definition, `skills/workflow-engine/workflows/product-design.yml`
+with its node prose and generated diagram, and its `SKILL.md` becomes a hand-off shaped like the
+other four. Everything here that rests on decision C is superseded:
+
+- the TL;DR's and the Consequences' "one stated exception";
+- the "Kept" bullet for the prose-path framework text;
+- the removal-list rows that keep text "while `product-design` is one";
+- the resume refusal's `product-design` exception, and the 2026-09-30 amendment's sentence that
+  such a directory "is sent to its own command";
+- the 2.x-line sentence that `product-design` keeps the text-edit defect.
+
+C was chosen so 3.0 would not wait on the largest unwritten item. A says the same item belongs in
+3.0, because a second execution model kept for one workflow keeps the framework's prose-path text,
+the writer's adoption of hand-written files and the text-edited state alive for every reader.
+
+**Three choices made with the plan, by the operator, 2026-10-02.**
+
+1. **Five gates**, after the intake, the context, the problem and personas, the direction, and the
+   specification and prototypes. The persona exploration and the prototyping are guarded. The gates
+   after them stay unguarded, so the problem statement and the specification are always reviewed,
+   and they need both nodes of their stretch, so their brief renders when the guarded node was
+   skipped. Revise sits only on the gates that close a document. ADR-0028 gives revise to a gate
+   whose node has no review loop of its own; these document nodes do have one, but only a terminal
+   session asks it. Under a driver it takes its accept-as-is default, which makes the gate the
+   operator's only way back, and that is the case the criterion protects.
+2. **The convergence on a design direction is never defaulted.** Under a `cockpit` or `dispatch`
+   driver the node writes a decision sheet with every area open beside its recommendation. The
+   direction gate decides: continuing adopts the recommendations, and a revise names others. Of
+   every in-node question in the built-ins, this is the one deferred to a gate rather than taken
+   by default. Everything after the direction is built on it, and a direction nobody chose would
+   be built in unseen.
+3. **The hand-off keeps the standard Step-0 gate block**, byte-identical. The six Step-0 carriers
+   stay six, and `driverCapability()` still finds the skill dispatchable.
+
+**Breaking changes, continued.**
+
+| # | 2.x behaviour | 3.0 behaviour | Where it lives |
+|---|---|---|---|
+| 8 | `--from=PHASE` (and, by the docs, `--reset-attempts`) on `product-design` are honoured by its prose phases | Declined by name, as for the other four; re-entry is the decision above | `workflow-engine/SKILL.md` § "Decline the resume flags" |
+| 9 | A `product-design` directory with no `workflow:` block is resumed by its own orchestrator | Refused by `resume-check` with the one 2.x message; the `prose-orchestrator` refusal code is removed | `workflow-engine/scripts/lib/resume-check.mjs` |
+| 10 | The orchestrator rewrites a `product-design` run's dashboard at seven moments and edits its state as text | Projected by the writer and written only through `write-state`. No behaviour loss; listed for the reason row 7 is | `orchestrator-patterns.md` § 8 |
+
+**Removed with it, by path.**
+
+- `skills/product-design/SKILL.md`: its phases, domain context, task structure and auto-recovery
+  table (53,696 B → 3,371 B). Its two references name nodes instead of phase numbers.
+- `orchestrator-patterns.md`:
+  - the phase entry checks and the auto-continue markers;
+  - the dashboard's rewrite moments 1–7 and the clock rule for writing it by hand;
+  - the task-item tracking and its `task_ids` map;
+  - the per-phase `auto_fix_attempts`;
+  - the phase-table resume and task restoration.
+
+  Section numbers are unchanged. The writer still seeds and merges `task_ids` and
+  `auto_fix_attempts`, which the engine skill documents.
+- `workflow-engine/scripts/lib/state.mjs`: the open-map merge's block-map branch. A block map is
+  now refused with `state-unreadable`, so the vocabulary stays at twenty-five codes.
+  `prior-context.mjs` no longer reads a bare-list phase summary. The comments that named the prose
+  orchestrator in these files and in `dashboard.mjs` are reworded. The re-indent ladder stays: a
+  gate answered with editor tools is still a hand edit.
+- `resume-check.mjs`: the `product-design` exception.
+- `orchestrator-creation-checklist.md`: rewritten as a checklist for a built-in definition.
+
+**The pro edition follows at its next pin:**
+
+- the hash pin for `builtin:product-design`,
+  `sha256:19e80a443bf3d46c362633d8181d098f5612e1a3939ec0099a9ed68307161dc5`;
+- retiring every row that reads one of these:
+  - the prose skill or its Step 0;
+  - the prose-path sections of the framework;
+  - the `prose-orchestrator` code;
+  - the adopted-state fixture.
+
+The gate library's list of engine verbs does not change: no verb was added.

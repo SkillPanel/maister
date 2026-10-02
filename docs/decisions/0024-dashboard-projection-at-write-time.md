@@ -114,3 +114,9 @@ The record above left three rewrite moments standing inside the two phases the e
 **Moments 8-10 are deleted, not scoped.** Moments 1-7 were kept for the prose path. These three had no prose-path owner left, because the one remaining prose orchestrator runs neither skill.
 
 Consequences. Freshness inside the long phases is now one state write per wave or per cycle instead of a hand-built document, so the dashboard can no longer show a progress figure or a verdict that the plan, the log or the state do not back. A skill that skips a moment leaves the dashboard one step behind. It is still consistent with state, and the next write catches it up. A refused write is a warning in the work log or the verifier's summary, and it never blocks the phase.
+
+### Amendment 2026-10-02 — moments 1-7 are removed
+Moments 1-7 were kept for the prose path, and product design was its last user. With it on the
+engine (ADR-0025, amendment 2026-10-02), the framework's moments table and the clock rule for
+writing the file by hand are removed. The projection is now the file's only writer for every
+workflow, and no node or orchestrator owes a rewrite moment.
