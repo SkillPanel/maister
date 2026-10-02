@@ -1,14 +1,13 @@
-# Written by a prose orchestrator before the engine adopted the run.
+# A workflow block no freeze proves: it records no source and no hash, so the
+# writer runs none of its definition-backed checks against it.
 orchestrator:
   started_phase: analysis
   completed_phases: [analysis]
   failed_phases: []
-  options:
-    html_output: true
-    mockup_format: html
+  options: {html_output: true, mockup_format: html}
 
 task:
-  title: Adopted run
+  title: Unproven run
   status: in_progress
 
 workflow:

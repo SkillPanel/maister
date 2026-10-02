@@ -178,8 +178,8 @@ test('nodes: a node the frozen graph does not carry is refused, and never reache
   assert.equal(readDashboard(run).phases.some(phase => phase.id === 'ghost'), false);
 });
 
-test('an adopted run keeps its frozen node set and the status vocabulary', t => {
-  const run = scratch(t, { fixture: 'adopted' });
+test('a run no freeze proves keeps its frozen node set and the status vocabulary', t => {
+  const run = scratch(t, { fixture: 'unproven' });
   refused(run, { nodes: { approval: { status: 'answered' } } }, 'state-node-status-unknown');
   refused(run, { nodes: { implementation: { status: 'running' } } }, 'state-node-unknown');
   write(run, { nodes: { approval: { status: 'completed' } } });
@@ -238,8 +238,8 @@ test('values: a run whose definition changed since the freeze is not held to it'
   assert.doesNotMatch(result.stderr, /^warning:/m);
 });
 
-test('values: an adopted run with no graph to prove is not held to a definition', t => {
-  const run = scratch(t, { fixture: 'adopted' });
+test('values: a run with no graph to prove is not held to a definition', t => {
+  const run = scratch(t, { fixture: 'unproven' });
   const result = write(run, { nodes: { analysis: { status: 'completed', values: { anything: 'goes' } } } });
   assert.doesNotMatch(result.stderr, /^warning:/m);
 });

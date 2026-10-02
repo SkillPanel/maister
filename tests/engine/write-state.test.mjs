@@ -10,12 +10,12 @@ const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 const CLOSING_CHILD = path.join(FIXTURES, 'definitions/closing-child.yml');
 
 /**
- * The adopted prose-written run under another workflow name: a state no freeze
- * proves, which is how a name no definition carries — and one no freeze would
- * accept — reaches the writer at all.
+ * The unproven run under another workflow name: a state no freeze proves,
+ * which is how a name no definition carries — and one no freeze would accept —
+ * reaches the writer at all.
  */
 function renamed(t, name) {
-  const run = scratch(t, { fixture: 'adopted' });
+  const run = scratch(t, { fixture: 'unproven' });
   const text = fs.readFileSync(run.state, 'utf8');
   fs.writeFileSync(run.state, text.replace('  name: development\n', `  name: ${JSON.stringify(name)}\n`));
   return run;
@@ -203,8 +203,8 @@ test('viewer: a link already named dashboard.html is left alone, dangling or not
 
 test('banner: a title spanning lines is folded onto the Task line', t => {
   const run = scratch(t);
-  // The writer refuses a newline in a title it is sent, so only a file it
-  // adopted can carry one: a literal block scalar, as a hand-written state has.
+  // The writer refuses a newline in a title it is sent, so only a file written
+  // by hand can carry one: a literal block scalar.
   fs.writeFileSync(run.state, 'task:\n  title: |\n    Fix the parser\n      and the lexer\n  status: in_progress\n');
   const result = verb(['write-state', `--state=${run.state}`], { workflow: freezePatch().patch.workflow });
   assert.equal(result.code, 0, result.stderr);
@@ -371,17 +371,28 @@ test('a context write on a fresh freeze seeds an empty phase_summaries map', t =
   assert.deepEqual(readState(run).task_context.phase_summaries, {});
 });
 
-test('an adopted prose-written state keeps its unknown blocks, options and comments', t => {
-  const run = scratch(t, { fixture: 'adopted' });
+test('a state no freeze proves keeps its unknown blocks, options and comments', t => {
+  const run = scratch(t, { fixture: 'unproven' });
   write(run, { nodes: { approval: { status: 'completed' } }, orchestrator: { options: { html_output: false } } });
   const text = fs.readFileSync(run.state, 'utf8');
-  assert.match(text, /^# Written by a prose orchestrator/);
+  assert.match(text, /^# A workflow block no freeze proves/);
   const state = readState(run);
   assert.deepEqual(state.project_context, { tech_stack: 'node', notes: 'kept through every write' });
   assert.equal(state.orchestrator.started_phase, 'analysis');
   assert.deepEqual(state.orchestrator.completed_phases, ['analysis']);
   assert.deepEqual(state.orchestrator.options, { html_output: false, mockup_format: 'html' });
   assert.equal(state.workflow.nodes.analysis.status, 'completed');
+});
+
+test('an open map written by hand as a block map is refused, never flattened or edited in place', t => {
+  const run = scratch(t, { fixture: 'unproven' });
+  const text = fs.readFileSync(run.state, 'utf8')
+    .replace('  options: {html_output: true, mockup_format: html}\n', '  options:\n    html_output: true\n    mockup_format: html\n');
+  fs.writeFileSync(run.state, text);
+  const result = verb(['write-state', `--state=${run.state}`], { orchestrator: { options: { html_output: false } } });
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.match(result.stderr, /^state-unreadable: orchestrator\.options is written as a block map/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), text, 'a refusal leaves the file byte-identical');
 });
 
 test('node_summaries: a summary written after its node ended mirrors the recorded status', t => {

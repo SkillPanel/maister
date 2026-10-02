@@ -5,10 +5,10 @@
  * workflow's own command, each given a directory — and every one of them has to
  * answer the same question before anything runs: was this directory written by
  * the engine? A directory whose state carries a `workflow:` block holds a
- * frozen graph and resumes from it. One without the block was written by a 2.x
- * prose orchestrator: there is no graph to resume and no second interpreter to
- * hand it to, so it is refused, with the one message that says where it can be
- * finished. The message lives here, once, so every route prints the same words.
+ * frozen graph and resumes from it. One without the block was written by the
+ * 2.x plugin, which kept state by hand: there is no graph to resume and no
+ * second interpreter to hand it to, so it is refused, with the one message
+ * that says where it can be finished. The message lives here, once, so every route prints the same words.
  *
  * The refusal cannot name the version that wrote the directory: 2.x state never
  * recorded one, so the directory is told apart by its shape alone. Every
