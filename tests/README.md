@@ -34,6 +34,10 @@ scaffolds with `init`. Only the dashboard normalizers
   source made repository-relative) as `recorded-state.yml`, beside every file it wrote, emptied.
   `run-complete.test.mjs` freezes the shipped `development.yml` afresh and replays the recorded
   outcomes and summaries onto it, with and without the absences its nodes sanction.
+  `team-calendar-sharing/` is a synthetic product-design run of the same shape — an invented
+  enhancement with a UI, so its personas are skipped and its screens drawn — which
+  `product-design.test.mjs` replays onto the shipped `product-design.yml` beside partial runs it
+  walks to each of that workflow's gates.
 - `fixtures/gates/` — answered request documents a test copies over the pending one.
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by

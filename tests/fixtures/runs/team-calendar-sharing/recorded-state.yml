@@ -1,0 +1,139 @@
+orchestrator:
+  completed_phases: [intake, characteristics-approval, context-synthesis, context-approval, problem-exploration, problem-approval, idea-generation, idea-convergence, direction-approval, feature-specification, visual-prototyping, specification-approval, review-handoff]
+  failed_phases: []
+  task_ids: {}
+  task_path: .maister/tasks/product-design/2026-10-02-team-calendar-sharing
+  created: "2026-10-02T09:00:12Z"
+  options: {html_output: true, mockup_format: html, visual_enabled: true, inputs: {task_description: "Let team members share their calendar with guests outside the organisation, read-only or with a propose-a-time option"}}
+  updated: "2026-10-02T11:42:55Z"
+  started_phase: review-handoff
+
+task:
+  title: "Team calendar sharing with external guests"
+  description: "Let team members share their calendar with guests outside the organisation, read-only or with a propose-a-time option"
+  status: completed
+
+workflow:
+  source: plugins/maister/skills/workflow-engine/workflows/product-design.yml
+  overlays: []
+  profile: null
+  graph_hash: "sha256:19e80a443bf3d46c362633d8181d098f5612e1a3939ec0099a9ed68307161dc5"
+  grammar_version: 1
+  name: product-design
+  nodes:
+    intake: {kind: task, status: completed, started: "2026-10-02T09:00:20Z", completed: "2026-10-02T09:06:41Z", needs: [], values: {personas_enabled: false, prototyping_enabled: true, complexity_level: standard}}
+    characteristics-approval: {kind: gate, status: completed, completed: "2026-10-02T09:08:02Z", needs: [intake]}
+    context-synthesis: {kind: task, status: completed, started: "2026-10-02T09:08:02Z", completed: "2026-10-02T09:19:37Z", needs: [characteristics-approval]}
+    context-approval: {kind: gate, status: completed, completed: "2026-10-02T09:21:10Z", needs: [context-synthesis]}
+    problem-exploration: {kind: task, status: completed, started: "2026-10-02T09:21:10Z", completed: "2026-10-02T09:40:28Z", needs: [context-approval]}
+    persona-exploration: {kind: task, status: skipped, completed: "2026-10-02T09:40:28Z", needs: [problem-exploration]}
+    problem-approval: {kind: gate, status: completed, completed: "2026-10-02T09:42:15Z", needs: [problem-exploration, persona-exploration]}
+    idea-generation: {kind: task, status: completed, started: "2026-10-02T09:42:15Z", completed: "2026-10-02T09:49:03Z", needs: [problem-approval]}
+    idea-convergence: {kind: task, status: completed, started: "2026-10-02T09:49:03Z", completed: "2026-10-02T10:07:44Z", needs: [idea-generation]}
+    direction-approval: {kind: gate, status: completed, completed: "2026-10-02T10:09:30Z", needs: [idea-convergence]}
+    feature-specification: {kind: task, status: completed, started: "2026-10-02T10:09:30Z", completed: "2026-10-02T10:58:12Z", needs: [direction-approval]}
+    visual-prototyping: {kind: task, status: completed, started: "2026-10-02T10:58:12Z", completed: "2026-10-02T11:21:40Z", needs: [feature-specification]}
+    specification-approval: {kind: gate, status: completed, completed: "2026-10-02T11:24:05Z", needs: [feature-specification, visual-prototyping]}
+    review-handoff: {kind: task, status: completed, started: "2026-10-02T11:24:05Z", completed: "2026-10-02T11:42:55Z", needs: [specification-approval]}
+
+design_context:
+  design_characteristics: {is_greenfield: false, is_enhancement: true, is_ui_focused: true, is_backend: false, is_complex: false, is_simple: false}
+  complexity_level: standard
+  collected_urls: []
+  research_topics: []
+  user_files_list: []
+  project_context_summary: "A team scheduling app; calendars are private to the organisation today."
+  refinement_iterations: {problem_statement: 1, personas: 0, direction: 0, specification_sections: {sharing-model: 1}, prototypes: 2}
+  visual_companion: {available: true, port: 52341, pid: 48810, fallback_to_ascii: false}
+  phase_summaries:
+    context_synthesis:
+      node: context-synthesis
+      summary: "Calendars are scoped to the organisation; invitations already reach external addresses by email."
+      sources_count: 3
+      status: completed
+    problem_exploration:
+      node: problem-exploration
+      summary: "Teams cannot show availability to outside guests without exporting their whole calendar."
+      problem_statement: "Team members cannot share availability with external guests without exposing event details."
+      constraints: [no guest accounts, revocable at any time]
+      success_criteria: [a guest sees free and busy times within one click of the link]
+      status: completed
+    idea_convergence:
+      node: idea-convergence
+      summary: "Link-based sharing with free and busy only, and propose-a-time as an opt-in."
+      selected_approach: link-sharing
+      decision_areas:
+        - {area: access model, alternatives_count: 3, recommended: signed link, chosen_approach: signed link}
+        - {area: detail shown, alternatives_count: 2, recommended: free and busy only, chosen_approach: free and busy only}
+      status: completed
+
+node_summaries:
+  intake:
+    summary: "An enhancement of standard complexity with a UI: no personas will be drafted, and the sharing screens will be prototyped."
+    decisions: []
+    risks: []
+    absent: {research_context: "no research task was named"}
+    status: completed
+  characteristics-approval:
+    summary: Operator confirmed the design characteristics.
+    decisions:
+      - {option: continue-to-context-synthesis, answered_by: operator, at: "2026-10-02T09:08:00Z"}
+    status: completed
+  context-synthesis:
+    summary: "Calendars are scoped to the organisation; invitations already reach external addresses by email."
+    decisions: [reuse the existing invitation email for the share link]
+    risks: ["open: the audit log records internal viewers only"]
+    status: completed
+  context-approval:
+    summary: Operator approved the design context.
+    decisions:
+      - {option: continue-to-problem-exploration, answered_by: operator, at: "2026-10-02T09:21:08Z"}
+    status: completed
+  problem-exploration:
+    summary: "Team members cannot share availability with external guests without exposing event details; two constraints and one success criterion."
+    decisions: [external guests get no account]
+    risks: [assumes guests accept a link instead of a login]
+    status: completed
+  persona-exploration:
+    summary: "Skipped: an enhancement of standard complexity drafts no personas."
+    status: skipped
+  problem-approval:
+    summary: Operator approved the problem statement.
+    decisions:
+      - {option: continue-to-idea-generation, answered_by: operator, at: "2026-10-02T09:42:12Z"}
+    status: completed
+  idea-generation:
+    summary: Two decision areas, five alternatives.
+    decisions: ["access model: signed link recommended", "detail shown: free and busy only recommended"]
+    risks: []
+    status: completed
+  idea-convergence:
+    summary: "Link-based sharing with free and busy only, and propose-a-time as an opt-in."
+    decisions: ["access model: signed link", "detail shown: free and busy only"]
+    risks: [a forwarded link reaches whoever it is forwarded to]
+    status: completed
+  direction-approval:
+    summary: Operator approved the design direction.
+    decisions:
+      - {option: continue-to-specification, answered_by: operator, at: "2026-10-02T10:09:28Z"}
+    status: completed
+  feature-specification:
+    summary: "Five sections: sharing model, guest view, propose-a-time, revocation and notifications."
+    decisions: [links expire after 30 days unless renewed]
+    risks: ["open: time-zone display for guests without a profile"]
+    status: completed
+  visual-prototyping:
+    summary: "Three screens drawn: the share dialog, the guest calendar and the propose-a-time form."
+    decisions: []
+    risks: []
+    status: completed
+  specification-approval:
+    summary: Operator approved the specification and the prototypes.
+    decisions:
+      - {option: continue-to-product-brief, answered_by: operator, at: "2026-10-02T11:24:01Z"}
+    status: completed
+  review-handoff:
+    summary: Product brief assembled and approved; ready for development.
+    decisions: []
+    risks: []
+    status: completed
