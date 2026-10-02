@@ -79,6 +79,20 @@ test('prior-context: a shared block ending in _context is never taken for the ru
   assert.match(result.stdout, /- keep the notes/);
 });
 
+test('prior-context: a phase summary written by hand as a bare list is not read as decisions', t => {
+  const run = scratch(t, { fixture: 'unproven' });
+  write(run, { phase_summaries: { analysis: { summary: 'Analysed.', decisions: ['keep the notes'], risks: [] } } });
+  // The writer refuses a summary that is not a map, so only a hand edit can leave one.
+  const text = fs.readFileSync(run.state, 'utf8')
+    .replace('  phase_summaries:\n', '  phase_summaries:\n    review:\n      - approve the scope\n');
+  assert.match(text, /review:\n {6}- approve the scope/, 'the hand edit landed');
+  fs.writeFileSync(run.state, text);
+  const result = priorContext(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /- keep the notes/);
+  assert.doesNotMatch(result.stdout, /approve the scope/);
+});
+
 test('prior-context: a file that is no run at all is refused', t => {
   const run = scratch(t);
   fs.writeFileSync(run.state, 'orchestrator:\n  started_phase: null\n', 'utf8');
