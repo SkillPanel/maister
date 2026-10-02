@@ -106,3 +106,8 @@ hand-off to the engine. The engine's runtime probe stops without Node 20 instead
 over, and a task directory with no `workflow:` block is refused on resume by the engine's
 `resume-check` verb rather than resumed by a twin. Nothing in this record is live any more; it stays
 as the reason the twin existed.
+
+### Amendment 2026-10-02 — no prose orchestrator is left
+The exception the 2026-09-27 amendment kept — `product-design` as a standalone prose orchestrator
+until its own definition lands — is gone. It ships a definition in 3.0 (ADR-0025, amendment
+2026-10-02), so no workflow in the plugin has a prose implementation of any kind.

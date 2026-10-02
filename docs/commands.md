@@ -208,15 +208,16 @@ Starts the interactive product/feature design workflow (9 adaptive phases) or re
 |------|-------------|
 | `--research=PATH` | Start design informed by a completed research task |
 | `--no-visual` | Skip browser-based visual companion (use ASCII mockups only) |
-| `--from=PHASE` | Start from or resume at a specific phase |
-| `--reset-attempts` | Reset failed attempt counters (resume) |
+| `--from=PHASE` | Declined by name — see below |
+| `--reset-attempts` | Declined by name — see below |
 
-**Runs in-session as its own skill.** Product design has no workflow definition, so it does not run on the workflow engine — it is the one workflow in 3.0 that does not. Every flag above applies in full, `--from=PHASE` and `--reset-attempts` included, and a design task is resumed by passing its task path, with or without a phase. An engine definition is planned for a later 3.x release; adding it is not a breaking change.
+**Neither resume flag applies to product design.** Product design runs on the workflow engine, and the engine resumes by recomputing which nodes are ready from the graph frozen into the task's state: there is no mid-graph entry point to jump to, and no attempt counter held in state to reset. A run on the engine declines both by name rather than accepting one it would ignore. Resume a design by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
+
+A run driven from outside the session — from the cockpit, or dispatched — asks none of the questions inside the phases and takes each one's stated default, and its documents say they were drafted without review. It never chooses a design direction itself: the direction pause lists each decision with its recommendation, and that is where you choose.
 
 Design output can feed directly into development: `/maister:development .maister/tasks/product-design/...`
 
 **Task directory**: `.maister/tasks/product-design/`
-**Resume phases**: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `convergence`, `specification`, `prototyping`, `handoff`
 
 ### `/maister:mockup-studio "<screen or feature>"`
 

@@ -42,7 +42,7 @@ These are **binding**: the generator (ASCII subagent or inline HTML) must read e
 
 ### Tier 2 — Codebase design system
 
-Discover the real, in-code design system. **Harvest from an existing `analysis/codebase-analysis.md` first** (development's `codebase-analysis` node and product-design Phase 1 already ran the codebase-analyzer) — only glob/grep for the gaps. Look for:
+Discover the real, in-code design system. **Harvest from an existing `analysis/codebase-analysis.md` first** (development's `codebase-analysis` node and, for an enhancement, product-design's `context-synthesis` node already ran the codebase-analyzer) — only glob/grep for the gaps. Look for:
 
 | Kind | Signals (examples) |
 |------|--------------------|

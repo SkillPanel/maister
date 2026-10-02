@@ -5,19 +5,17 @@
  * workflow's own command, each given a directory — and every one of them has to
  * answer the same question before anything runs: was this directory written by
  * the engine? A directory whose state carries a `workflow:` block holds a
- * frozen graph and resumes from it. One without the block was written by a 2.x
- * prose orchestrator: there is no graph to resume and no second interpreter to
- * hand it to, so it is refused, with the one message that says where it can be
- * finished. The message lives here, once, so every route prints the same words.
+ * frozen graph and resumes from it. One without the block was written by the
+ * 2.x plugin, which kept state by hand: there is no graph to resume and no
+ * second interpreter to hand it to, so it is refused, with the one message
+ * that says where it can be finished. The message lives here, once, so every route prints the same words.
  *
  * The refusal cannot name the version that wrote the directory: 2.x state never
- * recorded one, so the directory is told apart by its shape alone.
- *
- * `product-design` is the exception. It is still a prose orchestrator, its
- * directories never carry a `workflow:` block, and they are resumed by its own
- * command — so a directory under its folder is sent there rather than refused.
- * No message here spells a command's namespaced name: this file ships to every
- * host unchanged, and each host names the plugin's commands its own way.
+ * recorded one, so the directory is told apart by its shape alone. Every
+ * workflow runs on this engine, so the rule has no exception by workflow: a
+ * directory under any type folder that carries no `workflow:` block is a 2.x
+ * one. No message here spells a command's namespaced name: this file ships to
+ * every host unchanged, and each host names the plugin's commands its own way.
  *
  * It reads the state file and never writes: not the state, not the dashboard,
  * not anything else in the directory. Zero dependencies, `node:` builtins only,
@@ -29,9 +27,6 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { dashboardUrl } from './state.mjs';
 import { openRevision } from './revise.mjs';
-
-/** The one workflow whose own prose orchestrator still resumes its directories. */
-const PROSE_ORCHESTRATOR = 'product-design';
 
 /** What an operator reads when a 2.x directory is offered for resume. */
 export const WRITTEN_BY_2X = [
@@ -69,13 +64,7 @@ export function resumeCheck({ state }) {
 
   const dir = path.dirname(path.resolve(state));
   const workflow = doc.workflow;
-  if (!isPlainObject(workflow)) {
-    if (path.basename(path.dirname(dir)) === PROSE_ORCHESTRATOR) {
-      return refuse('prose-orchestrator',
-        `This task is run by the product-design orchestrator, not the workflow engine. Resume it with the product-design command, giving it ${dir}.`);
-    }
-    return refuse('written-by-2x', WRITTEN_BY_2X);
-  }
+  if (!isPlainObject(workflow)) return refuse('written-by-2x', WRITTEN_BY_2X);
 
   if (typeof workflow.name !== 'string' || workflow.name === '') {
     return refuse('state-unreadable', `${state} carries a workflow block with no name, so there is no workflow to resume`);

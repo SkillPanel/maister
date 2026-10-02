@@ -10,7 +10,7 @@ The single, reusable engine for generating UI mockups in the maister plugin. It 
 
 Two ways it runs:
 
-- **Invoked by an orchestrator** (the development workflow's `ui-mockups` node, product-design Phase 7) via the Skill tool, with explicit parameters (see Input Parameters). The orchestrator owns its own phase gate; mockup-studio does the generation.
+- **Invoked by a workflow node** (the development workflow's `ui-mockups` node, the product-design workflow's `visual-prototyping` node) via the Skill tool, with explicit parameters (see Input Parameters). The workflow owns its own gate; mockup-studio does the generation.
 - **Invoked standalone by a user** (`/maister:mockup-studio "<screen or feature>"`). It creates its own task directory and runs the full interactive flow.
 
 Whatever the caller, the work is the same: discover the project's design language → render mockups in the chosen format → persist them → (optionally) index them for downstream binding.
@@ -102,7 +102,7 @@ Read `references/visual-companion.md` for the full protocol. Then:
 
 This skill has no run state of its own, so read `orchestrator.driver.kind` from the caller's `orchestrator-state.yml` under `task_path` (an absent file or an absent key means terminal, like everywhere else). Under `cockpit` or `dispatch` the loop above is unreachable whatever `iteration` says: nobody is in the session to approve a screen or ask for another one, and a loop with no answer does not converge, it hangs. **Say so in the returned `notes`**, the way the ASCII fallback says so -- the caller puts that on its phase summary, and a set of screens nobody refined otherwise reads like a set somebody approved.
 
-Both shipped callers already pass `single` under a driver, so this is the rule for a caller of your own, and for a standalone session that was dispatched rather than typed.
+Of the two shipped callers, development's `ui-mockups` node always passes `single`, and product-design's `visual-prototyping` node passes `full` and relies on this rule under a driver. It is also the rule for a caller of your own, and for a standalone session that was dispatched rather than typed.
 
 ### Step 6 — Persist & index
 

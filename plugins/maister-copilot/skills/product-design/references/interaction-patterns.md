@@ -1,12 +1,12 @@
 # Interaction Patterns
 
-Guides interaction quality in the product-design orchestrator's interactive phases. Defines two cognitive modes, the iterative refinement loop, and ask_user option design.
+Guides interaction quality in the product-design workflow's interactive nodes. Defines two cognitive modes, the iterative refinement loop, and ask_user option design.
 
 ---
 
 ## Purpose
 
-Product design is a conversation, not a form. The orchestrator alternates between exploring the problem space and converging on solutions. These patterns ensure that interaction feels like working with a thoughtful design partner rather than filling out a requirements template.
+Product design is a conversation, not a form. The workflow alternates between exploring the problem space and converging on solutions. These patterns ensure that interaction feels like working with a thoughtful design partner rather than filling out a requirements template.
 
 **Core idea**: Exploration opens possibilities. Convergence narrows them. Both require different interaction strategies.
 
@@ -16,7 +16,7 @@ Product design is a conversation, not a form. The orchestrator alternates betwee
 
 ### Exploration Mode
 
-**When**: Phases 2 (Problem Exploration) and 3 (Persona Development)
+**When**: `problem-exploration` and `persona-exploration`
 
 **Purpose**: Understand the design space before proposing solutions. Discover constraints, motivations, and context that shape the design.
 
@@ -33,7 +33,7 @@ Product design is a conversation, not a form. The orchestrator alternates betwee
 
 ### Convergence Mode
 
-**When**: Phases 5 (Idea Convergence), 6 (Specification), 7 (Visual Prototyping review), 8 (Specification Refinement)
+**When**: `idea-convergence`, `feature-specification`, the review of the screens in `visual-prototyping`, and the brief's approval in `review-handoff`
 
 **Purpose**: Narrow down from explored possibilities to concrete decisions. Present drafts for reaction rather than asking open-ended questions.
 
@@ -61,12 +61,13 @@ A new maister pattern for convergence points where artifacts need user approval.
 
 ### When to Apply
 
-At every convergence point where the orchestrator produces a draft artifact:
-- Phase 2: Problem statement synthesis
-- Phase 5: Idea convergence and direction selection
-- Phase 6: Specification sections
-- Phase 7: Visual mockups
-- Phase 8: Final specification review
+At every convergence point where a node produces a draft artifact:
+- `problem-exploration`: the problem statement
+- `persona-exploration`: the persona cards
+- `idea-convergence`: the decision areas and the overall direction
+- `feature-specification`: each specification section
+- `visual-prototyping`: the screens, inside the mockup studio's own loop
+- `review-handoff`: the assembled brief
 
 ### Flow
 
@@ -84,23 +85,25 @@ Present complete draft → ask_user (approve / change / rethink / add detail / e
 
 **Complete drafts always**: Every revision presents the COMPLETE updated artifact. Never present a diff, a summary of changes, or a table of what changed. The user should be able to evaluate the artifact on its own merits without referencing the previous version.
 
-**Soft cap, not hard limit**: `refinement_iterations.[phase]` tracks iteration count in orchestrator-state.yml. After reaching the soft cap (2 for simple tasks, 3 for standard/complex), the options shift to encourage approval. But the user can always choose "One more revision."
+**Soft cap, not hard limit**: `design_context.refinement_iterations` tracks the rounds each loop took, in the run's state. After reaching the soft cap (2 for simple tasks, 3 for standard/complex), the options shift to encourage approval. But the user can always choose "One more revision."
 
-**"Rethink the approach"**: This is a significant action. It signals that incremental changes will not fix the problem. The orchestrator should step back, re-examine assumptions, and present a substantially different draft -- not a minor variation of the previous one.
+**"Rethink the approach"**: This is a significant action. It signals that incremental changes will not fix the problem. Step back, re-examine assumptions, and present a substantially different draft -- not a minor variation of the previous one.
 
-**Special option in Phase 5**: "Explore more" triggers re-generation by returning to Phase 4 (Ideation) for fresh brainstorming. This acknowledges that sometimes none of the converged ideas feel right.
+**Exploring more alternatives is a gate option, not a loop option**: when none of the generated alternatives feels right, the answer is `explore-more-alternatives` at `direction-approval`, which re-runs the brainstorm and then the convergence. A loop inside `idea-convergence` cannot reach back to the node before it.
 
 ### State Tracking
 
 ```yaml
-refinement_iterations:
-  phase_2: 1
-  phase_5: 0
-  phase_6_section_user_stories: 2
-  phase_7: 1
+design_context:
+  refinement_iterations:
+    problem_statement: 1
+    personas: 0
+    direction: 0
+    specification_sections: {user_stories: 2}
+    prototypes: 1
 ```
 
-Track per-phase (or per-section in Phase 6) to apply soft caps independently. A heavily-iterated persona definition should not consume the refinement budget for specification sections.
+Track per loop (and per section in `feature-specification`) to apply soft caps independently. A heavily-iterated persona definition should not consume the refinement budget for specification sections.
 
 ---
 
@@ -117,7 +120,7 @@ Structure: topical choices + escape hatches
 - "Need more info" or "Not sure yet" option (does not block progress)
 - "Let me explain my thinking" (open-ended escape hatch)
 
-**Example** (Phase 2 exploration):
+**Example** (`problem-exploration`):
 ```
 - "The main problem is [user frustration with X]"
 - "Actually, it's more about [business need Y]"
@@ -125,7 +128,7 @@ Structure: topical choices + escape hatches
 - "Let me explain my thinking"
 ```
 
-**Why topical options work in exploration**: They demonstrate that the orchestrator is listening and synthesizing. The user confirms, corrects, or elaborates -- all of which deepen understanding faster than open-ended "What else should I know?"
+**Why topical options work in exploration**: They demonstrate that the conversation is listening and synthesizing. The user confirms, corrects, or elaborates -- all of which deepen understanding faster than open-ended "What else should I know?"
 
 ### Convergence Mode Options
 
@@ -173,7 +176,7 @@ After each answer, synthesize -- do not merely acknowledge. The synthesis shows 
 
 ### Mode Labels at Transitions
 
-Every phase transition between exploration and convergence gets an explicit label. This is not optional -- users need the narrative context to understand why the interaction style is changing.
+Every transition between exploration and convergence gets an explicit label. This is not optional -- users need the narrative context to understand why the interaction style is changing.
 
 ---
 
@@ -192,4 +195,4 @@ Every phase transition between exploration and convergence gets an explicit labe
 
 ---
 
-This reference provides interaction patterns and frameworks. The orchestrator's SKILL.md defines the specific phase logic that applies these patterns.
+This reference provides interaction patterns and frameworks. The workflow's node prose, `skills/workflow-engine/workflows/product-design.md`, defines the node logic that applies these patterns, and what each question takes under a `cockpit` or `dispatch` driver, where none of them is asked.

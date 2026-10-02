@@ -35,7 +35,7 @@ When a phase requires delegation:
 These do NOT require delegation:
 
 1. **Clarifying questions phases** — AskUserQuestion is direct
-2. **State updates** — Reading/writing orchestrator-state.yml
+2. **State updates** — reading `orchestrator-state.yml`, and writing it through the engine's `write-state` verb, never an editor tool
 3. **Phase announcements** — Outputting status messages
 4. **Simple decisions** — Enabling/disabling optional phases
 5. **Finalization** — Creating summary, updating metadata
@@ -63,7 +63,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 
 All orchestrators pause at `→ MANDATORY GATE` transitions for user review and prompt for optional phases.
 
-**State ordering rule**: Phase state MUST NOT be updated to 'completed' (via orchestrator-state.yml or TaskUpdate) until AFTER the user responds to the exit gate. Correct sequence: finish phase work → call AskUserQuestion → receive user response → update state to completed.
+**State ordering rule**: a gate is recorded answered only AFTER the operator answers it. The node it closes is recorded `completed`, with its summary, BEFORE the gate is asked, because the gate brief is rendered from that summary. Correct sequence: finish the node's work → write its summary and its `completed` status → render the brief and ask the gate → receive the answer → record it on the gate.
 
 ### Phase Gates Override Permission Modes
 
@@ -110,27 +110,6 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 
 **Two things this never defaults past.** It settles who answers, not what may be waived: an unresolved critical issue is not proceeded past — the default fixes what is fixable and carries the remainder into the following gate (§ 6 Exit Conditions holds unchanged) — and a decision the phase owes is still *resolved* rather than skipped, since a defaulted decision satisfies a completeness self-check and an unasked, unrecorded one does not.
 
-### Phase Entry Checks
-
-Every phase that follows a `→ MANDATORY GATE` includes an entry check at its TOP:
-
-```
-> **Phase gate**: Confirm Phase N completion before executing.
-```
-
-This catches missed gates: if the previous phase's `→ MANDATORY GATE` was skipped (e.g., the model output a summary and moved on), the entry check forces the gate to fire before the next phase executes. If the gate already fired, continue normally.
-
-### AUTO-CONTINUE Rules
-
-When a phase ends with `→ **AUTO-CONTINUE**`:
-- You MAY output a brief phase summary (1-2 lines)
-- Do NOT end your turn
-- Do NOT use AskUserQuestion
-- Do NOT wait for user input
-- After any summary, proceed immediately to the next phase
-
-**Common mistake**: Outputting a summary and then stopping/ending the turn. The summary is fine — stopping is not.
-
 ### Anti-Patterns
 
 | Anti-Pattern | Why It's Wrong |
@@ -139,7 +118,7 @@ When a phase ends with `→ **AUTO-CONTINUE**`:
 | Saying "I'll pause here" without tool call | Words are not pauses. Tool invocation required. |
 | Auto-accepting subagent decisions without asking | User must consent to scope/approach decisions |
 | Outputting a summary after phase work, then ending turn before reaching `→ MANDATORY GATE` | Gate is skipped; user loses control at the most critical review point. The gate must be the FIRST action after phase work completes — no summaries, no output before it. |
-| Marking phase as completed (state/TaskUpdate) before the exit gate executes | State corruption — downstream phases see false "completed" status. Gate → user response → state update. Never reverse this order. |
+| Recording a gate answered before the operator answers it | State corruption — downstream nodes become ready on an answer nobody gave. Gate → operator's answer → record it. Never reverse this order. |
 | "Auto mode / acceptEdits / bypassPermissions is on, so I'll skip the gate to minimize questions" | The orchestrator's phase gates are an explicit stated boundary that overrides auto mode's "minimize clarifying questions" instruction. Gates fire in every permission mode. See § 2 "Phase Gates Override Permission Modes". |
 | "The subagent works autonomously, so the orchestrator should too" | Subagents have no user channel; the orchestrator IS the user channel. Conflating the two removes all user visibility. |
 | Treating an empty `decisions_needed` as license to skip the phase exit gate | The DECISION GATE (mandatory-when-decisions-exist) and the phase exit `→ MANDATORY GATE` (mandatory-always) are separate. Empty `decisions_needed` only skips the former. |
@@ -187,8 +166,7 @@ After each phase, extract key findings into the `phase_summaries` of the run's c
 1. Parse subagent output for key fields
 2. Create 1-2 sentence summary
 3. Extract `decisions`, `risks`, and `artifacts` from the artifact's summary block (§ 7)
-4. Update state: `<name>_context.phase_summaries.[phase_name]`
-5. **Prose path only**: refresh the operator dashboard data file (§ 8). On the engine path every successful `write-state` projects it, so there is nothing to refresh here
+4. Update state: `<name>_context.phase_summaries.[phase_name]` — every successful `write-state` also projects the operator dashboard (§ 8), so there is nothing else to refresh
 
 This enables context passing to downstream phases and supports resume.
 
@@ -242,7 +220,7 @@ mockup_format: html   # UI mockups: html (visual companion) or ascii (ascii-mock
 | Key | Default | Effect |
 |-----|---------|--------|
 | `html_output` | `true` | When `false`, workflows skip the operator dashboard (§ 8) AND the HTML companion reports (§ 9): no `dashboard.html`/`dashboard-data.js`, no browser auto-open, no `.html` companions. Markdown artifacts, their § 7 TL;DR blocks, and `orchestrator-state.yml` are produced regardless. |
-| `mockup_format` | `html` | How UI mockups are rendered when a workflow generates them (development's `ui-mockups` node, product-design Phase 7, standalone `/maister:mockup-studio`). `html` → the `mockup-studio` visual companion (browser preview, `.html` files). `ascii` → the `ascii-mockup-generator` agent (no Node/browser). Auto-falls back to `ascii` when Node.js is unavailable. Independent of `html_output` (mockups are design deliverables, not report companions). In product-design, `mockup_format: ascii` is equivalent to the `--no-visual` flag; the flag is a per-run override (flag > config). |
+| `mockup_format` | `html` | How UI mockups are rendered when a workflow generates them (development's `ui-mockups` node, product-design's `visual-prototyping` node, standalone `/maister:mockup-studio`). `html` → the `mockup-studio` visual companion (browser preview, `.html` files). `ascii` → the `ascii-mockup-generator` agent (no Node/browser). Auto-falls back to `ascii` when Node.js is unavailable. Independent of `html_output` (mockups are design deliverables, not report companions). In product-design, `mockup_format: ascii` is equivalent to the `--no-visual` flag; the flag is a per-run override (flag > config). |
 
 **How it is read**: at initialization (§ 5) the orchestrator reads `.maister/config.yml` if present and seeds `orchestrator.options.html_output` and `orchestrator.options.mockup_format` into state (defaults `true` / `html` when the file or key is absent). All downstream gates read these from state, not the file — so resume is consistent and the file is read once.
 
@@ -255,25 +233,17 @@ orchestrator:
   completed_phases: []
   failed_phases: []
 
-  # Auto-fix tracking (per phase)
-  auto_fix_attempts: {}   # phase-id → attempts, populated on first auto-fix
-
   # Optional phase flags — shared keys only; `options` is an open map
   options:
     sequential: true | false | null  # Set by --sequential. Read by implementation-plan-executor Phase 2 to disable parallel wave dispatch.
     html_output: true | false        # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions — see "Project Configuration" below.
-    mockup_format: html | ascii      # Seeded from .maister/config.yml at init (default html). Passed to mockup-studio (development's ui-mockups node / product-design Phase 7). See "Project Configuration" below.
+    mockup_format: html | ascii      # Seeded from .maister/config.yml at init (default html). Passed to mockup-studio (development's ui-mockups node / product-design's visual-prototyping node). See "Project Configuration" below.
     # per-orchestrator keys (development's e2e_enabled, user_docs_enabled, code_review_enabled, …) live here too
 
   # Timestamps
   created: [ISO 8601 timestamp]
   updated: [ISO 8601 timestamp]
   task_path: .maister/tasks/[type]/YYYY-MM-DD-task-name
-
-  # Task tracking IDs (maps phase names to TaskCreate IDs)
-  task_ids:
-    phase-1: null
-    phase-2: null
 
 # Task metadata
 task:
@@ -284,7 +254,7 @@ task:
   priority: null  # high | medium | low
 ```
 
-The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`), and in product-design's `SKILL.md` "Domain Context" section (the pro register § A1).
+The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`) (the pro register § A1). The keys the state writer seeds and merges beside them are the engine's (`workflow-engine/SKILL.md` § *Writing state*).
 
 ### Extension Pattern
 
@@ -298,7 +268,7 @@ Workflows add domain-specific fields in their context block, at the **top level*
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |
 | Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
-Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/SKILL.md` § *Writing state*); the full schema of each block is in that workflow's node prose, `workflow-engine/workflows/<name>.md` ("Run-scoped context", "Phase summary keys"), and for product-design in its `SKILL.md` "Domain Context" section.
+Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/SKILL.md` § *Writing state*); the full schema of each block is in that workflow's node prose, `workflow-engine/workflows/<name>.md` ("Run-scoped context", "Phase summary keys", and for product design "The context block").
 
 ### Shared: research_reference
 
@@ -361,15 +331,15 @@ phase_summaries:
 
 ### Initialization Steps
 
-1. **Parse arguments**: Extract description, type, entry point (`--from`), optional flags
-2. **Determine starting phase**: New task starts Phase 1; resume reads state for first incomplete phase
-3. **Capture the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash NOW — you do NOT know the time from context. Use the result for every timestamp written in this turn (`created`, `updated`, `generated`, `phases[].started`). This is a MANDATORY step, not optional: writing `created: 2026-06-12` or `T00:00:00Z` without having run `date` is the documented failure mode (§ 4 Timestamp Rule).
-4. **Read project config**: read `.maister/config.yml` if it exists; set `orchestrator.options.html_output` from its `html_output` key (default `true` when the file or key is absent — § 4 "Project Configuration"). This single read seeds the state; all dashboard/companion gates below read `options.html_output` from state.
-5. **Create task directory**: `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` plus the subdirectories this workflow owns — the per-workflow trees and the type-dir names are normative in the pro register § A4; there is no structure shared by all six workflows *(skip on resume)*
-6. **Create state file**: `orchestrator-state.yml` *(skip on resume)*
-7. **Set up operator dashboard** (§ 8) — *skip this entire step when `options.html_output` is false*: copy `../assets/dashboard.html` (sibling `assets/` directory of this references/ file) to the task root as `dashboard.html` (an engine run gets it from its freeze write instead, which copies it when absent), write the initial `dashboard-data.js`, then **auto-open it in the user's browser** with the platform opener — `open "[abs-task-path]/dashboard.html"` (macOS), `xdg-open` (Linux), `start ""` (Windows). Pass the **plain absolute filesystem path — NEVER construct a `file://` URL** (hand-built URLs get mangled, e.g. `file///` missing the colon; the opener resolves plain paths itself). If the command fails, just print the path hint — never block initialization. On resume: re-copy `dashboard.html` only if missing; **on the prose path** regenerate `dashboard-data.js` from state (an engine run does not — its next `write-state` projects it); then auto-open it in the browser again (same opener as a new task — if the tab is already open the OS focuses it rather than duplicating).
-8. **Create task items**: `TaskCreate` for all phases, then `TaskUpdate addBlockedBy` for dependencies. On resume, also restore completed phase statuses. When `TaskCreate`/`TaskUpdate` are unavailable in the session, record `task_ids: {}` and treat `orchestrator-state.yml` as the sole phase tracker; every other step is unchanged. **Engine path: skip this step.** A run driven by the workflow engine never calls `TaskCreate` or `TaskUpdate`, on a first run or a resume — the state writer records `task_ids: {}` at the freeze, and the state file and the dashboard are the run's tracker (`workflow-engine/SKILL.md`). *Task Restoration on Resume* below is prose-path only for the same reason.
-9. **Output summary**: Show task info, phases, starting message — include the dashboard path hint `Dashboard: open [task-path]/dashboard.html in a browser to monitor progress` *only when `options.html_output` is true*.
+1. **Hand the run to the engine**: a workflow's command passes the description, the resume target and the flags to the workflow engine, which probes the runtime, freezes the graph and runs the first node (`workflow-engine/SKILL.md`). `--from=PHASE` and `--reset-attempts` are declined by name: the graph has no mid-graph entry and no attempt counter.
+2. **Capture the clock**: run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash NOW — you do NOT know the time from context. Use the result for every timestamp written in this turn (`created`, `updated`, `generated`, `phases[].started`). This is a MANDATORY step, not optional: writing `created: 2026-06-12` or `T00:00:00Z` without having run `date` is the documented failure mode (§ 4 Timestamp Rule).
+3. **Read project config**: read `.maister/config.yml` if it exists; set `orchestrator.options.html_output` from its `html_output` key (default `true` when the file or key is absent — § 4 "Project Configuration"). This single read seeds the state; all dashboard/companion gates below read `options.html_output` from state.
+4. **Create task directory**: `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` plus the subdirectories this workflow owns — the per-workflow trees and the type-dir names are normative in the pro register § A4; there is no structure shared by all six workflows *(skip on resume)*
+5. **The state file is written by the freeze**, the engine's first `write-state`, and by nothing but that verb afterwards.
+6. **Open the operator dashboard** (§ 8) — *skip this entire step when `options.html_output` is false*: the freeze copies `../assets/dashboard.html` (sibling `assets/` directory of this references/ file) to the task root when absent, and every `write-state` projects `dashboard-data.js`. **Auto-open it in the user's browser** with the platform opener — `open "[abs-task-path]/dashboard.html"` (macOS), `xdg-open` (Linux), `start ""` (Windows). Pass the **plain absolute filesystem path — NEVER construct a `file://` URL** (hand-built URLs get mangled, e.g. `file///` missing the colon; the opener resolves plain paths itself). If the command fails, just print the path hint — never block initialization. On resume, open it again (same opener — if the tab is already open the OS focuses it rather than duplicating).
+7. **Relay the startup banner** the freeze printed — task, directory, dashboard and first node; compose none of your own.
+
+The engine creates no task items: it never calls `TaskCreate` or `TaskUpdate`, and the state file and the dashboard are the run's tracker.
 
 ### Task Name Generation
 
@@ -379,32 +349,9 @@ phase_summaries:
 
 Examples: "Fix login timeout bug" → `2025-12-17-fix-login-timeout`
 
-### Task Restoration on Resume
+### Resume
 
-Task system IDs are ephemeral to a session. On resume:
-
-1. Create all phase tasks (same `TaskCreate` loop, all start pending)
-2. Set dependencies (same `TaskUpdate addBlockedBy`)
-3. Mark completed phases (`TaskUpdate` to `completed` with `metadata: {restored: true}`)
-4. Update state with new task IDs
-
-### Resume Logic
-
-1. **Read state file** — Load `orchestrator-state.yml`
-2. **Validate artifacts** — Check expected files for `completed_phases`. If missing, remove from list.
-3. **Find resume point** — First phase not in `completed_phases`
-4. **Check prerequisites** — Verify required artifacts exist
-5. **Restore task items** — Re-create phase tasks and mark completed ones
-
-| Starting From | Required Prerequisites |
-|---------------|----------------------|
-| Gap Analysis | `analysis/codebase-analysis.md` |
-| Specification | `analysis/gap-analysis.md` |
-| Planning | `implementation/spec.md` |
-| Implementation | spec.md + implementation-plan.md |
-| Verification | Implementation complete |
-
-If prerequisites missing, use AskUserQuestion: "Start from Phase 1", "Specify different phase", or "Exit".
+Resume is the engine's (`workflow-engine/SKILL.md` § *Resume*). Its read-only `resume-check` verb refuses a directory whose state carries no `workflow:` block — one started on the 2.x plugin — and a run it accepts resumes from its frozen graph: the ready set is recomputed from the recorded node statuses. There is no phase table to search and no task item to restore.
 
 ---
 
@@ -475,23 +422,9 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 
 **Files** (both at task root):
 - `dashboard.html` — static viewer, copied verbatim from `[plugin]/skills/orchestrator-framework/assets/dashboard.html` at initialization (§ 5). NEVER generated or modified by the model — it is a maintained plugin asset. `dashboard.html` is a frozen asset: its MD5 is pinned in the pro register § A4 and asserted by the pro suite.
-- `dashboard-data.js` — data projection. On the prose path the orchestrator writes it; on the engine path the state writer projects it from state on every successful `write-state`. The viewer reads it via `<script>` (`window.MAISTER_DATA = {...}`), so it works from `file://` with no server.
+- `dashboard-data.js` — data projection. The state writer projects it from state on every successful `write-state`; nothing else writes it. The viewer reads it via `<script>` (`window.MAISTER_DATA = {...}`), so it works from `file://` with no server.
 
-**Every rewrite starts with the clock** (prose path): run `date -u +"%Y-%m-%dT%H:%M:%SZ"` via Bash before writing (one call covers all timestamps in the same turn) — `generated`, `started`, `completed`, and state `updated` all take that value. Never guess the time, never reuse a value from an earlier turn (§ 4 Timestamp Rule). On the engine path `generated` comes from the writer's own stamp.
-
-**When to rewrite `dashboard-data.js`** (full rewrite each time — it is a projection of `orchestrator-state.yml` plus `phase_summaries`, never an incremental patch). Each moment names its owner. **Moments 1-7 bind the prose path; on the engine path every successful `write-state` projects the file, so an engine run owes none of them:**
-
-| # | Moment | Owner |
-|---|--------|-------|
-| 1 | At initialization (all phases pending) | orchestrator |
-| 2 | **When a phase starts** — set its status to `in_progress` BEFORE delegating to the skill/subagent, so the operator sees the running phase, not just the last completed one | orchestrator |
-| 3 | **BEFORE firing every phase exit gate** — the phase's work is finished while the workflow waits (possibly long) for the user's answer. Register the phase's artifacts, summary, decisions, and risks NOW; the status stays `in_progress` until the gate passes (per § 2 state ordering). The operator reviews the finished work on the dashboard while deciding at the gate — a gate fired against a stale dashboard defeats its purpose. | orchestrator |
-| 4 | After every phase completes (including skipped phases — mark them `skipped` with a reason) | orchestrator |
-| 5 | After every gate decision (record the user's choice) | orchestrator |
-| 6 | After verification cycles (issues/fixes update) | orchestrator |
-| 7 | At finalization | orchestrator |
-
-**Phase interiors have no rewrite moment: on the engine path the projection is the file's only writer.** The implementation and verification phases run for hours under a skill, and the skill keeps the dashboard current from inside them by writing state, never the file. `implementation-plan-executor` sends the empty patch through `write-state` at entry, after every wave and at finalize; the projection derives the phase's `progress` from the plan's checkboxes and the work log's wave and revert headings. `implementation-verifier` records each cycle's `last_status` and `issues_found` in `verification_context`, and the verification panel is projected from that block. A skill run standalone, with no workflow run and so no state file, has no dashboard.
+**There are no rewrite moments: the projection is the file's only writer.** It is a full projection of `orchestrator-state.yml` plus the summaries, never an incremental patch, and its `generated` stamp is the writer's own clock. A node that wants the dashboard current writes state. The implementation and verification phases run for hours under a skill, and the skill keeps the dashboard current from inside them the same way, never by writing the file. `implementation-plan-executor` sends the empty patch through `write-state` at entry, after every wave and at finalize; the projection derives the phase's `progress` from the plan's checkboxes and the work log's wave and revert headings. `implementation-verifier` records each cycle's `last_status` and `issues_found` in `verification_context`, and the verification panel is projected from that block. A skill run standalone, with no workflow run and so no state file, has no dashboard.
 
 **Schema** — the file is exactly one statement, `window.MAISTER_DATA = <strict JSON>;`, with double-quoted keys and nothing else; readers additionally accept an object literal and report it as degraded (the pro register § A2):
 
@@ -552,7 +485,7 @@ window.MAISTER_DATA = {
 
 **Resolved risks**: when a previously recorded risk gets resolved in a later phase, keep the entry and prefix it with `resolved:` (e.g. `"resolved: transient warning — query lookup chosen"`). The viewer dims and strikes resolved entries, separating live risks from settled ones.
 
-**Where a phase card's prose comes from on the engine path.** The projection reads `node_summaries.<node>` first and falls back to `[domain]_context.phase_summaries.<key>` only where the key equals the node id. It chooses **field by field**: `summary`, `decisions`, `risks` and `artifacts` each come from the first of the two that carries them non-empty, and the two are never concatenated — a field filled on both shows the node summary's. A node summary written with empty lists therefore no longer hides what its phase summary recorded, but a node summary that fills a field is the only source for that field.
+**Where a phase card's prose comes from.** The projection reads `node_summaries.<node>` first and falls back to `[domain]_context.phase_summaries.<key>` only where the key equals the node id. It chooses **field by field**: `summary`, `decisions`, `risks` and `artifacts` each come from the first of the two that carries them non-empty, and the two are never concatenated — a field filled on both shows the node summary's. A node summary written with empty lists therefore no longer hides what its phase summary recorded, but a node summary that fills a field is the only source for that field.
 
 The viewer decides presentation (hero artifacts per workflow type — none for a type it has no hero map for — collapsed drawers, severity colors) — orchestrators only supply data.
 
@@ -560,7 +493,7 @@ The viewer decides presentation (hero artifacts per workflow type — none for a
 
 ## 9. HTML Companion Reports
 
-> **Config gate**: `options.html_output` false disables this section — see § 4 Project Configuration. Not gated: product-design Phase 7 visual mockups are design deliverables, not report companions.
+> **Config gate**: `options.html_output` false disables this section — see § 4 Project Configuration. Not gated: product-design's `visual-prototyping` mockups are design deliverables, not report companions.
 
 Selected high-value artifacts get a rich HTML companion written by the **same subagent** that writes the markdown, at the same time (one context read, md and HTML never drift):
 

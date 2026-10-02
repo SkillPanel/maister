@@ -104,7 +104,7 @@ by hand, closes stdin: append `< /dev/null`.
 |---|---|---|
 | `0` | The verb ran and was accepted. The JSON report is on stdout. | Continue. Where a verb degrades onto a frozen dispatch line, that line is the **last** line of stdout — read it from the end. |
 | `1` | Rejected. **Nothing was published**: every writer commits through a temp file and a rename, so the files on disk are byte-for-byte what they were. The report is still printed, with a named code per rejection. | Look the code up in the tables below and take its recovery. |
-| `2` | The runtime itself did not run — a missing module, malformed flags, input that was not JSON, or an input file named in the wrong place. Nothing was attempted and there is no code to look up. | When the message names the input file, its place or its JSON, write the document where the message says and run the verb once more. Otherwise report the message verbatim and hand the run to the workflow's prose orchestrator. Do **not** record the change with an editor tool instead. |
+| `2` | The runtime itself did not run — a missing module, malformed flags, input that was not JSON, or an input file named in the wrong place. Nothing was attempted and there is no code to look up. | When the message names the input file, its place or its JSON, write the document where the message says and run the verb once more. Otherwise report the message verbatim and stop: there is no other interpreter to hand the run to. Do **not** record the change with an editor tool instead. |
 
 Exit `2` is the row that is easy to mishandle, because the tempting next step is
 to do by hand what the script would not do. Don't. A runtime that could not

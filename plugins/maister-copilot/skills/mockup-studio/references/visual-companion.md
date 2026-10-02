@@ -1,6 +1,6 @@
 # Visual Companion
 
-Documents the browser-based visual companion architecture used by the `mockup-studio` skill (the HTML mockup path). Provides high-fidelity visual feedback by rendering HTML/CSS mockups in a browser during a mockup session. `mockup-studio` is invoked both standalone and by the development (Phase 4) and product-design (Phase 7) orchestrators, so this component is shared, not product-design-specific.
+Documents the browser-based visual companion architecture used by the `mockup-studio` skill (the HTML mockup path). Provides high-fidelity visual feedback by rendering HTML/CSS mockups in a browser during a mockup session. `mockup-studio` is invoked both standalone and by the development workflow's `ui-mockups` node and the product-design workflow's `visual-prototyping` node, so this component is shared, not product-design-specific.
 
 The server lives at `${MAISTER_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs`.
 

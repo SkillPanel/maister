@@ -1,0 +1,36 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: product-design
+%% graph_hash: sha256:19e80a443bf3d46c362633d8181d098f5612e1a3939ec0099a9ed68307161dc5
+
+flowchart TD
+  n_intake["Intake and design characteristics<br/>intake<br/>direct:intake"]
+  n_characteristics_approval{{"Approve design characteristics<br/>characteristics-approval<br/>gate<br/>Design characteristics detected. Continue to context synthesis?<br/>continue-to-context-synthesis: continue, stop-design: stop"}}
+  n_context_synthesis["Context synthesis<br/>context-synthesis<br/>direct:context-synthesis"]
+  n_context_approval{{"Approve design context<br/>context-approval<br/>gate<br/>Context synthesis complete. Continue to problem exploration?<br/>continue-to-problem-exploration: continue, stop-design: stop"}}
+  n_problem_exploration["Problem exploration<br/>problem-exploration<br/>direct:problem-exploration"]
+  n_persona_exploration{"User and persona exploration<br/>persona-exploration<br/>direct:persona-exploration<br/>when: ${intake.values.personas_enabled}"}
+  n_problem_approval{{"Approve problem and personas<br/>problem-approval<br/>gate<br/>Problem exploration complete. Continue to idea generation?<br/>continue-to-idea-generation: continue, revise-problem: revise → problem-exploration, stop-design: stop"}}
+  n_idea_generation["Idea generation<br/>idea-generation<br/>agent:solution-brainstormer"]
+  n_idea_convergence["Idea convergence<br/>idea-convergence<br/>direct:idea-convergence"]
+  n_direction_approval{{"Approve design direction<br/>direction-approval<br/>gate<br/>Design direction ready for review. Continue to feature specification?<br/>continue-to-specification: continue, explore-more-alternatives: revise → idea-generation, refine-direction: revise → idea-convergence, stop-design: stop"}}
+  n_feature_specification["Feature specification<br/>feature-specification<br/>direct:feature-specification"]
+  n_visual_prototyping{"Visual prototyping<br/>visual-prototyping<br/>skill:mockup-studio<br/>when: ${intake.values.prototyping_enabled}"}
+  n_specification_approval{{"Approve specification and prototypes<br/>specification-approval<br/>gate<br/>Feature specification complete. Continue to the product brief?<br/>continue-to-product-brief: continue, revise-specification: revise → feature-specification, stop-design: stop"}}
+  n_review_handoff["Review and handoff<br/>review-handoff<br/>direct:review-handoff"]
+  n_intake --> n_characteristics_approval
+  n_characteristics_approval --> n_context_synthesis
+  n_context_synthesis --> n_context_approval
+  n_context_approval --> n_problem_exploration
+  n_problem_exploration --> n_persona_exploration
+  n_persona_exploration --> n_problem_approval
+  n_problem_exploration --> n_problem_approval
+  n_problem_approval --> n_idea_generation
+  n_idea_generation --> n_idea_convergence
+  n_idea_convergence --> n_direction_approval
+  n_direction_approval --> n_feature_specification
+  n_feature_specification --> n_visual_prototyping
+  n_feature_specification --> n_specification_approval
+  n_visual_prototyping --> n_specification_approval
+  n_specification_approval --> n_review_handoff
+  class n_characteristics_approval,n_context_approval,n_problem_approval,n_direction_approval,n_specification_approval gate
+  class n_persona_exploration,n_visual_prototyping conditional

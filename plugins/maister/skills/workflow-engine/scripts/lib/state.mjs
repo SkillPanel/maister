@@ -20,12 +20,13 @@
  * That preservation has one exception, and it is worth stating plainly because
  * it is the opposite of what "line-oriented" suggests. A file this engine
  * already wrote is canonical and every untouched line keeps its own bytes. A
- * file the engine *adopts* — one written by a prose orchestrator or edited by
- * hand — is normalized whole on the first write: the indent walk re-emits every
- * line at the canonical column, and whole-line comments inside the nodes region
- * are relocated above `nodes:`. Content survives; the bytes of an adopted file
- * do not. After that first write the file is canonical and the byte-level
- * guarantee holds for every write after it.
+ * file somebody edited by hand — a gate answered with editor tools while the
+ * shell was denied, or a repair — is normalized whole on the first write: the
+ * indent walk re-emits every line at the canonical column, and whole-line
+ * comments inside the nodes region are relocated above `nodes:`. Content
+ * survives; the bytes of a hand-edited file do not. After that first write the
+ * file is canonical and the byte-level guarantee holds for every write after
+ * it.
  *
  * Three properties are load-bearing, and each exists because breaking it blocks
  * an operator rather than merely looking wrong:
@@ -150,8 +151,8 @@ const DASHBOARD_CODES = { unwritable: 'dashboard-unwritable', tempExists: 'dashb
  * block, never children of either. The contract tolerates a file that nests
  * `project_context` under `task_context` — it reports that shape rather than
  * refusing it — but the writer never produces it: every key here is located and
- * emitted at column 0, so a nested twin an adopted file carries is left where
- * it is and the canonical sibling is written beside it.
+ * emitted at column 0, so a nested twin a hand-edited file carries is left
+ * where it is and the canonical sibling is written beside it.
  *
  * They are listed separately from the rest of the vocabulary because the suite
  * derives this list from the register and asserts the writer's vocabulary is
@@ -523,8 +524,8 @@ function banner(state, text, workflow) {
   const runDir = path.dirname(path.resolve(state));
   const doc = parseState(text);
   const title = isPlainObject(doc.task) ? doc.task.title : undefined;
-  // Folded onto one line: an adopted file can carry a block-scalar title, and
-  // its line breaks would add lines to a banner that is five lines long.
+  // Folded onto one line: a hand-written file can carry a block-scalar title,
+  // and its line breaks would add lines to a banner that is five lines long.
   const folded = title === undefined || title === null ? '' : String(title).replace(/\s*[\r\n]+\s*/g, ' ').trim();
   const nodes = isPlainObject(workflow.nodes) ? Object.keys(workflow.nodes) : [];
   return [
@@ -638,9 +639,8 @@ function project(state, text, now, changed, warnings) {
  * Copy the dashboard viewer into the run directory, at the freeze only.
  *
  * `dashboard-data.js` is regenerated on every write, but it is only data; the
- * page that renders it is a static file the run directory needs once. The prose
- * path installs it at initialization, which the engine path never reaches, so
- * the freeze — the write that starts an engine run — installs it instead.
+ * page that renders it is a static file the run directory needs once, so the
+ * freeze — the write that starts a run — installs it.
  *
  * Never over an existing file, a link included: an operator's own page or an
  * older viewer they still open stays as it is. Skipped when the run has turned
@@ -1215,23 +1215,22 @@ function assertParent(value) {
 /**
  * One open map under `orchestrator:`, merged key by key.
  *
- * The form the file already uses is the form it keeps, because both are in the
- * wild and both are read: the engine and the fixtures write the one-line flow
- * map, while every state file a prose orchestrator wrote by hand carries a
- * block map — often with a trailing comment saying why an option was set. So a
- * block map is edited child by child, which leaves its other children and their
- * comments on their own bytes, and a flow map is re-emitted on its one line
- * with the keys it already carried kept **verbatim**. Keeping the existing
+ * The map is the one-line flow map this writer emits, re-emitted on its one
+ * line with the keys it already carried kept **verbatim**. Keeping the existing
  * values as raw text rather than re-serialising them is what stops a quoted
  * scalar from being re-quoted, or a nested flow map from being flattened, by a
  * write that never named it.
  *
- * Two shapes are not maps and cannot be merged into: a value that is not a flow
- * map at all (`options: null` is the one that occurs) is replaced, since there
- * are no keys to keep. A value that opens as a flow map and then cannot be read
- * back refuses rather than being replaced — dropping keys the caller cannot see
- * is the defect this function exists to fix, and doing it on a parse failure
- * would be the same loss by another route.
+ * Three shapes cannot be merged into. A value that is not a map at all
+ * (`options: null` is the one that occurs) is replaced, since there are no keys
+ * to keep. A block map — one key per line — is a shape this writer never
+ * produces, so it was written by hand; it refuses rather than being flattened
+ * or edited child by child, because a writer that accepted it would be keeping
+ * a second state layout alive for files nothing writes any more. And a value
+ * that opens as a flow map and then cannot be read back refuses rather than
+ * being replaced — dropping keys the caller cannot see is the defect this
+ * function exists to fix, and doing it on a parse failure would be the same
+ * loss by another route.
  */
 function mergeMap(doc, section, key, value, changed) {
   const where = `${section}.${key}`;
@@ -1241,14 +1240,9 @@ function mergeMap(doc, section, key, value, changed) {
 
   const found = doc.locate([section, key]);
   if (found && found.inline === '') {
-    // Already a block map. An empty patch has nothing to add to it, and
-    // rewriting it into the flow form to say so would be a change nobody asked
-    // for, so the no-op stays a no-op.
-    for (const [name, item] of entries) {
-      doc.set([section, key, name], block(name, item, 4));
-      changed.push(`${where}.${name}`);
-    }
-    return;
+    throw new Refusal('state-unreadable',
+      `${where} is written as a block map, one key per line, which this writer never produces: the file was edited by hand. `
+      + `Nothing was written. Repair it to one line, ${key}: {<key>: <value>, …}, before writing this key again`);
   }
 
   const existing = found ? splitFlowMap(found.inline, where) : { entries: [], trailing: '' };
@@ -1648,7 +1642,8 @@ function sameValue(a, b) {
 /**
  * Update node entries in place. Only the entry lines named by the patch move;
  * every other entry keeps its own bytes, which is what makes the preservation
- * guarantee hold on a file the engine adopted rather than wrote.
+ * guarantee hold on a file somebody edited by hand as well as one the engine
+ * wrote.
  *
  * Each entry is held to the run before it moves: its node must be one the run
  * froze, its status one of `NODE_STATUSES`, and its values what the definition
@@ -1795,7 +1790,7 @@ function assertStatus(id, entry) {
 /**
  * The run's frozen graph as one write sees it: a function returning the graph
  * the frozen `workflow:` block proves against (`provenGraph`), or null when it
- * proves against none — an adopted run that recorded no hash, a definition
+ * proves against none — a frozen block that recorded no hash, a definition
  * edited since the freeze, one that can no longer be found. Resolved on the
  * first call and remembered, so a write resolves at most once and a write no
  * check needs the definition for resolves nothing.
@@ -2034,11 +2029,11 @@ function applyTopLevel(doc, key, value, changed) {
  * Every built-in definition's intake prose already required it, and three
  * attended runs of the same definition seeded scalars only — the map was
  * inserted several nodes later by whichever node first wrote a summary. A rule
- * stated in the definition, in the framework patterns and in the former prose twin,
- * and missed three times out of three, is not a rule prose is carrying; so the
- * writer carries it. The map is what a reader of a half-finished run consults
- * to learn that nothing has been decided yet, and its absence reads instead as
- * a run that never had the key.
+ * stated in the definition and in the framework patterns, and missed three
+ * times out of three, is not a rule prose is carrying; so the writer carries
+ * it. The map is what a reader of a half-finished run consults to learn that
+ * nothing has been decided yet, and its absence reads instead as a run that
+ * never had the key.
  *
  * Seeded for every context block, because every context block carries the map
  * in practice: the frozen migration run fixtures both have one, and

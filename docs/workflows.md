@@ -33,8 +33,8 @@ that the workflow engine freezes into the task's state and executes. It needs No
 without it the command stops before creating a task directory and says so.
 
 `/maister:development` runs the definition — it ships as `builtin:development`, with a diagram
-generated from it (regenerate that diagram, never edit it). Research, performance and migration
-run on the engine by default too. Three further definitions without a command of their own — `plan`, `change`
+generated from it (regenerate that diagram, never edit it). Research, performance, migration and
+product design run on the engine too. Three further definitions without a command of their own — `plan`, `change`
 and `fix`, dispatched into a member by a chain — are a Pro Edition feature (see
 [Pro Edition](../README.md#pro-edition)).
 
@@ -42,9 +42,8 @@ Definitions resolve eject → generated → overlay → built-in, and the first 
 `.maister/workflows/<name>.yml`, then a generated chain at `.maister/workflows/generated/<name>.yml`,
 then an overlay at `.maister/workflows/<name>.overlay.yml`, then the shipped built-in. So a project
 can eject a shipped graph into its own workspace, or lay an overlay over it, without patching the
-plugin. That route reaches a workflow wherever the engine executes it — research, development,
-performance and migration today, so ejecting or overlaying `builtin:development` takes effect
-on the next run. A generated chain — one the planner published for a single ticket — is complete in itself
+plugin. That route reaches every built-in workflow, because the engine executes all of them, so
+ejecting or overlaying `builtin:development` takes effect on the next run. A generated chain — one the planner published for a single ticket — is complete in itself
 and is never overlaid or ejected; it is resolved by name like any other and deleted by the
 workspace's `prune` command once its runs have closed. Writing a chain of your own, naming your
 own skills and agents from its nodes, and what an overlay may change are covered in
@@ -278,32 +277,41 @@ Interactive workflow for designing features and products before building them. T
 
 When run without arguments, the plugin extracts the design brief from your conversation.
 
-**Flags**: `--research=PATH`, `--no-visual`, `--from=PHASE`
+**Flags**: `--research=PATH`, `--no-visual`
 
 ### How it runs
 
-Product design does not run on the workflow engine. It has no workflow definition: it runs
-in-session as its own orchestrator skill, the one workflow in 3.0 that does — development,
-performance, migration and research run on the engine. Its flags apply in full, `--from=PHASE`
-and `--reset-attempts` included, and its task directory is resumed by the same skill that
-started it. An engine definition is planned for a later 3.x release; adding it is not a breaking
-change.
+Product design runs on the workflow engine: the workflow ships as a definition — a graph of nodes
+with declared dependencies and guards — which the engine freezes into the task's state and
+executes. Like the other engine workflows, it needs Node.js 20 or newer.
+
+It is the most interactive of the workflows. Its exploration questions and refinement loops are
+the work rather than overhead around it, so the phases ask a good deal between the gates. A run
+with nobody in the session takes each question's stated default instead, and the documents it
+writes say they were drafted without review. Choosing a design direction is the one exception:
+such a run never picks one itself. It lays the alternatives out with a recommendation for each
+decision, and the direction pause is where you choose — continuing adopts the recommendations,
+and sending the run back names the ones you want instead.
 
 ### Phases
 
-| # | Phase | Activation |
-|---|-------|------------|
-| 0 | Initialize, gather context & detect characteristics | Always |
-| 1 | Context synthesis (codebase analysis or mini-research) | Always (scope adapts) |
-| 2 | Problem space exploration (interactive, iterative) | Always (depth adapts) |
-| 3 | User & persona exploration | Greenfield or complex designs |
-| 4 | Design alternatives generation (agent-driven, unbiased) | Always |
-| 5 | Converge on design direction (interactive) | Always |
-| 6 | Feature specification, section-by-section (interactive) | Always (depth adapts) |
-| 7 | Visual prototyping (browser-based companion with ASCII fallback) | UI-focused designs |
-| 8 | Review & hand off product brief | Always |
+| # | Phase | Activation | Pause after it |
+|---|-------|------------|----------------|
+| 1 | Intake: gather context & detect characteristics | Always | Confirm the characteristics |
+| 2 | Context synthesis (codebase analysis or mini-research) | Always (scope adapts) | Approve the context |
+| 3 | Problem space exploration (interactive, iterative) | Always (depth adapts) | — |
+| 4 | User & persona exploration | Greenfield or complex designs | Approve the problem and personas |
+| 5 | Design alternatives generation (agent-driven, unbiased) | Always | — |
+| 6 | Converge on design direction (interactive) | Always | Approve the direction |
+| 7 | Feature specification, section-by-section (interactive) | Always (depth adapts) | — |
+| 8 | Visual prototyping (browser-based companion with ASCII fallback) | UI-focused designs | Approve the specification and prototypes |
+| 9 | Review & hand off product brief | Always | The brief's own approval; the workflow ends |
 
-Phases 2, 5, and 6 include iterative refinement loops — you can request revisions before moving on. Phase 4 uses an agent to generate alternatives without anchoring bias.
+The problem statement and the specification are always reviewed at a pause, even when the persona
+or prototyping phase after them is skipped. The problem, convergence and specification phases
+include iterative refinement loops — you can request revisions before moving on — and the mockup
+studio runs its own loop over the screens. Phase 5 uses an agent to generate alternatives without
+anchoring bias; when none of them fits, the direction pause can send the run back to generate more.
 
 The output is a structured product brief that can be passed directly to the development workflow:
 
@@ -314,10 +322,13 @@ The output is a structured product brief that can be passed directly to the deve
 ### Resume
 
 ```
-/maister:product-design [task-path] [--from=PHASE] [--reset-attempts]
+/maister:product-design [task-path]
 ```
 
-Resume phases: `context`, `synthesis`, `problem`, `personas`, `alternatives`, `convergence`, `specification`, `prototyping`, `handoff`
+The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no
+mid-graph entry point and no attempt counter: it declines `--from=PHASE` and `--reset-attempts`
+by name. A task directory started on the 2.x plugin is not resumed — see
+[Task directories from 2.x](#task-directories-from-2x).
 
 ---
 
@@ -342,9 +353,11 @@ it, and the gate asks you once more.
 | Research | research foundation, design | the research foundation; the high-level design |
 | Performance | bottleneck analysis, specification, specification audit, plan | the bottleneck analysis; the specification; planning |
 | Migration | gap analysis, specification, plan | the gap analysis; the specification; planning |
+| Product design | problem and personas, design direction (two options), specification and prototypes | the problem exploration and the personas after it; the convergence alone, or the alternatives generation and the convergence; the specification and the prototypes after it |
 
 Gates whose phase already has its own review loop — UI mockups, verification and issue resolution —
-keep that loop instead.
+keep that loop instead. Product design's document phases loop too, but only when somebody is in the
+session; a run driven from outside skips those loops, so its pauses are where the documents change.
 
 - **The note is chosen, not typed.** After you pick revise, the gate offers up to four suggested
   changes drawn from what the phase found — its open risks and its decisions — with one
@@ -395,8 +408,7 @@ A task started on the 2.x plugin is finished on 2.x. Its `orchestrator-state.yml
 resume. `/maister:work`, `/maister:run` and each workflow's own command, given such a directory,
 refuse it with a message that says so and change nothing in it. Its artifacts stay readable in
 place, and it is still listed and shown like any other task directory; only resuming it is
-refused. Product-design directories are the exception: that workflow still runs as its own
-orchestrator and resumes its own directories.
+refused.
 
 To finish a 2.x task, install the 2.x line as the README's
 [Staying on 2.x](../README.md#staying-on-2x) section describes, and resume it there. To start the
@@ -463,15 +475,14 @@ waits until it is woken.
 
 ### Dashboard data
 
-`dashboard-data.js` is a projection of a run's state rather than a document kept beside it. For the
-engine's workflows the engine writes it: every state change it commits republishes the file from the state
+`dashboard-data.js` is a projection of a run's state rather than a document kept beside it. The
+engine writes it: every state change it commits republishes the file from the state
 it has just written, so what the dashboard draws is never older than the state behind it, and no
 turn between phases has to remember to rewrite it. A run with `html_output: false` in
 `.maister/config.yml` gets no data file — if one is already on disk it is removed rather than left
-there to be polled. Product design, which runs as its own orchestrator and has no single writer to
-ride along with, still rewrites the file as each phase turns over. The implementation and
-verification phases run for hours under a skill rather than under the engine, and they keep the
-dashboard live the same way everything else does: by writing state. After each implementation wave
+there to be polled. The implementation and verification phases run for hours under a skill
+rather than under the engine, and they keep the dashboard live the same way everything else does:
+by writing state. After each implementation wave
 the plan's progress is republished, and after each verification cycle its verdict is, so the engine
 remains the file's only writer.
 

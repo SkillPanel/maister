@@ -128,9 +128,8 @@ test('neither phase-interior skill writes dashboard-data.js by hand', () => {
     assert.match(text, /write-state/, `${skill} names the engine route`);
   }
   const patterns = fs.readFileSync(path.join(SKILLS, 'orchestrator-framework/references/orchestrator-patterns.md'), 'utf8');
-  const rows = patterns.split('\n').filter(line => /^\| \d+ \|/.test(line));
-  assert.ok(rows.length > 0, 'the rewrite-moments table is still found');
-  for (const row of rows) {
-    assert.doesNotMatch(row, /implementation-plan-executor|implementation-verifier/, `a moment is still owned by a skill: ${row}`);
-  }
+  const dashboard = patterns.slice(patterns.indexOf('## 8. Operator Dashboard'), patterns.indexOf('## 9. HTML Companion Reports'));
+  assert.match(dashboard, /the projection is the file's only writer/, 'the framework names the projection as the only writer');
+  const rows = dashboard.split('\n').filter(line => /^\| \d+ \|/.test(line));
+  assert.deepEqual(rows, [], 'no table assigns a dashboard rewrite moment to anyone');
 });

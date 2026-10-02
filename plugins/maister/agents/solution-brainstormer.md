@@ -241,18 +241,18 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: the research workflow's `solution-generation` node
+**Invoked by**: the research workflow's `solution-generation` node, and the product-design workflow's `idea-generation` node
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `outputs/` subdirectories
-- `analysis/synthesis.md` exists (`research-foundation` output)
-- `outputs/research-report.md` exists (`research-foundation` output)
+- From research: `analysis/synthesis.md` and `outputs/research-report.md` exist (`research-foundation` output)
+- From product design: `analysis/design-context.md` and `analysis/problem-statement.md` exist, and `analysis/personas.md` when the caller names it; the evidence is that context rather than a research synthesis, and the caller passes `output_path: analysis/alternatives.md`
 
 **Input**: Task path, research artifacts, accumulated context (no user preferences — alternatives are generated purely from evidence)
 
-**Output**: `outputs/solution-exploration.md` + structured result
+**Output**: `outputs/solution-exploration.md`, or the caller's `output_path` when it names one (product design's is `analysis/alternatives.md`), + structured result
 
-**Next Phase**: Orchestrator presents alternatives to user for convergence (the `solution-convergence` node), then feeds chosen approach into solution-designer (the `high-level-design` node)
+**Next Phase**: Orchestrator presents alternatives to user for convergence (research's `solution-convergence` node, product design's `idea-convergence` node); research then feeds the chosen approach into solution-designer (the `high-level-design` node)
 
 ---
 

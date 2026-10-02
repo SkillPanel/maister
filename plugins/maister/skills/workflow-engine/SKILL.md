@@ -1453,9 +1453,8 @@ is a directory this engine does not resume, and its `message` is written for the
 - `written-by-2x` — the state has no `workflow:` block, so the task was started on the 2.x
   plugin and there is no frozen graph to resume. Relay the `message` verbatim and stop. Write
   nothing into the directory, the dashboard included, create no task directory, and print no run
-  marker, because no run started. Starting a new task afterwards is an ordinary first run.
-- `prose-orchestrator` — a product-design directory, which its own command resumes. Relay the
-  `message` and stop.
+  marker, because no run started. Starting a new task afterwards is an ordinary first run. Every
+  workflow runs on this engine, so this holds for a directory under any type folder.
 - `state-unreadable` — relay it and stop.
 
 When a gate's revise is still open, the exit-`0` report carries `revision: {gate, option, reruns,
@@ -1477,9 +1476,8 @@ The engine honours the framework's contracts; it does not restate them. Follow
   artifact, with the returned summary lifted into state verbatim rather than re-summarized;
 - the **operator dashboard** (§ 8 — the config gate that turns it off and the browser open,
   which stay prose; the viewer itself is installed by the freeze write, Step 4, so an engine run
-  copies nothing): on the engine path every successful `write-state` projects
-  `dashboard-data.js` itself, so an engine run owes none of moments 1-7 and a projection that
-  fails is a warning that never blocks. The projection is the file's only writer: inside the
+  copies nothing): every successful `write-state` projects `dashboard-data.js` itself, so no
+  node owes a rewrite of it, and a projection that fails is a warning that never blocks. The projection is the file's only writer: inside the
   implementation and verification phases, which the engine does not enter,
   `implementation-plan-executor` and `implementation-verifier` keep it current by sending
   `write-state` calls, never by writing the file;

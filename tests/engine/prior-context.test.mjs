@@ -67,16 +67,30 @@ test('prior-context: a built-in run is rendered from its own block, as it always
 });
 
 test('prior-context: a shared block ending in _context is never taken for the run\'s own', t => {
-  // The adopted run carries `project_context` above the block its first
+  // The unproven run carries `project_context` above the block its first
   // context write installs, so file order alone would pick the wrong one.
-  const run = scratch(t, { fixture: 'adopted' });
-  write(run, { phase_summaries: { analysis: { summary: 'Adopted.', decisions: ['keep the notes'], risks: [] } } });
+  const run = scratch(t, { fixture: 'unproven' });
+  write(run, { phase_summaries: { analysis: { summary: 'Analysed.', decisions: ['keep the notes'], risks: [] } } });
   const text = fs.readFileSync(run.state, 'utf8');
   assert.ok(text.indexOf('\nproject_context:') < text.indexOf('\ntask_context:'), 'the fixture no longer puts project_context first');
   const result = priorContext(run);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /Pasted from `task_context\.phase_summaries`/);
   assert.match(result.stdout, /- keep the notes/);
+});
+
+test('prior-context: a phase summary written by hand as a bare list is not read as decisions', t => {
+  const run = scratch(t, { fixture: 'unproven' });
+  write(run, { phase_summaries: { analysis: { summary: 'Analysed.', decisions: ['keep the notes'], risks: [] } } });
+  // The writer refuses a summary that is not a map, so only a hand edit can leave one.
+  const text = fs.readFileSync(run.state, 'utf8')
+    .replace('  phase_summaries:\n', '  phase_summaries:\n    review:\n      - approve the scope\n');
+  assert.match(text, /review:\n {6}- approve the scope/, 'the hand edit landed');
+  fs.writeFileSync(run.state, text);
+  const result = priorContext(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /- keep the notes/);
+  assert.doesNotMatch(result.stdout, /approve the scope/);
 });
 
 test('prior-context: a file that is no run at all is refused', t => {

@@ -1,0 +1,51 @@
+# The shape a 2.x prose orchestrator wrote for product design: phase-based
+# orchestrator state, a task block, the design context block — and no workflow
+# block.
+orchestrator:
+  started_phase: phase-0
+  completed_phases: [phase-0, phase-1, phase-2]
+  failed_phases: []
+  next_phase: phase-4
+  options:
+    html_output: true
+    mockup_format: html
+    visual_enabled: true
+  created: "2026-06-10T08:30:00Z"
+  updated: "2026-06-10T10:05:00Z"
+  task_path: .maister/tasks/product-design/2026-01-05-sample
+  task_ids:
+    phase-0: "1"
+    phase-1: "2"
+    phase-2: "3"
+
+task:
+  title: Shared shopping list for households
+  status: in_progress
+  tags: [product-design]
+
+design_context:
+  design_characteristics:
+    is_greenfield: false
+    is_enhancement: true
+    is_ui_focused: true
+    is_backend: false
+    is_complex: false
+    is_simple: false
+  complexity_level: "standard"
+  collected_urls: []
+  research_topics: []
+  user_files_list: []
+  refinement_iterations:
+    phase_2: 1
+    phase_3: 0
+    phase_5: 0
+    phase_6_sections: {}
+    phase_7: 0
+  phase_summaries:
+    context_synthesis:
+      summary: "Members already share a household; lists are per person today."
+      sources_count: 2
+    problem_exploration:
+      problem_statement: "Household members buy the same items twice."
+      constraints: [no new account type]
+      success_criteria: [one list per household]

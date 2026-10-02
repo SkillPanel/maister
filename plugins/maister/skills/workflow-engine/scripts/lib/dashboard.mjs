@@ -1,8 +1,8 @@
 /**
  * The dashboard projection: `dashboard-data.js` as a function of state.
  *
- * **The defect this closes.** `dashboard-data.js` used to be written by hand, by
- * the prose orchestrator, at seven rewrite moments scattered through a run. A
+ * **The defect this closes.** `dashboard-data.js` used to be written by hand, at
+ * seven rewrite moments scattered through a run. A
  * file that is only ever as fresh as the last turn that remembered to rewrite it
  * is a file an operator reads as current and which is routinely hours stale:
  * every phase that ran without a rewrite moment, every turn that was
@@ -306,7 +306,7 @@ function phasesOf(state, icons, titles, gates, progress, declared) {
     phase.started = scalar(node.started);
     phase.completed = scalar(node.completed);
     // State has no dedicated key: a skipped node's reason is written into its
-    // summary, which is the obligation the prose path already carried.
+    // summary.
     phase.skip_reason = status === 'skipped' ? text : null;
     phase.summary = text;
     phase.decisions = list(summary.decisions).map(decisionOf).filter((d) => d !== null);
@@ -330,9 +330,10 @@ function phasesOf(state, icons, titles, gates, progress, declared) {
  *
  * `node_summaries.<id>` is consulted first because `phases[].id` **is** the node
  * id; `<something>_context.phase_summaries.<key>` is the fallback, and only where
- * `key === id`. The prose path's key-to-node mapping table is deliberately not
- * carried into code: it existed so a human could line the two up by eye, and a
- * projection that guessed at it would attribute one phase's decisions to another.
+ * `key === id`. A workflow's key-to-node mapping table, in its node prose, is
+ * deliberately not carried into code: it exists so a human can line the two up
+ * by eye, and a projection that guessed at it would attribute one phase's
+ * decisions to another.
  *
  * The choice is made **per field** — `summary`, `decisions`, `risks`,
  * `artifacts` each come from the first source that carries them filled — and
