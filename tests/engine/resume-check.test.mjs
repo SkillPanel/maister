@@ -54,12 +54,15 @@ test('resume-check: the refusal says 2.x, names both install lines, and guesses 
   assert.doesNotMatch(message, /\b2\.\d+\.\d+\b/, 'no exact 2.x version: the state never recorded one');
 });
 
-test('resume-check: a product-design directory is sent to its own command, not refused as 2.x', t => {
-  const run = scratch(t, { fixture: 'prose-2x', type: 'product-design' });
+test('resume-check: a 2.x product-design directory is refused the same way and left untouched', t => {
+  const run = scratch(t, { fixture: 'prose-2x-product-design', type: 'product-design' });
+  const before = snapshot(run.dir);
   const result = resumeCheck(run);
   assert.equal(result.code, 1, result.stderr);
-  assert.equal(result.json.code, 'prose-orchestrator');
-  assert.match(result.json.message, /product-design command/);
+  assert.equal(result.json.code, 'written-by-2x');
+  assert.match(result.json.message, /started on the maister 2\.x plugin/);
+  assert.doesNotMatch(result.json.message, /product-design/, 'one message for every workflow, naming none');
+  assert.deepEqual(snapshot(run.dir), before);
 });
 
 test('resume-check: a run the engine froze resumes, with its name, overlays and profile', t => {

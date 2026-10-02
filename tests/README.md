@@ -28,8 +28,8 @@ scaffolds with `init`. Only the dashboard normalizers
   `.claude/` or `.github/` tree is committed and the operator's own `~/.claude` and `~/.copilot` are
   never read.
 - `fixtures/runs/` — run directories copied into a scratch project per test: a plan with its companion
-  and work log, a pending gate request, a state file written by a prose orchestrator, and two task directories
-  written by 2.x (`prose-2x/`, `prose-2x-research/`) that `resume-check` refuses, and
+  and work log, a pending gate request, a state file written by a prose orchestrator, and three task directories
+  written by 2.x (`prose-2x/`, `prose-2x-research/`, `prose-2x-product-design/`) that `resume-check` refuses, and
   `free-delivery-threshold/`, a real development run: its state as it recorded it (the definition
   source made repository-relative) as `recorded-state.yml`, beside every file it wrote, emptied.
   `run-complete.test.mjs` freezes the shipped `development.yml` afresh and replays the recorded

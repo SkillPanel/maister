@@ -1453,9 +1453,8 @@ is a directory this engine does not resume, and its `message` is written for the
 - `written-by-2x` — the state has no `workflow:` block, so the task was started on the 2.x
   plugin and there is no frozen graph to resume. Relay the `message` verbatim and stop. Write
   nothing into the directory, the dashboard included, create no task directory, and print no run
-  marker, because no run started. Starting a new task afterwards is an ordinary first run.
-- `prose-orchestrator` — a product-design directory, which its own command resumes. Relay the
-  `message` and stop.
+  marker, because no run started. Starting a new task afterwards is an ordinary first run. Every
+  workflow runs on this engine, so this holds for a directory under any type folder.
 - `state-unreadable` — relay it and stop.
 
 When a gate's revise is still open, the exit-`0` report carries `revision: {gate, option, reruns,
