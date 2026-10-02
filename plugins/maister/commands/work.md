@@ -98,8 +98,8 @@ types: Step 3 lists them and the classifier may choose one, which then runs by n
    invoke `maister:run` with the Skill tool and the task path as `args`. That skill reads the name,
    overlays and profile from the state and resumes the run; the rest of this step does not apply.
 
-   **No `workflow:` block under `development/`, `performance/`, `migrations/` or `research/`**
-   means the task was started on the 2.x plugin. Skip the status menu and route it straight to its
+   **No `workflow:` block under `development/`, `performance/`, `migrations/`, `research/` or
+   `product-design/`** means the task was started on the 2.x plugin. Skip the status menu and route it straight to its
    orchestrator (step 5) with the task path: the workflow engine refuses it before anything runs,
    and its message — where to finish the task — is the answer to relay.
 2. Determine workflow type from folder path:
@@ -113,18 +113,16 @@ types: Step 3 lists them and the classifier may choose one, which then runs by n
 | `product-design/` | product-design |
 
 3. Extract status from state file:
-   - `completed`: null = in-progress, timestamp = finished
-   - `completed_phases`: derive active phase as first phase not in this list
-   - `failed_phases`: array of failed attempts
+   - `task.status`: in progress, completed, stopped or failed
+   - `workflow.nodes`: the active node is the first one not yet completed, skipped or stopped
 
 4. Present status to user with AskUserQuestion:
 
 **For In-Progress Tasks:**
 ```
 Options:
-1. Resume from next incomplete phase
-2. Restart from specific phase
-3. Cancel
+1. Resume from the active node
+2. Cancel
 ```
 
 **For Completed Tasks:**
@@ -139,17 +137,14 @@ Options:
 **For Failed Tasks:**
 ```
 Options:
-1. Resume with fresh attempts (--reset-attempts)
-2. Retry failed phase
-3. Restart from specific phase
-4. Cancel
+1. Resume, re-driving the failed node
+2. Cancel
 ```
 
-Offer the phase-restart and fresh-attempts options only for workflows whose resume signature
-still lists them — only product-design. Research, development, performance and migration run on
-the workflow engine, which resumes by recomputing which nodes are ready from frozen state: there
-is no mid-graph entry point and no attempt counter, and it declines both flags by name. When an
-operator asks for either on such a task, say so plainly; re-entry is planned for the engine.
+No workflow offers a phase restart or fresh attempts. Every one runs on the workflow engine,
+which resumes by recomputing which nodes are ready from frozen state: there is no mid-graph entry
+point and no attempt counter, and it declines `--from=PHASE` and `--reset-attempts` by name. When
+an operator asks for either, say so plainly; re-entry is planned for the engine.
 
 5. **Route using Skill tool:**
 
@@ -161,7 +156,7 @@ Use Skill tool:
 
 Examples:
 - Resume development: `skill: "maister:development"` with `args: ".maister/tasks/development/2025-10-23-fix"`
-- Restart product-design from a phase: `skill: "maister:product-design"` with `args: ".maister/tasks/product-design/2025-10-26-onboarding --from=PHASE"`
+- Resume product-design: `skill: "maister:product-design"` with `args: ".maister/tasks/product-design/2025-10-26-onboarding"`
 
 Pass only the flags the workflow's resume signature lists — see **Resume Skill Reference** below.
 
@@ -273,16 +268,13 @@ Display:
 | performance | `maister:performance` | `[path]` |
 | migration | `maister:migration` | `[path]` |
 | research | `maister:research` | `[path]` |
-| product-design | `maister:product-design` | `[path] [--from=PHASE]` |
+| product-design | `maister:product-design` | `[path]` |
 | any other workflow, started by name | `maister:run` | `[path]` |
 
-Research, development, performance and migration run on the workflow engine, which resumes by
-recomputing the ready set from frozen state. Mid-graph entry and attempt counters have no
-expression there, so `--from=PHASE` and `--reset-attempts` are declined by name rather than
-silently ignored, and a task directory started on the 2.x plugin is refused with a message that
-says where to finish it.
-
-Product-design runs its own prose phases and honours the flags its row lists.
+Every workflow runs on the workflow engine, which resumes by recomputing the ready set from
+frozen state. Mid-graph entry and attempt counters have no expression there, so `--from=PHASE` and
+`--reset-attempts` are declined by name rather than silently ignored, and a task directory started
+on the 2.x plugin is refused with a message that says where to finish it.
 
 ---
 

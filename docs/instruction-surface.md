@@ -50,6 +50,15 @@ hand-off shrinks by about 800 bytes to a pure hand-off to the engine, 3,068–3,
 path loaded neither twin, so what a run reads changes only by the hand-offs' own trim; what goes
 is the second implementation nobody ran by default.
 
+**And since, 2026-10-02.** `product-design` moved onto the engine, the last workflow to do so. Its
+`SKILL.md` falls from 53,696 B to the same hand-off as the others, 3,371 B, and its phases arrive in
+the engine's Workflows row as `product-design.yml` (12,239 B) and its node prose `product-design.md`
+(48,136 B), with a generated diagram (3,357 B). Unlike the twin moves, this changes what a run
+loads: the skill body a product-design session read in full is now the hand-off plus the node prose
+the engine reads. The framework's prose-path sections go with it — `orchestrator-patterns.md` falls
+from 48,404 B to 44,429 B — and the creation checklist, rewritten for a definition, grows from 3,874 B
+to 5,097 B.
+
 ## The session-start footprint: what a session pays before any work
 
 Measured 2026-09-11 and not re-taken: deleting a reference body changes nothing here, because a

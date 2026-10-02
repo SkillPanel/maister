@@ -22,7 +22,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 - [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.80+ with the `maister-copilot` variant)
 - `jq` on `PATH` — used by the destructive-command guard
-- Node.js 20 or newer — required. `development`, `research`, `performance` and `migration` run on the workflow engine, which needs it and stops before creating a task directory without it; there are no prose versions of those workflows to fall back to. `make build`, `make validate` and HTML mockups need it too. Per-call gate enforcement outside an in-session answer is a Pro Edition feature with its own Node prerequisite; see [Pro Edition](#pro-edition)
+- Node.js 20 or newer — required. Every workflow — `development`, `research`, `performance`, `migration` and `product-design` — runs on the workflow engine, which needs it and stops before creating a task directory without it; there are no prose versions of those workflows to fall back to. `make build`, `make validate` and HTML mockups need it too. Per-call gate enforcement outside an in-session answer is a Pro Edition feature with its own Node prerequisite; see [Pro Edition](#pro-edition)
 
 ### Installation
 
@@ -128,7 +128,7 @@ You can always be explicit when you prefer - arguments and flags simply override
 | `/maister:migration` | Changing technologies or patterns |
 | `/maister:product-design` | Product and feature design |
 
-Development, research, performance and migration run on the workflow engine; product design runs as its own orchestrator. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
+All five run on the workflow engine. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
 
 Task type (feature/bug/enhancement) is auto-detected from context. Override with `--type=feature|bug|enhancement` if needed. Or use `/maister:work` as a single entry point that routes to the right workflow.
 
