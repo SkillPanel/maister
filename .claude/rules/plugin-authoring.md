@@ -43,7 +43,7 @@ this repository.
 
 ## Adding things
 
-- **Skill**: `skills/<name>/SKILL.md` (uppercase) with `name` + `description` frontmatter — the description is what the Skill tool and users see. Optional `references/`, `assets/`. Orchestrators additionally follow `skills/orchestrator-framework/references/orchestrator-creation-checklist.md` and read `orchestrator-patterns.md` at init.
+- **Skill**: `skills/<name>/SKILL.md` (uppercase) with `name` + `description` frontmatter — the description is what the Skill tool and users see. Optional `references/`, `assets/`. A workflow is not a skill of its own: it is a definition under `skills/workflow-engine/workflows/` with a thin hand-off skill, built to `skills/orchestrator-framework/references/orchestrator-creation-checklist.md`.
 - **Command**: `commands/<name>.md`, flat (no subdirectories) and no colons in `name` — the Copilot build requires both. Invoke a skill; don't embed logic.
 - **Agent**: `agents/<name>.md` with `name`, `description`, `tools` frontmatter. Read-only unless it must write. If it truly needs destructive Bash, add it to the `case` whitelist in `hooks/block-destructive-commands.sh` — default is *not* whitelisted.
 - **Hook**: script alongside `hooks/hooks.json`, registered there with a `${CLAUDE_PLUGIN_ROOT}`-anchored path. Node hooks (`*.mjs`) use the exec form — `command: node` with the script path in `args` — so nothing depends on a shebang or an executable bit. Shell hooks (`*.sh`) are invoked as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/<name>.sh"` for the same reason. The Copilot variant does not inherit `hooks.json`: its hook configs are authored under `platforms/copilot-cli/hooks/` and emitted by the build.

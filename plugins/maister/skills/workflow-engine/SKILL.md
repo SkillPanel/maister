@@ -1476,9 +1476,8 @@ The engine honours the framework's contracts; it does not restate them. Follow
   artifact, with the returned summary lifted into state verbatim rather than re-summarized;
 - the **operator dashboard** (§ 8 — the config gate that turns it off and the browser open,
   which stay prose; the viewer itself is installed by the freeze write, Step 4, so an engine run
-  copies nothing): on the engine path every successful `write-state` projects
-  `dashboard-data.js` itself, so an engine run owes none of moments 1-7 and a projection that
-  fails is a warning that never blocks. The projection is the file's only writer: inside the
+  copies nothing): every successful `write-state` projects `dashboard-data.js` itself, so no
+  node owes a rewrite of it, and a projection that fails is a warning that never blocks. The projection is the file's only writer: inside the
   implementation and verification phases, which the engine does not enter,
   `implementation-plan-executor` and `implementation-verifier` keep it current by sending
   `write-state` calls, never by writing the file;
