@@ -91,6 +91,10 @@ These three files need version/name changes during the merge workflow:
 - `plugins/maister/.claude-plugin/plugin.json` — version + description
 - `plugins/maister-copilot/.claude-plugin/plugin.json` — version + description
 
+### Pinned Playwright MCP
+
+`plugins/maister/.mcp.json` pins `@playwright/mcp` to an exact version (`@latest` and ranges are rejected by the plugin directory review). On each release, check `npm view @playwright/mcp version` and bump the pin if it moved, then run `make`.
+
 ## Testing Changes
 
 1. Navigate to a test project
