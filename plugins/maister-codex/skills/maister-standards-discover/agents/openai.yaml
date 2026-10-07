@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Standards Discovery"
+  short_description: "Discover evidence-backed project conventions."
+  default_prompt: "Use $maister-codex:maister-standards-discover to identify project standards."

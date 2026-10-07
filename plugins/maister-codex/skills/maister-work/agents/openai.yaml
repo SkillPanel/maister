@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Work"
+  short_description: "Route an engineering task to the right workflow."
+  default_prompt: "Use $maister-codex:maister-work to choose a Maister workflow for this task."

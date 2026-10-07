@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Docs Manager"
+  short_description: "Manage project docs, standards, and AGENTS.md."
+  default_prompt: "Use $maister-codex:maister-docs-manager to initialize, update, index, or validate Maister project documentation."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maister Product Design"
+  short_description: "Design complete, reachable product experiences."
+  default_prompt: "Use $maister-codex:maister-product-design to explore and specify this product or feature."
