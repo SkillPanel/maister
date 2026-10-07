@@ -28,10 +28,14 @@ question, the answer, the recommended answer and whether the two match. More
 details is never recorded.
 
 **Every question asked inside a node names its default here.** Under a `cockpit`
-or `dispatch` driver nobody is in the session, so none of them is asked: each
-takes the default its own section states and the node records that it did. The
-rule, the recording shape and what is never defaulted past belong to the engine
-skill, which states them once; this file only says what each question takes.
+driver whose features list `question-sets`, a node asks through the cockpit, in
+one request per attempt, and each section's **With question sets** line says
+whether its question goes there. Under any other `cockpit` or `dispatch` driver
+nobody is in the session, so none of them is asked: each takes the default its
+own section states under **Without question sets** and the node records that
+it did. The rule, the recording shape and what is never defaulted past belong to
+the engine skill, which states them once; this file only says what each
+question takes.
 
 **Retry budgets are prose here on purpose.** They must never be written into
 `with:`, which is an unconstrained free-form object — `max_attempts` sitting
@@ -174,7 +178,10 @@ milestone as `context`, rather than as a write of their own.
 operator for it, as free text. Nothing downstream is meaningful without one, and
 inventing a question is the documented failure mode.
 
-**Default under a non-terminal driver** (`research-question`): none, because the
+**With question sets** (`research-question`): never reached either — the start
+brief supplies the question.
+
+**Without question sets** (`research-question`): none, because the
 question is never reached — the start brief supplied it and the freeze persisted
 it. A non-terminal run that has no research question is `RUN-FAILED`, never a
 run with an invented one.
@@ -318,7 +325,11 @@ patterns and falling back to a mixed methodology; step 3 three attempts,
 retrying only the failed gatherers and continuing with the categories that
 succeeded; step 4 two attempts, requesting targeted re-gathering for the gaps.
 
-**Default under a non-terminal driver** (`question-clarification`): none. Step 1
+**With question sets** (`question-clarification`): asked through the cockpit, in
+this node's one request, its sharpened readings generated before it suspends
+(*In-node questions*).
+
+**Without question sets** (`question-clarification`): none. Step 1
 cannot ask an absent operator to clarify an unclear question, and it must not
 guess one, so an unclear question exhausts the step's single attempt and the
 node is recorded `failed`. A re-drive carrying the clarification is the route
@@ -382,13 +393,19 @@ both answers continue the run: a gate has exactly one continue, and neither
 answer here stops anything or sends the run back. A "no" makes
 the guarded nodes skip, and a skip satisfies everything downstream.
 
-**Default under a non-terminal driver** (`brainstorm-opt-in`): the
+**With question sets** (`brainstorm-opt-in`): asked through the cockpit, in this
+node's one request (*In-node questions*).
+
+**Without question sets** (`brainstorm-opt-in`): the
 recommendation this node computed from the synthesis — the same judgement that
 would have marked the recommended option. It is recorded as the
 node's brainstorming output exactly as an answer would be, and a supplied flag
 still settles it without a default being taken at all.
 
-**Default under a non-terminal driver** (`design-opt-in`): the computed design
+**With question sets** (`design-opt-in`): asked through the cockpit, in this
+node's one request (*In-node questions*).
+
+**Without question sets** (`design-opt-in`): the computed design
 recommendation, by the same rule, recorded as the node's design output.
 
 **The two choices are also run options.** The node's closing write records the
@@ -440,7 +457,11 @@ to the design"* when design was chosen.
 That retry-or-skip question is asked inside the node because sending a failed
 node round again needs a construct the grammar reserves without implementing.
 
-**Default under a non-terminal driver** (`brainstormer-retry`): none — neither
+**With question sets** (`brainstormer-retry`): asked through the cockpit only
+when it is the first thing this node asks in its attempt; after an earlier
+request in the same attempt, the default below is taken (*In-node questions*).
+
+**Without question sets** (`brainstormer-retry`): none — neither
 retry nor skip. With the budget exhausted and nobody to ask, the node is
 recorded `failed` rather than silently skipped, because skipped brainstorming
 satisfies everything downstream and would hide the failure from every later
@@ -476,7 +497,9 @@ approach, skip those areas and resume at the first unresolved one.
 > **ANTI-PATTERN**: Do NOT put several decision areas in one call, as tabs of a
 > page or as one combined "do you agree?" question, and do NOT offer them as
 > accept-all. One call = one question = one decision area. A later area can
-> depend on an earlier answer, so convergence is strictly sequential.
+> depend on an earlier answer, so convergence is strictly sequential. (With
+> question sets every area goes in the node's one request instead, still one
+> question per area — see below.)
 >
 > **ANTI-PATTERN**: Do NOT give the first area its full detail and the rest a
 > recommendation line. EVERY area's question, options and previews carry the
@@ -542,18 +565,25 @@ entry written without that key costs the user the whole area again.
 > area, why it matters and every alternative, and does each option's
 > description carry its pro and con — the recommended one's its reason? If the
 > question holds only the area's name and the options only their names, STOP
-> and write them out. And does this call contain exactly one question about
-> exactly one area? If it carries more, STOP and split it.
+> and write them out. And, in a terminal run, does this call contain exactly
+> one question about exactly one area? If it carries more, STOP and split it.
 
 > **GATE CHECK**: verify that EVERY decision area was resolved — asked and
-> answered in a terminal run, defaulted and recorded under a non-terminal one,
-> and in both cases present in `decision_areas`. An area a non-terminal run
-> could not default is recorded as open, never dropped. If any area was skipped
+> answered in a terminal run or through the cockpit, defaulted and recorded
+> without question sets, and in every case present in `decision_areas`. An area
+> a run without question sets could not default is recorded as open, never
+> dropped. If any area was skipped
 > for any reason — a missing file, a failed read — STOP and resolve it. Do not
 > mark this node complete without convergence on all areas.
 > Never paper over a missed gate by updating state.
 
-**Default under a non-terminal driver** (`convergence-decisions`): each area
+**With question sets** (`convergence-decisions`): asked through the cockpit,
+every area in this node's one request, one question per area with the same
+detail as above; an area whose choice depends on another names that area in its
+question (*In-node questions*). Each answer is recorded as an operator decision
+and as the area's `chosen_approach`.
+
+**Without question sets** (`convergence-decisions`): each area
 takes the alternative this node recommends for it, recorded as `{decision, by:
 default, question_id}`, and More details is never taken — there is nobody to
 present the deeper analysis to. Every area is still worked in full: the
@@ -582,7 +612,8 @@ brainstorm already recorded, which the gate reads from there.
 resume check above does not apply to this attempt — every area carries a choice
 from the first one. The earlier choices stand: read them from this node's
 summary entry, which stays on record until this attempt rewrites it, and re-ask
-only the areas the note reopens, each in full as above. Under a driver, take the alternative the note
+only the areas the note reopens, each in full as above. Without question sets,
+take the alternative the note
 names for each area it names — recorded as the operator's choice — and keep the
 rest. Record the declared value again, because a revise clears it, and say in
 the summary which areas changed.
@@ -635,7 +666,10 @@ designer as it stands. Anything else, or a combination, is typed through Other.
 The answer feeds the delegate and decides nothing about the flow, which is why
 it is asked here rather than at a gate.
 
-**Default under a non-terminal driver** (`design-constraints`): none is
+**With question sets** (`design-constraints`): asked through the cockpit, in
+this node's one request (*In-node questions*).
+
+**Without question sets** (`design-constraints`): none is
 supplied, and the delegate is invoked on the convergence output and the research
 report alone. This is the cheapest question in the run to default: its answer
 feeds a prompt and decides nothing about the flow, so an absent one costs the
@@ -661,7 +695,12 @@ with *"Try once more (Recommended)"*, its description saying why another attempt
 may work now, and *"Skip the design"*, its description *"finish with the
 research and the chosen approach"*.
 
-**Default under a non-terminal driver** (`designer-retry`): none — neither retry
+**With question sets** (`designer-retry`): asked through the cockpit only when
+it is the first thing this node asks in its attempt; after an earlier request in
+the same attempt — the constraints question, say — the default below is taken
+(*In-node questions*).
+
+**Without question sets** (`designer-retry`): none — neither retry
 nor skip. The budget is exhausted and nobody is there, so the node is recorded
 `failed` rather than skipped, for the same reason the brainstormer's retry
 question is: a skip satisfies everything downstream and would hide the failure.
