@@ -1418,8 +1418,8 @@ taking their defaults. Four rules hold:
 - **Each question carries its own context**, by the floor above: `question` the question itself,
   `why` what makes it matter, each option's `description` what choosing it does or costs, and
   `recommended` on the recommended option, its reason in its description. `header` is a short
-  sentence-case title. `multi_select` and `allow_other` (the operator's own words, on unless
-  said) are per question. `default` is what a non-answer would take, the recommendation when
+  sentence-case title. The multi-choice flag and `allow_other` (the operator's own words, on
+  unless said) are per question. `default` is what a non-answer would take, the recommendation when
   absent. `triage` is reserved and passed through unread.
 
 How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch file, runs
