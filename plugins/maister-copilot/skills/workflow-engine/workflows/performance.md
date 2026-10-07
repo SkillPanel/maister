@@ -18,10 +18,14 @@ generated diagram does not show them either. Anyone reasoning about how
 interactive this workflow is must read this file, not the graph.
 
 **Every question asked inside a node names its default here.** Under a `cockpit`
-or `dispatch` driver nobody is in the session, so none of them is asked: each
-takes the default its own section states and the node records that it did. The
-rule, the recording shape and what is never defaulted past belong to the engine
-skill, which states them once; this file only says what each question takes.
+driver whose features list `question-sets`, a node asks through the cockpit, in
+one request per attempt, and each section's **With question sets** line says
+whether its question goes there. Under any other `cockpit` or `dispatch` driver
+nobody is in the session, so none of them is asked: each takes the default its
+own section states under **Without question sets** and the node records that
+it did. The rule, the recording shape and what is never defaulted past belong to
+the engine skill, which states them once; this file only says what each
+question takes.
 
 **Recovery budgets are prose here on purpose.** They must never be written into
 `with:`, which is an unconstrained free-form object — an attempts key sitting
@@ -265,13 +269,21 @@ clarifications by having none to ask. Record each answered tab as a
 `by: operator` decision on this node's summary, one per question, as engine
 § *In-node questions* says.
 
-**Default under a non-terminal driver** (`clarifications`): none is asked, and
+**With question sets** (`clarifications`): asked through the cockpit, in this
+node's one request (*In-node questions*).
+
+**Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and
 `performance_context.clarifications_resolved` set exactly as they are for a run
 with nothing to ask, and what the analysis could not settle about hotspots or
 goals is recorded in the file as unsettled rather than guessed at.
 
-**Default under a non-terminal driver** (`profiling-data`): no profiling data,
+**With question sets** (`profiling-data`): asked through the cockpit, in the
+same request as the clarifications (*In-node questions*); its "Yes" option says
+the files must be in the folder before answering, because the node does not wait
+after it resumes.
+
+**Without question sets** (`profiling-data`): no profiling data,
 and the run proceeds on static analysis alone, recorded as a `by: default`
 decision. Waiting for files nobody can drop is the one thing this question must
 not do under a driver — the wait never ends.
@@ -410,7 +422,11 @@ engine § *In-node questions* says. Save the round to `analysis/requirements.md`
 together with the performance issue description, the bottleneck summary, the
 chosen priorities, the constraints and the targets.
 
-**Default under a non-terminal driver** (`optimization-priorities`): the
+**With question sets** (`optimization-priorities`): asked through the cockpit,
+in this node's one request (*In-node questions*); "Choose individually" would
+need a second ask, so it is not offered.
+
+**Without question sets** (`optimization-priorities`): the
 analyzer's own priorities stand — every P0 and P1 bottleneck it identified, with
 the constraints tab's recommended bundle and no numeric target beyond what the
 invocation already supplied — recorded as one `by: default` decision.
@@ -653,7 +669,10 @@ additional checks"**. A gate cannot express it: a gate's options map option ids
 to routes — continue, stop or revise — and this question picks a subset rather
 than a route.
 
-**Default under a non-terminal driver** (`standard-verifications`): the
+**With question sets** (`standard-verifications`): asked through the cockpit, in
+this node's one request (*In-node questions*).
+
+**Without question sets** (`standard-verifications`): the
 recommended bundle, code review only — production readiness off. The reality
 check and the pragmatic review are always enabled and are not part of this
 question, so a defaulted run still gets both.
@@ -738,7 +757,12 @@ step by step):
   undecided issue an `open` risk for the gate; "Stop" writes a `stop` risk, so
   the gate recommends stopping.
 
-**Default under a non-terminal driver** (`verification-fix-loop`): the loop runs
+**With question sets** (`verification-fix-loop`): asked through the cockpit only
+when it is the first thing this node asks in its attempt, with the verification
+report and every fix so far written first; after an earlier request in the same
+attempt, the default below is taken (*In-node questions*).
+
+**Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
 two re-checks — and nothing is asked. Every issue that needs a decision, and every
 risky fix, stays open as an `open` risk in this node's summary, and the stopping
