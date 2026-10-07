@@ -72,12 +72,30 @@ const EFFECT_ORDER = { continue: 0, revise: 1, stop: 2 };
 /** What More details says it does. */
 const DETAILS_DESCRIPTION = 'Shows the full brief, risks included, then asks this again. Nothing is recorded.';
 
+/** What each grant an option declares does, in the words a label carries it in. */
+const GRANT_WORDS = { push: 'pushes the branch', 'pr-create': 'opens the pull request' };
+
 /** The cut More details' preview ends with. */
 const DETAILS_CUT = 'Choose this to see the rest.';
 
 // ---------------------------------------------------------------------------
 // the pieces every layout shares
 // ---------------------------------------------------------------------------
+
+/**
+ * What answering an option grants beyond the run, in plain words — "also
+ * pushes the branch and opens the pull request" — or '' when it grants nothing.
+ */
+export function grantsText(names) {
+  const words = (Array.isArray(names) ? names : []).map(name => GRANT_WORDS[name] ?? name);
+  return words.length ? `also ${andList(words)}` : '';
+}
+
+/** An option's label with what answering it grants after a dash. */
+function grantedLabel(checkpoint, option) {
+  const granted = grantsText(checkpoint.grants?.[option.id]);
+  return granted ? `${option.label} — ${granted}` : option.label;
+}
 
 /** `A`, `A and B`, `A, B and C`. */
 function andList(names) {
@@ -376,7 +394,7 @@ export function richPicker(checkpoint) {
     else lines = stopLines(checkpoint, option);
     return {
       id: option.id,
-      label: `${option.label}${option.recommended ? RECOMMENDED_MARK : ''}`,
+      label: `${grantedLabel(checkpoint, option)}${option.recommended ? RECOMMENDED_MARK : ''}`,
       description: option.consequence,
       recommended: option.recommended,
       ...answerFields(option, 'rich'),
@@ -404,7 +422,7 @@ export function plainPicker(checkpoint) {
 
 /** An option's title on a labels-only picker: its label and, after a dash, what it does. */
 function plainTitle(checkpoint, option) {
-  if (option.effect === 'continue') return option.label;
+  if (option.effect === 'continue') return grantedLabel(checkpoint, option);
   if (option.effect === 'revise') {
     // "it" only when the label already names the one node that re-runs:
     // "Revise the decisions — re-runs it" hid that the decision areas are asked again.
@@ -440,7 +458,9 @@ function withDetails(profile, question, options, more) {
  * suggestions; `context.summary` is the one-line form older readers take and
  * must keep getting; `context.artifacts` the files to review; and
  * `context.checkpoint` the object itself, kept with the request so the gate's
- * history shows what was asked. The writer adds the version, the time asked and
+ * history shows what was asked. What an option grants travels in the
+ * checkpoint alone: the request's options keep their plain labels and their
+ * keys, and a cockpit shows the grant from `checkpoint.grants` its own way. The writer adds the version, the time asked and
  * the empty answer — a caller that sent them would be refused.
  */
 export function requestOf(checkpoint, summary) {
