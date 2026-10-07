@@ -277,10 +277,7 @@ test('checkpoint: the last gate asks the same, and a skipped stretch lands on wh
 
 test('checkpoint: a step is named without an article, whatever its title\'s shape', t => {
   const run = scratch(t);
-  const labels = overlay(t, 'development', [
-    'display:', '  option_labels:', '    implementation-approval:', '      continue-past-implementation: "Continue"',
-  ]);
-  walkTo(t, run, DEVELOPMENT, 'implementation-approval', [labels], { task_description: 'Tag the notes' }, {
+  walkTo(t, run, DEVELOPMENT, 'implementation-approval', [], { task_description: 'Tag the notes' }, {
     nodes: {
       'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false } },
       specification: { status: 'completed', values: { spec_audit_enabled: true } },
@@ -308,14 +305,31 @@ test('checkpoint: a step the run opted into names itself in the continue label a
   const ask = 'Specification complete. Ready to go on?';
   const rich = pickerOf(run, 'specification-approval', 'rich');
   assert.equal(rich.question, ask);
-  assert.equal(rich.options[0].label, 'Continue to the specification audit (Recommended)');
+  assert.equal(rich.options[0].label, 'Continue to specification audit (Recommended)');
   assert.match(rich.options[0].preview, /^Next: Specification audit$/m);
   const plain = pickerOf(run, 'specification-approval', 'plain');
   assert.equal(plain.question.split('\n').at(-1), ask, 'the plain question still ends with the ask');
   assert.match(plain.question, /^Next: Specification audit$/m);
-  assert.equal(plain.options[0].label, 'Continue to the specification audit (Recommended)');
+  assert.equal(plain.options[0].label, 'Continue to specification audit (Recommended)');
   assert.equal(JSON.parse(gateBrief(run, 'specification-approval', '--request').stdout).question, ask);
   for (const question of [rich.question, plain.question.split('\n').at(-1)]) assert.doesNotMatch(question, /audit/i);
+});
+
+test('checkpoint: with the audit off, the specification gate continues to what runs instead', t => {
+  const run = scratch(t);
+  walkTo(t, run, DEVELOPMENT, 'specification-approval', [], { task_description: 'Tag the notes' }, {
+    nodes: {
+      'ui-mockups': { status: 'skipped' },
+      'mockup-approval': { status: 'skipped' },
+      specification: { status: 'completed', values: { spec_audit_enabled: false } },
+    },
+    node_summaries: { specification: { status: 'completed', summary: 'The spec is written; no audit was asked for.' } },
+  });
+  // A label naming the audit read "Continue to the specification audit" while Next said it was skipped.
+  const rich = pickerOf(run, 'specification-approval', 'rich');
+  assert.equal(rich.options[0].label, 'Continue to implementation planning (Recommended)');
+  assert.match(rich.options[0].preview, /^Next: Implementation planning \(skipping Specification audit\)$/m);
+  assert.equal(pickerOf(run, 'specification-approval', 'plain').options[0].label, 'Continue to implementation planning (Recommended)');
 });
 
 // ---------------------------------------------------------------------------

@@ -39,6 +39,7 @@ Before considering a workflow complete, verify ALL items:
 |---|---|
 | A routing decision written as prose instead of a guard | The graph, the diagram and the gate brief's `Next:` line cannot see it |
 | A gate question that names where the run goes next | It is frozen into the graph hash; the brief's `Next:` line names the real next node |
+| A continue label naming a step a guard can skip | It reads wrong whenever the guard skips that step; label it `Continue` and the brief completes it from the walk |
 | An in-node question with no default | A driven run has nobody to ask and no way to suspend inside a node |
 | A revise whose suggestions the operator must type | The engine generates them from the stretch's open risks; give each its `change` so each suggestion is concrete |
 | A budget written into `with:` | Inert data the engine never consults; budgets are prose |
