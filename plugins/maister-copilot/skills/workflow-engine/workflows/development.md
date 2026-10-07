@@ -251,8 +251,9 @@ freeze persisted it. A non-terminal run that has no description is
    the research question, the research type and the confidence level. Research
    **informs** every later node and skips none of them.
 7. **Ingest design context from three sources** and unify them under
-   `analysis/design-context/`: a product-design task path, whose brief and
-   mockups are copied in; inline mockup paths and design-tool links found in the
+   `analysis/design-context/`: a product-design task path, named in the
+   description or supplied through the design input, whose brief and mockups
+   are copied in; inline mockup paths and design-tool links found in the
    task description, the files copied in and the links recorded; and legacy
    locations from a resumed run, migrated in. Skip silently when no source
    exists — a task with no UI surface sees no change.
@@ -279,6 +280,14 @@ freeze persisted it. A non-terminal run that has no description is
 
    Design-tool links — Figma, Sketch Cloud, Zeplin — are unaffected: a URL is
    never a file this run changes, and is recorded as before.
+
+   **The design input** names a product-design task directory, or the brief
+   inside one (`outputs/product-brief.md`), whose task directory is then two
+   levels up. It is a design source by declaration, so the table above does not
+   judge it: it is the product-design source exactly as if the description had
+   named that directory. When it resolves to no product-design task — nothing
+   there, or no brief — say so in one line in the node summary and continue
+   without it; the operator asked for it, so its absence is never silent.
 8. **Generate the design index** when anything was ingested — one row per screen
    or component with a stable id, its source mockup and a one-line description.
    Downstream nodes reference screens by those ids and by nothing else.

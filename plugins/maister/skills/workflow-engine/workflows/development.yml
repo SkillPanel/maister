@@ -44,6 +44,9 @@ description: "Builds a change to the code — a new feature, an enhancement, a b
 inputs:
   task_description: {type: string, required: true}
   research: {type: string, required: false}
+  # The path of a completed product-design task, or of its brief, whose brief
+  # and mockups the intake copies in as the run's design context.
+  design: {type: string, required: false}
   # Tri-state, and a string rather than a bool for that reason: absent means
   # ask the operator, `yes`/`no` means the flag was set. Never referenced from
   # a `when` clause — the node that reads one turns it into a declared bool
@@ -170,6 +173,7 @@ nodes:
     with:
       task_description: "${inputs.task_description}"
       research: "${inputs.research}"
+      design: "${inputs.design}"
     outputs:
       artifacts:
         research_context: analysis/research-context
