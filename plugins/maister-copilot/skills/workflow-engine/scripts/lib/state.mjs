@@ -85,7 +85,7 @@ import * as dashboard from './dashboard.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, decisionOf, oneLine } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, attemptNumber, decisionOf, isEarlierAnswer, oneLine } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -2223,7 +2223,9 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     if (kind === 'node' && Object.hasOwn(entry, 'answer')) {
       recorded ??= recordedNodes(doc);
       if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') entry = foldFlatAnswer(entry);
-      else if (isPlainObject(entry.answer)) entry = foldQuestionAnswer(entry, key, runDir, heldOf(key));
+      else if (isPlainObject(entry.answer)) {
+        entry = foldQuestionAnswer(entry, key, runDir, heldOf(key), attemptOf(Object.hasOwn(recorded, key) ? recorded[key] : null));
+      }
     }
     if (kind === 'node' && graphOf !== null && Object.hasOwn(entry, 'decisions')) {
       const gate = resolvedNode(graphOf(), key);
@@ -2238,7 +2240,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display), runDir);
         entry.decisions = [...earlierRevisions(doc, key, entry.decisions), ...entry.decisions];
       } else {
-        entry.decisions = stampAnswers(entry.decisions, runDir);
+        entry.decisions = keepAttempts(heldOf(key)?.decisions, stampAnswers(entry.decisions, runDir));
         entry.decisions = [...earlierAnswers(heldOf(key)?.decisions, entry.decisions), ...entry.decisions];
       }
     }
@@ -2427,9 +2429,16 @@ function foldFlatAnswer(entry) {
  * is recorded is what was asked, in the words it was asked in; the caller
  * copies the block and composes nothing. The decisions are added after the
  * ones the summary already holds, and an earlier answer to the same question
- * is replaced.
+ * is replaced — within one attempt.
+ *
+ * A node a revise re-ran asks again in its new attempt, read from the node's
+ * own `attempt`, which the engine wrote when it reset it. There the operator's
+ * answers from an earlier attempt stay where they were, each stamped with the
+ * attempt it was given in, and the new ones carry theirs, so what was first
+ * answered is still in the run's state. A first attempt stamps nothing, and
+ * records exactly what it always did.
  */
-function foldQuestionAnswer(entry, node, runDir, held) {
+function foldQuestionAnswer(entry, node, runDir, held, attempt = 1) {
   const file = runDir === null ? null : path.join(runDir, 'gates', `${node}${REQUEST_SUFFIX}`);
   const refuse = reason => new Refusal('state-question-answer-invalid',
     `the answer recorded for ${node} cannot be folded: ${reason}. Nothing was written`);
@@ -2447,7 +2456,15 @@ function foldQuestionAnswer(entry, node, runDir, held) {
   const { answer: _answer, ...rest } = entry;
   const answered = new Set(folded.decisions.map(item => item.question_id));
   const base = Array.isArray(entry.decisions) ? entry.decisions : Array.isArray(held?.decisions) ? held.decisions : [];
-  return { ...rest, decisions: [...base.filter(item => !(isPlainObject(item) && answered.has(item.question_id))), ...folded.decisions] };
+  if (attempt === 1) {
+    return { ...rest, decisions: [...base.filter(item => !(isPlainObject(item) && answered.has(item.question_id))), ...folded.decisions] };
+  }
+  const kept = base.flatMap(item => {
+    if (!isPlainObject(item) || !answered.has(item.question_id)) return [item];
+    const given = attemptNumber(item) ?? 1;
+    return decisionOf(item)?.by === 'operator' && given < attempt ? [{ ...item, attempt: given }] : [];
+  });
+  return { ...rest, decisions: [...kept, ...folded.decisions.map(item => ({ ...item, attempt }))] };
 }
 
 /** What a model has written in place of the person's name. */
@@ -2513,19 +2530,43 @@ export function operatorName(runDir = null) {
  * replaces it: the same `question_id` and the same question text, or the text
  * alone when there is no id. The id alone is not enough — one id written on
  * every question of a page made a single re-asked question drop the others.
+ * An answer an earlier attempt gave to a question asked again
+ * (`isEarlierAnswer`) is matched with its attempt as well, so no current
+ * answer replaces it — only the same answer, carried along, stands in for it —
+ * and a current answer sent again replaces itself.
  */
 function earlierAnswers(prior, decisions) {
   if (!Array.isArray(prior)) return [];
-  const keyOf = item => {
+  const keyOf = (item, list) => {
     if (!isPlainObject(item)) return null;
     const read = decisionOf(item);
     const question = typeof read?.question === 'string' ? oneLine(read.question) : '';
-    if (typeof item.question_id === 'string' && item.question_id !== '') return `id:${item.question_id}\u0000${question}`;
+    if (typeof item.question_id === 'string' && item.question_id !== '') {
+      const key = `id:${item.question_id}\u0000${question}`;
+      return isEarlierAnswer(item, list) ? `${key}@${attemptNumber(item)}` : key;
+    }
     if (!read) return null;
     return question === '' ? `answer:${read.decision}` : `text:${question}`;
   };
-  const sent = new Set(decisions.map(keyOf).filter(Boolean));
-  return prior.filter(item => isPlainObject(item) && decisionOf(item)?.by === 'operator' && !sent.has(keyOf(item)));
+  const sent = new Set(decisions.map(item => keyOf(item, decisions)).filter(Boolean));
+  return prior.filter(item => isPlainObject(item) && decisionOf(item)?.by === 'operator' && !sent.has(keyOf(item, prior)));
+}
+
+/**
+ * `decisions` with each answer that comes back without its `attempt` given the
+ * one the held answer to the same question carries — a closing write re-sending
+ * the current answers as they were asked. Without it the re-sent answer read as
+ * a first attempt's, and the earlier attempt's answer it replaced the history
+ * of read as current again.
+ */
+function keepAttempts(prior, decisions) {
+  if (!Array.isArray(prior)) return decisions;
+  return decisions.map(item => {
+    if (!isPlainObject(item) || Object.hasOwn(item, 'attempt') || typeof item.question_id !== 'string') return item;
+    const held = prior.find(other => isPlainObject(other) && other.question_id === item.question_id
+      && attemptNumber(other) !== null && !isEarlierAnswer(other, prior));
+    return held ? { ...item, attempt: attemptNumber(held) } : item;
+  });
 }
 
 /** The `node_summaries` block as it stands in the document, through the shared reader. */

@@ -90,7 +90,7 @@ import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
 import { grantsText, lowered, moreDetails, panelOf, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
-import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, riskOf, riskText } from './items.mjs';
+import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 
@@ -1158,11 +1158,14 @@ function summaryOf(sources, id) {
     if (entry) picked[field] = entry[field];
   }
   if (typeof picked.summary !== 'string') return null;
+  // An earlier attempt's answer to a question asked again is history: the
+  // brief shows and counts the answers in effect.
+  const decisions = list(picked.decisions);
   return {
     id,
     summary: picked.summary,
     headline: typeof picked.headline === 'string' ? picked.headline : null,
-    decisions: list(picked.decisions),
+    decisions: decisions.filter(item => !isEarlierAnswer(item, decisions)),
     risks: list(picked.risks),
   };
 }
