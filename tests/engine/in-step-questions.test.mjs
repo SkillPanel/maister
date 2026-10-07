@@ -208,6 +208,7 @@ test('fold: the answer block becomes one operator decision per question, and the
 
 test('fold: an answer in the operator\'s own words, and a multi-select in another order, read as given', t => {
   const { run, answer } = folded(t, OTHER);
+  assert.equal(answer.option, 'other', 'a first question answered in own words sends option: other');
   write(run, { node_summaries: { analysis: { answer } } });
   const [filter, , extras] = plain(readState(run).node_summaries.analysis.decisions);
   assert.equal(filter.decision, 'Match all by default, any when the caller passes mode: any');

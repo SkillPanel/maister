@@ -41,7 +41,8 @@ scaffolds with `init`. Only the dashboard normalizers
   is a `kind: question` request as `gate-brief --request` builds it from a three-question set (a
   single choice, one with nothing recommended, a multi-select), with the fields the request writer
   adds; `question-set.answer.yml` and `question-set.other.answer.yml` are answer files for it — an
-  id, a list, and an answer in the operator's own words. `in-step-questions.test.mjs` asserts the
+  id, a list, and an answer in the operator's own words, whose first question answered that way
+  sends `option: other`. `in-step-questions.test.mjs` asserts the
   request against the verb's output and folds both answers, so a cockpit can render from them.
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
