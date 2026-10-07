@@ -28,13 +28,18 @@ interactive workflow in the plugin; anyone reasoning about how interactive it is
 must read this file, not the graph.
 
 **Every question asked inside a node names its default here.** Under a `cockpit`
-or `dispatch` driver nobody is in the session, so none of them is asked: each
-takes the default its own section states and the node records that it did. The
-rule, the recording shape and what is never defaulted past belong to the engine
-skill, which states them once; this file only says what each question takes.
+driver whose features list `question-sets`, a node asks through the cockpit, in
+one request per attempt, and each section's **With question sets** line says
+whether its question goes there. Under any other `cockpit` or `dispatch` driver
+nobody is in the session, so none of them is asked: each takes the default its
+own section states under **Without question sets** and the node records that
+it did. The rule, the recording shape and what is never defaulted past belong to
+the engine skill, which states them once; this file only says what each
+question takes.
 One question is the exception the workflow makes on purpose: the convergence on
-a design direction is never defaulted. Under a driver it is left open for the
-direction gate to decide, because a direction nobody chose would be built into
+a design direction is never defaulted. With question sets it is asked through
+the cockpit; without them it is left open for the direction gate to decide,
+because a direction nobody chose would be built into
 every document after it (`idea-convergence` says how).
 
 **Every question carries what it asks about** (engine § *In-node questions*).
@@ -68,9 +73,11 @@ of four answers is four entries. More details is never recorded.
 **Say plainly what a driven run produces.** This workflow is collaborative by
 design: its exploration questions and refinement loops are not overhead around
 the work, they *are* the work. A run under a `cockpit` or `dispatch` driver
-takes every default below, so the problem statement, the personas, the
-specification and the brief are drafts no operator shaped in session, and the
-five gates are the only place an operator shapes them. Record that in the
+takes every default below — with question sets, every one its node cannot ask
+in its one request — so the problem statement, the personas, the
+specification and the brief are drafts no operator refined in session, and the
+five gates, with any first-round answers given through the cockpit, are the only
+place an operator shapes them. Record that in the
 artifacts rather than leaving it to be inferred: a document that does not say it
 was drafted without review reads exactly like one that was reviewed.
 
@@ -326,7 +333,12 @@ and gathers whatever extra context the operator has.
    them the default, and the links and topics a text property beside it.
 -->
 
-   **Default under a non-terminal driver** (`additional-context`): no
+   **With question sets** (`additional-context`): asked through the cockpit, in
+   this node's one request (*In-node questions*). Files go in the folder before
+   answering; a folder still empty after a Files answer is not asked about
+   again, and the run goes on without files.
+
+   **Without question sets** (`additional-context`): no
    additional context; the run proceeds on what the invocation, the research
    input and the project documentation supply. Dropping files and typing links
    needs somebody at the keyboard, so the lists stay empty rather than
@@ -477,7 +489,12 @@ so every question can be specific to this project.
    Fold each page's answers in before the next, so the next page builds on them
    and a misreading is corrected before it compounds.
 
-   **Default under a non-terminal driver** (`problem-questions`): no question is
+   **With question sets** (`problem-questions`): the first page — the questions
+   that stand on their own — is asked through the cockpit, in this node's one
+   request (*In-node questions*). A question that waits on another's answer is
+   not asked, and the draft is marked as a proposal where it rests on one.
+
+   **Without question sets** (`problem-questions`): no question is
    asked, and the draft is derived from the design context, the description and
    the project documentation alone. Mark it in the document as a proposal: a
    problem statement built without the operator's answers is one, and saying so
@@ -506,7 +523,12 @@ so every question can be specific to this project.
    description says how many rounds were taken, and the operator can still take
    one more.
 
-   **Default under a non-terminal driver** (`problem-refinement`): approve and
+   **With question sets** (`problem-refinement`): asked through the cockpit only
+   when it is the first thing this node asks in its attempt; after an earlier
+   request in the same attempt, the default below is taken (*In-node
+   questions*).
+
+   **Without question sets** (`problem-refinement`): approve and
    continue — no round is taken and the count stays at zero.
    `problem-approval` is the operator's route back.
 4. **Write `analysis/problem-statement.md`**: the approved problem statement,
@@ -550,7 +572,12 @@ and `problem-approval` still fires for the problem statement.
    design context and the problem statement, and two or three generated
    answers, the best-supported first and marked `(Recommended)` with why.
 
-   **Default under a non-terminal driver** (`persona-questions`): no question is
+   **With question sets** (`persona-questions`): the first page is asked through
+   the cockpit, in this node's one request (*In-node questions*); a question
+   that waits on another's answer is not asked, and the cards it would shape are
+   marked as drafted.
+
+   **Without question sets** (`persona-questions`): no question is
    asked; the persona cards are drafted from the design context and the problem
    statement alone and marked as drafted rather than confirmed, for the reason
    the problem statement is marked.
@@ -569,7 +596,12 @@ and `problem-approval` still fires for the problem statement.
    On a change, revise the set and ask again; count each round in
    `design_context.refinement_iterations.personas`, with the same soft cap.
 
-   **Default under a non-terminal driver** (`persona-refinement`): approve and
+   **With question sets** (`persona-refinement`): asked through the cockpit only
+   when it is the first thing this node asks in its attempt; after an earlier
+   request in the same attempt, the default below is taken (*In-node
+   questions*).
+
+   **Without question sets** (`persona-refinement`): approve and
    continue, with the count at zero. `problem-approval` is where they change.
 4. **Write `analysis/personas.md`**: each persona card and its user journey, with
    any insight about how users discover the feature.
@@ -641,7 +673,11 @@ work now, and *"Draft the alternatives here"*, its description carrying the
 warning: alternatives drafted in this conversation are anchored on the ideas
 already discussed, which is what generating them apart avoids.
 
-**Default under a non-terminal driver** (`brainstormer-retry`): neither. With the
+**With question sets** (`brainstormer-retry`): asked through the cockpit only
+when it is the first thing this node asks in its attempt; after an earlier
+request in the same attempt, the default below is taken (*In-node questions*).
+
+**Without question sets** (`brainstormer-retry`): neither. With the
 budget exhausted and nobody to ask, the node is recorded `failed`. Inline
 alternatives drafted by the same conversation are exactly the anchoring this
 node exists to avoid, and a re-drive is the operator's route back in.
@@ -675,6 +711,8 @@ line, then walk the alternatives one decision area at a time.
 > **ANTI-PATTERN**: Do NOT put several decision areas in one call, as tabs of a
 > page or as one combined question, and do NOT offer them as accept-all. One
 > call, one question, one area: a later area can depend on an earlier answer.
+> (With question sets every area goes in the node's one request instead, still
+> one question per area — see below.)
 >
 > **ANTI-PATTERN**: Do NOT shortcut the remaining areas after giving the first
 > its full detail. EVERY area's question, options and previews carry the SAME
@@ -723,10 +761,24 @@ line, then walk the alternatives one decision area at a time.
 > **SELF-CHECK before each question**: does the question itself name THIS area,
 > why it matters and every alternative, and does each option's description carry
 > its pro and con — the recommended one's its reason? If the question holds only
-> the area's name, STOP and write it out. And does this call ask exactly one
-> area?
+> the area's name, STOP and write it out. And, in a terminal run, does this
+> call ask exactly one area?
 
-**Default under a non-terminal driver** (`convergence-decisions`): **not
+**With question sets** (`convergence-decisions`): asked through the cockpit —
+every decision area in this node's one request, one question per area (*In-node
+questions*). Each question names its area; its `why` says why the area matters
+and names any other area its choice depends on. Each alternative is an option
+whose description carries its key pros and cons, the recommended one carrying
+`recommended` and its reason. Before it suspends, `analysis/alternatives.md` and
+the drafted decision sheet in `analysis/design-decisions.md` are on disk. After
+the answers, the node records each as an operator decision and records the
+chosen direction exactly as a terminal run does: `decision_areas` with
+`chosen_approach` set, `selected_approach`, and `analysis/design-decisions.md`
+rewritten as chosen, not proposed. Any two chosen alternatives that conflict are
+recorded as an `open` risk whose `change` names the switch that resolves it, for
+`direction-approval`.
+
+**Without question sets** (`convergence-decisions`): **not
 defaulted — the decision is left for `direction-approval`.** Choosing a
 direction is the one decision in this workflow the run does not take on the
 operator's behalf, because everything after it is built on it. So this node does
@@ -753,27 +805,27 @@ it. An area with no recommendation is recorded the same way, its risk naming the
 alternatives to choose between.
 
 > **GATE CHECK**: verify that EVERY decision area is in `decision_areas` —
-> chosen in a terminal run, or recorded open with its recommendation under a
-> driver. An area dropped for any reason — a missing file, a failed read — is a
-> defect: STOP and resolve it. Do not mark this node complete without every area
-> accounted for.
+> chosen in a terminal run or through the cockpit, or recorded open with its
+> recommendation without question sets. An area dropped for any reason — a
+> missing file, a failed read — is a defect: STOP and resolve it. Do not mark
+> this node complete without every area accounted for.
 
-**Gate brief content.** In a terminal run: a `headline` naming the chosen
-direction in one sentence, the direction across the areas in `summary`, the
-operator's answer per area in `decisions` and no earlier answer restated, and
-the trade-offs the direction
-accepts in `risks`, each `tag: tradeoff`. Under a driver: the items above, a
-`headline` and a `summary` that say the direction is proposed and how many areas
-await the operator's choice.
+**Gate brief content.** In a terminal run or with question sets: a `headline`
+naming the chosen direction in one sentence, the direction across the areas in
+`summary`, the operator's answer per area in `decisions` and no earlier answer
+restated, and the trade-offs the direction accepts in `risks`, each `tag:
+tradeoff`, beside any conflict risk recorded above. Without question sets: the
+items above, a `headline` and a `summary` that say the direction is proposed
+and how many areas await the operator's choice.
 
 **When re-run after a revise.** `direction-approval` sent the run back. After
-`refine-direction`, read the note: in a terminal run, re-ask only the areas it
-reopens and keep the other choices; under a driver, take the alternative the
-note names for each area it names — the operator's choice, recorded as
-`{decision: "<area>: <alternative> — chosen at the direction gate", by:
-operator}` with who answered — and leave the rest open as before. After
-`explore-more-alternatives` the alternatives are new: work every area afresh,
-keeping a choice only for an area that survives unchanged. Rewrite
+`refine-direction`, read the note: in a terminal run or with question sets,
+re-ask only the areas it reopens and keep the other choices; without question
+sets, take the alternative the note names for each area it names — the
+operator's choice, recorded as `{decision: "<area>: <alternative> — chosen at
+the direction gate", by: operator}` with who answered — and leave the rest open
+as before. After `explore-more-alternatives` the alternatives are new: work
+every area afresh, keeping a choice only for an area that survives unchanged. Rewrite
 `analysis/design-decisions.md` in place and say in the summary what changed.
 
 **Recovery budget**: one attempt — re-read the alternatives and re-present the
@@ -863,7 +915,13 @@ contracts, ready to implement from.
    the file, not the conversation, is the source of truth, so never hold the
    sections back until the end.
 
-**Default under a non-terminal driver** (`specification-sections`): every
+**With question sets** (`specification-sections`): asked through the cockpit,
+every section in this node's one request, one question per section (*In-node
+questions*). Each section is drafted and written to `analysis/feature-spec.md`
+before it suspends; a change the operator asks for is applied after the answers
+without another round.
+
+**Without question sets** (`specification-sections`): every
 section is approved as drafted and appended in order. The depth principle carries
 the weight the loop would have: a section drafted for an absent operator is still
 written to the depth a developer could implement from, and a section that cannot
@@ -883,7 +941,11 @@ multi-select of the enrichments, each labelled `(Recommended)`; *"Keep the
 sections as approved"*; and **More details**, which writes each enrichment out
 in full and asks again.
 
-**Default under a non-terminal driver** (`depth-enrichment`): every enrichment
+**With question sets** (`depth-enrichment`): asked through the cockpit only when
+it is the first thing this node asks in its attempt; after the sections'
+request, the default below is taken (*In-node questions*).
+
+**Without question sets** (`depth-enrichment`): every enrichment
 is appended as drafted, marked as added by the depth check.
 
 > **ANTI-PATTERN**: Do NOT skip the depth verification because each section was
@@ -943,7 +1005,10 @@ one, re-rendered in place while the companion stays up — which is why the gate
 after this node offers no revise of the prototypes: a revise would restart the
 studio cold for every round.
 
-**Default under a non-terminal driver** (the studio's `mockup-refinement`): the
+**With question sets**: the same — refining mockups needs the browser companion
+in session, so it is not carried as a question.
+
+**Without question sets** (the studio's `mockup-refinement`): the
 studio reads the driver from this run's state and degrades full iteration to a
 single pass on its own, saying so in the notes it returns. Put that note in this
 node's summary: a set of screens nobody refined otherwise reads like a set
@@ -1035,7 +1100,11 @@ final approval and closes the run.
 -->
    On a change, revise the brief and ask again.
 
-   **Default under a non-terminal driver** (`brief-approval`): approve the brief.
+   **With question sets** (`brief-approval`): asked through the cockpit, in this
+   node's one request, the brief already written to `outputs/product-brief.md`
+   (*In-node questions*).
+
+   **Without question sets** (`brief-approval`): approve the brief.
    It is the last question of the run and the one to be most careful with: the
    brief is what a development run is built from, so record in its Open
    Questions / Risks that it was assembled without in-session review, and name
