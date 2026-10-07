@@ -36,7 +36,12 @@ scaffolds with `init`. Only the dashboard normalizers
   enhancement with a UI, so its personas are skipped and its screens drawn — which
   `product-design.test.mjs` replays onto the shipped `product-design.yml` beside partial runs it
   walks to each of that workflow's gates.
-- `fixtures/gates/` — answered request documents a test copies over the pending one.
+- `fixtures/gates/` — answered request documents a test copies over the pending one. `question-set.request.yml`
+  is a `kind: question` request as `gate-brief --request` builds it from a three-question set (a
+  single choice, one with nothing recommended, a multi-select), with the fields the request writer
+  adds; `question-set.answer.yml` and `question-set.other.answer.yml` are answer files for it — an
+  id, a list, and an answer in the operator's own words. `in-step-questions.test.mjs` asserts the
+  request against the verb's output and folds both answers, so a cockpit can render from them.
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.
