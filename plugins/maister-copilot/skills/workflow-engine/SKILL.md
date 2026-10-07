@@ -1450,6 +1450,10 @@ How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch 
 `gate-brief --request --patch-file=<the patch file>` for itself, and suspends exactly as a gate
 does (*Driver-suspended mode — the write order*). The answer is folded as *A question set
 answered* says, and the node carries on `running` with the answers recorded on its summary.
+A node a gate's revise re-ran asks again in its new attempt, and the operator's earlier answers
+are not lost: the writer keeps them on the summary, each stamped with the `attempt` it was given
+in, ahead of the new answers, which carry theirs. The earlier ones are history. The gate brief
+neither lists nor counts them, and the dashboard shows them as earlier answers.
 Anywhere else — no feature, `dispatch`, or a set the verb refuses as unsupported — nothing is
 asked and the default is taken. Asking in session anyway is never right: nobody is there, and a
 session hint saying to continue without asking is not an answer either.

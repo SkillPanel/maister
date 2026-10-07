@@ -102,3 +102,11 @@ decision-sheet path is unchanged.
   without the feature sees no change.
 - A node re-run by a gate's revise asks again in its new attempt, which the request writer has to
   allow for a node whose earlier request was answered.
+
+### Amendment 2026-10-07 — a re-asked set keeps the earlier answers
+When a gate's revise re-runs a node, the node asks its set again in the new attempt, and the operator answers again. The fold used to replace each earlier answer to the same question. The answer file has one fixed name, so the first answers then survived nowhere in the task directory, and no surface could show what was first answered. The engine now keeps them in the run's state, the way a gate keeps its earlier revisions:
+
+- At attempt `n ≥ 2`, the operator's earlier answers to a re-asked question stay on the node's summary, each stamped `attempt: <the attempt it was given in>`, ahead of the new answers, which carry `attempt: n`. A first attempt stamps nothing, so its records are the same as before. Re-folding the same answer within one attempt still replaces it.
+- The attempt is the node's own recorded `attempt`, which the engine writes when a revise resets the node. A request may carry an `attempt` key, but that key only copies this value, and a request written without it is still valid.
+- An answer is history when it carries an `attempt` and the same node holds an answer to that question from a later one. The rule reads the decision list alone, so an answer a later attempt did not ask again stays current. The node's closing write keeps the history. A closing write that re-sends the current answers replaces only those, and they keep their attempt.
+- The gate brief neither lists nor counts the history: the operator's choices are the answers in effect. The dashboard projection marks it `earlier`, and the viewer shows it as earlier answers. A cockpit reads the attempts from the decisions and keeps no store of its own.
