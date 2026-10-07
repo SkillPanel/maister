@@ -290,7 +290,7 @@ describe('run band', () => {
       expect(drawn.texts).toContain('phase 5 of 12 · Specification')
       expect(drawn.texts).toContain('next checkpoint 2 of 10 · running for 9 min')
       expect(drawn.links).toEqual(surface === 'terminal' ? [{ href: DASHBOARD, text: 'Dashboard ↗' }, { href: RUN_URL, text: 'Task folder ↗' }] : [])
-      expect(drawn.colours).toMatchObject({ Development: '#9f7aea', '●●●●': '#79c08b', '●': '#e3bd59', '●●●●●●●': '#5a5f69' })
+      expect(drawn.colours).toMatchObject({ Development: '#907aca', '●●●●': '#79c08b', '●': '#e3bd59', '●●●●●●●': '#5a5f69' })
       if (surface === 'terminal') expect(drawn.colours).toMatchObject({ 'Dashboard ↗': '#7cc4e8', 'Task folder ↗': '#7cc4e8' })
     }
     await clock.advance(60_000)
@@ -321,24 +321,22 @@ describe('run band', () => {
     expect((await band($, 'terminal', { maxRows: 0 })).drawn).toMatchObject({ type: 'engine' })
   })
 
-  test('frames the band with a blank row above it when the rows allow', async ($: any, on: any) => {
+  test('frames the band with no blank row of its own when the rows allow', async ($: any, on: any) => {
     mock.clock(on, { now: Date.parse(LATER) })
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() })
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
-    for (const maxRows of [5, 6]) {
+    for (const maxRows of [4, 5, 6]) {
       const drawn: any = (await band($, 'terminal', { maxRows })).drawn
-      expect(drawn.props).toMatchObject({ flexDirection: 'column', marginTop: 1, borderStyle: 'round', borderColor: '#4a4f5a', paddingX: 1 })
+      expect(drawn.props).toMatchObject({ flexDirection: 'column', borderStyle: 'round', borderColor: '#4a4f5a', paddingX: 1 })
+      for (const space of ['margin', 'marginTop', 'marginBottom', 'marginY', 'padding', 'paddingTop', 'paddingBottom', 'paddingY', 'height', 'minHeight']) expect(drawn.props[space]).toBeUndefined()
       expect(drawn.children).toHaveLength(2)
     }
   })
 
-  test('drops the blank row first, then the frame, as the rows shrink', async ($: any, on: any) => {
+  test('drops the frame as the rows shrink', async ($: any, on: any) => {
     mock.clock(on, { now: Date.parse(LATER) })
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() })
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
-    const four: any = (await band($, 'terminal', { maxRows: 4 })).drawn
-    expect(four.props).toMatchObject({ borderStyle: 'round', borderColor: '#4a4f5a', paddingX: 1 })
-    expect(four.props.marginTop).toBeUndefined()
     for (const maxRows of [2, 3]) {
       const drawn: any = (await band($, 'terminal', { maxRows })).drawn
       expect(drawn.props).toMatchObject({ flexDirection: 'column', marginLeft: 2 })
@@ -444,7 +442,7 @@ describe('gate panel', () => {
       return { result: { answers: {} } }
     })
     await $.tool.call({ tool: 'AskUserQuestion', questions: QUESTIONS })
-    expect(colours).toMatchObject({ '1 open risk': '#e3bd59', 'Checkpoint 2 of 10': '#9f7aea', '1 decided': '#8c909a' })
+    expect(colours).toMatchObject({ '1 open risk': '#e3bd59', 'Checkpoint 2 of 10': '#907aca', '1 decided': '#8c909a' })
     expect(styles).toEqual([{ color: '#7cc4e8', underline: true }, { color: '#7cc4e8', underline: true }])
   })
 
@@ -510,7 +508,7 @@ describe('quiet bookkeeping', () => {
     for (const surface of ['terminal', 'desktop'] as const) {
       const drawn = await row($, surface, seen.ids[0])
       expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running', 'maister'])
-      expect(drawn.colours).toMatchObject({ '· maister · saved · intake → done, codebase analysis → running': '#8c909a', maister: '#9f7aea' })
+      expect(drawn.colours).toMatchObject({ '· maister · saved · intake → done, codebase analysis → running': '#8c909a', maister: '#907aca' })
     }
     const result = await $.ui.mount({ plugin: 'maister', surface: 'terminal', component: 'ToolResult', props: { tool_use_id: seen.ids[0], tool: 'Bash', output: {}, isErrored: false } })
     expect(await result.findAll({ type: 'Text' })).toEqual([])

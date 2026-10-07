@@ -129,6 +129,9 @@ render sites, and stands in for them where they are not drawn:
     folder links on the right. The second: the phases as dots (done green, the current amber, the
     rest dim), `phase n of N · <title>` with the title bold, then the next checkpoint and
     `running for N min`, dim.
+  - Framed when the rows allow, with no blank row of its own: the engine's `[-]` sits beside
+    the top border, and the row between the band and the prompt rule is the engine's own, there
+    with or without the band. With fewer rows it drops the frame.
   - It yields to a survey, keeps to one row when the band has only one, and is redrawn each
     minute.
   - Where the session draws on neither the terminal nor the desktop, the status line stands in
@@ -176,8 +179,8 @@ The values a drawing reads live in `$.state`, declared in the plugin's contract,
 - the last quiet line drawn;
 - the banner already logged.
 
-**Colours.** The brand colour `#9f7aea`, a tint of Maister's purple `#7036d6` that reads on a dark
-terminal, marks everything the module draws: the start card's title, the band's workflow, the
+**Colours.** The brand colour `#907aca`, a muted tint of Maister's purple `#7036d6` that keeps 4.5:1
+on a dark terminal (`#1e1f24`), marks everything the module draws: the start card's title, the band's workflow, the
 panel's checkpoint and the `maister` that opens each quiet line, the rest of which stays dim. Green `#79c08b`, amber `#e3bd59`, link `#7cc4e8`, dim `#8c909a`
 and the border `#4a4f5a` are hex, which `Color` takes beside the theme keys. They are the designs'
 own, and no theme key names the brand or the link colour.

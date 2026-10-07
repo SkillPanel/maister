@@ -90,7 +90,7 @@ const STATUS_WORDS = { completed: 'done' };
 const ENGINE_FILES = /^(orchestrator-state\.yml|\.state-patch\.json|dashboard[^/]*|display\/.*)$/;
 
 /** Colours: Maister's brand for what the module names, the states, links, and what recedes. */
-const BRAND = '#9f7aea';
+const BRAND = '#907aca';
 const DONE = '#79c08b';
 const AMBER = '#e3bd59';
 const LINK = '#7cc4e8';
@@ -484,8 +484,10 @@ function card(elements, start, links) {
 
 /**
  * The band above the prompt: the run and its links where they open, then
- * where it is. Framed with a blank row above it when the rows allow; with
- * fewer it drops the blank row, then the frame, then keeps to one row.
+ * where it is. Framed when the rows allow, with no blank row of its own: the
+ * engine's `[-]` sits beside the top border, and the row between the band and
+ * the prompt is the engine's. With fewer rows it drops the frame, then keeps
+ * to one row.
  */
 function band(elements, status, time, maxRows, links) {
   const { Box, Text } = elements;
@@ -514,7 +516,6 @@ function band(elements, status, time, maxRows, links) {
     name,
     h(Box, { key: 'task', flexGrow: 1, flexShrink: 1 }, h(Text, { wrap: 'truncate-end' }, status.task ?? '')),
     ...(opens.length ? [h(Box, { key: 'links', flexDirection: 'row', gap: 2, flexShrink: 0 }, ...opens)] : []));
-  if (maxRows >= BAND_ROWS + BORDER_ROWS + 1) return h(Box, { flexDirection: 'column', marginTop: 1, borderStyle: 'round', borderColor: BORDER, paddingX: 1 }, head, progress);
   if (maxRows >= BAND_ROWS + BORDER_ROWS) return h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: BORDER, paddingX: 1 }, head, progress);
   return h(Box, { flexDirection: 'column', marginLeft: INSET }, head, progress);
 }
