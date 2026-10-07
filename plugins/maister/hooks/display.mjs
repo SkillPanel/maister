@@ -13,7 +13,10 @@
  * as it always has; this only adds to it.
  *
  * It reads the files the workflow engine writes for it and works out next to
- * nothing: no phase is counted, no row is measured, no path is resolved. The
+ * nothing: no phase is counted and no path is resolved. The one sum it does is
+ * the panel's rows: the engine fits the text, but a link costs the rows of its
+ * URL as well, so the panel checks its tree against Claude Code's rule and
+ * links fewer review files when they would not fit (`panelBox`). The
  * session's own id names the run it is driving
  * (`.maister/display/sessions/<id>.json`), and the run's `display/` directory
  * holds the rest: `status.json` with the phase, the next checkpoint, the
@@ -84,6 +87,11 @@ const CURRENT = 'warning';
 const PENDING = 'inactive';
 const NEXT = 'suggestion';
 
+/** The rows Claude Code allows around the question dialog, what a row holds, and what a border costs. */
+const DIALOG_ROWS = 12;
+const ROW_CHARS = 40;
+const BORDER_ROWS = 2;
+
 /** The most phases the band draws as dots; a longer run draws the count alone. */
 const DOTS_MAX = 30;
 
@@ -127,13 +135,11 @@ export const register = on => {
     const brief = await read($, panel);
     const drawn = await next(e);
     if (!brief) return drawn;
-    const lines = panelRows($.ui.resolve(e), brief, linksOn(e));
-    if (!lines.length) return drawn;
-    const { Box } = $.ui.resolve(e);
+    const elements = $.ui.resolve(e);
+    const box = panelBox(elements, brief, linksOn(e));
+    if (!box) return drawn;
     // The dialog itself, exactly once, under the panel.
-    return h(Box, { flexDirection: 'column' },
-      h(Box, { flexDirection: 'column', borderStyle: 'round', paddingX: 1 }, ...lines),
-      drawn);
+    return h(elements.Box, { flexDirection: 'column' }, box, drawn);
   }).catch(($, e, next) => next(e));
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
@@ -153,6 +159,27 @@ export const register = on => {
     }
     if (row.gone) return h(elements.Box, {});
     return h(elements.Text, { dimColor: true, wrap: 'truncate-end' }, row.line);
+  }).catch(($, e, next) => next(e));
+
+  // Claude Code folds a run of calls into one count line, which no `ToolUse`
+  // hook sees: a run of this module's rows alone draws as those rows, and a
+  // run mixed with other calls keeps its count line with them drawn under it.
+  on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
+    if (e.props.isExpanded) return next(e);
+    const kept = (await read($, rows)) ?? {};
+    const calls = e.props.calls ?? [];
+    const ours = calls.map(call => (typeof call.tool_use_id === 'string' && !call.isErrored && !call.isInterrupted && !call.isRunning
+      ? kept[call.tool_use_id] ?? null : null));
+    if (!ours.some(Boolean)) return next(e);
+    const elements = $.ui.resolve(e);
+    const links = linksOn(e);
+    const drawn = ours.filter(row => row && !row.gone).map((row, index) => (row.card
+      ? h(elements.Box, { key: `row-${index}` }, card(elements, row.card, links))
+      : h(elements.Text, { key: `row-${index}`, dimColor: true, wrap: 'truncate-end' }, row.line)));
+    // Alone: every call is one of this module's rows, and no card stands beside a row it does not replace.
+    const alone = ours.every(row => row && (row.gone || !row.card || row.quiet));
+    if (alone) return h(elements.Box, { flexDirection: 'column' }, ...drawn);
+    return h(elements.Box, { flexDirection: 'column' }, await next(e), ...drawn);
   }).catch(($, e, next) => next(e));
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
@@ -424,13 +451,55 @@ function dotsOf({ Text }, phase) {
     h(Text, { color: PENDING }, '●'.repeat(pending)));
 }
 
-/** The panel's rows above a gate's question: styled parts, or the plain glance where there are none. */
-function panelRows({ Text, Link }, brief, links) {
-  if (!Array.isArray(brief.parts) || !brief.parts.length) {
-    const glance = Array.isArray(brief.glance) ? brief.glance.filter(line => typeof line === 'string' && line !== '') : [];
-    return glance.map((line, index) => h(Text, { key: `line-${index}`, bold: index === 0 }, line));
+/**
+ * The panel above a gate's question, in the first form that fits the rows
+ * Claude Code allows around the dialog: the styled parts with every review
+ * file linked, then with fewer of them linked, the rest named — a link costs
+ * the rows of its URL as well — then the plain glance, which the engine
+ * fitted. Null when there is nothing to draw, or nothing that fits.
+ */
+function panelBox(elements, brief, links) {
+  const forms = [];
+  if (Array.isArray(brief.parts) && brief.parts.length) {
+    const review = brief.parts.find(part => part.key === 'review');
+    const files = links && Array.isArray(review?.files) ? review.files.length : 0;
+    for (let linked = files; linked >= 0; linked -= 1) forms.push(panelRows(elements, brief.parts, linked));
   }
-  return brief.parts.map(part => {
+  forms.push(glanceRows(elements, brief.glance));
+  for (const lines of forms) {
+    if (!lines.length) continue;
+    const box = h(elements.Box, { flexDirection: 'column', borderStyle: 'round', paddingX: 1 }, ...lines);
+    if (rowsAround(box, links) <= DIALOG_ROWS) return box;
+  }
+  return null;
+}
+
+/** The engine's plain glance, one text a line, the first bold. */
+function glanceRows({ Text }, glance) {
+  const lines = Array.isArray(glance) ? glance.filter(line => typeof line === 'string' && line !== '') : [];
+  return lines.map((line, index) => h(Text, { key: `line-${index}`, bold: index === 0 }, line));
+}
+
+/**
+ * The rows a tree takes around the dialog, by the rule Claude Code holds it
+ * to: an inline element outside another costs a row, a string a row of its
+ * own outside one and one more for every forty characters it holds, a link on
+ * a surface that draws it the rows of its URL too, a border two.
+ */
+function rowsAround(node, links, inline = false) {
+  if (typeof node === 'string') return (inline ? 0 : 1) + Math.floor(node.length / ROW_CHARS);
+  if (!node || typeof node !== 'object') return 0;
+  const isInline = node.type === 'Text' || node.type === 'Link';
+  let rows = isInline && !inline ? 1 : 0;
+  if (node.type === 'Link' && links && typeof node.props?.href === 'string') rows += Math.floor((1 + node.props.href.length) / ROW_CHARS);
+  if (node.props?.borderStyle !== undefined) rows += BORDER_ROWS;
+  for (const child of node.children ?? []) rows += rowsAround(child, links, inline || isInline);
+  return rows;
+}
+
+/** The panel's styled rows above a gate's question, the first `linked` review files linked and the rest named. */
+function panelRows({ Text, Link }, parts, linked) {
+  return parts.map(part => {
     if (part.key === 'title') {
       return h(Text, { key: 'title' }, h(Text, { color: ACCENT, bold: true }, part.label), ' ', h(Text, { bold: true }, part.text));
     }
@@ -447,7 +516,7 @@ function panelRows({ Text, Link }, brief, links) {
     if (part.key === 'review') {
       const files = (part.files ?? []).flatMap((file, index) => [
         ...(index ? ['  '] : []),
-        links && typeof file.href === 'string' ? h(Link, { href: file.href }, file.label) : file.label,
+        index < linked && typeof file.href === 'string' ? h(Link, { href: file.href }, file.label) : file.label,
       ]);
       return h(Text, { key: 'review' }, h(Text, { dimColor: true }, part.label), ' ', ...files,
         ...(part.more ? [h(Text, { dimColor: true }, `  +${part.more} more`)] : []));

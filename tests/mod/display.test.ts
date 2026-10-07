@@ -171,12 +171,10 @@ async function askAndDraw($: any, on: any, questions = QUESTIONS) {
       const tree: any = await ui.drawn()
       const box = tree?.type === 'Box' ? tree.children?.[0] : null
       if (box?.type === 'Box' && box.props?.borderStyle) {
-        const lines = (box.children ?? []).map(flatten)
         drawn[surface] = {
-          texts: lines,
+          texts: (box.children ?? []).map(flatten),
           links: (await ui.findAll({ type: 'Link' })).map((each: any) => ({ href: each.props.href, text: flatten(each) })),
-          // Claude Code's measured rule: a text costs one row plus one per forty characters; the border two.
-          rows: 2 + lines.reduce((sum: number, line: string) => sum + 1 + Math.floor(line.length / 40), 0),
+          rows: around(box, surface === 'terminal'),
         }
       }
       await ui.unmount()
@@ -185,6 +183,24 @@ async function askAndDraw($: any, on: any, questions = QUESTIONS) {
   })
   await $.tool.call({ tool: 'AskUserQuestion', questions })
   return drawn
+}
+
+/**
+ * The rows a tree takes around the dialog, as Claude Code's own check counts
+ * them (read from its validator): an inline element outside another one row, a
+ * string one more per forty characters (and a row of its own outside an inline
+ * element), a link the rows of a space and its URL where it is drawn as one, a
+ * border two. The test kit does not hold a tree to it; this does.
+ */
+function around(node: any, links: boolean, inline = false): number {
+  if (typeof node === 'string') return (inline ? 0 : 1) + Math.floor(node.length / 40)
+  if (!node || typeof node !== 'object') return 0
+  const isInline = node.type === 'Text' || node.type === 'Link'
+  let rows = isInline && !inline ? 1 : 0
+  if (node.type === 'Link' && links) rows += Math.floor((1 + String(node.props?.href ?? '').length) / 40)
+  if (node.props?.borderStyle !== undefined) rows += 2
+  for (const child of node.children ?? []) rows += around(child, links, inline || isInline)
+  return rows
 }
 
 /** An element's shown text, its nested children joined. */
@@ -354,6 +370,33 @@ describe('gate panel', () => {
     }
   })
 
+  test('names the review files without links where their URLs would take the panel past twelve rows', async ($: any, on: any) => {
+    const deep = `${RUN_URL}/${'a-very-long-directory-name/'.repeat(5)}`
+    const parts = PARTS.map(part => (part.key !== 'review' ? part : {
+      ...part,
+      files: part.files!.map(file => ({ ...file, href: `${deep}${file.path}` })),
+    }))
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK, { parts }) })
+    const drawn = await askAndDraw($, on)
+    const panel = drawn.terminal!
+    expect(panel.links).toEqual([])
+    expect(panel.texts[4]).toBe('Review spec.md  spec.html  +1 more')
+    expect(panel.rows).toBeLessThanOrEqual(12)
+  })
+
+  test('links the review files that fit and names the rest', async ($: any, on: any) => {
+    const deep = `${RUN_URL}/${'a-very-long-directory-name/'.repeat(5)}`
+    const parts = PARTS.map(part => (part.key !== 'review' ? part : {
+      ...part,
+      files: part.files!.map((file, index) => ({ ...file, href: index === 0 ? file.href : `${deep}${file.path}` })),
+    }))
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK, { parts }) })
+    const panel = (await askAndDraw($, on)).terminal!
+    expect(panel.links).toEqual([{ href: `${RUN_URL}/implementation/spec.md`, text: 'spec.md' }])
+    expect(panel.texts[4]).toBe('Review spec.md  spec.html  +1 more')
+    expect(panel.rows).toBeLessThanOrEqual(12)
+  })
+
   test('marks open risks in the warning colour, and none plainly', async ($: any, on: any) => {
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK) })
     let colour: unknown
@@ -487,5 +530,51 @@ describe('quiet bookkeeping', () => {
     const seen = beneath(on, files())
     await $.tool.call({ tool: 'Write', file_path: `${ROOT}/notes.md`, content: 'x' })
     expect((await row($, 'terminal', seen.ids[0], 'Write')).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  const call = (id: string, tool = 'Bash', fields: Record<string, unknown> = {}) =>
+    ({ tool_use_id: id, tool, input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: {}, ...fields })
+
+  /** Mount a folded run of calls and read what it draws. */
+  async function group($: any, calls: unknown[], isExpanded = false) {
+    const ui = await $.ui.mount({ plugin: 'maister', surface: 'terminal', component: 'ToolGroup', props: { calls, isActive: false, isExpanded } })
+    const drawn: any = await ui.drawn()
+    const texts = (await ui.findAll({ type: 'Text' })).map((each: any) => each.text)
+    await ui.unmount()
+    return { drawn, texts }
+  }
+
+  test('a folded run of the engine\'s own calls draws as their lines alone', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved()] })
+    await $.tool.call({ tool: 'Write', file_path: PATCH, content: json({ nodes: { intake: { status: 'completed' } } }) })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    const drawn = await group($, [call(seen.ids[0], 'Write'), call(seen.ids[1])])
+    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running'])
+    expect(JSON.stringify(drawn.drawn)).not.toContain('"engine"')
+  })
+
+  test('a folded run mixed with other calls keeps its count line, the lines under it', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [{}, saved()] })
+    await $.tool.call({ tool: 'Bash', command: 'ls' })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    const drawn = await group($, [call(seen.ids[0]), call(seen.ids[1])])
+    expect(drawn.drawn.children[0]).toMatchObject({ type: 'engine' })
+    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running'])
+  })
+
+  test('a folded run holding the freeze draws the start card', async ($: any, on: any) => {
+    const seen = beneath(on, {}, { shells: [{
+      stdout: 'Tell the user...\n',
+      files: { [POINTER]: pointer, [STATUS]: statusDoc({ updated: FROZEN }), [BANNER]: bannerDoc },
+    }] })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    expect((await group($, [call(seen.ids[0])])).texts).toContain('Development run started')
+  })
+
+  test('a folded run whose engine call errored, or one that is unfolded, draws as Claude Code draws it', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved()] })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    expect((await group($, [call(seen.ids[0], 'Bash', { isErrored: true })])).drawn).toMatchObject({ type: 'engine' })
+    expect((await group($, [call(seen.ids[0])], true)).drawn).toMatchObject({ type: 'engine' })
   })
 })
