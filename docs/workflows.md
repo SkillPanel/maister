@@ -29,7 +29,7 @@ The unified development workflow handles features, enhancements, and bug fixes t
 
 When run without arguments, the plugin extracts the task description from your conversation. The analysis detects whether the task fixes a reproducible bug, and adds the failing-test-first phases when it does.
 
-**Flags**: `--research=PATH`, `--audit` / `--no-audit`, `--e2e` / `--no-e2e`, `--user-docs` / `--no-user-docs`, `--sequential`. A flag answers its question up front; without it, the run asks.
+**Flags**: `--research=PATH`, `--design=PATH`, `--audit` / `--no-audit`, `--e2e` / `--no-e2e`, `--user-docs` / `--no-user-docs`, `--sequential`. A flag answers its question up front; without it, the run asks.
 
 ### How it runs
 
@@ -96,6 +96,14 @@ Start development informed by a completed research workflow. Research context fl
 ```
 
 Research artifacts are copied to `analysis/research-context/` and summaries pass to every subagent.
+
+A completed product design feeds development the same way: `--design=PATH` names its task directory
+(or its brief), and the brief and mockups are copied to `analysis/design-context/`, the mockups
+becoming binding visual references for the plan, the implementation and the browser checks.
+
+```
+/maister:development "Build the API usage dashboard" --design=.maister/tasks/product-design/2026-03-10-api-dashboard
+```
 
 ### Resume
 
@@ -323,6 +331,12 @@ The output is a structured product brief that can be passed directly to the deve
 /maister:development .maister/tasks/product-design/2026-03-10-api-dashboard
 ```
 
+The brief ends with a delivery scope, which you approve with it: the repositories the work lands
+in, what changes in each and in what order, and any left out with the reason. In a single
+repository it names that repository; in a multi-repository workspace it names the workspace's
+members. It is also written as `outputs/delivery-scope.yml`, so a delivery planned across several
+repositories can start one development run per repository in scope, in that order.
+
 ### Resume
 
 ```
@@ -495,7 +509,7 @@ What sits beside them depends on the workflow:
 |----------|----------------|
 | **development** | `analysis/` (codebase analysis, gap analysis, `research-context/`, `design-context/`), `implementation/` (spec, plan, work log), `verification/`, `documentation/` |
 | **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log) |
-| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, feature spec, `mockups/`), `outputs/` (product brief) |
+| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, feature spec, `mockups/`), `outputs/` (product brief, delivery scope) |
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
 

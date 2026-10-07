@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES, SAMPLE, verb } from '../helpers.mjs';
@@ -65,4 +66,32 @@ test('an unknown verb is a usage failure, exit 2', () => {
   const result = verb(['frobnicate']);
   assert.equal(result.code, 2);
   assert.match(result.stderr, /^usage: unknown verb "frobnicate"/);
+});
+
+// ---------------------------------------------------------------------------
+// development's design input
+// ---------------------------------------------------------------------------
+
+const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
+
+test('development hands its design input to the intake, beside the research input', () => {
+  const graph = JSON.parse(verb(['resolve', `--definition=${DEVELOPMENT}`]).stdout);
+  const intake = graph.nodes.find(node => node.id === 'intake');
+  assert.equal(intake.with.design, '${inputs.design}');
+  assert.equal(intake.with.research, '${inputs.research}');
+});
+
+test('a chain step passes a product-design path to development as its design input', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-chain-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const chain = path.join(dir, 'delivery.yml');
+  fs.writeFileSync(chain, [
+    'name: delivery', 'version: 1', 'inputs:',
+    '  task_description: {type: string, required: true}', '  design: {type: string, required: true}', 'nodes:',
+    '  build:', '    uses: workflow:development', '    needs: []', '    with:',
+    '      task_description: "${inputs.task_description}"', '      design: "${inputs.design}"', '',
+  ].join('\n'));
+  const report = JSON.parse(verb(['validate', `--definition=${chain}`]).stdout);
+  assert.deepEqual(report.errors, []);
+  assert.deepEqual(report.warnings, []);
 });

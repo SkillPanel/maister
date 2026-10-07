@@ -1,0 +1,12 @@
+# A workspace of three members: two in scope, the web client after the API it
+# calls, and one left out with its reason.
+version: 1
+members:
+  - name: api
+    statement: "Add the guest-sharing endpoint and its permission check"
+    depends_on: []
+  - name: web
+    statement: "Add the share dialog and the guest calendar view"
+    depends_on: [api]
+out_of_scope:
+  - {name: mobile, reason: "Guests use the web view; the app is unchanged"}

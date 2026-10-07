@@ -221,6 +221,13 @@ living outside the workspace; a symlink that cannot be resolved is reported as
 unresolved rather than refused, because one broken link should not cost the
 operator the other five members.
 
+The names `init` records are the names the rest of a workspace speaks in. A
+design run inside a workspace ends with a delivery scope naming the members its
+work lands in, each with the work stated and its order, and the members left out
+with a reason; whatever plans the delivery reads that scope to start one
+development run per member in scope. Its shape and rules are in
+`references/delivery-scope.md`.
+
 **`validate`** — before a run, and whenever the manifest or a definition
 changes. It is deterministic and involves no model. It parses, checks structure,
 checks ids, checks the graph is acyclic, resolves references, checks gate shape

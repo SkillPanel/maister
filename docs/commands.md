@@ -118,6 +118,7 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 | `--e2e` / `--no-e2e` | Run or skip E2E browser verification without being asked (asked if omitted) |
 | `--user-docs` / `--no-user-docs` | Generate or skip user documentation without being asked (asked if omitted) |
 | `--research=PATH` | Start development informed by a completed research task |
+| `--design=PATH` | Start development from a completed product-design task: its brief and mockups become the design context |
 | `--sequential` | Run task groups one at a time instead of in parallel waves |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
@@ -215,7 +216,7 @@ Starts the interactive product/feature design workflow (9 adaptive phases) or re
 
 A run driven from outside the session — from the cockpit, or dispatched — asks none of the questions inside the phases and takes each one's stated default, and its documents say they were drafted without review. It never chooses a design direction itself: the direction pause lists each decision with its recommendation, and that is where you choose.
 
-Design output can feed directly into development: `/maister:development .maister/tasks/product-design/...`
+Design output can feed directly into development: `/maister:development .maister/tasks/product-design/...`, or `--design=PATH` beside a description of your own. The brief ends with the delivery scope — the repositories in scope, in order — also written as `outputs/delivery-scope.yml`.
 
 **Task directory**: `.maister/tasks/product-design/`
 
