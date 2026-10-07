@@ -158,6 +158,28 @@ export function decisionOf(item, labelFor = null) {
 }
 
 /**
+ * Whether a decision is an earlier attempt's answer to a question the node
+ * asked again: it carries its own `attempt`, and `list` — the node's decisions
+ * — holds an answer to the same `question_id` from a later one. Such an answer
+ * is history, kept beside the current one and never counted as a choice. Read
+ * off the list alone, so an answer a later attempt did not ask again stays
+ * current.
+ */
+export function isEarlierAnswer(item, list) {
+  const own = attemptNumber(item);
+  if (own === null || typeof item.question_id !== 'string' || item.question_id === '') return false;
+  return list.some(other => other !== item && isMap(other) && other.question_id === item.question_id
+    && (attemptNumber(other) ?? 0) > own);
+}
+
+/** A decision's own `attempt` as a positive whole number — the reader hands it back as text — or null. */
+export function attemptNumber(item) {
+  if (!isMap(item) || !Object.hasOwn(item, 'attempt')) return null;
+  const value = Number(item.attempt);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+/**
  * One risk item as `{risk, tag, change}`, or null when it holds no text. A
  * string's leading tag says what it is, and one with no tag reads `open`: that
  * may feed a revise suggestion, but it is never hidden. The part after the

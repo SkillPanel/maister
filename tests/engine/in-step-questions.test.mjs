@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
+import { FIXTURES, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { scanState } from '../../plugins/maister/lib/state-scan.mjs';
 
@@ -255,6 +255,89 @@ test('provoked: state-question-answer-invalid leaves the state file byte-identic
   const missing = verb(['write-state', `--state=${run.state}`], { node_summaries: { analysis: { answer } } });
   assert.match(missing.stderr, /^state-question-answer-invalid: .*does not exist/);
   assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+});
+
+// ---------------------------------------------------------------------------
+// a set asked again after a revise
+// ---------------------------------------------------------------------------
+
+/**
+ * Attempt 1 answered and folded, then the node sent back the way `gate-revise`
+ * leaves it — `attempt: 2`, running — and the same set asked again and
+ * answered with `answerFile`, its block folded in place of the first.
+ */
+function reasked(t, answerFile = OTHER) {
+  const { run, answer: first } = folded(t);
+  write(run, { node_summaries: { analysis: { answer: first } } });
+  const text = fs.readFileSync(run.state, 'utf8').replace(/^( {4}analysis: \{.*?status: running)/m, '$1, attempt: 2');
+  fs.writeFileSync(run.state, text);
+  fs.writeFileSync(path.join(run.dir, 'gates/analysis.request.yml'),
+    fs.readFileSync(REQUEST, 'utf8').replace(/^answer: null\n$/m, fs.readFileSync(answerFile, 'utf8')));
+  return { run, first, answer: plain(read(answerFile).answer) };
+}
+
+const QUESTIONS = ['tag-filter', 'tag-case', 'csv-extras'];
+
+test('re-asked: both attempts\' answers stay, the first stamped attempt 1 ahead of the second\'s', t => {
+  const { run, answer } = reasked(t);
+  assert.equal(Number(readState(run).workflow.nodes.analysis.attempt), 2);
+  write(run, { node_summaries: { analysis: { answer } } });
+  const decisions = plain(readState(run).node_summaries.analysis.decisions);
+  assert.deepEqual(decisions.map(item => [item.question_id, Number(item.attempt)]),
+    [...QUESTIONS.map(id => [id, 1]), ...QUESTIONS.map(id => [id, 2])]);
+  assert.deepEqual(decisions.slice(0, 3).map(item => item.answer), ['Match all requested tags', 'Ignore case', 'Timestamp, Emoji']);
+  assert.deepEqual(decisions.slice(3).map(item => item.answer),
+    ['Match all by default, any when the caller passes mode: any', 'Exact match', 'Operator, Timestamp']);
+  assert.deepEqual(decisions.map(item => item.at), [...Array(3).fill('2026-01-05T09:12:00Z'), ...Array(3).fill('2026-01-05T09:14:00Z')]);
+
+  write(run, { node_summaries: { analysis: { answer } } });
+  assert.deepEqual(plain(readState(run).node_summaries.analysis.decisions), decisions, 'folding the same answer again changes nothing');
+});
+
+test('re-asked: the closing write keeps both attempts, and the gate counts the current one only', t => {
+  const { run, answer } = reasked(t);
+  write(run, { node_summaries: { analysis: { answer } } });
+  write(run, {
+    nodes: { analysis: { status: 'completed' } },
+    node_summaries: { analysis: { summary: 'Scoped against the second answers.', decisions: [{ decision: 'Filters live in the store', by: 'run' }] } },
+  });
+  const decisions = plain(readState(run).node_summaries.analysis.decisions);
+  assert.deepEqual(decisions.map(item => item.question_id ?? item.decision),
+    [...QUESTIONS, ...QUESTIONS, 'Filters live in the store']);
+  assert.deepEqual(decisions.slice(0, 6).map(item => Number(item.attempt)), [1, 1, 1, 2, 2, 2]);
+
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']);
+  assert.equal(result.code, 0, result.stderr);
+  const { operator } = JSON.parse(result.stdout).decisions;
+  assert.equal(operator.count, 3, 'an earlier attempt\'s answers are history, not choices');
+  assert.deepEqual(operator.not_recommended.map(item => item.answer),
+    ['Match all by default, any when the caller passes mode: any'], 'the current answers are the ones weighed');
+});
+
+test('re-asked: a closing write that re-sends the current answers replaces only them, keeping their attempt', t => {
+  const { run, answer } = reasked(t);
+  write(run, { node_summaries: { analysis: { answer } } });
+  const held = plain(readState(run).node_summaries.analysis.decisions);
+  const resent = held.slice(3).map(({ attempt: _attempt, ...item }) => item);
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped.', decisions: resent } } });
+  const decisions = plain(readState(run).node_summaries.analysis.decisions);
+  assert.deepEqual(decisions.map(item => [item.question_id, Number(item.attempt)]),
+    [...QUESTIONS.map(id => [id, 1]), ...QUESTIONS.map(id => [id, 2])]);
+});
+
+test('re-asked: the dashboard marks the earlier attempt\'s answers as history', t => {
+  const { run, answer } = reasked(t);
+  write(run, { node_summaries: { analysis: { answer } } });
+  const phase = readDashboard(run).phases.find(each => each.id === 'analysis');
+  assert.deepEqual(phase.decisions.map(item => item.earlier === true), [true, true, true, false, false, false]);
+});
+
+test('re-asked: a first attempt alone stamps nothing', t => {
+  const { run, answer } = folded(t);
+  write(run, { node_summaries: { analysis: { answer } } });
+  const decisions = plain(readState(run).node_summaries.analysis.decisions);
+  assert.equal(decisions.some(item => Object.hasOwn(item, 'attempt')), false);
+  assert.equal(readDashboard(run).phases.find(each => each.id === 'analysis').decisions.some(item => item.earlier), false);
 });
 
 // ---------------------------------------------------------------------------
