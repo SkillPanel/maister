@@ -177,7 +177,7 @@ test('a generated chain is found in its own home', t => {
   const { code, report } = inProject(root, ['locate', '--name=onboarding']);
   assert.equal(code, 0);
   assert.equal(report.from, 'generated');
-  assert.equal(report.definition, path.join('.maister', 'workflows', 'generated', 'onboarding.yml'));
+  assert.equal(report.definition, home('generated/onboarding.yml'));
 });
 
 test('the nodes that dispatch into a member are named', t => {

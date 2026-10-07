@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE as ENGINE_SCRIPT, freeze, freezePatch, run as runScript, scratch, sibling, verb } from '../helpers.mjs';
+import { ENGINE as ENGINE_SCRIPT, freeze, freezePatch, maskRoot, run as runScript, scratch, sibling, verb } from '../helpers.mjs';
 
 const PATCH_FILE = '.state-patch.json';
 
@@ -44,10 +44,10 @@ test('patch file: the freeze and a later write land exactly what stdin lands', t
   for (const [a, b] of [[pipedOut[0], first], [pipedOut[1], second]]) {
     assert.equal(b.code, 0, b.stderr);
     assert.equal(b.code, a.code);
-    assert.equal(b.stdout.replaceAll(filed.root, '<root>'), a.stdout.replaceAll(piped.root, '<root>'));
+    assert.equal(maskRoot(b.stdout, filed.root), maskRoot(a.stdout, piped.root));
     assert.equal(b.stderr, a.stderr);
   }
-  const rooted = (files, root) => Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v.replaceAll(root, '<root>')]));
+  const rooted = (files, root) => Object.fromEntries(Object.entries(files).map(([k, v]) => [k, maskRoot(v, root)]));
   assert.deepEqual(rooted(snapshot(filed), filed.root), rooted(snapshot(piped), piped.root));
 });
 

@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { parse } from '../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
@@ -169,6 +169,19 @@ export function readDashboard(run) {
   const prefix = 'window.MAISTER_DATA = ';
   if (!text.startsWith(prefix) || !text.endsWith(';\n')) throw new Error(`unexpected dashboard-data.js framing: ${text.slice(0, 40)}`);
   return JSON.parse(text.slice(prefix.length, -2));
+}
+
+/**
+ * Text with a scratch root replaced by `mark` in every spelling a verb prints
+ * it in: as a `file://` URL, escaped inside a JSON string, and as it is. On
+ * POSIX the last two are one spelling; on Windows a JSON string doubles each
+ * `\`, and a URL turns them into `/`.
+ */
+export function maskRoot(text, root, mark = '<root>') {
+  return text
+    .replaceAll(pathToFileURL(root).href, `file://${mark}`)
+    .replaceAll(JSON.stringify(root).slice(1, -1), mark)
+    .replaceAll(root, mark);
 }
 
 /** The last non-empty line of a verb's stdout — where a closing marker must sit. */
