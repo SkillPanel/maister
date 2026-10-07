@@ -208,14 +208,16 @@ spec-approval:
     abandon: stop
 ```
 
-An option is written either as its bare effect or as a map. The map carries the effect and, on a
-revise option only, `reruns`; `approve: continue` and `approve: {effect: continue}` mean the same.
+An option is written either as its bare effect or as a map. The map carries the effect, on a
+revise option only `reruns`, and on the continue option only `grants`; `approve: continue` and
+`approve: {effect: continue}` mean the same.
 
 <!-- vocabulary: OPTION_KEYS -->
 | Option key | Meaning |
 |---|---|
 | `effect` | what the option does — one of the effects below |
 | `reruns` | a revise option's target: the task node the run is sent back to |
+| `grants` | the continue option's list of what answering it authorises beyond the run — names from the closed set below |
 
 <!-- vocabulary: OPTION_EFFECTS -->
 | Effect | What the answer does |
@@ -247,6 +249,30 @@ option, not in `needs`, so the graph stays acyclic and the ready set is computed
 - **The note.** The operator's reason travels with the answer, and the re-run node reads it from
   the prior context. The node prose of a `reruns` target says how it re-runs over its own earlier
   output (§ 11).
+
+**A continue option may declare what its answer grants.** Approving a plan can also mean "push
+the branch and open the pull request", and the option says so, so the operator approves both with
+one answer and is not asked a second time:
+
+```yaml
+    options:
+      approve: {effect: continue, grants: [push, pr-create]}
+      stop-after-plan: stop
+```
+
+<!-- vocabulary: OPTION_GRANTS -->
+| Grant | What answering the option authorises |
+|---|---|
+| `push` | pushing the run's own branch |
+| `pr-create` | opening a pull request from it; never merging one |
+
+`grants` is a non-empty list, each name once, on the continue option only — a stop ends the run
+and a revise asks the gate again, so no node after either answer would act on it. The engine
+itself grants no permission and pushes nothing. It shows the grant wherever the gate is shown, in
+the option's label and in the checkpoint, and that makes the answer an informed approval. A
+driver that delivers the answer registers the grant for the worker. The node prose after the
+gate does the push and opens the pull request, and asks nothing more. The grants are part of the
+graph's identity, in the closed set's order, so adopting one moves the definition's hash.
 
 When the question needs a value from earlier in the run, interpolate it into `ask` (§ 9). The
 gate brief — the closing node's summary, decisions, risks and a recommended option — is rendered

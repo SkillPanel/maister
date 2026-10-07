@@ -158,12 +158,22 @@ const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
 const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 
 /**
- * An authored gate option in its map form: its effect, and — for a revise
- * option only — the node it sends the run back to. An option emits nothing:
- * the answer is the option id, recorded in state, and the effect is whether the
- * run goes on, ends, or goes back over the stretch the gate closes.
+ * An authored gate option in its map form: its effect, for a revise option
+ * only the node it sends the run back to, and for a continue option only what
+ * answering it grants (`OPTION_GRANTS`). An option emits nothing: the answer is
+ * the option id, recorded in state, and the effect is whether the run goes on,
+ * ends, or goes back over the stretch the gate closes.
  */
-const OPTION_KEYS = ['effect', 'reruns'];
+const OPTION_KEYS = ['effect', 'reruns', 'grants'];
+
+/**
+ * What answering a continue option may authorise beyond the run itself, in
+ * this order. The engine grants no permission: it carries the names to every
+ * surface the gate is shown on, the driver that delivers the answer registers
+ * them for the worker, and the node prose after the gate pushes the branch and
+ * opens the pull request without asking a second time.
+ */
+const OPTION_GRANTS = ['push', 'pr-create'];
 
 /**
  * What an option does. `continue` moves the run past the gate and `stop` ends
@@ -2208,6 +2218,7 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
       fail(errors, file, `${at}.options.${option}.reruns`,
         `reruns belongs to a revise option; a ${effect} option sends the run nowhere back`, id);
     }
+    if (isMap(authored) && authored.grants !== undefined) checkGrants(authored.grants, effect, `${at}.options.${option}.grants`, file, id, errors);
   }
   if (continues !== 1 || stops < 1) {
     fail(
@@ -2217,6 +2228,36 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
       `a gate offers exactly one continue and at least one stop, and any number of revise; this one offers ${continues} and ${stops}`,
       id,
     );
+  }
+}
+
+/**
+ * A continue option's grants. Only a continue may carry them: a stop ends the
+ * run and a revise asks this gate again, so no node after either answer would
+ * act on what it granted. An empty list says nothing yet would hash apart from
+ * no key, and a repeated name says nothing twice.
+ */
+function checkGrants(grants, effect, dotted, file, id, errors) {
+  if (effect !== 'continue') {
+    fail(errors, file, dotted,
+      `grants belongs to the continue option; a ${effect} option leads to no node that would act on what it grants`, id);
+    return;
+  }
+  if (!Array.isArray(grants) || grants.length === 0) {
+    fail(errors, file, dotted,
+      `grants is a list naming at least one of ${OPTION_GRANTS.join(', ')}; ${Array.isArray(grants) ? 'an empty list' : describe(grants)} is not`, id);
+    return;
+  }
+  const seen = new Set();
+  for (const name of grants) {
+    if (!OPTION_GRANTS.includes(name)) {
+      const near = closest(name, OPTION_GRANTS);
+      fail(errors, file, dotted, `"${name}" is not a grant${near ? `; did you mean "${near}"?` : ';'} `
+        + `the grants are ${OPTION_GRANTS.join(', ')}`, id);
+    } else if (seen.has(name)) {
+      fail(errors, file, dotted, `grants names "${name}" twice; name each grant once`, id);
+    }
+    seen.add(name);
   }
 }
 
@@ -2723,7 +2764,8 @@ function isDisabledReference(reference, graph) {
  * shipped hash moves.
  *
  * A map carrying anything beside the effect is kept whole: a revise option's
- * `reruns` is part of what the gate means, and a degraded document's unknown
+ * `reruns` and a continue option's `grants` are part of what the gate means —
+ * grants in the closed set's order, since the order says nothing — and a degraded document's unknown
  * key reduced away would hash a document that says more than this build reads
  * identically to one that says only the effect. So a definition moves its hash
  * by adopting a revise option, and no other definition's hash moves with it.
@@ -2734,8 +2776,15 @@ function canonicalOptions(options) {
     const option = options[key];
     const onlyEffect = isMap(option) && Object.keys(option).length === 1 && Object.hasOwn(option, 'effect');
     canonical[key] = onlyEffect ? canonicalValue(option.effect) : canonicalValue(option);
+    if (isMap(option) && Array.isArray(option.grants)) canonical[key].grants = grantOrder(option.grants);
   }
   return canonical;
+}
+
+/** A grants list in the closed set's order, so the order it was written in moves no hash. */
+export function grantOrder(grants) {
+  const rank = name => (OPTION_GRANTS.includes(name) ? OPTION_GRANTS.indexOf(name) : OPTION_GRANTS.length);
+  return [...grants].sort((a, b) => rank(a) - rank(b) || String(a).localeCompare(String(b)));
 }
 
 /** Free-form values keep their content and lose their authoring key order. */
