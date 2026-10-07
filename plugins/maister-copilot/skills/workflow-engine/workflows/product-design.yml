@@ -155,8 +155,11 @@ display:
       continue-to-problem-exploration: "Continue to the problem exploration"
       revise-context: "Correct or add to the context"
       stop-design: "Stop here"
+    # A continue label reading "Continue" alone is completed from the walk:
+    # a simple depth skips idea generation, so the gate brief names the step
+    # that runs.
     problem-approval:
-      continue-to-idea-generation: "Continue to the idea generation"
+      continue-to-idea-generation: "Continue"
       revise-problem: "Revise the problem or personas"
       stop-design: "Stop here"
     direction-approval:
@@ -258,7 +261,7 @@ nodes:
   problem-approval:
     type: gate
     needs: [problem-exploration, persona-exploration]
-    ask: "Problem exploration complete. Continue to idea generation?"
+    ask: "Problem exploration complete. Continue?"
     options:
       continue-to-idea-generation: continue
       revise-problem: {effect: revise, reruns: problem-exploration}
