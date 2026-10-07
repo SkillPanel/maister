@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
+import { panelOf as panelOfCheckpoint } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
 // every surface — the two in-session pickers, the driven request, a cockpit
@@ -510,7 +512,7 @@ test('panel: the brief writes the checkpoint at a glance, for the question it be
   const run = atSpecGate(t);
   const rich = pickerOf(run, 'specification-approval', 'rich');
   const panel = panelOf(run);
-  assert.deepEqual(Object.keys(panel), ['version', 'kind', 'node', 'header', 'question', 'glance']);
+  assert.deepEqual(Object.keys(panel), ['version', 'kind', 'node', 'header', 'question', 'glance', 'checkpoint', 'open_risks', 'parts', 'run_dir']);
   assert.equal(panel.version, 1);
   assert.equal(panel.kind, 'gate');
   assert.equal(panel.node, 'specification-approval');
@@ -522,6 +524,61 @@ test('panel: the brief writes the checkpoint at a glance, for the question it be
   assert.equal(panel.glance[3], 'Next: Specification audit');
   assert.match(panel.glance[4], /^Review: .*implementation\/spec\.md/);
   assertFits(panel.glance);
+});
+
+/** The rows a panel drawn from the labelled parts costs: a label, a space and the text, the files two spaces apart. */
+function partsRows(parts) {
+  return parts.reduce((sum, part) => {
+    if (part.key === 'review') return sum + rows(`${part.label} ${part.files.map(file => file.label).join('  ')}${part.more ? `  +${part.more} more` : ''}`);
+    if (part.key === 'counts') return sum + rows(`${part.label} ${part.text} · ${part.risks}`);
+    return sum + rows(`${part.label} ${part.text}`);
+  }, 0);
+}
+
+test('panel: the parts carry each label apart from its text, and each review file as a file:// link', t => {
+  const run = atSpecGate(t);
+  assert.equal(gateBrief(run, 'specification-approval', '--json').code, 0);
+  const panel = panelOf(run);
+  const byKey = Object.fromEntries(panel.parts.map(part => [part.key, part]));
+  assert.deepEqual(panel.parts.map(part => part.key), ['title', 'headline', 'counts', 'next', 'review']);
+  assert.match(byKey.title.label, /^Checkpoint \d+ of \d+$/);
+  assert.equal(byKey.title.text, 'Specification');
+  assert.equal(`Checkpoint ${panel.checkpoint.index} of ${panel.checkpoint.total}`, byKey.title.label);
+  assert.equal(byKey.headline.label, 'Done');
+  assert.match(byKey.headline.text, /^The revised spec makes null mean "not given"/);
+  assert.deepEqual(byKey.counts, { key: 'counts', label: 'Decided', text: '3', risks: '2 open risks', open: 2 });
+  assert.equal(panel.open_risks, 2);
+  assert.deepEqual(byKey.next, { key: 'next', label: 'Next', text: 'Specification audit' });
+  assert.equal(byKey.review.label, 'Review');
+  const spec = byKey.review.files.find(file => file.path === 'implementation/spec.md');
+  assert.ok(spec, JSON.stringify(byKey.review));
+  assert.equal(spec.label, 'spec.md');
+  assert.equal(spec.href, pathToFileURL(path.join(run.dir, 'implementation/spec.md')).href);
+  assert.equal(panel.run_dir, run.dir);
+  assert.ok(partsRows(panel.parts) <= PANEL_ROWS);
+});
+
+test('panel: the parts hold to the rows too, the review files that do not fit counted as more', () => {
+  const long = (word, n) => Array.from({ length: n }, (_, index) => `${word}${index}`).join(' ');
+  const checkpoint = {
+    ask: 'Ready to go on?',
+    header: 'Spec',
+    headline: long('headline', 40),
+    progress: { checkpoint: 2, checkpoints_max: 10 },
+    closed: [{ title: 'Specification' }],
+    next: { title: 'Specification audit' },
+    review: Array.from({ length: 8 }, (_, index) => ({ path: `implementation/document-number-${index}.md` })),
+    decisions: { run: [], audit: [], default: [], operator: { count: 0, not_recommended: [] } },
+    risks: { open: [{ risk: 'one' }] },
+    options: [{ id: 'continue', label: 'Continue', effect: 'continue', recommended: true, consequence: 'Goes on.' }],
+  };
+  const { parts } = panelOfCheckpoint(checkpoint);
+  assert.ok(partsRows(parts) <= PANEL_ROWS, JSON.stringify(parts));
+  const review = parts.find(part => part.key === 'review');
+  assert.ok(review.files.length >= 1 && review.more > 0, JSON.stringify(review));
+  assert.equal(review.files.length + review.more, 8);
+  assert.ok(parts.find(part => part.key === 'headline').text.endsWith('…'));
+  assert.deepEqual(parts.find(part => part.key === 'counts'), { key: 'counts', label: 'Decided', text: '0', risks: '1 open risk', open: 1 });
 });
 
 test('panel: every form writes the same panel', t => {

@@ -69,7 +69,7 @@
  * carry both meanings.
  *
  * Every form also returns `panel`, the glance an editor extension draws above
- * the question (`panelOf`), which `workflow.mjs` writes to the run's
+ * the question (`panelOf`, with links `panelFor` adds), which `workflow.mjs` writes to the run's
  * `display/next.json` — the one file a brief writes, and never the state.
  *
  * Pure: no stdio, no writes. Returns `{ok, text, panel, errors, warnings}` and leaves
@@ -78,6 +78,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, resolve, reviseStretch } from './graph.mjs';
@@ -279,7 +280,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
   // panel is display only, so one that cannot be built costs the brief nothing.
   let panel = null;
   try {
-    panel = { node, header: checkpointOf().header, ...panelOf(checkpointOf()) };
+    panel = panelFor(node, checkpointOf(), runDir);
   } catch {
     panel = null;
   }
@@ -785,6 +786,20 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
     truncated,
   };
+}
+
+/**
+ * The panel `display/next.json` holds: the gate, its header and `panelOf`'s
+ * glance and parts, with the run directory and each review file's `file://`
+ * URL, so a reader links a file without resolving a path of its own.
+ */
+function panelFor(node, checkpoint, runDir) {
+  const panel = panelOf(checkpoint);
+  const parts = panel.parts.map(part => (part.key !== 'review' ? part : {
+    ...part,
+    files: part.files.map(file => ({ ...file, href: pathToFileURL(path.join(runDir, file.path)).href })),
+  }));
+  return { node, header: checkpoint.header, ...panel, parts, run_dir: runDir };
 }
 
 /**

@@ -402,7 +402,68 @@ export function panelOf(checkpoint) {
   return {
     question: richPicker(checkpoint).question,
     glance: PANEL_ORDER.filter(key => Object.hasOwn(fitted, key)).map(key => fitted[key]),
+    checkpoint: { index: progress.checkpoint, total: progress.checkpoints_max },
+    open_risks: open,
+    parts: partsOf(checkpoint, { closing, open }),
   };
+}
+
+/**
+ * The same panel as labelled parts, for an extension that styles a label apart
+ * from its text: `{key, label, text}` each, in `PANEL_ORDER`, and the review
+ * part as files, `{label, path}` each (the path task-folder relative), with
+ * `more` counting the files left out. Fitted as the glance is — a part costs
+ * the rows of its label, a space and its text, the review part's files
+ * separated by two spaces — so a panel drawn from them holds to `PANEL_ROWS`.
+ */
+function partsOf(checkpoint, { closing, open }) {
+  const progress = checkpoint.progress ?? {};
+  const one = text => String(text ?? '').replace(/\s+/g, ' ').trim();
+  const wanted = {
+    title: { label: `Checkpoint ${progress.checkpoint} of ${progress.checkpoints_max}`, text: one(closing) },
+    headline: { label: 'Done', text: one(checkpoint.headline) },
+    next: { label: 'Next', text: one(nextText(checkpoint.next)) },
+    review: { label: 'Review', files: (checkpoint.review ?? []).map(each => ({ label: baseName(each.path), path: each.path })) },
+    counts: { label: 'Decided', text: String(decided(checkpoint).length), risks: open ? `${open} open ${open === 1 ? 'risk' : 'risks'}` : 'no open risks' },
+  };
+  const fitted = {};
+  let left = PANEL_ROWS;
+  for (const [key, share] of Object.entries(PANEL_SHARES)) {
+    const rows = Math.min(share, left);
+    const part = wanted[key];
+    if (rows < 1) continue;
+    const room = rows * ROW_CHARS - 1 - part.label.length - 1;
+    if (key === 'review') {
+      const files = [];
+      let more = part.files.length;
+      for (const file of part.files) {
+        const tail = more > 1 ? `  +${more - 1} more` : '';
+        const used = [...files, file].map(each => each.label).join('  ').length + tail.length;
+        if (used > room) break;
+        files.push(file);
+        more -= 1;
+      }
+      if (!files.length) continue;
+      fitted.review = { key, label: part.label, files, more };
+      left -= rowsOf(`${part.label} ${files.map(each => each.label).join('  ')}${more ? `  +${more} more` : ''}`);
+      continue;
+    }
+    if (key === 'counts') {
+      fitted.counts = { key, label: part.label, text: part.text, risks: part.risks, open };
+      left -= rowsOf(`${part.label} ${part.text} · ${part.risks}`);
+      continue;
+    }
+    if (!part.text && key !== 'title') continue;
+    fitted[key] = { key, label: part.label, text: clip(part.text, Math.max(0, room)) };
+    left -= rowsOf(`${part.label} ${fitted[key].text}`);
+  }
+  return PANEL_ORDER.filter(key => Object.hasOwn(fitted, key)).map(key => fitted[key]);
+}
+
+/** A task-folder path's last segment, the name a file is known by in a short list. */
+function baseName(file) {
+  const parts = String(file).split('/').filter(part => part !== '');
+  return parts.length ? parts[parts.length - 1] : String(file);
 }
 
 // ---------------------------------------------------------------------------

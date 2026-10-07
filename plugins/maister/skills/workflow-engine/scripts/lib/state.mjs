@@ -497,12 +497,12 @@ export function writeState({ state, patch, regress = null }) {
     project(state, text, now, changed, warnings);
     const freeze = Boolean(patch.workflow) && !hadWorkflow;
     if (freeze) installViewer(state, text, changed, warnings);
-    const lines = freeze ? bannerLines(state, text, patch.workflow) : null;
+    const banner = freeze ? bannerOf(state, text, patch.workflow) : null;
     // After the viewer, so the status file's dashboard link sees the page the
     // freeze just installed; on the projection's terms, a warning at worst.
-    warnings.push(...display(state, text, now, lines));
+    warnings.push(...display(state, text, now, banner));
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared };
-    if (freeze) result.banner = [BANNER_RELAY, ...lines].map(line => `${line}\n`).join('');
+    if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -513,7 +513,7 @@ export function writeState({ state, patch, regress = null }) {
 }
 
 /**
- * The startup banner's lines: the workflow and the task, how many checkpoints
+ * The startup banner: its lines — the workflow and the task, how many checkpoints
  * the user will be asked at, where the run lives and its dashboard, and the
  * first phase by its title. The freeze returns them under a first line telling
  * the orchestrating model to tell the user what they say, each line ending in
@@ -529,9 +529,11 @@ export function writeState({ state, patch, regress = null }) {
  * The model composes its own message from it: the terminal collapses tool
  * output to a count, so nothing here is seen until the model writes it.
  * The dashboard line reads the committed state, so an `html_output: false` the
- * same patch carries is already in force.
+ * same patch carries is already in force. Beside the lines, the same facts as
+ * fields — the counts as numbers, the directory and dashboard as `file://`
+ * URLs — for the display file, whose reader draws them its own way.
  */
-function bannerLines(state, text, workflow) {
+function bannerOf(state, text, workflow) {
   const runDir = path.dirname(path.resolve(state));
   const doc = parseState(text);
   const title = isPlainObject(doc.task) ? doc.task.title : undefined;
@@ -545,14 +547,24 @@ function bannerLines(state, text, workflow) {
   const name = typeof workflow.name === 'string' && workflow.name !== '' ? humanize(workflow.name) : 'Workflow';
   const checkpoints = gates > 1 ? `up to ${gates}` : gates === 1 ? 'one' : 'none';
   const dashboard = htmlOutput(doc) ? pathToFileURL(path.join(runDir, VIEWER)).href : null;
-  return [
-    `Maister run started: ${name}`,
-    `Task: ${folded !== '' ? folded : '(untitled)'}`,
-    `Checkpoints: ${checkpoints}${gates ? ' where you decide' : ''}`,
-    `Directory: ${runDir}`,
-    `Dashboard: ${dashboard ?? 'none (html_output is false)'}`,
-    `First phase: ${nodes.length ? titleOf(titles, nodes[0]) : '(none)'}`,
-  ];
+  const first = nodes.length ? titleOf(titles, nodes[0]) : null;
+  return {
+    lines: [
+      `Maister run started: ${name}`,
+      `Task: ${folded !== '' ? folded : '(untitled)'}`,
+      `Checkpoints: ${checkpoints}${gates ? ' where you decide' : ''}`,
+      `Directory: ${runDir}`,
+      `Dashboard: ${dashboard ?? 'none (html_output is false)'}`,
+      `First phase: ${first ?? '(none)'}`,
+    ],
+    workflow: name,
+    task: folded !== '' ? folded : null,
+    checkpoints: gates,
+    first_phase: first,
+    run_dir: runDir,
+    run_url: pathToFileURL(runDir).href,
+    dashboard,
+  };
 }
 
 /** The banner's first line, read by the orchestrating model rather than shown. */

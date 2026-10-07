@@ -16,10 +16,13 @@
  * The files:
  *
  * - `<run>/display/status.json`, from every state write: the workflow, the
- *   task, the phase by `phaseOf`'s rule, the run's status, and `line`, the
- *   status line composed.
+ *   task, the phase by `phaseOf`'s rule, the next checkpoint by
+ *   `checkpointOf`'s, the run's status, `line`, the status line composed, when
+ *   the run started, and the nodes — each one's title and status, and the ones
+ *   this write changed.
  * - `<run>/display/banner.json`, from the freeze: the start banner's lines, the
- *   ones the freeze prints for the model, without the line addressed to it.
+ *   ones the freeze prints for the model, without the line addressed to it, and
+ *   the same facts as fields, for a reader that draws a card of its own.
  * - `<run>/display/next.json`, from `gate-brief`: the checkpoint's panel, the
  *   question it belongs to and the glance fitted to the rows a panel above that
  *   question holds (`panelOf` in `checkpoint.mjs`). Every state write removes it:
@@ -44,6 +47,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import * as canonical from '../../../../lib/canonical.mjs';
 import { isPlainObject } from './state-read.mjs';
 import { humanize, titleOf } from './display.mjs';
@@ -85,6 +89,9 @@ const TASK_MAX = 60;
 /** The node statuses of a phase under way. */
 const ONGOING = new Set(['running', 'waiting', 'suspended']);
 
+/** The node statuses after which a gate is behind the run. */
+const SETTLED = new Set(['completed', 'skipped']);
+
 /**
  * The phase a run is in, by the one rule every display file uses: the frozen
  * nodes in frozen order, less its gates — a checkpoint is not a phase — and less
@@ -115,19 +122,36 @@ export function phaseOf(doc, titles) {
 }
 
 /**
+ * The checkpoint the run reaches next: the first frozen gate neither completed
+ * nor skipped, `index` its place among all the frozen gates and `total` their
+ * count — the numbering a gate's brief uses. Null once no gate is left.
+ */
+export function checkpointOf(doc, titles) {
+  const nodes = nodesOf(doc);
+  const gates = Object.keys(nodes).filter(id => nodes[id].kind === 'gate');
+  const at = gates.findIndex(id => !SETTLED.has(nodes[id].status));
+  if (at === -1) return null;
+  return { index: at + 1, total: gates.length, title: titleOf(titles, gates[at]) };
+}
+
+/**
  * Publish the run's display files after a state write: the status, the banner
  * when this write was the freeze, the session's pointer, and the removal of a
  * gate's panel the write has answered. `doc` is the committed state, parsed;
- * `banner` the banner's lines or null; `dashboard` the run's link or null.
+ * `banner` the freeze's banner (`{lines, ...fields}`) or null; `dashboard` the
+ * run's link or null.
  * Returns the warnings, `{file, code, message}` each.
  */
 export function publishRun({ runDir, root, doc, now, titles, dashboard, banner = null, session = process.env[SESSION_ENV] }) {
   const warnings = [];
   const dir = path.join(runDir, DISPLAY_DIR);
   attempt(warnings, `${DISPLAY_DIR}/${NEXT}`, () => remove(path.join(dir, NEXT)));
-  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard })));
+  const started = banner !== null ? now : startedOf(dir, doc);
+  const before = previousNodes(dir);
+  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, started, before })));
   if (banner !== null) {
-    attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: now, lines: banner }));
+    const { lines, ...card } = banner;
+    attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: now, lines, ...card }));
   }
   if (typeof session === 'string' && SESSION_ID.test(session)) {
     const file = `${session}.json`;
@@ -147,8 +171,13 @@ export function publishNext({ runDir, panel }) {
   return warnings;
 }
 
-/** The status file's document, its `line` composed for a status line to show as it stands. */
-function statusOf({ runDir, doc, now, titles, dashboard }) {
+/**
+ * The status file's document, its `line` composed for a status line to show as
+ * it stands. Beside it: when the run started, the checkpoint it reaches next,
+ * every frozen node's title and status, the nodes this write changed against
+ * the status file it replaces (`saved`), and whether a gate is under way now.
+ */
+function statusOf({ runDir, doc, now, titles, dashboard, started, before }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const task = isPlainObject(doc.task) ? doc.task : {};
   const name = typeof workflow.name === 'string' && workflow.name !== '' ? humanize(workflow.name) : 'Workflow';
@@ -158,7 +187,65 @@ function statusOf({ runDir, doc, now, titles, dashboard }) {
   let where = status ?? 'not started';
   if (!ENDINGS.has(status) && phase.title) where = `phase ${phase.index}/${phase.total} · ${phase.title}`;
   const line = [name, where, ...(title ? [clip(title, TASK_MAX)] : [])].join(' · ');
-  return { version: VERSION, workflow: name, task: title || null, phase, status, line, run_dir: runDir, dashboard, updated: now };
+  const nodes = {};
+  for (const [id, entry] of Object.entries(nodesOf(doc))) {
+    nodes[id] = { title: titleOf(titles, id), status: typeof entry.status === 'string' ? entry.status : 'pending' };
+  }
+  const saved = before === null ? [] : Object.entries(nodes)
+    .filter(([id, node]) => before[id]?.status !== node.status)
+    .map(([id, node]) => ({ node: id, title: node.title, status: node.status }));
+  const gateOpen = Object.values(nodesOf(doc)).some(entry => entry.kind === 'gate' && ONGOING.has(entry.status));
+  return {
+    version: VERSION,
+    workflow: name,
+    task: title || null,
+    phase,
+    checkpoint: checkpointOf(doc, titles),
+    status,
+    line,
+    run_dir: runDir,
+    run_url: pathToFileURL(runDir).href,
+    dashboard,
+    started,
+    nodes,
+    saved,
+    gate_open: gateOpen,
+    updated: now,
+  };
+}
+
+/** The frozen nodes, each a plain object. */
+function nodesOf(doc) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  return Object.fromEntries(Object.entries(nodes).map(([id, entry]) => [id, isPlainObject(entry) ? entry : {}]));
+}
+
+/**
+ * When a run that is not freezing now started: the freeze stamp its banner file
+ * holds, else the earliest node start the state records, else null.
+ */
+function startedOf(dir, doc) {
+  const frozen = readDisplay(path.join(dir, BANNER))?.frozen;
+  if (typeof frozen === 'string') return frozen;
+  const stamps = Object.values(nodesOf(doc)).map(entry => entry.started).filter(stamp => typeof stamp === 'string').sort();
+  return stamps[0] ?? null;
+}
+
+/** The node map of the status file this write replaces; null when there is none to compare with. */
+function previousNodes(dir) {
+  const nodes = readDisplay(path.join(dir, STATUS))?.nodes;
+  return isPlainObject(nodes) ? nodes : null;
+}
+
+/** One of the run's own display files, parsed; null when it is missing or unreadable. */
+function readDisplay(file) {
+  try {
+    const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return isPlainObject(value) ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

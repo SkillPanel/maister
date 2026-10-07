@@ -62,6 +62,7 @@ test('display: the status counts phases, not gates, and composes the line', t =>
   assert.equal(status.status, 'in_progress');
   assert.equal(status.line, 'Development · phase 1/3 · Scope analysis · Sample run');
   assert.equal(status.run_dir, run.dir);
+  assert.equal(status.run_url, pathToFileURL(run.dir).href);
   assert.equal(status.dashboard, pathToFileURL(path.join(run.dir, 'dashboard.html')).href);
   assert.equal(status.version, 1);
 });
@@ -86,6 +87,70 @@ test('display: a later write moves the phase; the gate never counts, a skipped n
   const done = display(run, 'status.json');
   assert.deepEqual(done.phase, { index: 2, total: 2, title: 'Implementation' });
   assert.equal(done.line, 'Development · phase 2/2 · Implementation · Sample run');
+});
+
+test('display: the banner file carries its facts as fields beside the lines', t => {
+  const run = scratch(t);
+  freeze(run);
+  const banner = display(run, 'banner.json');
+  assert.equal(banner.workflow, 'Development');
+  assert.equal(banner.task, 'Sample run');
+  assert.equal(banner.checkpoints, 1);
+  assert.equal(banner.first_phase, 'Scope analysis');
+  assert.equal(banner.run_dir, run.dir);
+  assert.equal(banner.run_url, pathToFileURL(run.dir).href);
+  assert.equal(banner.dashboard, pathToFileURL(path.join(run.dir, 'dashboard.html')).href);
+});
+
+test('display: the status keeps the freeze as the run\'s start through later writes', t => {
+  const run = scratch(t);
+  freeze(run);
+  const frozen = display(run, 'banner.json').frozen;
+  assert.equal(display(run, 'status.json').started, frozen);
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  const later = display(run, 'status.json');
+  assert.equal(later.started, frozen);
+  assert.notEqual(later.updated, undefined);
+});
+
+test('display: without a banner file the start is the earliest node start the state records', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  fs.rmSync(path.join(run.dir, 'display/banner.json'));
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  assert.equal(display(run, 'status.json').started, readState(run).workflow.nodes.analysis.started);
+});
+
+test('display: the status names the next checkpoint, numbered as the gate brief numbers it', t => {
+  const run = scratch(t);
+  freeze(run);
+  assert.deepEqual(display(run, 'status.json').checkpoint, { index: 1, total: 1, title: 'Approve the scope' });
+  write(run, { nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' } } });
+  assert.equal(display(run, 'status.json').checkpoint, null, 'no gate is left');
+});
+
+test('display: the status lists what this write changed, and whether a gate is under way', t => {
+  const run = scratch(t);
+  freeze(run);
+  const frozen = display(run, 'status.json');
+  assert.deepEqual(frozen.saved, [], 'the freeze has nothing to compare with');
+  assert.deepEqual(frozen.nodes.analysis, { title: 'Scope analysis', status: 'pending' });
+  assert.equal(frozen.gate_open, false);
+
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  assert.deepEqual(display(run, 'status.json').saved, [{ node: 'analysis', title: 'Scope analysis', status: 'running' }]);
+
+  write(run, { nodes: { analysis: { status: 'completed' }, approval: { status: 'running' } } });
+  const atGate = display(run, 'status.json');
+  assert.deepEqual(atGate.saved, [
+    { node: 'analysis', title: 'Scope analysis', status: 'completed' },
+    { node: 'approval', title: 'Approve the scope', status: 'running' },
+  ]);
+  assert.equal(atGate.gate_open, true);
+
+  write(run, {});
+  assert.deepEqual(display(run, 'status.json').saved, [], 'a write that changes no node saves none');
 });
 
 test('display: an ended run says how it ended instead of a phase', t => {
