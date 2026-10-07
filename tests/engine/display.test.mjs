@@ -200,6 +200,28 @@ test('a label or a header for a node that is not a gate, or for an option the ga
   ]);
 });
 
+test('no built-in continue label names a destination a guard can skip', () => {
+  // "Continue to the specification audit" read while Next said the audit was
+  // skipped. A label "Continue" alone is completed from the walk instead.
+  const offenders = [];
+  for (const file of BUILTINS) {
+    const { doc } = readDefinition(file);
+    const nodes = doc.nodes ?? {};
+    const labels = doc.display?.option_labels ?? {};
+    for (const [gate, node] of Object.entries(nodes)) {
+      if (node.type !== 'gate') continue;
+      const after = Object.entries(nodes).filter(([, each]) => (each.needs ?? []).includes(gate));
+      const guarded = after.filter(([, each]) => typeof each.when === 'string').map(([id]) => id);
+      for (const [option, effect] of Object.entries(node.options ?? {})) {
+        const label = labels[gate]?.[option];
+        if ((effect?.effect ?? effect) !== 'continue' || typeof label !== 'string' || !/^Continue to /.test(label)) continue;
+        if (guarded.length) offenders.push(`${path.basename(file)} ${gate}.${option} "${label}" (guarded: ${guarded.join(', ')})`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
 test('the overlay fixture validates, with and without its profile', () => {
   assert.equal(validate([`--definition=${SAMPLE}`, `--overlay=${OVERLAY}`]).code, 0);
   assert.equal(validate([`--definition=${SAMPLE}`, `--overlay=${OVERLAY}`, '--profile=quick']).code, 0);

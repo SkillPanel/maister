@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, lastLine, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, scratch, verb, write } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 
 // `gate-brief` renders what the operator reads at a gate — the closing node's
@@ -140,7 +140,7 @@ test('gate-brief --json: the question is the one-line ask; the options are label
   assert.equal(result.header, 'Approve the…');
   assert.deepEqual(result.options.map(({ preview: _preview, ...option }) => option), [
     // A bare "Continue" is completed with where the run goes, as the ask is.
-    { id: 'continue', label: 'Continue to the implementation (Recommended)', description: 'Runs the implementation next.', recommended: true },
+    { id: 'continue', label: 'Continue to implementation (Recommended)', description: 'Runs implementation next.', recommended: true },
     { id: 'stop-here', label: 'Stop here', description: 'Ends the run here.', recommended: false },
     { id: 'more-details', label: 'More details', recommended: false, details: true, description: 'Shows the full brief, risks included, then asks this again. Nothing is recorded.' },
   ]);
@@ -197,7 +197,7 @@ test('gate-brief --json: a built-in gate reads its labels and header from the de
     ['stop-development', 'Stop here'],
     ['more-details', 'More details'],
   ]);
-  assert.equal(result.options[0].description, 'Runs the user documentation next.');
+  assert.equal(result.options[0].description, 'Runs user documentation next.');
   assert.match(result.options[0].preview, /^Next: User documentation \(skipping Browser checks\)$/m);
 });
 
@@ -904,7 +904,7 @@ test('picker: continue, then revise, then stop, and the revise says what it re-r
   const run = atReview(t);
   const { options } = picker(run, 'review-approval');
   assert.deepEqual(options.map(option => option.id), ['publish-draft', 'send-back', 'abandon', 'more-details']);
-  assert.equal(options[0].description, 'Runs the publish next.', 'the continue option still names what runs next');
+  assert.equal(options[0].description, 'Runs publish next.', 'the continue option still names what runs next');
   const revise = options[1];
   assert.equal(revise.label, 'Send back with notes');
   assert.equal(revise.description, 'Re-runs Draft, Figures and Review with your note, then asks this again.');
@@ -920,18 +920,23 @@ test('picker: the suggestions come from what the stretch found, nearest the gate
   const run = atReview(t);
   const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
   assert.deepEqual(suggestions, [
-    { label: 'section 2 contradicts the summary', description: 'Re-run the draft to address it', note: 'Re-run the draft to address: section 2 contradicts the summary', recommended: false },
-    { label: 'the intro repeats the title', description: 'Re-run the draft to address it', note: 'Re-run the draft to address: the intro repeats the title', recommended: false },
+    { label: 'section 2 contradicts the summary', description: 'Address it in the re-run', note: 'Address this in the re-run: section 2 contradicts the summary', recommended: false },
+    { label: 'the intro repeats the title', description: 'Address it in the re-run', note: 'Address this in the re-run: the intro repeats the title', recommended: false },
   ]);
 });
 
-test('picker: only open items become suggestions, and a decision to revisit fills up only below two', t => {
+test('picker: only open items become suggestions, never a decision, and one is asked for typed', t => {
   const run = atReview(t, { review: { risks: [{ risk: 'Two breaking changes ship under 1.0.0', tag: 'tradeoff' }, 'followup: rename the CLI flag', { risk: 'section 2 is thin', tag: 'open', change: 'expand section 2' }] }, draft: { risks: [] } });
-  const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
-  assert.deepEqual(suggestions.map(each => each.note), ['section 2 is thin — expand section 2', 'Revisit the decision: Wrote it for new operators']);
-  // The revisit is offered like any other, and its label and description never say the same thing twice.
-  assert.deepEqual(suggestions[1], {
-    label: 'Revisit: Wrote it for new operators', description: 'Reconsider this decision in the re-run', note: 'Revisit the decision: Wrote it for new operators', recommended: false,
+  const revise = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  // The draft's decision names no alternative to change it to, so it is no suggestion.
+  assert.deepEqual(revise.suggestions.map(each => each.note), ['section 2 is thin — expand section 2']);
+  // A picker lists two options at the least: one suggestion is named in a typed question.
+  assert.deepEqual(revise.note_question, {
+    header: 'Revise',
+    question: 'What should change? Re-runs: Draft, Figures and Review, then asks this checkpoint again. '
+      + 'The run suggests: section 2 is thin — expand section 2. Type "yes" to send it, or type your own change.',
+    multi_select: false,
+    options: [],
   });
 });
 
@@ -940,8 +945,8 @@ test('picker: a suggestion is labelled by its lead sentence in the writer\'s own
   const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
   assert.deepEqual(suggestions[0], {
     label: 'iPhone shoppers may never get alerts.',
-    description: 'Re-run the draft to address it',
-    note: 'Re-run the draft to address: iPhone shoppers may never get alerts. Web push needs the app installed.',
+    description: 'Address it in the re-run',
+    note: 'Address this in the re-run: iPhone shoppers may never get alerts. Web push needs the app installed.',
     recommended: false,
   });
 });
@@ -954,25 +959,106 @@ test('picker: at most four suggestions, a long one whole in its label, its note 
   assert.equal(suggestions.filter(each => each.recommended).length, 0);
   const whole = suggestions[3];
   assert.equal(whole.label, long, 'a label is the lead sentence, never cut to a few words');
-  assert.equal(whole.description, 'Re-run the draft to address it');
-  assert.equal(whole.note, `Re-run the draft to address: ${long}`);
+  assert.equal(whole.description, 'Address it in the re-run');
+  assert.equal(whole.note, `Address this in the re-run: ${long}`);
   // The preview lists each note whole: only the preview's own budget cuts it.
   const { preview } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
-  assert.ok(preview.includes(`- Re-run the draft to address: ${long}`), preview);
+  assert.ok(preview.includes(`- Address this in the re-run: ${long}`), preview);
 });
 
-test('picker: a stretch that found nothing still offers two concrete edits, never an empty question', t => {
-  const run = atReview(t, { draft: { decisions: [], risks: [] }, review: { risks: [] } });
-  const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
-  assert.deepEqual(suggestions.map(each => [each.label, each.description]), [
-    ['Make the draft more specific', 'Where it is vague'],
-    ['Cut the draft to what is needed', 'Down to what the next step needs'],
-  ]);
-  assert.deepEqual(suggestions.map(each => each.note), [
-    'Make the draft more specific where it is vague',
-    'Cut the draft down to what the next step needs',
-  ]);
-  assert.ok(suggestions.every(each => each.recommended === false), 'none is recommended or pre-chosen');
+test('picker: a risk two nodes recorded is one suggestion and one Open line, and so is a change asked twice', t => {
+  const run = atReview(t, {
+    draft: { risks: [{ risk: 'Section 2 is thin.', tag: 'open', change: 'Add an example to section 2' }] },
+    review: { risks: [{ risk: 'section 2 is thin', tag: 'open', change: 'Expand section 2' }] },
+  });
+  const result = picker(run, 'review-approval');
+  const revise = result.options.find(option => option.id === 'send-back');
+  assert.deepEqual(revise.suggestions.map(each => each.note), ['section 2 is thin — Expand section 2'],
+    'the restated risk is offered once, nearest the gate');
+  const open = result.more_details.split('\n\n').find(block => block.startsWith('**Open**')).split('\n').slice(1);
+  assert.deepEqual(open, ['- section 2 is thin → Expand section 2']);
+
+  const same = atReview(t, {
+    draft: { risks: [{ risk: 'The intro repeats the title', tag: 'open', change: 'Expand section 2.' }] },
+    review: { risks: [{ risk: 'Section 2 is thin', tag: 'open', change: 'expand section 2' }] },
+  });
+  const sameRevise = picker(same, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.deepEqual(sameRevise.suggestions.map(each => each.note), ['Section 2 is thin — expand section 2'],
+    'a second risk asking for the same change adds nothing to the note');
+  assert.equal(picker(same, 'review-approval').more_details.match(/^- .* → /gm).length, 2, 'More details still lists both risks');
+});
+
+test('picker: a stretch with nothing open offers no suggestion, and the note is typed', t => {
+  const run = atReview(t, { review: { risks: [] }, draft: { risks: [] } });
+  const revise = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.deepEqual(revise.suggestions, [], 'no filler: a generic edit or a decision to revisit names no change');
+  assert.equal(revise.preview, 'Re-runs: Draft, Figures and Review, then asks this checkpoint again.\nNo suggested notes: you type what should change.');
+  assert.deepEqual(revise.note_question, {
+    header: 'Revise',
+    question: 'What should change? Re-runs: Draft, Figures and Review, then asks this checkpoint again. Type the change.',
+    multi_select: false,
+    options: [],
+  });
+  const plain = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--json', '--picker=plain']).stdout)
+    .options.find(option => option.id === 'send-back');
+  assert.deepEqual(plain.note_question, revise.note_question, 'the same typed question in both profiles');
+  const request = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request']).stdout);
+  assert.deepEqual(request.options.find(option => option.id === 'send-back').suggestions, []);
+});
+
+test('a driven request asked again for a revise answered without a note opens by asking for it', t => {
+  const run = atReview(t, { review: { risks: [] }, draft: { risks: [] } });
+  const request = flags => JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request', ...flags]).stdout);
+  const first = request([]);
+  const again = request(['--reask=send-back']);
+  assert.equal(again.question,
+    `"Send back with notes" needs a note saying what should change. Choose it again with one, or choose another option.\n\n${first.question}`);
+  assert.deepEqual(again.options, first.options, 'every option is offered again, unchanged');
+  assert.deepEqual(again.context, first.context, 'the checkpoint keeps the ask as the gate words it');
+
+  const notRevise = verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request', '--reask=publish-draft']);
+  assert.equal(notRevise.code, 1);
+  assert.match(notRevise.stderr, /^gate-brief-reask-not-revise: --reask=publish-draft is not a revise option this gate offers \(send-back\)/);
+  assert.equal(notRevise.stdout, '');
+
+  const notDriven = verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--json', '--reask=send-back']);
+  assert.equal(notDriven.code, 2);
+  assert.match(notDriven.stderr, /--reask only with --request/);
+});
+
+test('a revise answered without a note is folded as an answered request and asked again in the gate\'s next attempt', t => {
+  const run = atReview(t, { review: { risks: [] }, draft: { risks: [] } });
+  // Suspended, as the driven write order leaves it.
+  const request = 'gates/review-approval.request.yml';
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, request), 'version: 1\nnode: review-approval\nkind: approval\nasked_at: "2026-01-05T09:00:00Z"\nanswer: null\n');
+  write(run, {
+    orchestrator: { gate_pending: { node: 'review-approval', request, since: '2026-01-05T09:00:00Z' } },
+    nodes: { 'review-approval': { status: 'suspended' } },
+  });
+  // The fold with editor tools: the request answered, the gate pending in its
+  // next attempt, no summary, the marker cleared last.
+  fs.writeFileSync(path.join(run.dir, request),
+    fs.readFileSync(path.join(run.dir, request), 'utf8').replace('answer: null', 'answer: {option: send-back}'));
+  const folded = fs.readFileSync(run.state, 'utf8')
+    .replace(/(    review-approval: \{kind: gate, )status: suspended/, '$1status: pending, attempt: 2')
+    .replace(/gate_pending: \{[^\n]*\}/, 'gate_pending: null');
+  fs.writeFileSync(run.state, folded);
+
+  const revalidated = verb(['write-state', `--state=${run.state}`], {});
+  assert.equal(revalidated.code, 0, revalidated.stderr);
+  const state = readState(run);
+  assert.equal(state.workflow.nodes['review-approval'].status, 'pending');
+  assert.equal(state.workflow.nodes['review-approval'].attempt, 2);
+  assert.equal(state.node_summaries?.['review-approval'], undefined, 'nothing is recorded as a revise');
+  assert.equal(state.workflow.nodes.draft.status, 'completed', 'and nothing is reset');
+  assert.match(fs.readFileSync(path.join(run.dir, 'gates/index.yml'), 'utf8'), /status: answered/);
+
+  const again = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request', '--reask=send-back']).stdout);
+  assert.match(again.question, /^"Send back with notes" needs a note saying what should change\./);
+  assert.deepEqual(again.options.map(option => option.id), ['publish-draft', 'send-back', 'abandon']);
+  assert.match(again.options.find(option => option.id === 'send-back').description, / Asked again once so far at this checkpoint\.$/);
+  assert.match(oneline(run, 'review-approval').stdout, /revision=2\/10/, 'the re-ask counts toward the ceiling of ten');
 });
 
 test('driven form: a revise section before Recommended, and the recommendation unchanged', t => {
@@ -981,21 +1067,21 @@ test('driven form: a revise section before Recommended, and the recommendation u
   assert.match(text, / · Next: Publish · revise: send-back reruns=draft revision=1\/10 · Recommended: publish-draft · Run: /);
 });
 
-test('a revised gate says how often it was revised, and at its ceiling of ten the option is gone', t => {
+test('a revised gate says how often it was asked again, and at its ceiling of ten the option is gone', t => {
   const run = atReview(t);
   sendBack(run);
   rerun(run);
   const second = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
-  assert.match(second.description, / Revised once so far at this checkpoint\.$/);
-  assert.match(second.preview, /^Re-runs: .* Revised once so far here\.$/m);
+  assert.match(second.description, / Asked again once so far at this checkpoint\.$/);
+  assert.match(second.preview, /^Re-runs: .* Asked again once so far here\.$/m);
   assert.equal(second.note_question.question,
-    'What should change? Re-runs: Draft, Figures and Review, then asks this checkpoint again. Revised once so far here.');
+    'What should change? Re-runs: Draft, Figures and Review, then asks this checkpoint again. Asked again once so far here.');
   assert.doesNotMatch(second.description, / of \d/, 'a revise the user chooses is not counted against a budget');
   assert.match(oneline(run, 'review-approval').stdout, /revision=2\/10/);
   sendBack(run);
   rerun(run);
   assert.match(picker(run, 'review-approval').options.find(option => option.id === 'send-back').description,
-    / Revised 2 times so far at this checkpoint\.$/);
+    / Asked again 2 times so far at this checkpoint\.$/);
 
   for (let round = 3; round <= 10; round++) {
     sendBack(run);
@@ -1202,7 +1288,7 @@ test('picker rich: the continue option previews the checkpoint at a glance, no r
     'Done: Two gaps found in the parser.',
     'Next: Implementation',
     'Decided by the run:',
-    '- Patch the tokenizer — analysis',
+    '- Patch the tokenizer — scope analysis',
   ].join('\n'));
   assert.match(stop.preview, /^Ends the run here\.\nKept: the dashboard\.\n/);
   assert.match(stop.preview, /Start a new run from these files to pick up later\.$/);
@@ -1238,11 +1324,11 @@ test('picker plain: the question carries the glance then the ask, and each title
     'Done: Two gaps found in the parser.',
     'Next: Implementation',
     'Decided by the run:',
-    '- Patch the tokenizer — analysis',
+    '- Patch the tokenizer — scope analysis',
     'Analysis complete. Ready to go on?',
   ].join('\n'));
   assert.deepEqual(result.options, [
-    { id: 'continue', label: 'Continue to the implementation (Recommended)', recommended: true },
+    { id: 'continue', label: 'Continue to implementation (Recommended)', recommended: true },
     { id: 'stop-here', label: 'Stop here — keeps everything written so far', recommended: false },
     { id: 'more-details', label: 'More details', recommended: false, details: true },
   ]);

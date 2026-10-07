@@ -187,14 +187,13 @@ test('problem-approval: the revise names only the nodes that will run again', t 
   assert.equal(named(true), 'Re-runs Problem exploration and User and persona exploration with your note, then asks this again.');
 });
 
-test('problem-approval: revise suggestions are generated from the stretch, never left to free text', t => {
+test('problem-approval: revise suggestions are generated from what the stretch left open', t => {
   const picker = brief(atProblemApproval(t, { personas: false }), 'problem-approval');
   const revise = picker.options.find(option => option.id === 'revise-problem');
   assert.deepEqual(revise.reruns.map(each => each.node), ['problem-exploration']);
   assert.deepEqual(revise.suggestions.map(each => each.note), [
-    'Re-run the problem exploration to address: assumes guests accept a link instead of a login',
-    'Revisit the decision: External guests get no account',
-  ]);
+    'Address this in the re-run: assumes guests accept a link instead of a login',
+  ], 'the open assumption only: the decision beside it names no alternative');
   assert.ok(revise.suggestions.every(each => each.recommended === false), 'a suggestion is offered, never recommended');
 });
 
@@ -269,8 +268,8 @@ test('direction-approval: a convergence left open under a driver offers each are
   assert.equal(picker.options[0].id, 'continue-to-specification', 'continuing — adopting the recommendations — is recommended');
   const refine = picker.options.find(option => option.id === 'refine-direction');
   assert.deepEqual(refine.suggestions.slice(0, 2).map(each => each.note), [
-    'Re-run the idea convergence to address: access model — take guest accounts instead of the recommended signed link',
-    'Re-run the idea convergence to address: detail shown — take event titles instead of the recommended free and busy only',
+    'Address this in the re-run: access model — take guest accounts instead of the recommended signed link',
+    'Address this in the re-run: detail shown — take event titles instead of the recommended free and busy only',
   ]);
   const oneline = brief(run, 'direction-approval', '--oneline');
   assert.match(oneline, /revise: refine-direction reruns=idea-convergence revision=1\/10/);

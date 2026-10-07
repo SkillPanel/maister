@@ -386,7 +386,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `gate-revise` | `--state`, `--node` (the gate), `--option` (its revise option), `--patch-file` — `{note, answered_by?, at?}` in the patch file; without `answered_by`, the operator's own name is stamped | the changed paths, one per line, then a blank line and `revised: <gate> reruns=<node> revision=<n>/10 reset=<ids>`; the stretch from the option's rerun node to the gate reset in one write, with the note on the gate (§ Gates) |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state`, optional `--background` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt; `--background` frames them as background for a document written for end users, to stay consistent with rather than reproduce — reads the run, writes nothing |
-| `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=plain` — the profile the asking tool takes — `--checkpoint`, `--request` or `--oneline` | Every form reads the run and writes nothing (§ Gates). With no form, the brief as text: the summary of each node the gate closes, at most three decisions and three risks by their lead sentences, the `Next:` line and the `Review:` line, within 1,600 characters. `--checkpoint` prints the **checkpoint**, the one structured object every other form projects from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed, decisions, risks, recommended, options, grants, approves, run, truncated}`. `decisions` is grouped by who settled them (`run`, `audit`, `default`, and `operator` as `{count, not_recommended}`), `risks` by tag, and each option carries its `consequence` — a revise also `reruns`, `revision` and `suggestions`, a stop also `keeps` and `not_run`. `--json` returns the in-session picker projected from it: `{ok, picker, question, header, options[{id, label, description, recommended, preview}], details, more_details, errors, warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The `rich` profile's question is the one-line ask — the finished work, never the destination — its header the short chip, and every option has a `preview`; the `plain` profile's question is the glance followed by the ask, its header the title of the step the gate closes, and its options are titles that carry their consequence. Both profiles end with the More details option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.` (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`, `reruns`, `revision`, `suggestions[{label, description, note, recommended}]` — none of them recommended — and `note_question`, the note question built for the profile: `{header, question, multi_select, options}`. `--request` prints the whole driven gate request as JSON: `{node, kind, question, context: {summary, artifacts, checkpoint}, options, multi_select}`, each revise suggestion as `{label, note, recommended}`. `--oneline` is that request's one-line summary: every decision prefixed by who settled it and every risk by its tag, the `Next:` line with every skipped node, one `revise: <id> reruns=<node> revision=<n>/10` section per revise option still offered, `Recommended: <option id>` and `Run: <dir> · Dashboard: <path>`, all within the same budget |
+| `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=plain` — the profile the asking tool takes — `--checkpoint`, `--request` or `--oneline` | Every form reads the run and writes nothing (§ Gates). With no form, the brief as text: the summary of each node the gate closes, at most three decisions and three risks by their lead sentences, the `Next:` line and the `Review:` line, within 1,600 characters. `--checkpoint` prints the **checkpoint**, the one structured object every other form projects from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed, decisions, risks, recommended, options, grants, approves, run, truncated}`. `decisions` is grouped by who settled them (`run`, `audit`, `default`, and `operator` as `{count, not_recommended}`), `risks` by tag, and each option carries its `consequence` — a revise also `reruns`, `revision` and `suggestions`, a stop also `keeps` and `not_run`. `--json` returns the in-session picker projected from it: `{ok, picker, question, header, options[{id, label, description, recommended, preview}], details, more_details, errors, warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The `rich` profile's question is the one-line ask — the finished work, never the destination — its header the short chip, and every option has a `preview`; the `plain` profile's question is the glance followed by the ask, its header the title of the step the gate closes, and its options are titles that carry their consequence. Both profiles end with the More details option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.` (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`, `reruns`, `revision`, `suggestions[{label, description, note, recommended}]` — none of them recommended — and `note_question`, the note question built for the profile: `{header, question, multi_select, options}`, its `options` empty when there are fewer than two suggestions, its question then asking for the note typed. `--request` prints the whole driven gate request as JSON: `{node, kind, question, context: {summary, artifacts, checkpoint}, options, multi_select}`, each revise suggestion as `{label, note, recommended}`; with `--reask=<revise option>` its question opens with one line saying that option needs a note, every option still offered — the request a driven revise that came without its note is asked again with (§ Revising at a gate). `--oneline` is that request's one-line summary: every decision prefixed by who settled it and every risk by its tag, the `Next:` line with every skipped node, one `revise: <id> reruns=<node> revision=<n>/10` section per revise option still offered, `Recommended: <option id>` and `Run: <dir> · Dashboard: <path>`, all within the same budget |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
@@ -540,26 +540,16 @@ The node's `uses` names both the mechanism and the target:
 
 **While a delegate runs, say so — the prompt otherwise looks like it is waiting for the user.**
 A delegate runs in the background: your turn ends and the user sees an empty prompt for as long
-as it works, which in driven runs was 59 to 88 minutes of a run. So, right after launching a
-node's delegate, print one line: *"<Phase title> is running, usually N–M min. Nothing needed
-from you; I'll continue when it finishes."* When a notification brings you back and the work is
-not finished yet, print one short progress line — what is done and what is left — before you
-wait again. When the run has a dashboard, the run's first such line ends *"Progress is on the
-dashboard in your browser."*, and a later one repeats it now and then — after a gate, or on a
-long wait — never on every line and never with its path. A run without a dashboard
-(`html_output` off) says nothing about one. Questions never name the dashboard; the start
-banner and the end message keep its link. The ranges, from those runs:
-
-| Phase | Usually |
-|---|---|
-| analysis (codebase, gap, current state, bottlenecks) | 3–10 min |
-| specification, or its audit | 5–12 min |
-| planning | 10–20 min |
-| one implementation task group | 2–5 min |
-| verification, or a full re-verification | 10–15 min |
-| research gathering with its synthesis, or brainstorming | 20–45 min |
-
-Anything else: "a few minutes".
+as it works. So, right after launching a node's delegate, print one line: *"<Phase title> is
+running. Nothing needed from you; I'll continue when it finishes."* When a notification brings
+you back and the work is not finished yet, print one short progress line — what is done and what
+is left — before you wait again. Never predict how long a step will take: a run says where it is,
+not when it will be done. An elapsed time a step reports is a fact and may be said as one. When
+the run has a dashboard, the run's first such line ends *"Progress is on the dashboard in your
+browser."*, and a later one repeats it now and then — after a gate, or on a long wait — never on
+every line and never with its path. A run without a dashboard (`html_output` off) says nothing
+about one. Questions never name the dashboard; the start banner and the end message keep its
+link.
 
 **A `skill:` or `agent:` target is looked for in four tiers — the project, then the
 operator's own, then this plugin, then every installed plugin — and the first hit wins.**
@@ -874,6 +864,11 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     - `stop`: a reason to recommend stopping;
     - `resolved`: settled since it was raised.
 
+    A node's `risks` hold only what **this node** raised. A risk an earlier node recorded
+    stays on that node: never restate it here, in its words or in yours, since the gate already
+    reads it there and a restated risk shows twice. A node that settles one retags it
+    `resolved` on the node that raised it, as the merge rule below describes.
+
     Only `open` items become a revise's suggested notes, so give each one its `change`.
     Examples: `{risk: "list(null) now throws", tag: open, change: "keep list(null) returning
     every note"}`; `{risk: "Two breaking changes ship under 1.0.0", tag: tradeoff}`.
@@ -909,6 +904,10 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   whole `values` map, because a node's values are replaced whole on patch.
 - **`gate-brief-unknown-node` or `gate-brief-not-a-gate`**: the `--node` argument is wrong;
   correct it. Nothing is written.
+- **`gate-brief-reask-not-revise`**: `--reask` names an option that is not one of the gate's
+  revise options it still offers; the message lists them. Nothing is written. Correct it to the
+  revise option the answer named; when that option is gone because the gate reached its ceiling
+  of ten, ask the gate again without `--reask`, with its continue and stop options.
 - **`gate-brief-no-graph`**: the definition cannot be read, the freeze recorded no needs and no
   node carries a summary. No write fixes it: relay the message and ask the gate with its `ask:`
   alone.
@@ -938,8 +937,9 @@ node's own, and neither does a skipped node: without one, the brief is refused
   - *Next*: the phase that runs, and any work skipped on the way;
   - *Review*: up to three files, named by their paths inside the task folder, the main
     documents (`role: primary`) first;
-  - *Decided by …*: up to three decisions, each followed by "— analysis", "— audit" or "—
-    default", under a heading naming those sources ("Decided by the audit");
+  - *Decided by …*: up to three decisions, each followed by the step that settled it ("—
+    verification"), or by "— audit" or "— default", under a heading naming those sources
+    ("Decided by the audit");
   - one counted line for the user's own choices, naming at most two that differ from the
     recommendation.
 
@@ -1153,7 +1153,8 @@ A stop option ends the run, and ends it completely:
 
 A stopped run is a legitimate outcome, not a failure. Do not print `RUN-FAILED` for one, and
 never re-ask a gate the operator has already answered — a gate a revise reset is the one gate
-asked again, because the operator asked for exactly that.
+asked again, because the operator asked for exactly that, and a driven revise that came without
+its note is asked again for it (*Revising at a gate*).
 
 ### Revising at a gate
 
@@ -1172,7 +1173,9 @@ re-runs and how often this checkpoint has sent the run back, multi-select, and i
 the order given, each by its `label` and, where it has one, its `description`. No suggestion is
 recommended, marked `(Recommended)` or chosen in advance: a user who came to type a note never
 has to untick one. The operator's typed answer, through Other, is added to whatever they chose. The note is the chosen suggestions' `note`s — `note_question.options` and `suggestions` are in the same order — joined by `; `, then the
-typed text. When nothing is chosen and nothing typed, there is no note: ask the gate again from
+typed text. When `note_question.options` is empty, the stretch left fewer than two open items
+and a picker cannot list fewer than two, so there is nothing to pick: ask its `question` as text,
+verbatim, and the reply is the note — a reply of "yes" sends the one suggestion's `note`. When nothing is chosen and nothing typed, there is no note: ask the gate again from
 its brief. Then write `{"note": "<the note>"}` to the patch file and run `gate-revise
 --state=<state> --node=<gate> --option=<id> --patch-file=<the patch file>`. That one call is the
 whole record — the answer, the note, the reset and the dashboard. Take the ready set from the
@@ -1188,6 +1191,18 @@ re-validation, then write `{"note", "answered_by", "at"}` — `at` the `GATE-ANS
 patch file and run `gate-revise`. It recognises the answer the fold recorded and completes it in
 place. With no note on the answer file, the note is the first suggestion's, and the
 decision carries `answered_by` from the line as usual.
+
+**A driven revise with no note is asked again.** When the option offered no suggestion and the
+answer file carries no note, or a blank one, there is nothing to send back with, and no note is
+invented. The request was still answered, so fold it as one, minus the decision: record the
+`answer:` block in the request file, then set the gate's `status: pending` and raise its `attempt`
+by one — the same count a revise's reset raises — then write `gate_pending: null` last and run the
+empty-patch re-validation. Write no `node_summaries` entry, no `completed` and no `gate-revise`:
+nothing is recorded as a revise and nothing is reset. Then ask the same gate again by the driven
+write order, from `gate-brief --request --reask=<the option id>`: a new request for the same node
+in its next attempt, the way a gate is asked again after a revise, its question opening with one
+line saying that option needs a note, every option still offered. A gate asks once per attempt,
+which is why the attempt is raised.
 
 **A revise is never recommended.** The brief recommends the continue option, or a stop when a
 closing risk says so; a revise is the operator's choice. A driver that defaults an answer never
@@ -1205,7 +1220,8 @@ the gate is added after them, never over them.
 
 **A ceiling, not a budget.** A revise the user chooses is theirs to make as often as they want;
 the engine holds only a safety ceiling of ten per gate, against a runaway loop. A revise option says
-how often its gate has sent the run back so far ("Revised 2 times so far at this checkpoint") and
+how often its gate has been asked again so far ("Asked again 2 times so far at this checkpoint"),
+counted from the gate's attempt, so a revise asked again for its missing note is in the count, and
 names an earlier revise of the same document at another gate, never "revision 2 of 3". At the
 ceiling the brief stops offering the option and its `Next:` line says no revises are left at this
 checkpoint, leaving continue and stop; the verb refuses an eleventh. The driven form keeps its
@@ -1770,7 +1786,10 @@ already open, and a gate's question and glance stay short. A run without a dashb
   and that message is the last thing the run prints — nothing after it. Lead with six lines:
   - **Done:** the outcome in plain words — completed, stopped at a named checkpoint with the
     option taken, or failed at a named phase;
-  - **Needs you:** each `open` risk still open as the run ends, one line each, or "nothing";
+  - **Needs you:** each `open` risk still open as the run ends, one line each, or "nothing".
+    State each as an item: what is open and where to take it ("Open in the design: no
+    deprecation release before the old call is removed — take it into the development run").
+    Never ask a question here: the run has ended, and an answer given now reaches nothing;
   - **Follow-ups:** each `followup` risk the run recorded, one line each, or "none";
   - **Next:** the workflow's own next step as the real command, with its real flags
     (`/maister-copilot:development --research=<task-dir>`), when there is one;

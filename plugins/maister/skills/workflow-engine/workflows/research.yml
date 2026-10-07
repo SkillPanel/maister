@@ -99,8 +99,10 @@ display:
       continue-to-design: "Continue"
       revise-convergence: "Ask the decision areas again"
       stop-research: "Stop here"
+    # The final summary is skipped in an embedded run, which then finishes:
+    # the label names no destination and the gate brief names the one that runs.
     design-approval:
-      continue-to-completion: "Continue to the final summary"
+      continue-to-completion: "Continue"
       revise-design: "Revise the design"
       stop-research: "Stop here"
   headers:

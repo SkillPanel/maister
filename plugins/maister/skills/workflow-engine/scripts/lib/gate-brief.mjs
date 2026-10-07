@@ -25,8 +25,9 @@
  *
  * The refusals, split by who can fix them. Two are fixed by a state write, and
  * their message carries the patch: `gate-brief-no-summary` and
- * `gate-brief-value-missing`. Four name no write: `gate-brief-unknown-node` and
- * `gate-brief-not-a-gate` (the invocation is wrong), `state-unreadable`, and
+ * `gate-brief-value-missing`. Five name no write: `gate-brief-unknown-node`,
+ * `gate-brief-not-a-gate` and `gate-brief-reask-not-revise` (the invocation is
+ * wrong), `state-unreadable`, and
  * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
  * back on).
  *
@@ -80,7 +81,7 @@ import { MORE_DETAILS_ID, resolve, reviseStretch } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
-import { moreDetails, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
+import { lowered, moreDetails, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
 import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, riskOf, riskText } from './items.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
@@ -155,11 +156,10 @@ const CEILING_REACHED = ' (no revises are left at this checkpoint)';
 
 /**
  * The most suggestions a revise option carries: a picker offers at most four
- * options, and the operator's own words are the fallback beside them. The
- * fewest is two, so the question always has a choice to make.
+ * options, and the operator's own words are the fallback beside them. There is
+ * no fewest: a stretch with nothing open offers none, and the note is typed.
  */
 const SUGGESTIONS_MAX = 4;
-const SUGGESTIONS_MIN = 2;
 
 /** How long a suggested note may run: a risk and the change it needs, whole. */
 const NOTE_MAX = 400;
@@ -173,7 +173,7 @@ const SUMMARY_FLOOR = 400;
  * returns the picker — `{picker, question, header, options, details}`, shaped
  * by the `picker` profile — beside the plain text.
  */
-export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
+export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask = null }) {
   let doc;
   try {
     doc = parse(fs.readFileSync(state, 'utf8'));
@@ -279,7 +279,19 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
     doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, recommended, revisions, gateId,
   });
   if (form === 'checkpoint') return { ok: true, checkpoint, errors: [], warnings };
-  if (form === 'request') return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd()), errors: [], warnings };
+  if (form === 'request') {
+    // A re-ask names the revise the operator chose without the note it needs,
+    // so it must be one this checkpoint still offers.
+    const asked = reask === null || reask === undefined ? null
+      : checkpoint.options.find(option => option.id === reask && option.effect === 'revise') ?? null;
+    if (reask !== null && reask !== undefined && asked === null) {
+      const revises = checkpoint.options.filter(option => option.effect === 'revise').map(option => option.id);
+      return refuse('gate-brief-reask-not-revise',
+        `--reask=${reask} is not a revise option this gate offers (${revises.length ? revises.join(', ') : 'it offers none'}); `
+        + 'correct the --reask argument to the revise the operator chose — no state write fixes this', warnings);
+    }
+    return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd(), asked), errors: [], warnings };
+  }
   const shaped = picker === 'plain' ? plainPicker(checkpoint) : richPicker(checkpoint);
   // The plain profile's header titles a form property, which has no length
   // limit and shows a cut word as written: it takes the closing node's own
@@ -422,21 +434,24 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
       work,
       history: `${revisedSoFar(revision)}${earlier}`,
       description: `Re-run ${names} with your note, then ask again.${revisedSoFar(revision)}${earlier}`,
-      suggestions: suggestionsFor(sources, [...work].reverse(), lowerArticle(titleOf(titles, reruns))),
+      suggestions: suggestionsFor(sources, [...work].reverse()),
     };
   });
   return { revision, spent: revision > REVISION_CEILING, options: revise };
 }
 
 /**
- * How often this gate has sent the run back, said as a count of what happened
+ * How often this gate has been asked again, said as a count of what happened
  * rather than as one of a fixed number: a revise the user chooses is not
- * rationed, and "revision 2 of 3" read as a budget running out.
+ * rationed, and "revision 2 of 3" read as a budget running out. It counts the
+ * gate's attempts, so a revise that sent the run back and a revise asked again
+ * for the note it lacked are both in it — "revised" would claim a change the
+ * second never made.
  */
 function revisedSoFar(revision) {
   const done = revision - 1;
   if (done < 1) return '';
-  return ` Revised ${done === 1 ? 'once' : `${done} times`} so far at this checkpoint.`;
+  return ` Asked again ${done === 1 ? 'once' : `${done} times`} so far at this checkpoint.`;
 }
 
 /**
@@ -479,12 +494,15 @@ function skippedAgain(id, stretch, guards) {
 
 /**
  * What the operator might ask a revise to change, generated from what the
- * stretch it re-runs found: each open risk as a thing to resolve, then each
- * decision as a thing to revisit, nearest the gate first — the order the
- * brief lists them in, most important first. Duplicates go; at most
- * `SUGGESTIONS_MAX` stay. When the stretch recorded fewer than
- * `SUGGESTIONS_MIN`, two plain edits of the rerun node make up the rest, so the
- * question always offers a real choice and never an empty one.
+ * stretch it re-runs left open: each open risk as a thing to resolve, nearest
+ * the gate first — the order the brief lists them in, most important first.
+ * Duplicates go: a risk two nodes recorded, compared as `distinct` compares
+ * it, is offered once, as the brief lists it once; and so is a second risk
+ * asking for a change already offered, which would tell the re-run nothing
+ * new. At most `SUGGESTIONS_MAX` stay. Nothing else is offered: a
+ * decision names no alternative to change it to, and a generic edit ("make it
+ * more specific") names no change at all, so either one is a choice that tells
+ * the re-run nothing. Fewer than two, or none, is a typed note instead.
  *
  * Each is `{label, description, note, recommended}`: the label the lead
  * sentence of what it answers, uncut but for a headline's own cap — a label cut
@@ -497,7 +515,7 @@ function skippedAgain(id, stretch, guards) {
  * user's own words are as good an answer — and the key stays, false, for the
  * readers that take it.
  */
-function suggestionsFor(sources, stretch, target) {
+function suggestionsFor(sources, stretch) {
   const found = [];
   const add = (label, description, note) => {
     if (!note || found.some(each => each.note === note)) return;
@@ -506,6 +524,8 @@ function suggestionsFor(sources, stretch, target) {
   // A sentence's own stop goes before the dash; a cut's ellipsis stays, so the
   // reader still sees the risk was shortened.
   const bare = text => text.replace(/\.$/, '');
+  const key = text => text.replace(/\s+/g, ' ').replace(/\.$/, '').trim().toLowerCase();
+  const seen = new Set();
   const entries = stretch.map(id => summaryOf(sources, id)).filter(Boolean);
   for (const entry of entries) {
     for (const item of entry.risks) {
@@ -513,30 +533,16 @@ function suggestionsFor(sources, stretch, target) {
       // a follow-up is for later, and neither is what a revise is for.
       const risk = riskOf(item);
       if (!risk || risk.tag !== 'open') continue;
+      const keys = [`risk:${key(risk.risk)}`, ...(risk.change ? [`change:${key(risk.change)}`] : [])];
+      if (keys.some(each => seen.has(each))) continue;
+      for (const each of keys) seen.add(each);
       const short = headline(risk.risk);
       // A risk written with the change it needs carries its own fix; without
       // one, the note says what the rerun does with it rather than a bare
       // "Resolve:" the user cannot act on.
       if (risk.change) add(short, risk.change, `${bare(short)} — ${risk.change}`);
-      else add(short, `Re-run ${target} to address it`, `Re-run ${target} to address: ${risk.risk}`);
+      else add(short, 'Address it in the re-run', `Address this in the re-run: ${risk.risk}`);
     }
-  }
-  // A decision to revisit only fills up a list the open items left short.
-  if (found.length < SUGGESTIONS_MIN) {
-    for (const entry of entries) {
-      for (const item of entry.decisions) {
-        const decision = decisionOf(item);
-        if (!decision || decision.by === 'operator') continue;
-        const text = decisionText(decision);
-        const short = headline(decision.decision);
-        const rationale = typeof decision.rationale === 'string' && decision.rationale.trim() !== '' ? decision.rationale.trim() : '';
-        add(`Revisit: ${short}`, rationale || 'Reconsider this decision in the re-run', `Revisit the decision: ${text}`);
-      }
-    }
-  }
-  if (found.length < SUGGESTIONS_MIN) {
-    add(`Make ${target} more specific`, 'Where it is vague', `Make ${target} more specific where it is vague`);
-    add(`Cut ${target} to what is needed`, 'Down to what the next step needs', `Cut ${target} down to what the next step needs`);
   }
   return found.slice(0, SUGGESTIONS_MAX);
 }
@@ -716,7 +722,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       let consequence = 'Continues the run.';
       if (next?.waiting) consequence = `Waits on ${andList(next.waiting.map(each => each.title))}.`;
       else if (next?.end) consequence = 'Finishes the run.';
-      else if (next?.title) consequence = `Runs ${lowerArticle(next.title)} next.`;
+      else if (next?.title) consequence = `Runs ${lowered(next.title)} next.`;
       return [{ ...base, consequence }];
     }
     if (effect === 'revise') {
@@ -745,7 +751,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   let reason = null;
   if (stopping) reason = risks.stop[0].risk;
   else if (risks.open.length) reason = `${risks.open.length} open ${risks.open.length === 1 ? 'item' : 'items'}; revise to settle ${risks.open.length === 1 ? 'it' : 'them'} first`;
-  else if (next?.title) reason = `nothing open blocks ${lowerArticle(next.title)}`;
+  else if (next?.title) reason = `nothing open blocks ${lowered(next.title)}`;
   else reason = 'nothing open is left';
 
   const gates = order.filter(gateId);
@@ -780,7 +786,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
 function continueLabel(label, next) {
   if (label !== BARE_CONTINUE || !next || next.waiting) return label;
   if (next.end) return 'Finish the run';
-  return next.title ? `Continue to ${lowerArticle(next.title)}` : label;
+  return next.title ? `Continue to ${lowered(next.title)}` : label;
 }
 
 /** The continue label the engine completes with the destination. */
@@ -794,12 +800,6 @@ function compact(value) {
 /** A summary's first sentence, for a skipped node's reason; null without one. */
 function headline_(text) {
   return typeof text === 'string' && text.trim() !== '' ? headline(scalarText(text)) : null;
-}
-
-/** A title after "the", its first letter lower-cased unless it opens an acronym. */
-function lowerArticle(title) {
-  const lowered = title.length > 1 && /[A-Z]/.test(title[1]) ? title : title.charAt(0).toLowerCase() + title.slice(1);
-  return `the ${lowered}`;
 }
 
 /**

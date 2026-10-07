@@ -48,8 +48,12 @@ const DECISION_MAX = 110;
 /** How many of the user's choices that differ from the recommendation are named. */
 const DIFFERS_CAP = 2;
 
-/** The word after a decision, naming who settled it. */
-const SOURCE_WORD = { run: 'analysis', audit: 'audit', default: 'default' };
+/**
+ * The word after a decision an audit or a default settled. A decision the run
+ * settled is followed by the step that settled it instead: "analysis" for
+ * every one credited the analysis with the fixes verification applied.
+ */
+const SOURCE_WORD = { audit: 'audit', default: 'default' };
 
 /** Who settled a group of decisions, as a heading names them. */
 const SOURCE_HEADING = { run: 'the run', audit: 'the audit' };
@@ -65,6 +69,9 @@ export const DETAILS_TYPED = 'Type "details" for the full brief.';
 
 /** How many options each profile's tool lists. */
 const PICKER_SLOTS = { rich: 4, plain: Infinity };
+
+/** The fewest options a picker lists; a revise with fewer suggestions asks for its note typed. */
+const PICKER_MIN = 2;
 
 /** The order options are listed in, after the recommended one: on, back, out. */
 const EFFECT_ORDER = { continue: 0, revise: 1, stop: 2 };
@@ -93,7 +100,15 @@ function clip(text, max) {
   return `${(word > max / 2 ? cut.slice(0, word) : cut).trimEnd()}…`;
 }
 
-/** A title as it reads after "the": its first letter lower-cased unless it opens an acronym. */
+/**
+ * A step's title as a sentence names it: its first letter lower-cased unless
+ * it opens an acronym, and no article in front. An article fits only some
+ * titles — "the specification", but never "the choosing the checks" or "the
+ * publish" — and the words alone cannot tell which ("Failing test" against
+ * "Running tests"), so every generated sentence names a step the way a
+ * definition's own labels do: "Runs verification next", "Continue to
+ * choosing the checks".
+ */
 export function lowered(title) {
   if (title.length > 1 && title[1] === title[1].toUpperCase() && /[A-Z]/.test(title[1])) return title;
   return title.charAt(0).toLowerCase() + title.slice(1);
@@ -123,10 +138,18 @@ function reviewText(review, companion) {
   }).join(', ');
 }
 
-/** The decisions the run, the audits and the defaults settled, in that order. */
+/**
+ * The decisions the run, the audits and the defaults settled, in that order,
+ * each with its `source`: the step that settled it for the run's own, read off
+ * the closed steps it came from, else the word for who did.
+ */
 function decided(checkpoint) {
   const groups = checkpoint.decisions ?? {};
-  return ['run', 'audit', 'default'].flatMap(by => (groups[by] ?? []).map(item => ({ ...item, by })));
+  const titles = new Map((checkpoint.closed ?? []).map(each => [each.node, each.title]));
+  const source = (by, item) => (by === 'run'
+    ? (titles.has(item.node) ? lowered(titles.get(item.node)) : null)
+    : SOURCE_WORD[by] ?? by);
+  return ['run', 'audit', 'default'].flatMap(by => (groups[by] ?? []).map(item => ({ ...item, by, source: source(by, item) })));
 }
 
 /**
@@ -142,9 +165,9 @@ function decidedHeading(items) {
   return `Decided by ${andList(sources.map(by => SOURCE_HEADING[by]))}${defaults ? ', or by default' : ''}`;
 }
 
-/** One decision line: its text, cut, and the word for who settled it. */
+/** One decision line: its text, cut, and where it was settled. */
 function decisionLine(item, max = DECISION_MAX) {
-  const suffix = ` — ${SOURCE_WORD[item.by] ?? item.by}`;
+  const suffix = item.source ? ` — ${item.source}` : '';
   return `- ${clip(item.decision, Math.max(20, max))}${suffix}`;
 }
 
@@ -238,20 +261,20 @@ function stopLines(checkpoint, option) {
   const notRun = option.not_run;
   if (notRun?.next) {
     const later = notRun.remaining > 1 ? ` and ${notRun.remaining - 1} later ${notRun.remaining - 1 === 1 ? 'phase' : 'phases'}` : '';
-    out.push(`Not run: the ${lowered(notRun.next)}${later}.`);
+    out.push(`Not run: ${lowered(notRun.next)}${later}.`);
   }
   out.push('Start a new run from these files to pick up later.');
   return out.slice(0, STOP_LINES);
 }
 
-/** How often a gate has sent the run back, said as a count of what happened. */
+/** How often a gate has been asked again, said as a count of what happened. */
 function revisedSoFar(revision) {
   const done = (revision?.n ?? 1) - 1;
   if (done < 1) return '';
-  return ` Revised ${done === 1 ? 'once' : `${done} times`} so far here.`;
+  return ` Asked again ${done === 1 ? 'once' : `${done} times`} so far here.`;
 }
 
-/** What a revise re-runs, and how often this checkpoint has sent the run back. */
+/** What a revise re-runs, and how often this checkpoint has been asked again. */
 function rerunsLine(option) {
   const names = andList((option.reruns ?? []).map(each => each.title));
   return `Re-runs: ${names || 'the earlier phases'}, then asks this checkpoint again.${revisedSoFar(option.revision)}`;
@@ -267,6 +290,8 @@ function reviseLines(option) {
   if (suggestions.length) {
     out.push('Suggested notes:');
     out.push(...suggestions.slice(0, REVISE_LINES - 2).map(each => `- ${each.note}`));
+  } else {
+    out.push('No suggested notes: you type what should change.');
   }
   return out;
 }
@@ -279,13 +304,24 @@ function reviseLines(option) {
  * a note should not have to untick one first. Where options carry a
  * description, the label is the short form and the description the rest;
  * where they carry only a title, the title is the note whole.
+ *
+ * A picker lists two options at the least, so with fewer suggestions the
+ * question has none and asks for the note typed, naming the one suggestion
+ * there is so it can be sent with a word.
  */
 function noteQuestion(option, profile) {
+  const suggestions = option.suggestions ?? [];
+  if (suggestions.length < PICKER_MIN) {
+    const ask = suggestions.length
+      ? `The run suggests: ${suggestions[0].note.replace(/\.$/, '')}. Type "yes" to send it, or type your own change.`
+      : 'Type the change.';
+    return { header: 'Revise', question: `What should change? ${rerunsLine(option)} ${ask}`, multi_select: false, options: [] };
+  }
   return {
     header: 'Revise',
     question: `What should change? ${rerunsLine(option)}`,
     multi_select: true,
-    options: (option.suggestions ?? []).map(each => (profile === 'rich'
+    options: suggestions.map(each => (profile === 'rich'
       ? { label: each.label, description: each.description }
       : { label: each.note })),
   };
@@ -308,7 +344,7 @@ export function moreDetails(checkpoint) {
   for (const closed of checkpoint.closed ?? []) blocks.push(`**${closed.title}**\n${closed.summary}`);
   const items = decided(checkpoint);
   if (items.length) {
-    blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.rationale ? ` — ${item.rationale}` : ''} — ${SOURCE_WORD[item.by] ?? item.by}`)].join('\n'));
+    blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
   }
   const choices = choicesLine(checkpoint);
   if (choices) {
@@ -442,12 +478,16 @@ function withDetails(profile, question, options, more) {
  * `context.checkpoint` the object itself, kept with the request so the gate's
  * history shows what was asked. The writer adds the version, the time asked and
  * the empty answer — a caller that sent them would be refused.
+ *
+ * `reask` is the revise option an earlier request was answered with but no
+ * note: the same gate is asked again, every option still offered, and the
+ * question opens by saying that revise needs one.
  */
-export function requestOf(checkpoint, summary) {
+export function requestOf(checkpoint, summary, reask = null) {
   return {
     node: checkpoint.node,
     kind: checkpoint.kind,
-    question: checkpoint.ask,
+    question: reask === null ? checkpoint.ask : `${reaskLine(reask)}\n\n${checkpoint.ask}`,
     context: {
       summary,
       artifacts: (checkpoint.review ?? []).map(each => each.path),
@@ -471,4 +511,9 @@ export function requestOf(checkpoint, summary) {
     })),
     multi_select: false,
   };
+}
+
+/** The line a re-asked request opens with: the revise needs a note. */
+function reaskLine(option) {
+  return `"${option.label}" needs a note saying what should change. Choose it again with one, or choose another option.`;
 }

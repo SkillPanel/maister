@@ -79,7 +79,9 @@ gate closes, the findings in `summary`, decisions as `{decision, by}` items and
 risks as `{risk, tag, change}` objects. Each node's *Gate brief content*
 paragraph says what goes where. A finding is never a risk: an `open` risk is an
 uncertainty the user can still change, and its `change` is what a revise
-offers.
+offers. Each node records only the risks it raised: one the foundation or the
+brainstorm already recorded stays on that node and is never restated by a later
+one.
 
 ---
 
@@ -452,7 +454,8 @@ many decision areas and what it recommends overall. The recommendations go in
 `summary` and in the exploration file, **never in `decisions`**: a
 recommendation is not a decision, and the user makes the decisions area by area
 in `solution-convergence`. A `by: run` item here would credit the analysis with
-what the user is about to choose.
+what the user is about to choose. In `risks`, only what the brainstorm itself
+raises; a gap the research foundation recorded stays there.
 
 **Recovery budget**: two attempts, the second with adjusted context.
 
@@ -571,7 +574,8 @@ brainstormer's per-area recommendations stay on their own nodes, and nothing
 earlier is restated here. In `risks`,
 the trade-offs the chosen combination accepts on purpose, `tag: tradeoff`; an
 area left open, `tag: open` with the `change` that would settle it; a deferred
-idea worth its own task, `tag: followup`.
+idea worth its own task, `tag: followup` — never a risk the foundation or the
+brainstorm already recorded, which the gate reads from there.
 
 **When re-run after a revise.** `convergence-approval` sent the run back, and
 `prior-context` carries the operator's note under *Revision requested*. The
@@ -684,7 +688,8 @@ answer or another earlier answer restated; the constraints answer is the
 operator decision described above. In `risks`, a decision the designer could not settle without
 an answer, `tag: open` with the `change` that answer would make; a consequence
 the design accepts on purpose, `tag: tradeoff`; work it names for later,
-`tag: followup`.
+`tag: followup` — only what the design raises, never an earlier node's risk
+restated.
 
 **Recovery budget**: two attempts, the second with adjusted context.
 
@@ -736,7 +741,8 @@ There is no gate after this node. The workflow ends here.
 **Close for whoever reads the end** (the engine skill's run-end rule). In a terminal run a
 person reads it: write the closing patch and call `run-complete` first, then end with one
 wrap-up message that fits one screen and is the last thing the run prints. Its lead lines
-are the engine's — Done (the answer and its confidence, in a sentence), Needs you, Next (the
+are the engine's — Done (the answer and its confidence, in a sentence), Needs you (each open
+item stated as an item to take into the next run, never asked as a question), Next (the
 command from step 3), Files (the outputs from the inventory), Dashboard — then each artifact the
 verb reported missing, named in plain words. Nothing about how the run was carried out appears
 unless it changed the result. The verb's own lines are never shown. Under a `cockpit` or `dispatch` driver tooling reads it: the executive summary goes

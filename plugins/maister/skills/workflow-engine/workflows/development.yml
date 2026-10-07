@@ -116,19 +116,22 @@ display:
     docs-approval:           "Approve documentation"
     finalization:            "Finalization"
   option_labels:
+    # A continue label reading "Continue" alone is completed from the walk:
+    # where these continue to depends on the guards after them, so their
+    # labels name no destination and the gate brief names the one that runs.
     gap-approval:
-      continue-past-analysis: "Continue to the specification"
+      continue-past-analysis: "Continue"
       revise-gap-analysis: "Revise the gap analysis"
       stop-development: "Stop here"
     tdd-red-approval:
-      continue-past-tdd-red: "Continue to the specification"
+      continue-past-tdd-red: "Continue"
       stop-development: "Stop here"
     mockup-approval:
       continue-to-specification: "Continue to the specification"
       revise-mockups: "Revise the mockups"
       stop-development: "Stop here"
     specification-approval:
-      continue-past-specification: "Continue to the specification audit"
+      continue-past-specification: "Continue"
       revise-specification: "Revise the specification"
       stop-development: "Stop here"
     spec-audit-approval:
@@ -140,13 +143,13 @@ display:
       revise-plan: "Revise the plan"
       stop-development: "Stop here"
     implementation-approval:
-      continue-past-implementation: "Continue to choosing the checks"
+      continue-past-implementation: "Continue"
       stop-development: "Stop here"
     verification-approval:
       continue-past-verification: "Accept the checks and continue"
       stop-development: "Stop here"
     e2e-approval:
-      continue-past-e2e: "Continue to the user guide"
+      continue-past-e2e: "Continue"
       stop-development: "Stop here"
     docs-approval:
       continue-to-finalization: "Continue to the final summary"

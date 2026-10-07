@@ -82,8 +82,9 @@ passage fetched with `prior-context` — and the `${…}` substitution that fill
 > blocks **item for item** — the same count, the same words, the artifact's
 > order — into `phase_summaries`, into `node_summaries` and into the dashboard,
 > each item in the shape engine § Gates gives it: a decision with who settled
-> it, a risk with its tag. The one item left out is a decision that restates an
-> earlier answer: it is already recorded where it was made. Rewriting them in your own words loses the sentence the operator is about to
+> it, a risk with its tag. The items left out are a decision that restates an
+> earlier answer and a risk an earlier node already recorded: each is already
+> recorded where it was made. Rewriting them in your own words loses the sentence the operator is about to
 > approve at a gate; writing an empty `[]` because the node has already read
 > the artifact loses it outright, and `decisions: []` beside a specification
 > carrying eight of them is the failure this block exists to stop.

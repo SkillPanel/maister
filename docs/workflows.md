@@ -519,7 +519,7 @@ engine writes it: every state change it commits republishes the file from the st
 it has just written, so what the dashboard draws is never older than the state behind it, and no
 turn between phases has to remember to rewrite it. A run with `html_output: false` in
 `.maister/config.yml` gets no data file — if one is already on disk it is removed rather than left
-there to be polled. The implementation and verification phases run for hours under a skill
+there to be polled. The implementation and verification phases run under a skill
 rather than under the engine, and they keep the dashboard live the same way everything else does:
 by writing state. After each implementation wave
 the plan's progress is republished, and after each verification cycle its verdict is, so the engine
