@@ -174,6 +174,16 @@ test('usage: a question set renders as the checkpoint or the request only', t =>
   assert.equal(brief(run, '{not json', '--request').code, 2);
 });
 
+test('usage: a question set asked again takes --patch-file alone, never --reask', t => {
+  const run = running(t);
+  const file = path.join(run.dir, '.state-patch.json');
+  fs.writeFileSync(file, JSON.stringify(questionSet()));
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=analysis', '--request', `--patch-file=${file}`, '--reask=revise-analysis']);
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /--reask or --patch-file, not both/);
+  assert.equal(result.stdout, '');
+});
+
 test('a task node without a question set is still not a gate, and the message names the set', t => {
   const run = running(t);
   const result = verb(['gate-brief', `--state=${run.state}`, '--node=analysis', '--request']);
@@ -323,6 +333,28 @@ test('re-asked: a closing write that re-sends the current answers replaces only 
   const decisions = plain(readState(run).node_summaries.analysis.decisions);
   assert.deepEqual(decisions.map(item => [item.question_id, Number(item.attempt)]),
     [...QUESTIONS.map(id => [id, 1]), ...QUESTIONS.map(id => [id, 2])]);
+});
+
+test('re-asked: a question reworded in the new attempt keeps the earlier answer as history, matched by its id', t => {
+  const { run, answer } = reasked(t);
+  const requestFile = path.join(run.dir, 'gates/analysis.request.yml');
+  fs.writeFileSync(requestFile, fs.readFileSync(requestFile, 'utf8')
+    .replaceAll('Should tag matching ignore letter case?', 'Should a tag match regardless of letter case?'));
+  write(run, { node_summaries: { analysis: { answer } } });
+  const held = plain(readState(run).node_summaries.analysis.decisions);
+  const caseAnswers = held.filter(item => item.question_id === 'tag-case');
+  assert.deepEqual(caseAnswers.map(item => [item.question, Number(item.attempt)]),
+    [['Should tag matching ignore letter case?', 1], ['Should a tag match regardless of letter case?', 2]]);
+
+  const resent = held.slice(3).map(({ attempt: _attempt, ...item }) => item);
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped.', decisions: resent } } });
+  const decisions = plain(readState(run).node_summaries.analysis.decisions);
+  assert.deepEqual(decisions, held, 'the current answers re-sent replace themselves; the earlier attempt stays history');
+  assert.deepEqual(readDashboard(run).phases.find(each => each.id === 'analysis').decisions.map(item => item.earlier === true),
+    [true, true, true, false, false, false]);
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).decisions.operator.count, 3, 'the reworded question is counted once, as answered now');
 });
 
 test('re-asked: the dashboard marks the earlier attempt\'s answers as history', t => {

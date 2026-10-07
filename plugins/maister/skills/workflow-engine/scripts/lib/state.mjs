@@ -2530,26 +2530,26 @@ export function operatorName(runDir = null) {
  * replaces it: the same `question_id` and the same question text, or the text
  * alone when there is no id. The id alone is not enough — one id written on
  * every question of a page made a single re-asked question drop the others.
- * An answer an earlier attempt gave to a question asked again
- * (`isEarlierAnswer`) is matched with its attempt as well, so no current
- * answer replaces it — only the same answer, carried along, stands in for it —
- * and a current answer sent again replaces itself.
+ * An answer with an id is matched with the attempt it was given in as well —
+ * its own `attempt`, or the first when it carries none — so an answer a node
+ * asked again in a later attempt never replaces the earlier one, which stays
+ * as history, while the same answer carried along, or a current one sent
+ * again, replaces itself.
  */
 function earlierAnswers(prior, decisions) {
   if (!Array.isArray(prior)) return [];
-  const keyOf = (item, list) => {
+  const keyOf = item => {
     if (!isPlainObject(item)) return null;
     const read = decisionOf(item);
     const question = typeof read?.question === 'string' ? oneLine(read.question) : '';
     if (typeof item.question_id === 'string' && item.question_id !== '') {
-      const key = `id:${item.question_id}\u0000${question}`;
-      return isEarlierAnswer(item, list) ? `${key}@${attemptNumber(item)}` : key;
+      return `id:${item.question_id}\u0000${question}\u0000${attemptNumber(item) ?? 1}`;
     }
     if (!read) return null;
     return question === '' ? `answer:${read.decision}` : `text:${question}`;
   };
-  const sent = new Set(decisions.map(item => keyOf(item, decisions)).filter(Boolean));
-  return prior.filter(item => isPlainObject(item) && decisionOf(item)?.by === 'operator' && !sent.has(keyOf(item, prior)));
+  const sent = new Set(decisions.map(keyOf).filter(Boolean));
+  return prior.filter(item => isPlainObject(item) && decisionOf(item)?.by === 'operator' && !sent.has(keyOf(item)));
 }
 
 /**
