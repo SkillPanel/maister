@@ -14,7 +14,10 @@ author to date.
 3. `make validate` — lint the generated variant and the plugin source.
 4. `make test` — run the engine verb suite (`tests/`). Needs Node 20 or newer and nothing
    installed.
-5. Commit the source change and the regenerated `plugins/maister-copilot/` output together.
+5. `make test-mod` — when you change `hooks/display.mjs` or its contract in `types/`: the
+   Claude Code CLI validates the plugin and runs the hooks module's tests (`tests/mod/`).
+   Skipped where the `claude` CLI is not installed.
+6. Commit the source change and the regenerated `plugins/maister-copilot/` output together.
 
 `make validate` checks that every command `hooks.json` names resolves on disk and that the
 committed generated variant matches a fresh `make build` byte for byte, plus the flat-command,

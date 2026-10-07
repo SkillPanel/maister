@@ -255,13 +255,16 @@ test('gate-brief: --json and --oneline together are refused', t => {
   }
 });
 
-test('gate-brief: writes nothing', t => {
+test('gate-brief: writes no state, only the panel beside it', t => {
   const run = atApproval(t);
   const before = fs.readFileSync(run.state, 'utf8');
   const listing = fs.readdirSync(run.dir).sort();
+  const panel = path.join(run.dir, 'display/next.json');
+  assert.equal(fs.existsSync(panel), false);
   brief(run, 'approval');
   assert.equal(fs.readFileSync(run.state, 'utf8'), before);
   assert.deepEqual(fs.readdirSync(run.dir).sort(), listing);
+  assert.equal(JSON.parse(fs.readFileSync(panel, 'utf8')).node, 'approval');
 });
 
 test('gate-brief: a false guard skips its stretch, and the Next line names the node that actually runs', t => {

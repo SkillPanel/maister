@@ -69,6 +69,9 @@ export function run(script, args, stdin, env = {}, cwd = undefined) {
     USER: OPERATOR,
   };
   delete childEnv.CLAUDE_PROJECT_DIR;
+  // A suite run from inside a session would otherwise write that session's run
+  // pointer into every scratch project; a test that wants one names its own.
+  delete childEnv.CLAUDE_CODE_SESSION_ID;
   Object.assign(childEnv, env);
   const result = spawnSync(process.execPath, [script, ...args], { input, encoding: 'utf8', env: childEnv, cwd });
   return { code: result.status, stdout: result.stdout, stderr: result.stderr };

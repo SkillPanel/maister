@@ -21,6 +21,8 @@ Accepted. No grammar change and no built-in hash change.
 - The `--json` picker output drops the `brief`, `summaries`, `decisions` and `risks` fields it
   carried for a composed message, and gains `more_details`.
 
+Amended by ADR-0031: operator decision 3 no longer keeps the checkpoint out of every display file. `gate-brief` writes one, `display/next.json` beside the run, the panel an editor extension draws above the question; every state write removes it, so it cannot go stale between two asks. The checkpoint still travels in the gate request.
+
 ### Context
 At a gate, the user needs to know four things:
 - what finished;

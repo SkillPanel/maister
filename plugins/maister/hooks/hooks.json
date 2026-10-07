@@ -1,5 +1,6 @@
 {
-  "description": "Maister plugin hooks for workflow enforcement and state preservation",
+  "description": "Maister plugin hooks for workflow enforcement and state preservation, and a hooks module that draws a run in the terminal",
+  "modules": ["./display.mjs"],
   "hooks": {
     "SessionStart": [
       {

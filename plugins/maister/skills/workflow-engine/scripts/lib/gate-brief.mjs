@@ -69,19 +69,24 @@
  * refusal and this module's is a degradation, and one shared helper would have to
  * carry both meanings.
  *
- * Pure: no stdio, no writes. Returns `{ok, text, errors, warnings}` and leaves
+ * Every form also returns `panel`, the glance an editor extension draws above
+ * the question (`panelOf`, with links `panelFor` adds), which `workflow.mjs` writes to the run's
+ * `display/next.json` — the one file a brief writes, and never the state.
+ *
+ * Pure: no stdio, no writes. Returns `{ok, text, panel, errors, warnings}` and leaves
  * printing to `workflow.mjs`. Zero dependencies, `node:` builtins only, Node >= 20.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, resolve, reviseStretch } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
-import { lowered, moreDetails, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
+import { lowered, moreDetails, panelOf, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
 import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, riskOf, riskText } from './items.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
@@ -263,22 +268,34 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     const tail = [next, ...offered, `Recommended: ${recommended}`, runLine(doc, runDir)];
     return fit(closing, DRIVEN, tail, pointerOf(doc, runDir));
   };
-  if (form === 'oneline') return { ok: true, text: onelineText(), errors: [], warnings };
 
   const gateId = id => isGate(recorded, byId, id);
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
+  let built = null;
+  const checkpointOf = () => (built ??= buildCheckpoint({
+    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, recommended, revisions, gateId,
+  }));
+  // Every form carries the panel an editor extension draws above the question,
+  // whichever form was asked for: a gate may be asked from any of them. The
+  // panel is display only, so one that cannot be built costs the brief nothing.
+  let panel = null;
+  try {
+    panel = panelFor(node, checkpointOf(), runDir);
+  } catch {
+    panel = null;
+  }
+  if (form === 'oneline') return { ok: true, text: onelineText(), panel, errors: [], warnings };
+
   if (form === 'plain') {
     const next = walked ? readableNext(walked, titles, gateId) : NEXT_UNKNOWN;
     const spent = revisions.spent && revisions.options.length ? CEILING_REACHED : '';
     const review = reviewLine(doc, runDir, ids, byId);
     const text = fit(closing, READABLE, [`${next}${spent}`, ...(review ? [review] : [])], placeOf(doc, runDir));
-    return { ok: true, text, errors: [], warnings };
+    return { ok: true, text, panel, errors: [], warnings };
   }
 
-  const checkpoint = buildCheckpoint({
-    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, recommended, revisions, gateId,
-  });
-  if (form === 'checkpoint') return { ok: true, checkpoint, errors: [], warnings };
+  const checkpoint = checkpointOf();
+  if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings };
   if (form === 'request') {
     // A re-ask names the revise the operator chose without the note it needs,
     // so it must be one this checkpoint still offers.
@@ -290,7 +307,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
         `--reask=${reask} is not a revise option this gate offers (${revises.length ? revises.join(', ') : 'it offers none'}); `
         + 'correct the --reask argument to the revise the operator chose — no state write fixes this', warnings);
     }
-    return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd(), asked), errors: [], warnings };
+    return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd(), asked), panel, errors: [], warnings };
   }
   const shaped = picker === 'plain' ? plainPicker(checkpoint) : richPicker(checkpoint);
   // The plain profile's header titles a form property, which has no length
@@ -301,6 +318,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     ok: true,
     picker: { picker, ...shaped, header },
     more_details: moreDetails(checkpoint),
+    panel,
     errors: [],
     warnings,
   };
@@ -775,6 +793,20 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
     truncated,
   };
+}
+
+/**
+ * The panel `display/next.json` holds: the gate, its header and `panelOf`'s
+ * glance and parts, with the run directory and each review file's `file://`
+ * URL, so a reader links a file without resolving a path of its own.
+ */
+function panelFor(node, checkpoint, runDir) {
+  const panel = panelOf(checkpoint);
+  const parts = panel.parts.map(part => (part.key !== 'review' ? part : {
+    ...part,
+    files: part.files.map(file => ({ ...file, href: pathToFileURL(path.join(runDir, file.path)).href })),
+  }));
+  return { node, header: checkpoint.header, ...panel, parts, run_dir: runDir };
 }
 
 /**

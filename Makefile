@@ -1,4 +1,4 @@
-.PHONY: build diagram validate test smoke clean watch
+.PHONY: build diagram validate test test-mod smoke clean watch
 
 build:
 	bash platforms/copilot-cli/build.sh
@@ -84,6 +84,8 @@ validate:
 	@test "$$(grep -rl 'MAISTER_PLUGIN_ROOT' plugins/maister-copilot/skills/ --include="*.md" 2>/dev/null | wc -l | tr -d ' ')" = "$$(grep -rl 'CLAUDE_PLUGIN_ROOT' plugins/maister/skills/ --include="*.md" 2>/dev/null | wc -l | tr -d ' ')" || (echo "FAIL: the emitted skills' plugin-root variable count drifted from the source tree" && exit 1)
 	@echo "Checking every hooks.json command path exists on disk..."
 	@for rel in $$(grep -o 'hooks/[A-Za-z0-9_.-]*\.\(sh\|mjs\)' plugins/maister/hooks/hooks.json | sort -u); do test -f "plugins/maister/$$rel" || { echo "FAIL: hooks.json names plugins/maister/$$rel, which does not exist"; exit 1; }; done
+	@for rel in $$(grep -o '"\./[A-Za-z0-9_.-]*\.mjs"' plugins/maister/hooks/hooks.json | tr -d '"' | sort -u); do test -f "plugins/maister/hooks/$$rel" || { echo "FAIL: hooks.json lists the module plugins/maister/hooks/$$rel, which does not exist"; exit 1; }; done
+	@types=$$(sed -n 's/.*"types": *"\.\/\([^"]*\)".*/\1/p' plugins/maister/.claude-plugin/plugin.json); test -z "$$types" || test -f "plugins/maister/$$types" || { echo "FAIL: plugin.json names the contract plugins/maister/$$types, which does not exist"; exit 1; }
 	@echo "Checking shipped files cite only shipped files, never this repository's docs/..."
 	@# The list is read from docs/ itself, so a document added there is covered
 	@# without an edit. A consumer project's own docs/ and .maister/docs/ are
@@ -122,6 +124,20 @@ test:
 # Git Bash on Windows.
 smoke:
 	node tests/shell-smoke.mjs --shell=bash
+
+# The hooks module's checks, by the Claude Code CLI: `claude plugin validate`
+# over the plugin, then the module's tests under tests/mod/, which `claude
+# plugin test` runs against a scratch copy of the plugin's manifest, hooks and
+# state contract, since tests never ship under plugins/. Skipped where the CLI
+# is not installed, which is why `make test` does not depend on it.
+test-mod:
+	@command -v claude >/dev/null 2>&1 || { echo "skipped: the claude CLI is not on PATH"; exit 0; }; \
+	claude plugin validate plugins/maister || exit 1; \
+	tmp=$$(mktemp -d); \
+	cp -R plugins/maister/.claude-plugin plugins/maister/hooks plugins/maister/types "$$tmp"/ \
+	  && mkdir "$$tmp/tests" && cp tests/mod/*.test.ts "$$tmp/tests/" \
+	  && claude plugin test "$$tmp"; status=$$?; \
+	rm -r "$$tmp"; exit $$status
 
 clean:
 	rm -rf plugins/maister-copilot/

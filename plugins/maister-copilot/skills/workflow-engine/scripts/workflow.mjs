@@ -38,8 +38,9 @@
  *                  --request the whole driven gate request, its question
  *                  opened by a line asking for the note when --reask names
  *                  the revise answered without one; --oneline the
- *                  one-line fallback a request's summary carries — read-only
- *                  over a run
+ *                  one-line fallback a request's summary carries — reads
+ *                  the run, and writes only its display/next.json, the panel
+ *                  an editor extension draws above the question
  *   resume-check   --state                                    JSON on stdout
  *                  (the frozen workflow's name, overlays and profile, or the
  *                  refusal for a directory the engine does not resume, a 2.x
@@ -119,7 +120,8 @@ const VERBS = {
   // frames the same items for a delegate writing for end users, who is to stay
   // consistent with them rather than carry them into its document.
   'prior-context': { module: 'prior-context.mjs', flags: ['state', 'background'] },
-  // The other read-only verb. `--node` because a run has many gates and the
+  // The other verb that never writes state — only the panel beside it, a
+  // display file. `--node` because a run has many gates and the
   // state records no "current" one while a question is being composed; the
   // gate is checked against the frozen graph, so a wrong id is refused rather
   // than rendered. One form flag at most: `--checkpoint` is the structured
@@ -717,6 +719,7 @@ async function runGateBrief(flags) {
   // it: a drifted run that also lacks a summary must still say it drifted.
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
+  if (result.ok && result.panel) await publishPanel(flags.state, result.panel);
   const warnings = (result.warnings || []).map(warning => warning.message ?? warning);
   if (form === 'json') {
     // The picker as data, so nothing is parsed out of prose: a refusal is the
@@ -737,6 +740,26 @@ async function runGateBrief(flags) {
 
 /** The forms `gate-brief` renders besides its plain text, one at a time. */
 const GATE_BRIEF_FORMS = ['oneline', 'json', 'checkpoint', 'request'];
+
+/**
+ * Write the brief's panel to the run's `display/next.json`, for an editor
+ * extension to draw above the question. Display only: whatever goes wrong is
+ * one stderr line and the brief stands as printed. It stays out of the
+ * `--json` warnings, which carry what the asking model must relay — a panel
+ * is nothing it relays.
+ */
+async function publishPanel(state, panel) {
+  const warn = (file, detail) => process.stderr.write(`warning: ${file} was not written (${detail}); the brief is unaffected\n`);
+  try {
+    const module = await loadModule('display-files.mjs');
+    const publish = entryOf(module, 'publishNext', 'display-files.mjs');
+    for (const warning of publish({ runDir: path.dirname(path.resolve(state)), panel })) {
+      warn(warning.file, `${warning.code}: ${warning.message}`);
+    }
+  } catch (err) {
+    warn('display/next.json', err.message);
+  }
+}
 
 /**
  * Set the plan companion's progress markers from the markdown plan.

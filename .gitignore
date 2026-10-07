@@ -18,3 +18,9 @@ eval/results/
 
 # Playwright MCP session logs (written into the working directory by the MCP server)
 .playwright-mcp/
+
+# What Claude Code lays beside the plugin each time it loads it from a folder
+# (`claude --plugin-dir plugins/maister`): the hooks module's API declarations
+# and a tsconfig.json extending them
+/plugins/maister/tsconfig.json
+/plugins/maister/.claude-plugin/types/

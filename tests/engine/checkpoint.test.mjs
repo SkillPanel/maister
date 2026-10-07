@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
+import { panelOf as panelOfCheckpoint } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
 // every surface — the two in-session pickers, the driven request, a cockpit
@@ -544,4 +546,159 @@ test('checkpoint and request: read-only, and refused beside another form', t => 
   const both = gateBrief(run, 'specification-approval', '--checkpoint', '--json');
   assert.equal(both.code, 2);
   assert.match(both.stderr, /one form at most/);
+});
+
+// ---------------------------------------------------------------------------
+// the panel above the question
+// ---------------------------------------------------------------------------
+
+/**
+ * The rows a panel line costs and the rows a panel may fill, as Claude Code was
+ * measured to count them: one row per line plus one per forty characters, twelve
+ * in all around the question, two of them the panel's border.
+ */
+const rows = line => 1 + Math.floor(line.length / 40);
+const PANEL_ROWS = 10;
+
+function panelOf(run) {
+  return JSON.parse(fs.readFileSync(path.join(run.dir, 'display/next.json'), 'utf8'));
+}
+
+function assertFits(glance) {
+  assert.ok(glance.length > 0);
+  for (const line of glance) {
+    assert.equal(typeof line, 'string');
+    assert.doesNotMatch(line, /[\r\n]/);
+    assert.ok(line.trim() !== '');
+  }
+  const used = glance.reduce((sum, line) => sum + rows(line), 0);
+  assert.ok(used <= PANEL_ROWS, `${used} rows: ${JSON.stringify(glance)}`);
+}
+
+test('panel: the brief writes the checkpoint at a glance, for the question it belongs to', t => {
+  const run = atSpecGate(t);
+  const rich = pickerOf(run, 'specification-approval', 'rich');
+  const panel = panelOf(run);
+  assert.deepEqual(Object.keys(panel), ['version', 'kind', 'node', 'header', 'question', 'glance', 'checkpoint', 'open_risks', 'parts', 'run_dir']);
+  assert.equal(panel.version, 1);
+  assert.equal(panel.kind, 'gate');
+  assert.equal(panel.node, 'specification-approval');
+  assert.equal(panel.header, rich.header);
+  assert.equal(panel.question, rich.question, 'the question the session asks, verbatim');
+  assert.match(panel.glance[0], /^Checkpoint \d+\/\d+ · Specification$/);
+  assert.match(panel.glance[1], /^The revised spec makes null mean "not given"/);
+  assert.equal(panel.glance[2], 'Decided: 3 · open risks: 2');
+  assert.equal(panel.glance[3], 'Next: Specification audit');
+  assert.match(panel.glance[4], /^Review: .*implementation\/spec\.md/);
+  assertFits(panel.glance);
+});
+
+/** The rows a panel drawn from the labelled parts costs: a label, a space and the text, the files two spaces apart. */
+function partsRows(parts) {
+  return parts.reduce((sum, part) => {
+    if (part.key === 'review') return sum + rows(`${part.label} ${part.files.map(file => file.label).join('  ')}${part.more ? `  +${part.more} more` : ''}`);
+    if (part.key === 'counts') return sum + rows(`${part.label} ${part.text} · ${part.risks}`);
+    return sum + rows(`${part.label} ${part.text}`);
+  }, 0);
+}
+
+test('panel: the parts carry each label apart from its text, and each review file as a file:// link', t => {
+  const run = atSpecGate(t);
+  assert.equal(gateBrief(run, 'specification-approval', '--json').code, 0);
+  const panel = panelOf(run);
+  const byKey = Object.fromEntries(panel.parts.map(part => [part.key, part]));
+  assert.deepEqual(panel.parts.map(part => part.key), ['title', 'headline', 'counts', 'next', 'review']);
+  assert.match(byKey.title.label, /^Checkpoint \d+ of \d+$/);
+  assert.equal(byKey.title.text, 'Specification');
+  assert.equal(`Checkpoint ${panel.checkpoint.index} of ${panel.checkpoint.total}`, byKey.title.label);
+  assert.equal(byKey.headline.label, 'Done');
+  assert.match(byKey.headline.text, /^The revised spec makes null mean "not given"/);
+  assert.deepEqual(byKey.counts, { key: 'counts', label: 'Decided', text: '3', risks: '2 open risks', open: 2 });
+  assert.equal(panel.open_risks, 2);
+  assert.deepEqual(byKey.next, { key: 'next', label: 'Next', text: 'Specification audit' });
+  assert.equal(byKey.review.label, 'Review');
+  const spec = byKey.review.files.find(file => file.path === 'implementation/spec.md');
+  assert.ok(spec, JSON.stringify(byKey.review));
+  assert.equal(spec.label, 'spec.md');
+  assert.equal(spec.href, pathToFileURL(path.join(run.dir, 'implementation/spec.md')).href);
+  assert.equal(panel.run_dir, run.dir);
+  assert.ok(partsRows(panel.parts) <= PANEL_ROWS);
+});
+
+test('panel: the parts hold to the rows too, the review files that do not fit counted as more', () => {
+  const long = (word, n) => Array.from({ length: n }, (_, index) => `${word}${index}`).join(' ');
+  const checkpoint = {
+    ask: 'Ready to go on?',
+    header: 'Spec',
+    headline: long('headline', 40),
+    progress: { checkpoint: 2, checkpoints_max: 10 },
+    closed: [{ title: 'Specification' }],
+    next: { title: 'Specification audit' },
+    review: Array.from({ length: 8 }, (_, index) => ({ path: `implementation/document-number-${index}.md` })),
+    decisions: { run: [], audit: [], default: [], operator: { count: 0, not_recommended: [] } },
+    risks: { open: [{ risk: 'one' }] },
+    options: [{ id: 'continue', label: 'Continue', effect: 'continue', recommended: true, consequence: 'Goes on.' }],
+  };
+  const { parts } = panelOfCheckpoint(checkpoint);
+  assert.ok(partsRows(parts) <= PANEL_ROWS, JSON.stringify(parts));
+  const review = parts.find(part => part.key === 'review');
+  assert.ok(review.files.length >= 1 && review.more > 0, JSON.stringify(review));
+  assert.equal(review.files.length + review.more, 8);
+  assert.ok(parts.find(part => part.key === 'headline').text.endsWith('…'));
+  assert.deepEqual(parts.find(part => part.key === 'counts'), { key: 'counts', label: 'Decided', text: '0', risks: '1 open risk', open: 1 });
+});
+
+test('panel: every form writes the same panel', t => {
+  const run = atSpecGate(t);
+  const file = path.join(run.dir, 'display/next.json');
+  const panels = [[], ['--oneline'], ['--json'], ['--json', '--picker=plain'], ['--checkpoint'], ['--request']].map(flags => {
+    fs.rmSync(file, { force: true });
+    const result = gateBrief(run, 'specification-approval', ...flags);
+    assert.equal(result.code, 0, result.stderr);
+    return panelOf(run);
+  });
+  for (const panel of panels.slice(1)) assert.deepEqual(panel, panels[0]);
+});
+
+test('panel: a gate whose every text runs long still fits the rows above the question', t => {
+  const long = (word, n) => Array.from({ length: n }, (_, index) => `${word}${index}`).join(' ');
+  const paths = Array.from({ length: 12 }, (_, index) => `implementation/a-rather-long-directory-name/document-number-${index}.md`);
+  const run = atSpecGate(t, {
+    headline: long('headline', 24).slice(0, 219),
+    decisions: Array.from({ length: 50 }, (_, index) => ({ decision: long(`decision${index}-`, 30), by: 'run' })),
+    risks: Array.from({ length: 30 }, (_, index) => ({ risk: long(`risk${index}-`, 20), tag: 'open' })),
+    artifacts: paths.map(file => ({ path: file, label: long('label', 10), html: null, role: 'review' })),
+  });
+  for (const file of paths) onDisk(run, file);
+  gateBrief(run, 'specification-approval', '--json');
+  const { glance } = panelOf(run);
+  assertFits(glance);
+  assert.match(glance[0], /^Checkpoint /);
+  assert.ok(glance.some(line => line.endsWith('…')), 'what does not fit is cut, and the cut is marked');
+});
+
+test('panel: a gate with no headline of its own fits too', t => {
+  const run = atSpecGate(t, { headline: undefined });
+  gateBrief(run, 'specification-approval');
+  assertFits(panelOf(run).glance);
+});
+
+test('panel: one that cannot be written is a stderr warning; the brief prints as it would', t => {
+  const run = atSpecGate(t);
+  const expected = gateBrief(run, 'specification-approval', '--json').stdout;
+  fs.rmSync(path.join(run.dir, 'display/next.json'));
+  fs.mkdirSync(path.join(run.dir, 'display/next.json'));
+  const result = gateBrief(run, 'specification-approval', '--json');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, expected);
+  assert.deepEqual(JSON.parse(result.stdout).warnings, [], 'nothing for the asking model to relay');
+  assert.match(result.stderr, /^warning: display\/next\.json was not written \(display-unwritable: .*\); the brief is unaffected$/m);
+});
+
+test('panel: the write that answers the gate removes it', t => {
+  const run = atSpecGate(t);
+  gateBrief(run, 'specification-approval', '--json');
+  assert.ok(fs.existsSync(path.join(run.dir, 'display/next.json')));
+  write(run, { nodes: { 'specification-approval': { status: 'completed' } } });
+  assert.equal(fs.existsSync(path.join(run.dir, 'display/next.json')), false);
 });

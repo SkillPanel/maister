@@ -86,6 +86,9 @@ import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, decisionOf, oneLine } from './items.mjs';
+// The display files, a projection of this write on the dashboard's terms. Like
+// `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
+import { DISPLAY_DIR, publishRun } from './display-files.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -440,8 +443,8 @@ const WORKFLOW_CONTEXT = {
  * also installs the dashboard viewer (see `installViewer`) and returns `banner`,
  * the startup lines `workflow.mjs` prints after the paths.
  *
- * `warnings` carries what went wrong *after* the write landed, which today is the
- * dashboard projection and nothing else. It is data rather than a stderr line
+ * `warnings` carries what went wrong *after* the write landed: the dashboard
+ * projection, the viewer and the display files. It is data rather than a stderr line
  * because no module under `scripts/lib/` performs stdio: every refusal already
  * travels to `workflow.mjs` as data and is printed there, and this is the same
  * journey for something that is not a refusal.
@@ -494,8 +497,12 @@ export function writeState({ state, patch, regress = null }) {
     project(state, text, now, changed, warnings);
     const freeze = Boolean(patch.workflow) && !hadWorkflow;
     if (freeze) installViewer(state, text, changed, warnings);
+    const banner = freeze ? bannerOf(state, text, patch.workflow) : null;
+    // After the viewer, so the status file's dashboard link sees the page the
+    // freeze just installed; on the projection's terms, a warning at worst.
+    warnings.push(...display(state, text, now, banner));
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared };
-    if (freeze) result.banner = banner(state, text, patch.workflow);
+    if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -506,10 +513,11 @@ export function writeState({ state, patch, regress = null }) {
 }
 
 /**
- * The startup banner the freeze write returns, each line ending in a newline:
- * the workflow and the task, how many checkpoints the user will be asked at,
- * where the run lives and its dashboard, and the first phase by its title,
- * under a first line telling the orchestrating model to tell the user what they say.
+ * The startup banner: its lines — the workflow and the task, how many checkpoints
+ * the user will be asked at, where the run lives and its dashboard, and the
+ * first phase by its title. The freeze returns them under a first line telling
+ * the orchestrating model to tell the user what they say, each line ending in
+ * a newline, and the run's `display/banner.json` holds them without that line.
  *
  * It is data for the same reason `warnings` is: no module under `scripts/lib/`
  * performs stdio. It exists so the user learns where a run lives from a
@@ -521,9 +529,11 @@ export function writeState({ state, patch, regress = null }) {
  * The model composes its own message from it: the terminal collapses tool
  * output to a count, so nothing here is seen until the model writes it.
  * The dashboard line reads the committed state, so an `html_output: false` the
- * same patch carries is already in force.
+ * same patch carries is already in force. Beside the lines, the same facts as
+ * fields — the counts as numbers, the directory and dashboard as `file://`
+ * URLs — for the display file, whose reader draws them its own way.
  */
-function banner(state, text, workflow) {
+function bannerOf(state, text, workflow) {
   const runDir = path.dirname(path.resolve(state));
   const doc = parseState(text);
   const title = isPlainObject(doc.task) ? doc.task.title : undefined;
@@ -537,15 +547,24 @@ function banner(state, text, workflow) {
   const name = typeof workflow.name === 'string' && workflow.name !== '' ? humanize(workflow.name) : 'Workflow';
   const checkpoints = gates > 1 ? `up to ${gates}` : gates === 1 ? 'one' : 'none';
   const dashboard = htmlOutput(doc) ? pathToFileURL(path.join(runDir, VIEWER)).href : null;
-  return [
-    BANNER_RELAY,
-    `Maister run started: ${name}`,
-    `Task: ${folded !== '' ? folded : '(untitled)'}`,
-    `Checkpoints: ${checkpoints}${gates ? ' where you decide' : ''}`,
-    `Directory: ${runDir}`,
-    `Dashboard: ${dashboard ?? 'none (html_output is false)'}`,
-    `First phase: ${nodes.length ? titleOf(titles, nodes[0]) : '(none)'}`,
-  ].map(line => `${line}\n`).join('');
+  const first = nodes.length ? titleOf(titles, nodes[0]) : null;
+  return {
+    lines: [
+      `Maister run started: ${name}`,
+      `Task: ${folded !== '' ? folded : '(untitled)'}`,
+      `Checkpoints: ${checkpoints}${gates ? ' where you decide' : ''}`,
+      `Directory: ${runDir}`,
+      `Dashboard: ${dashboard ?? 'none (html_output is false)'}`,
+      `First phase: ${first ?? '(none)'}`,
+    ],
+    workflow: name,
+    task: folded !== '' ? folded : null,
+    checkpoints: gates,
+    first_phase: first,
+    run_dir: runDir,
+    run_url: pathToFileURL(runDir).href,
+    dashboard,
+  };
 }
 
 /** The banner's first line, read by the orchestrating model rather than shown. */
@@ -648,6 +667,48 @@ function project(state, text, now, changed, warnings) {
     const prefix = `${code}: `;
     warnings.push({ code, message: raw.startsWith(prefix) ? raw.slice(prefix.length) : raw });
   }
+}
+
+/**
+ * Publish the run's display files from the state this write just committed —
+ * the status, the banner at the freeze, the session's pointer — on the
+ * projection's terms: every failure is a warning, and nothing here reaches
+ * `writeState`'s outer `catch`. The files and why each exists are
+ * `display-files.mjs`'s to say.
+ */
+function display(state, text, now, banner) {
+  try {
+    const runDir = path.dirname(path.resolve(state));
+    const doc = parseState(text);
+    return publishRun({
+      runDir,
+      root: projectRootOf(runDir),
+      doc,
+      now,
+      titles: displayOfRun(doc, runDir).titles,
+      dashboard: dashboardUrl(doc, runDir),
+      artifacts: artifactsOf(doc, runDir),
+      banner,
+    });
+  } catch (err) {
+    return [{ file: DISPLAY_DIR, code: 'display-unwritable', message: err && err.message ? String(err.message) : String(err) }];
+  }
+}
+
+/**
+ * Every artifact path the run's nodes declare, relative to the run directory,
+ * sorted and each once — for a reader that tells a run's own outputs from the
+ * other files written into its folder. A path outside the run directory (a
+ * sub-run's) is left out; so is every path when the definition cannot be read.
+ */
+function artifactsOf(doc, runDir) {
+  const paths = new Set();
+  for (const declared of Object.values(declaredOf(doc, definitionOf(doc, runDir), runDir))) {
+    for (const spelled of Object.values(declared)) {
+      if (typeof spelled === 'string' && spelled !== '' && !spelled.startsWith('..')) paths.add(spelled);
+    }
+  }
+  return [...paths].sort();
 }
 
 /**
