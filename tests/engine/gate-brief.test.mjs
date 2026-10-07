@@ -860,6 +860,41 @@ test('gate-brief: the count of items left out counts each repeated item once', t
   assert.match(result.stdout, /^Risks \(\+2 more in the dashboard\):$/m);
 });
 
+test('gate-brief: a decision a later node restates, case, spacing and closing punctuation aside, is listed once', t => {
+  const run = atOverlaidVerificationApproval(t, [], {
+    verification: { ...VERIFIED, decisions: ['count() reads notes.size instead of keeping its own counter'] },
+    'verification-options': {
+      status: 'completed',
+      summary: 'Code review is on.',
+      decisions: ['Count() reads notes.size  instead of keeping its own counter;', 'Browser checks are off'],
+    },
+  });
+  const once = (text, pattern) => assert.equal(text.match(new RegExp(pattern, 'gi'))?.length, 1, text);
+
+  once(brief(run, 'verification-approval').stdout, 'notes\\.size');
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=verification-approval', '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.decisions.run.map(each => each.decision),
+    ['count() reads notes.size instead of keeping its own counter', 'Browser checks are off']);
+  once(picker(run, 'verification-approval').more_details, 'notes\\.size');
+  once(oneline(run, 'verification-approval').stdout, 'notes\\.size');
+});
+
+test('gate-brief: the count of decisions counts each restated decision once', t => {
+  const decisions = ['Patch the tokenizer.', 'Keep the old parser', 'Drop the cache!', 'Log each retry'];
+  const run = atOverlaidVerificationApproval(t, [], {
+    verification: { ...VERIFIED, decisions },
+    'verification-options': {
+      status: 'completed',
+      summary: 'Code review is on.',
+      decisions: ['patch the tokenizer', 'Drop  the cache.', 'Log each retry:'],
+    },
+  });
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=verification-approval', '--checkpoint']).stdout);
+  assert.equal(checkpoint.decisions.run.length, 4);
+  const glance = picker(run, 'verification-approval').options.find(option => option.description.startsWith('Runs ')).preview;
+  assert.match(glance, /^Decided by the run \(\+1 more under More details\):$/m);
+});
+
 test('refusal: a summary behind the closing node does not stand in for the closing node\'s own', t => {
   const run = atOverlaidVerificationApproval(t, [], {
     'verification-options': { status: 'completed', summary: 'Code review and the pragmatic review are on.' },

@@ -52,7 +52,7 @@ only says what each question takes.
 its closing `node_summaries` entry, a one-sentence `headline` (at most 220
 characters) covering the whole stretch the gate closes; a `summary` carrying the
 findings; the decisions the run, an audit or a default made in this node, each
-credited by its `by` and never an earlier answer restated; and the risks this node raised, never an earlier node's restated, as objects tagged `open` (still changeable, with the
+credited by its `by` and never an earlier node's decision or answer restated, reworded or not; and the risks this node raised, never an earlier node's restated, as objects tagged `open` (still changeable, with the
 `change` a revise would make), `tradeoff` (a consequence kept on purpose),
 `followup` (outside this run's scope) or `stop` (the run should not go on).
 Findings go in the summary, never in the risks. The writing rules are engine
@@ -432,9 +432,11 @@ of it ("Tags need a field on every note and a filter on list(); nothing in the
 store validates input today"). Which optional work runs next is the gate's
 *Next* line, so the headline never repeats it. In `summary`, the gaps found and why each optional stretch is on or
 off, said as the operator would say it ("no reproducible defect, so no failing
-test first"), never by value name. In `decisions`, what the analysis settled on
-its own, `by: run`; the scope answers are already there as the user's own, and
-a defaulted one as `by: default`, so neither is restated as the analysis's. In
+test first"), never by value name. In `decisions`, what the gap analysis itself
+settled, `by: run`; what `codebase-analysis` already recorded stays there and is
+not recorded again, reworded or not, even where `analysis/gap-analysis.md`
+repeats it. The scope answers are already there as the user's own, and a
+defaulted one as `by: default`, so neither is restated as the analysis's. In
 `risks`: each uncertainty the user could
 still change as an `open` risk with the `change` a revise would make; each
 consequence of a settled scope choice as a `tradeoff`; each gap the analysis

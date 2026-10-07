@@ -854,8 +854,11 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     or `operator` (the user). The gate shows up to three of the `run`, `audit` and `default`
     ones; the user's own answers are only counted. A node's `decisions` hold only what **this
     node** settled. Never restate an earlier answer as this node's decision, whether the user's,
-    a default's or another node's: it is already recorded where it was made, and the gate reads
-    it from there. A node that builds on an earlier answer says so in `summary`.
+    a default's or another node's, in its words or in yours: it is already recorded where it was
+    made, and the gate reads it from there. So before writing `decisions`, read what the run
+    already holds — `prior-context` prints every earlier node's decisions — and leave out each
+    one already there, including an artifact's own Key Decisions that carry an earlier node's
+    choice forward. A node that builds on an earlier answer says so in `summary`.
   - **`risks`** — what is not settled, each as `{risk: "<what>", tag: <tag>, change: "<what would
     resolve it>"}`. The tags:
     - `open`: something in this output the user could still change;
