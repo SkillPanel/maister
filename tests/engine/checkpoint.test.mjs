@@ -327,9 +327,9 @@ const SPEC_GLANCE = [
   'Next: Specification audit',
   'Review: implementation/spec.md (HTML beside it), analysis/requirements.md',
   'Decided by the run:',
-  '- Tags stay inside the store, one shared check for every entry point — analysis',
-  '- toCsv is a separate function exported from the package — analysis',
-  '- update() returns a copy and the notes Map leaves the store object — analysis',
+  '- Tags stay inside the store, one shared check for every entry point — specification',
+  '- toCsv is a separate function exported from the package — specification',
+  '- update() returns a copy and the notes Map leaves the store object — specification',
   'You made 9 choices; 1 differs from the recommendation: CSV line endings, strict \\r\\n.',
 ];
 
@@ -410,7 +410,7 @@ test('rich: the research convergence gate goes on to what runs, skipping the dec
   const glance = rich.options[0].preview.split('\n');
   assert.equal(glance[0], 'Done: The nine decision areas add up to one 2.0.0 release that is projected to close every path that can corrupt a stored note.');
   assert.match(glance[1], /^Next: Final summary \(skipping .*High-level design.*\)$/);
-  assert.ok(glance.includes('- Ship every change together as one 2.0.0 release — analysis'));
+  assert.ok(glance.includes('- Ship every change together as one 2.0.0 release — solution convergence'));
   assert.equal(glance.at(-1), 'You made 10 choices, all as recommended.');
   assert.equal(glance.at(-2), '', 'the user\'s choices stand apart from the last decision');
   assert.doesNotMatch(rich.options[0].preview, /projection has not been run/);
@@ -439,6 +439,39 @@ test('glance: the heading names who settled what it lists — an audit, defaults
     'Decided by the run and the audit:');
   assert.equal(headings([{ decision: 'Patch the tokenizer', by: 'run' }, { decision: 'Run the audit', by: 'default' }]),
     'Decided by the run, or by default:');
+});
+
+test('glance: each decision the run made names the step that settled it, never "analysis" for all', t => {
+  const run = scratch(t);
+  walkTo(t, run, DEVELOPMENT, 'verification-approval', [], { task_description: 'Tag the notes' }, {
+    nodes: {
+      'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false } },
+      specification: { status: 'completed', values: { spec_audit_enabled: true } },
+      'tdd-green': { status: 'skipped' },
+      'verification-options': { status: 'completed', values: { browser_tests_enabled: false, user_docs_enabled: false } },
+    },
+    node_summaries: {
+      'verification-options': {
+        status: 'completed', summary: 'Completeness, tests and all four reviews.',
+        decisions: [{ decision: 'Browser checks are off: the change has no screen', by: 'run' }],
+      },
+      verification: {
+        status: 'completed', headline: 'Three fixes and one re-check: 35 of 35 tests pass.', summary: 'Verified.',
+        decisions: [
+          { decision: 'Fixed the tag methods crashing on a note stored without tags', by: 'run' },
+          { decision: 'The repeated missing-note lookup is one helper', by: 'audit' },
+        ],
+      },
+    },
+  });
+  const rich = pickerOf(run, 'verification-approval', 'rich');
+  const glance = rich.options[0].preview.split('\n');
+  assert.ok(glance.includes('Decided by the run and the audit:'), glance.join('\n'));
+  assert.ok(glance.includes('- Fixed the tag methods crashing on a note stored without tags — verification'), glance.join('\n'));
+  assert.ok(glance.includes('- Browser checks are off: the change has no screen — choosing the checks'), glance.join('\n'));
+  assert.ok(glance.includes('- The repeated missing-note lookup is one helper — audit'), glance.join('\n'));
+  assert.ok(rich.more_details.includes('- Fixed the tag methods crashing on a note stored without tags — verification'));
+  assert.doesNotMatch(rich.options[0].preview + rich.more_details, /— analysis/);
 });
 
 test('note question: what should change, with what re-runs and how often, the same words in both profiles', t => {

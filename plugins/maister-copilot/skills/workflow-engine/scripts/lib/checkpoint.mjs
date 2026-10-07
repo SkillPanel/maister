@@ -48,8 +48,12 @@ const DECISION_MAX = 110;
 /** How many of the user's choices that differ from the recommendation are named. */
 const DIFFERS_CAP = 2;
 
-/** The word after a decision, naming who settled it. */
-const SOURCE_WORD = { run: 'analysis', audit: 'audit', default: 'default' };
+/**
+ * The word after a decision an audit or a default settled. A decision the run
+ * settled is followed by the step that settled it instead: "analysis" for
+ * every one credited the analysis with the fixes verification applied.
+ */
+const SOURCE_WORD = { audit: 'audit', default: 'default' };
 
 /** Who settled a group of decisions, as a heading names them. */
 const SOURCE_HEADING = { run: 'the run', audit: 'the audit' };
@@ -134,10 +138,18 @@ function reviewText(review, companion) {
   }).join(', ');
 }
 
-/** The decisions the run, the audits and the defaults settled, in that order. */
+/**
+ * The decisions the run, the audits and the defaults settled, in that order,
+ * each with its `source`: the step that settled it for the run's own, read off
+ * the closed steps it came from, else the word for who did.
+ */
 function decided(checkpoint) {
   const groups = checkpoint.decisions ?? {};
-  return ['run', 'audit', 'default'].flatMap(by => (groups[by] ?? []).map(item => ({ ...item, by })));
+  const titles = new Map((checkpoint.closed ?? []).map(each => [each.node, each.title]));
+  const source = (by, item) => (by === 'run'
+    ? (titles.has(item.node) ? lowered(titles.get(item.node)) : null)
+    : SOURCE_WORD[by] ?? by);
+  return ['run', 'audit', 'default'].flatMap(by => (groups[by] ?? []).map(item => ({ ...item, by, source: source(by, item) })));
 }
 
 /**
@@ -153,9 +165,9 @@ function decidedHeading(items) {
   return `Decided by ${andList(sources.map(by => SOURCE_HEADING[by]))}${defaults ? ', or by default' : ''}`;
 }
 
-/** One decision line: its text, cut, and the word for who settled it. */
+/** One decision line: its text, cut, and where it was settled. */
 function decisionLine(item, max = DECISION_MAX) {
-  const suffix = ` — ${SOURCE_WORD[item.by] ?? item.by}`;
+  const suffix = item.source ? ` — ${item.source}` : '';
   return `- ${clip(item.decision, Math.max(20, max))}${suffix}`;
 }
 
@@ -332,7 +344,7 @@ export function moreDetails(checkpoint) {
   for (const closed of checkpoint.closed ?? []) blocks.push(`**${closed.title}**\n${closed.summary}`);
   const items = decided(checkpoint);
   if (items.length) {
-    blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.rationale ? ` — ${item.rationale}` : ''} — ${SOURCE_WORD[item.by] ?? item.by}`)].join('\n'));
+    blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
   }
   const choices = choicesLine(checkpoint);
   if (choices) {

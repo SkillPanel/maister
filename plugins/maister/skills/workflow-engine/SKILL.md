@@ -938,8 +938,9 @@ node's own, and neither does a skipped node: without one, the brief is refused
   - *Next*: the phase that runs, and any work skipped on the way;
   - *Review*: up to three files, named by their paths inside the task folder, the main
     documents (`role: primary`) first;
-  - *Decided by …*: up to three decisions, each followed by "— analysis", "— audit" or "—
-    default", under a heading naming those sources ("Decided by the audit");
+  - *Decided by …*: up to three decisions, each followed by the step that settled it ("—
+    verification"), or by "— audit" or "— default", under a heading naming those sources
+    ("Decided by the audit");
   - one counted line for the user's own choices, naming at most two that differ from the
     recommendation.
 

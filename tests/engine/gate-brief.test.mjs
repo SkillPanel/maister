@@ -1211,7 +1211,7 @@ test('picker rich: the continue option previews the checkpoint at a glance, no r
     'Done: Two gaps found in the parser.',
     'Next: Implementation',
     'Decided by the run:',
-    '- Patch the tokenizer — analysis',
+    '- Patch the tokenizer — scope analysis',
   ].join('\n'));
   assert.match(stop.preview, /^Ends the run here\.\nKept: the dashboard\.\n/);
   assert.match(stop.preview, /Start a new run from these files to pick up later\.$/);
@@ -1247,7 +1247,7 @@ test('picker plain: the question carries the glance then the ask, and each title
     'Done: Two gaps found in the parser.',
     'Next: Implementation',
     'Decided by the run:',
-    '- Patch the tokenizer — analysis',
+    '- Patch the tokenizer — scope analysis',
     'Analysis complete. Ready to go on?',
   ].join('\n'));
   assert.deepEqual(result.options, [
