@@ -540,26 +540,16 @@ The node's `uses` names both the mechanism and the target:
 
 **While a delegate runs, say so — the prompt otherwise looks like it is waiting for the user.**
 A delegate runs in the background: your turn ends and the user sees an empty prompt for as long
-as it works, which in driven runs was 59 to 88 minutes of a run. So, right after launching a
-node's delegate, print one line: *"<Phase title> is running, usually N–M min. Nothing needed
-from you; I'll continue when it finishes."* When a notification brings you back and the work is
-not finished yet, print one short progress line — what is done and what is left — before you
-wait again. When the run has a dashboard, the run's first such line ends *"Progress is on the
-dashboard in your browser."*, and a later one repeats it now and then — after a gate, or on a
-long wait — never on every line and never with its path. A run without a dashboard
-(`html_output` off) says nothing about one. Questions never name the dashboard; the start
-banner and the end message keep its link. The ranges, from those runs:
-
-| Phase | Usually |
-|---|---|
-| analysis (codebase, gap, current state, bottlenecks) | 3–10 min |
-| specification, or its audit | 5–12 min |
-| planning | 10–20 min |
-| one implementation task group | 2–5 min |
-| verification, or a full re-verification | 10–15 min |
-| research gathering with its synthesis, or brainstorming | 20–45 min |
-
-Anything else: "a few minutes".
+as it works. So, right after launching a node's delegate, print one line: *"<Phase title> is
+running. Nothing needed from you; I'll continue when it finishes."* When a notification brings
+you back and the work is not finished yet, print one short progress line — what is done and what
+is left — before you wait again. Never predict how long a step will take: a run says where it is,
+not when it will be done. An elapsed time a step reports is a fact and may be said as one. When
+the run has a dashboard, the run's first such line ends *"Progress is on the dashboard in your
+browser."*, and a later one repeats it now and then — after a gate, or on a long wait — never on
+every line and never with its path. A run without a dashboard (`html_output` off) says nothing
+about one. Questions never name the dashboard; the start banner and the end message keep its
+link.
 
 **A `skill:` or `agent:` target is looked for in four tiers — the project, then the
 operator's own, then this plugin, then every installed plugin — and the first hit wins.**

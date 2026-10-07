@@ -9,7 +9,7 @@ Analyzes multiple project sources in parallel to discover coding standards, conv
 
 ## Core Principles
 
-1. **Parallel Execution**: Launch discovery subagents concurrently for speed (~45-60s vs ~2-4min sequential)
+1. **Parallel Execution**: Launch discovery subagents concurrently, never one after another
 2. **Evidence-Based**: Every finding must cite specific files, line counts, or config rules as evidence
 3. **Confidence Scoring**: Multi-factor confidence based on source count, consistency, and explicitness
 4. **Deduplication**: Same standard found across sources merges into single finding with combined evidence
@@ -185,7 +185,7 @@ Display final results:
 # Full discovery (default)
 /maister-copilot:standards-discover
 
-# Quick scan (config files only, ~30-60s)
+# Quick scan (config files only)
 /maister-copilot:standards-discover --scope=quick
 
 # Frontend standards only
