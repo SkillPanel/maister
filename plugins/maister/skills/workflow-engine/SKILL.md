@@ -925,8 +925,8 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   brief, or a node that is not `running`, which has nothing to ask. Nothing is written. Name the
   node that is asking, or brief the gate without `--patch-file`.
 - **`gate-brief-questions-invalid`**: the set itself is wrong — empty, an id missing or used
-  twice, a question with fewer than two options, an option without a label, two recommended in
-  a single choice, a `default` naming no option, or a key the set does not have. The message
+  twice, a question with fewer than two options, an option without a label, an option with the
+  id `other` (reserved for an answer in the operator's own words), two recommended in a single choice, a `default` naming no option, or a key the set does not have. The message
   names the question and the field. Nothing is written. Correct the question set in the patch
   file and run the verb again.
 - **`gate-brief-no-graph`**: the definition cannot be read, the freeze recorded no needs and no
