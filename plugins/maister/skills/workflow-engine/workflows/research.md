@@ -79,9 +79,9 @@ gate closes, the findings in `summary`, decisions as `{decision, by}` items and
 risks as `{risk, tag, change}` objects. Each node's *Gate brief content*
 paragraph says what goes where. A finding is never a risk: an `open` risk is an
 uncertainty the user can still change, and its `change` is what a revise
-offers. Each node records only the risks it raised: one the foundation or the
-brainstorm already recorded stays on that node and is never restated by a later
-one.
+offers. Each node records only the decisions it made and the risks it raised:
+one the foundation or the brainstorm already recorded stays on that node and is
+never restated by a later one, reworded or not.
 
 ---
 

@@ -666,7 +666,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   const risks = { open: [], tradeoff: [], followup: [], stop: [], resolved: [] };
   const seen = new Set();
   const once = (kind, text) => {
-    const key = `${kind}:${text.replace(/\s+/g, ' ').replace(/\.$/, '').toLowerCase()}`;
+    const key = `${kind}:${itemKey(text)}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -1001,18 +1001,27 @@ function closingStretch(doc, recorded, direct, stretch, titles) {
 
 /**
  * `items` less every one whose text repeats an earlier one's, the first kept.
- * Items compare as they read — a leading slug key dropped, spacing, case and a
- * closing stop ignored — so the same finding recorded by two nodes is one item.
+ * Items compare as they read — a leading slug key dropped, the rest by
+ * `itemKey` — so the same finding recorded by two nodes is one item.
  */
 function distinct(items) {
   const seen = new Set();
   return items.filter(item => {
-    const key = itemText(item, true).replace(/\s+/g, ' ').replace(/\.$/, '').toLowerCase();
+    const key = itemKey(itemText(item, true));
     if (!key) return true;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+/**
+ * What two items compare by: spacing, case and closing punctuation ignored, so
+ * a node restating an earlier node's item word for word is caught. Only that —
+ * an item reworded is a different item here.
+ */
+function itemKey(text) {
+  return text.replace(/\s+/g, ' ').trim().replace(/[.,;:!?…]+$/u, '').toLowerCase();
 }
 
 /**
