@@ -41,6 +41,7 @@ CONTRIBUTING.md                   # Contributor loop (make targets); license inb
 | `make build` | Regenerate `plugins/maister-copilot/` from `plugins/maister/` |
 | `make validate` | Lint the generated variant (flat commands, no colons, the plain picker rendered, no `maister:` prefixes) plus the gate-marker lint and the display-text lint (definition titles, option labels and headers in plain sentence case) over the plugin source |
 | `make test` | Run the engine verb suite (`node --test`, Node ≥ 20, no dependencies) over the committed fixtures in `tests/` |
+| `make smoke` | Run the engine verbs and the hooks through bash, from paths holding a space (`tests/shell-smoke.mjs`; CI also runs it under pwsh, Windows PowerShell, cmd.exe and Git Bash on Windows) |
 | `make clean` | Delete the generated variant |
 | `make watch` | Rebuild on change (requires `fswatch`) |
 

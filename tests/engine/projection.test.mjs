@@ -23,6 +23,16 @@ test('every state write republishes dashboard-data.js beside the state', t => {
   assert.deepEqual(data.verification, { status: null, issues: [], fixes: [], reverify_count: 0 });
 });
 
+test('the type is read from a task path recorded with either separator', t => {
+  for (const taskPath of ['.maister/tasks/research/2026-01-05-sample', '.maister\\tasks\\research\\2026-01-05-sample']) {
+    const run = scratch(t);
+    freeze(run, { orchestrator: { task_path: taskPath } });
+    const data = readDashboard(run);
+    assert.equal(data.task.type, 'research', taskPath);
+    assert.equal(data.task.path, taskPath);
+  }
+});
+
 test('a phase is named by its title, else by its id made readable; the id stays the id', t => {
   const run = scratch(t);
   freeze(run);

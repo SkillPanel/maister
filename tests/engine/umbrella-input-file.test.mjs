@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { freeze, umbrella } from '../helpers.mjs';
+import { freeze, maskRoot, umbrella } from '../helpers.mjs';
 
 const UMBRELLA_INPUT_FILE = '.umbrella-input.json';
 
@@ -52,7 +52,7 @@ function put(file, document) {
 
 /** Text with the workspace root, the clock and the workspace id taken out. */
 function neutral(text, ws) {
-  return text.replaceAll(ws.root, '<root>').replaceAll(ws.umbrellaId, '<id>').replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, '<t>');
+  return maskRoot(text, ws.root).replaceAll(ws.umbrellaId, '<id>').replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/g, '<t>');
 }
 
 /** Every file under a directory, neutralised, the input file excepted. */
@@ -198,7 +198,9 @@ test('input file: two runs driving one ledger never share an input path', t => {
   put(path.join(ws.ledger, UMBRELLA_INPUT_FILE), { chain: {} });
   const shared = umbrella(['ledger', `--ledger=${ws.ledger}`, '--op=create-entry', '--actor=engine', `--run=${first.dir}`, `--input-file=${path.join(ws.ledger, UMBRELLA_INPUT_FILE)}`]);
   assert.equal(shared.code, 2);
-  assert.match(shared.stderr, /must be .*2026-01-05-first\/dispatch\/\.umbrella-input\.json, in the calling run's dispatch directory/);
+  // Both paths are named as the platform spells them, absolute.
+  assert.ok(shared.stderr.includes(`must be ${first.input}, in the calling run's dispatch directory`), shared.stderr);
+  assert.ok(shared.stderr.includes(`and was ${path.join(ws.ledger, UMBRELLA_INPUT_FILE)}`), shared.stderr);
 });
 
 test('input file: the ledger takes --run and --input-file together or not at all', t => {

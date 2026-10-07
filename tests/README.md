@@ -40,3 +40,14 @@ scaffolds with `init`. Only the dashboard normalizers
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.
+
+## The shell smoke
+
+`make smoke` runs `node tests/shell-smoke.mjs --shell=bash`. Where the suite spawns `node` with an
+argv array, the smoke hands every engine call to a shell as one command line in the invocation
+contract's form, from a plugin copy and a project whose paths both hold a space: `locate`,
+`validate`, `resolve`, the freeze, two node writes, `gate-brief --json`, the dashboard projection and
+`resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
+input. `--shell` takes `bash`, `zsh`, `pwsh`, `powershell` or `cmd`; cmd.exe lines quote with `"`,
+every other shell's with `'`. CI runs it under bash on Ubuntu, and under pwsh, Windows PowerShell,
+cmd.exe and Git Bash on Windows, where the paths are written with `\`.

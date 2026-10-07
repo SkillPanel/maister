@@ -234,7 +234,8 @@ function taskOf(state) {
 
 /**
  * The `<type>` segment of `.maister/tasks/<type>/<date-name>`, then the workflow
- * name, then `development` — each emitted as it is.
+ * name, then `development` — each emitted as it is. The path is split on either
+ * separator: a run started on Windows may record it with `\`.
  *
  * The path segment is authoritative because it is where the run lives and what
  * the viewer's `HERO_MAP` is keyed by; the workflow name is the fallback for a
@@ -247,7 +248,7 @@ function taskOf(state) {
  */
 function typeOf(taskPath, name) {
   if (typeof taskPath === 'string') {
-    const segments = taskPath.split('/').filter(segment => segment !== '');
+    const segments = taskPath.split(/[\\/]/).filter(segment => segment !== '');
     const index = segments.lastIndexOf('tasks');
     const segment = index >= 0 ? segments[index + 1] : undefined;
     if (typeof segment === 'string' && TYPE_NAME.test(segment)) return segment;

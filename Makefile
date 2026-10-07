@@ -1,4 +1,4 @@
-.PHONY: build diagram validate test clean watch
+.PHONY: build diagram validate test smoke clean watch
 
 build:
 	bash platforms/copilot-cli/build.sh
@@ -116,6 +116,12 @@ validate:
 # --test takes no glob of its own.
 test:
 	node --test tests/engine/*.test.mjs
+
+# The engine verbs and the hooks run through a shell, from paths holding a
+# space. CI runs the same script under pwsh, Windows PowerShell, cmd.exe and
+# Git Bash on Windows.
+smoke:
+	node tests/shell-smoke.mjs --shell=bash
 
 clean:
 	rm -rf plugins/maister-copilot/
