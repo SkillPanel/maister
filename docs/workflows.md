@@ -473,13 +473,14 @@ All workflows create structured directories in `.maister/tasks/`:
 └── <name>/                # A workflow your project defines, started by name
 ```
 
-Each task folder follows the pattern `YYYY-MM-DD-task-name/` and always starts with the same three files:
+Each task folder follows the pattern `YYYY-MM-DD-task-name/` and always starts with the same three files and a `display/` directory:
 
 ```
 2026-02-17-user-auth/
 ├── orchestrator-state.yml        # Workflow state (pause/resume, phase tracking)
 ├── dashboard.html                # Operator dashboard (copied plugin asset)
-└── dashboard-data.js             # Dashboard data, written by the engine from the run's state
+├── dashboard-data.js             # Dashboard data, written by the engine from the run's state
+└── display/                      # What the terminal draws beside the session; ignored by git
 ```
 
 What sits beside them depends on the workflow:
@@ -570,6 +571,28 @@ definition's hash, so it cannot invalidate a frozen run or a chain built from th
 it may be omitted entirely: a definition of your own, or an ejected copy of a shipped one, is valid
 saying nothing about icons, titles or labels at all, and the viewer falls back to its own defaults. The shipped
 definitions each carry one, and are the worked examples.
+
+### The run in the terminal
+
+In Claude Code's terminal and its desktop app's Code tab, the plugin draws a run beside the session.
+You see the start banner in the transcript and the run's phase in the status line under the prompt,
+for example `Development · phase 5/12 · Implementation planning · <task>`. At each checkpoint, a
+short panel sits above the question: what the checkpoint closes, what was done, how much was
+decided and how much is open, what runs next and which files to review. It stays in view whichever
+option you are looking at. A question that is not a checkpoint gets no panel.
+
+The phase count leaves out checkpoints and the steps a run skips, so the total can shrink as the
+run settles which optional steps it takes.
+
+What it draws comes from small files the engine writes for it, in each run's `display/` directory.
+The engine also keeps a pointer per session under `.maister/display/sessions/`, which is how the
+drawing finds the run your session is driving. Both directories ignore themselves in git, so none of
+these files shows in `git status`.
+
+The drawing is extra and never required. It needs a Claude Code release that runs plugin hooks
+modules, and a folder you have trusted. In the VS Code extension, in `claude -p`, with modules
+switched off, or in GitHub Copilot CLI, nothing is drawn: each checkpoint question carries its
+context as it always has.
 
 ### Umbrella workspaces
 
