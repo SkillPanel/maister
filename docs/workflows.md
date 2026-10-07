@@ -287,7 +287,12 @@ Interactive workflow for designing features and products before building them. T
 
 When run without arguments, the plugin extracts the design brief from your conversation.
 
-**Flags**: `--research=PATH`, `--no-visual`
+**Flags**: `--research=PATH`, `--no-visual`, `--simple`
+
+`--simple` runs the short design: no characteristics or context checkpoint, no personas, no
+brainstorm of alternatives or direction checkpoint, and no prototypes unless the description asks
+for screens. The specification states the approach itself, and you approve the problem and the
+specification before the brief and its delivery scope.
 
 ### How it runs
 
