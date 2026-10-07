@@ -893,7 +893,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   decision per answered question:
   `{decision, by: operator, question_id, question, answer, recommended, as_recommended}`.
   `recommended` is the text of the recommended answer, and `as_recommended` says whether the
-  user took it. Never write `answered_by` or `via` for an answer given in session: the writer
+  user took it. `question_id` names the question, never its page or tab group. Never write `answered_by` or `via` for an answer given in session: the writer
   stamps the person's name and `via: terminal` on every `by: operator` item that names nobody. This is how the gate counts the user's choices and names the ones that differed
   from the recommendation. A question a driver could not ask is recorded as
   `{decision: "<what was taken>", by: default, question_id}` (*In-node questions*). Choosing More
@@ -1487,8 +1487,8 @@ able to write:
   leave out keeps its value. So a later node retagging one earlier risk `resolved` sends only
   that node's `risks`, and its summary, artifacts and answers stay. Send a field as `null` to
   clear it. **The user's answers are history**: a write of a node's `decisions` keeps every
-  earlier `by: operator` item it leaves out, unless it carries the same `question_id` — a
-  question asked again replaces its own answer. That holds across a revise, so a node that
+  earlier `by: operator` item it leaves out, unless it carries the same `question_id` and
+  question — a question asked again replaces its own answer. That holds across a revise, so a node that
   re-runs records only what it settled this time.
 - `project_context`, `related_tasks`, `verification_context`, `external_research` — the four
   optional top-level blocks. Each is written as a **top-level sibling** of `orchestrator:`

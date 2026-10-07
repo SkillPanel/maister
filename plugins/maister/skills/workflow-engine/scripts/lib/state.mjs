@@ -85,7 +85,7 @@ import * as dashboard from './dashboard.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, decisionOf } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, decisionOf, oneLine } from './items.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -2415,16 +2415,20 @@ export function operatorName(runDir = null) {
  * second time — and the questions it asked the first time are not asked again,
  * so their answers went with the list: the gate then counted fewer choices
  * than the user made, and nothing said what they had answered. An answer is
- * history, kept unless the write carries the same question again (by its
- * `question_id`, or failing that its text), which replaces it.
+ * history, kept unless the write carries the same question again, which
+ * replaces it: the same `question_id` and the same question text, or the text
+ * alone when there is no id. The id alone is not enough — one id written on
+ * every question of a page made a single re-asked question drop the others.
  */
 function earlierAnswers(prior, decisions) {
   if (!Array.isArray(prior)) return [];
   const keyOf = item => {
     if (!isPlainObject(item)) return null;
-    if (typeof item.question_id === 'string' && item.question_id !== '') return `id:${item.question_id}`;
     const read = decisionOf(item);
-    return read ? `text:${read.question ?? ''}\u0000${read.decision}` : null;
+    const question = typeof read?.question === 'string' ? oneLine(read.question) : '';
+    if (typeof item.question_id === 'string' && item.question_id !== '') return `id:${item.question_id}\u0000${question}`;
+    if (!read) return null;
+    return question === '' ? `answer:${read.decision}` : `text:${question}`;
   };
   const sent = new Set(decisions.map(keyOf).filter(Boolean));
   return prior.filter(item => isPlainObject(item) && decisionOf(item)?.by === 'operator' && !sent.has(keyOf(item)));
