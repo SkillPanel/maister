@@ -741,7 +741,8 @@ There is no gate after this node. The workflow ends here.
 **Close for whoever reads the end** (the engine skill's run-end rule). In a terminal run a
 person reads it: write the closing patch and call `run-complete` first, then end with one
 wrap-up message that fits one screen and is the last thing the run prints. Its lead lines
-are the engine's — Done (the answer and its confidence, in a sentence), Needs you, Next (the
+are the engine's — Done (the answer and its confidence, in a sentence), Needs you (each open
+item stated as an item to take into the next run, never asked as a question), Next (the
 command from step 3), Files (the outputs from the inventory), Dashboard — then each artifact the
 verb reported missing, named in plain words. Nothing about how the run was carried out appears
 unless it changed the result. The verb's own lines are never shown. Under a `cockpit` or `dispatch` driver tooling reads it: the executive summary goes

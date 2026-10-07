@@ -1818,7 +1818,10 @@ already open, and a gate's question and glance stay short. A run without a dashb
   and that message is the last thing the run prints — nothing after it. Lead with six lines:
   - **Done:** the outcome in plain words — completed, stopped at a named checkpoint with the
     option taken, or failed at a named phase;
-  - **Needs you:** each `open` risk still open as the run ends, one line each, or "nothing";
+  - **Needs you:** each `open` risk still open as the run ends, one line each, or "nothing".
+    State each as an item: what is open and where to take it ("Open in the design: no
+    deprecation release before the old call is removed — take it into the development run").
+    Never ask a question here: the run has ended, and an answer given now reaches nothing;
   - **Follow-ups:** each `followup` risk the run recorded, one line each, or "none";
   - **Next:** the workflow's own next step as the real command, with its real flags
     (`/maister:development --research=<task-dir>`), when there is one;
