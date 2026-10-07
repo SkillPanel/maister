@@ -69,6 +69,8 @@ reported among a write's changed paths.
   - `nodes`, every frozen node's title and status, and `saved`, the nodes this write changed
     against the status file it replaces;
   - `gate_open`, whether a gate is under way;
+  - `artifacts`, the artifact paths the nodes declare, relative to the run's folder, a sub-run's
+    left out until it has a folder of its own;
   - the task folder's and the dashboard's `file://` URLs.
   - Phases are the frozen nodes, less gates and less the nodes recorded skipped.
   - The current phase is the first one under way. With none under way, it is the last one
@@ -102,19 +104,30 @@ anything per-session.
 **The module.** `hooks/display.mjs` is plain JavaScript with no build step. It draws at four
 render sites, and stands in for them where they are not drawn:
 - **`ToolUse`, `ToolResult` and `ToolGroup`: the start card and the quiet lines.**
-  - The freeze's row draws as a bordered card: the workflow and the task, the checkpoints and the
-    first phase, and links to the dashboard and the task folder.
+  - The freeze's row draws as a bordered, padded card: *<Workflow> run started* in the accent
+    colour with the date and time dim, the task in bold, the checkpoints and the first phase dim,
+    and links to the dashboard and the task folder.
   - A clean state write draws as `· maister · saved · <node> → <status>, …`, or as the checkpoint
     it opened. A clean gate brief draws as `· maister · checkpoint k of M · <title>`.
   - The patch file draws as one line until a write lands it, and as nothing after that.
+  - A clean `Write` of an artifact the run declares, a file in its task folder, draws as
+    `· maister · wrote <path>`, the path a link. A status file without `artifacts` takes any file
+    in the folder but the engine's own.
+  - A line draws dim, inset under the row's bullet as a tool result's line is.
+  - A call whose line would say nothing, a write that changed no step, draws nothing; so does one
+    whose line is the last quiet line again, such as the brief of a checkpoint its write already
+    named.
   - Claude Code folds a run of calls into one count line, which no `ToolUse` hook sees. A folded
-    run made only of these rows draws as those rows. One mixed with other calls keeps its count
-    line, with these rows under it.
+    run made only of these rows, the ones that draw nothing included, draws as those rows and no
+    count line. One mixed with other calls draws as Claude Code draws it; only a start card is
+    added under it, since nothing else shows the banner.
   - Where the session draws on no surface that shows a card, the banner's lines are logged once
     instead (`$.ui.log`).
 - **`AbovePrompt`: the run band.**
-  - It shows the workflow and the task, links to the dashboard and the task folder, the phases as
-    dots, `phase n of N`, the next checkpoint and `running for N min`.
+  - Two rows. The first: the workflow in the accent colour, the task, and the dashboard and task
+    folder links on the right. The second: the phases as dots (done green, the current amber, the
+    rest dim), `phase n of N · <title>` with the title bold, then the next checkpoint and
+    `running for N min`, dim.
   - It yields to a survey, keeps to one row when the band has only one, and is redrawn each
     minute.
   - Where the session draws on neither the terminal nor the desktop, the status line stands in
@@ -122,9 +135,11 @@ render sites, and stands in for them where they are not drawn:
 - **`AskUserQuestion`: the gate panel.**
   - It is set on the `AskUserQuestion` call when the question asked equals the one in
     `next.json`, and cleared once that question is answered.
-  - It draws the parts: *Checkpoint k of M* in the accent colour with the closing title, *Done* in
-    green, *Decided* with the open risks in the warning colour when there are any, *Next* in cyan,
-    and *Review* as links.
+  - The option preview under it already says what was done, what comes next and what was decided,
+    so the panel is two lines: `Checkpoint k of M · <closing title> · <n> decided · <risks>`, the
+    checkpoint in the accent colour, the title bold and the open risks amber when there are any;
+    then the review files as links, which is what the panel alone gives.
+  - `next.json` keeps every part; the module draws the title, the counts and the review files.
   - There is no Markdown. A brief without parts draws its plain glance.
 
 **What collapses, and how that is decided.**
@@ -140,7 +155,7 @@ render sites, and stands in for them where they are not drawn:
   model's context and in the run's state.
 - What the model reads of a call is never touched: the line is the row's drawing alone.
 
-**Links.** The run's links are `file://` URLs.
+**Links.** The run's links are `file://` URLs, drawn as links look: underlined, in the link colour.
 - The terminal draws them as OSC 8 spans. Around the dialog a link costs the rows of its URL, so
   the panel links as many review files as fit and names the rest; under a deep project path that
   may be none.
@@ -157,7 +172,12 @@ The values a drawing reads live in `$.state`, declared in the plugin's contract,
 - the run's status;
 - the band's clock;
 - each redrawn row;
+- the last quiet line drawn;
 - the banner already logged.
+
+**Colours.** The accent `#e2885d`, green `#79c08b`, amber `#e3bd59`, link `#7cc4e8`, dim `#8c909a`
+and the border `#4a4f5a` are hex, which `Color` takes beside the theme keys. They are the designs'
+own, and no theme key names the accent or the link colour.
 
 **Scope: display only, never gating.**
 - No hook denies, rewrites or answers a call: each passes its call through.
