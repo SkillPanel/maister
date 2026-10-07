@@ -74,6 +74,7 @@ const statusDoc = (fields: Record<string, unknown> = {}) => json({
   nodes: NODES,
   saved: [],
   gate_open: false,
+  artifacts: ['analysis/research-context', 'analysis/scope-clarifications.md', 'implementation/spec.md'],
   updated: LATER,
   ...fields,
 })
@@ -94,6 +95,7 @@ const nextDoc = (question: string, fields: Record<string, unknown> = {}) =>
   json({ version: 1, kind: 'gate', node: 'specification-approval', header: 'Spec', question, glance: GLANCE, parts: PARTS, ...fields })
 
 type Shell = { stdout?: string; stderr?: string; error?: string; files?: Record<string, string>; gone?: string[] }
+type Written = { error?: string }
 type Seen = { status: Array<string | undefined>; logs: string[]; ids: string[]; results: unknown[] }
 
 /**
@@ -101,7 +103,7 @@ type Seen = { status: Array<string | undefined>; logs: string[]; ids: string[]; 
  * these surfaces, and each shell call answered by the next of `shells`, which
  * changes the files as the verb would and exits as it would.
  */
-function beneath(on: any, files: Record<string, string>, { surfaces = ['terminal'], shells = [] as Shell[] } = {}): Seen {
+function beneath(on: any, files: Record<string, string>, { surfaces = ['terminal'], shells = [] as Shell[], writes = [] as Written[] } = {}): Seen {
   const seen: Seen = { status: [], logs: [], ids: [], results: [] }
   on('session.id', () => ({ value: SESSION }))
   on('session.root', () => ({ value: ROOT }))
@@ -129,9 +131,11 @@ function beneath(on: any, files: Record<string, string>, { surfaces = ['terminal
     seen.results.push(answer)
     return answer
   })
-  on('tool.call', { tool: 'Write' }, ($: unknown, e: { tool_use_id: string }) => {
+  on('tool.call', { tool: 'Write' }, ($: unknown, e: { tool_use_id: string; file_path: string }) => {
     seen.ids.push(e.tool_use_id)
-    return { result: { type: 'create', filePath: PATCH, content: '' } }
+    const write = writes.shift() ?? {}
+    if (write.error !== undefined) return { isError: true, result: write.error, text: write.error }
+    return { result: { type: 'create', filePath: e.file_path, content: '' } }
   })
   return seen
 }
@@ -146,8 +150,9 @@ async function row($: any, surface: 'terminal' | 'desktop', id: string, tool = '
   const drawn = await ui.drawn()
   const texts = (await ui.findAll({ type: 'Text' })).map((each: any) => each.text)
   const links = (await ui.findAll({ type: 'Link' })).map((each: any) => ({ href: each.props.href, text: flatten(each) }))
+  const styles = (await ui.findAll({ type: 'Link' })).map((each: any) => each.children?.[0]?.props)
   await ui.unmount()
-  return { drawn, texts, links }
+  return { drawn, texts, links, styles }
 }
 
 const BAND = { hasSurvey: false, isWorking: true, maxRows: 6, bodyColumns: 100, scroll: { offset: 0, bodyRows: 6, total: 2 }, view: {} }
@@ -158,8 +163,9 @@ async function band($: any, surface: 'terminal' | 'desktop', props: Record<strin
   const drawn = await ui.drawn()
   const texts = (await ui.findAll({ type: 'Text' })).map((each: any) => each.text)
   const links = (await ui.findAll({ type: 'Link' })).map((each: any) => ({ href: each.props.href, text: flatten(each) }))
+  const colours = Object.fromEntries((await ui.findAll({ type: 'Text' })).map((each: any) => [each.text, each.props.color]))
   await ui.unmount()
-  return { drawn, texts, links }
+  return { drawn, texts, links, colours }
 }
 
 /** Ask the gate's question and read what each surface draws around the dialog while it is open. */
@@ -230,10 +236,12 @@ describe('start card', () => {
       expect(drawn.texts).toContain('Add count() to the store')
       expect(drawn.texts).toContain('up to 10 checkpoints · first: Intake')
       expect(drawn.links).toEqual(surface === 'terminal' ? [
-        { href: DASHBOARD, text: 'Open dashboard' },
-        { href: RUN_URL, text: 'Open task folder' },
+        { href: DASHBOARD, text: 'Open dashboard ↗' },
+        { href: RUN_URL, text: 'Open task folder ↗' },
       ] : [])
+      for (const style of drawn.styles) expect(style).toMatchObject({ color: '#7cc4e8', underline: true })
       expect((drawn.drawn as any).type).not.toBe('engine')
+      expect((drawn.drawn as any).props).toMatchObject({ borderStyle: 'round', borderColor: '#4a4f5a', paddingX: 2, paddingY: 1 })
     }
     expect(seen.logs).toEqual([])
   })
@@ -280,7 +288,9 @@ describe('run band', () => {
       expect(drawn.texts).toContain('●●●●●●●●●●●●')
       expect(drawn.texts).toContain('phase 5 of 12 · Specification')
       expect(drawn.texts).toContain('next checkpoint 2 of 10 · running for 9 min')
-      expect(drawn.links).toEqual(surface === 'terminal' ? [{ href: DASHBOARD, text: 'Dashboard' }, { href: RUN_URL, text: 'Task folder' }] : [])
+      expect(drawn.links).toEqual(surface === 'terminal' ? [{ href: DASHBOARD, text: 'Dashboard ↗' }, { href: RUN_URL, text: 'Task folder ↗' }] : [])
+      expect(drawn.colours).toMatchObject({ Development: '#e2885d', '●●●●': '#79c08b', '●': '#e3bd59', '●●●●●●●': '#5a5f69' })
+      if (surface === 'terminal') expect(drawn.colours).toMatchObject({ 'Dashboard ↗': '#7cc4e8', 'Task folder ↗': '#7cc4e8' })
     }
     await clock.advance(60_000)
     expect((await band($, 'terminal')).texts).toContain('next checkpoint 2 of 10 · running for 10 min')
@@ -350,17 +360,14 @@ describe('run band', () => {
 // ---------------------------------------------------------------------------
 
 describe('gate panel', () => {
-  test('draws the styled checkpoint above the gate\'s question, review files as links where they open, within twelve rows', async ($: any, on: any) => {
+  test('the panel is two lines with links: the checkpoint, what was decided and the risks, then the review files', async ($: any, on: any) => {
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK) })
     const drawn = await askAndDraw($, on)
     for (const surface of ['terminal', 'desktop'] as const) {
       const panel = drawn[surface]!
       expect(panel.texts).toEqual([
-        'Checkpoint 2 of 10 Specification',
-        'Done The spec adds store.count(), which returns how many notes the store holds.',
-        'Decided 1 · 1 open risk',
-        'Next Specification audit',
-        'Review spec.md  spec.html  +1 more',
+        'Checkpoint 2 of 10 · Specification · 1 decided · 1 open risk',
+        'Review  spec.md  spec.html  +1 more',
       ])
       expect(panel.links).toEqual(surface === 'terminal' ? [
         { href: `${RUN_URL}/implementation/spec.md`, text: 'spec.md' },
@@ -371,7 +378,7 @@ describe('gate panel', () => {
   })
 
   test('names the review files without links where their URLs would take the panel past twelve rows', async ($: any, on: any) => {
-    const deep = `${RUN_URL}/${'a-very-long-directory-name/'.repeat(5)}`
+    const deep = `${RUN_URL}/${'a-very-long-directory-name/'.repeat(12)}`
     const parts = PARTS.map(part => (part.key !== 'review' ? part : {
       ...part,
       files: part.files!.map(file => ({ ...file, href: `${deep}${file.path}` })),
@@ -380,12 +387,12 @@ describe('gate panel', () => {
     const drawn = await askAndDraw($, on)
     const panel = drawn.terminal!
     expect(panel.links).toEqual([])
-    expect(panel.texts[4]).toBe('Review spec.md  spec.html  +1 more')
+    expect(panel.texts[1]).toBe('Review  spec.md  spec.html  +1 more')
     expect(panel.rows).toBeLessThanOrEqual(12)
   })
 
   test('links the review files that fit and names the rest', async ($: any, on: any) => {
-    const deep = `${RUN_URL}/${'a-very-long-directory-name/'.repeat(5)}`
+    const deep = `${RUN_URL}/${'a-very-long-directory-name/'.repeat(12)}`
     const parts = PARTS.map(part => (part.key !== 'review' ? part : {
       ...part,
       files: part.files!.map((file, index) => ({ ...file, href: index === 0 ? file.href : `${deep}${file.path}` })),
@@ -393,21 +400,38 @@ describe('gate panel', () => {
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK, { parts }) })
     const panel = (await askAndDraw($, on)).terminal!
     expect(panel.links).toEqual([{ href: `${RUN_URL}/implementation/spec.md`, text: 'spec.md' }])
-    expect(panel.texts[4]).toBe('Review spec.md  spec.html  +1 more')
+    expect(panel.texts[1]).toBe('Review  spec.md  spec.html  +1 more')
     expect(panel.rows).toBeLessThanOrEqual(12)
   })
 
-  test('marks open risks in the warning colour, and none plainly', async ($: any, on: any) => {
+  test('marks open risks in amber, the checkpoint in the accent, and the review files as links', async ($: any, on: any) => {
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK) })
-    let colour: unknown
+    let colours: Record<string, unknown> = {}
+    let styles: unknown[] = []
     on('tool.call', { tool: 'AskUserQuestion' }, async () => {
       const ui = await $.ui.mount({ plugin: 'maister', surface: 'terminal', component: 'AskUserQuestion', props: { tool: 'AskUserQuestion', questions: QUESTIONS } })
-      colour = (await ui.findAll({ type: 'Text' })).find((each: any) => each.text === '1 open risk')?.props.color
+      colours = Object.fromEntries((await ui.findAll({ type: 'Text' })).map((each: any) => [each.text, each.props.color]))
+      styles = (await ui.findAll({ type: 'Link' })).map((each: any) => each.children?.[0]?.props)
       await ui.unmount()
       return { result: { answers: {} } }
     })
     await $.tool.call({ tool: 'AskUserQuestion', questions: QUESTIONS })
-    expect(colour).toBe('warning')
+    expect(colours).toMatchObject({ '1 open risk': '#e3bd59', 'Checkpoint 2 of 10': '#e2885d', '1 decided': '#8c909a' })
+    expect(styles).toEqual([{ color: '#7cc4e8', underline: true }, { color: '#7cc4e8', underline: true }])
+  })
+
+  test('draws no open risks dim', async ($: any, on: any) => {
+    const parts = PARTS.map(part => (part.key !== 'counts' ? part : { ...part, risks: 'no open risks', open: 0 }))
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK, { parts }) })
+    let colour: unknown
+    on('tool.call', { tool: 'AskUserQuestion' }, async () => {
+      const ui = await $.ui.mount({ plugin: 'maister', surface: 'terminal', component: 'AskUserQuestion', props: { tool: 'AskUserQuestion', questions: QUESTIONS } })
+      colour = (await ui.findAll({ type: 'Text' })).find((each: any) => each.text === 'no open risks')?.props.color
+      await ui.unmount()
+      return { result: { answers: {} } }
+    })
+    await $.tool.call({ tool: 'AskUserQuestion', questions: QUESTIONS })
+    expect(colour).toBe('#8c909a')
   })
 
   test('draws the plain glance from a brief without parts', async ($: any, on: any) => {
@@ -461,6 +485,32 @@ describe('quiet bookkeeping', () => {
     const result = await $.ui.mount({ plugin: 'maister', surface: 'terminal', component: 'ToolResult', props: { tool_use_id: seen.ids[0], tool: 'Bash', output: {}, isErrored: false } })
     expect(await result.findAll({ type: 'Text' })).toEqual([])
     await result.unmount()
+  })
+
+  test('a quiet line sits under the row\'s bullet, dim, as a tool result\'s line does', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved()] })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    const drawn: any = (await row($, 'terminal', seen.ids[0])).drawn
+    expect(drawn).toMatchObject({ type: 'Box', props: { marginLeft: 2 } })
+    expect(drawn.children[0].props.color).toBe('#8c909a')
+  })
+
+  test('an empty write draws nothing', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved({ saved: [] })] })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    const drawn = await row($, 'terminal', seen.ids[0])
+    expect(drawn.texts).toEqual([])
+    expect((drawn.drawn as any).type).toBe('Box')
+  })
+
+  test('a repeat is dropped: the brief of the checkpoint a write already opened draws nothing', async ($: any, on: any) => {
+    const parts = PARTS.map(part => (part.key !== 'title' ? part : { ...part, text: 'Specification approval' }))
+    const seen = beneath(on, files(), { shells: [saved({ gate_open: true }), { stdout: '{"ok":true}', files: { [NEXT]: nextDoc(ASK, { parts }) } }, saved({ updated: '2026-10-07T16:41:00Z', saved: [{ node: 'intake', title: 'Intake', status: 'completed' }] }), saved({ updated: '2026-10-07T16:42:00Z', saved: [{ node: 'intake', title: 'Intake', status: 'completed' }] })] })
+    for (const command of [WRITE, BRIEF, WRITE, WRITE]) await $.tool.call({ tool: 'Bash', command })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checkpoint 2 of 10 · Specification approval'])
+    expect((await row($, 'terminal', seen.ids[1])).texts).toEqual([])
+    expect((await row($, 'terminal', seen.ids[2])).texts).toEqual(['· maister · saved · intake → done'])
+    expect((await row($, 'terminal', seen.ids[3])).texts).toEqual([])
   })
 
   test('a write that opens a gate draws as the checkpoint it opened', async ($: any, on: any) => {
@@ -529,7 +579,37 @@ describe('quiet bookkeeping', () => {
   test('a Write of any other file draws in full', async ($: any, on: any) => {
     const seen = beneath(on, files())
     await $.tool.call({ tool: 'Write', file_path: `${ROOT}/notes.md`, content: 'x' })
+    await $.tool.call({ tool: 'Write', file_path: `${RUN}/analysis/notes-to-self.md`, content: 'x' })
     expect((await row($, 'terminal', seen.ids[0], 'Write')).drawn).toMatchObject({ type: 'engine' })
+    expect((await row($, 'terminal', seen.ids[1], 'Write')).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('an artifact write collapses to one line, its path a link where links open', async ($: any, on: any) => {
+    const seen = beneath(on, files())
+    await $.tool.call({ tool: 'Write', file_path: `${RUN}/analysis/scope-clarifications.md`, content: '# Scope' })
+    await $.tool.call({ tool: 'Write', file_path: `${RUN}/analysis/research-context/sources.md`, content: '# Sources' })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const drawn = await row($, surface, seen.ids[0], 'Write')
+      expect(flatten(drawn.drawn)).toBe('· maister · wrote analysis/scope-clarifications.md')
+      expect(drawn.links).toEqual(surface === 'terminal' ? [{ href: `${RUN_URL}/analysis/scope-clarifications.md`, text: 'analysis/scope-clarifications.md' }] : [])
+      for (const style of drawn.styles) expect(style).toMatchObject({ color: '#7cc4e8', underline: true })
+    }
+    expect(flatten((await row($, 'terminal', seen.ids[1], 'Write')).drawn)).toBe('· maister · wrote analysis/research-context/sources.md')
+  })
+
+  test('a failed artifact write draws in full', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { writes: [{ error: 'EACCES: permission denied' }] })
+    await $.tool.call({ tool: 'Write', file_path: `${RUN}/analysis/scope-clarifications.md`, content: '# Scope' })
+    expect((await row($, 'terminal', seen.ids[0], 'Write')).drawn).toMatchObject({ type: 'engine' })
+    expect((await row($, 'terminal', seen.ids[0], 'Write', { isErrored: true })).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('without a declared list, any file in the task folder but the engine\'s own is an artifact', async ($: any, on: any) => {
+    const seen = beneath(on, { ...files(), [STATUS]: statusDoc({ artifacts: undefined }) })
+    await $.tool.call({ tool: 'Write', file_path: `${RUN}/analysis/notes.md`, content: 'x' })
+    await $.tool.call({ tool: 'Write', file_path: `${RUN}/orchestrator-state.yml`, content: 'x' })
+    expect(flatten((await row($, 'terminal', seen.ids[0], 'Write')).drawn)).toBe('· maister · wrote analysis/notes.md')
+    expect((await row($, 'terminal', seen.ids[1], 'Write')).drawn).toMatchObject({ type: 'engine' })
   })
 
   const call = (id: string, tool = 'Bash', fields: Record<string, unknown> = {}) =>
@@ -553,13 +633,25 @@ describe('quiet bookkeeping', () => {
     expect(JSON.stringify(drawn.drawn)).not.toContain('"engine"')
   })
 
-  test('a folded run mixed with other calls keeps its count line, the lines under it', async ($: any, on: any) => {
+  test('a folded run of engine calls, one of which says nothing, draws only the quiet line in its place', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved({ saved: [] }), saved({ updated: '2026-10-07T16:41:00Z' })] })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    const drawn = await group($, [call(seen.ids[0]), call(seen.ids[1])])
+    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running'])
+    expect(JSON.stringify(drawn.drawn)).not.toContain('"engine"')
+    const quiet = await group($, [call(seen.ids[0])])
+    expect(quiet.texts).toEqual([])
+    expect(JSON.stringify(quiet.drawn)).not.toContain('"engine"')
+  })
+
+  test('a folded run mixed with other calls draws as Claude Code draws it, nothing added', async ($: any, on: any) => {
     const seen = beneath(on, files(), { shells: [{}, saved()] })
     await $.tool.call({ tool: 'Bash', command: 'ls' })
     await $.tool.call({ tool: 'Bash', command: WRITE })
     const drawn = await group($, [call(seen.ids[0]), call(seen.ids[1])])
-    expect(drawn.drawn.children[0]).toMatchObject({ type: 'engine' })
-    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running'])
+    expect(drawn.drawn).toMatchObject({ type: 'engine' })
+    expect(drawn.texts).toEqual([])
   })
 
   test('a folded run holding the freeze draws the start card', async ($: any, on: any) => {

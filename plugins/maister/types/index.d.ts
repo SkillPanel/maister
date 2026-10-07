@@ -36,6 +36,7 @@ export type DisplayStatus = {
   started?: string | null;
   dashboard?: string | null;
   run_url?: string;
+  artifacts?: string[];
   [field: string]: unknown;
 };
 
@@ -50,9 +51,16 @@ export type DisplayCard = {
   dashboard: string | null;
 };
 
-/** How one tool row is redrawn: a quiet line, the start card, or nothing once its write speaks for it. */
+/**
+ * How one tool row is redrawn: a quiet line — for an artifact, its path linked
+ * after `lead` — the start card, or nothing, when its write is spoken for or
+ * its line would say nothing new.
+ */
 export type DisplayRow = {
   line?: string;
+  lead?: string;
+  path?: string;
+  href?: string | null;
   card?: DisplayCard;
   quiet?: boolean;
   patch?: boolean;
@@ -67,6 +75,7 @@ declare module 'claude-code' {
       now: number | null;
       rows: Record<string, DisplayRow>;
       banner: string | null;
+      last: string | null;
     };
   }
 }

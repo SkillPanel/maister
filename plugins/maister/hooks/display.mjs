@@ -1,8 +1,9 @@
 /**
  * Claude Code hooks module (a mod): draws a Maister run where the session is —
  * a card at the run's start, a band above the prompt with where the run is, a
- * gate's checkpoint in a panel above its question, and the engine's own
- * bookkeeping calls as one quiet line each.
+ * gate's checkpoint in a two-line panel above its question, and the engine's
+ * own bookkeeping calls, and the artifacts a run declares as they are written,
+ * as one quiet line each.
  *
  * Display only. No hook here denies, rewrites or answers anything: every one
  * passes its call through and returns what the call beneath returned, and its
@@ -23,7 +24,8 @@
  * nodes a write changed and the run's start; `banner.json` from the freeze;
  * `next.json` with a gate's question and its panel already fitted to the rows
  * Claude Code allows above it. A file that is missing, unreadable or of an
- * unknown version draws nothing.
+ * unknown version draws nothing. The status file also lists the artifact paths
+ * the run declares, which is how a Write into the task folder is told to be one.
  *
  * A shell call draws as one quiet line only when the engine's own files prove
  * what it did: the status file moved on during a state write, or the panel
@@ -32,7 +34,8 @@
  * what is drawn. Only a clean call collapses — no error, no refusal, nothing
  * on stderr, not interrupted — and the decision is made once, when the call
  * returns, so a row redrawn later or replayed from an earlier session draws
- * as it always did.
+ * as it always did. A call whose line would say nothing — a write that moved
+ * no step — or say again what the last line said draws nothing at all.
  *
  * The elapsed time in the band is a fact, how long the run has been going.
  * Nothing here predicts how long anything will take.
@@ -59,6 +62,9 @@ const rows = atom({ plugin: 'maister', key: 'rows' }, {});
 /** The run and freeze whose banner this session has logged, where it logs one, so it is logged once. */
 const banner = atom({ plugin: 'maister', key: 'banner' }, null);
 
+/** The last quiet line this module drew, so the same line is not drawn twice in a row. */
+const last = atom({ plugin: 'maister', key: 'last' }, null);
+
 /** The format of the engine's display files this module reads. */
 const VERSION = 1;
 
@@ -80,12 +86,20 @@ const ENDINGS = new Set(['completed', 'failed', 'stopped']);
 /** The words a quiet line uses for a node status. */
 const STATUS_WORDS = { completed: 'done' };
 
-/** Colours, by theme key, so they follow the person's theme. */
-const ACCENT = 'claude';
-const DONE = 'success';
-const CURRENT = 'warning';
-const PENDING = 'inactive';
-const NEXT = 'suggestion';
+/** The files of a run the engine writes or reads itself, never one of its artifacts. */
+const ENGINE_FILES = /^(orchestrator-state\.yml|\.state-patch\.json|dashboard[^/]*|display\/.*)$/;
+
+/** Colours: the accent for titles, the states, links, and what recedes. */
+const ACCENT = '#e2885d';
+const DONE = '#79c08b';
+const AMBER = '#e3bd59';
+const LINK = '#7cc4e8';
+const DIM = '#8c909a';
+const PENDING = '#5a5f69';
+const BORDER = '#4a4f5a';
+
+/** Where a quiet line starts: under the row's bullet, as a tool result's line does. */
+const INSET = 2;
 
 /** The rows Claude Code allows around the question dialog, what a row holds, and what a border costs. */
 const DIALOG_ROWS = 12;
@@ -117,7 +131,7 @@ export const register = on => {
 
   on('tool.call', { tool: 'Write' }, async ($, e, next) => {
     const ran = await next(e);
-    await afterPatch($, e, ran).catch(() => {});
+    await afterWrite($, e, ran).catch(() => {});
     return ran;
   }).catch(($, e, next) => next(e));
 
@@ -158,12 +172,14 @@ export const register = on => {
       return row.quiet ? drawn : h(elements.Box, { flexDirection: 'column' }, await next(e), drawn);
     }
     if (row.gone) return h(elements.Box, {});
-    return h(elements.Text, { dimColor: true, wrap: 'truncate-end' }, row.line);
+    return quietLine(elements, row, linksOn(e));
   }).catch(($, e, next) => next(e));
 
   // Claude Code folds a run of calls into one count line, which no `ToolUse`
-  // hook sees: a run of this module's rows alone draws as those rows, and a
-  // run mixed with other calls keeps its count line with them drawn under it.
+  // hook sees. A run of this module's rows alone draws as those rows — a row
+  // that draws nothing counts as one of them, and draws nothing here too. A
+  // run mixed with other calls keeps its count line and gains no quiet line;
+  // only a start card is drawn under it, since nothing else shows that.
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
     if (e.props.isExpanded) return next(e);
     const kept = (await read($, rows)) ?? {};
@@ -173,13 +189,17 @@ export const register = on => {
     if (!ours.some(Boolean)) return next(e);
     const elements = $.ui.resolve(e);
     const links = linksOn(e);
-    const drawn = ours.filter(row => row && !row.gone).map((row, index) => (row.card
-      ? h(elements.Box, { key: `row-${index}` }, card(elements, row.card, links))
-      : h(elements.Text, { key: `row-${index}`, dimColor: true, wrap: 'truncate-end' }, row.line)));
     // Alone: every call is one of this module's rows, and no card stands beside a row it does not replace.
     const alone = ours.every(row => row && (row.gone || !row.card || row.quiet));
-    if (alone) return h(elements.Box, { flexDirection: 'column' }, ...drawn);
-    return h(elements.Box, { flexDirection: 'column' }, await next(e), ...drawn);
+    if (alone) {
+      const drawn = ours.filter(row => row && !row.gone).map((row, index) => (row.card
+        ? h(elements.Box, { key: `row-${index}` }, card(elements, row.card, links))
+        : h(elements.Box, { key: `row-${index}` }, quietLine(elements, row, links))));
+      return h(elements.Box, { flexDirection: 'column' }, ...drawn);
+    }
+    const cards = ours.filter(row => row?.card).map((row, index) => h(elements.Box, { key: `card-${index}` }, card(elements, row.card, links)));
+    if (!cards.length) return next(e);
+    return h(elements.Box, { flexDirection: 'column' }, await next(e), ...cards);
   }).catch(($, e, next) => next(e));
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
@@ -234,21 +254,52 @@ async function afterShell($, e, ran, before) {
   }
   if (!quiet || typeof id !== 'string') return;
   if (landed && (verb === 'write-state' || verb === 'gate-revise')) {
-    await remember($, id, { line: savedLine(status) });
+    await say($, id, { line: savedLine(status) });
     return;
   }
   if (verb === 'gate-brief') {
+    // A brief that wrote the panel already drawn says what was said: its line is the repeat `say` drops.
     const brief = await display($, dir, 'next.json');
-    if (brief && (!same || JSON.stringify(brief) !== before.brief)) await remember($, id, { line: checkpointLine(brief) });
+    if (brief) await say($, id, { line: checkpointLine(brief) });
   }
 }
 
-/** After a Write: the engine's patch file, written cleanly, draws as one quiet line until a state write lands it. */
-async function afterPatch($, e, ran) {
+/**
+ * After a clean Write: the engine's patch file draws as one quiet line until a
+ * state write lands it, and an artifact the run declares — a file in its task
+ * folder — as one linked line naming it.
+ */
+async function afterWrite($, e, ran) {
   if (e.agentId || typeof e.tool_use_id !== 'string') return;
-  if (typeof e.file_path !== 'string' || !PATCH.test(e.file_path) || !clean(ran, false)) return;
-  const status = await read($, run);
-  await remember($, e.tool_use_id, { line: patchLine(e.content, status), patch: true });
+  if (typeof e.file_path !== 'string' || !clean(ran, false)) return;
+  if (PATCH.test(e.file_path)) {
+    const status = await read($, run);
+    await remember($, e.tool_use_id, { line: patchLine(e.content, status), patch: true });
+    return;
+  }
+  const dir = await runOf($);
+  const status = dir ? await display($, dir, 'status.json') : null;
+  const path = status ? artifactOf(dir, status, e.file_path) : null;
+  if (path === null) return;
+  const href = typeof status.run_url === 'string' ? `${status.run_url}/${path.split('/').map(encodeURIComponent).join('/')}` : null;
+  await say($, e.tool_use_id, { line: `· maister · wrote ${path}`, lead: '· maister · wrote ', path, href });
+}
+
+/**
+ * The path, relative to the run's folder, of an artifact the run declares —
+ * the file itself or one inside a declared directory — or null. A status file
+ * from before the engine listed them takes any file in the folder that is not
+ * one of the engine's own.
+ */
+function artifactOf(dir, status, file) {
+  const slashed = value => value.replace(/\\/g, '/');
+  const folder = `${slashed(dir).replace(/\/+$/, '')}/`;
+  const written = slashed(file);
+  if (!written.startsWith(folder)) return null;
+  const path = written.slice(folder.length);
+  if (path === '' || path.split('/').includes('..')) return null;
+  if (!Array.isArray(status.artifacts)) return ENGINE_FILES.test(path) ? null : path;
+  return status.artifacts.some(each => typeof each === 'string' && (path === each || path.startsWith(`${each}/`))) ? path : null;
 }
 
 /** A call that ran to the end without an error, a refusal, an interruption or a word on stderr. */
@@ -272,6 +323,22 @@ async function consumePatches($) {
     }
     return changed ? out : kept;
   });
+}
+
+/**
+ * Keep a quiet line for a row: one that says nothing, or what the last quiet
+ * line already said, is kept as a row that draws nothing — still this
+ * module's, so a folded run of it draws no count line either.
+ */
+async function say($, id, row) {
+  let repeat = row.line === null;
+  if (!repeat) {
+    await update($, last, said => {
+      repeat = said === row.line;
+      return row.line;
+    });
+  }
+  await remember($, id, repeat ? { gone: true } : row);
 }
 
 /** Keep how a row draws, the oldest rows dropped past `ROWS_KEPT`. */
@@ -337,12 +404,12 @@ async function tick($) {
 // the quiet lines
 // ---------------------------------------------------------------------------
 
-/** `· maister · saved · intake → done, …`, or the checkpoint the write opened. */
+/** `· maister · saved · intake → done, …`, or the checkpoint the write opened; null when it changed no step. */
 function savedLine(status) {
   const checkpoint = status.checkpoint;
   if (status.gate_open && checkpoint) return `· maister · checkpoint ${checkpoint.index} of ${checkpoint.total} · ${checkpoint.title}`;
   const saved = Array.isArray(status.saved) ? status.saved : [];
-  if (!saved.length) return '· maister · saved';
+  if (!saved.length) return null;
   return `· maister · saved · ${saved.map(each => `${lowered(each.title)} → ${STATUS_WORDS[each.status] ?? each.status}`).join(', ')}`;
 }
 
@@ -395,24 +462,26 @@ function cardOf(start) {
 }
 
 /** The start card: what started, the task, the checkpoints and the first phase, and links to open where they open. */
-function card({ Box, Text, Link }, start, links) {
+function card(elements, start, links) {
+  const { Box, Text } = elements;
   const facts = [];
   if (start.checkpoints !== null) facts.push(start.checkpoints === 0 ? 'no checkpoints' : `up to ${start.checkpoints} ${start.checkpoints === 1 ? 'checkpoint' : 'checkpoints'}`);
   if (start.first) facts.push(`first: ${start.first}`);
   const opens = [];
-  if (links && start.dashboard) opens.push(h(Link, { key: 'dashboard', href: start.dashboard }, 'Open dashboard'));
-  if (links && start.folder) opens.push(h(Link, { key: 'folder', href: start.folder }, 'Open task folder'));
-  return h(Box, { flexDirection: 'column', borderStyle: 'round', paddingX: 1 },
+  if (links && start.dashboard) opens.push(linkTo(elements, start.dashboard, 'Open dashboard ↗', 'dashboard'));
+  if (links && start.folder) opens.push(linkTo(elements, start.folder, 'Open task folder ↗', 'folder'));
+  return h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: BORDER, paddingX: 2, paddingY: 1 },
     h(Text, { key: 'title' },
       h(Text, { color: ACCENT, bold: true }, `${start.workflow} run started`),
-      ...(start.frozen ? ['  ', h(Text, { dimColor: true }, clockTime(start.frozen))] : [])),
+      ...(start.frozen ? ['  ', h(Text, { color: DIM }, clockTime(start.frozen))] : [])),
     ...(start.task ? [h(Text, { key: 'task', bold: true }, start.task)] : []),
-    ...(facts.length ? [h(Text, { key: 'facts', dimColor: true }, facts.join(' · '))] : []),
+    ...(facts.length ? [h(Text, { key: 'facts', color: DIM }, facts.join(' · '))] : []),
     ...(opens.length ? [h(Box, { key: 'links', flexDirection: 'row', gap: 3 }, ...opens)] : []));
 }
 
-/** The band above the prompt: the run, its links where they open, and where it is. */
-function band({ Box, Text, Link }, status, time, maxRows, links) {
+/** The band above the prompt: the run and its links where they open, then where it is. */
+function band(elements, status, time, maxRows, links) {
+  const { Box, Text } = elements;
   const ended = ENDINGS.has(status.status);
   const where = [];
   const phase = status.phase ?? {};
@@ -421,7 +490,7 @@ function band({ Box, Text, Link }, status, time, maxRows, links) {
   if (!ended && status.checkpoint) after.push(`next checkpoint ${status.checkpoint.index} of ${status.checkpoint.total}`);
   const elapsed = ended ? null : elapsedText(status.started, time);
   if (elapsed) after.push(elapsed);
-  if (after.length) where.push(h(Text, { key: 'after', dimColor: true }, after.join(' · ')));
+  if (after.length) where.push(h(Text, { key: 'after', color: DIM }, after.join(' · ')));
 
   const dots = !ended && Number.isInteger(phase.index) && phase.total <= DOTS_MAX ? dotsOf({ Text }, phase) : null;
   const progress = h(Box, { key: 'progress', flexDirection: 'row', gap: 2 },
@@ -432,12 +501,12 @@ function band({ Box, Text, Link }, status, time, maxRows, links) {
   if (maxRows < 2) return h(Box, { flexDirection: 'row', gap: 2 }, name, progress);
 
   const opens = [];
-  if (links && status.dashboard) opens.push(h(Link, { key: 'dashboard', href: status.dashboard }, 'Dashboard'));
-  if (links && typeof status.run_url === 'string') opens.push(h(Link, { key: 'folder', href: status.run_url }, 'Task folder'));
+  if (links && status.dashboard) opens.push(linkTo(elements, status.dashboard, 'Dashboard ↗', 'dashboard'));
+  if (links && typeof status.run_url === 'string') opens.push(linkTo(elements, status.run_url, 'Task folder ↗', 'folder'));
   const head = h(Box, { key: 'head', flexDirection: 'row', gap: 2 },
     name,
     h(Box, { key: 'task', flexGrow: 1, flexShrink: 1 }, h(Text, { wrap: 'truncate-end' }, status.task ?? '')),
-    ...opens);
+    ...(opens.length ? [h(Box, { key: 'links', flexDirection: 'row', gap: 2, flexShrink: 0 }, ...opens)] : []));
   return h(Box, { flexDirection: 'column' }, head, progress);
 }
 
@@ -447,16 +516,34 @@ function dotsOf({ Text }, phase) {
   const pending = Math.max(0, phase.total - phase.index);
   return h(Text, { key: 'dots' },
     h(Text, { color: DONE }, '●'.repeat(done)),
-    h(Text, { color: CURRENT }, '●'),
+    h(Text, { color: AMBER }, '●'),
     h(Text, { color: PENDING }, '●'.repeat(pending)));
 }
 
 /**
+ * A quiet line, inset under the row's bullet and dim; an artifact's line has
+ * its path linked where the surface opens the link.
+ */
+function quietLine(elements, row, links) {
+  const { Box, Text } = elements;
+  const text = row.path && row.href && links
+    ? h(Text, { color: DIM, wrap: 'truncate-end' }, row.lead, linkTo(elements, row.href, row.path))
+    : h(Text, { color: DIM, wrap: 'truncate-end' }, row.line);
+  return h(Box, { marginLeft: INSET }, text);
+}
+
+/** A link drawn as one: underlined, in the link colour. */
+function linkTo({ Link, Text }, href, label, key) {
+  return h(Link, { ...(key ? { key } : {}), href }, h(Text, { color: LINK, underline: true }, label));
+}
+
+/**
  * The panel above a gate's question, in the first form that fits the rows
- * Claude Code allows around the dialog: the styled parts with every review
- * file linked, then with fewer of them linked, the rest named — a link costs
- * the rows of its URL as well — then the plain glance, which the engine
- * fitted. Null when there is nothing to draw, or nothing that fits.
+ * Claude Code allows around the dialog: its two lines with every review file
+ * linked, then with fewer of them linked, the rest named — a link costs the
+ * rows of its URL as well — then the plain glance, the engine's fitted form,
+ * for a brief without parts. Null when there is nothing to draw, or nothing
+ * that fits.
  */
 function panelBox(elements, brief, links) {
   const forms = [];
@@ -464,11 +551,10 @@ function panelBox(elements, brief, links) {
     const review = brief.parts.find(part => part.key === 'review');
     const files = links && Array.isArray(review?.files) ? review.files.length : 0;
     for (let linked = files; linked >= 0; linked -= 1) forms.push(panelRows(elements, brief.parts, linked));
-  }
-  forms.push(glanceRows(elements, brief.glance));
+  } else forms.push(glanceRows(elements, brief.glance));
   for (const lines of forms) {
     if (!lines.length) continue;
-    const box = h(elements.Box, { flexDirection: 'column', borderStyle: 'round', paddingX: 1 }, ...lines);
+    const box = h(elements.Box, { flexDirection: 'column', borderStyle: 'round', borderColor: BORDER, paddingX: 1 }, ...lines);
     if (rowsAround(box, links) <= DIALOG_ROWS) return box;
   }
   return null;
@@ -497,32 +583,36 @@ function rowsAround(node, links, inline = false) {
   return rows;
 }
 
-/** The panel's styled rows above a gate's question, the first `linked` review files linked and the rest named. */
-function panelRows({ Text, Link }, parts, linked) {
-  return parts.map(part => {
-    if (part.key === 'title') {
-      return h(Text, { key: 'title' }, h(Text, { color: ACCENT, bold: true }, part.label), ' ', h(Text, { bold: true }, part.text));
-    }
-    if (part.key === 'headline') {
-      return h(Text, { key: 'headline' }, h(Text, { color: DONE, bold: true }, part.label), ' ', part.text);
-    }
-    if (part.key === 'counts') {
-      return h(Text, { key: 'counts' }, h(Text, { dimColor: true }, part.label), ` ${part.text} · `,
-        part.open > 0 ? h(Text, { color: CURRENT }, part.risks) : h(Text, { dimColor: true }, part.risks));
-    }
-    if (part.key === 'next') {
-      return h(Text, { key: 'next' }, h(Text, { color: NEXT, bold: true }, part.label), ' ', part.text);
-    }
-    if (part.key === 'review') {
-      const files = (part.files ?? []).flatMap((file, index) => [
-        ...(index ? ['  '] : []),
-        index < linked && typeof file.href === 'string' ? h(Link, { href: file.href }, file.label) : file.label,
-      ]);
-      return h(Text, { key: 'review' }, h(Text, { dimColor: true }, part.label), ' ', ...files,
-        ...(part.more ? [h(Text, { dimColor: true }, `  +${part.more} more`)] : []));
-    }
-    return h(Text, { key: String(part.key) }, `${part.label ?? ''} ${part.text ?? ''}`.trim());
-  });
+/**
+ * The panel's two lines above a gate's question — the option preview under it
+ * already says what was done, what comes next and what was decided:
+ * `Checkpoint 2 of 10 · Specification · 1 decided · 1 open risk`, then the
+ * review files, the first `linked` of them links and the rest named.
+ */
+function panelRows(elements, parts, linked) {
+  const { Text } = elements;
+  const title = parts.find(part => part.key === 'title');
+  const counts = parts.find(part => part.key === 'counts');
+  const review = parts.find(part => part.key === 'review');
+  const sep = () => h(Text, { color: DIM }, ' · ');
+  const head = [];
+  if (title) head.push(h(Text, { color: ACCENT, bold: true }, title.label), ...(title.text ? [sep(), h(Text, { bold: true }, title.text)] : []));
+  if (counts) {
+    if (head.length) head.push(sep());
+    head.push(h(Text, { color: DIM }, `${counts.text} decided`), sep(),
+      counts.open > 0 ? h(Text, { color: AMBER }, counts.risks) : h(Text, { color: DIM }, counts.risks));
+  }
+  const lines = head.length ? [h(Text, { key: 'head' }, ...head)] : [];
+  const files = Array.isArray(review?.files) ? review.files : [];
+  if (files.length) {
+    const named = files.flatMap((file, index) => [
+      '  ',
+      index < linked && typeof file.href === 'string' ? linkTo(elements, file.href, file.label) : file.label,
+    ]);
+    lines.push(h(Text, { key: 'review' }, h(Text, { color: DIM }, review.label ?? 'Review'), ...named,
+      ...(review.more ? [h(Text, { color: DIM }, `  +${review.more} more`)] : [])));
+  }
+  return lines;
 }
 
 /** `running for 9 min`: how long the run has been going, never how long it will. */
