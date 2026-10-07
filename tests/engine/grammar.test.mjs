@@ -807,3 +807,75 @@ test('a revise option is hashed whole: it moves the hash of the definition that 
   assert.equal(drawn.code, 0, drawn.stderr);
   assert.match(drawn.stdout, /send-back: revise → intake/);
 });
+
+// ---------------------------------------------------------------------------
+// grants: what answering a continue option authorises beyond the run
+// ---------------------------------------------------------------------------
+
+/** BASE with the gate's options written out, `continue-on` carrying `continueOn`. */
+function granting(continueOn, ...others) {
+  return replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', `      continue-on: ${continueOn}`, ...(others.length ? others : ['      stop-here: stop']));
+}
+
+test('a continue option may declare the grants its answer gives', t => {
+  const { code, report } = validate(definition(t, granting('{effect: continue, grants: [push, pr-create]}')));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.equal(validate(definition(t, granting('{effect: continue, grants: [pr-create]}'))).code, 0);
+});
+
+test('grants outside the closed set, repeated, empty or not a list are refused at the option', t => {
+  const at = 'nodes.review-approval.options.continue-on.grants';
+  const cases = [
+    ['{effect: continue, grants: [pussh]}', /"pussh" is not a grant; did you mean "push"\? the grants are push, pr-create/],
+    ['{effect: continue, grants: [merge]}', /"merge" is not a grant; the grants are push, pr-create/],
+    ['{effect: continue, grants: [push, push]}', /grants names "push" twice/],
+    ['{effect: continue, grants: []}', /grants is a list naming at least one of push, pr-create; an empty list is not/],
+    ['{effect: continue, grants: push}', /grants is a list naming at least one of push, pr-create; "push" is not/],
+  ];
+  for (const [option, message] of cases) {
+    const { code, report } = validate(definition(t, granting(option)));
+    assert.equal(code, 1, option);
+    assert.match(errorAt(report, at).message, message, option);
+  }
+});
+
+test('grants belong to the continue option: a stop or a revise carrying them is refused', t => {
+  const stop = validate(definition(t, granting('continue', '      stop-here: {effect: stop, grants: [push]}')));
+  assert.equal(stop.code, 1);
+  assert.match(errorAt(stop.report, 'nodes.review-approval.options.stop-here.grants').message,
+    /grants belongs to the continue option; a stop option leads to no node that would act on what it grants/);
+
+  const revise = validate(definition(t, granting('continue',
+    '      send-back: {effect: revise, reruns: intake, grants: [push]}', '      stop-here: stop')));
+  assert.equal(revise.code, 1);
+  assert.match(errorAt(revise.report, 'nodes.review-approval.options.send-back.grants').message, /a revise option leads to no node/);
+});
+
+test('grants outside a gate option are refused by the node key set', t => {
+  const lines = [...BASE];
+  lines.splice(lines.indexOf('    uses: direct:wrapup'), 0, '    grants: [push]');
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.wrapup.grants').message, /"grants" is not a node key/);
+});
+
+test('grants are part of the graph identity, and the order they are written in is not', t => {
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout);
+  const plain = hashOf(definition(t));
+  const both = hashOf(definition(t, granting('{effect: continue, grants: [push, pr-create]}')));
+  const reversed = hashOf(definition(t, granting('{effect: continue, grants: [pr-create, push]}')));
+  const pushOnly = hashOf(definition(t, granting('{effect: continue, grants: [push]}')));
+  assert.equal(both.ok, true, JSON.stringify(both.errors));
+  assert.notEqual(both.graph_hash, plain.graph_hash, 'adopting a grant moves the hash');
+  assert.notEqual(pushOnly.graph_hash, both.graph_hash, 'what is granted moves the hash');
+  assert.equal(reversed.graph_hash, both.graph_hash, 'the written order does not');
+  assert.equal(hashOf(definition(t, granting('{effect: continue}'))).graph_hash, plain.graph_hash,
+    'the long spelling without grants is still the bare effect');
+  const gate = reversed.nodes.find(node => node.id === 'review-approval');
+  assert.deepEqual(JSON.parse(JSON.stringify(gate.options['continue-on'])), { effect: 'continue', grants: ['push', 'pr-create'] });
+
+  const drawn = verb(['diagram', `--definition=${definition(t, granting('{effect: continue, grants: [push]}'))}`]);
+  assert.equal(drawn.code, 0, drawn.stderr);
+  assert.match(drawn.stdout, /continue-on: continue/);
+});
