@@ -725,6 +725,11 @@ async function runGateBrief(flags) {
     if (form !== 'checkpoint' && form !== 'request') {
       throw new UsageError('gate-brief takes --patch-file only with --request or --checkpoint: a question set is carried to a driver, never rendered as a picker');
     }
+    // A set asked again in a node's new attempt is asked as in its first:
+    // nothing was missing from the earlier answer, so there is no revise to name.
+    if (flags.reask !== undefined) {
+      throw new UsageError('gate-brief takes --reask or --patch-file, not both: --reask asks a gate again for the note its revise lacked, and a question set asked again in a new attempt takes --patch-file alone');
+    }
     questions = parseDocument(readFileText(patchFileOf(flags), 'the question set', UsageError), 'the question set in the patch file');
   }
   const module = await loadModule(VERBS['gate-brief'].module);
