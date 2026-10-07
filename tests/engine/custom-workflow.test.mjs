@@ -155,9 +155,12 @@ function writeReport(run) {
 // ---------------------------------------------------------------------------
 
 
-/** The brief's last line: the run files it names to review, from the project root. */
+/** The brief's last line: the run files it names to review, from the project root, with `/` on
+ *  every platform, as the brief prints them. */
 function reviewOf(run, files) {
-  const named = files.map(file => path.relative(run.root, path.join(run.dir, file))).join(', ');
+  const named = files
+    .map(file => path.relative(run.root, path.join(run.dir, file)).split(path.sep).join('/'))
+    .join(', ');
   return `Review: ${named}`;
 }
 
