@@ -29,13 +29,15 @@
  *                  prompt — read-only over a run
  *   gate-brief     --state, --node, optional one of --oneline,
  *                  --json [--picker=rich|plain], --checkpoint, --request
- *                                                             the gate brief:
+ *                  [--reask=<revise option>]                  the gate brief:
  *                  with no form, the closing summary and the node that runs
  *                  next as text; --checkpoint the checkpoint, the one
  *                  structured object every surface projects from; --json the
  *                  in-session picker projected from it for the asking tool
  *                  (--picker), with the full brief as `more_details`;
- *                  --request the whole driven gate request; --oneline the
+ *                  --request the whole driven gate request, its question
+ *                  opened by a line asking for the note when --reask names
+ *                  the revise answered without one; --oneline the
  *                  one-line fallback a request's summary carries — read-only
  *                  over a run
  *   resume-check   --state                                    JSON on stdout
@@ -127,7 +129,7 @@ const VERBS = {
   // labels only — the build rewrites the one into the other per tool;
   // `--request` the driven gate request, whole, so a driver composes nothing;
   // `--oneline` the one-line fallback that request's summary carries.
-  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline', 'json', 'picker', 'checkpoint', 'request'] },
+  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline', 'json', 'picker', 'checkpoint', 'request', 'reask'] },
   // Read-only as well, and asked first by every resume: whether the directory
   // holds a run this engine froze, and what it froze. One flag for the reason
   // the other state verbs take one.
@@ -704,9 +706,13 @@ async function runGateBrief(flags) {
   if (!PICKERS.includes(picker)) {
     throw new UsageError(`gate-brief --picker takes ${PICKERS.join(' or ')}, not "${picker}"`);
   }
+  // A re-ask is a driven request asked again, so it shapes that form alone.
+  if (flags.reask !== undefined && form !== 'request') {
+    throw new UsageError('gate-brief takes --reask only with --request: it opens a driven request asked again');
+  }
   const module = await loadModule(VERBS['gate-brief'].module);
   const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
-  const result = render({ state: flags.state, node: flags.node, form, picker });
+  const result = render({ state: flags.state, node: flags.node, form, picker, reask: flags.reask });
   // A refusal's code comes first on stderr, and a drift warning is kept after
   // it: a drifted run that also lacks a summary must still say it drifted.
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);

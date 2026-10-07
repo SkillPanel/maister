@@ -267,14 +267,14 @@ function stopLines(checkpoint, option) {
   return out.slice(0, STOP_LINES);
 }
 
-/** How often a gate has sent the run back, said as a count of what happened. */
+/** How often a gate has been asked again, said as a count of what happened. */
 function revisedSoFar(revision) {
   const done = (revision?.n ?? 1) - 1;
   if (done < 1) return '';
-  return ` Revised ${done === 1 ? 'once' : `${done} times`} so far here.`;
+  return ` Asked again ${done === 1 ? 'once' : `${done} times`} so far here.`;
 }
 
-/** What a revise re-runs, and how often this checkpoint has sent the run back. */
+/** What a revise re-runs, and how often this checkpoint has been asked again. */
 function rerunsLine(option) {
   const names = andList((option.reruns ?? []).map(each => each.title));
   return `Re-runs: ${names || 'the earlier phases'}, then asks this checkpoint again.${revisedSoFar(option.revision)}`;
@@ -478,12 +478,16 @@ function withDetails(profile, question, options, more) {
  * `context.checkpoint` the object itself, kept with the request so the gate's
  * history shows what was asked. The writer adds the version, the time asked and
  * the empty answer — a caller that sent them would be refused.
+ *
+ * `reask` is the revise option an earlier request was answered with but no
+ * note: the same gate is asked again, every option still offered, and the
+ * question opens by saying that revise needs one.
  */
-export function requestOf(checkpoint, summary) {
+export function requestOf(checkpoint, summary, reask = null) {
   return {
     node: checkpoint.node,
     kind: checkpoint.kind,
-    question: checkpoint.ask,
+    question: reask === null ? checkpoint.ask : `${reaskLine(reask)}\n\n${checkpoint.ask}`,
     context: {
       summary,
       artifacts: (checkpoint.review ?? []).map(each => each.path),
@@ -507,4 +511,9 @@ export function requestOf(checkpoint, summary) {
     })),
     multi_select: false,
   };
+}
+
+/** The line a re-asked request opens with: the revise needs a note. */
+function reaskLine(option) {
+  return `"${option.label}" needs a note saying what should change. Choose it again with one, or choose another option.`;
 }

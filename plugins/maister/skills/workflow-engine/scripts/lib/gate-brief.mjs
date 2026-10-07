@@ -25,8 +25,9 @@
  *
  * The refusals, split by who can fix them. Two are fixed by a state write, and
  * their message carries the patch: `gate-brief-no-summary` and
- * `gate-brief-value-missing`. Four name no write: `gate-brief-unknown-node` and
- * `gate-brief-not-a-gate` (the invocation is wrong), `state-unreadable`, and
+ * `gate-brief-value-missing`. Five name no write: `gate-brief-unknown-node`,
+ * `gate-brief-not-a-gate` and `gate-brief-reask-not-revise` (the invocation is
+ * wrong), `state-unreadable`, and
  * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
  * back on).
  *
@@ -172,7 +173,7 @@ const SUMMARY_FLOOR = 400;
  * returns the picker — `{picker, question, header, options, details}`, shaped
  * by the `picker` profile — beside the plain text.
  */
-export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
+export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask = null }) {
   let doc;
   try {
     doc = parse(fs.readFileSync(state, 'utf8'));
@@ -278,7 +279,19 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
     doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, recommended, revisions, gateId,
   });
   if (form === 'checkpoint') return { ok: true, checkpoint, errors: [], warnings };
-  if (form === 'request') return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd()), errors: [], warnings };
+  if (form === 'request') {
+    // A re-ask names the revise the operator chose without the note it needs,
+    // so it must be one this checkpoint still offers.
+    const asked = reask === null || reask === undefined ? null
+      : checkpoint.options.find(option => option.id === reask && option.effect === 'revise') ?? null;
+    if (reask !== null && reask !== undefined && asked === null) {
+      const revises = checkpoint.options.filter(option => option.effect === 'revise').map(option => option.id);
+      return refuse('gate-brief-reask-not-revise',
+        `--reask=${reask} is not a revise option this gate offers (${revises.length ? revises.join(', ') : 'it offers none'}); `
+        + 'correct the --reask argument to the revise the operator chose — no state write fixes this', warnings);
+    }
+    return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd(), asked), errors: [], warnings };
+  }
   const shaped = picker === 'plain' ? plainPicker(checkpoint) : richPicker(checkpoint);
   // The plain profile's header titles a form property, which has no length
   // limit and shows a cut word as written: it takes the closing node's own
@@ -427,14 +440,17 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
 }
 
 /**
- * How often this gate has sent the run back, said as a count of what happened
+ * How often this gate has been asked again, said as a count of what happened
  * rather than as one of a fixed number: a revise the user chooses is not
- * rationed, and "revision 2 of 3" read as a budget running out.
+ * rationed, and "revision 2 of 3" read as a budget running out. It counts the
+ * gate's attempts, so a revise that sent the run back and a revise asked again
+ * for the note it lacked are both in it — "revised" would claim a change the
+ * second never made.
  */
 function revisedSoFar(revision) {
   const done = revision - 1;
   if (done < 1) return '';
-  return ` Revised ${done === 1 ? 'once' : `${done} times`} so far at this checkpoint.`;
+  return ` Asked again ${done === 1 ? 'once' : `${done} times`} so far at this checkpoint.`;
 }
 
 /**

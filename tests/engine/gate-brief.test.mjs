@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, lastLine, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, scratch, verb, write } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 
 // `gate-brief` renders what the operator reads at a gate — the closing node's
@@ -1006,27 +1006,82 @@ test('picker: a stretch with nothing open offers no suggestion, and the note is 
   assert.deepEqual(request.options.find(option => option.id === 'send-back').suggestions, []);
 });
 
+test('a driven request asked again for a revise answered without a note opens by asking for it', t => {
+  const run = atReview(t, { review: { risks: [] }, draft: { risks: [] } });
+  const request = flags => JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request', ...flags]).stdout);
+  const first = request([]);
+  const again = request(['--reask=send-back']);
+  assert.equal(again.question,
+    `"Send back with notes" needs a note saying what should change. Choose it again with one, or choose another option.\n\n${first.question}`);
+  assert.deepEqual(again.options, first.options, 'every option is offered again, unchanged');
+  assert.deepEqual(again.context, first.context, 'the checkpoint keeps the ask as the gate words it');
+
+  const notRevise = verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request', '--reask=publish-draft']);
+  assert.equal(notRevise.code, 1);
+  assert.match(notRevise.stderr, /^gate-brief-reask-not-revise: --reask=publish-draft is not a revise option this gate offers \(send-back\)/);
+  assert.equal(notRevise.stdout, '');
+
+  const notDriven = verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--json', '--reask=send-back']);
+  assert.equal(notDriven.code, 2);
+  assert.match(notDriven.stderr, /--reask only with --request/);
+});
+
+test('a revise answered without a note is folded as an answered request and asked again in the gate\'s next attempt', t => {
+  const run = atReview(t, { review: { risks: [] }, draft: { risks: [] } });
+  // Suspended, as the driven write order leaves it.
+  const request = 'gates/review-approval.request.yml';
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, request), 'version: 1\nnode: review-approval\nkind: approval\nasked_at: "2026-01-05T09:00:00Z"\nanswer: null\n');
+  write(run, {
+    orchestrator: { gate_pending: { node: 'review-approval', request, since: '2026-01-05T09:00:00Z' } },
+    nodes: { 'review-approval': { status: 'suspended' } },
+  });
+  // The fold with editor tools: the request answered, the gate pending in its
+  // next attempt, no summary, the marker cleared last.
+  fs.writeFileSync(path.join(run.dir, request),
+    fs.readFileSync(path.join(run.dir, request), 'utf8').replace('answer: null', 'answer: {option: send-back}'));
+  const folded = fs.readFileSync(run.state, 'utf8')
+    .replace(/(    review-approval: \{kind: gate, )status: suspended/, '$1status: pending, attempt: 2')
+    .replace(/gate_pending: \{[^\n]*\}/, 'gate_pending: null');
+  fs.writeFileSync(run.state, folded);
+
+  const revalidated = verb(['write-state', `--state=${run.state}`], {});
+  assert.equal(revalidated.code, 0, revalidated.stderr);
+  const state = readState(run);
+  assert.equal(state.workflow.nodes['review-approval'].status, 'pending');
+  assert.equal(state.workflow.nodes['review-approval'].attempt, 2);
+  assert.equal(state.node_summaries?.['review-approval'], undefined, 'nothing is recorded as a revise');
+  assert.equal(state.workflow.nodes.draft.status, 'completed', 'and nothing is reset');
+  assert.match(fs.readFileSync(path.join(run.dir, 'gates/index.yml'), 'utf8'), /status: answered/);
+
+  const again = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request', '--reask=send-back']).stdout);
+  assert.match(again.question, /^"Send back with notes" needs a note saying what should change\./);
+  assert.deepEqual(again.options.map(option => option.id), ['publish-draft', 'send-back', 'abandon']);
+  assert.match(again.options.find(option => option.id === 'send-back').description, / Asked again once so far at this checkpoint\.$/);
+  assert.match(oneline(run, 'review-approval').stdout, /revision=2\/10/, 'the re-ask counts toward the ceiling of ten');
+});
+
 test('driven form: a revise section before Recommended, and the recommendation unchanged', t => {
   const run = atReview(t);
   const text = oneline(run, 'review-approval').stdout;
   assert.match(text, / · Next: Publish · revise: send-back reruns=draft revision=1\/10 · Recommended: publish-draft · Run: /);
 });
 
-test('a revised gate says how often it was revised, and at its ceiling of ten the option is gone', t => {
+test('a revised gate says how often it was asked again, and at its ceiling of ten the option is gone', t => {
   const run = atReview(t);
   sendBack(run);
   rerun(run);
   const second = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
-  assert.match(second.description, / Revised once so far at this checkpoint\.$/);
-  assert.match(second.preview, /^Re-runs: .* Revised once so far here\.$/m);
+  assert.match(second.description, / Asked again once so far at this checkpoint\.$/);
+  assert.match(second.preview, /^Re-runs: .* Asked again once so far here\.$/m);
   assert.equal(second.note_question.question,
-    'What should change? Re-runs: Draft, Figures and Review, then asks this checkpoint again. Revised once so far here.');
+    'What should change? Re-runs: Draft, Figures and Review, then asks this checkpoint again. Asked again once so far here.');
   assert.doesNotMatch(second.description, / of \d/, 'a revise the user chooses is not counted against a budget');
   assert.match(oneline(run, 'review-approval').stdout, /revision=2\/10/);
   sendBack(run);
   rerun(run);
   assert.match(picker(run, 'review-approval').options.find(option => option.id === 'send-back').description,
-    / Revised 2 times so far at this checkpoint\.$/);
+    / Asked again 2 times so far at this checkpoint\.$/);
 
   for (let round = 3; round <= 10; round++) {
     sendBack(run);
