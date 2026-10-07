@@ -65,6 +65,17 @@ inputs:
   # per-run override.
   no_visual: {type: bool, required: false, default: false}
 
+# What a chain step may bind. Every entry names an output some node already
+# declares, so a key that stops resolving fails validation rather than a run.
+# `mockups` belongs to a node a guard may skip: when no screens were drawn the
+# entry is simply absent, and the reader's missing-artifact rule decides what
+# follows. The brief and the delivery scope are written on every path.
+outputs:
+  artifacts:
+    brief: review-handoff.artifacts.brief
+    delivery_scope: review-handoff.artifacts.delivery_scope
+    mockups: visual-prototyping.artifacts.mockups
+
 # What the dashboard draws beside each node. Definition data rather than graph
 # data: the block sits outside `nodes:` and outside the hashed envelope, so
 # adding or correcting a hint moves no `graph_hash` and drifts no frozen chain.
@@ -301,3 +312,5 @@ nodes:
     outputs:
       artifacts:
         brief: outputs/product-brief.md
+        # Written on every path: one member for a single repository.
+        delivery_scope: outputs/delivery-scope.yml

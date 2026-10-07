@@ -148,6 +148,8 @@ passage fetched with `prior-context` — and the `${…}` substitution that fill
   When `html_output` is false, invoke none and pass no style guide path.
 - **Every artifact a node writes inline opens with the artifact summary
   contract** (framework § 7): TL;DR, Key Decisions and Open Questions / Risks.
+  The one exception is `outputs/delivery-scope.yml`, a file a machine reads,
+  which carries its fixed shape and nothing else.
 
 > **ANTI-PATTERN**: Do NOT re-summarize a summary block. `decisions` and `risks`
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
@@ -240,18 +242,21 @@ pairing between a stretch and the approval that closes it.
 ## Embedded mode
 
 **There is none.** This workflow is never invoked as a sub-run of another, which
-is why the definition declares no embedded input and no workflow-level outputs.
-Its result reaches the development workflow by path, not as a child: an operator
-passes this run's task directory to the development command, and development's
-intake copies the brief and the mockups from it. That hand-off reads two paths —
-`outputs/product-brief.md` and `analysis/mockups/` — which is why the artifact
-layout here is a contract and does not move.
+is why the definition declares no embedded input. Its result reaches the
+development workflow by path, not as a child: an operator passes this run's task
+directory to the development command, and development's intake copies the brief
+and the mockups from it. The definition does declare a workflow-level `outputs:`
+block — the brief, the delivery scope and the mockups — so a chain that runs
+this workflow as one of its steps can bind them by name. Those reads are three
+paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
+`analysis/mockups/` — which is why the artifact layout here is a contract and
+does not move.
 
-If that ever changes, it changes here first, and it is the recipe the engine's
-sub-run rule already sets out: an `embedded` input the engine supplies, a guard
-on the closing node and a workflow-level `outputs:` block. No engine change is
-involved; see the engine skill's *Sub-runs* section and the `sub-runs.md`
-reference beside it.
+If running it as a sub-run is ever wanted, it changes here first, and it is the
+recipe the engine's sub-run rule already sets out: an `embedded` input the
+engine supplies and a guard on the closing node, beside the `outputs:` block
+already declared. No engine change is involved; see the engine skill's
+*Sub-runs* section and the `sub-runs.md` reference beside it.
 
 ---
 
@@ -1051,8 +1056,24 @@ final approval and closes the run.
    - **Mockup references**, when the state records `visual-prototyping`
      completed — links to the files under `analysis/mockups/`, and terminal
      mockups inline;
+   - **Delivery scope**, always: each member in scope as one plain sentence —
+     the member, what changes there, and what it waits for — in order, then
+     each member left out with its reason. It is a layer like the others, so
+     the approval below names it and approving the brief approves the scope;
    - **References**: every analysis document the run produced.
-3. **Write `outputs/product-brief.md`.**
+3. **Write `outputs/product-brief.md` and `outputs/delivery-scope.yml`.** The
+   scope says where the work lands; its shape and rules are the umbrella
+   skill's `references/delivery-scope.md`. When the project root holds a
+   workspace manifest (`.maister/umbrella.yml`), every member its `members:`
+   map declares goes either in scope, with its one-line statement, or out of
+   scope, with its reason; a member is in scope when the specification changes
+   something it owns. Order the members in scope by what consumes what: a
+   member whose work needs another's first lists it under `depends_on`. With no
+   manifest the run is a single repository and the scope is one member, the
+   repository, stating the feature in one line. Draw every statement and reason
+   from the specification and the design decisions, never from a guess about
+   code nobody read. The brief's scope layer and the file say the same thing,
+   so a revision of that layer rewrites both.
 4. **Approve** — ask *"Approve the product brief?"*, the question naming its
    layers in a line. Options: *"Approve (Recommended)"*, its description *"the
    brief only restates approved sections"*; *"Revise a section"* and *"Add
@@ -1081,13 +1102,16 @@ final approval and closes the run.
 development workflow builds from: given this run's task directory, its intake
 copies `outputs/product-brief.md` and `analysis/mockups/` into its own design
 context, and the mockups become binding visual references for its plan, its
-implementation and its browser verification.
+implementation and its browser verification. The development command takes the
+directory either as its sole argument or through its design flag. The delivery
+scope is what a delivery spanning several repositories is planned from: one
+development run per member in scope, in its `depends_on` order.
 
 **Close for whoever reads the end** (the engine skill's run-end rule). In a
 terminal run a person reads it: write the closing patch and call `run-complete`
 first, then end with one wrap-up message that fits one screen and is the last
 thing the run prints — the engine's lead lines (Done: what was designed, in a
-sentence; Needs you; Next; Files: the brief's path; Dashboard), then each
+sentence; Needs you; Next; Files: the brief's path and the scope's; Dashboard), then each
 artifact the verb reported missing, named in plain words — with this next step
 exactly, inventing no other command:
 
@@ -1113,8 +1137,13 @@ refuses a dispatched run that reaches its end with no close-out in the outbox
 
 There is no gate after this node. The workflow ends here.
 
-**Recovery budget**: one attempt — re-assemble the brief from the documents on
-disk.
+**Node summary.** The `headline` names what was designed in a sentence; the
+`summary` carries the delivery scope in one more — the members in scope in
+order and any left out, for instance *"two members in scope, `api` before
+`web`; `mobile` left out"* — so the hand-off says where the work lands.
+
+**Recovery budget**: one attempt — re-assemble the brief and the scope from the
+documents on disk.
 
 **Phase summary key**: `review_handoff`, with `brief_layers` and `node:
 review-handoff`.

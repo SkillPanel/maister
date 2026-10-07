@@ -35,7 +35,8 @@ scaffolds with `init`. Only the dashboard normalizers
   `team-calendar-sharing/` is a synthetic product-design run of the same shape — an invented
   enhancement with a UI, so its personas are skipped and its screens drawn — which
   `product-design.test.mjs` replays onto the shipped `product-design.yml` beside partial runs it
-  walks to each of that workflow's gates.
+  walks to each of that workflow's gates. Its `outputs/delivery-scope.yml` is kept whole: it is the
+  single-repository scope, read beside `fixtures/delivery-scope/workspace.yml`, a workspace's.
 - `fixtures/gates/` — answered request documents a test copies over the pending one. `question-set.request.yml`
   is a `kind: question` request as `gate-brief --request` builds it from a three-question set (a
   single choice, one with nothing recommended, a multi-select), with the fields the request writer
