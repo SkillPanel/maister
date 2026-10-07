@@ -818,6 +818,34 @@ test('write-state: a write of a node\'s decisions keeps the answers it leaves ou
   assert.deepEqual(readState(run).node_summaries.analysis.decisions, [answered('scope', 'Tags only'), ...again]);
 });
 
+test('write-state: answers sharing one question_id are different answers when their questions differ', t => {
+  const run = scratch(t);
+  freeze(run);
+  // One id on every question of a page, as a model may write it.
+  const onPage = (question, answer) => ({ ...answered('clarifications', answer), question: `${question}?` });
+  const first = [onPage('Which scope', 'Tags only'), onPage('Which ids', 'Keep ids'), onPage('Which line endings', 'Strict CRLF'), onPage('Which copies', 'Return copies')];
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'First pass.', decisions: first } } });
+
+  // The node runs again and asks one of the four again.
+  const again = [onPage('Which line endings', 'LF')];
+  write(run, { node_summaries: { analysis: { summary: 'Second pass.', decisions: again } } });
+  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [first[0], first[1], first[3], ...again],
+    'the three not asked again are kept; the re-asked one is replaced by its new answer');
+});
+
+test('write-state: an exact re-ask replaces its answer, with or without a question_id', t => {
+  const run = scratch(t);
+  freeze(run);
+  const bare = (question, answer) => ({ decision: answer, by: 'operator', answered_by: 'marek', via: 'terminal', question, answer, as_recommended: true });
+  const first = [answered('csv', 'Strict CRLF', false), bare('Which scope?', 'Tags only'), bare('Which ids?', 'Keep ids')];
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'First pass.', decisions: first } } });
+
+  const again = [answered('csv', 'LF'), bare('Which scope?', 'Tags and notes')];
+  write(run, { node_summaries: { analysis: { summary: 'Second pass.', decisions: again } } });
+  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [first[2], ...again],
+    'the same id and question replaces; the same question text replaces an answer that has no id, whatever was answered');
+});
+
 test('write-state: a gate answer written flat on the summary is folded into its decisions', t => {
   const run = scratch(t);
   freeze(run, { definition: REVISE });
