@@ -1631,9 +1631,9 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | exit `2`, any other message | The writer itself did not run — a module it imports is missing, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable` and report the message verbatim. |
 
 A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
-projection runs after the state rename, so a projection that could not be published leaves the
-state write untouched, `dashboard-data.js` simply absent from the reported files, and the exit
-code at `0`. Read the next write's output rather than re-sending the patch. The same holds for
+projection and the display files are written after the state rename, so one that could not be
+published leaves the state write untouched, `dashboard-data.js` simply absent from the reported
+files, and the exit code at `0`. Read the next write's output rather than re-sending the patch. The same holds for
 the warning that names values a node recorded but does not declare: the write landed with them.
 Correct the node prose, or the definition's outputs, before the next run rather than re-sending.
 
@@ -1786,6 +1786,15 @@ The engine honours the framework's contracts; it does not restate them. Follow
   `write-state` calls, never by writing the file;
 - the **HTML companions** (§ 9) and the style guide path passed to artifact-writing
   delegates, following `html-report-style.md`.
+
+**The display files are the engine's alone.** Every successful `write-state` also writes the
+run's `display/status.json` — the workflow, the task, the phase counted without gates or skipped
+nodes, and the status line composed — and the freeze writes `display/banner.json`, the banner's
+lines without the one addressed to you. Under a host that names its session, each write also
+records the run in `.maister/display/sessions/<session id>.json`, so an editor extension finds
+the run its session is driving. They are what such an extension draws beside the session: no
+node writes them or relays them, and one that cannot be written is a warning on the dashboard's
+terms.
 
 **Phases are named by their titles.** A definition's top-level `display:` block may carry
 `titles` — node id to a short one-line title — beside `icons`; an overlay or a profile may add or
