@@ -966,6 +966,28 @@ test('picker: at most four suggestions, a long one whole in its label, its note 
   assert.ok(preview.includes(`- Address this in the re-run: ${long}`), preview);
 });
 
+test('picker: a risk two nodes recorded is one suggestion and one Open line, and so is a change asked twice', t => {
+  const run = atReview(t, {
+    draft: { risks: [{ risk: 'Section 2 is thin.', tag: 'open', change: 'Add an example to section 2' }] },
+    review: { risks: [{ risk: 'section 2 is thin', tag: 'open', change: 'Expand section 2' }] },
+  });
+  const result = picker(run, 'review-approval');
+  const revise = result.options.find(option => option.id === 'send-back');
+  assert.deepEqual(revise.suggestions.map(each => each.note), ['section 2 is thin — Expand section 2'],
+    'the restated risk is offered once, nearest the gate');
+  const open = result.more_details.split('\n\n').find(block => block.startsWith('**Open**')).split('\n').slice(1);
+  assert.deepEqual(open, ['- section 2 is thin → Expand section 2']);
+
+  const same = atReview(t, {
+    draft: { risks: [{ risk: 'The intro repeats the title', tag: 'open', change: 'Expand section 2.' }] },
+    review: { risks: [{ risk: 'Section 2 is thin', tag: 'open', change: 'expand section 2' }] },
+  });
+  const sameRevise = picker(same, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.deepEqual(sameRevise.suggestions.map(each => each.note), ['Section 2 is thin — expand section 2'],
+    'a second risk asking for the same change adds nothing to the note');
+  assert.equal(picker(same, 'review-approval').more_details.match(/^- .* → /gm).length, 2, 'More details still lists both risks');
+});
+
 test('picker: a stretch with nothing open offers no suggestion, and the note is typed', t => {
   const run = atReview(t, { review: { risks: [] }, draft: { risks: [] } });
   const revise = picker(run, 'review-approval').options.find(option => option.id === 'send-back');

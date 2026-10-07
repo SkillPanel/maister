@@ -479,7 +479,10 @@ function skippedAgain(id, stretch, guards) {
  * What the operator might ask a revise to change, generated from what the
  * stretch it re-runs left open: each open risk as a thing to resolve, nearest
  * the gate first — the order the brief lists them in, most important first.
- * Duplicates go; at most `SUGGESTIONS_MAX` stay. Nothing else is offered: a
+ * Duplicates go: a risk two nodes recorded, compared as `distinct` compares
+ * it, is offered once, as the brief lists it once; and so is a second risk
+ * asking for a change already offered, which would tell the re-run nothing
+ * new. At most `SUGGESTIONS_MAX` stay. Nothing else is offered: a
  * decision names no alternative to change it to, and a generic edit ("make it
  * more specific") names no change at all, so either one is a choice that tells
  * the re-run nothing. Fewer than two, or none, is a typed note instead.
@@ -504,6 +507,8 @@ function suggestionsFor(sources, stretch) {
   // A sentence's own stop goes before the dash; a cut's ellipsis stays, so the
   // reader still sees the risk was shortened.
   const bare = text => text.replace(/\.$/, '');
+  const key = text => text.replace(/\s+/g, ' ').replace(/\.$/, '').trim().toLowerCase();
+  const seen = new Set();
   const entries = stretch.map(id => summaryOf(sources, id)).filter(Boolean);
   for (const entry of entries) {
     for (const item of entry.risks) {
@@ -511,6 +516,9 @@ function suggestionsFor(sources, stretch) {
       // a follow-up is for later, and neither is what a revise is for.
       const risk = riskOf(item);
       if (!risk || risk.tag !== 'open') continue;
+      const keys = [`risk:${key(risk.risk)}`, ...(risk.change ? [`change:${key(risk.change)}`] : [])];
+      if (keys.some(each => seen.has(each))) continue;
+      for (const each of keys) seen.add(each);
       const short = headline(risk.risk);
       // A risk written with the change it needs carries its own fix; without
       // one, the note says what the rerun does with it rather than a bare

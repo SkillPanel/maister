@@ -151,7 +151,8 @@ passage fetched with `prior-context` — and the `${…}` substitution that fill
 > your own words loses the sentence the operator is about to approve at a gate;
 > writing an empty `[]` because the node has already read the artifact loses it
 > outright. The operator's in-step answers are recorded beside them, one per
-> question, and are not copied into the artifact's blocks.
+> question, and are not copied into the artifact's blocks. A risk an earlier
+> node already recorded is left out: it stays where it was raised.
 
 ---
 

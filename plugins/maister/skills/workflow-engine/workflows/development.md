@@ -52,7 +52,7 @@ only says what each question takes.
 its closing `node_summaries` entry, a one-sentence `headline` (at most 220
 characters) covering the whole stretch the gate closes; a `summary` carrying the
 findings; the decisions the run, an audit or a default made in this node, each
-credited by its `by` and never an earlier answer restated; and the risks as objects tagged `open` (still changeable, with the
+credited by its `by` and never an earlier answer restated; and the risks this node raised, never an earlier node's restated, as objects tagged `open` (still changeable, with the
 `change` a revise would make), `tradeoff` (a consequence kept on purpose),
 `followup` (outside this run's scope) or `stop` (the run should not go on).
 Findings go in the summary, never in the risks. The writing rules are engine

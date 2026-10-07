@@ -874,6 +874,11 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     - `stop`: a reason to recommend stopping;
     - `resolved`: settled since it was raised.
 
+    A node's `risks` hold only what **this node** raised. A risk an earlier node recorded
+    stays on that node: never restate it here, in its words or in yours, since the gate already
+    reads it there and a restated risk shows twice. A node that settles one retags it
+    `resolved` on the node that raised it, as the merge rule below describes.
+
     Only `open` items become a revise's suggested notes, so give each one its `change`.
     Examples: `{risk: "list(null) now throws", tag: open, change: "keep list(null) returning
     every note"}`; `{risk: "Two breaking changes ship under 1.0.0", tag: tradeoff}`.
