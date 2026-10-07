@@ -1,0 +1,73 @@
+version: 1
+node: analysis
+kind: question
+question: "For list({tags: ['work','urgent']}), match all requested tags or any?"
+context:
+  summary: "Scope analysis: 3 questions to answer · 1. For list({tags: ['work','urgent']}), match all requested tags or any? Recommended: Match all requested tags. · 2. Should tag matching ignore letter case? · 3. Which extra columns should the CSV export carry? Recommended: Timestamp, Operator."
+  artifacts: []
+  checkpoint:
+    version: 1
+    kind: question
+    node: analysis
+    header: "Scope analy…"
+    ask: "Scope analysis: 3 questions to answer"
+    headline: "Answer all 3 to continue scope analysis."
+    progress: {node: 1, nodes_total: 4}
+    questions:
+      - id: tag-filter
+        header: Filtering
+        question: "For list({tags: ['work','urgent']}), match all requested tags or any?"
+        why: "No precedent in the repository; it changes which notes a filter returns."
+        multi_select: false
+        allow_other: true
+        options:
+          - {id: all, label: "Match all requested tags", description: "AND, like SQL WHERE; a narrower result.", recommended: true}
+          - {id: any, label: "Match any requested tag", description: "OR; a wider result."}
+        default: all
+      - id: tag-case
+        header: "Tag case"
+        question: "Should tag matching ignore letter case?"
+        why: "Existing tags mix cases, so an exact match misses some notes."
+        multi_select: false
+        allow_other: false
+        options:
+          - {id: exact, label: "Exact match", description: "Work and work are different tags."}
+          - {id: folded, label: "Ignore case", description: "Work and work are the same tag."}
+      - id: csv-extras
+        header: "CSV columns"
+        question: "Which extra columns should the CSV export carry?"
+        multi_select: true
+        allow_other: true
+        options:
+          - {id: timestamp, label: Timestamp, description: "When each note was last changed.", recommended: true}
+          - {id: operator, label: Operator, description: "Who changed it last.", recommended: true}
+          - {id: emoji, label: Emoji, description: "The note's emoji marker."}
+        default: [timestamp, operator]
+    run: {dir: /work/.maister/tasks/development/2026-01-05-sample, dashboard: null}
+    truncated: false
+options:
+  - {id: all, label: "Match all requested tags", effect: continue, description: "AND, like SQL WHERE; a narrower result.", recommended: true}
+  - {id: any, label: "Match any requested tag", effect: continue, description: "OR; a wider result."}
+multi_select: false
+questions:
+  - id: tag-filter
+    question: "For list({tags: ['work','urgent']}), match all requested tags or any?"
+    multi_select: false
+    options:
+      - {id: all, label: "Match all requested tags", effect: continue, description: "AND, like SQL WHERE; a narrower result.", recommended: true}
+      - {id: any, label: "Match any requested tag", effect: continue, description: "OR; a wider result."}
+  - id: tag-case
+    question: "Should tag matching ignore letter case?"
+    multi_select: false
+    options:
+      - {id: exact, label: "Exact match", effect: continue, description: "Work and work are different tags."}
+      - {id: folded, label: "Ignore case", effect: continue, description: "Work and work are the same tag."}
+  - id: csv-extras
+    question: "Which extra columns should the CSV export carry?"
+    multi_select: true
+    options:
+      - {id: timestamp, label: Timestamp, effect: continue, description: "When each note was last changed.", recommended: true}
+      - {id: operator, label: Operator, effect: continue, description: "Who changed it last.", recommended: true}
+      - {id: emoji, label: Emoji, effect: continue, description: "The note's emoji marker."}
+asked_at: "2026-01-05T09:00:00Z"
+answer: null

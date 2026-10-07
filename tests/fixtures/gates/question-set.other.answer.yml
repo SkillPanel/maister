@@ -1,0 +1,9 @@
+answer:
+  option: any
+  answers:
+    tag-filter: {other: "Match all by default, any when the caller passes mode: any"}
+    tag-case: exact
+    csv-extras: [operator, timestamp]
+  answered_by: dana
+  at: "2026-01-05T09:14:00Z"
+  via: cockpit
