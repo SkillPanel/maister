@@ -1,12 +1,12 @@
 orchestrator:
-  completed_phases: [intake, characteristics-approval, context-synthesis, context-approval, problem-exploration, problem-approval, idea-generation, idea-convergence, direction-approval, feature-specification, visual-prototyping, specification-approval, review-handoff]
+  completed_phases: [intake, characteristics-approval, context-synthesis, context-approval, problem-exploration, problem-approval, idea-generation, idea-convergence, direction-approval, feature-specification, visual-prototyping, specification-approval, review-handoff, completion]
   failed_phases: []
   task_ids: {}
   task_path: .maister/tasks/product-design/2026-10-02-team-calendar-sharing
   created: "2026-10-02T09:00:12Z"
   options: {html_output: true, mockup_format: html, visual_enabled: true, inputs: {task_description: "Let team members share their calendar with guests outside the organisation, read-only or with a propose-a-time option"}}
-  updated: "2026-10-02T11:42:55Z"
-  started_phase: review-handoff
+  updated: "2026-10-02T11:43:20Z"
+  started_phase: completion
 
 task:
   title: "Team calendar sharing with external guests"
@@ -35,6 +35,7 @@ workflow:
     visual-prototyping: {kind: task, status: completed, started: "2026-10-02T10:58:12Z", completed: "2026-10-02T11:21:40Z", needs: [feature-specification]}
     specification-approval: {kind: gate, status: completed, completed: "2026-10-02T11:24:05Z", needs: [feature-specification, visual-prototyping]}
     review-handoff: {kind: task, status: completed, started: "2026-10-02T11:24:05Z", completed: "2026-10-02T11:42:55Z", needs: [specification-approval]}
+    completion: {kind: task, status: completed, started: "2026-10-02T11:42:55Z", completed: "2026-10-02T11:43:20Z", needs: [review-handoff]}
 
 design_context:
   design_characteristics: {is_greenfield: false, is_enhancement: true, is_ui_focused: true, is_backend: false, is_complex: false, is_simple: false}
@@ -134,6 +135,11 @@ node_summaries:
     status: completed
   review-handoff:
     summary: Product brief assembled and approved; ready for development.
+    decisions: []
+    risks: []
+    status: completed
+  completion:
+    summary: Team calendar sharing designed; the brief is at outputs/product-brief.md.
     decisions: []
     risks: []
     status: completed
