@@ -203,12 +203,13 @@ is woken, while in the terminal the research runs in the same session and the pa
 
 ### `/maister:product-design [description | task-path]`
 
-Starts the interactive product/feature design workflow (9 adaptive phases) or resumes an existing one. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Can be run without arguments — the plugin extracts the design brief from your conversation.
+Starts the interactive product/feature design workflow (ten phases and five checkpoints, of which `--simple` keeps the problem and specification checkpoints and skips the personas, the brainstorm and, unless asked for, the prototypes) or resumes an existing one. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Can be run without arguments — the plugin extracts the design brief from your conversation.
 
 | Flag | Description |
 |------|-------------|
 | `--research=PATH` | Start design informed by a completed research task |
 | `--no-visual` | Skip browser-based visual companion (use ASCII mockups only) |
+| `--simple` | Short design: two checkpoints (problem, specification), no personas, no brainstorm of alternatives, prototypes only when asked for |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
 

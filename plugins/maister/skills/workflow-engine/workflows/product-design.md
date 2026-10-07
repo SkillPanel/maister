@@ -23,7 +23,10 @@ characteristics and the context summary are not asked about inside their nodes:
 their gates show them and revise them. A standard design — no personas, three
 decision areas, six sections, two pages of problem questions — answers about
 nineteen questions, gates included; a complex one adds the persona pages and
-cards and more areas and sections. The generated diagram does not show them either. This is the most
+cards and more areas and sections. A simple run (*Depth* below) asks far
+fewer: the additional context, the problem questions and the problem
+statement's approval, three or four specification sections and the brief's
+approval, around its two gates. The generated diagram does not show them either. This is the most
 interactive workflow in the plugin; anyone reasoning about how interactive it is
 must read this file, not the graph.
 
@@ -76,7 +79,7 @@ the work, they *are* the work. A run under a `cockpit` or `dispatch` driver
 takes every default below — with question sets, every one its node cannot ask
 in its one request — so the problem statement, the personas, the
 specification and the brief are drafts no operator refined in session, and the
-five gates, with any first-round answers given through the cockpit, are the only
+gates — five, or two in a simple run — with any first-round answers given through the cockpit, are the only
 place an operator shapes them. Record that in the
 artifacts rather than leaving it to be inferred: a document that does not say it
 was drafted without review reads exactly like one that was reviewed.
@@ -88,7 +91,9 @@ consults.
 
 **A skip does not cascade, and two gates are unguarded on purpose.** The persona
 exploration and the visual prototyping are guarded; a node whose guard is false
-is skipped and still satisfies everything downstream. The gate after each of
+is skipped and still satisfies everything downstream. The nodes the run's depth
+skips are guarded on the input instead (*Depth*), and `completion` on whether
+the run is embedded (*Embedded mode*). The gate after each of
 them is not guarded, because each closes more than that node: `problem-approval`
 closes the problem statement as well as the personas, and
 `specification-approval` closes the specification as well as the prototypes. A
@@ -111,7 +116,8 @@ nodes:
 | 5 | `idea-convergence` | `direction-approval` |
 | 6 | `feature-specification` | `specification-approval`, shared with the prototypes |
 | 7 | `visual-prototyping` | `specification-approval` |
-| 8 | `review-handoff` | none — the brief's approval is asked inside the node, and the workflow ends |
+| 8 | `review-handoff` | none — the brief's approval is asked inside the node |
+| — | `completion` | none — the workflow ends; skipped when the run is embedded |
 
 The two back-edges of the 2.x prose form are not loops here. Its "explore more"
 from the convergence back to the brainstorm is the `direction-approval` option
@@ -138,9 +144,10 @@ passage fetched with `prior-context` — and the `${…}` substitution that fill
 - **`task_path`** sits under the type directory `product-design/`.
 - **The documentation paths** are discovered by `intake` and recorded as
   `project_context.project_doc_paths`; every later node reads them from state.
-- **Nothing is interpolated from a node a guard may skip.** The personas and the
-  prototypes are read from disk, and only when the state records their node
-  `completed`. A node that reads one says so in its own section.
+- **Nothing is interpolated from a node a guard may skip.** The personas, the
+  alternatives, the decision record and the prototypes are read from disk, and
+  only when the state records their node `completed`. A node that reads one says
+  so in its own section.
 - **Four artifacts get an HTML companion** when `html_output` is on. The
   brainstormer writes its own for `analysis/alternatives.md`, because it is
   handed the style guide path. The other three are written inline by a
@@ -212,7 +219,7 @@ a reader of either finds the same names. Eight nodes mirror their summary:
 | `visual-prototyping` | `visual_prototyping` | `mockup_references` |
 | `review-handoff` | `review_handoff` | `brief_layers` |
 
-`intake` writes a node summary only. Each mirrored entry also carries `node:`
+`intake` and `completion` write a node summary only. Each mirrored entry also carries `node:`
 naming the node it came from, so the two directions stay readable from either
 side. A phase key is never a node id, and writing one off the node id succeeds
 and leaves a key nothing else reads, which is why the mapping is pinned here.
@@ -234,7 +241,8 @@ derivable from the node id. Each node writes the hint named here:
 | `idea-convergence` | `plan` |
 | `feature-specification` | `spec` |
 | `visual-prototyping` | `spec` |
-| `review-handoff` | `done` |
+| `review-handoff` | `docs` |
+| `completion` | `done` |
 
 The five gates are not in that table on purpose: **each gate node renders the
 icon of the node it closes** — `characteristics-approval` and
@@ -245,24 +253,67 @@ pairing between a stretch and the approval that closes it.
 
 ---
 
+## Depth
+
+The `simple` input is the run's depth. False, the default, is the whole
+workflow as this file describes it. True is the shortest run that still ends in
+a brief and a delivery scope an operator can approve. It is a depth, not a
+reading of the design: the detected complexity says how deep each document goes,
+the depth says which stretches run, and when the input is true it wins.
+
+| Skipped in a simple run | Why it can go |
+|---|---|
+| `characteristics-approval` | the characteristics it corrects only switch the personas and prototypes, which the depth already turns off |
+| `context-approval` | a correction to the context shows up as one to the problem statement built on it, which `problem-approval` revises |
+| `persona-exploration` | the intake records `personas_enabled` false |
+| `idea-generation`, `idea-convergence`, `direction-approval` | the specification states the approach itself, and its gate approves it |
+| `visual-prototyping`, unless the description asks for screens | the intake records `prototyping_enabled` true only then |
+
+Two gates remain, `problem-approval` and `specification-approval`, beside the
+brief's own approval inside `review-handoff`. Each skipped node is guarded on
+the input in the definition or by a value the intake derives from it, so the
+dashboard and every gate brief name them skipped. Nothing they would have written
+is interpolated into a node that still runs; the nodes that read the decision
+record or the alternatives read them only when the state records their node
+`completed`, and say what they do otherwise.
+
+---
+
 ## Embedded mode
 
-**There is none.** This workflow is never invoked as a sub-run of another, which
-is why the definition declares no embedded input. Its result reaches the
-development workflow by path, not as a child: an operator passes this run's task
-directory to the development command, and development's intake copies the brief
-and the mockups from it. The definition does declare a workflow-level `outputs:`
-block — the brief, the delivery scope and the mockups — so a chain that runs
-this workflow as one of its steps can bind them by name. Those reads are three
-paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
-`analysis/mockups/` — which is why the artifact layout here is a contract and
-does not move.
+**This workflow is child-capable.** A parent whose node names it starts a run
+of it as a child, and the `embedded` input means exactly that — *this run is a
+sub-run of another run*. The engine supplies it at the child freeze; an
+operator never types it and no command exposes it. A parent may pass `simple`
+in the same `with:`, which is how a chain chooses the depth.
 
-If running it as a sub-run is ever wanted, it changes here first, and it is the
-recipe the engine's sub-run rule already sets out: an `embedded` input the
-engine supplies and a guard on the closing node, beside the `outputs:` block
-already declared. No engine change is involved; see the engine skill's
-*Sub-runs* section and the `sub-runs.md` reference beside it.
+Its only effect is the guard on `completion`, which is therefore skipped for a
+child: that node tells an operator the run is over and points at the
+development command, and a parent handles its own next steps. Everything else
+runs unchanged, gates and in-node questions included — a child suspends on its
+own gates in its own Run view. `review-handoff` runs on every path, so the brief
+and the delivery scope are written whether or not the run is embedded; at a
+workspace root the scope is still drawn from the members the workspace manifest
+declares.
+
+What a parent may read is the workflow-level `outputs:` block in
+`product-design.yml`, and nothing else: `brief`, `delivery_scope` and `mockups`.
+The mockups belong to a node a guard may skip; when no screens were drawn the
+entry is simply absent, and the parent records it under its node's `absent`
+when it adopts this run's outcome (engine § *Recording an outcome*). The three
+paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
+`analysis/mockups/` — are why the artifact layout here is a contract and does
+not move.
+
+**Nothing is copied and nothing is handed back in prose.** A parent addresses
+this run's artifacts through the child's own `task_path`. The mechanics — the
+freeze, the child directory name, the ending and what a parent reads when —
+belong to the engine skill's *Sub-runs* section, which states them once for
+every workflow.
+
+A run that is not embedded reaches development by path, as before: an operator
+passes its task directory to the development command, and development's intake
+copies the brief and the mockups from it.
 
 ---
 
@@ -314,7 +365,10 @@ and gathers whatever extra context the operator has.
    Detect the six characteristics from the description and the codebase signals,
    and derive the complexity: `simple` when the design is simple, `complex` when
    it is complex or greenfield, `standard` otherwise. When the signals are mixed,
-   lean to the higher complexity.
+   lean to the higher complexity. **When the `simple` input is true the depth
+   wins** (*Depth*): record the complexity `simple` whatever the signals say, and
+   when they said more, name it in `risks` as `{risk: "detected as <level>; the
+   simple depth was requested", tag: open, change: "run the full design"}`.
 8. **Ask for additional context** in one call: *"Any additional context for
    this design?"*, a multi-select of four options —
    - *"No additional context (Recommended)"* first, its description saying the
@@ -351,13 +405,16 @@ and gathers whatever extra context the operator has.
 9. **Record the outcome**: the characteristics, the complexity level and the
    collected context under `design_context`, and this node's three declared
    values — `personas_enabled` true when the design is greenfield or complex,
-   `prototyping_enabled` true when it is UI-focused, and `complexity_level`.
+   `prototyping_enabled` true when it is UI-focused, and `complexity_level`. In a
+   simple run `personas_enabled` is false, and `prototyping_enabled` is true only
+   when the description itself asks for screens or mockups.
    Those values are what guard the persona and prototyping nodes, so write
    them in the same patch that marks the node `completed`.
 
 The characteristics are not asked about here. `characteristics-approval` shows
 them with their rationale, in a terminal run and under a driver alike, and its
-revise is how an operator corrects one.
+revise is how an operator corrects one. A simple run skips that gate; the
+characteristics are still recorded, and the brief names them.
 
 **Gate brief content.** Into this node's closing summary: a `headline` naming
 the kind of design, its complexity and which optional parts will run, in one
@@ -392,7 +449,8 @@ and names that in `risks`.
 
 ## `characteristics-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine § Gates says. Skipped in a simple run
+(*Depth*).
 
 A gate. Record the answer, and stop the run on the stop option — nothing after
 a stopped node ever becomes ready.
@@ -464,7 +522,8 @@ context-synthesis`.
 
 ## `context-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine § Gates says. Skipped in a simple run
+(*Depth*).
 
 A gate. Record the answer, and stop the run on the stop option. Its revise
 option, `revise-context`, sends the run back to `context-synthesis` with the
@@ -652,8 +711,8 @@ what the note does not touch.
 
 ## `idea-generation`
 
-Delegated to the solution brainstormer through the Task tool, **deliberately
-non-interactive**: alternatives generated outside the conversation are not
+Skipped in a simple run (*Depth*). Delegated to the solution brainstormer
+through the Task tool, **deliberately non-interactive**: alternatives generated outside the conversation are not
 anchored on the first idea anybody in it had.
 
 The `maister:solution-brainstormer` agent generates the alternatives rather than
@@ -709,7 +768,7 @@ idea-generation`.
 
 ## `idea-convergence`
 
-Executed inline and interactive. Read the interaction-patterns reference first
+Skipped in a simple run (*Depth*). Executed inline and interactive. Read the interaction-patterns reference first
 if this session has not — the convergence mode. Announce convergence mode in a
 line, then walk the alternatives one decision area at a time.
 
@@ -845,7 +904,8 @@ idea-convergence`.
 
 ## `direction-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine § Gates says. Skipped in a simple run,
+with the brainstorm and the convergence before it (*Depth*).
 
 A gate. Record the answer, and stop the run on the stop option. It follows the
 convergence directly: the direction is approved here and nowhere before it.
@@ -874,11 +934,21 @@ section by section, never drafted whole and never delegated.
 > **ANTI-PATTERN**: Do NOT delegate to the specification creator. This
 > specification is authored here, in convergence with the operator.
 
-**Read the direction first.** Read `analysis/design-decisions.md`. When it is a
-decision sheet with areas left open, read `direction-approval`'s recorded answer
-from the state: a continue means the operator adopted every recommendation, and
-the specification states in its Key Decisions that the direction was adopted at
-the direction gate, naming who answered. When it records choices, follow them.
+**Read the direction first.** When the state records `idea-convergence`
+completed, read `analysis/design-decisions.md` — never through `with:`, since
+the node may have been skipped. When it is a decision sheet with areas left
+open, read `direction-approval`'s recorded answer from the state: a continue
+means the operator adopted every recommendation, and the specification states
+in its Key Decisions that the direction was adopted at the direction gate,
+naming who answered. When it records choices, follow them.
+
+**In a simple run there is no decision record**, because the convergence was
+skipped. The specification's first section is then **Approach**: the direction
+the feature takes in a paragraph, and the one or two alternatives it passed over
+in a line each with why. Its choices go in `decisions` as `{decision, by: run}`,
+and `specification-approval` is where the operator approves them; a choice the
+run made on thin evidence goes in `risks` as `open`, with the other way as its
+`change`.
 
 **Scale the sections to the complexity**: three or four sections of about 20 to
 50 lines each for a simple design — what to build; five or six of about 50 to
@@ -1000,9 +1070,12 @@ standards, tokens and components — and renders against what it found. Pass:
 - the instruction to draw **user-facing wireframes of the feature's actual
   screens** — an "add item" form, an alert dialog, whatever the specification
   describes — never generic placeholders or technical diagrams;
-- the specification, the design decisions and the design context, and the
-  personas' journeys from `analysis/personas.md` **only when the state records
-  `persona-exploration` completed**.
+- the specification and the design context; the decision record,
+  `analysis/design-decisions.md`, **only when the state records
+  `idea-convergence` completed** — in a simple run the specification's Approach
+  section carries the direction; and the personas' journeys from
+  `analysis/personas.md` **only when the state records `persona-exploration`
+  completed**.
 
 **The refinement loop is the studio's own, and it stays in the node.** Full
 iteration runs the studio's interactive loop — screens approved or revised one by
@@ -1055,7 +1128,8 @@ visual-prototyping`.
 Ask it from `gate-brief --json` as engine § Gates says.
 
 A gate, **unguarded**, closing the specification and — when they were drawn —
-the prototypes. Its brief renders both summaries, the gallery pointer among them,
+the prototypes. In a simple run it also approves the approach the specification
+states, since no direction gate came before it. Its brief renders both summaries, the gallery pointer among them,
 or names the prototypes skipped. Record the answer, and stop the run on the stop
 option.
 
@@ -1069,8 +1143,10 @@ from it. There is no revise of the prototypes alone; the studio's loop inside
 
 ## `review-handoff`
 
-Executed inline and interactive. It assembles the product brief, asks for its
-final approval and closes the run.
+Executed inline and interactive. It assembles the product brief and the
+delivery scope and asks for the brief's final approval. It runs on every path —
+embedded or not, at either depth — because a parent reads what it writes; the
+run's own close is `completion`'s.
 
 1. **Check the specification once more, for a complex design.** Re-read
    `analysis/feature-spec.md` and confirm each section answers both what to build
@@ -1084,7 +1160,9 @@ final approval and closes the run.
      condensed from the problem statement and the specification;
    - **Persona cards**, when the state records `persona-exploration` completed;
    - **Design decisions**, a summary per decision area, pointing at the decision
-     record and the alternatives;
+     record and the alternatives, when the state records `idea-convergence`
+     completed; in a simple run, the specification's Approach section condensed,
+     pointing at the specification;
    - **Mockup references**, when the state records `visual-prototyping`
      completed — links to the files under `analysis/mockups/`, and terminal
      mockups inline;
@@ -1103,7 +1181,8 @@ final approval and closes the run.
    member whose work needs another's first lists it under `depends_on`. With no
    manifest the run is a single repository and the scope is one member, the
    repository, stating the feature in one line. Draw every statement and reason
-   from the specification and the design decisions, never from a guess about
+   from the specification and the design decisions — the decision record when
+   the convergence ran, the Approach section otherwise — never from a guess about
    code nobody read. The brief's scope layer and the file say the same thing,
    so a revision of that layer rewrites both.
 4. **Approve** — ask *"Approve the product brief?"*, the question naming its
@@ -1134,7 +1213,27 @@ final approval and closes the run.
    posting to the server's shutdown route.
 6. **Write the brief's HTML companion** (*Run-scoped context*) after approval,
    so it shows the approved brief — never once per revision round.
-7. **Set the task status to completed.**
+There is no gate after this node. `completion` follows unless the run is
+embedded, and nothing follows when it is.
+
+**Node summary.** The `headline` names what was designed in a sentence; the
+`summary` carries the delivery scope in one more — the members in scope in
+order and any left out, for instance *"two members in scope, `api` before
+`web`; `mobile` left out"* — so the hand-off says where the work lands.
+
+**Recovery budget**: one attempt — re-assemble the brief and the scope from the
+documents on disk.
+
+**Phase summary key**: `review_handoff`, with `brief_layers` and `node:
+review-handoff`.
+
+---
+
+## `completion`
+
+Executed inline, writes no files, and runs only when this run is its own — a
+parent handles its own next steps, so the guard skips this node whenever the
+run is a sub-run of another.
 
 **The hand-off to development.** The brief and the mockups are what the
 development workflow builds from: given this run's task directory, its intake
@@ -1164,7 +1263,10 @@ The verb's own lines are never shown. Under a `cockpit` or `dispatch` driver
 tooling reads it, and the order is reversed: the wrap-up is printed as ordinary
 text **before** the `run-complete` call; after it, print nothing but the lines
 the verb printed, copied exactly, its marker last. Never type a marker the verb
-did not print.
+did not print. The same rule holds for a run a gate's stop option ended, which
+never reaches this node. An embedded run, whose guard skips this node, ends as a
+sub-run does: in session with no wrap-up, since its parent's ending carries it,
+and under a driver on the verb's marker.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out
@@ -1175,13 +1277,7 @@ refuses a dispatched run that reaches its end with no close-out in the outbox
 
 There is no gate after this node. The workflow ends here.
 
-**Node summary.** The `headline` names what was designed in a sentence; the
-`summary` carries the delivery scope in one more — the members in scope in
-order and any left out, for instance *"two members in scope, `api` before
-`web`; `mobile` left out"* — so the hand-off says where the work lands.
+**Node summary.** The `headline` repeats what was designed and where the brief
+is, in a sentence.
 
-**Recovery budget**: one attempt — re-assemble the brief and the scope from the
-documents on disk.
-
-**Phase summary key**: `review_handoff`, with `brief_layers` and `node:
-review-handoff`.
+**Recovery budget**: none — this node summarizes and nothing else.
