@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
+import { parseDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 
 // The product-design workflow on the engine. A synthetic run — an invented
 // enhancement with a UI and no personas — is replayed against the shipped
@@ -159,6 +161,89 @@ test('recorded run: resume-check reads it as an engine run of product-design', t
   assert.equal(report.workflow.name, 'product-design');
   assert.equal(report.status, 'completed');
 });
+
+test('recorded run: a missing delivery scope reads as the one missing artifact, on a single-repository run too', t => {
+  const run = replayRecorded(t);
+  fs.rmSync(path.join(run.dir, 'outputs/delivery-scope.yml'));
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'missing-artifact: review-handoff outputs/delivery-scope.yml\nRUN-COMPLETE\n');
+});
+
+// ---------------------------------------------------------------------------
+// what a chain step may bind, and the delivery scope's shape
+// ---------------------------------------------------------------------------
+
+test('outputs: the brief, the delivery scope and the mockups are exposed under those names', () => {
+  const { doc, errors } = parseDefinition(fs.readFileSync(PRODUCT_DESIGN, 'utf8'), PRODUCT_DESIGN);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(JSON.parse(JSON.stringify(doc.outputs)), {
+    artifacts: {
+      brief: 'review-handoff.artifacts.brief',
+      delivery_scope: 'review-handoff.artifacts.delivery_scope',
+      mockups: 'visual-prototyping.artifacts.mockups',
+    },
+  });
+});
+
+/** A chain whose design step binds the named artifacts of product design and hands them on. */
+function chainBinding(t, artifacts) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-chain-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const declared = Object.entries(artifacts).map(([key, at]) => `        ${key}: ${at}`);
+  const handed = Object.keys(artifacts).map(key => `      ${key}: "\${design.artifacts.${key}}"`);
+  fs.writeFileSync(path.join(dir, 'discovery.yml'), [
+    'name: discovery', 'version: 1', 'inputs:', '  task_description: {type: string, required: true}', 'nodes:',
+    '  design:', '    uses: workflow:product-design', '    needs: []', '    with:',
+    '      task_description: "${inputs.task_description}"', '    outputs:', '      artifacts:', ...declared,
+    '  delivery:', '    uses: direct:delivery', '    needs: [design]', '    with:', ...handed, '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(dir, 'discovery.md'), '# Discovery\n\n## `delivery`\n\nPlans the delivery.\n');
+  return verb(['validate', `--definition=${path.join(dir, 'discovery.yml')}`]);
+}
+
+test('outputs: a chain binds the brief and the delivery scope of a product-design step', t => {
+  const result = chainBinding(t, { brief: 'outputs/product-brief.md', delivery_scope: 'outputs/delivery-scope.yml' });
+  const report = JSON.parse(result.stdout);
+  assert.equal(result.code, 0);
+  assert.deepEqual(report.errors, []);
+  assert.deepEqual(report.warnings, []);
+});
+
+test('outputs: binding an artifact the workflow does not expose is named at validation', t => {
+  const report = JSON.parse(chainBinding(t, { spec: 'analysis/feature-spec.md' }).stdout);
+  assert.ok(report.warnings.includes('unresolved-subrun-output:design:spec'), report.warnings.join('\n'));
+});
+
+/** The documented rules of a delivery scope, checked over a parsed document. */
+function assertDeliveryScope(scope) {
+  assert.equal(scope.version, 1);
+  assert.ok(Array.isArray(scope.members) && scope.members.length > 0);
+  assert.ok(Array.isArray(scope.out_of_scope));
+  const inScope = scope.members.map(member => member.name);
+  const outOfScope = scope.out_of_scope.map(member => member.name);
+  assert.equal(new Set([...inScope, ...outOfScope]).size, inScope.length + outOfScope.length);
+  for (const member of scope.members) {
+    assert.equal(typeof member.statement, 'string');
+    assert.ok(Array.isArray(member.depends_on));
+    for (const needed of member.depends_on) {
+      assert.ok(inScope.includes(needed) && needed !== member.name, `${member.name} depends on ${needed}`);
+    }
+  }
+  for (const member of scope.out_of_scope) assert.equal(typeof member.reason, 'string');
+}
+
+for (const [label, file] of [
+  ['a single repository', 'runs/team-calendar-sharing/outputs/delivery-scope.yml'],
+  ['a workspace', 'delivery-scope/workspace.yml'],
+]) {
+  test(`delivery scope: ${label} is written in the engine's YAML subset and keeps the documented rules`, () => {
+    const at = path.join(FIXTURES, file);
+    const { doc, errors } = parseDefinition(fs.readFileSync(at, 'utf8'), at);
+    assert.deepEqual(errors, []);
+    assertDeliveryScope(doc);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // the gates that close a guarded node

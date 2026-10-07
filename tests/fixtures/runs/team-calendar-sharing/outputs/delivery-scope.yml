@@ -1,0 +1,6 @@
+version: 1
+members:
+  - name: team-calendar
+    statement: "Let members share their calendar with outside guests, read-only or with a propose-a-time option"
+    depends_on: []
+out_of_scope: []
