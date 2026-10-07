@@ -95,7 +95,7 @@ export function rowsOf(text) {
 }
 
 /** The most rows each panel line may take, in the order lines are fitted: title, headline, next, review, counts. */
-const PANEL_SHARES = { title: 1, headline: 4, next: 1, review: 2, counts: 1 };
+const PANEL_SHARES = { title: 1, headline: 4, next: 2, review: 2, counts: 1 };
 
 /** The order a panel's lines are drawn in. */
 const PANEL_ORDER = ['title', 'headline', 'counts', 'next', 'review'];

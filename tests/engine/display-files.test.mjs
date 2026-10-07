@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 import { FIXTURES, freeze, freezePatch, readState, scratch, sibling, verb, write } from '../helpers.mjs';
@@ -68,10 +69,14 @@ test('display: the status counts phases, not gates, and composes the line', t =>
 test('display: a later write moves the phase; the gate never counts, a skipped node leaves the total', t => {
   const run = scratch(t);
   freeze(run);
-  write(run, { nodes: { analysis: { status: 'completed' } } });
-  assert.deepEqual(display(run, 'status.json').phase, { index: 2, total: 3, title: 'Implementation' });
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: 3, title: 'Scope analysis' });
 
-  write(run, { nodes: { approval: { status: 'completed' } } });
+  // Waiting at the checkpoint: the phase just finished, never the pending one a guard may yet skip.
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: 3, title: 'Scope analysis' });
+
+  write(run, { nodes: { approval: { status: 'completed' }, implementation: { status: 'running' } } });
   assert.deepEqual(display(run, 'status.json').phase, { index: 2, total: 3, title: 'Implementation' });
 
   write(run, { nodes: { research: { status: 'skipped' } } });
@@ -79,8 +84,8 @@ test('display: a later write moves the phase; the gate never counts, a skipped n
 
   write(run, { nodes: { implementation: { status: 'completed' } } });
   const done = display(run, 'status.json');
-  assert.deepEqual(done.phase, { index: 2, total: 2, title: null });
-  assert.equal(done.line, 'Development · phase 2/2 · Sample run');
+  assert.deepEqual(done.phase, { index: 2, total: 2, title: 'Implementation' });
+  assert.equal(done.line, 'Development · phase 2/2 · Implementation · Sample run');
 });
 
 test('display: an ended run says how it ended instead of a phase', t => {
@@ -111,12 +116,16 @@ test('display: a revise republishes the status from the rerun node', t => {
   });
   write(run, { nodes: { figures: { status: 'completed' }, 'side-note': { status: 'completed' } } });
   write(run, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed it.' } } });
-  assert.equal(display(run, 'status.json').phase.title, 'Publish');
+  const before = display(run, 'status.json');
+  fs.rmSync(path.join(run.dir, 'display/status.json'));
 
   const result = verb(['gate-revise', `--state=${run.state}`, '--node=review-approval', '--option=send-back'], { note: 'Tighten the intro' });
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(display(run, 'status.json').phase.index, 1);
-  assert.equal(display(run, 'status.json').phase.title, 'Draft');
+  const after = display(run, 'status.json');
+  assert.equal(after.phase.total, before.phase.total, 'the revise is a write, and the status follows it');
+
+  write(run, { nodes: { draft: { status: 'running' } } });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: before.phase.total, title: 'Draft' });
 });
 
 test('display: a state write removes a gate panel the write has answered', t => {
@@ -199,11 +208,12 @@ test('display: a pointer that cannot be written is a warning naming it; the stat
   freeze(run);
   fs.mkdirSync(path.join(run.root, '.maister/display'), { recursive: true });
   fs.writeFileSync(path.join(run.root, '.maister/display/sessions'), 'not a directory');
+  fs.rmSync(path.join(run.dir, 'display/status.json'));
   const result = verb(['write-state', `--state=${run.state}`], { nodes: { analysis: { status: 'completed' } } }, { CLAUDE_CODE_SESSION_ID: 'session-a' });
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stderr, /^warning: \.maister\/display\/sessions\/session-a\.json was not written \(display-unwritable: /m);
   assert.equal(readState(run).workflow.nodes.analysis.status, 'completed');
-  assert.equal(display(run, 'status.json').phase.index, 2, 'the run\'s own files are still written');
+  assert.ok(fs.existsSync(path.join(run.dir, 'display/status.json')), 'the run\'s own files are still written');
 });
 
 test('display: a panel that cannot be removed is a warning; the state write lands', t => {
@@ -214,4 +224,30 @@ test('display: a panel that cannot be removed is a warning; the state write land
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stderr, /^warning: display\/next\.json was not written \(display-unwritable: .*could not be removed/m);
   assert.equal(readState(run).workflow.nodes.analysis.status, 'completed');
+});
+
+// ---------------------------------------------------------------------------
+// out of the project's history
+// ---------------------------------------------------------------------------
+
+test('display: no display file shows in the project\'s git status', t => {
+  const run = scratch(t);
+  execFileSync('git', ['init', '-q'], { cwd: run.root });
+  writeAs(run, 'session-a', freezePatch().patch);
+  writeAs(run, 'session-a', { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped it.' } } });
+  assert.equal(verb(['gate-brief', `--state=${run.state}`, '--node=approval']).code, 0);
+  assert.ok(fs.existsSync(path.join(run.dir, 'display/next.json')));
+  assert.equal(fs.readFileSync(path.join(run.dir, 'display/.gitignore'), 'utf8'), '*\n');
+  assert.equal(fs.readFileSync(path.join(run.root, '.maister/display/.gitignore'), 'utf8'), '*\n');
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: run.root, encoding: 'utf8' });
+  assert.doesNotMatch(status, /display/);
+  assert.match(status, /orchestrator-state\.yml/, 'the run itself still shows');
+});
+
+test('display: a .gitignore already in a display directory is left as it is', t => {
+  const run = scratch(t);
+  fs.mkdirSync(path.join(run.dir, 'display'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, 'display/.gitignore'), 'status.json\n');
+  freeze(run);
+  assert.equal(fs.readFileSync(path.join(run.dir, 'display/.gitignore'), 'utf8'), 'status.json\n');
 });
