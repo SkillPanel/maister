@@ -362,13 +362,14 @@ test('gate-brief: --oneline folds the custom gate\'s brief onto one line', t => 
   assert.match(result.stdout, /Licence scan: No copyleft licences\. Security Scan: Skipped\. · Next: Deep Audit · Recommended: proceed · Run: /);
 });
 
-test('gate-brief: writes nothing', t => {
+test('gate-brief: writes no state, only the panel beside it', t => {
   const { run } = atTriage(t);
   const before = fs.readFileSync(run.state, 'utf8');
   const listing = fs.readdirSync(run.dir).sort();
   brief(run);
   assert.equal(fs.readFileSync(run.state, 'utf8'), before);
   assert.deepEqual(fs.readdirSync(run.dir).sort(), listing);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(run.dir, 'display/next.json'), 'utf8')).node, 'triage');
 });
 
 test('gate: an option the custom gate offers lands; one it does not offer is refused, naming the ones it does', t => {

@@ -26,6 +26,8 @@
  * - **more details**: the full brief, written out when More details is chosen.
  * - **request**: the driven gate request, whole — question, options, and the
  *   checkpoint beside the one-line summary older readers take.
+ * - **panel**: the glance an editor extension draws above the question, fitted
+ *   to the rows Claude Code allows there (`PANEL_ROWS`).
  *
  * Pure: no I/O, no imports. Zero dependencies, Node >= 20.
  */
@@ -74,6 +76,29 @@ const DETAILS_DESCRIPTION = 'Shows the full brief, risks included, then asks thi
 
 /** The cut More details' preview ends with. */
 const DETAILS_CUT = 'Choose this to see the rest.';
+
+/**
+ * The rows a panel drawn above the question may fill, and how a line is
+ * counted against them. Claude Code holds what an extension draws around its
+ * question dialog to twelve rows, a text counting one row plus one for every
+ * forty characters it runs to, and refuses a tree over that whole — drawing its
+ * own dialog alone. Two rows go to the panel's border. Measured, not
+ * documented, so it is re-measured when Claude Code changes; a character is a
+ * UTF-16 unit, the larger of the two counts.
+ */
+export const PANEL_ROWS = 10;
+export const ROW_CHARS = 40;
+
+/** The rows one line of a panel costs. */
+export function rowsOf(text) {
+  return 1 + Math.floor(text.length / ROW_CHARS);
+}
+
+/** The most rows each panel line may take, in the order lines are fitted: title, headline, next, review, counts. */
+const PANEL_SHARES = { title: 1, headline: 4, next: 1, review: 2, counts: 1 };
+
+/** The order a panel's lines are drawn in. */
+const PANEL_ORDER = ['title', 'headline', 'counts', 'next', 'review'];
 
 // ---------------------------------------------------------------------------
 // the pieces every layout shares
@@ -335,6 +360,49 @@ function detailsPreview(checkpoint) {
   if (text.length <= PREVIEW_BUDGET) return text;
   const room = PREVIEW_BUDGET - DETAILS_CUT.length - 3;
   return `${clip(text, room)}\n\n${DETAILS_CUT}`;
+}
+
+// ---------------------------------------------------------------------------
+// the panel above the question
+// ---------------------------------------------------------------------------
+
+/**
+ * The checkpoint as a panel an editor extension draws above the question:
+ * `{question, glance}`. `question` is the rich picker's, the one a session asks
+ * with, so the extension knows the question the panel belongs to by comparing
+ * it. `glance` is plain one-line text fitted to `PANEL_ROWS` — the checkpoint
+ * and what it closes, the *Done* sentence, how much was decided and how much is
+ * open, *Next* and *Review* — each line cut to the rows left for it, so the
+ * extension draws it as it stands and counts nothing. It stays visible
+ * whichever option is in focus, which the preview beside an option does not.
+ */
+export function panelOf(checkpoint) {
+  const progress = checkpoint.progress ?? {};
+  const closing = checkpoint.closed?.[0]?.title ?? checkpoint.header;
+  const risks = checkpoint.risks ?? {};
+  const open = (risks.stop?.length ?? 0) + (risks.open?.length ?? 0);
+  const review = (checkpoint.review ?? []).map(each => each.path).join(', ');
+  const wanted = {
+    title: `Checkpoint ${progress.checkpoint}/${progress.checkpoints_max} · ${closing}`,
+    headline: checkpoint.headline ?? '',
+    next: `Next: ${nextText(checkpoint.next)}`,
+    review: review ? `Review: ${review}` : '',
+    counts: `Decided: ${decided(checkpoint).length} · open risks: ${open}`,
+  };
+  const fitted = {};
+  let left = PANEL_ROWS;
+  for (const [key, share] of Object.entries(PANEL_SHARES)) {
+    const text = String(wanted[key]).replace(/\s+/g, ' ').trim();
+    const rows = Math.min(share, left);
+    if (!text || rows < 1) continue;
+    // The longest line that costs `rows` rows is one character short of their width.
+    fitted[key] = clip(text, rows * ROW_CHARS - 1);
+    left -= rowsOf(fitted[key]);
+  }
+  return {
+    question: richPicker(checkpoint).question,
+    glance: PANEL_ORDER.filter(key => Object.hasOwn(fitted, key)).map(key => fitted[key]),
+  };
 }
 
 // ---------------------------------------------------------------------------

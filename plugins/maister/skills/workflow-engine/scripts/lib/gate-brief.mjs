@@ -68,7 +68,11 @@
  * refusal and this module's is a degradation, and one shared helper would have to
  * carry both meanings.
  *
- * Pure: no stdio, no writes. Returns `{ok, text, errors, warnings}` and leaves
+ * Every form also returns `panel`, the glance an editor extension draws above
+ * the question (`panelOf`), which `workflow.mjs` writes to the run's
+ * `display/next.json` — the one file a brief writes, and never the state.
+ *
+ * Pure: no stdio, no writes. Returns `{ok, text, panel, errors, warnings}` and leaves
  * printing to `workflow.mjs`. Zero dependencies, `node:` builtins only, Node >= 20.
  */
 
@@ -80,7 +84,7 @@ import { MORE_DETAILS_ID, resolve, reviseStretch } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
-import { moreDetails, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
+import { moreDetails, panelOf, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
 import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, riskOf, riskText } from './items.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
@@ -263,23 +267,35 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
     const tail = [next, ...offered, `Recommended: ${recommended}`, runLine(doc, runDir)];
     return fit(closing, DRIVEN, tail, pointerOf(doc, runDir));
   };
-  if (form === 'oneline') return { ok: true, text: onelineText(), errors: [], warnings };
 
   const gateId = id => isGate(recorded, byId, id);
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
+  let built = null;
+  const checkpointOf = () => (built ??= buildCheckpoint({
+    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, recommended, revisions, gateId,
+  }));
+  // Every form carries the panel an editor extension draws above the question,
+  // whichever form was asked for: a gate may be asked from any of them. The
+  // panel is display only, so one that cannot be built costs the brief nothing.
+  let panel = null;
+  try {
+    panel = { node, header: checkpointOf().header, ...panelOf(checkpointOf()) };
+  } catch {
+    panel = null;
+  }
+  if (form === 'oneline') return { ok: true, text: onelineText(), panel, errors: [], warnings };
+
   if (form === 'plain') {
     const next = walked ? readableNext(walked, titles, gateId) : NEXT_UNKNOWN;
     const spent = revisions.spent && revisions.options.length ? CEILING_REACHED : '';
     const review = reviewLine(doc, runDir, ids, byId);
     const text = fit(closing, READABLE, [`${next}${spent}`, ...(review ? [review] : [])], placeOf(doc, runDir));
-    return { ok: true, text, errors: [], warnings };
+    return { ok: true, text, panel, errors: [], warnings };
   }
 
-  const checkpoint = buildCheckpoint({
-    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, recommended, revisions, gateId,
-  });
-  if (form === 'checkpoint') return { ok: true, checkpoint, errors: [], warnings };
-  if (form === 'request') return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd()), errors: [], warnings };
+  const checkpoint = checkpointOf();
+  if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings };
+  if (form === 'request') return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd()), panel, errors: [], warnings };
   const shaped = picker === 'plain' ? plainPicker(checkpoint) : richPicker(checkpoint);
   // The plain profile's header titles a form property, which has no length
   // limit and shows a cut word as written: it takes the closing node's own
@@ -289,6 +305,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
     ok: true,
     picker: { picker, ...shaped, header },
     more_details: moreDetails(checkpoint),
+    panel,
     errors: [],
     warnings,
   };
