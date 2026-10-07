@@ -429,7 +429,7 @@ function renderHeader(d, done, total, pct) {
   // stats: decisions, open risks, issues by severity
   let decN = 0, riskOpen = 0, riskResolved = 0;
   for (const ph of phases) {
-    decN += (ph.decisions || []).length;
+    decN += (ph.decisions || []).filter(x => !x.earlier).length;
     for (const r of (ph.risks || [])) isResolvedRisk(r) ? riskResolved++ : riskOpen++;
   }
   const sev = { critical: 0, warning: 0, info: 0 };
@@ -525,6 +525,7 @@ function renderTimeline(phases) {
     const id = esc(ph.id || ph.name);
     const st = ph.status || "pending";
     const decs = (ph.decisions || []).length;
+    const decsNow = (ph.decisions || []).filter(x => !x.earlier).length;
     const risks = (ph.risks || []).length;
     const arts = (ph.artifacts || []).length;
     const absent = ph.absent || [];
@@ -541,7 +542,7 @@ function renderTimeline(phases) {
         (ph.headline ? '<p class="ph-headline">' + esc(ph.headline) + '</p>' : "") +
         (ph.summary ? '<p class="ph-summary">' + esc(ph.summary) + '</p>' : "") +
         (decs ? '<div class="ph-section"><div class="sec-label">Key decisions</div><ul>' +
-          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + (x.note ? ' <span class="rationale">— ' + esc(x.note) + '</span>' : '') + sourceChip(x) + '</li>').join("") +
+          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + (x.note ? ' <span class="rationale">— ' + esc(x.note) + '</span>' : '') + sourceChip(x) + earlierNote(x) + '</li>').join("") +
           '</ul></div>' : "") +
         (risks ? '<div class="ph-section"><div class="sec-label">Open questions / risks</div><ul>' +
           byTag(ph.risks).map(r => '<li' + (r.tag === "resolved" ? ' class="risk-item resolved" style="border:none;padding:0"' : '') + '>' + riskHtml(r) + '</li>').join("") + '</ul></div>' : "") +
@@ -569,7 +570,7 @@ function renderTimeline(phases) {
         '<div class="ph-tags">' +
           (prog ? '<span class="mini prog">' + esc(prog) + '</span>' : "") +
           (ph.attempt > 1 ? '<span class="mini">attempt ' + esc(ph.attempt) + '</span>' : "") +
-          (decs ? '<span class="mini decisions">' + decs + ' decision' + (decs > 1 ? "s" : "") + '</span>' : "") +
+          (decsNow ? '<span class="mini decisions">' + decsNow + ' decision' + (decsNow > 1 ? "s" : "") + '</span>' : "") +
           (risks ? '<span class="mini risks">' + risks + ' risk' + (risks > 1 ? "s" : "") + '</span>' : "") +
           (arts ? '<span class="mini">' + arts + ' artifact' + (arts > 1 ? "s" : "") + '</span>' : "") +
           (time ? '<span class="mini time">' + esc(time) + '</span>' : "") +
@@ -618,16 +619,21 @@ function renderVerification(v) {
   '</div></div>';
 }
 
+/* An answer an earlier attempt gave to a question asked again: shown as history, never counted. */
+function earlierNote(x) {
+  return x && x.earlier ? ' <span class="mini">earlier answer' + (x.attempt ? ' · attempt ' + esc(x.attempt) : '') + '</span>' : '';
+}
+
 /* sidebar lists grouped by phase — full text, never truncated */
 function renderDecisions(phases) {
   let total = 0, html = "";
   for (const ph of phases) {
     const decs = ph.decisions || [];
     if (!decs.length) continue;
-    total += decs.length;
+    total += decs.filter(dx => !dx.earlier).length;
     html += '<div class="grp-label">' + esc(ph.name || ph.id) + '</div>' +
       decs.map(dx => '<div class="dec-item">' + esc(dx.decision || dx) +
-        (dx.rationale ? ' <span class="rationale">— ' + esc(dx.rationale) + '</span>' : "") + sourceChip(dx) + '</div>').join("");
+        (dx.rationale ? ' <span class="rationale">— ' + esc(dx.rationale) + '</span>' : "") + sourceChip(dx) + earlierNote(dx) + '</div>').join("");
   }
   const body = total ? html : '<div class="empty">No decisions recorded yet.</div>';
   return '<div class="card"><h2>Decisions</h2><div class="body">' + body + '</div></div>';

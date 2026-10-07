@@ -316,7 +316,13 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
     // Typed on the way out, whatever shape the run wrote: each decision says
     // who settled it and each risk what it is, so the viewer chips and groups
     // them without parsing a prefix.
-    phase.decisions = list(summary.decisions).map(entry => decisionOf(entry, option => optionLabelOf(labels, id, option))).filter((d) => d !== null);
+    // An earlier attempt's answer to a question asked again is marked
+    // `earlier`, so the viewer shows it as history and does not count it.
+    const decisions = list(summary.decisions);
+    phase.decisions = decisions.map(entry => {
+      const decision = decisionOf(entry, option => optionLabelOf(labels, id, option));
+      return decision && items.isEarlierAnswer(entry, decisions) ? { ...decision, earlier: true } : decision;
+    }).filter((d) => d !== null);
     phase.risks = list(summary.risks).map(items.riskOf).filter((r) => r !== null);
     phase.artifacts = list(summary.artifacts).map(artifactOf).filter((a) => a !== null);
     // Additive, and only on a node whose summary sanctioned an absence: the
