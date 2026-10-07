@@ -1,0 +1,9 @@
+answer:
+  option: all
+  answers:
+    tag-filter: all
+    tag-case: folded
+    csv-extras: [timestamp, emoji]
+  answered_by: dana
+  at: "2026-01-05T09:12:00Z"
+  via: cockpit
