@@ -155,11 +155,10 @@ const CEILING_REACHED = ' (no revises are left at this checkpoint)';
 
 /**
  * The most suggestions a revise option carries: a picker offers at most four
- * options, and the operator's own words are the fallback beside them. The
- * fewest is two, so the question always has a choice to make.
+ * options, and the operator's own words are the fallback beside them. There is
+ * no fewest: a stretch with nothing open offers none, and the note is typed.
  */
 const SUGGESTIONS_MAX = 4;
-const SUGGESTIONS_MIN = 2;
 
 /** How long a suggested note may run: a risk and the change it needs, whole. */
 const NOTE_MAX = 400;
@@ -478,12 +477,12 @@ function skippedAgain(id, stretch, guards) {
 
 /**
  * What the operator might ask a revise to change, generated from what the
- * stretch it re-runs found: each open risk as a thing to resolve, then each
- * decision as a thing to revisit, nearest the gate first — the order the
- * brief lists them in, most important first. Duplicates go; at most
- * `SUGGESTIONS_MAX` stay. When the stretch recorded fewer than
- * `SUGGESTIONS_MIN`, two plain edits of the rerun node make up the rest, so the
- * question always offers a real choice and never an empty one.
+ * stretch it re-runs left open: each open risk as a thing to resolve, nearest
+ * the gate first — the order the brief lists them in, most important first.
+ * Duplicates go; at most `SUGGESTIONS_MAX` stay. Nothing else is offered: a
+ * decision names no alternative to change it to, and a generic edit ("make it
+ * more specific") names no change at all, so either one is a choice that tells
+ * the re-run nothing. Fewer than two, or none, is a typed note instead.
  *
  * Each is `{label, description, note, recommended}`: the label the lead
  * sentence of what it answers, uncut but for a headline's own cap — a label cut
@@ -519,23 +518,6 @@ function suggestionsFor(sources, stretch, target) {
       if (risk.change) add(short, risk.change, `${bare(short)} — ${risk.change}`);
       else add(short, `Re-run ${target} to address it`, `Re-run ${target} to address: ${risk.risk}`);
     }
-  }
-  // A decision to revisit only fills up a list the open items left short.
-  if (found.length < SUGGESTIONS_MIN) {
-    for (const entry of entries) {
-      for (const item of entry.decisions) {
-        const decision = decisionOf(item);
-        if (!decision || decision.by === 'operator') continue;
-        const text = decisionText(decision);
-        const short = headline(decision.decision);
-        const rationale = typeof decision.rationale === 'string' && decision.rationale.trim() !== '' ? decision.rationale.trim() : '';
-        add(`Revisit: ${short}`, rationale || 'Reconsider this decision in the re-run', `Revisit the decision: ${text}`);
-      }
-    }
-  }
-  if (found.length < SUGGESTIONS_MIN) {
-    add(`Make ${target} more specific`, 'Where it is vague', `Make ${target} more specific where it is vague`);
-    add(`Cut ${target} to what is needed`, 'Down to what the next step needs', `Cut ${target} down to what the next step needs`);
   }
   return found.slice(0, SUGGESTIONS_MAX);
 }

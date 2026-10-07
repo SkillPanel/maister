@@ -925,13 +925,18 @@ test('picker: the suggestions come from what the stretch found, nearest the gate
   ]);
 });
 
-test('picker: only open items become suggestions, and a decision to revisit fills up only below two', t => {
+test('picker: only open items become suggestions, never a decision, and one is asked for typed', t => {
   const run = atReview(t, { review: { risks: [{ risk: 'Two breaking changes ship under 1.0.0', tag: 'tradeoff' }, 'followup: rename the CLI flag', { risk: 'section 2 is thin', tag: 'open', change: 'expand section 2' }] }, draft: { risks: [] } });
-  const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
-  assert.deepEqual(suggestions.map(each => each.note), ['section 2 is thin — expand section 2', 'Revisit the decision: Wrote it for new operators']);
-  // The revisit is offered like any other, and its label and description never say the same thing twice.
-  assert.deepEqual(suggestions[1], {
-    label: 'Revisit: Wrote it for new operators', description: 'Reconsider this decision in the re-run', note: 'Revisit the decision: Wrote it for new operators', recommended: false,
+  const revise = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  // The draft's decision names no alternative to change it to, so it is no suggestion.
+  assert.deepEqual(revise.suggestions.map(each => each.note), ['section 2 is thin — expand section 2']);
+  // A picker lists two options at the least: one suggestion is named in a typed question.
+  assert.deepEqual(revise.note_question, {
+    header: 'Revise',
+    question: 'What should change? Re-runs: Draft, Figures and Review, then asks this checkpoint again. '
+      + 'The run suggests: section 2 is thin — expand section 2. Type "yes" to send it, or type your own change.',
+    multi_select: false,
+    options: [],
   });
 });
 
@@ -961,18 +966,22 @@ test('picker: at most four suggestions, a long one whole in its label, its note 
   assert.ok(preview.includes(`- Re-run the draft to address: ${long}`), preview);
 });
 
-test('picker: a stretch that found nothing still offers two concrete edits, never an empty question', t => {
-  const run = atReview(t, { draft: { decisions: [], risks: [] }, review: { risks: [] } });
-  const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
-  assert.deepEqual(suggestions.map(each => [each.label, each.description]), [
-    ['Make the draft more specific', 'Where it is vague'],
-    ['Cut the draft to what is needed', 'Down to what the next step needs'],
-  ]);
-  assert.deepEqual(suggestions.map(each => each.note), [
-    'Make the draft more specific where it is vague',
-    'Cut the draft down to what the next step needs',
-  ]);
-  assert.ok(suggestions.every(each => each.recommended === false), 'none is recommended or pre-chosen');
+test('picker: a stretch with nothing open offers no suggestion, and the note is typed', t => {
+  const run = atReview(t, { review: { risks: [] }, draft: { risks: [] } });
+  const revise = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.deepEqual(revise.suggestions, [], 'no filler: a generic edit or a decision to revisit names no change');
+  assert.equal(revise.preview, 'Re-runs: Draft, Figures and Review, then asks this checkpoint again.\nNo suggested notes: you type what should change.');
+  assert.deepEqual(revise.note_question, {
+    header: 'Revise',
+    question: 'What should change? Re-runs: Draft, Figures and Review, then asks this checkpoint again. Type the change.',
+    multi_select: false,
+    options: [],
+  });
+  const plain = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--json', '--picker=plain']).stdout)
+    .options.find(option => option.id === 'send-back');
+  assert.deepEqual(plain.note_question, revise.note_question, 'the same typed question in both profiles');
+  const request = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request']).stdout);
+  assert.deepEqual(request.options.find(option => option.id === 'send-back').suggestions, []);
 });
 
 test('driven form: a revise section before Recommended, and the recommendation unchanged', t => {

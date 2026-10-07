@@ -187,14 +187,13 @@ test('problem-approval: the revise names only the nodes that will run again', t 
   assert.equal(named(true), 'Re-runs Problem exploration and User and persona exploration with your note, then asks this again.');
 });
 
-test('problem-approval: revise suggestions are generated from the stretch, never left to free text', t => {
+test('problem-approval: revise suggestions are generated from what the stretch left open', t => {
   const picker = brief(atProblemApproval(t, { personas: false }), 'problem-approval');
   const revise = picker.options.find(option => option.id === 'revise-problem');
   assert.deepEqual(revise.reruns.map(each => each.node), ['problem-exploration']);
   assert.deepEqual(revise.suggestions.map(each => each.note), [
     'Re-run the problem exploration to address: assumes guests accept a link instead of a login',
-    'Revisit the decision: External guests get no account',
-  ]);
+  ], 'the open assumption only: the decision beside it names no alternative');
   assert.ok(revise.suggestions.every(each => each.recommended === false), 'a suggestion is offered, never recommended');
 });
 

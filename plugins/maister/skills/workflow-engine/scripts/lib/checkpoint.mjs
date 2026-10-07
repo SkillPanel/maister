@@ -66,6 +66,9 @@ export const DETAILS_TYPED = 'Type "details" for the full brief.';
 /** How many options each profile's tool lists. */
 const PICKER_SLOTS = { rich: 4, plain: Infinity };
 
+/** The fewest options a picker lists; a revise with fewer suggestions asks for its note typed. */
+const PICKER_MIN = 2;
+
 /** The order options are listed in, after the recommended one: on, back, out. */
 const EFFECT_ORDER = { continue: 0, revise: 1, stop: 2 };
 
@@ -267,6 +270,8 @@ function reviseLines(option) {
   if (suggestions.length) {
     out.push('Suggested notes:');
     out.push(...suggestions.slice(0, REVISE_LINES - 2).map(each => `- ${each.note}`));
+  } else {
+    out.push('No suggested notes: you type what should change.');
   }
   return out;
 }
@@ -279,13 +284,24 @@ function reviseLines(option) {
  * a note should not have to untick one first. Where options carry a
  * description, the label is the short form and the description the rest;
  * where they carry only a title, the title is the note whole.
+ *
+ * A picker lists two options at the least, so with fewer suggestions the
+ * question has none and asks for the note typed, naming the one suggestion
+ * there is so it can be sent with a word.
  */
 function noteQuestion(option, profile) {
+  const suggestions = option.suggestions ?? [];
+  if (suggestions.length < PICKER_MIN) {
+    const ask = suggestions.length
+      ? `The run suggests: ${suggestions[0].note.replace(/\.$/, '')}. Type "yes" to send it, or type your own change.`
+      : 'Type the change.';
+    return { header: 'Revise', question: `What should change? ${rerunsLine(option)} ${ask}`, multi_select: false, options: [] };
+  }
   return {
     header: 'Revise',
     question: `What should change? ${rerunsLine(option)}`,
     multi_select: true,
-    options: (option.suggestions ?? []).map(each => (profile === 'rich'
+    options: suggestions.map(each => (profile === 'rich'
       ? { label: each.label, description: each.description }
       : { label: each.note })),
   };
