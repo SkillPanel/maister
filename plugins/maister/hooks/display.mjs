@@ -89,8 +89,8 @@ const STATUS_WORDS = { completed: 'done' };
 /** The files of a run the engine writes or reads itself, never one of its artifacts. */
 const ENGINE_FILES = /^(orchestrator-state\.yml|\.state-patch\.json|dashboard[^/]*|display\/.*)$/;
 
-/** Colours: the accent for titles, the states, links, and what recedes. */
-const ACCENT = '#e2885d';
+/** Colours: Maister's brand for what the module names, the states, links, and what recedes. */
+const BRAND = '#9f7aea';
 const DONE = '#79c08b';
 const AMBER = '#e3bd59';
 const LINK = '#7cc4e8';
@@ -475,7 +475,7 @@ function card(elements, start, links) {
   if (links && start.folder) opens.push(linkTo(elements, start.folder, 'Open task folder ↗', 'folder'));
   return h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: BORDER, paddingX: 2, paddingY: 1 },
     h(Text, { key: 'title' },
-      h(Text, { color: ACCENT, bold: true }, `${start.workflow} run started`),
+      h(Text, { color: BRAND, bold: true }, `${start.workflow} run started`),
       ...(start.frozen ? ['  ', h(Text, { color: DIM }, clockTime(start.frozen))] : [])),
     ...(start.task ? [h(Text, { key: 'task', bold: true }, start.task)] : []),
     ...(facts.length ? [h(Text, { key: 'facts', color: DIM }, facts.join(' · '))] : []),
@@ -504,7 +504,7 @@ function band(elements, status, time, maxRows, links) {
     ...(dots ? [dots] : []),
     ...(ended ? [h(Text, { key: 'ended' }, status.status)] : where));
 
-  const name = h(Text, { key: 'workflow', color: ACCENT, bold: true }, status.workflow ?? 'Workflow');
+  const name = h(Text, { key: 'workflow', color: BRAND, bold: true }, status.workflow ?? 'Workflow');
   if (maxRows < BAND_ROWS) return h(Box, { flexDirection: 'row', gap: 2 }, name, progress);
 
   const opens = [];
@@ -530,15 +530,23 @@ function dotsOf({ Text }, phase) {
 }
 
 /**
- * A quiet line, inset under the row's bullet and dim; an artifact's line has
- * its path linked where the surface opens the link.
+ * A quiet line, inset under the row's bullet and dim but for the brand's
+ * name; an artifact's line has its path linked where the surface opens the
+ * link.
  */
 function quietLine(elements, row, links) {
   const { Box, Text } = elements;
   const text = row.path && row.href && links
-    ? h(Text, { color: DIM, wrap: 'truncate-end' }, row.lead, linkTo(elements, row.href, row.path))
-    : h(Text, { color: DIM, wrap: 'truncate-end' }, row.line);
+    ? h(Text, { color: DIM, wrap: 'truncate-end' }, ...branded(Text, row.lead), linkTo(elements, row.href, row.path))
+    : h(Text, { color: DIM, wrap: 'truncate-end' }, ...branded(Text, row.line));
   return h(Box, { marginLeft: INSET }, text);
+}
+
+/** A quiet line's text with its `maister` in the brand colour. */
+function branded(Text, line) {
+  const name = '· maister';
+  if (!line.startsWith(name)) return [line];
+  return ['· ', h(Text, { key: 'brand', color: BRAND }, 'maister'), line.slice(name.length)];
 }
 
 /** A link drawn as one: underlined, in the link colour. */
@@ -605,7 +613,7 @@ function panelRows(elements, parts, linked) {
   const review = parts.find(part => part.key === 'review');
   const sep = () => h(Text, { color: DIM }, ' · ');
   const head = [];
-  if (title) head.push(h(Text, { color: ACCENT, bold: true }, title.label), ...(title.text ? [sep(), h(Text, { bold: true }, title.text)] : []));
+  if (title) head.push(h(Text, { color: BRAND, bold: true }, title.label), ...(title.text ? [sep(), h(Text, { bold: true }, title.text)] : []));
   if (counts) {
     if (head.length) head.push(sep());
     head.push(h(Text, { color: DIM }, `${counts.text} decided`), sep(),

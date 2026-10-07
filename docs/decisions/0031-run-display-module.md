@@ -104,7 +104,7 @@ anything per-session.
 **The module.** `hooks/display.mjs` is plain JavaScript with no build step. It draws at four
 render sites, and stands in for them where they are not drawn:
 - **`ToolUse`, `ToolResult` and `ToolGroup`: the start card and the quiet lines.**
-  - The freeze's row draws as a bordered, padded card: *<Workflow> run started* in the accent
+  - The freeze's row draws as a bordered, padded card: *<Workflow> run started* in the brand
     colour with the date and time dim, the task in bold, the checkpoints and the first phase dim,
     and links to the dashboard and the task folder.
   - A clean state write draws as `· maister · saved · <node> → <status>, …`, or as the checkpoint
@@ -113,7 +113,8 @@ render sites, and stands in for them where they are not drawn:
   - A clean `Write` of an artifact the run declares, a file in its task folder, draws as
     `· maister · wrote <path>`, the path a link. A status file without `artifacts` takes any file
     in the folder but the engine's own.
-  - A line draws dim, inset under the row's bullet as a tool result's line is.
+  - A line draws dim but for its `maister`, in the brand colour, inset under the row's bullet as a
+    tool result's line is.
   - A call whose line would say nothing, a write that changed no step, draws nothing; so does one
     whose line is the last quiet line again, such as the brief of a checkpoint its write already
     named.
@@ -124,7 +125,7 @@ render sites, and stands in for them where they are not drawn:
   - Where the session draws on no surface that shows a card, the banner's lines are logged once
     instead (`$.ui.log`).
 - **`AbovePrompt`: the run band.**
-  - Two rows. The first: the workflow in the accent colour, the task, and the dashboard and task
+  - Two rows. The first: the workflow in the brand colour, the task, and the dashboard and task
     folder links on the right. The second: the phases as dots (done green, the current amber, the
     rest dim), `phase n of N · <title>` with the title bold, then the next checkpoint and
     `running for N min`, dim.
@@ -137,7 +138,7 @@ render sites, and stands in for them where they are not drawn:
     `next.json`, and cleared once that question is answered.
   - The option preview under it already says what was done, what comes next and what was decided,
     so the panel is two lines: `Checkpoint k of M · <closing title> · <n> decided · <risks>`, the
-    checkpoint in the accent colour, the title bold and the open risks amber when there are any;
+    checkpoint in the brand colour, the title bold and the open risks amber when there are any;
     then the review files as links, which is what the panel alone gives.
   - `next.json` keeps every part; the module draws the title, the counts and the review files.
   - There is no Markdown. A brief without parts draws its plain glance.
@@ -175,9 +176,11 @@ The values a drawing reads live in `$.state`, declared in the plugin's contract,
 - the last quiet line drawn;
 - the banner already logged.
 
-**Colours.** The accent `#e2885d`, green `#79c08b`, amber `#e3bd59`, link `#7cc4e8`, dim `#8c909a`
+**Colours.** The brand colour `#9f7aea`, a tint of Maister's purple `#7036d6` that reads on a dark
+terminal, marks everything the module draws: the start card's title, the band's workflow, the
+panel's checkpoint and the `maister` that opens each quiet line, the rest of which stays dim. Green `#79c08b`, amber `#e3bd59`, link `#7cc4e8`, dim `#8c909a`
 and the border `#4a4f5a` are hex, which `Color` takes beside the theme keys. They are the designs'
-own, and no theme key names the accent or the link colour.
+own, and no theme key names the brand or the link colour.
 
 **Scope: display only, never gating.**
 - No hook denies, rewrites or answers a call: each passes its call through.

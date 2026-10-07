@@ -151,8 +151,9 @@ async function row($: any, surface: 'terminal' | 'desktop', id: string, tool = '
   const texts = (await ui.findAll({ type: 'Text' })).map((each: any) => each.text)
   const links = (await ui.findAll({ type: 'Link' })).map((each: any) => ({ href: each.props.href, text: flatten(each) }))
   const styles = (await ui.findAll({ type: 'Link' })).map((each: any) => each.children?.[0]?.props)
+  const colours = Object.fromEntries((await ui.findAll({ type: 'Text' })).map((each: any) => [each.text, each.props.color]))
   await ui.unmount()
-  return { drawn, texts, links, styles }
+  return { drawn, texts, links, styles, colours }
 }
 
 const BAND = { hasSurvey: false, isWorking: true, maxRows: 6, bodyColumns: 100, scroll: { offset: 0, bodyRows: 6, total: 2 }, view: {} }
@@ -289,7 +290,7 @@ describe('run band', () => {
       expect(drawn.texts).toContain('phase 5 of 12 · Specification')
       expect(drawn.texts).toContain('next checkpoint 2 of 10 · running for 9 min')
       expect(drawn.links).toEqual(surface === 'terminal' ? [{ href: DASHBOARD, text: 'Dashboard ↗' }, { href: RUN_URL, text: 'Task folder ↗' }] : [])
-      expect(drawn.colours).toMatchObject({ Development: '#e2885d', '●●●●': '#79c08b', '●': '#e3bd59', '●●●●●●●': '#5a5f69' })
+      expect(drawn.colours).toMatchObject({ Development: '#9f7aea', '●●●●': '#79c08b', '●': '#e3bd59', '●●●●●●●': '#5a5f69' })
       if (surface === 'terminal') expect(drawn.colours).toMatchObject({ 'Dashboard ↗': '#7cc4e8', 'Task folder ↗': '#7cc4e8' })
     }
     await clock.advance(60_000)
@@ -431,7 +432,7 @@ describe('gate panel', () => {
     expect(panel.rows).toBeLessThanOrEqual(12)
   })
 
-  test('marks open risks in amber, the checkpoint in the accent, and the review files as links', async ($: any, on: any) => {
+  test('marks open risks in amber, the checkpoint in the brand colour, and the review files as links', async ($: any, on: any) => {
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK) })
     let colours: Record<string, unknown> = {}
     let styles: unknown[] = []
@@ -443,7 +444,7 @@ describe('gate panel', () => {
       return { result: { answers: {} } }
     })
     await $.tool.call({ tool: 'AskUserQuestion', questions: QUESTIONS })
-    expect(colours).toMatchObject({ '1 open risk': '#e3bd59', 'Checkpoint 2 of 10': '#e2885d', '1 decided': '#8c909a' })
+    expect(colours).toMatchObject({ '1 open risk': '#e3bd59', 'Checkpoint 2 of 10': '#9f7aea', '1 decided': '#8c909a' })
     expect(styles).toEqual([{ color: '#7cc4e8', underline: true }, { color: '#7cc4e8', underline: true }])
   })
 
@@ -507,7 +508,9 @@ describe('quiet bookkeeping', () => {
     const ran = await $.tool.call({ tool: 'Bash', command: WRITE })
     expect(ran.result).toEqual((seen.results[0] as any).result)
     for (const surface of ['terminal', 'desktop'] as const) {
-      expect((await row($, surface, seen.ids[0])).texts).toEqual(['· maister · saved · intake → done, codebase analysis → running'])
+      const drawn = await row($, surface, seen.ids[0])
+      expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running', 'maister'])
+      expect(drawn.colours).toMatchObject({ '· maister · saved · intake → done, codebase analysis → running': '#8c909a', maister: '#9f7aea' })
     }
     const result = await $.ui.mount({ plugin: 'maister', surface: 'terminal', component: 'ToolResult', props: { tool_use_id: seen.ids[0], tool: 'Bash', output: {}, isErrored: false } })
     expect(await result.findAll({ type: 'Text' })).toEqual([])
@@ -534,22 +537,22 @@ describe('quiet bookkeeping', () => {
     const parts = PARTS.map(part => (part.key !== 'title' ? part : { ...part, text: 'Specification approval' }))
     const seen = beneath(on, files(), { shells: [saved({ gate_open: true }), { stdout: '{"ok":true}', files: { [NEXT]: nextDoc(ASK, { parts }) } }, saved({ updated: '2026-10-07T16:41:00Z', saved: [{ node: 'intake', title: 'Intake', status: 'completed' }] }), saved({ updated: '2026-10-07T16:42:00Z', saved: [{ node: 'intake', title: 'Intake', status: 'completed' }] })] })
     for (const command of [WRITE, BRIEF, WRITE, WRITE]) await $.tool.call({ tool: 'Bash', command })
-    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checkpoint 2 of 10 · Specification approval'])
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checkpoint 2 of 10 · Specification approval', 'maister'])
     expect((await row($, 'terminal', seen.ids[1])).texts).toEqual([])
-    expect((await row($, 'terminal', seen.ids[2])).texts).toEqual(['· maister · saved · intake → done'])
+    expect((await row($, 'terminal', seen.ids[2])).texts).toEqual(['· maister · saved · intake → done', 'maister'])
     expect((await row($, 'terminal', seen.ids[3])).texts).toEqual([])
   })
 
   test('a write that opens a gate draws as the checkpoint it opened', async ($: any, on: any) => {
     const seen = beneath(on, files(), { shells: [saved({ gate_open: true })] })
     await $.tool.call({ tool: 'Bash', command: WRITE })
-    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checkpoint 2 of 10 · Specification approval'])
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checkpoint 2 of 10 · Specification approval', 'maister'])
   })
 
   test('a clean gate brief draws as the checkpoint it briefs', async ($: any, on: any) => {
     const seen = beneath(on, files(), { shells: [{ stdout: '{"ok":true}', files: { [NEXT]: nextDoc(ASK) } }] })
     await $.tool.call({ tool: 'Bash', command: BRIEF })
-    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checkpoint 2 of 10 · Specification'])
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checkpoint 2 of 10 · Specification', 'maister'])
   })
 
   test('a refusal is never collapsed', async ($: any, on: any) => {
@@ -589,7 +592,7 @@ describe('quiet bookkeeping', () => {
     const content = json({ nodes: { intake: { status: 'completed' }, 'codebase-analysis': { status: 'running' } } })
     await $.tool.call({ tool: 'Write', file_path: PATCH, content })
     const write = seen.ids[0]
-    expect((await row($, 'terminal', write, 'Write')).texts).toEqual(['· maister · patch · intake → done, codebase analysis → running'])
+    expect((await row($, 'terminal', write, 'Write')).texts).toEqual(['· maister · patch · intake → done, codebase analysis → running', 'maister'])
     await $.tool.call({ tool: 'Bash', command: WRITE })
     const after = await row($, 'terminal', write, 'Write')
     expect(after.texts).toEqual([])
@@ -600,7 +603,7 @@ describe('quiet bookkeeping', () => {
     const seen = beneath(on, files(), { shells: [{ error: 'Exit code 1\nstate-patch-invalid' }] })
     await $.tool.call({ tool: 'Write', file_path: PATCH, content: json({ nodes: { intake: { status: 'completed' } } }) })
     await $.tool.call({ tool: 'Bash', command: WRITE })
-    expect((await row($, 'terminal', seen.ids[0], 'Write')).texts).toEqual(['· maister · patch · intake → done'])
+    expect((await row($, 'terminal', seen.ids[0], 'Write')).texts).toEqual(['· maister · patch · intake → done', 'maister'])
   })
 
   test('a Write of any other file draws in full', async ($: any, on: any) => {
@@ -656,7 +659,7 @@ describe('quiet bookkeeping', () => {
     await $.tool.call({ tool: 'Write', file_path: PATCH, content: json({ nodes: { intake: { status: 'completed' } } }) })
     await $.tool.call({ tool: 'Bash', command: WRITE })
     const drawn = await group($, [call(seen.ids[0], 'Write'), call(seen.ids[1])])
-    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running'])
+    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running', 'maister'])
     expect(JSON.stringify(drawn.drawn)).not.toContain('"engine"')
   })
 
@@ -665,7 +668,7 @@ describe('quiet bookkeeping', () => {
     await $.tool.call({ tool: 'Bash', command: WRITE })
     await $.tool.call({ tool: 'Bash', command: WRITE })
     const drawn = await group($, [call(seen.ids[0]), call(seen.ids[1])])
-    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running'])
+    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running', 'maister'])
     expect(JSON.stringify(drawn.drawn)).not.toContain('"engine"')
     const quiet = await group($, [call(seen.ids[0])])
     expect(quiet.texts).toEqual([])
