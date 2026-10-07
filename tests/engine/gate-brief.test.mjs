@@ -140,7 +140,7 @@ test('gate-brief --json: the question is the one-line ask; the options are label
   assert.equal(result.header, 'Approve the…');
   assert.deepEqual(result.options.map(({ preview: _preview, ...option }) => option), [
     // A bare "Continue" is completed with where the run goes, as the ask is.
-    { id: 'continue', label: 'Continue to the implementation (Recommended)', description: 'Runs the implementation next.', recommended: true },
+    { id: 'continue', label: 'Continue to implementation (Recommended)', description: 'Runs implementation next.', recommended: true },
     { id: 'stop-here', label: 'Stop here', description: 'Ends the run here.', recommended: false },
     { id: 'more-details', label: 'More details', recommended: false, details: true, description: 'Shows the full brief, risks included, then asks this again. Nothing is recorded.' },
   ]);
@@ -197,7 +197,7 @@ test('gate-brief --json: a built-in gate reads its labels and header from the de
     ['stop-development', 'Stop here'],
     ['more-details', 'More details'],
   ]);
-  assert.equal(result.options[0].description, 'Runs the user documentation next.');
+  assert.equal(result.options[0].description, 'Runs user documentation next.');
   assert.match(result.options[0].preview, /^Next: User documentation \(skipping Browser checks\)$/m);
 });
 
@@ -904,7 +904,7 @@ test('picker: continue, then revise, then stop, and the revise says what it re-r
   const run = atReview(t);
   const { options } = picker(run, 'review-approval');
   assert.deepEqual(options.map(option => option.id), ['publish-draft', 'send-back', 'abandon', 'more-details']);
-  assert.equal(options[0].description, 'Runs the publish next.', 'the continue option still names what runs next');
+  assert.equal(options[0].description, 'Runs publish next.', 'the continue option still names what runs next');
   const revise = options[1];
   assert.equal(revise.label, 'Send back with notes');
   assert.equal(revise.description, 'Re-runs Draft, Figures and Review with your note, then asks this again.');
@@ -920,8 +920,8 @@ test('picker: the suggestions come from what the stretch found, nearest the gate
   const run = atReview(t);
   const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
   assert.deepEqual(suggestions, [
-    { label: 'section 2 contradicts the summary', description: 'Re-run the draft to address it', note: 'Re-run the draft to address: section 2 contradicts the summary', recommended: false },
-    { label: 'the intro repeats the title', description: 'Re-run the draft to address it', note: 'Re-run the draft to address: the intro repeats the title', recommended: false },
+    { label: 'section 2 contradicts the summary', description: 'Address it in the re-run', note: 'Address this in the re-run: section 2 contradicts the summary', recommended: false },
+    { label: 'the intro repeats the title', description: 'Address it in the re-run', note: 'Address this in the re-run: the intro repeats the title', recommended: false },
   ]);
 });
 
@@ -945,8 +945,8 @@ test('picker: a suggestion is labelled by its lead sentence in the writer\'s own
   const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
   assert.deepEqual(suggestions[0], {
     label: 'iPhone shoppers may never get alerts.',
-    description: 'Re-run the draft to address it',
-    note: 'Re-run the draft to address: iPhone shoppers may never get alerts. Web push needs the app installed.',
+    description: 'Address it in the re-run',
+    note: 'Address this in the re-run: iPhone shoppers may never get alerts. Web push needs the app installed.',
     recommended: false,
   });
 });
@@ -959,11 +959,11 @@ test('picker: at most four suggestions, a long one whole in its label, its note 
   assert.equal(suggestions.filter(each => each.recommended).length, 0);
   const whole = suggestions[3];
   assert.equal(whole.label, long, 'a label is the lead sentence, never cut to a few words');
-  assert.equal(whole.description, 'Re-run the draft to address it');
-  assert.equal(whole.note, `Re-run the draft to address: ${long}`);
+  assert.equal(whole.description, 'Address it in the re-run');
+  assert.equal(whole.note, `Address this in the re-run: ${long}`);
   // The preview lists each note whole: only the preview's own budget cuts it.
   const { preview } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
-  assert.ok(preview.includes(`- Re-run the draft to address: ${long}`), preview);
+  assert.ok(preview.includes(`- Address this in the re-run: ${long}`), preview);
 });
 
 test('picker: a stretch with nothing open offers no suggestion, and the note is typed', t => {
@@ -1251,7 +1251,7 @@ test('picker plain: the question carries the glance then the ask, and each title
     'Analysis complete. Ready to go on?',
   ].join('\n'));
   assert.deepEqual(result.options, [
-    { id: 'continue', label: 'Continue to the implementation (Recommended)', recommended: true },
+    { id: 'continue', label: 'Continue to implementation (Recommended)', recommended: true },
     { id: 'stop-here', label: 'Stop here — keeps everything written so far', recommended: false },
     { id: 'more-details', label: 'More details', recommended: false, details: true },
   ]);

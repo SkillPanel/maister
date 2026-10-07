@@ -80,7 +80,7 @@ import { MORE_DETAILS_ID, resolve, reviseStretch } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
-import { moreDetails, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
+import { lowered, moreDetails, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
 import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, riskOf, riskText } from './items.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
@@ -420,7 +420,7 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
       work,
       history: `${revisedSoFar(revision)}${earlier}`,
       description: `Re-run ${names} with your note, then ask again.${revisedSoFar(revision)}${earlier}`,
-      suggestions: suggestionsFor(sources, [...work].reverse(), lowerArticle(titleOf(titles, reruns))),
+      suggestions: suggestionsFor(sources, [...work].reverse()),
     };
   });
   return { revision, spent: revision > REVISION_CEILING, options: revise };
@@ -495,7 +495,7 @@ function skippedAgain(id, stretch, guards) {
  * user's own words are as good an answer — and the key stays, false, for the
  * readers that take it.
  */
-function suggestionsFor(sources, stretch, target) {
+function suggestionsFor(sources, stretch) {
   const found = [];
   const add = (label, description, note) => {
     if (!note || found.some(each => each.note === note)) return;
@@ -516,7 +516,7 @@ function suggestionsFor(sources, stretch, target) {
       // one, the note says what the rerun does with it rather than a bare
       // "Resolve:" the user cannot act on.
       if (risk.change) add(short, risk.change, `${bare(short)} — ${risk.change}`);
-      else add(short, `Re-run ${target} to address it`, `Re-run ${target} to address: ${risk.risk}`);
+      else add(short, 'Address it in the re-run', `Address this in the re-run: ${risk.risk}`);
     }
   }
   return found.slice(0, SUGGESTIONS_MAX);
@@ -697,7 +697,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       let consequence = 'Continues the run.';
       if (next?.waiting) consequence = `Waits on ${andList(next.waiting.map(each => each.title))}.`;
       else if (next?.end) consequence = 'Finishes the run.';
-      else if (next?.title) consequence = `Runs ${lowerArticle(next.title)} next.`;
+      else if (next?.title) consequence = `Runs ${lowered(next.title)} next.`;
       return [{ ...base, consequence }];
     }
     if (effect === 'revise') {
@@ -726,7 +726,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   let reason = null;
   if (stopping) reason = risks.stop[0].risk;
   else if (risks.open.length) reason = `${risks.open.length} open ${risks.open.length === 1 ? 'item' : 'items'}; revise to settle ${risks.open.length === 1 ? 'it' : 'them'} first`;
-  else if (next?.title) reason = `nothing open blocks ${lowerArticle(next.title)}`;
+  else if (next?.title) reason = `nothing open blocks ${lowered(next.title)}`;
   else reason = 'nothing open is left';
 
   const gates = order.filter(gateId);
@@ -761,7 +761,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
 function continueLabel(label, next) {
   if (label !== BARE_CONTINUE || !next || next.waiting) return label;
   if (next.end) return 'Finish the run';
-  return next.title ? `Continue to ${lowerArticle(next.title)}` : label;
+  return next.title ? `Continue to ${lowered(next.title)}` : label;
 }
 
 /** The continue label the engine completes with the destination. */
@@ -775,12 +775,6 @@ function compact(value) {
 /** A summary's first sentence, for a skipped node's reason; null without one. */
 function headline_(text) {
   return typeof text === 'string' && text.trim() !== '' ? headline(scalarText(text)) : null;
-}
-
-/** A title after "the", its first letter lower-cased unless it opens an acronym. */
-function lowerArticle(title) {
-  const lowered = title.length > 1 && /[A-Z]/.test(title[1]) ? title : title.charAt(0).toLowerCase() + title.slice(1);
-  return `the ${lowered}`;
 }
 
 /**

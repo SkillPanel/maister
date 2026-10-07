@@ -96,7 +96,15 @@ function clip(text, max) {
   return `${(word > max / 2 ? cut.slice(0, word) : cut).trimEnd()}…`;
 }
 
-/** A title as it reads after "the": its first letter lower-cased unless it opens an acronym. */
+/**
+ * A step's title as a sentence names it: its first letter lower-cased unless
+ * it opens an acronym, and no article in front. An article fits only some
+ * titles — "the specification", but never "the choosing the checks" or "the
+ * publish" — and the words alone cannot tell which ("Failing test" against
+ * "Running tests"), so every generated sentence names a step the way a
+ * definition's own labels do: "Runs verification next", "Continue to
+ * choosing the checks".
+ */
 export function lowered(title) {
   if (title.length > 1 && title[1] === title[1].toUpperCase() && /[A-Z]/.test(title[1])) return title;
   return title.charAt(0).toLowerCase() + title.slice(1);
@@ -241,7 +249,7 @@ function stopLines(checkpoint, option) {
   const notRun = option.not_run;
   if (notRun?.next) {
     const later = notRun.remaining > 1 ? ` and ${notRun.remaining - 1} later ${notRun.remaining - 1 === 1 ? 'phase' : 'phases'}` : '';
-    out.push(`Not run: the ${lowered(notRun.next)}${later}.`);
+    out.push(`Not run: ${lowered(notRun.next)}${later}.`);
   }
   out.push('Start a new run from these files to pick up later.');
   return out.slice(0, STOP_LINES);
