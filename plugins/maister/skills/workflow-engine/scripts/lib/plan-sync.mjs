@@ -23,7 +23,9 @@
  * **Never a blocker.** No companion, or a run whose `html_output` is off, is a
  * no-op that says so. A plan id with no marker in the companion is reported,
  * not refused — an older or partly generated companion is a warning for the
- * caller to log, never a reason to stop a wave.
+ * caller to log, never a reason to stop a wave. A group's own `N.0` checkbox
+ * is the one exception: the companion marks the group with `data-group="N"`,
+ * so an `N.0` with no step marker of its own is not missing.
  *
  * Refusal codes: `plan-unreadable`, `companion-unreadable`,
  * `companion-unwritable`.
@@ -46,6 +48,9 @@ const STATE_FILE = 'orchestrator-state.yml';
 
 /** A step checkbox with its `N.M` label: the mark and the label are both captured. */
 const STEP = new RegExp(`${CHECKBOX.source}\\s*(\\d+\\.\\d+)\\b`, 'gm');
+
+/** A group's own checkbox, `N.0`, which the planner writes above the group's steps. */
+const GROUP_CHECKBOX = /^\d+\.0$/;
 
 /**
  * Set every marker in the plan's companion to the plan's checkbox state.
@@ -85,8 +90,8 @@ export function syncPlan({ plan }) {
   }
   for (const [id, done] of steps) {
     const set = setMarker(next, 'step', id, done);
-    if (set === null) missingSteps.push(id);
-    else next = set;
+    if (set !== null) next = set;
+    else if (!GROUP_CHECKBOX.test(id)) missingSteps.push(id);
   }
 
   const written = next !== html;

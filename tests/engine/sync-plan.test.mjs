@@ -97,6 +97,41 @@ test('a plan group the companion has no marker for is reported, not refused', t 
   assert.deepEqual(report.missing_steps, ['3.1']);
 });
 
+test('a group\'s own N.0 checkbox, as the planner writes it, is the group marker and never a missing step', t => {
+  const run = planned(t);
+  fs.writeFileSync(run.plan, [
+    '# Implementation Plan', '',
+    '### Task Group 1: Parser', '',
+    '- [x] 1.0 Complete the parser layer',
+    '  - [x] 1.1 Write the parser tests',
+    '  - [x] 1.2 Implement the parser', '',
+    '### Task Group 2: Writer', '',
+    '- [ ] 2.0 Complete the writer layer',
+    '  - [x] 2.1 Write the writer tests',
+    '  - [x] 2.2 Cover the Windows path', '',
+    '### Task Group 3: Packaging', '',
+    '- [ ] 3.0 Complete the packaging layer',
+    '  - [ ] 3.1 Package it', '',
+  ].join('\n'));
+  const { code, report } = sync(run);
+  assert.equal(code, 0);
+  assert.deepEqual(report.groups_done, ['1']);
+  assert.deepEqual(report.groups_todo, ['2', '3'], 'a group stays outstanding until its own checkbox is ticked too');
+  assert.deepEqual(report.missing_groups, ['3']);
+  assert.deepEqual(report.missing_steps, ['3.1'], 'no N.0 is reported; a step that really has no marker still is');
+  assert.deepEqual(markers(run, 'group'), { 1: 'done', 2: 'todo', 11: 'done' });
+});
+
+test('a companion that does mark N.0 as a step has that marker set too', t => {
+  const run = planned(t);
+  fs.writeFileSync(run.plan, '### Task Group 1: Parser\n\n- [x] 1.0 Complete the parser layer\n  - [x] 1.1 Write the parser tests\n');
+  fs.writeFileSync(run.companion, fs.readFileSync(run.companion, 'utf8')
+    .replace('<li data-step="1.1"', '<li data-step="1.0" class="step todo">Complete the parser layer</li>\n    <li data-step="1.1"'));
+  const { report } = sync(run);
+  assert.deepEqual(report.missing_steps, []);
+  assert.equal(markers(run, 'step')['1.0'], 'done');
+});
+
 test('html_output: false in the run\'s state is a no-op that names its reason', t => {
   const run = planned(t);
   freeze(run, { orchestrator: { options: { html_output: false } } });
