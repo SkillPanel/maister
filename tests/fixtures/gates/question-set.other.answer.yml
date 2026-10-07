@@ -1,5 +1,5 @@
 answer:
-  option: any
+  option: other
   answers:
     tag-filter: {other: "Match all by default, any when the caller passes mode: any"}
     tag-case: exact

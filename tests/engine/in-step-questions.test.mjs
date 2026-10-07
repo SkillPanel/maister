@@ -142,6 +142,8 @@ test('provoked: gate-brief-questions-invalid names the question and the field', 
     [{ questions: [{ ...base[1], options: [{ id: 'exact' }, base[1].options[1]] }] }, /"label" must be one line/],
     [{ questions: [{ ...base[0], hint: 'x' }] }, /the key "hint"/],
     [{ questions: [{ ...base[0], default: 'none' }] }, /"default" must name one option/],
+    [{ questions: [{ ...base[1], options: [{ ...base[1].options[0], id: 'other' }, base[1].options[1]] }] },
+      /the id "other" is reserved for an answer in the operator's own words/],
   ];
   for (const [set, reason] of cases) assert.match(refused(brief(run, set), 'gate-brief-questions-invalid').stderr, reason);
 });
@@ -206,6 +208,7 @@ test('fold: the answer block becomes one operator decision per question, and the
 
 test('fold: an answer in the operator\'s own words, and a multi-select in another order, read as given', t => {
   const { run, answer } = folded(t, OTHER);
+  assert.equal(answer.option, 'other', 'a first question answered in own words sends option: other');
   write(run, { node_summaries: { analysis: { answer } } });
   const [filter, , extras] = plain(readState(run).node_summaries.analysis.decisions);
   assert.equal(filter.decision, 'Match all by default, any when the caller passes mode: any');
