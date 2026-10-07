@@ -1028,9 +1028,9 @@ function onDisk(run, relative, text = '# written\n') {
   fs.writeFileSync(file, text);
 }
 
-/** The path the Review line names a run file by: from the project root. */
+/** The path the Review line names a run file by: from the project root, written with `/`. */
 function fromRoot(run, relative) {
-  return path.relative(run.root, path.join(run.dir, relative));
+  return path.relative(run.root, path.join(run.dir, relative)).split(path.sep).join('/');
 }
 
 test('Review line: names the registered artifact and its companion from the project root, and never the dashboard', t => {

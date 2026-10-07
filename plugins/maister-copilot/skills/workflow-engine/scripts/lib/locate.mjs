@@ -43,8 +43,8 @@ import {
   TARGET_NAME, bareWorkflowName, companionSummary, foldDefinition, locateWorkflow, orphanOverlay, pluginRoot, projectRoot,
 } from './graph.mjs';
 
-/** Where definitions live, relative to a project root. */
-const HOME = path.join('.maister', 'workflows');
+/** Where definitions live, relative to a project root: joined onto it, and named in messages as written. */
+const HOME = '.maister/workflows';
 
 /**
  * `{name}` looks one workflow up; no name lists the project's own. `overlays`

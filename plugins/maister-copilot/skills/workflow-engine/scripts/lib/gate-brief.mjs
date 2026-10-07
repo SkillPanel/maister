@@ -312,7 +312,8 @@ function reviewLine(doc, runDir, ids, byId) {
   const files = reviewFiles(doc, runDir, ids, byId);
   if (!files.length) return null;
   const root = projectRootOf(runDir);
-  const shown = file => path.relative(root, file) || file;
+  // Written with `/` on every platform, as every other path the brief names.
+  const shown = file => path.relative(root, file).split(path.sep).join('/') || file;
   // A companion beside its document is named by its file name alone: the
   // whole path again would spend the brief's budget on what the reader
   // already has in front of them.
