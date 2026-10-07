@@ -32,6 +32,13 @@ const OPTION_KEYS = ['id', 'label', 'description', 'recommended'];
 /** The keys the set itself may carry, beside its questions. */
 const SET_KEYS = ['ask', 'headline', 'questions'];
 
+/**
+ * The option id an answer in the operator's own words is recorded under: a
+ * first question answered `{other}` sends it as the request's `option`. An
+ * option of that id could not be told apart from such an answer.
+ */
+const OTHER_ID = 'other';
+
 /** The fewest options a question offers: one option is no choice. */
 const OPTIONS_MIN = 2;
 
@@ -132,6 +139,7 @@ function checkOptions(options, where, errors) {
       if (!OPTION_KEYS.includes(key)) errors.push(`${at}: the key "${key}" is not one of ${OPTION_KEYS.join(', ')}`);
     }
     if (!isLine(option.id)) errors.push(`${at}: "id" must be a one-line id`);
+    else if (option.id === OTHER_ID) errors.push(`${at}: the id "${OTHER_ID}" is reserved for an answer in the operator's own words; name the option otherwise`);
     else if (ids.has(option.id)) errors.push(`${at}: the id is used twice in this question`);
     else ids.add(option.id);
     if (!isLine(option.label)) errors.push(`${at}: "label" must be one line of text`);
