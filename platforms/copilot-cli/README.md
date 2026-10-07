@@ -25,11 +25,28 @@ Or run a local checkout with `copilot --plugin-dir /path/to/maister/plugins/mais
 Add `--add-dir` for the same path when the checkout sits outside your working directory --
 that grants file access to it. `--add-dir` on its own does not load a plugin.
 
-## Export the plugin root
+## Run a workflow
 
-Copilot CLI exports no plugin-directory variable of its own. The mockup studio tells an agent
-to start its preview server from the plugin's own directory, spelled `${MAISTER_PLUGIN_ROOT}`.
-With the variable unset the instruction does not resolve, and the agent has to guess the path.
+Copilot CLI names a plugin's commands and skills under the plugin, so every command is typed
+`/maister-copilot:<name>`:
+
+```
+/maister-copilot:init
+/maister-copilot:development Add a multiply(a, b) function
+/maister-copilot:reviews-code src/
+```
+
+A bare `/development` is reported as an unknown command.
+
+## Export the plugin root -- required
+
+Copilot CLI exports no plugin-directory variable of its own: the four it does export name the
+session and the CLI build, not where a plugin was loaded from. Several of this variant's
+skills -- the workflow engine's among them -- tell an agent to run a script under the plugin's
+own directory, and they spell that directory
+`${MAISTER_PLUGIN_ROOT}`. With the variable unset the instruction does not resolve, and the
+agent works the directory out and substitutes a path -- exactly the guessing the variable
+exists to remove.
 
 Point it at the directory holding `.claude-plugin/plugin.json`. Which directory that is
 depends on how you installed:
@@ -48,12 +65,25 @@ export MAISTER_PLUGIN_ROOT=/path/to/maister/plugins/maister-copilot
 `copilot plugin list` names what is installed. Put the export in your shell profile: it is read
 at spawn time and there is no flag for it.
 
+The runtime shipped here reads the same variable, so the path a skill tells an agent to run and
+the path the runtime resolves from are one answer rather than two.
+
 ## Requirements
 
-- GitHub Copilot CLI
-- Node.js 20 or newer, for HTML mockups (without it, mockups fall back to ASCII)
+- GitHub Copilot CLI 1.0.80 or newer
+- Node.js 20 or newer -- required: every workflow runs on the workflow engine, which needs it
+- `jq` on `PATH`, for the destructive-command guard
+
+## Updating
+
+`copilot plugin update maister-copilot@<marketplace>` fetches and installs the latest version.
+
+## Answering gates
+
+When a workflow pauses at a gate, you answer it in the session; that needs no setup here.
+Driven sessions, resumed headlessly without an in-session answer, are a Pro Edition feature.
 
 ## Where the documentation lives
 
-The workflow reference and the command reference ship with the source repository at
-`SkillPanel/maister`.
+The workflow reference, the command reference and the extension guide ship with the source
+repository at `SkillPanel/maister`.

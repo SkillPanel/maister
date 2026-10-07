@@ -13,16 +13,15 @@ You are an implementation plan executor that delegates task groups to subagents 
 3. **Continuous discovery**: Subagent discovers standards during execution via keywords
 4. **Test-driven**: Test step (N.1) before implementation steps (N.2+)
 5. **Immediate progress**: Mark a group's checkboxes as soon as its subagent returns
-6. **Main agent owns visibility**: Work-log, checkboxes, and the operator dashboard always updated by main agent
+6. **Main agent owns visibility**: Work-log and checkboxes always updated by main agent; the operator dashboard follows them through the engine
 
-## Dashboard Upkeep
+## Dashboard: Re-project Through the Engine
 
-This skill owns the dashboard for the whole implementation phase — the orchestrator marked the phase `in_progress` before delegating and cannot touch it again until control returns, which is hours and many waves later.
+The implementation phase runs for hours under this skill, and the orchestrator cannot touch the dashboard until control returns. The dashboard still stays live, because this skill **never writes `dashboard-data.js`**. The workflow engine's state writer is the file's only writer: it projects the implementation phase's `progress` from the plan's checkboxes and the work log's wave and revert headings (§ Work-Log Updates) on every state write. So at each re-projection moment below, this skill sends one `write-state` call with the empty patch, `{}`, as the patch file's body. The call and the patch file follow the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract). The call changes nothing in state except its `updated` stamp; it only republishes what the plan and the log now say.
 
-- **Gate**: read `orchestrator.options.html_output` from `orchestrator-state.yml` at Phase 1. When false, skip every rewrite below (no dashboard exists). When there is no state file (standalone run), there is no dashboard either — skip.
-- **Rules**: `../orchestrator-framework/references/orchestrator-patterns.md` § 8 (moments 8-9, schema, the `date -u` clock rule). Do not restate them here — read them.
-- **Progress**: the implementation phase carries `progress: {groups_done, groups_total, current_wave, skipped: [], reverted: []}`. `skipped`/`reverted` hold group labels from the failure-recovery path.
-- **Never blocks**: a rewrite that fails gets a warning line in `work-log.md` (`Dashboard rewrite failed after wave N`) and the run continues. A visible miss, never a silent one.
+- **Moments**: at entry, once the work log exists; after every wave resolves; at finalize. One call per moment, not one per group.
+- **Skip** when there is no `orchestrator-state.yml`. A standalone run has no workflow run, so it has nothing to project and no dashboard. The plan, its companion and the work log are that run's record. Also skip when `orchestrator.options.html_output` is false: then there is no dashboard, and the call would only re-publish state.
+- **Never blocks**: a refused or failed call gets a warning line in `work-log.md` (`Dashboard re-projection failed after wave N`) and the run continues. A visible miss, never a silent one.
 
 ## Execution Model
 
@@ -34,10 +33,9 @@ Every task group is executed by the `task-group-implementer` subagent, however s
 2. **Validate files exist**:
    - `implementation/implementation-plan.md` (required)
    - `implementation/spec.md` (recommended)
-   - `.maister/docs/INDEX.md` (required for standards)
-3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (when the planner created none).
-4. **Regenerate `dashboard-data.js`** from `orchestrator-state.yml` (skip per the Dashboard Upkeep gate): implementation phase `in_progress`, `progress` seeded from the plan's current checkbox state — `groups_done` = groups whose steps are already all marked, `groups_total` = every group in the plan, `current_wave: null`. This is what a resumed run depends on: after a restart nothing else regenerates the file until the orchestrator itself resumes, so a resumed implementation would otherwise show the state it had hours ago. On a fresh run it simply writes `groups_done: 0`.
-5. **Initialize work-log.md**:
+   - `.maister/docs/INDEX.md` (optional — skip standards loading when absent)
+3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (fallback when task tools are unavailable or the planner created none).
+4. **Initialize work-log.md**:
    ```markdown
    # Work Log
 
@@ -51,6 +49,7 @@ Every task group is executed by the `task-group-implementer` subagent, however s
    ### Loaded Per Group
    (Entries added as groups execute)
    ```
+5. **Re-project the dashboard** (§ Dashboard: Re-project Through the Engine). Do this after the work log exists, because the projection derives progress only when both the plan and the log are on disk. A resumed run depends on this call: after a restart, nothing else re-publishes the file until the orchestrator itself resumes, so without it the dashboard would show where the implementation stood hours ago.
 
 **Do NOT read all standards upfront.** Standards are loaded lazily per task group.
 
@@ -106,18 +105,17 @@ For each wave:
 3. **Wait for all wave members to return**, then for each result:
    - Parse completed steps, standards applied, test results.
    - Mark all group checkboxes in `implementation-plan.md`.
-   - **Sync the HTML companion** (`implementation/implementation-plan.html`, if it exists): run ONE Bash command per completed group, substituting its number for `N` (idempotent — safe to re-run):
-     ```bash
-     sed -i '' -e 's/\(data-step="N\.[0-9][0-9]*" class="step \)todo/\1done/g' \
-               -e 's/\(data-group="N" class="group \)todo/\1done/g' \
-               implementation/implementation-plan.html
-     ```
-     (Linux: `sed -i` without `''`. The leading quote in `data-step="N\.` anchors the exact group — group 1 cannot match 11.) Then VERIFY: `grep -c 'data-group="N" class="group done"'` must return 1; if 0, append a warning to `work-log.md` (`HTML plan sync missed markers for Group N`) — a visible miss, never a silent one. File absent → skip silently; sync never blocks the wave.
    - Add a group entry to `work-log.md` with standards trail.
    - Verify test results are acceptable.
    - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
 
-   Then, once every member of the wave has been processed, **rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate) with the wave's outcome: the implementation phase's `progress.groups_done` raised by the groups that completed, `current_wave` set to this wave's number, and any group the failure-recovery path below skipped or reverted appended to `progress.skipped` / `progress.reverted` with a one-line reason. One rewrite per wave, not one per group.
+   Then, once every member of the wave has been processed, **sync the plan's HTML companion** — one call per wave, after the checkboxes above are marked, with the plugin root written as its absolute path rather than the variable (the workflow engine's invocation contract says why):
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs sync-plan --plan=<task path>/implementation/implementation-plan.md
+   ```
+   It sets every `data-group` / `data-step` marker in `implementation-plan.html` to what the plan says, so it is safe to re-run and also returns a reverted group to outstanding; it is a no-op when there is no companion or `html_output` is false. For each group completed this wave that its JSON lists under `missing_groups`, or when it exits non-zero, append a warning to `work-log.md` (`HTML plan sync missed markers for Group N`) — a visible miss, never a silent one. The sync never blocks the wave.
+
+   Then **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), once per wave and after the checkboxes, the work-log entries and the sync. The projection reads the wave's outcome from them: groups done from the checkboxes, `current_wave` from the last `Group N Complete (wave K)` heading, skipped groups from `[~] … SKIPPED:` steps and reverted groups from `Group N Reverted (wave K): reason` entries. A group the failure-recovery path skipped or reverted therefore reaches the dashboard only if those marks are written first.
 
 4. **Partial-wave failure handling**:
    - Do NOT cancel sibling subagents in the same wave — they may produce valid work even when one peer fails.
@@ -127,7 +125,7 @@ For each wave:
 
 5. After the wave fully resolves (all members `completed` or recovered), recompute the ready set and proceed to the next wave.
 
-   **SELF-CHECK before dispatching the next wave**: for every group marked `completed` this wave, did you run the HTML marker-flip command (step 3) and rewrite `dashboard-data.js`? If unsure, run both now — both are idempotent full rewrites.
+   **SELF-CHECK before dispatching the next wave**: did you run `sync-plan` (step 3) and re-project the dashboard for this wave? If unsure, run both now. Both are idempotent, because each one derives its output from the plan as it stands.
 
 ### `--sequential` Opt-Out
 
@@ -244,7 +242,6 @@ You have access to `.maister/docs/INDEX.md` for continuous standards discovery.
 3. When `Visual References` present: read each mockup before implementing, log per-reference compliance in your report
 4. Report any failures with root cause analysis
 5. Do NOT mark checkboxes - main agent handles that
-6. Do NOT commit - the workflow's finalization owns commits, under the repository's own commit-message rules
 
 ### Expected Output Format
 [See Subagent Output Format section]
@@ -307,15 +304,12 @@ N.n  - Run tests (only this group's tests)
 
 ### Enforcement
 
-When processing a group's report, if N.1 (tests) is not marked done while later steps are, ask the user via AskUserQuestion:
-   ```
-   Question: "Test step N.1 not completed. How to proceed?"
-   Header: "Tests"
-   Options:
-   - "Complete tests first" - Re-dispatch the group for N.1
-   - "Accept with justification" - Mark `- [~] N.1 SKIPPED: [reason]`, continue
-   - "Stop" - Pause for investigation
-   ```
+When processing a group's report, if its test step (N.1) is not marked done while later steps are, ask the user with AskUserQuestion, in plain words — step numbers, checkbox marks and "dispatch" stay in the plan and the work-log, never on screen:
+
+- Question: "Group \<name\> skipped its tests. What now?" — the group's name from the plan, and what the report says about why, in a few words.
+- "Write the tests first (Recommended)": runs the group again to write and run its tests.
+- "Accept without tests: give a reason": the reason is the follow-up answer; mark the test step `- [~] N.1 SKIPPED: <reason>` and continue.
+- "Stop": stop here; nothing more runs.
 
 ## Progress Tracking
 
@@ -332,7 +326,7 @@ When processing a group's report, if N.1 (tests) is not marked done while later 
 After each task group:
 
 ```markdown
-## [timestamp] - Group [N] Complete
+## [timestamp] - Group [N] Complete (wave [K])
 
 **Steps**: N.1 through N.M completed
 **Standards Applied**:
@@ -344,6 +338,23 @@ After each task group:
 **Notes**: [any decisions or discoveries]
 ```
 
+**The heading is a contract, not a caption.** The dashboard reads `current_wave` off
+the wave number in the last such heading, so keep `Group [N] Complete (wave [K])`
+intact and put any annotation after the number — `(wave 2, parallel with Group 3)`
+still reads. A heading that renames those words carries nothing to the dashboard.
+
+When a group is reverted rather than completed, record it in the same shape:
+
+```markdown
+## [timestamp] - Group [N] Reverted (wave [K]): [reason]
+
+**Reverted**: [what was undone]
+**Next**: [retry, manual completion, or stopped for investigation]
+```
+
+The reason after the colon is what the dashboard shows in `reverted`, so write it
+for an operator reading the run at a glance.
+
 ## Phase 3: Finalize
 
 1. **Validate completion**:
@@ -352,7 +363,7 @@ After each task group:
    - Standards Reading Log is complete
    - All group tasks are `completed` via `TaskList` (cross-validate against markdown checkboxes)
 
-2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas). When the project's instructions restrict local full-suite runs (for example, CI-only), run what they allow instead and record the suite as `not run locally` — never as passed.
+2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas)
 
 3. **Final work-log entry**:
    ```markdown
@@ -360,13 +371,13 @@ After each task group:
 
    **Total Steps**: [N] completed
    **Total Standards**: [M] applied
-   **Test Suite**: [passed | failed | not run locally]
+   **Test Suite**: [status]
    **Duration**: [if tracked]
    ```
 
-4. **Final dashboard rewrite** (skip per the Dashboard Upkeep gate): `progress.groups_done == progress.groups_total`, `current_wave` cleared, `skipped`/`reverted` carrying whatever the run accumulated. The phase status stays `in_progress` — the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
+4. **Final re-projection** (§ Dashboard: Re-project Through the Engine), after the final work-log entry. It publishes `groups_done == groups_total`, with the accumulated skipped and reverted groups. Do not complete the phase here: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
 
-5. **Return summary** to calling orchestrator. Its first line states where control goes next: *Implementation complete — control returns to the calling workflow for its implementation exit gate and verification. This is not the end of the workflow.*
+5. **Return summary** to calling orchestrator
 
 ## Error Handling
 
@@ -377,17 +388,18 @@ If task-group-implementer reports failure:
 1. **Do NOT auto-rollback** - User-confirmed rollback only
 2. **Analyze root cause** from subagent output
 3. **Check for easy fixes**: config issues, missing dependencies, test setup
-4. **Use AskUserQuestion**:
-   ```
-   Question: "Group [N] implementation failed: [brief reason]. How to proceed?"
-   Header: "Failure"
-   Options:
-   - "Try suggested fix" - [if easy fix identified]
-   - "Retry group" - Re-invoke subagent
-   - "Complete manually" - Main agent completes remaining steps for this group
-   - "Rollback changes" - Revert this group's changes
-   - "Stop" - Pause for investigation
-   ```
+4. **Use AskUserQuestion**, four options at most, the cause in the question — "Group \<name\> failed: \<cause in a sentence\>. What now?":
+   - "Apply the suggested fix (Recommended): \<the fix\>" — only when step 3 found one; otherwise "Retry the group" is recommended.
+   - "Retry the group": runs the group again with the failure in its prompt.
+   - "Undo this group's changes": reverts what the group changed.
+   - "Stop": stop here; the group's changes stay as they are.
+
+   When several groups of one wave fail, ask once: one page — one call with a question per failed group, up to four — each worded as above.
+5. **If "Undo this group's changes"**: after the revert, write the revert entry from § Work-Log
+   Updates — `## [timestamp] - Group [N] Reverted (wave [K]): [reason]` — and clear the
+   group's checkboxes back to `- [ ]`. The entry is the only record of the revert the
+   dashboard can read; a rollback that leaves nothing behind shows up as a group that
+   simply stopped.
 
 ### Test Failure
 
@@ -395,7 +407,7 @@ If tests fail after implementation:
 
 1. Analyze failure output
 2. If obvious fix: apply and re-run
-3. If unclear: use AskUserQuestion with options
+3. If unclear: ask as § Subagent Failure does, the failing test and its cause in the question — "\<test name\> fails in group \<name\>: \<cause\>. What now?" — with the same four options
 
 ## Validation Checklist
 
@@ -404,7 +416,7 @@ Before returning success:
 ### Completion
 - [ ] All steps marked `[x]` or `[~]` (skipped with reason)
 - [ ] All task groups have work-log entries
-- [ ] Full test suite passes (or is recorded `not run locally` where the project restricts local runs)
+- [ ] Full test suite passes
 
 ### Standards
 - [ ] Standards Reading Log complete for all groups
@@ -413,6 +425,7 @@ Before returning success:
 
 ### Artifacts
 - [ ] implementation-plan.md checkboxes updated
+- [ ] `sync-plan` run after every wave, and any missed marker logged in work-log.md
 - [ ] work-log.md complete with timeline
-- [ ] `dashboard-data.js` rewritten at entry, after every wave, and at finalize — or skipped because `html_output` is false
+- [ ] Dashboard re-projected through `write-state` at entry, after every wave, and at finalize — or skipped because the run is standalone or `html_output` is false
 - [ ] No uncommitted partial changes

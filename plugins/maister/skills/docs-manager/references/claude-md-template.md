@@ -19,7 +19,7 @@ When you notice recurring patterns, fixes, or conventions during implementation 
 - The same type of fix is needed across multiple files
 - A new library/pattern is adopted that should be documented
 
-When this happens, briefly suggest the standard to the user. If approved, invoke `/maister:standards-update` with the identified pattern.
+When this happens, suggest the standard in one line. When the user agrees, run `/maister:standards-update` with the identified pattern — it asks where to put it, so do not ask again first.
 
 ## Maister Workflows
 

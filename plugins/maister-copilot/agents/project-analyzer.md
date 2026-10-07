@@ -1,9 +1,12 @@
 ---
 name: project-analyzer
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Analyzes project codebase to detect tech stack, architecture, and conventions for documentation generation. Use for existing/legacy projects to auto-generate meaningful documentation.
 color: blue
 model: haiku
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # Project Analyzer
 
@@ -250,7 +253,7 @@ Return your analysis in the conversation response (do NOT create files):
 1. **Structured JSON block**: Machine-readable analysis for downstream phases
 2. **Markdown summary**: Human-readable overview for user review
 
-**IMPORTANT**: Do NOT write any files to disk. The maister-init command will use your returned analysis to generate proper documentation in `.maister/docs/`.
+**IMPORTANT**: Do NOT write any files to disk. The init command will use your returned analysis to generate proper documentation in `.maister/docs/`.
 
 ---
 
@@ -274,14 +277,14 @@ Return your analysis in the conversation response (do NOT create files):
 Use confidence scores honestly:
 - **High**: Multiple pieces of evidence agree, clear signals
 - **Medium**: Some evidence, but ambiguous or incomplete
-- **Low**: Weak signals, requires user confirmation
+- **Low**: Weak signals; flag it for the caller to confirm
 
 ### Handle Missing Information
 
 When you can't find information:
 - Mark confidence as "low"
 - Document what you looked for
-- Suggest asking the user
+- Flag it for the caller, saying what the user could confirm
 - Don't fill in blanks with guesses
 
 ### Performance & Efficiency
@@ -303,7 +306,7 @@ When you can't find information:
 **Common scenarios**:
 - **Empty/minimal projects**: Classify as "new", note limited findings
 - **Locked files**: Note in report, continue with accessible files
-- **Unknown technologies**: Document as "custom", ask user
+- **Unknown technologies**: Document as "custom" and flag it for the caller
 - **Mixed signals**: Lower confidence, present alternatives
 - **Very large projects**: Sample analysis, note limitations
 

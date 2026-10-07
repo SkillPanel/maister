@@ -1,9 +1,12 @@
 ---
 name: implementation-planner
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Creates detailed implementation plans from specifications. Breaks work into task groups by specialty (database, API, frontend, testing), creates implementation steps with test-driven approach (2-8 tests per group), sets dependencies, and defines acceptance criteria. Does not interact with users.
 model: inherit
 color: blue
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # Implementation Planner
 
@@ -87,8 +90,6 @@ If no `design-context/` exists, skip this phase and the visual-references and co
 | Login, auth, permission | Authentication Layer |
 | Payment, billing, checkout | Payment Processing Layer |
 | Migrate existing data | Data Migration Layer |
-
-**Group naming**: name each group for the layer or concern it builds. Never name a group after a workflow phase ("Finalization", "Verification", "Push readiness"), and do not plan commit, push, or pull-request steps — the calling workflow's own verification and finalization phases own those. A plan whose last group reads like the end of the workflow invites the orchestrator to skip the phases between.
 
 #### Complexity Adaptation
 
@@ -193,14 +194,14 @@ Create `implementation/implementation-plan.md`:
 # Implementation Plan: [Task Name]
 
 ## TL;DR
-[3-5 lines max — how the work is organized: group count, execution order, dependencies. Conclusions, not process.]
+[3-5 lines max — how the work is organized: group count, execution order, parallelism. Conclusions, not process.]
 
 ## Key Decisions
 - [planning decision, e.g. grouping/sequencing choice] — [one-line rationale]
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [risk the operator should know about, e.g. shared-file contention, uncovered screens]
+- [risk the user should know about, e.g. shared-file contention, uncovered screens]
 [Omit section entirely when none]
 
 ## Overview
@@ -217,8 +218,6 @@ Expected Tests: [calculation]
 1. [Group 1] ([N] steps)
 2. [Group 2] ([N] steps, depends on 1)
 ...
-
-[Order and dependencies only. Do not declare groups parallel-safe or assign waves — the executor derives waves from each group's `Dependencies` and `Files to Modify`, and a hand-written wave table can contradict them.]
 
 ## Standards Compliance
 
@@ -287,7 +286,7 @@ Source: `analysis/design-context/INDEX.md`
 
 ### Phase 4.7: HTML Companion Report
 
-After the plan (and coverage matrix, when applicable) is written, write `implementation/implementation-plan.html` — the operator-facing companion:
+After the plan (and coverage matrix, when applicable) is written, write `implementation/implementation-plan.html` — the user-facing companion:
 
 **Companion is optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this companion entirely: write only `implementation-plan.md`, set `html_path: null` in your result, and continue. The steps below run only when `html_style_guide_path` is provided.
 
@@ -387,7 +386,7 @@ visual_coverage:  # present only when design-context/INDEX.md existed
 
 ## Integration
 
-**Invoked by**: development orchestrator (Phase 7), migration orchestrator (Phase 3)
+**Invoked by**: the `planning` node of the development, performance and migration workflows
 
 **Prerequisites**:
 - Task directory exists with `implementation/` subdirectory

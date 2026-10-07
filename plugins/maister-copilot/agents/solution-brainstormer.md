@@ -1,9 +1,12 @@
 ---
 name: solution-brainstormer
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Generates structured solution alternatives from research synthesis. Produces multi-perspective trade-off analysis with scope guardrails and convergence recommendation. Non-interactive content generator.
 model: inherit
 color: orange
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # Solution Brainstormer Agent
 
@@ -175,7 +178,7 @@ After writing solution-exploration.md, write `outputs/solution-exploration.html`
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [open trade-off or risk the operator should weigh]
+- [open trade-off or risk the user should weigh]
 [Omit section entirely when none]
 
 ## Problem Reframing
@@ -241,18 +244,18 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: research orchestrator (Phase 3)
+**Invoked by**: the research workflow's `solution-generation` node, and the product-design workflow's `idea-generation` node
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `outputs/` subdirectories
-- `analysis/synthesis.md` exists (Phase 1 output)
-- `outputs/research-report.md` exists (Phase 1 output)
+- From research: `analysis/synthesis.md` and `outputs/research-report.md` exist (`research-foundation` output)
+- From product design: `analysis/design-context.md` and `analysis/problem-statement.md` exist, and `analysis/personas.md` when the caller names it; the evidence is that context rather than a research synthesis, and the caller passes `output_path: analysis/alternatives.md`
 
 **Input**: Task path, research artifacts, accumulated context (no user preferences — alternatives are generated purely from evidence)
 
-**Output**: `outputs/solution-exploration.md` + structured result
+**Output**: `outputs/solution-exploration.md`, or the caller's `output_path` when it names one (product design's is `analysis/alternatives.md`), + structured result
 
-**Next Phase**: Orchestrator presents alternatives to user for convergence (Phase 4: Solution Convergence), then feeds chosen approach into solution-designer (Phase 5)
+**Next Phase**: Orchestrator presents alternatives to user for convergence (research's `solution-convergence` node, product design's `idea-convergence` node); research then feeds the chosen approach into solution-designer (the `high-level-design` node)
 
 ---
 

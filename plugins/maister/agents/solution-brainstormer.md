@@ -175,7 +175,7 @@ After writing solution-exploration.md, write `outputs/solution-exploration.html`
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [open trade-off or risk the operator should weigh]
+- [open trade-off or risk the user should weigh]
 [Omit section entirely when none]
 
 ## Problem Reframing
@@ -241,18 +241,18 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: research orchestrator (Phase 3)
+**Invoked by**: the research workflow's `solution-generation` node, and the product-design workflow's `idea-generation` node
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `outputs/` subdirectories
-- `analysis/synthesis.md` exists (Phase 1 output)
-- `outputs/research-report.md` exists (Phase 1 output)
+- From research: `analysis/synthesis.md` and `outputs/research-report.md` exist (`research-foundation` output)
+- From product design: `analysis/design-context.md` and `analysis/problem-statement.md` exist, and `analysis/personas.md` when the caller names it; the evidence is that context rather than a research synthesis, and the caller passes `output_path: analysis/alternatives.md`
 
 **Input**: Task path, research artifacts, accumulated context (no user preferences — alternatives are generated purely from evidence)
 
-**Output**: `outputs/solution-exploration.md` + structured result
+**Output**: `outputs/solution-exploration.md`, or the caller's `output_path` when it names one (product design's is `analysis/alternatives.md`), + structured result
 
-**Next Phase**: Orchestrator presents alternatives to user for convergence (Phase 4: Solution Convergence), then feeds chosen approach into solution-designer (Phase 5)
+**Next Phase**: Orchestrator presents alternatives to user for convergence (research's `solution-convergence` node, product design's `idea-convergence` node); research then feeds the chosen approach into solution-designer (the `high-level-design` node)
 
 ---
 

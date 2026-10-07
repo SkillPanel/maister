@@ -86,17 +86,17 @@ Verify every concrete claim the spec makes about existing code (file paths, reus
 
 ---
 
-### 5. Request Clarification
+### 5. Record Clarification Questions
 
 **Purpose**: Resolve specification ambiguities before final assessment
 
-**When to Ask**:
+**When to record one**:
 - Specification contradicts itself
 - Requirements unclear or missing critical details
 - Multiple valid interpretations exist
 - Implementation deviates from spec (was spec wrong or implementation wrong?)
 
-**How to Ask**: Specific questions referencing exact spec sections and implementation evidence
+**How to write it**: Specific questions referencing exact spec sections and implementation evidence — the caller asks them, so each stands on its own
 
 **Output**: Clarification questions for user/stakeholder
 
@@ -139,13 +139,17 @@ Verify every concrete claim the spec makes about existing code (file paths, reus
 [3-5 lines max — overall verdict (Compliant / Mostly / Non-Compliant) and the issue counts by severity. Conclusions, not process.]
 
 ## Key Decisions
-- [audit judgment call, e.g. severity classification rationale] — [one-line rationale]
+- [what the audit settled that changes the next phase, e.g. "the two missing tests belong in planning, not in a spec revise"] — [one-line rationale]
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [ambiguity or unverifiable claim the operator should know about]
+- [gap in plain words, e.g. "no test checks an unknown customer listed before a known one"] → [what would change in the spec to close it]
 [Omit section entirely when none]
 ```
+
+These lines are what the user reads at the audit's checkpoint. Name each finding by what it is, never by a code
+the spec or the report defines (T5, R2, C1); keep severity grading and its rationale in the body, not in Key
+Decisions; and credit a decision the user made to the user only when they made it.
 
 Full evidence-based findings follow below the block, unchanged.
 
@@ -173,7 +177,7 @@ Full evidence-based findings follow below the block, unchanged.
 - Never trust "it's complete" claims without evidence
 - Always examine actual code, don't rely on summaries
 - Use external tools to verify deployments and configurations
-- Question assumptions, ask for clarification
+- Question assumptions; record clarification questions
 - Focus on functional reality, not theoretical compliance
 
 ### Evidence-Based Assessment
@@ -215,7 +219,7 @@ Prioritize functional gaps over stylistic differences:
 
 When specifications are unclear:
 - **Don't assume** what was intended
-- **Do ask** specific questions with context
+- **Do record** specific questions with context
 - **Do provide** multiple interpretations if ambiguous
 - **Do reference** exact specification sections
 

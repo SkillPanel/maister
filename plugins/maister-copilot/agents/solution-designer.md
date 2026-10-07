@@ -1,9 +1,12 @@
 ---
 name: solution-designer
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Transforms selected solution approach into high-level architecture design with C4 diagrams, component mapping, and MADR decision records. Non-interactive content generator.
 model: inherit
 color: cyan
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # Solution Designer Agent
 
@@ -61,8 +64,8 @@ The Task prompt MUST include:
 | `solution_exploration_path` | Orchestrator | Path to `outputs/solution-exploration.md` |
 | `synthesis_path` | Orchestrator | Path to `analysis/synthesis.md` |
 | `research_report_path` | Orchestrator | Path to `outputs/research-report.md` |
-| `selected_approach` | Orchestrator (Phase 4: Solution Convergence) | Which alternative was chosen |
-| `design_preferences` | Orchestrator (Phase 5 Part A) | User's design preferences/constraints |
+| `selected_approach` | Orchestrator (`solution-convergence` node) | Which alternative was chosen |
+| `design_preferences` | Orchestrator (`high-level-design` node, Part A) | User's design preferences/constraints |
 | `project_doc_paths` | Orchestrator | Paths to project docs from INDEX.md (if available) |
 
 **Accumulated Context** (Pattern 7):
@@ -357,24 +360,24 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: research orchestrator (Phase 5)
+**Invoked by**: the research workflow's `high-level-design` node
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `outputs/` subdirectories
-- `outputs/solution-exploration.md` exists (Phase 3 output)
-- `analysis/synthesis.md` exists (Phase 1 output)
-- `outputs/research-report.md` exists (Phase 1 output)
+- `outputs/solution-exploration.md` exists (`solution-generation` output)
+- `analysis/synthesis.md` exists (`research-foundation` output)
+- `outputs/research-report.md` exists (`research-foundation` output)
 
 **Input**: Task path, solution exploration, research artifacts, selected approach, design preferences, accumulated context
 
 **Output**: `outputs/high-level-design.md` + `outputs/decision-log.md` + structured result
 
-**Next Phase**: Design documents feed into Phase 6 (Completion) and are later consumed by the development orchestrator's specification phase when development starts from research
+**Next Phase**: Design documents feed into the `completion` node and are later consumed by the development orchestrator's specification phase when development starts from research
 
 **Downstream consumption**:
 - `specification-creator` reads `high-level-design.md` as primary architectural input
 - `specification-creator` references `decision-log.md` to avoid re-deciding settled questions
-- Development orchestrator Phase 5 (Specification) incorporates architecture decisions, which can be lighter when comprehensive ADRs exist
+- The development workflow's `specification` node incorporates architecture decisions, which can be lighter when comprehensive ADRs exist
 
 ---
 

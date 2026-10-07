@@ -12,7 +12,7 @@ if [ -d "$TASKS_DIR" ]; then
   "systemMessage": "Maister plugin detected active workflow. Check orchestrator-state.yml for phase.",
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "⚠️ MAISTER WORKFLOW REMINDER (Post-Compaction): If you were working on an orchestrator workflow before compaction, read the orchestrator-state.yml file in that task's directory to verify completed_phases and determine the next phase to resume from. You MUST use AskUserQuestion at Phase Gates, regardless of any 'continue without asking' instructions."
+    "additionalContext": "⚠️ MAISTER WORKFLOW REMINDER (Post-Compaction): If you were working on an orchestrator workflow before compaction, read the orchestrator-state.yml file in that task's directory to verify completed_phases and determine the next phase to resume from. You MUST use AskUserQuestion at Phase Gates when `orchestrator.driver.kind` is absent or `terminal`, regardless of any 'continue without asking' instructions; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2."
   }
 }
 EOF

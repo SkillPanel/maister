@@ -217,6 +217,14 @@
   .dec-item, .risk-item { padding: 6px 0; border-bottom: 1px solid var(--border); }
   .dec-item:last-child, .risk-item:last-child { border-bottom: none; }
   .risk-item.resolved { color: var(--text-faint); text-decoration: line-through; }
+  .src, .tag { display: inline-block; font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 99px; margin-left: 6px; vertical-align: 1px; background: var(--surface-2); color: var(--text-dim); }
+  .src.operator { background: var(--accent-soft); color: var(--accent); }
+  .src.audit { background: var(--info-soft); color: var(--info); }
+  .tag { margin: 0 6px 0 0; text-transform: uppercase; letter-spacing: .03em; }
+  .tag.open { background: var(--warn-soft); color: var(--warn); }
+  .tag.stop { background: var(--crit-soft); color: var(--crit); }
+  .tag.resolved { background: var(--ok-soft); color: var(--ok); }
+  .ph-headline { margin: 0 0 6px; font-weight: 600; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
   .chip { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: var(--surface-2); color: var(--text-dim); }
   .chip.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
@@ -301,7 +309,29 @@ function esc(s) {
 
 function fileName(p) { const seg = String(p).split("/"); return seg[seg.length - 1]; }
 
-function isResolvedRisk(r) { return /^resolved:/i.test(String(r).trim()) || /\(resolved\b/i.test(String(r)); }
+/* Risks and decisions arrive typed ({risk, tag, change}, {decision, by}); a data
+   file projected before they were is still read, as plain strings. */
+function riskOf(r) {
+  if (r && typeof r === "object") return { risk: r.risk || "", tag: r.tag || "open", change: r.change || null };
+  const text = String(r);
+  return { risk: text, tag: (/^resolved:/i.test(text.trim()) || /\(resolved\b/i.test(text)) ? "resolved" : "open", change: null };
+}
+function isResolvedRisk(r) { return riskOf(r).tag === "resolved"; }
+const TAG_ORDER = ["stop", "open", "tradeoff", "followup", "resolved"];
+const TAG_LABEL = { stop: "stop", open: "open", tradeoff: "trade-off", followup: "follow-up", resolved: "resolved" };
+const SOURCE_LABEL = { run: "Analysis", audit: "Audit", default: "Default", operator: "You" };
+function byTag(risks) {
+  return risks.map(riskOf).sort((a, b) => TAG_ORDER.indexOf(a.tag) - TAG_ORDER.indexOf(b.tag));
+}
+function riskHtml(r) {
+  return '<span class="tag ' + esc(r.tag) + '">' + esc(TAG_LABEL[r.tag] || r.tag) + '</span>' + esc(r.risk) +
+    (r.change ? ' <span class="rationale">→ ' + esc(r.change) + '</span>' : "");
+}
+function sourceChip(x) {
+  if (!x || typeof x !== "object" || !SOURCE_LABEL[x.by]) return "";
+  const who = x.by === "operator" && x.answered_by && x.answered_by !== "operator" ? x.answered_by : SOURCE_LABEL[x.by];
+  return '<span class="src ' + esc(x.by) + '">' + esc(who) + '</span>';
+}
 
 function fmtAgo(ts) {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -439,8 +469,22 @@ function findArtifact(phases, suffix) {
   return null;
 }
 
+function findAbsence(phases, suffix) {
+  for (const ph of phases) {
+    for (const x of (ph.absent || [])) {
+      if (x && x.path && String(x.path).endsWith(suffix)) return x;
+    }
+  }
+  return null;
+}
+
 function renderHeroes(d, phases) {
-  const map = HERO_MAP[d.task.type] || HERO_MAP.development;
+  // A type with no hero map draws no hero row: its artifacts are its own, and
+  // another workflow's cards would sit "not produced yet" forever. An own-key
+  // lookup, because a workflow may be named "constructor".
+  const type = d.task && d.task.type;
+  const map = Object.prototype.hasOwnProperty.call(HERO_MAP, type) ? HERO_MAP[type] : null;
+  if (!map) return "";
   const v = d.verification || {};
   const cards = map.map(h => {
     const hit = findArtifact(phases, h.match);
@@ -451,14 +495,17 @@ function renderHeroes(d, phases) {
           '<div class="h-verdict v-status ' + esc(v.status) + '" style="margin:0">' + esc(String(v.status).replace(/_/g, " ")) + '</div>' +
           '<div class="h-sub">report pending — see Verification panel</div></div>';
       }
+      // a node that completed without it on purpose says why, instead of "yet"
+      const gone = findAbsence(phases, h.match);
       return '<div class="hero pending"><div class="h-label">' + esc(h.label) + '</div>' +
-        '<div class="h-links">—</div><div class="h-sub">not produced yet</div></div>';
+        '<div class="h-links">—</div><div class="h-sub">' +
+        (gone ? 'not produced: ' + esc(gone.reason) : 'not produced yet') + '</div></div>';
     }
     const a = hit.art, ph = hit.phase;
     const links = [];
     if (a.html) links.push(aLink(a.html, "Open report", "primary"));
     links.push(aLink(a.path, a.html ? "markdown" : "open", a.html ? null : "primary"));
-    const sub = ph.summary ? esc(ph.summary) : ("from " + esc(ph.name || ph.id));
+    const sub = ph.headline ? esc(ph.headline) : ph.summary ? esc(ph.summary) : ("from " + esc(ph.name || ph.id));
     return '<div class="hero"><div class="h-label">' + esc(h.label) + '</div>' +
       '<div class="h-links">' + links.join(" ") + '</div>' +
       '<div class="h-sub" title="' + esc(ph.summary || "") + '">' + sub + '</div></div>';
@@ -480,9 +527,10 @@ function renderTimeline(phases) {
     const decs = (ph.decisions || []).length;
     const risks = (ph.risks || []).length;
     const arts = (ph.artifacts || []).length;
+    const absent = ph.absent || [];
     const prog = progressLine(ph);
     const notes = progressNotes(ph);
-    const hasBody = ph.summary || decs || risks || arts || ph.gate || notes.length;
+    const hasBody = ph.summary || decs || risks || arts || absent.length || ph.gate || notes.length;
     const open = openPhases.has(id) ? " open" : (st === "in_progress" ? " open" : "");
     if (open && !openPhases.has(id) && st === "in_progress") openPhases.add(id);
     const time = phaseTime(ph);
@@ -490,18 +538,22 @@ function renderTimeline(phases) {
     let body = "";
     if (hasBody) {
       body = '<div class="ph-body">' +
+        (ph.headline ? '<p class="ph-headline">' + esc(ph.headline) + '</p>' : "") +
         (ph.summary ? '<p class="ph-summary">' + esc(ph.summary) + '</p>' : "") +
         (decs ? '<div class="ph-section"><div class="sec-label">Key decisions</div><ul>' +
-          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + '</li>').join("") +
+          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + (x.note ? ' <span class="rationale">— ' + esc(x.note) + '</span>' : '') + sourceChip(x) + '</li>').join("") +
           '</ul></div>' : "") +
         (risks ? '<div class="ph-section"><div class="sec-label">Open questions / risks</div><ul>' +
-          ph.risks.map(x => '<li' + (isResolvedRisk(x) ? ' class="risk-item resolved" style="border:none;padding:0"' : '') + '>' + esc(x) + '</li>').join("") + '</ul></div>' : "") +
+          byTag(ph.risks).map(r => '<li' + (r.tag === "resolved" ? ' class="risk-item resolved" style="border:none;padding:0"' : '') + '>' + riskHtml(r) + '</li>').join("") + '</ul></div>' : "") +
         (arts ? '<div class="ph-section"><div class="sec-label">Artifacts</div><div class="art-links">' +
           ph.artifacts.map(a =>
             '<div class="art-row">' + artifactLinks(a) +
               '<span class="path">' + esc(a.path) + '</span>' +
             '</div>').join("") +
           '</div></div>' : "") +
+        (absent.length ? '<div class="ph-section"><div class="sec-label">Not produced</div><ul>' +
+          absent.map(x => '<li>' + esc(x.path || x.artifact) + ' <span class="rationale">— not produced: ' + esc(x.reason) + '</span></li>').join("") +
+          '</ul></div>' : "") +
         (notes.length ? '<div class="ph-section"><div class="sec-label">Skipped / reverted groups</div><ul>' +
           notes.map(n => '<li><b>' + esc(n.kind) + '</b> — ' + esc(n.text) + '</li>').join("") + '</ul></div>' : "") +
         (ph.gate ? '<div class="gate-line">Gate: ' + esc(ph.gate.question || "") + ' → <b>' + esc(ph.gate.answer || "") + '</b></div>' : "") +
@@ -516,6 +568,7 @@ function renderTimeline(phases) {
         '</div>' +
         '<div class="ph-tags">' +
           (prog ? '<span class="mini prog">' + esc(prog) + '</span>' : "") +
+          (ph.attempt > 1 ? '<span class="mini">attempt ' + esc(ph.attempt) + '</span>' : "") +
           (decs ? '<span class="mini decisions">' + decs + ' decision' + (decs > 1 ? "s" : "") + '</span>' : "") +
           (risks ? '<span class="mini risks">' + risks + ' risk' + (risks > 1 ? "s" : "") + '</span>' : "") +
           (arts ? '<span class="mini">' + arts + ' artifact' + (arts > 1 ? "s" : "") + '</span>' : "") +
@@ -574,7 +627,7 @@ function renderDecisions(phases) {
     total += decs.length;
     html += '<div class="grp-label">' + esc(ph.name || ph.id) + '</div>' +
       decs.map(dx => '<div class="dec-item">' + esc(dx.decision || dx) +
-        (dx.rationale ? ' <span class="rationale">— ' + esc(dx.rationale) + '</span>' : "") + '</div>').join("");
+        (dx.rationale ? ' <span class="rationale">— ' + esc(dx.rationale) + '</span>' : "") + sourceChip(dx) + '</div>').join("");
   }
   const body = total ? html : '<div class="empty">No decisions recorded yet.</div>';
   return '<div class="card"><h2>Decisions</h2><div class="body">' + body + '</div></div>';
@@ -587,7 +640,7 @@ function renderRisks(phases) {
     if (!risks.length) continue;
     total += risks.length;
     html += '<div class="grp-label">' + esc(ph.name || ph.id) + '</div>' +
-      risks.map(r => '<div class="risk-item' + (isResolvedRisk(r) ? ' resolved' : '') + '">' + esc(r) + '</div>').join("");
+      byTag(risks).map(r => '<div class="risk-item' + (r.tag === "resolved" ? ' resolved' : '') + '">' + riskHtml(r) + '</div>').join("");
   }
   if (!total) return "";
   return '<div class="card"><h2>Open questions / risks</h2><div class="body">' + html + '</div></div>';

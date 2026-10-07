@@ -3,7 +3,7 @@ name: maister:reviews-production-readiness
 description: Verify production deployment readiness with comprehensive checks
 ---
 
-**ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the production-readiness-checker subagent via the Task tool NOW. Pass path and target arguments. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the production-readiness-checker subagent via the Task tool NOW. Pass path and target arguments. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no path is given.
 
 You are verifying production deployment readiness using the `production-readiness-checker` subagent.
 
@@ -17,7 +17,7 @@ You are performing comprehensive production readiness analysis covering configur
 
 1. **Path to analyze**:
    - If provided: Use the specified path
-   - If not provided: Use AskUserQuestion to ask what to check
+   - If not provided: ask once with generated targets — look them up first with `git status --short` and the newest folder under `.maister/tasks/`, nothing more. "What should the readiness check cover?": "The current uncommitted changes (Recommended)" (only when `git status` shows some; otherwise the latest task is recommended), "The latest task: <task name>", "The whole project". A typed path is the Other answer. For the uncommitted changes, pass the changed files; for a task, its folder; for the whole project, the source root.
 
 2. **Target environment**:
    - If `--target=prod`: Full production checks (recommended)
@@ -33,7 +33,7 @@ Use Task tool:
   subagent_type: "maister:production-readiness-checker"
   description: "Production readiness check"
   prompt: |
-    Verify production readiness at: [path from user or from AskUserQuestion]
+    Verify production readiness at: [the path given, or the target chosen]
     Target: [production|staging]
     Report path: [path]/production-readiness-report.md
 ```

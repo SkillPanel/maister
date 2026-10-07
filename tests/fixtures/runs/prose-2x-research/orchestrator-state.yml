@@ -1,0 +1,34 @@
+# The shape a 2.x prose orchestrator wrote for research: phase-based
+# orchestrator state, a task block, a context block — and no workflow block.
+orchestrator:
+  started_phase: phase-1
+  completed_phases: [phase-1]
+  failed_phases: []
+  auto_fix_attempts:
+    phase-1: 0
+    phase-2: 0
+  options:
+    brainstorming_enabled: null
+    design_enabled: null
+  created: "2026-03-30T00:00:00Z"
+  updated: "2026-03-30T00:00:00Z"
+  task_path: .maister/tasks/research/2026-01-05-sample
+  task_ids:
+    phase-1: "1"
+    phase-2: "2"
+
+task:
+  title: How should the export job back off between retries?
+  status: in_progress
+  tags: [research]
+  priority: medium
+
+research_context:
+  research_type: "technical"
+  research_question: "How should the export job back off between retries?"
+  methodology: [codebase-analysis, pattern-research]
+  confidence_level: "high"
+  phase_summaries:
+    phase-1:
+      summary: Exponential backoff with jitter is the common pattern; the job has no retry wrapper today.
+      steps_completed: [step-1-init, step-2-plan, step-3-gather, step-4-synthesize]

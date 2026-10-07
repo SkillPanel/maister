@@ -3,28 +3,36 @@
 # Uses a whitelist approach: only explicitly trusted execution agents bypass the check.
 # New agents are automatically protected by default.
 #
-# Requires: bash, grep, sed, tr — no JSON parser. The two fields it needs are
-# read from the raw hook input by pattern, so the guard works on every machine
-# the plugin runs on.
+# Requires: bash. jq is required only to judge a subagent — advisory, and
+# subagents only: the main agent is always allowed through (the user's own
+# permission system governs it), so a terminal user without jq keeps every
+# Bash call.
 #
 # Hook input (stdin): JSON with agent_type, tool_input.command, etc.
 # Hook output: JSON with permissionDecision: "deny" to block, or exit 0 with no output to allow.
+# Exit 2 with a static deny payload on stdout and its reason on stderr when jq is
+# missing and the caller is a subagent (fail closed — never fail open).
 
 INPUT=$(cat)
 
-# Read a top-level string field's raw JSON value. Inside a JSON string every
-# quote is escaped, so a key spelled out in the command text never matches.
-json_field() {
-  printf '%s' "$INPUT" \
-    | grep -oE "\"$1\"[[:space:]]*:[[:space:]]*\"([^\"\\\\]|\\\\.)*\"" \
-    | head -n 1 \
-    | sed -E "s/^\"$1\"[[:space:]]*:[[:space:]]*\"//; s/\"\$//"
+# Allow main agent (no agent_type) — user's permission system handles that.
+# Read without jq, because this answer must not depend on jq being installed;
+# the jq read below is what actually decides for a subagent.
+if ! printf '%s' "$INPUT" | grep -qE '"agent_type"[[:space:]]*:[[:space:]]*"[^"]+"'; then
+  exit 0
+fi
+
+# The deny on stdout is what the model reads; the reason also goes to stderr,
+# which is the only channel the operator watching the terminal sees.
+command -v jq >/dev/null 2>&1 || {
+  echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"maister guard: jq missing"}}'
+  echo 'maister guard: jq missing; a subagent Bash call cannot be judged, so it is denied. Install jq to re-enable the guard.' >&2
+  exit 2
 }
 
-# Allow main agent (no agent_type) — user's permission system handles that.
-# Agent names are plain identifiers; anything else is dropped so the name can
-# be quoted into the deny payload safely.
-AGENT_TYPE=$(json_field agent_type | tr -cd 'A-Za-z0-9:_.-')
+AGENT_TYPE=$(echo "$INPUT" | jq -r '.agent_type // empty')
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
 if [ -z "$AGENT_TYPE" ]; then
   exit 0
 fi
@@ -39,12 +47,9 @@ case "$AGENT_TYPE" in
     ;;
 esac
 
-# JSON escapes for whitespace become spaces, so `git\tstash` still matches.
-COMMAND=$(json_field command | sed -E 's/\\[ntr]/ /g')
-
 # Block destructive patterns for all other agents
-if printf '%s' "$COMMAND" | grep -qEi 'git[[:space:]]+stash|git[[:space:]]+reset[[:space:]]+--hard|git[[:space:]]+checkout[[:space:]]+--[[:space:]]+\.|git[[:space:]]+checkout[[:space:]]+\.[[:space:]]*$|git[[:space:]]+clean|git[[:space:]]+push[[:space:]]+(-f|--force)|rm[[:space:]]+-rf'; then
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Destructive command blocked for agent %s: git stash, reset --hard, checkout ., clean, push --force and rm -rf are not allowed for this agent."}}\n' "'$AGENT_TYPE'"
+if echo "$COMMAND" | grep -qEi 'git\s+stash|git\s+reset\s+--hard|git\s+checkout\s+--\s+\.|git\s+checkout\s+\.\s*$|git\s+clean|git\s+push\s+(-f|--force)|rm\s+-rf'; then
+  jq -n --arg agent "$AGENT_TYPE" --arg cmd "${COMMAND:0:80}" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:("Destructive command blocked for agent '\''"+$agent+"'\'': "+$cmd)}}'
   exit 0
 fi
 

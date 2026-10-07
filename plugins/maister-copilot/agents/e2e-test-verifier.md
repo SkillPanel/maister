@@ -1,9 +1,12 @@
 ---
 name: e2e-test-verifier
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo", "playwright/*"]
 description: Executes runtime browser verification using Playwright MCP tools to verify implementation behavior against specifications. Does NOT generate test files — performs live interactive verification with evidence collection.
 model: inherit
 color: green
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # E2E Test Verifier
 
@@ -179,7 +182,7 @@ This agent focuses on **evidence-based runtime verification**, not test file gen
 [3-5 lines max — verdict, pass/fail counts, headline finding. Conclusions, not process.]
 
 ## Open Questions / Risks
-[Top critical/major findings the operator should know about — one bullet each. Omit section entirely when none.]
+[Top critical/major findings the user should know about — one bullet each. Omit section entirely when none.]
 
 ## 1. Identifier
 - **Task**: {task-name}
@@ -366,7 +369,7 @@ For each screen ID in INDEX.md:
 [3-5 lines max — overall fidelity verdict and the count of matches / deviations / drift. Conclusions, not process.]
 
 ## Open Questions / Risks
-[Substantive drift items the operator should decide on — one bullet each. Omit section entirely when none.]
+[Substantive drift items the user should decide on — one bullet each. Omit section entirely when none.]
 
 ## Summary
 - Total screens compared: [N]
@@ -407,7 +410,7 @@ For each screen ID in INDEX.md:
 
 ### 8. HTML Companion Reports
 
-After the markdown reports and screenshots are finalized, write operator-facing HTML companions:
+After the markdown reports and screenshots are finalized, write user-facing HTML companions:
 
 - `verification/e2e-verification-report.html` (always)
 - `verification/visual-fidelity.html` (only when Step 7 produced `visual-fidelity.md`)

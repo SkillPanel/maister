@@ -1,0 +1,67 @@
+# Decision log
+
+**Scope**: this repository — the plugin and its generated Copilot variant · **Format**: MADR
+
+## TL;DR
+Twenty-six accepted decisions. ADR-0002 to ADR-0007 come from the coordination, compatibility and hook-runtime work; ADR-0008 to ADR-0017 come from the workflow engine that executes a definition as a run, ADR-0018 and ADR-0019 from the workspace runtime that dispatches a node into a member and from the chains a workspace keeps, ADR-0020 from reading the five per-workflow context blocks against each other once all five existed, ADR-0022 from giving the engine's fourth reference scheme a runtime, ADR-0025 from retiring the prose twins in a major release, ADR-0026 from the two editions sharing one plugin name, ADR-0027 from overlays that could add a node but not make anything wait for it, and ADR-0028 from an operator who could only continue or stop at a gate. ADR-0002 to ADR-0004 freeze the three coordination shapes; ADR-0006 sets the compatibility floor and the tolerance rules; ADR-0007 settles what the hooks run on and where their files live.
+Alternatives are not restated: each ADR states in its own Considered Options why the ones it rejected were rejected.
+
+## Key Decisions
+- Coordination is an orphan branch of immutable event files, never merged (ADR-0002, ADR-0003)
+- The tracker is a one-way mirror keyed by `mirror` events, never a source of truth (ADR-0004)
+- Compatibility starts at plugin 2.2.3; below the floor a task dir is an inventory row (ADR-0006)
+- Hooks are zero-dependency Node in exec form; nothing they write lands in the consumer tree (ADR-0007)
+- A node names its mechanism explicitly; the engine executes `direct:` nodes itself from the prose beside the definition (ADR-0008)
+- A gate asked and answered in one turn writes no pending marker — marking one would deny the engine's own state writer (ADR-0009)
+- The shipped definition's node ids are public API; no node carries an outcome clause, which is what makes a stop terminate (ADR-0010)
+- The workflow diagram is generated and golden-file tested, and deliberately not a registered shape (ADR-0011)
+- State is written by a script at a mandated canonical indent, gated on the shared state reader, with no fallback writer (ADR-0012)
+- The prose twin of a definition-backed workflow is the rollout escape hatch and is retired once the engine is proven (ADR-0013, closed: the twins are removed)
+- Development is expressed on the grammar as frozen: guards carry its conditional stretches, node prose carries its loops (ADR-0014)
+- An overlay adapts a graph but cannot reshape it, so performance and migration need definitions of their own (ADR-0015)
+- Mid-graph entry and attempt resets have no graph expression, so the engine path declines them rather than ignoring them (ADR-0016)
+- A gate is asked in session or suspended according to the run's driver, and answering a suspended gate is the one bounded editor-tool exception to the state writer (ADR-0017)
+- A dispatch worktree is named for the run and the node, and an unresolvable run id is refused rather than defaulted into a colliding name (ADR-0018)
+- Generated per-ticket chains live in a git-ignored subdirectory of the workflow home, resolve by name like an eject, and are deleted by a runtime verb once their runs close (ADR-0019)
+- The per-workflow context blocks overlap enough to share a thin core, and the factoring is recorded rather than done: typed known keys are what a generic bag would cost (ADR-0020)
+- A `workflow:` node runs a child as an ordinary sibling task directory, frozen by the existing path with no new verb, and a definition's declared outputs enter one unconditional hash envelope that moves every built-in's `graph_hash` once (ADR-0022)
+- The prose twin is a maintained reference and the orchestrator SKILL.md a hand-off to it (ADR-0023, closed: the references are removed and the hand-off goes to the engine alone)
+- On the engine path the dashboard data file is projected by the state writer after every committed write; a projection failure warns rather than refusing, and icon hints sit outside the hashed envelope so presentation cannot move a graph's identity (ADR-0024)
+- Plugin 3.0 is engine-only: the prose twins and their switch are removed, Node 20 is required, migration and then product-design switch over so no prose exception is left, re-entry is redesigned for 3.1, and a 2.x task directory is refused on resume and finished on a six-month `release/2.x` line (ADR-0025)
+- Two enabled editions of the plugin are detected from the settings scopes, failing open: a session-start hook warns and `write-state` refuses to start or resume a run (ADR-0026)
+- An overlay places an added node upstream with `before:`, an edge that only adds a wait; a disabled node never comes back under its own id, and a tuned `with` merges by key (ADR-0027)
+- A gate option may revise: it resets the stretch from a named upstream node to the gate in one write, with the operator's note and a counted attempt, up to a safety ceiling per gate (ten, amended 2026-10-05), while `needs` stays acyclic and an ordinary write can no longer rewind a node (ADR-0028)
+
+## Index
+
+> **Numbering note**: This series (ADR-NNNN, four digits) is the plugin repository's decision log. Two earlier series carry three-digit numbers and are cited, never renumbered: the v3 engine research decision log (ADR-001…012, fixed inputs, never re-opened) and the cockpit research decision log (GUI-ADR-001…013). Both are kept with the design workspace rather than in this repository, so they are named here and not linked.
+
+| ADR | Title | Status | Date | Supersedes |
+|---|---|---|---|---|
+| [ADR-0002](0002-coordination-branch.md) | Coordination branch | Accepted | 2026-08-26 | — |
+| [ADR-0003](0003-event-schema.md) | Event schema | Accepted | 2026-08-26 | — |
+| [ADR-0004](0004-tracker-mirror.md) | Tracker mirror | Accepted | 2026-08-26 | — |
+| [ADR-0006](0006-compatibility-floor.md) | Compatibility floor 2.2.3 and tolerance rules | Accepted | 2026-08-26 | The "render and resume forever" compatibility scope (narrowed: no resume below the floor) |
+| [ADR-0007](0007-hook-runtime-and-artifact-homes.md) | Hook runtime and artifact homes | Accepted | 2026-08-26 | — |
+| [ADR-0008](0008-direct-scheme-for-workflow-node-references.md) | The `direct:` scheme for workflow node references | Accepted | 2026-08-26 | — |
+| [ADR-0009](0009-terminal-mode-gate-state.md) | Terminal-mode gate state | Accepted | 2026-08-26 | — |
+| [ADR-0010](0010-built-in-workflow-node-ids.md) | Built-in workflow node ids as public API | Accepted | 2026-08-26 | — |
+| [ADR-0011](0011-generated-workflow-diagrams.md) | Generated workflow diagrams are non-contractual | Accepted | 2026-08-26 | — |
+| [ADR-0012](0012-engine-state-writes.md) | Engine state writes | Accepted | 2026-08-26 | Amended 2026-09-27: a completing node summary gains its declared artifacts and companions; amended 2026-09-30: the patch travels in a fixed patch file beside the state, not a heredoc, and the umbrella verbs' input in a fixed file no two callers share; amended 2026-10-05: the shared reader lives in `lib/state-scan.mjs` |
+| [ADR-0013](0013-prose-workflow-twin-is-transitional.md) | The prose workflow twin is transitional | Closed 2026-09-30 | 2026-08-26 | Amended 2026-10-02: no prose orchestrator is left |
+| [ADR-0014](0014-development-ships-as-a-workflow-definition.md) | Development ships as a workflow definition | Accepted | 2026-08-27 | — |
+| [ADR-0015](0015-overlays-cannot-repurpose-a-definition.md) | Overlays cannot repurpose a definition into another workflow | Accepted | 2026-08-27 | Amended by ADR-0027: an added node may be placed upstream with `before:`; amended 2026-09-30: `optional` leaves the grammar, so `with` and `provider` are the tunable keys |
+| [ADR-0016](0016-mid-graph-entry-is-not-an-engine-feature.md) | Mid-graph entry is not an engine feature | Accepted | 2026-08-27 | Amended by ADR-0028: a gate's revise option is the one way back, with a run-state attempt count |
+| [ADR-0017](0017-driver-aware-gate-suspension.md) | Driver-aware gate suspension and the resume-path editor exception | Accepted | 2026-08-30 | Amends ADR-0012 (one bounded editor-tool exception on the resume path) |
+| [ADR-0018](0018-per-run-dispatch-worktrees.md) | Dispatch worktrees are named for the run and the node | Accepted | 2026-09-08 | — |
+| [ADR-0019](0019-generated-chain-home.md) | Generated chains live in a subdirectory of the workflow home | Accepted | 2026-09-08 | — |
+| [ADR-0020](0020-context-block-shared-core.md) | The context-block shared core is unblocked, and deferred to its own change | Accepted | 2026-09-16 | — |
+| [ADR-0022](0022-workflow-nodes-run-as-sub-runs.md) | A `workflow:` node runs as a sub-run | Accepted | 2026-09-22 | Amends ADR-0008 (the four statements that nothing executes a sub-run) |
+| [ADR-0023](0023-prose-twin-as-reference.md) | The prose twin is a reference; the orchestrator SKILL.md is a hand-off | Closed 2026-09-30 | 2026-09-21 | Extends ADR-0013 (the twin stays maintained and reachable; only its address changes) |
+| [ADR-0024](0024-dashboard-projection-at-write-time.md) | The dashboard is projected at write time | Accepted | 2026-09-26 | Amends ADR-0012 (the all-or-nothing writer contract, for the post-commit projection only); scopes the framework's seven dashboard-rewrite moments to the prose path. Amended 2026-09-27: a phase card's prose is chosen field by field. Amended 2026-09-30: the projection is the file's only writer; the executor and verifier reach it through `write-state`. Amended 2026-10-02: moments 1–7 are removed with the last prose orchestrator |
+| [ADR-0025](0025-plugin-3-is-engine-only.md) | Plugin 3.0 is engine-only | Accepted | 2026-09-27 | Closes ADR-0013's retirement and ADR-0023's opt-out branch; amends ADR-0006 (resume half, open plugin) and ADR-0016 (the twin route is gone). Amended 2026-10-02: product-design takes option A, so 3.0 has no prose exception |
+| [ADR-0026](0026-refuse-two-enabled-editions.md) | Two enabled editions are detected, warned about and refused | Accepted | 2026-09-29 | — |
+| [ADR-0027](0027-overlays-attach-upstream-with-before.md) | Overlays attach added nodes upstream with `before:` | Accepted | 2026-09-30 | Amends ADR-0015 (an additive upstream edge; the same-id re-add refused) |
+| [ADR-0028](0028-gates-carry-a-bounded-back-edge.md) | Gates carry a bounded back-edge | Accepted | 2026-09-30 | Amends ADR-0016 (a jump and an attempt counter, scoped to a gate's revise option); narrows ADR-0014 (a loop across nodes, closed by a gate, is the graph's); amended 2026-10-05: a safety ceiling of ten per gate, not a budget of three |
+| [ADR-0029](0029-sanctioned-artifact-absence.md) | A node records the artifacts it completed without, and a terminal run ends in words | Accepted | 2026-09-30 | — |
+| [ADR-0030](0030-checkpoint-contract.md) | One checkpoint object, projected to every surface | Accepted | 2026-10-06 | — |

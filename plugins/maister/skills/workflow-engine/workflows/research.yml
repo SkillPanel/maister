@@ -1,0 +1,223 @@
+# The research workflow, as a graph.
+#
+# Six nodes named for what they do and three named for what they approve, in
+# one linear chain. The branching a reader might expect — brainstorming on or
+# off, design on or off — is carried entirely by the per-node `when` guards
+# plus the rule that a node whose guard is false is skipped and still satisfies
+# everything downstream. There is no routing construct here because the grammar
+# has none and none is needed.
+#
+# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
+# completed or a skipped predecessor but never by a stopped one, which is what
+# makes each gate's stop option actually end the run: nothing after it is ever
+# ready.
+#
+# The one way back is a revise option, and every gate carries one. The gates
+# that close the research foundation and the high-level design send the run back
+# to re-run that node with the operator's note. The convergence gate sends it back
+# to the convergence alone, which re-asks only the decision areas the note
+# reopens; the brainstorm before it is not run again, because its alternatives
+# are what the areas choose between.
+#
+# Target names are bare on purpose. Resolution is rooted at the plugin root and
+# the provider prefix is applied at invocation, so this one file is correct
+# under every generated variant without a rewrite.
+#
+# The node prose lives beside this file in `research.md`, one section per node
+# id. Every `direct:` node is executed from its section there, and the operator
+# questions asked inside those nodes appear only in that prose — a reader of
+# this file alone cannot see them, and neither can the generated diagram.
+name: research
+version: 1
+description: "Answers a question by gathering evidence from the codebase, its documentation and the web, and synthesising it into a research report, optionally followed by solution brainstorming and a high-level design. Use it when the task is to investigate, compare options or decide an approach before any code is written, whether on its own or as a step inside another run."
+inputs:
+  question: {type: string, required: true}
+  research_type: {type: string, required: false}
+  # Tri-state, and a string rather than a bool for that reason: absent means
+  # ask the operator, `yes`/`no` means the flag was set. Never referenced from
+  # a `when` clause — the decision node turns it into a declared bool first.
+  brainstorm: {type: string, required: false}
+  design: {type: string, required: false}
+  # "This run is a sub-run of another run." The engine supplies it at the child
+  # freeze; an operator never types it. Its only effect here is the guard on
+  # `completion`, which a parent has no use for.
+  embedded: {type: bool, required: false, default: false}
+
+# What a parent may read. Every entry names an output some node already
+# declares, so a key that stops resolving fails validation rather than a run.
+# Three of the six artifacts belong to nodes a guard may skip: such an entry is
+# simply absent, and the parent's missing-artifact rule decides what follows.
+# `report` deliberately aliases `research_report` — chains authored against
+# `${research.artifacts.report}` keep resolving.
+outputs:
+  artifacts:
+    research_report: research-foundation.artifacts.report
+    report: research-foundation.artifacts.report
+    findings_directory: research-foundation.artifacts.findings
+    solution_exploration: solution-generation.artifacts.exploration
+    high_level_design: high-level-design.artifacts.design
+    decision_log: high-level-design.artifacts.decision_log
+  values:
+    conclusions: research-foundation.values.conclusions
+
+# What the dashboard draws beside each node. Definition data rather than graph
+# data: the block sits outside `nodes:` and outside the hashed envelope, so
+# adding or correcting a hint moves no `graph_hash` and drifts no frozen chain.
+# The seven values are the closed set the viewer knows — `analysis`, `spec`,
+# `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
+# member rather than inventing one; anything else fails validation. Each gate
+# carries the icon of the node it closes, so a stretch and the approval that
+# closes it read as one pair. The same table lives in the prose beside this
+# file.
+display:
+  icons:
+    research-foundation:      analysis
+    foundation-approval:      analysis
+    optional-phases-decision: plan
+    solution-generation:      spec
+    solution-convergence:     plan
+    convergence-approval:     plan
+    high-level-design:        spec
+    design-approval:          spec
+    completion:               done
+  titles:
+    research-foundation:      "Research foundation"
+    foundation-approval:      "Approve research foundation"
+    optional-phases-decision: "Optional phases"
+    solution-generation:      "Solution brainstorming"
+    solution-convergence:     "Solution convergence"
+    convergence-approval:     "Approve brainstorming"
+    high-level-design:        "High-level design"
+    design-approval:          "Approve design"
+    completion:               "Final summary"
+  option_labels:
+    foundation-approval:
+      continue-to-evaluation: "Continue to the optional phases"
+      revise-research: "Revise the research"
+      stop-research: "Stop here"
+    convergence-approval:
+      continue-to-design: "Continue"
+      revise-convergence: "Ask the decision areas again"
+      stop-research: "Stop here"
+    design-approval:
+      continue-to-completion: "Continue to the final summary"
+      revise-design: "Revise the design"
+      stop-research: "Stop here"
+  headers:
+    foundation-approval:   "Research"
+    convergence-approval:  "Solutions"
+    design-approval:       "Design"
+
+nodes:
+  research-foundation:
+    uses: direct:research-foundation
+    needs: []
+    with:
+      question: "${inputs.question}"
+      research_type: "${inputs.research_type}"
+    outputs:
+      artifacts:
+        brief: planning/research-brief.md
+        plan: planning/research-plan.md
+        sources: planning/sources.md
+        findings: analysis/findings
+        synthesis: analysis/synthesis.md
+        report: outputs/research-report.md
+      values:
+        confidence_level: {enum: [high, medium, low]}
+        # A handle, not the content: the one-line conclusion of the research
+        # this node reported, for a parent that reads the declared block
+        # without opening the report. Flow-safe and short — a hyphenated
+        # phrase inside the bare charset is preferred.
+        conclusions: string
+
+  foundation-approval:
+    type: gate
+    needs: [research-foundation]
+    ask: "Research complete. Continue?"
+    options:
+      continue-to-evaluation: continue
+      revise-research: {effect: revise, reruns: research-foundation}
+      stop-research: stop
+
+  optional-phases-decision:
+    uses: direct:optional-phases-decision
+    needs: [foundation-approval]
+    with:
+      synthesis: "${research-foundation.artifacts.synthesis}"
+      brainstorm_flag: "${inputs.brainstorm}"
+      design_flag: "${inputs.design}"
+    outputs:
+      values:
+        brainstorming_enabled: bool
+        design_enabled: bool
+
+  solution-generation:
+    uses: agent:solution-brainstormer
+    needs: [optional-phases-decision]
+    when: "${optional-phases-decision.values.brainstorming_enabled}"
+    with:
+      synthesis: "${research-foundation.artifacts.synthesis}"
+      research_report: "${research-foundation.artifacts.report}"
+      output_path: outputs/solution-exploration.md
+      research_type: "${inputs.research_type}"
+      research_question: "${inputs.question}"
+      confidence_level: "${research-foundation.values.confidence_level}"
+    outputs:
+      artifacts:
+        exploration: outputs/solution-exploration.md
+
+  solution-convergence:
+    uses: direct:solution-convergence
+    needs: [solution-generation]
+    when: "${optional-phases-decision.values.brainstorming_enabled}"
+    with:
+      exploration: "${solution-generation.artifacts.exploration}"
+    outputs:
+      values:
+        # A short identifier for the converged approach, not free text: the
+        # full converged detail travels to the design node in the accumulated
+        # phase summaries, exactly as it does in the prose workflow.
+        selected_approach: id
+
+  convergence-approval:
+    type: gate
+    needs: [solution-convergence]
+    when: "${optional-phases-decision.values.brainstorming_enabled}"
+    ask: "Brainstorming complete. Continue?"
+    options:
+      continue-to-design: continue
+      revise-convergence: {effect: revise, reruns: solution-convergence}
+      stop-research: stop
+
+  high-level-design:
+    uses: direct:high-level-design
+    needs: [convergence-approval]
+    when: "${optional-phases-decision.values.design_enabled}"
+    with:
+      synthesis: "${research-foundation.artifacts.synthesis}"
+      research_report: "${research-foundation.artifacts.report}"
+      exploration: "${solution-generation.artifacts.exploration}"
+      selected_approach: "${solution-convergence.values.selected_approach}"
+      research_type: "${inputs.research_type}"
+      research_question: "${inputs.question}"
+      confidence_level: "${research-foundation.values.confidence_level}"
+    outputs:
+      artifacts:
+        design: outputs/high-level-design.md
+        decision_log: outputs/decision-log.md
+
+  design-approval:
+    type: gate
+    needs: [high-level-design]
+    when: "${optional-phases-decision.values.design_enabled}"
+    ask: "High-level design complete. Continue?"
+    options:
+      continue-to-completion: continue
+      revise-design: {effect: revise, reruns: high-level-design}
+      stop-research: stop
+
+  completion:
+    uses: direct:completion
+    needs: [design-approval]
+    when: "!${inputs.embedded}"

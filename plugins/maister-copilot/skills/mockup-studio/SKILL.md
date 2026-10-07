@@ -10,8 +10,8 @@ The single, reusable engine for generating UI mockups in the maister plugin. It 
 
 Two ways it runs:
 
-- **Invoked by an orchestrator** (development Phase 4, product-design Phase 7) via the Skill tool, with explicit parameters (see Input Parameters). The orchestrator owns its own phase gate; mockup-studio does the generation.
-- **Invoked standalone by a user** (`/maister-mockup-studio "<screen or feature>"`). It creates its own task directory and runs the full interactive flow.
+- **Invoked by a workflow node** (the development workflow's `ui-mockups` node, the product-design workflow's `visual-prototyping` node) via the Skill tool, with explicit parameters (see Input Parameters). The workflow owns its own gate; mockup-studio does the generation.
+- **Invoked standalone by a user** (`/maister-copilot:mockup-studio "<screen or feature>"`). It creates its own task directory and runs the full interactive flow.
 
 Whatever the caller, the work is the same: discover the project's design language → render mockups in the chosen format → persist them → (optionally) index them for downstream binding.
 
@@ -45,6 +45,7 @@ mockup_files: []        # paths of written mockups (.html files, or the ascii-mo
 index_rows: []          # stable-ID rows appended to design-context/INDEX.md (empty if emit_index_rows false)
 format_used: html|ascii # the format actually used (may differ from requested if Node was unavailable)
 notes: ""               # fallback notes, e.g. "html requested, fell back to ascii (Node unavailable)"
+                        # or "full refinement requested, ran single (non-terminal driver)"
 ```
 
 ---
@@ -89,13 +90,25 @@ Read `references/visual-companion.md` for the full protocol. Then:
 
 ### Step 4b — ASCII path
 
-**INVOKE** the `maister-ascii-mockup-generator` subagent (Task tool). Pass: `task_path`, `output_subdir` target, the `context` grounding, the feature type, AND the discovered design resources (resolved standard file paths, design-system inventory, skill hints) so the agent binds to them. The agent writes ASCII to `analysis/design-context/ascii/ui-mockups.md` (or `<output_subdir>/ascii-mockups.md` for standalone/product-design) and can append INDEX rows itself.
+**INVOKE** the `maister-copilot:ascii-mockup-generator` subagent (Task tool). Pass: `task_path`, `output_subdir` target, the `context` grounding, the feature type, AND the discovered design resources (resolved standard file paths, design-system inventory, skill hints) so the agent binds to them. The agent writes ASCII to `analysis/design-context/ascii/ui-mockups.md` (or `<output_subdir>/ascii-mockups.md` for standalone/product-design) and can append INDEX rows itself.
 
 ### Step 5 — Refinement loop
 
 - `iteration: single` — generate once and return. The calling orchestrator's phase gate offers approve/revise; on revise it re-invokes this skill.
 - `iteration: full` — enter an interactive loop:
-  `ask_user` with options like: "Approve all screens and continue", "Change the layout of [screen]", "Change the content of [screen]", "Change the interactions", "Add another screen", "Let me explain my thinking". On revision, regenerate the specific screen (re-POST updates it in place on disk and in the gallery for HTML; re-run the agent for ASCII). Track iterations and apply a soft cap (~5) — past it, recommend converging.
+  each round is one `ask_user`, four options at most, its context in the question: "\<N\> screens at \<address\>. Use them?" — the address is the gallery URL for HTML, the file path for ASCII.
+  - "Use these screens (Recommended)" — ends the loop.
+  - "Change a screen" — a follow-up question offers generated changes, one line each and naming its screen ("Checkout: move the total above the pay button"), up to four; the user's own change is the Other answer.
+  - "Add a screen" — what to add is the follow-up answer.
+  - More details — lists every screen with what it shows, then asks the round again; nothing is recorded.
+
+  On a change, regenerate that screen only (re-POST updates it in place on disk and in the gallery for HTML; re-run the agent for ASCII). Track rounds and apply a soft cap (~5) — past it, the question says so and "Use these screens" stays recommended.
+
+**Default under a non-terminal driver** (`mockup-refinement`): approve as rendered -- `full` degrades to `single`. Generate the screens once and return; take no revision round.
+
+This skill has no run state of its own, so read `orchestrator.driver.kind` from the caller's `orchestrator-state.yml` under `task_path` (an absent file or an absent key means terminal, like everywhere else). Under `cockpit` or `dispatch` the loop above is unreachable whatever `iteration` says: nobody is in the session to approve a screen or ask for another one, and a loop with no answer does not converge, it hangs. **Say so in the returned `notes`**, the way the ASCII fallback says so -- the caller puts that on its phase summary, and a set of screens nobody refined otherwise reads like a set somebody approved.
+
+Of the two shipped callers, development's `ui-mockups` node always passes `single`, and product-design's `visual-prototyping` node passes `full` and relies on this rule under a driver. It is also the rule for a caller of your own, and for a standalone session that was dispatched rather than typed.
 
 ### Step 6 — Persist & index
 
@@ -111,8 +124,9 @@ Read `references/visual-companion.md` for the full protocol. Then:
 
 ### Step 7 — Teardown & return
 
+- **A `full` run degraded to `single` by the driver rule follows the `single` rules below** -- with one exception, named there: a *standalone* degraded run has no caller and therefore no gate, so it saves its files and shuts the server down rather than leaving a gallery up for a session nobody is in.
 - **Do NOT shut the server down when `iteration: single` (orchestrator mode).** In that mode the caller's *review gate fires after this skill returns* — the operator reviews the gallery at that gate, so the companion MUST stay running until the caller leaves the design stage. Shutting down here strands the reviewer with a dead `localhost` (the gallery survives on disk, but the live browsable gallery — the whole point — is gone). Leave it running and tell the caller the gallery URL; the orchestrator tears it down when it advances past the design/mockup phase (or on a "revise" it re-invokes this skill, which reuses the still-running server).
-- Only shut the server down when this skill genuinely owns the *entire* lifecycle end-to-end: **standalone `iteration: full`** after the user has approved and the interactive loop is complete. Then `curl -s -X POST http://localhost:${port}/shutdown`.
+- Only shut the server down when this skill genuinely owns the *entire* lifecycle end-to-end: **standalone `iteration: full`** after the user has approved and the interactive loop is complete, **or a standalone run the driver rule degraded to `single`**, which owns the lifecycle just as completely and has nobody to browse the gallery. Then `curl -s -X POST http://localhost:${port}/shutdown`.
 - On restart the server auto-restores previously-saved screens from the on-disk manifest (`<output_subdir>/.mockups.json`), so a companion that was stopped can be brought back with the full gallery intact by re-running the same start command — no re-POST needed.
 - Return the result block (Step "Returns" above) to the caller, including the live gallery URL so the caller can surface it at its review gate.
 
@@ -120,10 +134,10 @@ Read `references/visual-companion.md` for the full protocol. Then:
 
 ## Standalone Mode
 
-When a user runs `/maister-mockup-studio "<screen or feature>"` (no `task_path` from an orchestrator):
+When a user runs `/maister-copilot:mockup-studio "<screen or feature>"` (no `task_path` from an orchestrator):
 
 1. Capture the clock; create `.maister/tasks/mockups/YYYY-MM-DD-<short-name>/` with an `analysis/` subdir.
-2. Defaults: `output_subdir = analysis/mockups`, `iteration = full`, `emit_index_rows = false`, `format` from `.maister/config.yml` `mockup_format` (default `html`).
+2. Defaults: `output_subdir = analysis/mockups`, `iteration = full`, `emit_index_rows = false`, `format` from `.maister/config.yml` `mockup_format` (default `html`). A standalone session is normally terminal -- somebody typed the command -- but a dispatched one is not, and the `iteration` default is the one thing the driver rule changes about it (Step 5).
 3. Build `context` from the user's prompt (and any referenced files/standards).
 4. Run Steps 1–7. At the end, report the gallery URL and saved file paths.
 

@@ -1,0 +1,76 @@
+name: Test
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The floor package.json declares, so a verb reaching for a newer API
+      # fails here rather than in a consumer's session.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build and validate Copilot CLI variant
+        run: make build && make validate
+
+      # `git diff` alone sees modified tracked files only; a newly generated
+      # variant file would be untracked and pass silently. `git status
+      # --porcelain` covers both.
+      - name: Check generated variant is committed
+        run: |
+          test -z "$(git status --porcelain -- plugins/maister-copilot/)" \
+            || (echo "generated variant is stale — run \`make build\` and commit" \
+                && git status --porcelain -- plugins/maister-copilot/ && exit 1)
+
+      - name: Test the engine verbs
+        run: make test
+
+      # Notifies a downstream repository's CI of each push. Off unless the
+      # repository sets both the PRO_DISPATCH_REPO variable (owner/name) and the
+      # PRO_DISPATCH_TOKEN secret, so forks and clones skip it; one without the
+      # other warns and exits clean, and a rejected dispatch fails the step.
+      # Every value is routed through env: and referenced as a quoted shell
+      # variable, never interpolated into the run: body.
+      - name: Notify downstream CI
+        if: github.event_name == 'push'
+        env:
+          PRO_DISPATCH_TOKEN: ${{ secrets.PRO_DISPATCH_TOKEN }}
+          PRO_DISPATCH_REPO: ${{ vars.PRO_DISPATCH_REPO }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$PRO_DISPATCH_TOKEN" ] && [ -z "$PRO_DISPATCH_REPO" ]; then
+            echo "downstream dispatch is not configured for this repository; skipping"
+            exit 0
+          fi
+          if [ -z "$PRO_DISPATCH_REPO" ]; then
+            echo "::warning::PRO_DISPATCH_TOKEN is set but the PRO_DISPATCH_REPO variable is not; skipping the downstream dispatch"
+            exit 0
+          fi
+          if [ -z "$PRO_DISPATCH_TOKEN" ]; then
+            echo "::warning::PRO_DISPATCH_REPO is set but the PRO_DISPATCH_TOKEN secret is not; skipping the downstream dispatch"
+            exit 0
+          fi
+          payload="$(jq -n --arg sha "$SHA" --arg ref "$REF" --arg repo "$REPO" \
+            '{event_type: "open-push", client_payload: {sha: $sha, ref: $ref, repo: $repo}}')"
+          http_code="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: token $PRO_DISPATCH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$PRO_DISPATCH_REPO/dispatches" \
+            -d "$payload")"
+          echo "dispatch response: $http_code"
+          case "$http_code" in
+            2??) ;;
+            *)
+              echo "::error::downstream dispatch returned HTTP $http_code"
+              exit 1
+              ;;
+          esac

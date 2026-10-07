@@ -103,7 +103,7 @@ Create the report at `{task_path}/analysis/{artifact_name}`.
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [gap, low-coverage area, or risk the operator should know about]
+- [gap, low-coverage area, or risk the user should know about]
 [Omit section entirely when none]
 
 ---

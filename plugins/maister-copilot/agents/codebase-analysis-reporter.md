@@ -1,9 +1,12 @@
 ---
 name: codebase-analysis-reporter
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Merges raw findings from parallel Explore agents into a structured codebase analysis report. Deduplicates files, cross-references analysis with tests, assesses complexity and risk, and produces actionable recommendations.
 model: inherit
 color: blue
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # Codebase Analysis Reporter
 
@@ -103,7 +106,7 @@ Create the report at `{task_path}/analysis/{artifact_name}`.
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [gap, low-coverage area, or risk the operator should know about]
+- [gap, low-coverage area, or risk the user should know about]
 [Omit section entirely when none]
 
 ---

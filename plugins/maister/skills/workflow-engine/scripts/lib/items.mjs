@@ -1,0 +1,246 @@
+/**
+ * The items a node summary records — decisions, risks, artifacts — read in one
+ * typed shape, whatever shape a run wrote them in.
+ *
+ * Why this module exists. A summary's lists began as free strings, with meaning
+ * carried by a prefix (`open:`, `recommend stop:`, `defaulted:`), and every
+ * reader parsed the prefixes its own way: the gate brief, the dashboard and the
+ * prior-phase context each kept a private reading, and a map item was joined
+ * field by field, so who decided and whether it was the recommended answer read
+ * as part of the decision's text. The record now carries the type itself —
+ * `{decision, by}` and `{risk, tag, change}` — and the strings stay valid, so
+ * every reader asks this module rather than keeping its own reading.
+ *
+ * The legacy reading. Any state written since the compatibility floor reads:
+ *
+ * | Stored                                         | Read as                                        |
+ * |------------------------------------------------|------------------------------------------------|
+ * | a decision string                              | `{decision, by: run}`                          |
+ * | `defaulted: <id> -> <taken>`                   | `{decision: <taken>, by: default, question_id}`|
+ * | `asked: <q> -> <a> (answered by <who> at <t>)` | `{decision: <a>, by: operator, question, …}`   |
+ * | `{decision, rationale}` with no `by`           | `by: run`                                      |
+ * | `{question, answer}`                           | `{decision: <answer>, by: operator}`           |
+ * | `{option, answered_by, at, …}` (a gate answer) | `{decision: <label>, by: operator, …}`         |
+ * | a risk string with no tag                      | `{risk, tag: open}`, the arrow split off       |
+ * | `open:` `tradeoff:` `followup:` prefixes       | that tag                                       |
+ * | `left for later:`                              | `followup`                                     |
+ * | `recommend stop:`                              | `stop`                                         |
+ * | `resolved:` or `(resolved …)`                  | `resolved`                                     |
+ * | a bare-string artifact                         | `{path, label: null, html: null, role: null}`  |
+ *
+ * Nothing here rewrites what is stored: a reader normalises on the way in, and
+ * the writer keeps every item as it was sent.
+ *
+ * Pure: no imports beyond the display helper, no I/O.
+ */
+
+import { sentence } from './display.mjs';
+
+/** Who settled a decision: a person, the run's own analysis, an audit, or a default taken for nobody. */
+export const DECISION_BY = ['operator', 'run', 'audit', 'default'];
+
+/** What a risk is: still open, a trade-off accepted, a follow-up for later, a reason to stop, or settled. */
+export const RISK_TAGS = ['open', 'tradeoff', 'followup', 'stop', 'resolved'];
+
+/** What an artifact is for: the document a phase produced, one to review beside it, evidence, or a log. */
+export const ARTIFACT_ROLES = ['primary', 'review', 'evidence', 'log'];
+
+/** How long a `headline` may run: one sentence a reader takes in at a glance. */
+export const HEADLINE_MAX = 220;
+
+/**
+ * The word a reader shows for each source, after the item: "— analysis". A
+ * person's own choice reads "you" on a terminal, where the reader is the person
+ * who answered; a multi-operator surface names them by `answered_by` instead.
+ */
+export const SOURCE_WORD = { run: 'analysis', audit: 'audit', default: 'default', operator: 'you' };
+
+/** Between a risk and the change that would resolve it: `<risk> → <what would change>`. */
+const CHANGE_ARROW = /\s+(?:→|->)\s+/;
+
+/** A risk's leading tag, in every spelling a run has written one. */
+const RISK_PREFIX = /^(open|trade-?off|follow-?up|left for later|recommend stop|resolved)\s*:\s*/i;
+
+/** Each prefix spelling, lower-cased and dashes dropped, to the tag it reads as. */
+const PREFIX_TAG = {
+  open: 'open',
+  tradeoff: 'tradeoff',
+  followup: 'followup',
+  'left for later': 'followup',
+  'recommend stop': 'stop',
+  resolved: 'resolved',
+};
+
+/** The dashboard's older marking of a settled risk: `(resolved in round 2)` anywhere in the text. */
+const RESOLVED_NOTE = /\(resolved\b/i;
+
+/**
+ * A slug key leading an item — `goods-currency-contract: …` — which names the
+ * entry for a machine and says nothing to a reader. At least one dash or
+ * underscore, so a prefix that carries meaning (`open:`, `Architecture:`) is
+ * never taken for one.
+ */
+const SLUG_KEY = /^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)+:\s+/;
+
+/** A defaulted in-node question, as the defaults rule wrote it before decisions were typed. */
+const DEFAULTED = /^defaulted:\s*(\S+)\s*->\s*(.+)$/is;
+
+/** An in-node question a driver asked, as the question spike wrote it. */
+const ASKED = /^asked:\s*(.+?)\s*->\s*(.+?)(?:\s*\(answered by\s+(.+?)\s+at\s+(\S+?)\))?\s*$/is;
+
+/**
+ * The end of a sentence: its stop, any closing quote or bracket after it, and
+ * then a space or the end — so `… "Nothing yet." Then …` ends inside the quote.
+ */
+const SENTENCE_END = /[.!?]["'’”)\]]*(?=\s|$)/g;
+
+/** An abbreviation whose full stop ends no sentence, read off the text before it. */
+const ABBREVIATION = /(?:^|[\s(])(?:e\.g|i\.e|etc|vs|cf)$/i;
+
+function isMap(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** A string on one line, trimmed; anything else is ''. */
+export function oneLine(value) {
+  if (typeof value === 'string') return value.replace(/\s*[\r\n]+\s*/g, ' ').trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
+/**
+ * One decision item as `{decision, by, …}`, or null when it holds no decision
+ * text. Every field the item carried is kept beside the two; `labelFor(option)`
+ * names a gate answer's option, and without it the option reads as a sentence.
+ * A `by` this build does not know reads as `run`, the conservative default: the
+ * item is still shown, credited to the analysis.
+ */
+export function decisionOf(item, labelFor = null) {
+  if (typeof item === 'string') {
+    const text = oneLine(item);
+    if (text === '') return null;
+    const defaulted = DEFAULTED.exec(text);
+    if (defaulted) return { decision: defaulted[2].trim(), by: 'default', question_id: defaulted[1] };
+    const asked = ASKED.exec(text);
+    if (asked) {
+      return {
+        decision: asked[2].trim(),
+        by: 'operator',
+        question: asked[1].trim(),
+        answer: asked[2].trim(),
+        ...(asked[3] ? { answered_by: asked[3] } : {}),
+        ...(asked[4] ? { at: asked[4] } : {}),
+      };
+    }
+    return { decision: text.replace(SLUG_KEY, ''), by: 'run' };
+  }
+  if (!isMap(item)) return null;
+  const known = by => (DECISION_BY.includes(by) ? by : null);
+  const text = oneLine(item.decision);
+  if (text !== '') {
+    const by = known(item.by) ?? (typeof item.option === 'string' ? 'operator' : 'run');
+    return { ...item, decision: text, by };
+  }
+  if (typeof item.option === 'string' && item.option !== '') {
+    const label = typeof labelFor === 'function' ? labelFor(item.option) : null;
+    return { ...item, decision: label || sentence(item.option), by: known(item.by) ?? 'operator' };
+  }
+  const answer = oneLine(item.answer);
+  if (answer !== '' && Object.hasOwn(item, 'question')) {
+    return {
+      ...item,
+      decision: answer,
+      by: known(item.by) ?? 'operator',
+      as_recommended: typeof item.as_recommended === 'boolean' ? item.as_recommended : null,
+    };
+  }
+  return null;
+}
+
+/**
+ * One risk item as `{risk, tag, change}`, or null when it holds no text. A
+ * string's leading tag says what it is, and one with no tag reads `open`: that
+ * may feed a revise suggestion, but it is never hidden. The part after the
+ * arrow is the change that would resolve it.
+ */
+export function riskOf(item) {
+  if (typeof item === 'string') {
+    let text = oneLine(item);
+    if (text === '') return null;
+    let tag = 'open';
+    const prefix = RISK_PREFIX.exec(text);
+    if (prefix) {
+      tag = PREFIX_TAG[prefix[1].toLowerCase().replace('-', '')];
+      text = text.slice(prefix[0].length).trim();
+    } else if (SLUG_KEY.test(text)) {
+      text = text.replace(SLUG_KEY, '');
+    } else if (RESOLVED_NOTE.test(text)) {
+      tag = 'resolved';
+    }
+    const [risk, ...rest] = text.split(CHANGE_ARROW);
+    const change = rest.join(' ').trim();
+    return { risk: risk.trim(), tag, change: change === '' ? null : change };
+  }
+  if (!isMap(item)) return null;
+  const risk = oneLine(item.risk);
+  if (risk === '') return null;
+  const change = oneLine(item.change);
+  return { risk, tag: RISK_TAGS.includes(item.tag) ? item.tag : 'open', change: change === '' ? null : change };
+}
+
+/**
+ * One artifact entry as `{path, label, html, role}` beside whatever else it
+ * carries, or null when it names no file. A bare string in this field is a path
+ * — the only thing it has ever meant — and the optional fields take null rather
+ * than a guess derived from the path.
+ */
+export function artifactOf(entry) {
+  if (isMap(entry)) return entry;
+  if (typeof entry !== 'string') return null;
+  return { path: entry, label: null, html: null, role: null };
+}
+
+/** A decision as a reader shows it: its text, and its rationale after a dash. */
+export function decisionText(decision) {
+  const rationale = oneLine(decision.rationale);
+  return rationale ? `${decision.decision} — ${rationale}` : decision.decision;
+}
+
+/** A risk as a reader shows it: its text, and the change after the arrow. */
+export function riskText(risk) {
+  return risk.change ? `${risk.risk} → ${risk.change}` : risk.risk;
+}
+
+/**
+ * A summary entry's one *Done* sentence: its `headline`, else the first
+ * sentence of its `summary`, cut at a word to `HEADLINE_MAX`. '' when it has
+ * neither.
+ */
+export function headlineOf(entry) {
+  if (!isMap(entry)) return '';
+  const own = oneLine(entry.headline);
+  if (own !== '') return own;
+  return clipWords(firstSentence(oneLine(entry.summary)), HEADLINE_MAX);
+}
+
+/**
+ * `text` up to the end of its first sentence. A dash ends no sentence, so
+ * `recommend stop: critical — <reason>` keeps the reason; nor does the stop of
+ * an abbreviation.
+ */
+export function firstSentence(text) {
+  for (const match of text.matchAll(SENTENCE_END)) {
+    if (ABBREVIATION.test(text.slice(0, match.index))) continue;
+    return text.slice(0, match.index + match[0].length).trimEnd();
+  }
+  return text;
+}
+
+/** `text` cut at a word to at most `max` characters, an ellipsis marking the cut. */
+export function clipWords(text, max) {
+  if (text.length <= max) return text;
+  let cut = text.slice(0, max - 1);
+  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+  const word = cut.lastIndexOf(' ');
+  return `${(word > max / 2 ? cut.slice(0, word) : cut).trimEnd()}…`;
+}

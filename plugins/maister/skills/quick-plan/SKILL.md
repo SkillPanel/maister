@@ -10,7 +10,7 @@ This works exactly like Claude Code's built-in plan mode, with one addition: the
 
 ## Workflow
 
-1. **Get the task** — Use the argument if provided. If none, ask with `AskUserQuestion`: "What would you like to plan?"
+1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask with `AskUserQuestion`: "What would you like to plan?"
 
 2. **Enter plan mode** — Call `EnterPlanMode` and let plan mode run exactly as it normally does (explore the codebase, design the approach, write the plan, then `ExitPlanMode` for approval). Do not redefine its phases.
 

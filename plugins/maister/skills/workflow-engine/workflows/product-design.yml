@@ -1,0 +1,303 @@
+# The product-design workflow, as a graph.
+#
+# Nine nodes named for what they do and five named for what they approve, in
+# one linear chain. Gates serialize the run, so a wider fan-in would buy
+# nothing.
+#
+# Two nodes are guarded: the persona exploration runs only for a greenfield or
+# complex design, and the visual prototypes only for a UI-focused one. Both
+# guards are declared bools the intake node derives from the design
+# characteristics, because only a declared bool may guard and a guard reads one
+# reference, never an expression over two.
+#
+# The gates after those two nodes are deliberately unguarded, unlike the closing
+# gate of a guarded stretch in the other built-ins. Each closes more than the
+# guarded node: `problem-approval` closes the problem statement and, when they
+# were drafted, the personas; `specification-approval` closes the specification
+# and, when they were drawn, the prototypes. A guarded gate would let the
+# problem statement or the specification pass unreviewed whenever the node
+# after it was skipped. Each of the two gates needs both nodes of its stretch,
+# because the gate brief renders the summary of a node the gate needs and a
+# skipped node writes none.
+#
+# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
+# completed or a skipped predecessor but never by a stopped one, which is what
+# makes each gate's stop option actually end the run: nothing after it is ever
+# ready.
+#
+# The way back is a revise option, and every gate carries one. The problem,
+# direction and specification gates send a document back with the operator's
+# note. The direction gate carries two — re-asking chosen areas re-runs the
+# convergence, and brainstorming new alternatives re-runs the brainstorm before
+# it. The prototypes keep the studio's own in-node loop, so a revise of the
+# specification re-renders them after it rather than offering a second way back
+# to them.
+#
+# The characteristics and context gates carry a revise too, and their nodes ask
+# no confirmation of their own. A gate is the one checkpoint that reaches the
+# operator in a terminal run and under a driver alike, where an in-node question
+# is defaulted; the revise note is the correction, so the engine's revise
+# machinery replaces two hand-written correction loops. Revising the intake
+# derives the two guards again, which is how a corrected characteristic switches
+# the personas or the prototypes on or off. Without these options a misdetected
+# characteristic could be corrected only by stopping the run.
+#
+# Target names are bare on purpose. Resolution is rooted at the plugin root and
+# the provider prefix is applied at invocation, so this one file is correct
+# under every generated variant without a rewrite.
+#
+# The node prose lives beside this file in `product-design.md`, one section per
+# node id. Every `direct:` node is executed from its section there, and the
+# operator questions asked inside nodes appear only in that prose — a reader of
+# this file alone cannot see them, and neither can the generated diagram. The
+# per-node recovery budgets live there too, never here: a budget written into
+# `with:` would read like a grammar feature while being inert data the engine
+# never consults.
+name: product-design
+version: 1
+description: "Turns a fuzzy product or feature idea into a development-ready product brief: it gathers context, explores the problem and its users, brainstorms alternatives, converges on a direction, specifies the feature section by section, prototypes the screens and assembles the brief. Use it to decide what to build before building it; the brief feeds the development workflow."
+inputs:
+  task_description: {type: string, required: true}
+  # The path of a completed research task whose findings inform the design.
+  research: {type: string, required: false}
+  # Mockups in the terminal rather than through the browser companion. The
+  # project's mockup format setting does the same for every run; this is the
+  # per-run override.
+  no_visual: {type: bool, required: false, default: false}
+
+# What the dashboard draws beside each node. Definition data rather than graph
+# data: the block sits outside `nodes:` and outside the hashed envelope, so
+# adding or correcting a hint moves no `graph_hash` and drifts no frozen chain.
+# The seven values are the closed set the viewer knows — `analysis`, `spec`,
+# `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
+# member rather than inventing one; anything else fails validation. Each gate
+# carries the icon of the node it closes, so a stretch and the approval that
+# closes it read as one pair. The same table lives in the prose beside this
+# file.
+display:
+  icons:
+    intake:                   analysis
+    characteristics-approval: analysis
+    context-synthesis:        analysis
+    context-approval:         analysis
+    problem-exploration:      analysis
+    persona-exploration:      analysis
+    problem-approval:         analysis
+    idea-generation:          plan
+    idea-convergence:         plan
+    direction-approval:       plan
+    feature-specification:    spec
+    visual-prototyping:       spec
+    specification-approval:   spec
+    review-handoff:           done
+  titles:
+    intake:                   "Intake and design characteristics"
+    characteristics-approval: "Approve design characteristics"
+    context-synthesis:        "Context synthesis"
+    context-approval:         "Approve design context"
+    problem-exploration:      "Problem exploration"
+    persona-exploration:      "User and persona exploration"
+    problem-approval:         "Approve problem and personas"
+    idea-generation:          "Idea generation"
+    idea-convergence:         "Idea convergence"
+    direction-approval:       "Approve design direction"
+    feature-specification:    "Feature specification"
+    visual-prototyping:       "Visual prototyping"
+    specification-approval:   "Approve specification and prototypes"
+    review-handoff:           "Review and handoff"
+  option_labels:
+    characteristics-approval:
+      continue-to-context-synthesis: "Continue to the context synthesis"
+      revise-characteristics: "Correct the characteristics"
+      stop-design: "Stop here"
+    context-approval:
+      continue-to-problem-exploration: "Continue to the problem exploration"
+      revise-context: "Correct or add to the context"
+      stop-design: "Stop here"
+    problem-approval:
+      continue-to-idea-generation: "Continue to the idea generation"
+      revise-problem: "Revise the problem or personas"
+      stop-design: "Stop here"
+    direction-approval:
+      continue-to-specification: "Continue to the feature specification"
+      refine-direction: "Re-ask chosen areas"
+      explore-more-alternatives: "Brainstorm new alternatives"
+      stop-design: "Stop here"
+    specification-approval:
+      continue-to-product-brief: "Continue to the product brief"
+      revise-specification: "Revise the specification"
+      stop-design: "Stop here"
+  headers:
+    characteristics-approval: "Scope"
+    context-approval:         "Context"
+    problem-approval:         "Problem"
+    direction-approval:       "Direction"
+    specification-approval:   "Spec"
+
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    with:
+      task_description: "${inputs.task_description}"
+      research: "${inputs.research}"
+      no_visual: "${inputs.no_visual}"
+    outputs:
+      artifacts:
+        # Written only when the invocation named a research task; the absence
+        # is sanctioned in the node prose.
+        research_context: context/research-context
+      values:
+        # Derived from the design characteristics: greenfield or complex for
+        # the first, UI-focused for the second. A revise at the
+        # characteristics gate derives them again.
+        personas_enabled: bool
+        prototyping_enabled: bool
+        complexity_level: {enum: [simple, standard, complex]}
+
+  characteristics-approval:
+    type: gate
+    needs: [intake]
+    ask: "Design characteristics detected. Continue to context synthesis?"
+    options:
+      continue-to-context-synthesis: continue
+      revise-characteristics: {effect: revise, reruns: intake}
+      stop-design: stop
+
+  context-synthesis:
+    uses: direct:context-synthesis
+    needs: [characteristics-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      complexity_level: "${intake.values.complexity_level}"
+    outputs:
+      artifacts:
+        design_context: analysis/design-context.md
+        # Written only for an enhancement; the absence is sanctioned in the
+        # node prose.
+        codebase_analysis: analysis/codebase-analysis.md
+
+  context-approval:
+    type: gate
+    needs: [context-synthesis]
+    ask: "Context synthesis complete. Continue to problem exploration?"
+    options:
+      continue-to-problem-exploration: continue
+      revise-context: {effect: revise, reruns: context-synthesis}
+      stop-design: stop
+
+  problem-exploration:
+    uses: direct:problem-exploration
+    needs: [context-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      design_context: "${context-synthesis.artifacts.design_context}"
+      complexity_level: "${intake.values.complexity_level}"
+    outputs:
+      artifacts:
+        problem_statement: analysis/problem-statement.md
+
+  persona-exploration:
+    uses: direct:persona-exploration
+    needs: [problem-exploration]
+    when: "${intake.values.personas_enabled}"
+    with:
+      design_context: "${context-synthesis.artifacts.design_context}"
+      problem_statement: "${problem-exploration.artifacts.problem_statement}"
+      complexity_level: "${intake.values.complexity_level}"
+    outputs:
+      artifacts:
+        personas: analysis/personas.md
+
+  problem-approval:
+    type: gate
+    needs: [problem-exploration, persona-exploration]
+    ask: "Problem exploration complete. Continue to idea generation?"
+    options:
+      continue-to-idea-generation: continue
+      revise-problem: {effect: revise, reruns: problem-exploration}
+      stop-design: stop
+
+  idea-generation:
+    uses: agent:solution-brainstormer
+    needs: [problem-approval]
+    with:
+      output_path: analysis/alternatives.md
+      task_description: "${inputs.task_description}"
+      design_context: "${context-synthesis.artifacts.design_context}"
+      problem_statement: "${problem-exploration.artifacts.problem_statement}"
+      complexity_level: "${intake.values.complexity_level}"
+    outputs:
+      artifacts:
+        alternatives: analysis/alternatives.md
+
+  idea-convergence:
+    uses: direct:idea-convergence
+    needs: [idea-generation]
+    with:
+      alternatives: "${idea-generation.artifacts.alternatives}"
+      problem_statement: "${problem-exploration.artifacts.problem_statement}"
+    outputs:
+      artifacts:
+        decisions: analysis/design-decisions.md
+
+  direction-approval:
+    type: gate
+    needs: [idea-convergence]
+    ask: "Design direction ready for review. Continue to feature specification?"
+    options:
+      continue-to-specification: continue
+      refine-direction: {effect: revise, reruns: idea-convergence}
+      explore-more-alternatives: {effect: revise, reruns: idea-generation}
+      stop-design: stop
+
+  feature-specification:
+    uses: direct:feature-specification
+    needs: [direction-approval]
+    with:
+      design_decisions: "${idea-convergence.artifacts.decisions}"
+      problem_statement: "${problem-exploration.artifacts.problem_statement}"
+      design_context: "${context-synthesis.artifacts.design_context}"
+      complexity_level: "${intake.values.complexity_level}"
+    outputs:
+      artifacts:
+        spec: analysis/feature-spec.md
+
+  visual-prototyping:
+    uses: skill:mockup-studio
+    needs: [feature-specification]
+    when: "${intake.values.prototyping_enabled}"
+    with:
+      output_subdir: analysis/mockups
+      iteration: full
+      emit_index_rows: false
+      feature_spec: "${feature-specification.artifacts.spec}"
+      design_decisions: "${idea-convergence.artifacts.decisions}"
+      design_context: "${context-synthesis.artifacts.design_context}"
+    outputs:
+      artifacts:
+        mockups: analysis/mockups
+
+  specification-approval:
+    type: gate
+    needs: [feature-specification, visual-prototyping]
+    ask: "Feature specification complete. Continue to the product brief?"
+    options:
+      continue-to-product-brief: continue
+      revise-specification: {effect: revise, reruns: feature-specification}
+      stop-design: stop
+
+  review-handoff:
+    uses: direct:review-handoff
+    needs: [specification-approval]
+    with:
+      task_description: "${inputs.task_description}"
+      design_context: "${context-synthesis.artifacts.design_context}"
+      problem_statement: "${problem-exploration.artifacts.problem_statement}"
+      alternatives: "${idea-generation.artifacts.alternatives}"
+      design_decisions: "${idea-convergence.artifacts.decisions}"
+      feature_spec: "${feature-specification.artifacts.spec}"
+      complexity_level: "${intake.values.complexity_level}"
+    outputs:
+      artifacts:
+        brief: outputs/product-brief.md

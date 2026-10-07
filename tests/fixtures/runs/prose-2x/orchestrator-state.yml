@@ -1,0 +1,54 @@
+# The shape a 2.x prose orchestrator wrote for development: phase-based
+# orchestrator state, a task block, a context block — and no workflow block.
+orchestrator:
+  started_phase: phase-1
+  completed_phases: [phase-1, phase-2, phase-5]
+  failed_phases: []
+  auto_fix_attempts:
+    phase-9: 0
+    phase-11: 0
+  options:
+    html_output: true
+    mockup_format: html
+    spec_audit_enabled: true
+    e2e_enabled: false
+    user_docs_enabled: false
+    code_review_enabled: true
+  created: "2026-06-02T09:14:00Z"
+  updated: "2026-06-02T11:40:00Z"
+  task_path: .maister/tasks/development/2026-01-05-sample
+  task_ids:
+    phase-1: "1"
+    phase-2: "2"
+    phase-5: "3"
+
+task:
+  title: Add a retry budget to the export job
+  description: >-
+    The export job gives up after the first transient failure; give it a
+    bounded retry budget with backoff.
+  status: in_progress
+  tags: [enhancement]
+  priority: medium
+
+task_context:
+  risk_level: low
+  clarifications_resolved: true
+  task_characteristics:
+    has_reproducible_defect: false
+    modifies_existing_code: true
+    creates_new_entities: false
+    involves_data_operations: false
+    ui_heavy: false
+  phase_summaries:
+    codebase_analysis:
+      summary: The export job lives in one module with no retry wrapper.
+      key_files: [src/export/job.js]
+      decisions: []
+      risks: ["transient and permanent failures share one error type"]
+      artifacts: [{path: analysis/codebase-analysis.md, label: Codebase analysis, html: null}]
+    gap_analysis:
+      summary: A retry wrapper and an error classifier are missing.
+      decisions: ["retry only errors classified as transient"]
+      risks: []
+      artifacts: [{path: analysis/gap-analysis.md, label: Gap analysis, html: null}]

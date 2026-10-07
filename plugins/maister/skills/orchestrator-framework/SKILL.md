@@ -12,29 +12,24 @@ This skill provides **shared reference documentation** for all orchestrator skil
 
 Reduce duplication across orchestrators by documenting common patterns once:
 
-- **Phase Blocks**: Simple phase structure with inline transitions (`→ MANDATORY GATE`, `→ AUTO-CONTINUE`) — the two transition types; see `orchestrator-patterns.md` § 2 for semantics
-- **State Management**: `orchestrator-state.yml` schema and operations
-- **Phase Gates**: Pause behavior and user prompts
-- **Initialization**: Task directory setup, metadata, task creation patterns
+- **Delegation**: Skill tool for skills, Task tool for agents — § 1
+- **Gates**: Pause behavior, the driver rule and in-node question defaults — § 2
+- **State Management**: `orchestrator-state.yml` schema and the context blocks — § 4
+- **Initialization**: Task directory setup and naming — § 5
 
 ## How Orchestrators Use This
 
-Each orchestrator reads the framework reference file at initialization (Step 1):
-
-```markdown
-### Step 1: Load Framework Patterns
-
-**Read the framework reference file NOW using the Read tool:**
+The workflow engine reads the framework reference file at initialization (its Step 1), and each
+workflow's node prose cites it by section:
 
 1. `../orchestrator-framework/references/orchestrator-patterns.md`
-```
 
 ## Reference Files
 
 | File | Purpose |
 |------|---------|
-| `references/orchestrator-patterns.md` | Delegation rules, phase gates, state schema, initialization, context passing, issue resolution |
-| `references/orchestrator-creation-checklist.md` | Authoring checklist for creating new orchestrators (not loaded at runtime) |
+| `references/orchestrator-patterns.md` | Delegation rules, phase gates, state schema, initialization, context passing, issue resolution — the normative shapes for this edition |
+| `references/orchestrator-creation-checklist.md` | Authoring checklist for a new built-in workflow definition (not loaded at runtime) |
 | `references/html-report-style.md` | Style guide for HTML companion reports (passed to companion-writing agents) |
 | `assets/dashboard.html` | The frozen operator dashboard, copied into every task dir |
 
@@ -42,20 +37,18 @@ Each orchestrator reads the framework reference file at initialization (Step 1):
 
 All orchestrators follow these principles:
 
-1. **State-Driven Execution**: `orchestrator-state.yml` is source of truth
-2. **Resume Capability**: Any orchestrator can be paused and resumed
-3. **Interactive**: Pause after each phase for user review
+1. **State-Driven Execution**: `orchestrator-state.yml` is source of truth, written only through the engine's `write-state` verb
+2. **Resume Capability**: Any run can be paused and resumed from its frozen graph
+3. **Interactive**: Pause at each gate for user review
 4. **User-Confirmed Rollback**: Never auto-rollback without user approval
-5. **Task Progress**: Always track progress with TaskCreate/TaskUpdate tools
+5. **Visible Progress**: The state file and the dashboard projected from it are the run's tracker
 6. **Standards Discovery**: Reference `.maister/docs/INDEX.md` throughout
 
 ## Orchestrators Using This Framework
 
-- `development` (bug fixes, enhancements, features)
-- `performance`
-- `migration`
-- `research`
-- `product-design`
+- `development` (bug fixes, enhancements, features), `performance`, `migration`, `research` and
+  `product-design` — through the workflow engine, which runs each one's definition and cites this
+  framework from its node prose
 
 Library consumers — not orchestrators themselves, but they read and write the same state and artifacts:
 

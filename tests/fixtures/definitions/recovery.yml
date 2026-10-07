@@ -1,0 +1,18 @@
+# A recovery node on the happy path: `recover` declares `on: failure` and
+# its one need completes, so the run never needs it.
+name: recovery
+version: 1
+
+nodes:
+  work:
+    uses: direct:work
+    needs: []
+
+  recover:
+    uses: direct:recover
+    needs: [work]
+    on: failure
+
+  finish:
+    uses: direct:finish
+    needs: [work]

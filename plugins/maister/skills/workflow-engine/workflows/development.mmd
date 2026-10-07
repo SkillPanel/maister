@@ -1,0 +1,56 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: development
+%% graph_hash: sha256:0e78fd2d1c719aa0809771b352229f619ee80b7b54a8d1f128f0d5d03c3a527a
+
+flowchart TD
+  n_intake["Intake<br/>intake<br/>direct:intake"]
+  n_codebase_analysis["Codebase analysis<br/>codebase-analysis<br/>skill:codebase-analyzer"]
+  n_gap_analysis["Gap analysis<br/>gap-analysis<br/>agent:gap-analyzer"]
+  n_gap_approval{{"Approve gap analysis<br/>gap-approval<br/>gate<br/>Gap analysis complete. Continue?<br/>continue-past-analysis: continue, revise-gap-analysis: revise → gap-analysis, stop-development: stop"}}
+  n_tdd_red{"Failing test<br/>tdd-red<br/>direct:tdd-red<br/>when: ${gap-analysis.values.has_reproducible_defect}"}
+  n_tdd_red_approval{{"Approve the failing test<br/>tdd-red-approval<br/>gate<br/>The failing test is written. Continue?<br/>continue-past-tdd-red: continue, stop-development: stop<br/>when: ${gap-analysis.values.has_reproducible_defect}"}}
+  n_ui_mockups{"UI mockups<br/>ui-mockups<br/>skill:mockup-studio<br/>when: ${gap-analysis.values.mockups_needed}"}
+  n_mockup_approval{{"Approve UI mockups<br/>mockup-approval<br/>gate<br/>UI mockups complete. Continue to specification?<br/>continue-to-specification: continue, revise-mockups: revise → ui-mockups, stop-development: stop<br/>when: ${gap-analysis.values.mockups_needed}"}}
+  n_specification["Specification<br/>specification<br/>direct:specification"]
+  n_specification_approval{{"Approve specification<br/>specification-approval<br/>gate<br/>Specification complete. Continue?<br/>continue-past-specification: continue, revise-specification: revise → specification, stop-development: stop"}}
+  n_spec_audit{"Specification audit<br/>spec-audit<br/>agent:spec-auditor<br/>when: ${specification.values.spec_audit_enabled}"}
+  n_spec_audit_approval{{"Approve specification audit<br/>spec-audit-approval<br/>gate<br/>Specification audit complete. Continue to implementation planning?<br/>continue-to-planning: continue, revise-specification: revise → specification, stop-development: stop<br/>when: ${specification.values.spec_audit_enabled}"}}
+  n_planning["Implementation planning<br/>planning<br/>agent:implementation-planner"]
+  n_planning_approval{{"Approve implementation plan<br/>planning-approval<br/>gate<br/>Implementation plan complete. Continue to implementation?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-development: stop"}}
+  n_implementation["Implementation<br/>implementation<br/>skill:implementation-plan-executor"]
+  n_implementation_approval{{"Approve implementation<br/>implementation-approval<br/>gate<br/>Implementation complete. Continue?<br/>continue-past-implementation: continue, stop-development: stop"}}
+  n_tdd_green{"Passing test<br/>tdd-green<br/>direct:tdd-green<br/>when: ${gap-analysis.values.has_reproducible_defect}"}
+  n_verification_options["Choosing the checks<br/>verification-options<br/>direct:verification-options"]
+  n_verification["Verification<br/>verification<br/>skill:implementation-verifier"]
+  n_verification_approval{{"Approve verification<br/>verification-approval<br/>gate<br/>Verification complete. Continue?<br/>continue-past-verification: continue, stop-development: stop"}}
+  n_e2e_verification{"Browser checks<br/>e2e-verification<br/>agent:e2e-test-verifier<br/>when: ${verification-options.values.browser_tests_enabled}"}
+  n_e2e_approval{{"Approve browser checks<br/>e2e-approval<br/>gate<br/>E2E verification complete. Continue?<br/>continue-past-e2e: continue, stop-development: stop<br/>when: ${verification-options.values.browser_tests_enabled}"}}
+  n_user_docs{"User documentation<br/>user-docs<br/>agent:user-docs-generator<br/>when: ${verification-options.values.user_docs_enabled}"}
+  n_docs_approval{{"Approve documentation<br/>docs-approval<br/>gate<br/>Documentation complete. Continue to finalization?<br/>continue-to-finalization: continue, stop-development: stop<br/>when: ${verification-options.values.user_docs_enabled}"}}
+  n_finalization["Finalization<br/>finalization<br/>direct:finalization"]
+  n_intake --> n_codebase_analysis
+  n_codebase_analysis --> n_gap_analysis
+  n_gap_analysis --> n_gap_approval
+  n_gap_approval --> n_tdd_red
+  n_tdd_red --> n_tdd_red_approval
+  n_tdd_red_approval --> n_ui_mockups
+  n_ui_mockups --> n_mockup_approval
+  n_mockup_approval --> n_specification
+  n_specification --> n_specification_approval
+  n_specification_approval --> n_spec_audit
+  n_spec_audit --> n_spec_audit_approval
+  n_spec_audit_approval --> n_planning
+  n_planning --> n_planning_approval
+  n_planning_approval --> n_implementation
+  n_implementation --> n_implementation_approval
+  n_implementation_approval --> n_tdd_green
+  n_tdd_green --> n_verification_options
+  n_verification_options --> n_verification
+  n_verification --> n_verification_approval
+  n_verification_approval --> n_e2e_verification
+  n_e2e_verification --> n_e2e_approval
+  n_e2e_approval --> n_user_docs
+  n_user_docs --> n_docs_approval
+  n_docs_approval --> n_finalization
+  class n_gap_approval,n_tdd_red_approval,n_mockup_approval,n_specification_approval,n_spec_audit_approval,n_planning_approval,n_implementation_approval,n_verification_approval,n_e2e_approval,n_docs_approval gate
+  class n_tdd_red,n_tdd_red_approval,n_ui_mockups,n_mockup_approval,n_spec_audit,n_spec_audit_approval,n_tdd_green,n_e2e_verification,n_e2e_approval,n_user_docs,n_docs_approval conditional

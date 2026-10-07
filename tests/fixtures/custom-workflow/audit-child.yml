@@ -1,0 +1,32 @@
+# The child `release-audit` starts as a sub-run: embeddable, taking the depth an
+# overlay tunes, exposing the findings directory its parent declares, with a
+# guard behind its first node.
+name: audit-child
+version: 1
+description: "Inspects one subject in depth and remediates what it finds blocking; started by a release audit as a sub-run."
+inputs:
+  subject: {type: string, required: true}
+  depth: {type: string, required: false, default: standard}
+  embedded: {type: bool, required: false, default: false}
+
+outputs:
+  artifacts:
+    findings: inspect.artifacts.findings
+
+nodes:
+  inspect:
+    uses: direct:inspect
+    needs: []
+    with:
+      subject: "${inputs.subject}"
+      depth: "${inputs.depth}"
+    outputs:
+      artifacts:
+        findings: findings
+      values:
+        blocking: bool
+
+  remediate:
+    uses: direct:remediate
+    needs: [inspect]
+    when: "${inspect.values.blocking}"

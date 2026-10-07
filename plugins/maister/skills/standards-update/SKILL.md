@@ -26,7 +26,7 @@ When `--from=PATH` is provided, the skill switches to **sync mode** — importin
 
 1. Resolve the path (absolute or relative to cwd)
 2. Check `PATH/.maister/docs/standards/` exists. If not, inform the user and stop.
-3. Check `.maister/docs/standards/` exists in the current project. If not, offer to run `/maister:init` first.
+3. Check `.maister/docs/standards/` exists in the current project. If not, follow § Prerequisites.
 
 ### SYNC STEP 2: Analyze Differences
 
@@ -36,20 +36,19 @@ When `--from=PATH` is provided, the skill switches to **sync mode** — importin
    - **Missing locally**: Category or file doesn't exist in the current project
    - **Differs**: Both exist but content differs (read and compare)
    - **Identical**: No action needed
-4. Present a summary to the user via AskUserQuestion (multi-select):
-   - Group by status: "New standards to add" and "Standards that differ"
-   - Each item shows: `[category]/[file]` with brief description of what it contains
-   - Options: individual files to sync, plus "Select all new" / "Select all different" convenience options
-   - User selects which standards to import
+4. Ask once with AskUserQuestion, the counts and the files named in the question by what they cover ("3 new: API errors, React components, test naming; 2 changed: validation, CSS"):
+   - "All new and changed (Recommended)"
+   - "New only" — leaves the local versions of the changed files as they are
+   - "Choose individually" — then a multi-select of the files, each labeled by what it covers with its category in the description, none marked recommended
 
 ### SYNC STEP 3: Apply Selected Standards
 
 For each selected standard:
 - **Missing locally**: Copy the file from source. Create category directory if needed.
-- **Differs**: Show a brief diff summary and use AskUserQuestion per file:
-  - "Replace with source version" — overwrite local file
-  - "Merge (append new sections)" — read both files, append `###` sections from source that don't exist locally
-  - "Skip" — leave local file unchanged
+- **Differs**: AskUserQuestion per file — up to four files to a page — the diff summary in the question ("Validation standards: the source adds 2 rules (email format, max lengths) and words 1 differently"):
+  - "Merge new sections (Recommended): keeps your edits" — append the source's `###` sections that don't exist locally
+  - "Replace with the source version" — overwrites the local file
+  - "Skip" — leave the local file unchanged
 
 ### SYNC STEP 4: Update INDEX.md
 
@@ -86,11 +85,10 @@ Based on the topic detected, suggest the best-matching existing category and fil
 - File names and their content (read existing files if topic is close)
 - Whether the convention fits an existing file or needs a new one
 
-**Step 4: Present suggestion**
+**Step 4: Confirm the target** — one AskUserQuestion, the convention in a few words in the question:
 
-- **If confident match** → AskUserQuestion: "This convention about [topic] fits [category/file]. Update it?" (Yes / Choose different / Cancel)
-- **If ambiguous** → AskUserQuestion listing possible categories/files + "Create new category" + "Create new file in [category]"
-- **If nothing detected** (no argument, no conversation context) → ask user to describe the convention they want to document
+- "Add it to the \<Category\> standards (\<file name\>)?" — "Yes (Recommended)" for the best match, up to two other candidate files by name with what each covers, and "New file" (its name and category the follow-up answer, or a new category). With no clear best match, the likeliest candidate is still offered first and recommended, the question saying why it is uncertain.
+- **If nothing detected** (no argument, no conversation context) → ask the user to describe the convention, free text, with an example in the question
 
 ---
 
@@ -109,14 +107,13 @@ No user prompt needed — just inform: "Updating existing standard: [name]" or "
 ### If updating
 
 1. Read current content
-2. Show summary of existing practices
-3. Ask what to add/change
-4. Extract: new practices, modifications, removals, code examples
+2. Take what to add or change from the argument and the conversation. Ask only when they say nothing about it — free text, the file's current practices summarized in the question
+3. Extract: new practices, modifications, removals, code examples
 
 ### If creating
 
 1. Inform user of target path
-2. Ask for practices, conventions, code examples, do's/don'ts
+2. Take the practices, examples and do's/don'ts from the argument and the conversation. Ask only for what they leave out — free text, what is already known stated in the question
 3. Optionally show plugin baseline if similar standard exists in docs-manager's bundled docs
 
 ---
@@ -145,4 +142,6 @@ Display a summary: what was updated/created, practices added, and next steps (re
 
 ## Prerequisites
 
-If `.maister/docs/` doesn't exist, offer to run `/maister:init` first.
+If `.maister/docs/` doesn't exist, ask once — "Set up Maister first? (runs the setup, then this)": "Set it up (Recommended)" runs `maister:init` with the Skill tool, then continues here; any other answer stops. This is the one rule for both modes.
+
+docs-operator asks nothing: a choice it returns under `decisions_needed` is asked here, in the same form, and the operation is called again with the answer.

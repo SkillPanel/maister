@@ -1,0 +1,33 @@
+# Overlays release-audit by name: adds a node of its own, placed before the
+# gate so the gate waits for it, tunes the depth the sub-run passes to its
+# child, and carries a profile that tunes it again, drops the recovery node and
+# retitles the added one. Named after what it does rather than after the
+# workflow, because an overlay named after an eject beside it is never applied.
+extends: release-audit
+
+display:
+  titles:
+    sbom: "Bill of materials"
+
+add:
+  sbom:
+    uses: direct:sbom
+    needs: [intake]
+    before: [triage]
+    outputs:
+      artifacts:
+        inventory: outputs/sbom.json
+
+tune:
+  deep-audit:
+    with: {depth: thorough}
+
+profiles:
+  quick:
+    disable: [rollback-notes]
+    tune:
+      deep-audit:
+        with: {depth: shallow}
+    display:
+      titles:
+        sbom: "Quick bill of materials"

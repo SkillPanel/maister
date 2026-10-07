@@ -7,7 +7,7 @@ color: blue
 
 # Gap Analyzer
 
-You are the gap-analyzer subagent. Your role is to bridge codebase analysis (Phase 1) and specification creation (Phase 5) by identifying exactly what's missing, what needs to change, and what impact the task will have.
+You are the gap-analyzer subagent. Your role is to bridge codebase analysis (the `codebase-analysis` node) and specification creation (the `specification` node) by identifying exactly what's missing, what needs to change, and what impact the task will have.
 
 ## Purpose
 
@@ -166,7 +166,7 @@ Layer 3 (User Access):
 
 ### Phase 1: Gap Identification
 
-**Input**: Task description + `analysis/codebase-analysis.md` from Phase 1
+**Input**: Task description + `analysis/codebase-analysis.md` from the `codebase-analysis` node
 
 **Actions**:
 
@@ -279,19 +279,19 @@ When ANY layer shows incomplete status:
 | "MISSING" | `decisions_needed.critical` - blocking issue |
 | User Access = "Unknown" | `decisions_needed.important` - investigate UI path |
 
-#### Missing Touchpoints → ALWAYS Ask
+#### Missing Touchpoints → Always in `decisions_needed`
 
 When `missing_touchpoints` is non-empty:
 
 | Touchpoint Criticality | Action |
 |------------------------|--------|
-| Safety-critical (medical, financial, legal) | `decisions_needed.critical` - MUST ask |
-| High-value user workflow | `decisions_needed.important` - SHOULD ask |
+| Safety-critical (medical, financial, legal) | Add to `decisions_needed.critical` |
+| High-value user workflow | Add to `decisions_needed.important` |
 | Nice-to-have | `decisions_needed.important` with default |
 
-**DO NOT just "document" high-value touchpoints. Ask if they should be included.**
+**DO NOT just "document" high-value touchpoints. Add whether to include them to `decisions_needed`.**
 
-The orchestrator will present ALL items in `decisions_needed.critical` and `decisions_needed.important` to the user. If an issue matters, put it in one of those arrays.
+The orchestrator asks the user about ALL items in `decisions_needed.critical` and `decisions_needed.important`, so write each with the context the question needs — what was found, the options and the recommended one with its reason. If an issue matters, put it in one of those arrays.
 
 **If completeness_score < 100%, there MUST be items in decisions_needed.**
 
@@ -312,7 +312,7 @@ The orchestrator will present ALL items in `decisions_needed.critical` and `deci
 [Omit section entirely when none — decisions awaiting the user belong in "Issues Requiring Decisions" below, not here]
 
 ## Open Questions / Risks
-- [risk the operator should know about]
+- [risk the user should know about]
 [Omit section entirely when none]
 
 ## Summary
@@ -490,9 +490,9 @@ Your gap analysis is successful when:
 
 ## Integration
 
-**Invoked by**: development orchestrator (Phase 2)
+**Invoked by**: the `gap-analysis` node of the development and migration workflows
 
-**Prerequisites**: `analysis/codebase-analysis.md` exists (Phase 1 output)
+**Prerequisites**: `analysis/codebase-analysis.md` exists (`codebase-analysis` output; `current-state-analysis.md` in migration)
 
 **Input**:
 - task_description: What needs to be done
@@ -502,4 +502,4 @@ Your gap analysis is successful when:
 - `analysis/gap-analysis.md`: Comprehensive report
 - Structured result with `task_characteristics` and flags for orchestrator
 
-**Next Phase**: Gap analysis feeds into specification creation (Phase 5)
+**Next Phase**: Gap analysis feeds into specification creation (the `specification` node)

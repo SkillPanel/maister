@@ -5,7 +5,7 @@ description: Discover coding standards from project configuration files, code pa
 
 # Standards Discovery Skill
 
-Analyzes multiple project sources in parallel to discover coding standards, conventions, and best practices. Aggregates findings with confidence scoring, presents for user approval, and applies approved standards via `docs-manager` skill.
+Analyzes multiple project sources in parallel to discover coding standards, conventions, and best practices. Aggregates findings with confidence scoring, asks the user which to keep, and applies approved standards via `docs-manager` skill.
 
 ## Core Principles
 
@@ -66,10 +66,9 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 ### Phase 1: Planning & Initialization
 
 1. **Parse options** from command arguments
-2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, offer to run `/maister:init` first
+2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, ask once — "Set up Maister first? (runs the setup, then this)": "Set it up (Recommended)" runs `maister:init` with the Skill tool, which ends by running a full discovery; any other answer stops here
 3. **Read existing standards** from `.maister/docs/INDEX.md` to identify updates vs creates and avoid duplicates
-4. **Display discovery plan** showing scope, sources, and estimated time
-5. **Get user confirmation** via AskUserQuestion before proceeding
+4. **Print the plan as one progress line** — scope, sources and rough time — and go on: the user asked for the discovery, so there is nothing to confirm
 
 ---
 
@@ -119,39 +118,23 @@ Display aggregation summary: total raw findings, unique standards, conflicts det
 
 ### Phase 7: User Review & Approval
 
-**Step 1: Present full summary table** — Before any approval prompts, output ALL findings in a table grouped by confidence level. Each group has a header with count:
+Print one line of counts (high, medium, conflicts, below the threshold), then ask. Every question carries its own findings — never a table above it for the question to point at. Name each standard in plain words, never as `category/file` alone.
 
-```
-### High Confidence (>=80%) — 5 standards
+- **High confidence (>= 80%)**: one question — "Apply these N standards?" with one line each in the question (what the standard says, in a few words). "Apply all N (Recommended)" / "Go through them". Going through them uses the medium-confidence pages below.
 
-| # | Standard | Category | Score | Sources | Description |
-|---|----------|----------|-------|---------|-------------|
-| 1 | no-semicolons | global | 92 | config, code, docs | Omit semicolons in all JS/TS files |
-| 2 | ... | ... | ... | ... | ... |
+- **Medium confidence (60-79%)**: pages of up to four findings, one question per finding: what the standard says, its evidence in a line (where it was seen, how often) and its sources. Options "Accept (Recommended)" when the evidence is consistent, "Accept with a change" (the change is the follow-up answer), "Skip", and "Skip the rest" — this finding and every one not yet asked, so a long list never has to be walked to its end.
+<!-- rich-picker -->
+  Each Accept option's preview shows the standard as it would be written, with its preferred and avoided examples.
+<!-- /rich-picker -->
+<!-- plain-picker
+  A page is one form of up to four properties; the standard's examples go in each property's description, since the form shows no previews.
+-->
 
-### Medium Confidence (60-79%) — 3 standards
-...
+- **Below the threshold**: not asked. The summary report (Phase 9) lists them so a later run with a lower `--confidence` can pick them up.
 
-### Low Confidence (<60%) — 2 standards
-...
+- **Conflicts**: pages of up to four, one question per conflict, both sides in the question with their evidence and sources. The better-evidenced side is recommended, its reason in its description; the other side and "Skip" are the remaining options, and a custom rule is the Other answer.
 
-### Conflicts — 1 detected
-| # | Standard | Conflict | Sources A | Sources B |
-```
-
-The **Sources** column lists all contributing sources for each finding (config, code, docs, PRs, CI, pre-commit). This gives users full visibility before making decisions.
-
-**Step 2: Approval flow** — After the summary table:
-
-- **High confidence (>= 80%)**: Use AskUserQuestion offering batch approval ("Apply all N high-confidence standards") or individual drill-down review. For drill-down, show full detail per finding: all evidence items with source attribution, examples (preferred/avoid), and confidence score breakdown (which factors contributed how many points).
-
-- **Medium confidence (60-79%)**: Present each individually with full detail (evidence, examples, confidence breakdown). Use AskUserQuestion with Accept/Modify/Skip options per finding.
-
-- **Low confidence (< threshold)**: Show the summary table rows only. Offer to expand details or skip all.
-
-- **Conflicts**: Present each conflict showing both sides with their evidence and sources. Use AskUserQuestion to resolve (pick side A, pick side B, skip, or custom).
-
-If `--auto-apply` is set, automatically approve findings with confidence >= 90% and only prompt for the rest.
+If `--auto-apply` is set, automatically approve findings with confidence >= 90% and only ask about the rest.
 
 ---
 
@@ -180,12 +163,13 @@ Display final results:
 
 | Situation | Strategy |
 |-----------|----------|
-| `.maister/docs/` missing | Offer `/maister:init`, abort if declined |
+| `.maister/docs/` missing | Ask "Set up Maister first?" (Phase 1); stop if declined |
 | gh CLI unavailable | Skip PR analysis, continue with other sources |
 | GitHub API rate limit | Skip PR analysis, note in report |
 | Config file parse error | Skip that file, log warning, continue |
 | No standards found | Suggest lowering threshold or checking specific scope |
-| docs-manager fails | Offer retry/skip/cancel per standard |
+| docs-operator fails | Ask with the cause in the question: "Retry (Recommended)" / "Skip these standards" |
+| docs-operator returns `decisions_needed` | Ask each in the same form, then call it again with the answers |
 | Subagent returns empty | Note in report, proceed with available findings |
 
 ---

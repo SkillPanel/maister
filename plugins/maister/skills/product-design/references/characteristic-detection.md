@@ -1,14 +1,14 @@
 # Characteristic Detection
 
-Guides how the product-design orchestrator detects design characteristics to adapt phase depth. Prevents "specification as bureaucracy" for simple tasks while ensuring complex designs get thorough exploration.
+Guides how the product-design workflow detects design characteristics to adapt the depth of its nodes. Prevents "specification as bureaucracy" for simple tasks while ensuring complex designs get thorough exploration.
 
 ---
 
 ## Purpose
 
-Not every design task needs the same depth. A quick "add a settings page" should not go through the same 8-question exploration as "design a new SaaS product from scratch." Characteristic detection runs once during Phase 0 (Initialization) and shapes every subsequent phase.
+Not every design task needs the same depth. A quick "add a settings page" should not go through the same 8-question exploration as "design a new SaaS product from scratch." Characteristic detection runs once, in the `intake` node, and shapes every node after it.
 
-**Core idea**: Detect early, confirm with user, adapt throughout.
+**Core idea**: Detect early, confirm at the first gate, adapt throughout.
 
 ---
 
@@ -29,28 +29,28 @@ Not every design task needs the same depth. A quick "add a settings page" should
 
 ---
 
-## Phase Activation Matrix
+## Node Activation Matrix
 
-Characteristics gate which phases activate and at what depth.
+Characteristics decide which nodes run and at what depth. Two of them are guards: `intake` turns "greenfield or complex" into `personas_enabled` and "UI-focused" into `prototyping_enabled`, the two bools the definition guards on.
 
-| Phase | is_greenfield | is_enhancement | is_ui_focused | is_backend | is_complex | is_simple |
+| Node | is_greenfield | is_enhancement | is_ui_focused | is_backend | is_complex | is_simple |
 |---|---|---|---|---|---|---|
-| 1 (Context Synthesis) | User context only | Codebase + user context | -- | -- | -- | -- |
-| 2 (Problem Exploration) | Full depth (8-10 Qs) | Abbreviated (2-3 Qs) | -- | -- | Full depth | Abbreviated |
-| 3 (Personas) | Full (2-3 personas) | Skipped | -- | -- | Full | Skipped |
-| 4 (Ideation) | Full brainstorm | Constrained by existing patterns | -- | -- | Full | Abbreviated |
-| 5 (Convergence) | Multiple decision areas | Focused on enhancement scope | -- | -- | Multiple areas | 1-2 areas |
-| 6 (Specification) | Comprehensive sections | Targeted sections | -- | -- | 6-8 sections | 3-4 sections |
-| 7 (Visual Prototyping) | -- | -- | Active | Skipped | -- | -- |
-| 8 (Refinement) | Full review | Targeted review | -- | -- | Full review | Quick review |
+| `context-synthesis` | User context only | Codebase + user context | -- | -- | -- | -- |
+| `problem-exploration` | Full depth (8-10 Qs) | Abbreviated (2-3 Qs) | -- | -- | Full depth | Abbreviated |
+| `persona-exploration` | Full (2-3 personas) | Skipped | -- | -- | Full | Skipped |
+| `idea-generation` | Full brainstorm | Constrained by existing patterns | -- | -- | Full | Abbreviated |
+| `idea-convergence` | Multiple decision areas | Focused on enhancement scope | -- | -- | Multiple areas | 1-2 areas |
+| `feature-specification` | Comprehensive sections | Targeted sections | -- | -- | 6-8 sections | 3-4 sections |
+| `visual-prototyping` | -- | -- | Active | Skipped | -- | -- |
+| `review-handoff` | Full review | Targeted review | -- | -- | Full review | Quick review |
 
-**Reading the matrix**: "--" means the characteristic does not influence that phase. Multiple characteristics combine: a `is_greenfield + is_complex + is_ui_focused` task gets full depth everywhere plus visual prototyping.
+**Reading the matrix**: "--" means the characteristic does not influence that node. Multiple characteristics combine: a `is_greenfield + is_complex + is_ui_focused` task gets full depth everywhere plus visual prototyping. A skipped node's closing gate still fires: `problem-approval` and `specification-approval` close the document before the guarded node as well.
 
 ---
 
 ## Adaptive Depth Scaling
 
-The complexity axis (`is_simple` / standard / `is_complex`) controls depth across interactive phases.
+The complexity axis (`is_simple` / standard / `is_complex`) controls depth across the interactive nodes. `intake` records it as the `complexity_level` value, and the nodes that scale with it receive it in `with:`.
 
 | Complexity | Exploration Questions | Convergence Areas | Spec Sections | Section Depth | Refinement Patience |
 |---|---|---|---|---|---|
@@ -66,13 +66,15 @@ The complexity axis (`is_simple` / standard / `is_complex`) controls depth acros
 
 ## User Override Pattern
 
-Detected characteristics are presented to the user at the Phase 0 exit gate for confirmation.
+Detected characteristics are shown to the user at `characteristics-approval`, the gate right after `intake`. `intake` asks no confirmation of its own.
 
 **Flow**:
-1. Orchestrator detects characteristics from task description and codebase signals
-2. Phase 0 exit gate presents detected characteristics with rationale
-3. User confirms or corrects misclassification
-4. Override updates `design_characteristics` in orchestrator-state.yml before any phase uses them
+1. `intake` detects characteristics from the task description and codebase signals, and writes each one that holds with its rationale into its summary; a characteristic detected on thin evidence is an open risk whose change is the correction
+2. `characteristics-approval` shows them, with those corrections offered by its revise
+3. The user continues, or revises with a note that corrects a misclassification
+4. On a revise, `intake` runs again with the note: it applies the correction to `design_context.design_characteristics`, derives the complexity and the two guard values again, and asks nothing already answered; the gate is then asked again
+
+The same gate reaches an operator under a `cockpit` or `dispatch` driver, so the correction works the same way in a driven run.
 
 **Why this matters**: Automated detection can misread intent. A short description might describe a complex system. An existing codebase might be getting a greenfield module. User confirmation prevents the workflow from optimizing for the wrong depth.
 
@@ -84,8 +86,8 @@ Detected characteristics are presented to the user at the Phase 0 exit gate for 
 
 **Codebase signals supplement, not override**: A detected UI framework suggests `is_ui_focused`, but the user's task description takes precedence. If they say "add an API endpoint" in a React codebase, trust the description.
 
-**Re-detection is not supported**: Characteristics are set once during Phase 0 and confirmed by the user. They do not change mid-workflow. If scope changes significantly, the user should start a new design task.
+**Re-detection is not supported after the first gate**: Characteristics are set in `intake` and confirmed, or corrected through a revise, at `characteristics-approval`. They do not change after that gate. If scope changes significantly later, the user should start a new design task.
 
 ---
 
-This reference provides detection patterns and depth-scaling frameworks. The orchestrator's SKILL.md defines the specific phase logic that consumes these characteristics.
+This reference provides detection patterns and depth-scaling frameworks. The workflow's node prose, `skills/workflow-engine/workflows/product-design.md`, defines the node logic that consumes these characteristics.

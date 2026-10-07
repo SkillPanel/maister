@@ -158,8 +158,8 @@ with this CSS (include in the standard style block of the plan companion):
 .group.done .g-badge::after { content:"✓ completed"; color:var(--ok); }
 ```
 
-The glyph/badge comes from CSS, never from markup — so the executor marks progress with a single unambiguous replacement per item:
-`data-step="2.3" class="step todo"` → `data-step="2.3" class="step done"` (same pattern for `data-group`). If a marker is not found (older file, failed generation), skip silently — companions never block.
+The glyph/badge comes from CSS, never from markup — so progress is one unambiguous class per item:
+`data-step="2.3" class="step todo"` ↔ `data-step="2.3" class="step done"` (same pattern for `data-group`). Other classes may sit beside the marker in the same list; only `todo`/`done` is set. The workflow engine's `sync-plan` verb sets each marker from the markdown plan's checkboxes; the executor runs it after every wave. A marker it cannot find (older file, failed generation) is reported for the work log, never a blocker — companions never block.
 
 ## Tone & Size
 

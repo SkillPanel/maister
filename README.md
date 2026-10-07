@@ -15,13 +15,15 @@ Describe what you want to build, and the plugin handles the rest - from specific
 - **Test-driven implementation** with automated planning, incremental verification, and full test suite runs before completion
 - **Pause and resume** any workflow - state is preserved across sessions
 - **Production readiness checks** including code review, reality assessment, and pragmatic over-engineering detection
+- **Workflows you can extend** - write your own, adjust a built-in with an overlay, and run them like any other with `/maister:run`
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Claude Code](https://claude.ai/code) CLI installed and configured
-- Node.js 20 or newer for HTML mockups (optional — without it, mockups fall back to ASCII)
+- [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.80+ with the `maister-copilot` variant)
+- `jq` on `PATH` — the destructive-command guard uses it to judge a subagent's shell commands, and denies them all without it
+- Node.js 20 or newer — required, with no fallback. Every workflow runs on the workflow engine, which needs it: without Node, a workflow command stops before it creates a task directory and says why. HTML mockups need it too
 
 ### Installation
 
@@ -30,9 +32,35 @@ Describe what you want to build, and the plugin handles the rest - from specific
 /plugin install maister@maister-plugins
 ```
 
-After installing, restart Claude Code (`/exit` and relaunch) to ensure the plugin is fully loaded.
+After installing, restart Claude Code (`/exit` and relaunch) to ensure the plugin is fully loaded. To move to a newer version later, see [Upgrading](#upgrading).
 
-On GitHub Copilot CLI, install the `maister-copilot` variant with `copilot plugin install` — from a registered marketplace (`copilot plugin marketplace add SkillPanel/maister`, then `copilot plugin install maister-copilot@maister-plugins`) or straight from the repository subdirectory (`copilot plugin install SkillPanel/maister:plugins/maister-copilot`). To run a local checkout instead, load it with `copilot --plugin-dir /path/to/maister/plugins/maister-copilot`; add `--add-dir` for the same path when the checkout sits outside your working directory, which grants file access to it. `--add-dir` on its own does not load a plugin. Then export `MAISTER_PLUGIN_ROOT` as the variant's [install notes](platforms/copilot-cli/README.md) describe, so HTML mockups can start their preview server.
+On GitHub Copilot CLI, install the `maister-copilot` variant with `copilot plugin install` — from a registered marketplace (`copilot plugin marketplace add SkillPanel/maister`, then `copilot plugin install maister-copilot@maister-plugins`) or straight from the repository subdirectory (`copilot plugin install SkillPanel/maister:plugins/maister-copilot`). To run a local checkout instead, load it with `copilot --plugin-dir /path/to/maister/plugins/maister-copilot`; add `--add-dir` for the same path when the checkout sits outside your working directory, which grants file access to it. `--add-dir` on its own does not load a plugin.
+
+**Copilot names the commands under the plugin.** Every command and workflow in this README is typed `/maister-copilot:<name>` on Copilot CLI, where Claude Code takes `/maister:<name>` — `/maister-copilot:development`, `/maister-copilot:init`, `/maister-copilot:reviews-code`. A bare `/development` is reported as an unknown command.
+
+**Then export the plugin root.** Copilot CLI exports no plugin-directory variable of its own, and several of the variant's skills — the workflow engine's among them — tell an agent to run a script under the plugin's own directory. With the variable unset those instructions do not resolve, and the agent works the path out and substitutes one — the guessing the variable exists to remove. Point it at the directory holding `.claude-plugin/plugin.json`, which is a different place on each install path:
+
+```bash
+# installed from a marketplace — <marketplace> is the one you added, e.g. maister-plugins
+export MAISTER_PLUGIN_ROOT=~/.copilot/installed-plugins/<marketplace>/maister-copilot
+# installed straight from the repository, without a marketplace
+export MAISTER_PLUGIN_ROOT=~/.copilot/installed-plugins/_direct/<source>
+# running a local checkout — the same path you passed to --plugin-dir
+export MAISTER_PLUGIN_ROOT=/path/to/maister/plugins/maister-copilot
+```
+
+`copilot plugin list` names what is installed. Put the export in your shell profile: it is read at spawn time and there is no flag for it. On Claude Code nothing is needed here — that host exports the same directory under its own name.
+
+**Two directory flags, and only one of them loads a plugin.** Both hosts have them and they are easy to confuse:
+
+| Flag | What it does |
+|---|---|
+| `--plugin-dir <path>` | Loads the plugin at that path. This is the one that makes the workflows available. |
+| `--add-dir <path>` | Grants file access to that directory, and picks up any `.claude/skills` or `.claude/agents` it contains — which a plugin directory does not have, because a plugin's skills live in its own `skills/`. It loads no plugin. |
+
+Pointing only `--add-dir` at a checkout starts a session that can read the files and has none of the workflows: asking for one reports the skill as not found. Pass `--plugin-dir`, and add `--add-dir` for the same path as well when the checkout sits outside your working directory.
+
+**Checking what loaded.** `claude plugin list` and `copilot plugin list` report a plugin loaded from a directory alongside the installed ones. The skill listing is the narrower answer — it is the session's own view, so read it inside the session rather than expecting an external command to confirm discovery.
 
 ### Initial project setup
 
@@ -101,7 +129,11 @@ You can always be explicit when you prefer - arguments and flags simply override
 | `/maister:migration` | Changing technologies or patterns |
 | `/maister:product-design` | Product and feature design |
 
-Task type (feature/bug/enhancement) is auto-detected from context. Override with `--type=feature|bug|enhancement` if needed. Or use `/maister:work` as a single entry point that routes to the right workflow.
+All five run on the workflow engine. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
+
+Whether a task is a bug fix is detected by the analysis, which then writes a failing test first. Or use `/maister:work` as a single entry point that routes to the right workflow.
+
+Workflows your project defines in `.maister/workflows/` run with `/maister:run <name>`; see [Extending maister](docs/extending.md).
 
 ### Quick Commands
 
@@ -126,13 +158,56 @@ Standards live in `.maister/docs/standards/` and are indexed in `.maister/docs/I
 
 **Important**: Run workflows with **auto-accept edits** enabled. Do not use Claude Code's plan mode with workflows (see [Best Practices](#best-practices) below).
 
+## Answering gates
+
+When a workflow pauses at a gate, you answer it in the session — every ordinary session works this way, and it needs no setup. Sessions the cockpit drives headlessly, which suspend at each gate until you answer from outside the terminal, are a Pro Edition feature (see [Pro Edition](#pro-edition) below).
+
+## Upgrading
+
+Automatic updates are off for this marketplace unless you turn them on, on the **Marketplaces** tab in `/plugin`. To update now, open `/plugin`, select `maister` on the **Installed** tab and choose **Update now** — or, from your shell:
+
+```bash
+claude plugin marketplace update maister-plugins
+claude plugin update maister@maister-plugins
+```
+
+Then run `/reload-plugins`, or start a new session. On GitHub Copilot CLI, `copilot plugin update maister-copilot@maister-plugins` does the same.
+
+Read the new version's entry in the [changelog](CHANGELOG.md) before you upgrade a workspace with work in flight: anything you have to do on upgrade day is under its **Upgrading** heading.
+
+### Upgrading from 2.x
+
+3.0 runs every workflow on the workflow engine, so it needs Node.js (see [Prerequisites](#prerequisites)), and it resumes only task directories its engine started. Before you upgrade, finish any task still in flight on 2.x, or plan to start it over on 3.0. Trying is safe: given a 2.x task directory, `/maister:work`, `/maister:run` and each workflow's own command say so and change nothing in it.
+
+Finished task directories need nothing. Those written by 2.2.3 or newer stay listed and shown in the dashboard like any other; older ones are listed by directory name, date and type only. There is nothing to migrate.
+
+The [3.0.0 changelog entry](CHANGELOG.md#300) lists every breaking change.
+
+### Staying on 2.x
+
+To keep using 2.x — or to finish a task you started there — install from the 2.x maintenance line:
+
+```bash
+# Add the 2.x marketplace
+/plugin marketplace add SkillPanel/maister#release/2.x
+
+# Install the 2.x plugin
+/plugin install maister@maister-plugins-2x
+```
+
+If another channel is installed, uninstall it first (for example `/plugin uninstall maister@maister-plugins`).
+
+The 2.x line receives fixes only — no new features — for six months after 3.0.0 is released.
+
+On GitHub Copilot CLI, check out the `release/2.x` branch and load its `plugins/maister-copilot` directory with `copilot --plugin-dir`, as described under [Installation](#installation).
+
 ## Beta Channel
 
 Want to try experimental features before they hit stable? Install from the beta channel:
 
 ```bash
 # Add the beta marketplace
-/plugin marketplace add SkillPanel/Maister#beta
+/plugin marketplace add SkillPanel/maister#beta
 
 # Install the beta plugin
 /plugin install maister@maister-plugins-beta
@@ -153,23 +228,32 @@ To switch back to stable:
 
 Beta versions may contain features that are not yet fully tested. Use at your own discretion.
 
-## Staying on 2.x
+## Pro Edition
 
-Maister 3.0 does not resume task directories created by 2.x, so a task started on 2.x should be finished on 2.x. To stay on 2.x, install from the 2.x maintenance line:
+The Pro Edition adds what unattended and multi-repository work needs: driven sessions, which the cockpit resumes headlessly and which suspend at each gate until you answer from outside the terminal, with gate enforcement on every tool call; the `plan`, `change` and `fix` workflows that a chain dispatches into member repositories; and the compatibility contracts register, the normative record of every on-disk shape. It installs from a private marketplace:
 
 ```bash
-# Add the 2.x marketplace
-/plugin marketplace add SkillPanel/maister#release/2.x
+# Add the pro marketplace (private — access is granted per customer)
+/plugin marketplace add SkillPanel/maister-pro
 
-# Install the 2.x plugin
-/plugin install maister@maister-plugins-2x
+# Install the pro plugin
+/plugin install maister@maister-pro
 ```
 
-If another channel is installed, uninstall it first (for example `/plugin uninstall maister@maister-plugins`).
+Because both editions use the plugin name `maister`, uninstall the other channel first. With both enabled, Claude Code can load each skill from either edition. Maister detects this: a warning at session start names both editions and the command that disables each, and the workflow engine won't start or resume a run until only one is enabled and Claude Code has been restarted:
 
-The 2.x line receives fixes only — no new features — for six months after 3.0.0 is released.
+```bash
+/plugin uninstall maister@maister-plugins
+```
 
-On GitHub Copilot CLI, check out the `release/2.x` branch and load its `plugins/maister-copilot` directory with `copilot --plugin-dir`, as described under [Installation](#installation).
+To switch back to the free edition:
+
+```bash
+/plugin uninstall maister@maister-pro
+/plugin install maister@maister-plugins
+```
+
+GitHub Copilot CLI follows the same two-command flow with `copilot plugin marketplace add` / `copilot plugin install`, using the plugin-root export described in [Installation](#installation).
 
 ## Best Practices
 
@@ -197,7 +281,34 @@ You can also append additional instructions to narrow scope or guide the workflo
 /maister:development .maister/tasks/development/2026-03-24-my-feature
 ```
 
+## Watching and driving runs from a browser
+
+The plugin runs workflows in one repository at a time, in your terminal. The
+**[maister cockpit](https://github.com/SkillPanel/maister-cockpit)** is its companion: a local daemon
+plus a browser tab that watches those runs live, starts and steers provider sessions, and drives
+multi-repository chains across an umbrella workspace.
+
+```sh
+npx maister-cockpit
+npx maister-cockpit repo add /absolute/path/to/your/repo
+```
+
+It runs entirely on your machine and never writes into a repository you register unless you opt into
+chain driving. Its [quickstart](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/quickstart.md)
+picks up where this README leaves off — install, `/maister:init`, a first workflow, then the cockpit
+beside it — and continues into umbrella workspaces and chains.
+
+| To | See |
+|---|---|
+| Watch a run you started in a terminal | [Cockpit README](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/README.md) |
+| Turn a workspace into an umbrella (`/maister:umbrella init`, then `validate`) and author a chain | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
+| Understand what an autonomy tier actually enforces | [Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md) |
+| Write your own chains, use your own skills and agents as nodes, or overlay a built-in | [Extending maister](docs/extending.md) |
+
 ## Learn More
 
 - [Workflow Details](docs/workflows.md) - phases, examples, and task structure for each workflow type
+- [Extending maister](docs/extending.md) - your own chains, skills and agents as nodes, overlays and eject, and what needs a contract change
 - [Full Command Reference](docs/commands.md) - all workflow, review, utility, and quick commands
+- [Decision Log](docs/decisions/README.md) - the ADRs behind the gate protocol, the coordination shapes, and the compatibility floor
+- [Cockpit quickstart](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/quickstart.md) - the browser-side path, from a first workflow to a chain across repositories

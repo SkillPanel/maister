@@ -1,0 +1,78 @@
+# A workflow no built-in is named after, written the way a user writes one into
+# their project's .maister/workflows/: an intake that fans out to three scans,
+# one of them guarded, a gate of its own with three options, a sub-run to a
+# child of its own, a report declaring a file and a directory, and a node that
+# runs only when the report fails. Every declared value is a bool or an enum,
+# so the definition validates with no warning at all.
+name: release-audit
+version: 1
+description: "Audits a release before it is tagged: scans licences, dependency advisories and, when asked, security, then gates on the findings and writes the audit report."
+inputs:
+  release: {type: string, required: true, tracker_key: true}
+  strict: {type: bool, required: false, default: false}
+
+display:
+  icons:
+    intake: analysis
+    report: docs
+  titles:
+    intake: "Release intake"
+    license-scan: "Licence scan"
+    dependency-scan: "Dependency scan"
+    triage: "Triage the scans"
+    report: "Audit report"
+
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    outputs:
+      artifacts:
+        brief: intake/brief.md
+      values:
+        needs_security: bool
+        risk_level: {enum: [high, medium, low]}
+
+  license-scan:
+    uses: direct:license-scan
+    needs: [intake]
+
+  dependency-scan:
+    uses: direct:dependency-scan
+    needs: [intake]
+
+  security-scan:
+    uses: direct:security-scan
+    needs: [intake]
+    when: "${intake.values.needs_security}"
+
+  triage:
+    type: gate
+    needs: [license-scan, dependency-scan, security-scan]
+    ask: "Scans finished. Start the deep audit?"
+    options:
+      proceed: continue
+      rescan: {effect: stop}
+      abandon: stop
+
+  deep-audit:
+    uses: workflow:audit-child
+    needs: [triage]
+    with:
+      subject: "${inputs.release}"
+    outputs:
+      artifacts:
+        findings: findings
+
+  report:
+    uses: direct:report
+    needs: [deep-audit]
+    outputs:
+      artifacts:
+        summary: outputs/audit-summary.md
+        evidence: outputs/evidence
+
+  rollback-notes:
+    uses: direct:rollback-notes
+    needs: [report]
+    on: failure

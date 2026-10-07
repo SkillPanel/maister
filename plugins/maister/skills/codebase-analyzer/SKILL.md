@@ -78,7 +78,7 @@ State which roles you selected and why (1 sentence).
 
 Read the template file for each selected role before launching — the templates hold the task-type-specific focus lists and the no-write constraint, which prompts written from memory drop.
 
-**3a. Read templates** — Use the Read tool to load ONLY the files for your selected roles:
+**3a. Read templates** — Use the Read tool to load ONLY the files for your selected roles, each by its absolute path under this skill's base directory. Never `cd` into the skill to read them: the session would stay there instead of at the project root.
 
 | Role | Read This File |
 |------|--------------|
@@ -151,8 +151,9 @@ risk_level: low|low-medium|medium|medium-high|high
 
 ## Integration
 
-| Orchestrator | Phase | artifact_name |
+| Workflow | Node | artifact_name |
 |-------------|-------|---------------|
-| development orchestrator | Phase 1 | `codebase-analysis.md` (default) |
-| migration orchestrator | Phase 1 | `current-state-analysis.md` |
-| performance orchestrator | Phase 1 | `codebase-analysis.md` (default) |
+| development | `codebase-analysis` | `codebase-analysis.md` (default) |
+| migration | `current-state-analysis` | `current-state-analysis.md` |
+| performance | `codebase-analysis` | `codebase-analysis.md` (default) |
+| product-design | `context-synthesis`, for an enhancement only | `codebase-analysis.md` (default) |

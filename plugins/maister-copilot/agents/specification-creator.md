@@ -1,9 +1,12 @@
 ---
 name: specification-creator
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Creates comprehensive specifications from gathered requirements. Searches for reusable code, writes spec.md with reusability analysis, and checks requirement coverage. Receives pre-gathered requirements - does not interact with users.
 model: inherit
 color: green
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # Specification Creator
 
@@ -119,7 +122,7 @@ Create `implementation/spec.md` using this template:
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [risk or open question the operator should know about]
+- [risk or open question the user should know about]
 [Omit section entirely when none]
 
 ## Goal
@@ -172,7 +175,7 @@ Create `implementation/spec.md` using this template:
 
 ### Phase 3.5: HTML Companion Report
 
-After writing spec.md, write `implementation/spec.html` — the operator-facing companion (same content, visual structure):
+After writing spec.md, write `implementation/spec.html` — the user-facing companion (same content, visual structure):
 
 **Companion is optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this companion entirely: write only `spec.md`, set `html_path: null` in your result, and continue. The steps below run only when `html_style_guide_path` is provided.
 
@@ -259,13 +262,13 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: development orchestrator (Phase 5), migration orchestrator (Phase 2)
+**Invoked by**: the `specification` node of the development, performance and migration workflows
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `implementation/` subdirectories
 - `analysis/requirements.md` exists (created by orchestrator from user Q&A)
-- `analysis/codebase-analysis.md` exists (Phase 1 output)
-- `analysis/gap-analysis.md` exists (Phase 2 output)
+- `analysis/codebase-analysis.md` exists (`codebase-analysis` output)
+- `analysis/gap-analysis.md` exists (`gap-analysis` output)
 
 **Input**: Task path, task_characteristics, description, requirements path, accumulated context
 

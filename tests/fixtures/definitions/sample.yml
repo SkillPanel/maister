@@ -1,0 +1,44 @@
+# A small definition exercising each node kind the engine records: a direct
+# node, a gate, the plan executor (the node the dashboard hangs progress on)
+# and a workflow: node that starts a child run. Two nodes carry a title and two
+# do not, so one run shows both a title and the humanized fallback.
+name: development
+version: 1
+inputs:
+  ticket: {type: string, required: false, tracker_key: true}
+
+display:
+  icons:
+    analysis: analysis
+    approval: spec
+    implementation: code
+    research: analysis
+  titles:
+    analysis: "Scope analysis"
+    approval: "Approve the scope"
+
+nodes:
+  analysis:
+    uses: direct:analysis
+    needs: []
+    outputs:
+      artifacts:
+        report: analysis/report.md
+
+  approval:
+    type: gate
+    needs: [analysis]
+    ask: "Analysis complete. Continue to implementation?"
+    options:
+      continue: continue
+      stop-here: stop
+
+  implementation:
+    uses: skill:implementation-plan-executor
+    needs: [approval]
+
+  research:
+    uses: workflow:research
+    needs: [implementation]
+    with:
+      question: "What did the implementation leave open?"

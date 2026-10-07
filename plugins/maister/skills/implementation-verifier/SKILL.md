@@ -13,19 +13,19 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 ## Responsibilities
 
 1. Validate prerequisites exist
-2. Delegate all verifications: test suite first (when enabled), then the remaining reviews (core + optional) in one parallel batch
+2. Delegate ALL verifications to subagents — the test suite first and alone, then everything else in parallel with its result
 3. Compile all results into verification report
-4. Keep the operator dashboard current across verification cycles
+4. Record each verification cycle in the workflow state, which keeps the operator dashboard current
 5. Update roadmap if exists (optional)
 6. Output summary with overall verdict
 
-## Dashboard Upkeep
+## State and Dashboard: Through the Engine
 
-This skill owns the dashboard for the duration of the verification phase, including every re-verification cycle after fixes — the orchestrator cannot refresh it while control sits here.
+The verification phase can run many cycles under this skill: the initial pass, then one re-verification after each round of fixes. While control sits here, the orchestrator cannot record any of them. So this skill records each cycle itself, in `verification_context`, and it **never writes `dashboard-data.js`**. The workflow engine's state writer is that file's only writer: it projects the verification panel from `verification_context` on every state write. Each record is one `write-state` call, with the patch in the patch file, following the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract).
 
-- **Gate**: read `orchestrator.options.html_output` from `orchestrator-state.yml`. When false, or in standalone mode (no state file), there is no dashboard — skip every rewrite.
-- **Rules**: `../orchestrator-framework/references/orchestrator-patterns.md` § 8 (moment 10, schema, the `date -u` clock rule). Do not restate them here — read them.
-- **Never blocks**: a failed rewrite is noted in the Phase 5 summary and the verdict stands regardless.
+- **Two writes per cycle**: one at entry, which clears the previous cycle's verdict (Phase 1), and one once this cycle's report is written (Phase 3). `verification_context` merges key by key, so neither write touches `fixes_applied`, `decisions_made` or `reverify_count`. Those belong to the caller's fix loop.
+- **Orchestrator mode only.** A standalone run has no `orchestrator-state.yml`, so it has no workflow run and no dashboard. The report is that run's record, and there is nothing to write. `html_output` does not gate these writes: they are state, and the writer itself decides whether a dashboard is published.
+- **Never blocks**: a refused write is noted in the Phase 5 summary and the verdict stands regardless.
 
 ## Output Artifacts
 
@@ -47,7 +47,7 @@ This skill owns the dashboard for the duration of the verification phase, includ
 **Check for orchestrator state file** at task path:
 
 - **Orchestrator mode**: If `orchestrator-state.yml` exists, read verification options from it. Execute enabled reviews without re-prompting.
-- **Standalone mode**: If no state file, prompt user for each optional review using AskUserQuestion.
+- **Standalone mode**: If no state file, ask once which reviews to run (§ Choosing the reviews).
 
 **Orchestrator options** (when present, are mandatory):
 - `skip_test_suite` (when true, test-suite-runner is skipped — full test suite already passed during implementation phase)
@@ -56,16 +56,32 @@ This skill owns the dashboard for the duration of the verification phase, includ
 - `production_check_enabled`
 - `reality_check_enabled`
 
+**`recheck: tests-only`** (a caller parameter, orchestrator mode only): the caller's fix loop
+passes it after fixes that changed no behaviour — comments, docs, regenerated HTML, the run's own
+bookkeeping. Run only the test suite (Step 3a, whatever `skip_test_suite` says) and none of the
+reviews; then rewrite the canonical report as the **Re-verification rule** says, marking the
+fixed issues resolved with the test result as their evidence, keeping every other issue as the
+previous cycle graded it. A full re-verification is what follows a fix that changed behaviour.
+
+### Choosing the reviews
+
+One AskUserQuestion, never one per review — "Which reviews should run besides the completeness check and the tests?":
+- "All four reviews (Recommended)" — code review, pragmatic review, production readiness and reality check
+- "Code review only"
+- "Choose individually" — then a multi-select of the four, each with a one-line description and none marked recommended
+
+The same question serves orchestrator mode when the state leaves any review option unset (`null`): the question then says the run's settings left them open, and only the unset reviews are in it. Under a non-terminal driver it is not asked; the recommended answer is taken and recorded as a default.
+
 ---
 
 ## Phase 1: Initialize & Validate
 
-1. **Get task path** from user or orchestrator parameter
+1. **Get task path** from the orchestrator parameter or the argument; standalone with neither, ask once with the latest task folder as "(Recommended)" and the next two by name
 2. **Validate prerequisites exist**:
    - `implementation/implementation-plan.md` (required)
    - `implementation/spec.md` (required)
    - `implementation/work-log.md` (required)
-3. **Read docs/INDEX.md** to understand available standards
+3. **Read `.maister/docs/INDEX.md`** to understand available standards (optional — skip standards loading when absent)
 4. **Determine invocation context** (orchestrator or standalone)
 5. **Create task items for verification tracking** using `TaskCreate` tool:
    - Subject: "Completeness check", activeForm: "Checking implementation completeness"
@@ -76,7 +92,7 @@ This skill owns the dashboard for the duration of the verification phase, includ
    - Subject: "Reality assessment", activeForm: "Running reality assessment" — only if reality_check_enabled
    - Subject: "Compile report", activeForm: "Compiling verification report"
 6. **Set dependencies** using `TaskUpdate` with `addBlockedBy`: "Compile report" blocked by ALL verification tasks above
-7. **Rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate): verification phase `in_progress`, `verification.status` set to the cycle about to run. On a re-verification cycle this is what clears the previous cycle's picture before new results land.
+7. **Clear the previous verdict** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status: null` and `issues_found: []`. On a re-verification cycle this clears the previous cycle's picture before new results land, so the dashboard never shows a pre-fix verdict as current.
 
 If prerequisites missing, report and stop.
 
@@ -86,15 +102,14 @@ If prerequisites missing, report and stop.
 
 All analysis is delegated: tests → test-suite-runner; plan/standards/docs completeness → implementation-completeness-checker; quality/security → code-reviewer; over-engineering → code-quality-pragmatist; deployment → production-readiness-checker; problem-fit → reality-assessor. This skill only compiles their reports.
 
-**Verifications run in two sequential steps to avoid parallel test conflicts.**
+**Verifications run in two sequential steps: the test suite, then everything else.** The order is carried by data, not only by instruction — every Step 3b prompt contains the Step 3a result, so none of them can be written before the test suite has returned. Two reasons: the test-suite runner and the reality assessor both run tests and conflict in parallel, and a review exists partly to weigh the test outcome, which it cannot do if it runs first.
 
 ### Step 1: Determine enabled optional reviews
 
 1. **Check invocation context** for each optional review:
    - If orchestrator mode AND option is `true`: Include in verification (mandatory)
    - If orchestrator mode AND option is `false`: Skip (mark task as completed with `metadata: {skipped: true}`)
-   - If orchestrator mode AND option is `null`: Warn and prompt user
-   - If standalone mode: Prompt user with AskUserQuestion
+   - If orchestrator mode AND option is `null`, or standalone mode: ask § Choosing the reviews
 
 ### Step 2: Set all tasks to in_progress
 
@@ -104,18 +119,18 @@ All analysis is delegated: tests → test-suite-runner; plan/standards/docs comp
 
 **Why sequential**: Test-suite-runner and reality-assessor both run tests. Running them in parallel causes conflicts. Test-suite-runner runs first and writes results to a file that reality-assessor reads.
 
-Task tool call (if NOT skip_test_suite):
+Task tool call (if NOT skip_test_suite) — **the only Task call in its message**:
 - subagent_type: `maister:test-suite-runner`
 - description: `Run full test suite`
 - prompt: Include task_path, task_description, test_command (if known). The subagent runs ALL tests, analyzes results, and writes results to `verification/test-suite-results.md`.
 
-**Wait for test-suite-runner to complete** before proceeding to Step 3b. Mark the test suite task as `completed` with results.
+**Wait for test-suite-runner to return**, mark the test suite task `completed`, and record its result as the **test-suite result**: the pass/fail status, the pass and fail counts, and the path `verification/test-suite-results.md`. Step 3b cannot begin without it.
 
-**When `skip_test_suite: true`**: Skip Step 3a entirely. Go straight to Step 3b. The full project test suite already passed during the implementation phase. The verification report will note tests were verified during implementation.
+**When `skip_test_suite: true`**: dispatch nothing here. The test-suite result is then the skip itself — "not run in verification: the full suite passed during the implementation phase" — and the verification report notes tests were verified during implementation.
 
 ### Step 3b: Run all other verifications (parallel)
 
-**INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 parallel Task tool calls):
+**INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 parallel Task tool calls). **Every prompt below also carries the test-suite result from Step 3a** — status, counts and results path, or the skip line — so each review weighs its findings against the tests' actual outcome:
 
 Task tool call (always):
 - subagent_type: `maister:implementation-completeness-checker`
@@ -144,7 +159,7 @@ Task tool call (if reality_check_enabled):
   - **If test-suite-runner ran (Step 3a)**: Include `skip_test_execution: true` and path to `verification/test-suite-results.md`. Reality-assessor should read test results from that file instead of running tests.
   - **If test-suite-runner was skipped**: Include `skip_test_execution: false`. Reality-assessor should run tests itself since no other agent did.
 
-**SELF-CHECK**: Did you invoke test-suite-runner separately in Step 3a (or skip it), then invoke all remaining subagents in a single parallel message in Step 3b? Or did you launch everything at once? If the latter, STOP — test-suite-runner must complete before the parallel batch.
+**SELF-CHECK**: Does every Step 3b prompt contain the test-suite result from Step 3a? If you are about to send a review whose prompt has no test-suite result in it, STOP — Step 3a has not returned (or its skip was not recorded), and the review would be dispatched ahead of the tests.
 
 ### Step 4: Process all results
 
@@ -183,6 +198,7 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
 
    **Re-verification rule**: `implementation-verification.md` and its `.html` companion are the CANONICAL verdict — they must always reflect the **latest** verification state. When this skill runs after fixes (`verification_context.fixes_applied` non-empty or `reverify_count` > 0):
    - REWRITE both files with the post-fix verdict — never leave the pre-fix report standing
+   - Keep every issue's number: an issue found before keeps the `id` it has in `verification_context.issues_found`, and a new one takes the next unused number — the fix loop and the user refer to issues by these numbers across cycles
    - Update the TL;DR block to the final verdict and remaining (not original) issue counts
    - Add a **"Fix & Re-Verification History"** section: each issue → fix applied → re-check outcome (resolved / residual, with one-line evidence)
    - Subagent re-check outputs may save as side files (e.g. `code-review-reverify.md`) — fine as evidence, but they never substitute for refreshing the canonical report
@@ -196,7 +212,7 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Standards compliance (from completeness checker)
    - Documentation completeness (from completeness checker)
    - Optional review results (if performed)
-   - **Visual fidelity** (when `verification/visual-fidelity.md` exists — written by e2e-test-verifier in development workflow Phase 12): surface its summary table prominently. Include count of ✓/⚠/✗ comparisons and list every ✗ (substantive drift) with screen ID and one-line description. Cross-reference `implementation/visual-coverage.md` if present. This section is REPORT-ONLY — never gates overall verdict (per design decision: report-only, surfaced prominently).
+   - **Visual fidelity** (when `verification/visual-fidelity.md` exists — written by e2e-test-verifier in the development workflow's `e2e-verification` node): surface its summary table prominently. Include count of ✓/⚠/✗ comparisons and list every ✗ (substantive drift) with screen ID and one-line description. Cross-reference `implementation/visual-coverage.md` if present. This section is REPORT-ONLY — never gates overall verdict (per design decision: report-only, surfaced prominently).
    - Overall assessment with breakdown table
    - Issues requiring attention
    - Recommendations
@@ -207,7 +223,7 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Same content as the md — restructure and visualize, never add findings
    - Never block on it: if generation fails, keep the md, note the miss, continue
 5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 5 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
-6. **Rewrite `dashboard-data.js`** (skip per the Dashboard Upkeep gate) with this cycle's outcome: `verification.status`, `issues` (original severity retained, `fixed: true` on the ones fixed), `fixes`, and `reverify_count`. Register the report and its companion in the verification phase's `artifacts`. This is the dashboard counterpart of the **Re-verification rule** above: the canonical report and the dashboard are rewritten together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
+6. **Record this cycle** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status` set to this cycle's verdict and `issues_found` set to the report's issues, in the issue shape of `../orchestrator-framework/references/orchestrator-patterns.md` § 4. Keep each issue's original severity, and set `fixed: true` on the ones fixed since. Registering the report and its companion as artifacts is not part of this write: the caller's closing `node_summaries` write carries it. This is the state counterpart of the **Re-verification rule** above. The canonical report and the recorded verdict change together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
 7. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
 ---
@@ -270,7 +286,9 @@ issues:
     severity: "critical" | "warning" | "info"
     description: "[Brief description of the issue]"
     location: "[File path or area affected]"
+    id: 3                        # the report's own number, kept across re-checks
     fixable: true | false
+    risky: true | false          # only meaningful when fixable
     suggestion: "[How to fix, if obvious]"
 
 issue_counts:
@@ -282,6 +300,9 @@ issue_counts:
 **Guidelines for `fixable` assessment**:
 - `true`: Lint errors, formatting issues, missing imports, obvious typos, simple config fixes
 - `false`: Architecture decisions, design trade-offs, test logic errors, unclear requirements
+- For a `false`, say in `suggestion` why it needs the user's decision — the decision, design change or missing sign-off a person has to supply. The caller's fix loop quotes it beside the item.
+- Grade fixability the same way at every severity: the fix loop offers fixable info items too.
+- **`risky`** grades a fixable issue's fix: `true` when it reaches beyond the item into behaviour the change did not set out to alter — it departs from the specification, changes what callers see, or touches anything beyond the code (staging files in git, publishing). The caller's fix loop applies every fixable, non-risky issue without asking and asks the user about the risky ones, so grade it honestly: a fix wrongly graded safe is a change nobody chose.
 
 **The orchestrator decides** what to actually fix based on this data. Your job is to aggregate subagent results accurately.
 
@@ -312,5 +333,5 @@ Before finalizing verification:
 - All subagent results processed
 - Verification report created
 - Overall status determined from aggregated results
-- `dashboard-data.js` rewritten at entry and after this cycle's report — or skipped because `html_output` is false / standalone mode
+- `verification_context` cleared at entry and recorded after this cycle's report through `write-state` — or skipped in standalone mode
 - No direct analysis performed (all delegated)

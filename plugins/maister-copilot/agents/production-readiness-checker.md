@@ -1,9 +1,12 @@
 ---
 name: production-readiness-checker
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Automated production deployment readiness verification. Analyzes configuration management, monitoring setup, error handling, performance scalability, security hardening, and deployment considerations. Provides GO/NO-GO deployment recommendation with categorized blockers and concerns. Reports issues without modifying the code under review, and always writes its report to report_path. Does not interact with users.
 model: inherit
 color: red
 ---
+
+**You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 # Production Readiness Checker
 
@@ -254,7 +257,7 @@ issue_counts:
 
 ## Integration
 
-**Invoked by**: implementation-verifier (Phase 3), performance orchestrator (Phase 4), standalone via `/maister-reviews-production-readiness` command
+**Invoked by**: implementation-verifier (Phase 3) — which the `verification` node of each engine workflow runs — or standalone via `/maister-copilot:reviews-production-readiness` command
 
 **Prerequisites**:
 - Code exists at the specified path

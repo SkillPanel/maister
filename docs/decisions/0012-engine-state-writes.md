@@ -1,0 +1,74 @@
+# ADR-0012 — Engine state writes
+
+**Status**: Accepted · **Date**: 2026-08-26 · **Sources**: `plugins/maister/skills/workflow-engine/scripts/lib/state.mjs`, `SKILL.md` § "Writing state"; `plugins/maister/lib/state-scan.mjs`
+
+## TL;DR
+Every state change an engine run makes goes through one script verb; no editor tool ever touches the state file. The writer emits at a single canonical indent because two readers consult these files and disagree about every other width, keeps the shapes both readers require on one line and refuses any value that cannot go there, and validates each candidate through the shared state reader — imported from the hook library, not re-implemented — before renaming it into place. There is deliberately **no fallback writer**: if the script cannot run, the run is handed to the prose orchestrator instead.
+
+## ADR-0012: Engine state writes {#adr-0012}
+
+### Status
+Accepted. This record covers how the state file and its pending marker are produced.
+
+### Context
+A task directory's state file is read by more than one thing. The hook library's reader reads it to decide whether a gate is pending; other tooling reads it to check the frozen shapes. An operator reads it. And, until now, a model wrote it — holding the file open in an editor tool and re-emitting regions of it by hand.
+
+That last part is the problem this decision exists to remove. The two readers are not equivalent: one derives a block's child column from that block's first child, the other hardcodes the columns it expects. A file written uniformly at some other width is read correctly by one and read as **empty** by the other — and an empty node map beside a present workflow key is exactly the shape the pending predicate treats as a run awaiting an operator. A single wrongly indented block therefore does not merely look untidy: the run reads as awaiting an operator, which is a stopped run rather than a cosmetic diff.
+
+### Decision Drivers
+- A write that is read two ways is worse than a write that fails
+- The failure mode is a blocked operator, not a cosmetic diff
+- Anything a consumer needs at run time must be dependency-free
+
+### Considered Options
+1. Keep model-authored state, and lint the file afterwards
+2. Round-trip the file through a YAML library and dump it back
+3. A line-oriented writer that owns four shapes by structural position, with a hook-reader gate before publishing ← chosen
+4. Option 3, plus an editor-tool fallback for when the script cannot run
+
+### Decision Outcome
+Chosen option: **the line-oriented writer**, invoked as one verb of the engine's script, taking its patch on stdin so no quoting has to survive a shell. It locates the shapes it owns by structural position, replaces or inserts only those regions, and passes every other line through untouched — so unknown keys and comments survive by construction rather than by parser fidelity. One whole-file write per invocation, written to a temp file and renamed; the temp file's name is fixed rather than configurable, because a permission rule, a hook and a reviewer can match a name, but not a free path.
+
+A YAML round-tripper was rejected for two reasons, the second decisive. It would be a dependency, and a consumer checkout has none. And a generic dumper emits block maps, while the readers require a frozen one-line form — so it would produce valid YAML that the readers refuse. Linting after the fact was rejected because by the time the lint runs the damage is already on disk, and repairing it is one more write through the same tooling.
+
+Four rules make the output safe, and each is here because breaking it blocks someone:
+
+- **The canonical indent is mandated, not preferred.** Column 0, then 2, then 4, then two more per level, is the only emission both readers interpret identically. The writer never mixes: adopting a file at another width normalizes the whole file or refuses it outright and writes nothing, because a canonical block inserted into a non-canonical file is the one thing the hook actively rejects.
+- **The one-line shapes stay on one line, and their text is constrained.** A node entry, a summary and the pending marker are single-line forms. A value that cannot be written safely inline — one carrying a quote, a newline or a carriage return, or a key that is not usable in a flow map — is refused rather than escaped, because an escape that survives one reader and not the other reproduces the original failure at a lower level. No line the readers consult carries a trailing comment.
+- **The acceptance oracle is the reader itself.** Before the rename, the candidate text is passed through the shared state reader, **imported** from the hook library rather than approximated. That reader has more rejection paths than any short list captures, and a hand-written copy of it drifts from the original on the first change to either — at which point the writer would be validating against a reader nobody uses.
+- **A refusal is an answer.** The refusal codes are a closed set and a refused write publishes nothing: the file on disk is byte-for-byte what it was. Re-sending the same patch, or reaching for an editor tool because the script said no, is the failure mode the whole design removes.
+
+**There is no fallback writer**, and this is where the engine deliberately diverges from the precedent set elsewhere in the plugin, where a skill that cannot render one way renders another. That precedent swaps one *rendering* for another and loses only fidelity. A fallback here would swap the *writer*, and the alternative writer is the one known to corrupt — so it would not be a degraded mode but a different failure surface, reached exactly when things are already going wrong. Half a writer is worse than none. When the script cannot run at all, the engine stops before writing anything and hands the run to the workflow's prose orchestrator, which needs no script.
+
+### Consequences
+
+#### Good
+- State that both readers agree on, verified against the real reader before anything is published
+- Comments, unknown keys and untouched lines survive byte-for-byte, so a state file stays reviewable
+- A refused write leaves the directory exactly as it was, so there is no partially applied state to reason about
+
+#### Bad
+- The engine requires a working script runtime, and a consumer without one gets the prose workflow rather than a degraded engine run
+- A value an author would consider ordinary can be refused for being unsafe inline, and the fix is to change the value rather than the writer
+- Importing the hook's reader couples the writer to the hook library, so a change to the reader can fail a write path that has not otherwise changed
+- The closed patch vocabulary means every new state field is a change to the writer, not only to its caller
+
+### Amendment 2026-09-27 — a completing node summary gains its declared artifacts
+The writer no longer writes a node summary exactly as the patch sent it. When a `node_summaries` entry is written for a node whose status is `completed`, it appends each artifact path the run's definition declares for that node which exists in the run directory and is not already listed. It also fills a missing `html` on a listed markdown artifact whose sibling `.html` exists, unless `html_output` is off. Driven runs showed the need. A closing write that omitted the list left the verification report and its companion unlinked on the dashboard although both were on disk, and nothing but a person comparing two lists noticed.
+
+The addition is bounded: it covers declared literal paths and companions that exist, it removes and overwrites nothing, and a definition that cannot be resolved adds nothing and never fails the write. The writer now reads the definition and the run directory on a node summary write, as the dashboard projection already did (ADR-0024).
+
+### Amendment 2026-09-30 — the patch travels in a patch file
+A patch no longer reaches the writer through a shell heredoc. Claude Code's built-in shell-safety check refuses a command that holds braces beside quotes, which describes every JSON heredoc. An allow rule for the script doesn't lift it. Measured headless, the check blocked the heredoc in the default, `acceptEdits` and `auto` modes and let it through only under `bypassPermissions`, so a run stopped at its first state write. The driver now writes the patch with its file tool to `.state-patch.json` beside the state, and names it with `write-state --patch-file`. `gate-request` reads its request document the same way.
+
+The name is fixed, for the reason the temp file's name is: a permission rule, a hook and a reviewer can match a name, but not a free path. The verb refuses any other name or directory, a `..` segment and a link, all at exit 2, before anything is read. It parses the file exactly as it parses stdin, so the same document lands the same bytes. It deletes the file once the write lands and keeps it on a refusal, so a file left behind always means "not applied". Stdin stays, for scripts, tests and hosts with no file tool.
+
+The shell call is all bare words, so the command recogniser accepts it unchanged. What is new is the file write in front of it. The hook library recognises a write to that name inside a run as the engine's own, so a hook can answer for it on the same terms as the call. Neither half ever reads the patch. A redirect (`< file`) was measured too: Claude Code lets it through, but it names no file the verb can check or delete, and the recogniser refuses it as a second operator. The option was rejected.
+
+### Amendment 2026-09-30 — the umbrella verbs take an input file the same way
+The umbrella runtime's `envelope`, `ledger` and `outbox` read their JSON the same way, through `--input-file`. The name is `.umbrella-input.json`, and the rules are the patch file's: one name in one place, no `..` and no link, the same parse as stdin, deleted on acceptance and kept on a refusal. The file half of that rule is one shared module, so the two routes cannot drift apart.
+
+The place differs, because the umbrella's files are shared where a run's state is not. A fixed name in a shared directory is a race: one caller writes, a second overwrites, and the first verb applies the second caller's document. So each place belongs to one caller. `outbox` reads from the dispatch's own directory, not the outbox root that every worker of a wave writes under. `envelope` reads from the run's `dispatch/` directory. `ledger` reads from the calling run's `dispatch/` directory, named with `--run`, and never from the ledger directory, which every run in the workspace shares. The hook library recognises the editor write to each place as the runtime's own, on the same terms as the patch file.
+
+### Amendment 2026-10-05 — the shared reader lives in `lib/`
+The shared state reader is `plugins/maister/lib/state-scan.mjs`, a plugin-root library like the write primitives. Where this record says the writer imports the reader from the hook library, it now imports it from that module; the oracle rule is unchanged.

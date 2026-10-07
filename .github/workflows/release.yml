@@ -27,8 +27,24 @@ jobs:
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
           echo "previous=$previous" >> "$GITHUB_OUTPUT"
 
+      # The changelog section for this version is the release body: everything
+      # under its `## X.Y.Z` heading, up to the next `## ` heading. A tag the
+      # changelog has no section for gets GitHub's generated notes instead.
+      - name: Read the release notes from the changelog
+        id: notes
+        run: |
+          notes="$RUNNER_TEMP/release-notes.md"
+          awk -v v="${GITHUB_REF_NAME#v}" '
+            /^## / { if (found) exit; if ($2 == v && NF == 2) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > "$notes"
+          if grep -q '[^[:space:]]' "$notes"; then
+            echo "body_path=$notes" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.body_path }}
+          generate_release_notes: ${{ steps.notes.outputs.body_path == '' }}
           make_latest: ${{ steps.versions.outputs.latest }}
           previous_tag: ${{ steps.versions.outputs.previous }}

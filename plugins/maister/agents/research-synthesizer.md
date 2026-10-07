@@ -247,7 +247,7 @@ Combine relevant elements from above frameworks based on research objectives.
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [unresolved question or low-confidence area the operator should know about]
+- [unresolved question or low-confidence area the user should know about]
 [Omit section entirely when none]
 ```
 
@@ -305,7 +305,7 @@ Combine relevant elements from above frameworks based on research objectives.
 
 ### Phase 7: HTML Companion Report
 
-After writing research-report.md, write `outputs/research-report.html` — the operator-facing companion:
+After writing research-report.md, write `outputs/research-report.html` — the user-facing companion:
 
 **Companion is optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this companion entirely: write only `research-report.md`, note the skip in your summary, and continue. The steps below run only when `html_style_guide_path` is provided.
 
@@ -375,6 +375,6 @@ After writing research-report.md, write `outputs/research-report.html` — the o
 - `analysis/synthesis.md` (patterns and insights)
 - `outputs/research-report.md` (comprehensive report)
 
-**State Update**: Report back to orchestrator (Phase 1, Step 4 complete)
+**State Update**: Report back to orchestrator (`research-foundation`, Step 4 complete)
 
 **Next Step**: Orchestrator evaluates brainstorming value (Phase 2) then creates deliverables

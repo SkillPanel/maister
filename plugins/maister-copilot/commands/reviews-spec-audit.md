@@ -3,7 +3,7 @@ name: reviews-spec-audit
 description: Independent specification audit to verify completeness and clarity before implementation
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="maister-spec-auditor" NOW. Pass the spec path in the prompt. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="maister-copilot:spec-auditor" NOW. Pass the spec path in the prompt. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no path is given.
 
 You are running an independent specification audit using the `spec-auditor` agent.
 
@@ -17,7 +17,7 @@ You are performing senior auditor review of specifications to verify completenes
 
 1. **Specification path**:
    - If provided: Use the specified spec file path
-   - If not provided: Use ask_user to ask for spec.md path
+   - If not provided: find the most recently changed `spec.md` under `.maister/tasks/` and ask once: "Audit the specification of <task name>?": "Audit this spec (Recommended)" with its path as the description, then up to two older specs by task name. A typed path is the Other answer. With no `spec.md` found, ask for the path in the question.
 
 2. **Audit type**:
    Audit type: post-implementation when --post-implementation is passed or an implementation exists next to the spec; otherwise pre-implementation.
@@ -28,7 +28,7 @@ You are performing senior auditor review of specifications to verify completenes
 
 ```
 Task Tool:
-- subagent_type: "maister-spec-auditor"
+- subagent_type: "maister-copilot:spec-auditor"
 - description: Specification audit
 - prompt: |
     Audit the specification at: [spec-path]
@@ -53,12 +53,12 @@ The spec-auditor agent will:
 
 **Example 1**: Pre-implementation spec audit
 ```
-User: /maister-reviews-spec-audit .maister/tasks/development/2025-11-17-user-auth/implementation/spec.md
+User: /maister-copilot:reviews-spec-audit .maister/tasks/development/2025-11-17-user-auth/implementation/spec.md
 ```
 
 **Example 2**: Post-implementation audit
 ```
-User: /maister-reviews-spec-audit .maister/tasks/development/2025-11-17-user-auth/ --post-implementation
+User: /maister-copilot:reviews-spec-audit .maister/tasks/development/2025-11-17-user-auth/ --post-implementation
 ```
 
 ## What to Expect

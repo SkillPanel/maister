@@ -13,6 +13,11 @@ Internal skill that manages documentation file operations in `.maister/docs/`. N
 - **Project documentation is source of truth** — plugin-bundled docs are baseline/reference only
 - **INDEX.md is the master map** — always kept up-to-date after changes
 - **CLAUDE.md integration is mandatory** — ensures AI reads documentation
+- **The caller asks; this skill never does** — it runs inside the `docs-operator` subagent, which has no user channel
+
+## Decisions Go to the Caller
+
+Every operation below takes its choices from the caller's prompt. When an operation reaches a choice the prompt does not settle, it does not ask: it stops short of that change, finishes what it can, and returns the choice under `decisions_needed` — the question in the user's words, its options with what each changes, and the recommended one with its reason. The calling skill (init, standards-update, standards-discover) asks it and calls again with the answer. Choices a caller has already asked — init's re-initialization question, standards-update's file and merge choices — are never returned a second time.
 
 ## Documentation Structure
 
@@ -86,7 +91,7 @@ Use this when a project doesn't have `.maister/docs/` or needs documentation for
 
 **What to do:**
 1. Check if `.maister/docs/` exists in the project root
-2. If it exists, warn the user that initialization will overwrite existing documentation and ask for confirmation
+2. If it exists, proceed only when the caller's prompt says so (init asks before re-initializing); otherwise return the overwrite as a decision needed
 3. Create the directory structure based on standards_selection:
    ```
    .maister/docs/
@@ -117,7 +122,7 @@ Use this when a project doesn't have `.maister/docs/` or needs documentation for
      - *Run `/maister:standards-discover --scope=frontend` to auto-discover*
      ```
 6. **MANDATORY - Update CLAUDE.md:**
-   - Check if `CLAUDE.md` exists in the project root; if not, ask the user if they want to create it
+   - Check if `CLAUDE.md` exists in the project root; if not, create it — the integration is mandatory — and name it in the result
    - Add the documentation reference section (see "Manage CLAUDE.md Integration" operation)
    - Ensure it emphasizes reading INDEX.md at the beginning of any task
 7. Inform the caller about the documentation structure created
@@ -172,8 +177,7 @@ Use this to add new documentation to the project, either from plugin baseline or
    - Check if the requested documentation exists in this skill's bundled `docs/` directory
    - Copy it to the appropriate location in `.maister/docs/`
 3. If creating custom documentation:
-   - Ask for the category (project/ or standards/category/)
-   - Ask for the filename and purpose
+   - Take the category (project/ or standards/category/), filename and purpose from the caller; any missing goes back as a decision needed
    - Create a template file with appropriate frontmatter and structure
 4. Update INDEX.md to include the new documentation (see "Manage INDEX.md" operation)
 5. If this is a technical standard and corresponds to a Claude Code Skill, ensure consistency
@@ -191,12 +195,9 @@ Use this to help the user update or modify existing project documentation.
 2. Check if the documentation exists in `.maister/docs/`
 3. If the documentation exists:
    - Read the current documentation
-   - Ask the user what they want to change or update
-   - Help them edit the documentation file directly
-   - Optionally, show them the plugin's baseline version for reference if they ask
-4. If the documentation doesn't exist:
-   - Offer to add it from the plugin baseline (see "Add Documentation File" operation)
-   - Or offer to help them create custom documentation from scratch
+   - Apply the change the caller describes; with none described, return the question as a decision needed
+   - Include the plugin's baseline version for reference when the caller asks for it
+4. If the documentation doesn't exist, return a decision needed: add it from the plugin baseline ("Add Documentation File") or create it from scratch
 5. After updating:
    - Check if INDEX.md needs updating (if the purpose/description changed significantly)
    - If updating tech-stack.md or architecture.md, suggest reviewing CLAUDE.md for consistency
@@ -214,14 +215,9 @@ Use this when a team wants to see the plugin's baseline documentation for refere
 
 **What to do:**
 1. Compare the documentation in this skill's bundled `docs/` directory with the project's `.maister/docs/` directory to identify differences
-2. Show the user which documents differ and how they differ
-3. Explain that plugin documentation is baseline/reference only, and project documentation is superior
-4. **WARNING**: Copying plugin documentation to the project will overwrite any project-specific customizations
-5. Ask the user if they want to:
-   - View the differences for reference only (no changes)
-   - Reset specific documentation to plugin baseline (selective overwrite)
-   - Reset all documentation to plugin baseline (full overwrite - rarely recommended)
-6. If the user chooses to copy any documentation:
+2. Return which documents differ and how, in a few words each
+3. Unless the caller already chose, return the choice as a decision needed — "Keep your documentation (Recommended): the baseline is reference only", "Reset these files to the baseline", "Reset everything to the baseline" — the question saying that a reset overwrites the project's own edits
+4. When the caller's prompt chooses a reset:
    - Copy the selected files from this skill's bundled `docs/` directory to the project's `.maister/docs/` directory
    - Update INDEX.md to reflect any changes
    - Review CLAUDE.md for any necessary updates
@@ -257,7 +253,7 @@ Use this to ensure the project's CLAUDE.md properly integrates with the document
 
 **What to do:**
 1. Check if `CLAUDE.md` exists in the project root
-2. If it doesn't exist, ask the user if they want to create it
+2. If it doesn't exist, create it — the integration is mandatory — and name it in the result
 3. Look for a documentation reference section in CLAUDE.md
 4. If the section doesn't exist or is incomplete:
    - Read `references/claude-md-template.md` for the template
@@ -300,11 +296,9 @@ Use this to check that documentation is consistent, up-to-date, and properly int
    - Summary of documentation status
    - List of issues found
    - Recommendations for fixes
-7. **Offer to fix issues:**
-   - Ask if the user wants to automatically fix found issues
-   - Fix missing INDEX.md entries
-   - Fix missing CLAUDE.md integration
-   - Create missing directory structure
+7. **Fix what is safe to fix:**
+   - Fix missing INDEX.md entries, missing CLAUDE.md integration and missing directory structure without asking — they only add what the documentation system requires
+   - Return anything that would change the team's own content as a decision needed
 
 **Result:** A comprehensive validation report with optional automatic fixes for common issues.
 

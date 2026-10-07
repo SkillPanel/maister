@@ -119,7 +119,7 @@ Create `implementation/spec.md` using this template:
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [risk or open question the operator should know about]
+- [risk or open question the user should know about]
 [Omit section entirely when none]
 
 ## Goal
@@ -172,7 +172,7 @@ Create `implementation/spec.md` using this template:
 
 ### Phase 3.5: HTML Companion Report
 
-After writing spec.md, write `implementation/spec.html` — the operator-facing companion (same content, visual structure):
+After writing spec.md, write `implementation/spec.html` — the user-facing companion (same content, visual structure):
 
 **Companion is optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this companion entirely: write only `spec.md`, set `html_path: null` in your result, and continue. The steps below run only when `html_style_guide_path` is provided.
 
@@ -259,13 +259,13 @@ warnings: ["any non-critical observations"]
 
 ## Integration
 
-**Invoked by**: development orchestrator (Phase 5), migration orchestrator (Phase 2)
+**Invoked by**: the `specification` node of the development, performance and migration workflows
 
 **Prerequisites**:
 - Task directory exists with `analysis/` and `implementation/` subdirectories
 - `analysis/requirements.md` exists (created by orchestrator from user Q&A)
-- `analysis/codebase-analysis.md` exists (Phase 1 output)
-- `analysis/gap-analysis.md` exists (Phase 2 output)
+- `analysis/codebase-analysis.md` exists (`codebase-analysis` output)
+- `analysis/gap-analysis.md` exists (`gap-analysis` output)
 
 **Input**: Task path, task_characteristics, description, requirements path, accumulated context
 

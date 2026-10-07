@@ -3,7 +3,7 @@ name: reviews-code
 description: Run automated code quality, security, and performance analysis on your code
 ---
 
-**ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the code-reviewer subagent via the Task tool NOW. Pass path and scope arguments. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the code-reviewer subagent via the Task tool NOW. Pass path and scope arguments. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no path is given.
 
 You are running a comprehensive code review using the `code-reviewer` subagent.
 
@@ -17,7 +17,7 @@ You are performing automated code analysis to identify quality, security, and pe
 
 1. **Path to analyze**:
    - If provided: Use the specified path
-   - If not provided: Use ask_user to ask what to analyze
+   - If not provided: ask once with generated targets — look them up first with `git status --short` and the newest folder under `.maister/tasks/`, nothing more. "What should the code review cover?": "The current uncommitted changes (Recommended)" (only when `git status` shows some; otherwise the latest task is recommended), "The latest task: <task name>", "The whole project". A typed path is the Other answer. For the uncommitted changes, pass the changed files; for a task, its folder; for the whole project, the source root.
 
 2. **Analysis scope**:
    - If `--scope=quality`: Only code quality analysis
@@ -31,10 +31,10 @@ You are performing automated code analysis to identify quality, security, and pe
 
 ```
 Use Task tool:
-  subagent_type: "maister-code-reviewer"
+  subagent_type: "maister-copilot:code-reviewer"
   description: "Code quality review"
   prompt: |
-    Analyze code at: [path from user or from ask_user]
+    Analyze code at: [the path given, or the target chosen]
     Scope: [quality|security|performance|all]
     Report path: [path]/code-review-report.md
 ```
@@ -52,17 +52,17 @@ The code-reviewer subagent will:
 
 **Example 1**: Review specific task
 ```
-User: /maister-reviews-code .maister/tasks/development/2025-10-24-auth/
+User: /maister-copilot:reviews-code .maister/tasks/development/2025-10-24-auth/
 ```
 
 **Example 2**: Review with specific scope
 ```
-User: /maister-reviews-code src/api/ --scope=security
+User: /maister-copilot:reviews-code src/api/ --scope=security
 ```
 
 **Example 3**: Review entire project
 ```
-User: /maister-reviews-code src/
+User: /maister-copilot:reviews-code src/
 ```
 
 ## What to Expect

@@ -1,0 +1,50 @@
+# The close-out checks' definition: a node guarded on a value, a node guarded
+# on an input, a sub-run whose artifact the parent declares, a closing node
+# declaring a file and a directory, and a node that runs even after a failed
+# need. It carries no `on: failure` node: `recovery.yml` holds the one.
+name: closing
+version: 1
+inputs:
+  deep: {type: bool, required: false, default: false}
+
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    outputs:
+      artifacts:
+        brief: analysis/intake.md
+      values:
+        needs_review: bool
+
+  review:
+    uses: direct:review
+    needs: [intake]
+    when: "${intake.values.needs_review}"
+
+  deep-dive:
+    uses: direct:deep-dive
+    needs: [intake]
+    when: "${inputs.deep}"
+
+  audit:
+    uses: workflow:closing-child
+    needs: [review, deep-dive]
+    with:
+      subject: "the intake"
+    outputs:
+      artifacts:
+        findings: analysis/findings.md
+
+  report:
+    uses: direct:report
+    needs: [audit]
+    outputs:
+      artifacts:
+        summary: outputs/summary.md
+        evidence: outputs/evidence
+
+  notify:
+    uses: direct:notify
+    needs: [audit]
+    on: always

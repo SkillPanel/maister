@@ -1,0 +1,21 @@
+# A workflow block no freeze proves: it records no source and no hash, so the
+# writer runs none of its definition-backed checks against it.
+orchestrator:
+  started_phase: analysis
+  completed_phases: [analysis]
+  failed_phases: []
+  options: {html_output: true, mockup_format: html}
+
+task:
+  title: Unproven run
+  status: in_progress
+
+workflow:
+  name: development
+  nodes:
+    analysis: {kind: direct, status: completed}
+    approval: {kind: gate, status: pending}
+
+project_context:
+  tech_stack: node
+  notes: "kept through every write"

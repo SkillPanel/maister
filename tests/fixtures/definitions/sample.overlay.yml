@@ -1,0 +1,19 @@
+# Overlays the sample: retitles a base node, adds a node with its own title,
+# and carries a profile that retitles the added node once more.
+extends: sample.yml
+
+display:
+  titles:
+    analysis: "Impact analysis"
+    review: "Peer review"
+
+add:
+  review:
+    uses: skill:implementation-verifier
+    needs: [implementation]
+
+profiles:
+  quick:
+    display:
+      titles:
+        review: "Quick review"

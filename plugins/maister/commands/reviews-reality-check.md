@@ -3,7 +3,7 @@ name: maister:reviews-reality-check
 description: Comprehensive reality assessment of completed work to verify it actually works and is production-ready
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="maister:reality-assessor" NOW. Pass the task path in the prompt. Do not read files, explore code, or execute workflow steps yourself.
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="maister:reality-assessor" NOW. Pass the task path in the prompt. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no path is given.
 
 You are running a comprehensive reality check using the `reality-assessor` agent.
 
@@ -17,7 +17,7 @@ You are performing no-nonsense reality assessment to determine if completed work
 
 1. **Task path**:
    - If provided: Use the specified task directory path
-   - If not provided: Use AskUserQuestion to ask for task path
+   - If not provided: ask once with generated targets — the newest folders under `.maister/tasks/`, nothing more. "Which task should the reality check assess?": "The latest task: <task name> (Recommended)" and the next two most recent tasks by name, each with its workflow type and date as the description. A typed path is the Other answer.
 
 ## Your Instructions
 
