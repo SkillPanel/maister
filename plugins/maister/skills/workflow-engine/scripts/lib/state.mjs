@@ -687,11 +687,28 @@ function display(state, text, now, banner) {
       now,
       titles: displayOfRun(doc, runDir).titles,
       dashboard: dashboardUrl(doc, runDir),
+      artifacts: artifactsOf(doc, runDir),
       banner,
     });
   } catch (err) {
     return [{ file: DISPLAY_DIR, code: 'display-unwritable', message: err && err.message ? String(err.message) : String(err) }];
   }
+}
+
+/**
+ * Every artifact path the run's nodes declare, relative to the run directory,
+ * sorted and each once — for a reader that tells a run's own outputs from the
+ * other files written into its folder. A path outside the run directory (a
+ * sub-run's) is left out; so is every path when the definition cannot be read.
+ */
+function artifactsOf(doc, runDir) {
+  const paths = new Set();
+  for (const declared of Object.values(declaredOf(doc, definitionOf(doc, runDir), runDir))) {
+    for (const spelled of Object.values(declared)) {
+      if (typeof spelled === 'string' && spelled !== '' && !spelled.startsWith('..')) paths.add(spelled);
+    }
+  }
+  return [...paths].sort();
 }
 
 /**

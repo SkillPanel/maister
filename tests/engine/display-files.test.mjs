@@ -153,6 +153,12 @@ test('display: the status lists what this write changed, and whether a gate is u
   assert.deepEqual(display(run, 'status.json').saved, [], 'a write that changes no node saves none');
 });
 
+test('display: the status lists the artifact paths the nodes declare, a sub-run\'s only once it has a folder', t => {
+  const run = scratch(t);
+  freeze(run, { definition: path.join(FIXTURES, 'definitions/declared-outputs.yml'), inputs: { subject: 'the store' } });
+  assert.deepEqual(display(run, 'status.json').artifacts, ['analysis/evidence', 'analysis/notes.md']);
+});
+
 test('display: an ended run says how it ended instead of a phase', t => {
   const run = scratch(t);
   freeze(run);

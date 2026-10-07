@@ -18,8 +18,9 @@
  * - `<run>/display/status.json`, from every state write: the workflow, the
  *   task, the phase by `phaseOf`'s rule, the next checkpoint by
  *   `checkpointOf`'s, the run's status, `line`, the status line composed, when
- *   the run started, and the nodes — each one's title and status, and the ones
- *   this write changed.
+ *   the run started, the nodes — each one's title and status, and the ones
+ *   this write changed — and the artifact paths the nodes declare, relative to
+ *   the run directory.
  * - `<run>/display/banner.json`, from the freeze: the start banner's lines, the
  *   ones the freeze prints for the model, without the line addressed to it, and
  *   the same facts as fields, for a reader that draws a card of its own.
@@ -139,16 +140,16 @@ export function checkpointOf(doc, titles) {
  * when this write was the freeze, the session's pointer, and the removal of a
  * gate's panel the write has answered. `doc` is the committed state, parsed;
  * `banner` the freeze's banner (`{lines, ...fields}`) or null; `dashboard` the
- * run's link or null.
+ * run's link or null; `artifacts` the declared artifact paths, run-relative.
  * Returns the warnings, `{file, code, message}` each.
  */
-export function publishRun({ runDir, root, doc, now, titles, dashboard, banner = null, session = process.env[SESSION_ENV] }) {
+export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], banner = null, session = process.env[SESSION_ENV] }) {
   const warnings = [];
   const dir = path.join(runDir, DISPLAY_DIR);
   attempt(warnings, `${DISPLAY_DIR}/${NEXT}`, () => remove(path.join(dir, NEXT)));
   const started = banner !== null ? now : startedOf(dir, doc);
   const before = previousNodes(dir);
-  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, started, before })));
+  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, artifacts, started, before })));
   if (banner !== null) {
     const { lines, ...card } = banner;
     attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: now, lines, ...card }));
@@ -175,9 +176,10 @@ export function publishNext({ runDir, panel }) {
  * The status file's document, its `line` composed for a status line to show as
  * it stands. Beside it: when the run started, the checkpoint it reaches next,
  * every frozen node's title and status, the nodes this write changed against
- * the status file it replaces (`saved`), and whether a gate is under way now.
+ * the status file it replaces (`saved`), whether a gate is under way now, and
+ * the declared artifact paths (`artifacts`).
  */
-function statusOf({ runDir, doc, now, titles, dashboard, started, before }) {
+function statusOf({ runDir, doc, now, titles, dashboard, artifacts, started, before }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const task = isPlainObject(doc.task) ? doc.task : {};
   const name = typeof workflow.name === 'string' && workflow.name !== '' ? humanize(workflow.name) : 'Workflow';
@@ -210,6 +212,7 @@ function statusOf({ runDir, doc, now, titles, dashboard, started, before }) {
     nodes,
     saved,
     gate_open: gateOpen,
+    artifacts,
     updated: now,
   };
 }
