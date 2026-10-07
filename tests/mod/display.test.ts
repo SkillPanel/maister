@@ -320,6 +320,33 @@ describe('run band', () => {
     expect((await band($, 'terminal', { maxRows: 0 })).drawn).toMatchObject({ type: 'engine' })
   })
 
+  test('frames the band with a blank row above it when the rows allow', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    for (const maxRows of [5, 6]) {
+      const drawn: any = (await band($, 'terminal', { maxRows })).drawn
+      expect(drawn.props).toMatchObject({ flexDirection: 'column', marginTop: 1, borderStyle: 'round', borderColor: '#4a4f5a', paddingX: 1 })
+      expect(drawn.children).toHaveLength(2)
+    }
+  })
+
+  test('drops the blank row first, then the frame, as the rows shrink', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const four: any = (await band($, 'terminal', { maxRows: 4 })).drawn
+    expect(four.props).toMatchObject({ borderStyle: 'round', borderColor: '#4a4f5a', paddingX: 1 })
+    expect(four.props.marginTop).toBeUndefined()
+    for (const maxRows of [2, 3]) {
+      const drawn: any = (await band($, 'terminal', { maxRows })).drawn
+      expect(drawn.props).toMatchObject({ flexDirection: 'column', marginLeft: 2 })
+      expect(drawn.props.borderStyle).toBeUndefined()
+      expect(drawn.props.marginTop).toBeUndefined()
+      expect(drawn.children).toHaveLength(2)
+    }
+  })
+
   test('names how an ended run ended, with no dots and no clock', async ($: any, on: any) => {
     mock.clock(on, { now: Date.parse(LATER) })
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ status: 'completed' }) })

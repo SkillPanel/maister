@@ -106,6 +106,9 @@ const DIALOG_ROWS = 12;
 const ROW_CHARS = 40;
 const BORDER_ROWS = 2;
 
+/** The rows the band's two lines take. */
+const BAND_ROWS = 2;
+
 /** The most phases the band draws as dots; a longer run draws the count alone. */
 const DOTS_MAX = 30;
 
@@ -479,7 +482,11 @@ function card(elements, start, links) {
     ...(opens.length ? [h(Box, { key: 'links', flexDirection: 'row', gap: 3 }, ...opens)] : []));
 }
 
-/** The band above the prompt: the run and its links where they open, then where it is. */
+/**
+ * The band above the prompt: the run and its links where they open, then
+ * where it is. Framed with a blank row above it when the rows allow; with
+ * fewer it drops the blank row, then the frame, then keeps to one row.
+ */
 function band(elements, status, time, maxRows, links) {
   const { Box, Text } = elements;
   const ended = ENDINGS.has(status.status);
@@ -498,7 +505,7 @@ function band(elements, status, time, maxRows, links) {
     ...(ended ? [h(Text, { key: 'ended' }, status.status)] : where));
 
   const name = h(Text, { key: 'workflow', color: ACCENT, bold: true }, status.workflow ?? 'Workflow');
-  if (maxRows < 2) return h(Box, { flexDirection: 'row', gap: 2 }, name, progress);
+  if (maxRows < BAND_ROWS) return h(Box, { flexDirection: 'row', gap: 2 }, name, progress);
 
   const opens = [];
   if (links && status.dashboard) opens.push(linkTo(elements, status.dashboard, 'Dashboard ↗', 'dashboard'));
@@ -507,7 +514,9 @@ function band(elements, status, time, maxRows, links) {
     name,
     h(Box, { key: 'task', flexGrow: 1, flexShrink: 1 }, h(Text, { wrap: 'truncate-end' }, status.task ?? '')),
     ...(opens.length ? [h(Box, { key: 'links', flexDirection: 'row', gap: 2, flexShrink: 0 }, ...opens)] : []));
-  return h(Box, { flexDirection: 'column' }, head, progress);
+  if (maxRows >= BAND_ROWS + BORDER_ROWS + 1) return h(Box, { flexDirection: 'column', marginTop: 1, borderStyle: 'round', borderColor: BORDER, paddingX: 1 }, head, progress);
+  if (maxRows >= BAND_ROWS + BORDER_ROWS) return h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: BORDER, paddingX: 1 }, head, progress);
+  return h(Box, { flexDirection: 'column', marginLeft: INSET }, head, progress);
 }
 
 /** The phases as dots: done, the current one, and those still to come. */
