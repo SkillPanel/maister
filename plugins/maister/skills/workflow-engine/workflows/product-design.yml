@@ -1,16 +1,34 @@
 # The product-design workflow, as a graph.
 #
-# Nine nodes named for what they do and five named for what they approve, in
+# Ten nodes named for what they do and five named for what they approve, in
 # one linear chain. Gates serialize the run, so a wider fan-in would buy
 # nothing.
 #
-# Two nodes are guarded: the persona exploration runs only for a greenfield or
-# complex design, and the visual prototypes only for a UI-focused one. Both
-# guards are declared bools the intake node derives from the design
+# Two nodes are guarded on the design: the persona exploration runs only for a
+# greenfield or complex design, and the visual prototypes only for a UI-focused
+# one. Both guards are declared bools the intake node derives from the design
 # characteristics, because only a declared bool may guard and a guard reads one
 # reference, never an expression over two.
 #
-# The gates after those two nodes are deliberately unguarded, unlike the closing
+# Five more are guarded on the `simple` input, the run's depth: the
+# characteristics and context gates, and the brainstorm, the convergence and
+# the direction gate after them. A simple design keeps the problem and
+# specification gates and nothing else between them, and the specification
+# states the approach itself. The depth is a bool because an input is a string,
+# a bool or a path, and only a bool can guard. Under it the intake also turns
+# the personas off and the prototypes off unless the description asks for
+# screens, so those two guards need no second reference.
+#
+# `completion` is guarded on `embedded`: it exists only to tell an operator the
+# run is over, and a parent has its own ending. The brief and the delivery
+# scope a parent reads are written by `review-handoff`, which runs on every path,
+# so the exposed outputs stay on it.
+#
+# Nothing a guarded node writes is interpolated into a node that still runs.
+# The decision record, the alternatives, the personas and the mockups are read
+# from disk, and only when the state records their node completed.
+#
+# The gates after the personas and the prototypes are deliberately unguarded, unlike the closing
 # gate of a guarded stretch in the other built-ins. Each closes more than the
 # guarded node: `problem-approval` closes the problem statement and, when they
 # were drafted, the personas; `specification-approval` closes the specification
@@ -64,12 +82,22 @@ inputs:
   # project's mockup format setting does the same for every run; this is the
   # per-run override.
   no_visual: {type: bool, required: false, default: false}
+  # The design depth. False is the full workflow; true is the shortest run that
+  # still yields a brief and a delivery scope to approve: no characteristics or
+  # context gate, no personas, no brainstorm or direction gate, and no
+  # prototypes unless the description asks for screens.
+  simple: {type: bool, required: false, default: false}
+  # "This run is a sub-run of another run." The engine supplies it at the child
+  # freeze; an operator never types it. Its only effect here is the guard on
+  # `completion`, which a parent has no use for.
+  embedded: {type: bool, required: false, default: false}
 
-# What a chain step may bind. Every entry names an output some node already
+# What a parent or a chain step may bind. Every entry names an output some node already
 # declares, so a key that stops resolving fails validation rather than a run.
 # `mockups` belongs to a node a guard may skip: when no screens were drawn the
 # entry is simply absent, and the reader's missing-artifact rule decides what
-# follows. The brief and the delivery scope are written on every path.
+# follows. The brief and the delivery scope are written on every path,
+# embedded or not and at either depth, because `review-handoff` always runs.
 outputs:
   artifacts:
     brief: review-handoff.artifacts.brief
@@ -100,7 +128,8 @@ display:
     feature-specification:    spec
     visual-prototyping:       spec
     specification-approval:   spec
-    review-handoff:           done
+    review-handoff:           docs
+    completion:               done
   titles:
     intake:                   "Intake and design characteristics"
     characteristics-approval: "Approve design characteristics"
@@ -115,7 +144,8 @@ display:
     feature-specification:    "Feature specification"
     visual-prototyping:       "Visual prototyping"
     specification-approval:   "Approve specification and prototypes"
-    review-handoff:           "Review and handoff"
+    review-handoff:           "Product brief and delivery scope"
+    completion:               "Completion"
   option_labels:
     characteristics-approval:
       continue-to-context-synthesis: "Continue to the context synthesis"
@@ -153,6 +183,7 @@ nodes:
       task_description: "${inputs.task_description}"
       research: "${inputs.research}"
       no_visual: "${inputs.no_visual}"
+      simple: "${inputs.simple}"
     outputs:
       artifacts:
         # Written only when the invocation named a research task; the absence
@@ -161,7 +192,9 @@ nodes:
       values:
         # Derived from the design characteristics: greenfield or complex for
         # the first, UI-focused for the second. A revise at the
-        # characteristics gate derives them again.
+        # characteristics gate derives them again. A simple run records the
+        # first false, the second true only when the description asks for
+        # screens, and the complexity `simple`.
         personas_enabled: bool
         prototyping_enabled: bool
         complexity_level: {enum: [simple, standard, complex]}
@@ -169,6 +202,7 @@ nodes:
   characteristics-approval:
     type: gate
     needs: [intake]
+    when: "!${inputs.simple}"
     ask: "Design characteristics detected. Continue to context synthesis?"
     options:
       continue-to-context-synthesis: continue
@@ -191,6 +225,7 @@ nodes:
   context-approval:
     type: gate
     needs: [context-synthesis]
+    when: "!${inputs.simple}"
     ask: "Context synthesis complete. Continue to problem exploration?"
     options:
       continue-to-problem-exploration: continue
@@ -232,6 +267,7 @@ nodes:
   idea-generation:
     uses: agent:solution-brainstormer
     needs: [problem-approval]
+    when: "!${inputs.simple}"
     with:
       output_path: analysis/alternatives.md
       task_description: "${inputs.task_description}"
@@ -245,6 +281,7 @@ nodes:
   idea-convergence:
     uses: direct:idea-convergence
     needs: [idea-generation]
+    when: "!${inputs.simple}"
     with:
       alternatives: "${idea-generation.artifacts.alternatives}"
       problem_statement: "${problem-exploration.artifacts.problem_statement}"
@@ -255,6 +292,7 @@ nodes:
   direction-approval:
     type: gate
     needs: [idea-convergence]
+    when: "!${inputs.simple}"
     ask: "Design direction ready for review. Continue to feature specification?"
     options:
       continue-to-specification: continue
@@ -266,7 +304,6 @@ nodes:
     uses: direct:feature-specification
     needs: [direction-approval]
     with:
-      design_decisions: "${idea-convergence.artifacts.decisions}"
       problem_statement: "${problem-exploration.artifacts.problem_statement}"
       design_context: "${context-synthesis.artifacts.design_context}"
       complexity_level: "${intake.values.complexity_level}"
@@ -283,7 +320,6 @@ nodes:
       iteration: full
       emit_index_rows: false
       feature_spec: "${feature-specification.artifacts.spec}"
-      design_decisions: "${idea-convergence.artifacts.decisions}"
       design_context: "${context-synthesis.artifacts.design_context}"
     outputs:
       artifacts:
@@ -305,8 +341,6 @@ nodes:
       task_description: "${inputs.task_description}"
       design_context: "${context-synthesis.artifacts.design_context}"
       problem_statement: "${problem-exploration.artifacts.problem_statement}"
-      alternatives: "${idea-generation.artifacts.alternatives}"
-      design_decisions: "${idea-convergence.artifacts.decisions}"
       feature_spec: "${feature-specification.artifacts.spec}"
       complexity_level: "${intake.values.complexity_level}"
     outputs:
@@ -314,3 +348,8 @@ nodes:
         brief: outputs/product-brief.md
         # Written on every path: one member for a single repository.
         delivery_scope: outputs/delivery-scope.yml
+
+  completion:
+    uses: direct:completion
+    needs: [review-handoff]
+    when: "!${inputs.embedded}"
