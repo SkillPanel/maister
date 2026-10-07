@@ -20,9 +20,9 @@ cp -r "$CORE" "$OUT"
 # Copilot resolves hooks from the consumer repository and does not read a
 # plugin's hooks.json, so the Claude-shaped hooks directory is dropped. The
 # Claude Code hooks module goes with it, so its state contract does too, and so
-# do the API declarations Claude Code lays beside a plugin it loads from a
-# folder.
-rm -rf "$OUT/hooks" "$OUT/types" "$OUT/.claude-plugin/types"
+# do the API declarations and the tsconfig.json Claude Code lays beside a
+# plugin it loads from a folder.
+rm -rf "$OUT/hooks" "$OUT/types" "$OUT/.claude-plugin/types" "$OUT/tsconfig.json"
 
 # 1. Update plugin.json name and description, and drop the dropped contract
 sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"
