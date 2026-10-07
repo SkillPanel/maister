@@ -36,7 +36,7 @@ const SAMPLE = path.join(ROOT, 'tests', 'fixtures', 'definitions', 'sample');
 const WINDOWS = process.platform === 'win32';
 
 const SHELLS = {
-  bash: line => ['bash', ['-c', line], {}],
+  bash: line => [bashPath() ?? 'bash', ['-c', line], {}],
   zsh: line => ['zsh', ['-c', line], {}],
   pwsh: line => ['pwsh', ['-NoProfile', '-NonInteractive', '-Command', line], {}],
   powershell: line => ['powershell', ['-NoProfile', '-NonInteractive', '-Command', line], {}],
@@ -49,6 +49,14 @@ const shellName = (process.argv.slice(2).find(arg => arg.startsWith('--shell='))
 if (!Object.hasOwn(SHELLS, shellName)) {
   process.stderr.write(`usage: node tests/shell-smoke.mjs --shell=<${Object.keys(SHELLS).join('|')}>\n`);
   process.exit(2);
+}
+{
+  const [command, args, options] = SHELLS[shellName]('exit 0');
+  const probe = spawnSync(command, args, { ...options, stdio: 'ignore' });
+  if (probe.error || probe.status !== 0) {
+    process.stderr.write(`${shellName} cannot be started here: ${probe.error?.message ?? `exit ${probe.status}`}\n`);
+    process.exit(1);
+  }
 }
 const quote = value => (shellName === 'cmd' ? `"${value}"` : `'${value}'`);
 

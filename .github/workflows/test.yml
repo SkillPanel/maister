@@ -31,6 +31,9 @@ jobs:
       - name: Test the engine verbs
         run: make test
 
+      - name: Run the engine and the hooks through bash
+        run: make smoke
+
       # Notifies a downstream repository's CI of each push. Off unless the
       # repository sets both the PRO_DISPATCH_REPO variable (owner/name) and the
       # PRO_DISPATCH_TOKEN secret, so forks and clones skip it; one without the
@@ -74,3 +77,42 @@ jobs:
               exit 1
               ;;
           esac
+
+  # The engine and the hooks on Windows: the verb suite, then the shell smoke
+  # under each shell a host may run a command in, from paths written with `\`
+  # and holding a space. The checkout keeps the runner's core.autocrlf, so every
+  # file .gitattributes leaves alone arrives with CRLF, as on an operator's
+  # machine. No `make` here: the runner does not ship it. Every smoke step runs
+  # whatever the step before it did, so one run reports every shell.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test the engine verbs
+        shell: bash
+        run: node --test tests/engine/*.test.mjs
+
+      - name: Shell smoke under PowerShell 7
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: node tests/shell-smoke.mjs --shell=pwsh
+
+      - name: Shell smoke under Windows PowerShell
+        if: ${{ !cancelled() }}
+        shell: powershell
+        run: node tests/shell-smoke.mjs --shell=powershell
+
+      - name: Shell smoke under cmd.exe
+        if: ${{ !cancelled() }}
+        shell: cmd
+        run: node tests/shell-smoke.mjs --shell=cmd
+
+      - name: Shell smoke under Git Bash
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: node tests/shell-smoke.mjs --shell=bash
