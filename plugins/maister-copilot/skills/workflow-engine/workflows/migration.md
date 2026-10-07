@@ -18,10 +18,14 @@ the generated diagram does not show them either. Anyone reasoning about how
 interactive this workflow is must read this file, not the graph.
 
 **Every question asked inside a node names its default here.** Under a `cockpit`
-or `dispatch` driver nobody is in the session, so none of them is asked: each
-takes the default its own section states and the node records that it did. The
-rule, the recording shape and what is never defaulted past belong to the engine
-skill, which states them once; this file only says what each question takes.
+driver whose features list `question-sets`, a node asks through the cockpit, in
+one request per attempt, and each section's **With question sets** line says
+whether its question goes there. Under any other `cockpit` or `dispatch` driver
+nobody is in the session, so none of them is asked: each takes the default its
+own section states under **Without question sets** and the node records that
+it did. The rule, the recording shape and what is never defaulted past belong to
+the engine skill, which states them once; this file only says what each
+question takes.
 One of the three is the exception the rule reserves: a data integrity issue is
 never defaulted past, and the node fails instead.
 
@@ -269,7 +273,10 @@ as a `by: operator` decision on this node's summary, one per question, as engine
 § *In-node questions* says. A run that asked no question still writes the file
 and still sets the flag: it resolved the clarifications by having none to ask.
 
-**Default under a non-terminal driver** (`clarifications`): none is asked, and
+**With question sets** (`clarifications`): asked through the cockpit, in this
+node's one request (*In-node questions*).
+
+**Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and
 `migration_context.clarifications_resolved` set exactly as they are for a run
 with nothing to ask, and what the analysis could not settle about scope, target
@@ -385,7 +392,11 @@ by one", which pages them one tab each, and More details. Record the answer as
 `by: operator` decisions, one per question answered, as engine § *In-node
 questions* says, and save the round to `analysis/requirements.md`.
 
-**Default under a non-terminal driver** (`specification-requirements`): the
+**With question sets** (`specification-requirements`): asked through the
+cockpit, in this node's one request (*In-node questions*); "Go through them one
+by one" would need a second ask, so it is not offered.
+
+**Without question sets** (`specification-requirements`): the
 assumptions stand as framed, recorded as one `by: default` decision. They are
 written to be confirmable, so an unconfirmed one is recorded in
 `analysis/requirements.md` and carried into the specification as a stated
@@ -727,13 +738,20 @@ then **"Continue anyway: I accept the data risk"**. "Stop and roll back" writes 
 `stop` risk naming the issue and `analysis/rollback-plan.md`, so the gate
 recommends stopping; the run never rolls anything back on its own. "Continue
 anyway" records the answer as a `by: operator` decision and the issue as a
-`tradeoff` risk, and the loop goes on with the remaining issues. Under any other
-driver there is nobody to ask: **record this node `failed`**, and the run ends
+`tradeoff` risk, and the loop goes on with the remaining issues. With question
+sets, the same question goes through the cockpit when it is the first thing this
+node asks in its attempt. Otherwise, and under any other driver, there is nobody
+to ask: **record this node `failed`**, and the run ends
 `RUN-FAILED` with the state intact — the user arrives to the migration as the
 verification left it, rather than to an automated repair already applied to their
 data.
 
-**Default under a non-terminal driver** (`verification-fix-loop`): the loop runs
+**With question sets** (`verification-fix-loop`): asked through the cockpit only
+when it is the first thing this node asks in its attempt, with the verification
+report and every fix so far written first; after an earlier request in the same
+attempt, the default below is taken (*In-node questions*).
+
+**Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
 two re-checks — and nothing is asked. Every issue that needs a decision, and every
 risky fix, stays open as an `open` risk in this node's summary, and the stopping

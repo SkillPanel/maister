@@ -5,7 +5,12 @@ Maister ships five workflows, each with phases tailored to its needs, and runs w
 A run started from the cockpit, dispatched into another repository, or started by another run as
 a step of its own, has nobody sitting in the session — so it asks nothing there. The pauses
 between phases still happen: each one suspends the run and waits for you to answer it from outside. The smaller questions a phase asks along the way
-cannot wait like that, so each one takes a stated default instead: a clarification goes unasked
+reach you too when the run is driven from a cockpit that can show a set of questions: the phase
+gathers every question it has into one card, suspends once, and carries on with your answers,
+which are recorded as yours. A question that only comes up after that card is answered — another
+refinement round, a retry — cannot wait a second time in the same phase and takes its stated
+default. A run driven any other way, such as one dispatched into another repository, asks none of
+them: each one takes a stated default instead: a clarification goes unasked
 and the analysis stands, an opt-in and a decision take what the phase recommends, a revise-or-accept
 loop accepts what it has, and a phase that has run out of recovery attempts fails rather than
 guessing. Every default a run takes is written onto that phase's summary, beside its decisions, so
@@ -283,12 +288,14 @@ with declared dependencies and guards — which the engine freezes into the task
 executes. Like the other engine workflows, it needs Node.js 20 or newer.
 
 It is the most interactive of the workflows. Its exploration questions and refinement loops are
-the work rather than overhead around it, so the phases ask a good deal between the gates. A run
-with nobody in the session takes each question's stated default instead, and the documents it
-writes say they were drafted without review. Choosing a design direction is the one exception:
-such a run never picks one itself. It lays the alternatives out with a recommendation for each
-decision, and the direction pause is where you choose — continuing adopts the recommendations,
-and sending the run back names the ones you want instead.
+the work rather than overhead around it, so the phases ask a good deal between the gates. Driven
+from a cockpit that can show a set of questions, each phase sends you its questions as one card —
+the design direction too, every decision area at once, each with its alternatives, their pros and
+cons and a recommendation. A run that cannot ask takes each question's stated default instead,
+and the documents it writes say they were drafted without review. Choosing a design direction is
+the one exception: such a run never picks one itself. It lays the alternatives out with a
+recommendation for each decision, and the direction pause is where you choose — continuing adopts
+the recommendations, and sending the run back names the ones you want instead.
 
 ### Phases
 

@@ -28,7 +28,10 @@
  * `gate-brief-value-missing`. Four name no write: `gate-brief-unknown-node` and
  * `gate-brief-not-a-gate` (the invocation is wrong), `state-unreadable`, and
  * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
- * back on).
+ * back on). A question set a node asks inside itself has three more, none
+ * fixed by a write: `gate-brief-questions-unsupported` (the driver carries no
+ * question sets), `gate-brief-not-askable` (a gate, or a node not running) and
+ * `gate-brief-questions-invalid` (the set itself, corrected in the patch file).
  *
  * Three forms, one reading. The plain form is what a user reads in session:
  * the summary, at most three decisions and three risks — each item on a line of
@@ -82,6 +85,8 @@ import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
 import { moreDetails, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
 import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, riskOf, riskText } from './items.mjs';
+import { questionSets } from './driver.mjs';
+import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -173,7 +178,7 @@ const SUMMARY_FLOOR = 400;
  * returns the picker — `{picker, question, header, options, details}`, shaped
  * by the `picker` profile — beside the plain text.
  */
-export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
+export function gateBrief({ state, node, form = 'plain', picker = 'rich', questions = undefined }) {
   let doc;
   try {
     doc = parse(fs.readFileSync(state, 'utf8'));
@@ -187,9 +192,11 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
     return refuse('gate-brief-unknown-node',
       `--node=${node} names no node of this run (workflow.nodes has no "${node}"); correct the --node argument — no state write fixes this`);
   }
+  if (questions !== undefined) return questionBrief({ doc, state, workflow, recorded, node, form, questions });
   if (entryOf(recorded, node).kind !== 'gate') {
     return refuse('gate-brief-not-a-gate',
-      `--node=${node} names a node this run recorded as ${JSON.stringify(entryOf(recorded, node).kind ?? null)}, not a gate; correct the --node argument — no state write fixes this`);
+      `--node=${node} names a node this run recorded as ${JSON.stringify(entryOf(recorded, node).kind ?? null)}, not a gate; correct the --node argument — no state write fixes this. `
+      + 'A question the node asks inside itself is briefed from its question set, sent with --patch-file');
   }
 
   const runDir = path.dirname(path.resolve(state));
@@ -292,6 +299,50 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich' }) {
     errors: [],
     warnings,
   };
+}
+
+/**
+ * The brief for a question set a running node asks inside itself: the
+ * `kind: question` checkpoint, or the whole request a driver suspends on. Only
+ * under a driver that carries question sets — anywhere else the node takes the
+ * default its prose names — and only while the node is running, since a node
+ * asks from inside its own work.
+ */
+function questionBrief({ doc, state, workflow, recorded, node, form, questions }) {
+  const entry = entryOf(recorded, node);
+  if (entry.kind === 'gate') {
+    return refuse('gate-brief-not-askable',
+      `--node=${node} is a gate, and a gate is asked from its own brief: run the verb again without --patch-file. Nothing was written`);
+  }
+  if (!questionSets(doc)) {
+    const driver = isPlainObject(doc.orchestrator?.driver) ? doc.orchestrator.driver : {};
+    return refuse('gate-brief-questions-unsupported',
+      `this run's driver (${JSON.stringify(driver.kind ?? 'terminal')}) does not carry question sets: only a cockpit driver whose features list question-sets does. `
+      + 'Nothing was written. Ask in session when no driver is set; under any other driver take the default the node prose names and record it as a by: default decision');
+  }
+  if ((entry.status ?? 'pending') !== 'running') {
+    return refuse('gate-brief-not-askable',
+      `--node=${node} is ${JSON.stringify(entry.status ?? 'pending')}, and only a running node asks a question inside itself. Nothing was written. `
+      + 'Name the node that is asking; a node that has not started, or has ended, has nothing to ask');
+  }
+  const checked = checkSet(questions);
+  if (!checked.ok) {
+    return refuse('gate-brief-questions-invalid',
+      `the question set cannot be asked: ${checked.errors.join('; ')}. Nothing was written. Correct the question set in the patch file and run the verb again`);
+  }
+  const runDir = path.dirname(path.resolve(state));
+  const { display } = reread(doc, workflow, runDir);
+  const order = Object.keys(recorded);
+  const checkpoint = questionCheckpoint({
+    set: checked.set,
+    node,
+    title: titleOf(display.titles, node),
+    header: headerOf(display, node),
+    progress: { node: order.indexOf(node) + 1, nodes_total: order.length },
+    run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
+  });
+  if (form === 'checkpoint') return { ok: true, checkpoint, errors: [], warnings: [] };
+  return { ok: true, request: questionRequest(checkpoint), errors: [], warnings: [] };
 }
 
 /** How many files the `Review:` line names before it stops. */

@@ -65,3 +65,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0028](0028-gates-carry-a-bounded-back-edge.md) | Gates carry a bounded back-edge | Accepted | 2026-09-30 | Amends ADR-0016 (a jump and an attempt counter, scoped to a gate's revise option); narrows ADR-0014 (a loop across nodes, closed by a gate, is the graph's); amended 2026-10-05: a safety ceiling of ten per gate, not a budget of three |
 | [ADR-0029](0029-sanctioned-artifact-absence.md) | A node records the artifacts it completed without, and a terminal run ends in words | Accepted | 2026-09-30 | — |
 | [ADR-0030](0030-checkpoint-contract.md) | One checkpoint object, projected to every surface | Accepted | 2026-10-06 | — |
+| [ADR-0031](0031-in-step-questions-under-a-driver.md) | In-step questions suspend as one question set under a driver that can carry it | Accepted | 2026-10-07 | Builds on ADR-0030 (the checkpoint envelope and the operator decision item) |

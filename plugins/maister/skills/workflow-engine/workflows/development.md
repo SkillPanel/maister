@@ -42,8 +42,11 @@ These entries are what the gate brief counts as the user's own choices, so a
 "Gate brief content" paragraph below never lists them again.
 
 **Every question asked inside a node names its default here.** Under a `cockpit`
-or `dispatch` driver nobody is in the session, so none of them is asked: each
-takes the default its own section states and the node records it as a
+driver whose features list `question-sets`, a node asks through the cockpit, in
+one request per attempt, and each section's **With question sets** line says
+whether its question goes there. Under any other `cockpit` or `dispatch` driver
+nobody is in the session, so none of them is asked: each takes the default its
+own section states under **Without question sets** and the node records it as a
 `by: default` decision carrying the question's id. The rule and what is never
 defaulted past belong to the engine skill, which states them once; this file
 only says what each question takes.
@@ -216,7 +219,10 @@ a task description is the documented failure mode. Ask it as free text — "What
 should this run build or fix? One or two sentences." This is the first of the
 eight asks.
 
-**Default under a non-terminal driver** (`task-description`): none, because the
+**With question sets** (`task-description`): never reached either — the start
+brief supplies the description.
+
+**Without question sets** (`task-description`): none, because the
 question is never reached — the start brief supplied the description and the
 freeze persisted it. A non-terminal run that has no description is
 `RUN-FAILED`, never a run with an invented one.
@@ -337,7 +343,10 @@ Save the answers to `analysis/clarifications.md`, then set
 still writes the file and still sets the flag: it resolved the clarifications by
 having none to ask.
 
-**Default under a non-terminal driver** (`clarifications`): none is asked, and
+**With question sets** (`clarifications`): asked through the cockpit, in this
+node's one request (*In-node questions*).
+
+**Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and the flag set exactly
 as they are for a run that had nothing to ask, and what the analysis could not
 settle is named in the file as unsettled rather than guessed at.
@@ -409,7 +418,11 @@ is a node question and not the gate. Save the outcome to
 `task_context.scope_expanded` — true when a decision widened the work beyond
 what the invocation described, false when none did.
 
-**Default under a non-terminal driver** (`scope-decisions`): each decision takes
+**With question sets** (`scope-decisions`): asked through the cockpit, in this
+node's one request, each decision its own question, critical ones included
+(*In-node questions*).
+
+**Without question sets** (`scope-decisions`): each decision takes
 the option the analyzer recommended. A decision the analyzer left without a
 recommendation is not guessed at: it stays open, is written to
 `analysis/scope-clarifications.md` as open, and is recorded as an `open` risk
@@ -667,7 +680,11 @@ clarifications file, it records `technical_clarifications` under this node's
 `absent`, with the reason that there was one obvious approach (engine
 § *Recording an outcome*).
 
-**Default under a non-terminal driver** (`technical-questions`): the recommended
+**With question sets** (`technical-questions`): asked through the cockpit, in
+this node's one request, each architecture area its own question beside the
+technical ones (*In-node questions*).
+
+**Without question sets** (`technical-questions`): the recommended
 answer to each technical question and the recommended approach for each
 architecture area, and the specification is written against them. When no
 approach is recommended, none is invented: the choice stays open, is written to
@@ -712,13 +729,21 @@ exactly what a `when` guard expresses, and because both answers continue the
 run. A declining answer makes the audit stretch skip, and a skip satisfies
 everything downstream.
 
-**Default under a non-terminal driver** (`specification-requirements`): the
+**With question sets** (`specification-requirements`): asked through the
+cockpit, in the same request as the technical questions (*In-node questions*);
+going through the assumptions one by one would be a second ask, so it is not
+offered.
+
+**Without question sets** (`specification-requirements`): the
 assumptions stand as framed. They are already written to be confirmable, so an
 unconfirmed one is recorded in `analysis/requirements.md` and carried into the
 specification as a stated assumption rather than as settled fact — which is what
 `specification-approval` puts in front of an operator.
 
-**Default under a non-terminal driver** (`audit-opt-in`): the recommended
+**With question sets** (`audit-opt-in`): asked through the cockpit, in this
+node's one request (*In-node questions*).
+
+**Without question sets** (`audit-opt-in`): the recommended
 option, so the audit runs. A supplied audit input still settles it without a
 default being taken at all.
 
@@ -1069,15 +1094,25 @@ When both are supplied the page holds the reviews tab alone. In a terminal run t
 characteristics are defaults for the recommendation, not answers — an operator
 is there, and the operator answers.
 
-**Default under a non-terminal driver** (`standard-verifications`): the
+**With question sets** (`standard-verifications`): asked through the cockpit, in
+this node's one request (*In-node questions*); "Choose individually" would need
+a second ask, so it is not offered.
+
+**Without question sets** (`standard-verifications`): the
 recommended bundle, all four reviews.
 
-**Default under a non-terminal driver** (`browser-tests`): the option this
+**With question sets** (`browser-tests`): asked through the cockpit, in this
+node's one request (*In-node questions*).
+
+**Without question sets** (`browser-tests`): the option this
 node labels `(Recommended)`, which is the seed `gap-analysis` wrote — on for a
 UI-heavy task, off otherwise. With nobody to answer, the recommendation is the
 answer, and it is recorded as this node's `browser_tests_enabled` output.
 
-**Default under a non-terminal driver** (`user-docs`): the recommendation, by
+**With question sets** (`user-docs`): asked through the cockpit, in this node's
+one request (*In-node questions*).
+
+**Without question sets** (`user-docs`): the recommendation, by
 the same rule, recorded as `user_docs_enabled`.
 
 All three tabs are asked here rather than at a gate because every answer
@@ -1160,7 +1195,12 @@ step by step):
   ("a critical issue is still open, and shipping past it is not safe"). More
   details is the fourth option.
 
-**Default under a non-terminal driver** (`verification-fix-loop`): the loop runs
+**With question sets** (`verification-fix-loop`): asked through the cockpit only
+when it is the first thing this node asks in its attempt, with the verification
+report and every fix so far written first; after an earlier request in the same
+attempt, the default below is taken (*In-node questions*).
+
+**Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
 two re-checks — and nothing is asked. Every issue that needs a decision, and every
 risky fix, stays open as an `open` risk in this node's summary, and the stopping
@@ -1312,7 +1352,10 @@ written"**, and More details last. The `docs-approval` gate can only continue or
 stop, so this is where such a fix is taken. Ask nothing when the generator
 suggested nothing.
 
-**Default under a non-terminal driver** (`docs-fixes`): apply the suggested
+**With question sets** (`docs-fixes`): asked through the cockpit, in this node's
+one request, with the guide as written already on disk (*In-node questions*).
+
+**Without question sets** (`docs-fixes`): apply the suggested
 changes, recorded as one `by: default` decision.
 
 **Gate brief content.** Write into this node's closing `node_summaries` entry a

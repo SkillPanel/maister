@@ -86,6 +86,7 @@ import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, decisionOf } from './items.mjs';
+import { foldAnswer, requestQuestions } from './question-set.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -2161,6 +2162,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     if (kind === 'node' && Object.hasOwn(entry, 'answer')) {
       recorded ??= recordedNodes(doc);
       if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') entry = foldFlatAnswer(entry);
+      else if (isPlainObject(entry.answer)) entry = foldQuestionAnswer(entry, key, runDir, heldOf(key));
     }
     if (kind === 'node' && graphOf !== null && Object.hasOwn(entry, 'decisions')) {
       const gate = resolvedNode(graphOf(), key);
@@ -2354,6 +2356,37 @@ function foldFlatAnswer(entry) {
   const decisions = Array.isArray(entry.decisions) ? entry.decisions : [];
   const sent = decisions.some(item => isPlainObject(item) && item.option === answer.option && !Object.hasOwn(item, 'attempt'));
   return { ...rest, decisions: sent ? decisions : [...decisions, answer] };
+}
+
+/**
+ * A task node's summary carrying the answer block of the question set it asked
+ * — `answer: {option, answers, answered_by, at, via}`, copied whole from the
+ * answer file — with that block turned into one `by: operator` decision per
+ * question. The questions are read from the node's own request file, so what
+ * is recorded is what was asked, in the words it was asked in; the caller
+ * copies the block and composes nothing. The decisions are added after the
+ * ones the summary already holds, and an earlier answer to the same question
+ * is replaced.
+ */
+function foldQuestionAnswer(entry, node, runDir, held) {
+  const file = runDir === null ? null : path.join(runDir, 'gates', `${node}${REQUEST_SUFFIX}`);
+  const refuse = reason => new Refusal('state-question-answer-invalid',
+    `the answer recorded for ${node} cannot be folded: ${reason}. Nothing was written`);
+  if (file === null) throw refuse('the run directory is unknown, so the request it answers cannot be read');
+  let request;
+  try {
+    request = parseState(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    throw refuse(`its request ${path.relative(runDir, file)} cannot be read (${err.code === 'ENOENT' ? 'it does not exist' : err.message})`);
+  }
+  const questions = requestQuestions(request);
+  if (questions === null) throw refuse(`${path.relative(runDir, file)} is not a question request carrying its questions`);
+  const folded = foldAnswer(questions, entry.answer);
+  if (!folded.ok) throw refuse(folded.errors.join('; '));
+  const { answer: _answer, ...rest } = entry;
+  const answered = new Set(folded.decisions.map(item => item.question_id));
+  const base = Array.isArray(entry.decisions) ? entry.decisions : Array.isArray(held?.decisions) ? held.decisions : [];
+  return { ...rest, decisions: [...base.filter(item => !(isPlainObject(item) && answered.has(item.question_id))), ...folded.decisions] };
 }
 
 /** What a model has written in place of the person's name. */

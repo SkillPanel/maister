@@ -28,7 +28,9 @@
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt — read-only over a run
  *   gate-brief     --state, --node, optional one of --oneline,
- *                  --json [--picker=rich|plain], --checkpoint, --request
+ *                  --json [--picker=rich|plain], --checkpoint, --request;
+ *                  with --patch-file (--checkpoint or --request only) the
+ *                  question set a running node asks inside itself
  *                                                             the gate brief:
  *                  with no form, the closing summary and the node that runs
  *                  next as text; --checkpoint the checkpoint, the one
@@ -127,7 +129,10 @@ const VERBS = {
   // labels only — the build rewrites the one into the other per tool;
   // `--request` the driven gate request, whole, so a driver composes nothing;
   // `--oneline` the one-line fallback that request's summary carries.
-  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline', 'json', 'picker', 'checkpoint', 'request'] },
+  // `--patch-file` carries the question set a running node asks inside
+  // itself, from the one place a patch is read, so the request a driver
+  // suspends on is built by the same verb a gate's is.
+  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline', 'json', 'picker', 'checkpoint', 'request', 'patch-file'] },
   // Read-only as well, and asked first by every resume: whether the directory
   // holds a run this engine froze, and what it froze. One flag for the reason
   // the other state verbs take one.
@@ -704,9 +709,19 @@ async function runGateBrief(flags) {
   if (!PICKERS.includes(picker)) {
     throw new UsageError(`gate-brief --picker takes ${PICKERS.join(' or ')}, not "${picker}"`);
   }
+  // A question set is carried to a driver, never to an in-session picker, so
+  // it renders as the checkpoint or the request and nothing else. The file is
+  // read and kept: the request printed here is what the caller writes over it.
+  let questions;
+  if (flags['patch-file'] !== undefined) {
+    if (form !== 'checkpoint' && form !== 'request') {
+      throw new UsageError('gate-brief takes --patch-file only with --request or --checkpoint: a question set is carried to a driver, never rendered as a picker');
+    }
+    questions = parseDocument(readFileText(patchFileOf(flags), 'the question set', UsageError), 'the question set in the patch file');
+  }
   const module = await loadModule(VERBS['gate-brief'].module);
   const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
-  const result = render({ state: flags.state, node: flags.node, form, picker });
+  const result = render({ state: flags.state, node: flags.node, form, picker, questions });
   // A refusal's code comes first on stderr, and a drift warning is kept after
   // it: a drifted run that also lacks a summary must still say it drifted.
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
