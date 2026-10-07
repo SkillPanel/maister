@@ -85,11 +85,11 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, resolve, reviseStretch } from './graph.mjs';
+import { MORE_DETAILS_ID, grantOrder, resolve, reviseStretch } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
-import { lowered, moreDetails, panelOf, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
+import { grantsText, lowered, moreDetails, panelOf, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
 import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
@@ -272,7 +272,8 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const onelineText = () => {
     const next = walked ? nextLine(walked, titles) : NEXT_UNKNOWN;
     const offered = revisions.spent ? [] : revisions.options.map(each => `revise: ${each.id} reruns=${each.reruns} revision=${revisions.revision}/${REVISION_CEILING}`);
-    const tail = [next, ...offered, `Recommended: ${recommended}`, runLine(doc, runDir)];
+    const granting = Object.entries(grantsOf(options)).map(([id, names]) => `${id} ${grantsText(names)}`);
+    const tail = [next, ...offered, ...granting, `Recommended: ${recommended}`, runLine(doc, runDir)];
     return fit(closing, DRIVEN, tail, pointerOf(doc, runDir));
   };
 
@@ -839,7 +840,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     risks,
     recommended: { option: recommended, reason },
     options: listed,
-    grants: {},
+    grants: grantsOf(options),
     approves: [],
     run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
     truncated,
@@ -858,6 +859,20 @@ function panelFor(node, checkpoint, runDir) {
     files: part.files.map(file => ({ ...file, href: pathToFileURL(path.join(runDir, file.path)).href })),
   }));
   return { node, header: checkpoint.header, ...panel, parts, run_dir: runDir };
+}
+
+/**
+ * What each option's answer grants beyond the run, by option id, in the closed
+ * set's order. Only an option that declares grants is listed, so a gate that
+ * grants nothing carries `{}`.
+ */
+function grantsOf(options) {
+  const grants = {};
+  if (!isPlainObject(options)) return grants;
+  for (const [id, option] of Object.entries(options)) {
+    if (isPlainObject(option) && Array.isArray(option.grants) && option.grants.length) grants[id] = grantOrder(option.grants);
+  }
+  return grants;
 }
 
 /**

@@ -1425,3 +1425,76 @@ test('picker: the driven form offers no More details', t => {
   const run = atApproval(t);
   assert.doesNotMatch(oneline(run, 'approval').stdout, /more-details|More details/);
 });
+
+// ---------------------------------------------------------------------------
+// grants: what answering an option authorises, on every surface
+// ---------------------------------------------------------------------------
+
+const GRANTED = 'also pushes the branch and opens the pull request';
+
+/** A run paused at a gate whose continue option grants the push and the pull request. */
+function atGrantingGate(t, grants = '[pr-create, push]') {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'granting.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    '  analysis: {uses: "direct:analysis", needs: []}',
+    '  approval:', '    type: gate', '    needs: [analysis]', '    ask: "Plan ready?"',
+    '    options:',
+    `      continue-past-analysis: {effect: continue, grants: ${grants}}`,
+    '      stop-development: stop',
+    '  handoff: {uses: "direct:handoff", needs: [approval]}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'granting.md'),
+    '# Granting workflow — node prose\n\n## `analysis`\n\nWrite the plan.\n\n## `handoff`\n\nPush and open the pull request.\n');
+  freeze(run, { definition });
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
+  return run;
+}
+
+function gateForm(run, node, flag) {
+  const result = verb(['gate-brief', `--state=${run.state}`, `--node=${node}`, flag]);
+  assert.equal(result.code, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test('grants: the checkpoint maps the granting option to its grants, in the closed set order', t => {
+  const checkpoint = gateForm(atGrantingGate(t), 'approval', '--checkpoint');
+  assert.deepEqual(checkpoint.grants, { 'continue-past-analysis': ['push', 'pr-create'] });
+  assert.ok(checkpoint.options.every(option => !('grants' in option)), 'the options do not repeat it');
+  assert.deepEqual(gateForm(atApproval(t), 'approval', '--checkpoint').grants, {}, 'a gate that grants nothing carries {}');
+});
+
+test('grants: both pickers say what the option grants in its label, and nothing else does', t => {
+  const run = atGrantingGate(t);
+  const rich = profiled(run, 'approval', 'rich');
+  assert.equal(rich.code, 0, rich.stderr);
+  const [go, stop] = rich.options;
+  assert.equal(go.id, 'continue-past-analysis');
+  assert.match(go.label, new RegExp(` — ${GRANTED} \\(Recommended\\)$`));
+  assert.doesNotMatch(stop.label, /pushes/);
+
+  const plain = profiled(run, 'approval', 'plain');
+  assert.match(plain.options[0].label, new RegExp(` — ${GRANTED} \\(Recommended\\)$`));
+  assert.doesNotMatch(plain.options[1].label, /pushes/);
+
+  const pushOnly = profiled(atGrantingGate(t, '[push]'), 'approval', 'rich');
+  assert.match(pushOnly.options[0].label, / — also pushes the branch \(Recommended\)$/);
+});
+
+test('grants: the one-line summary names the option and what it grants', t => {
+  const result = oneline(atGrantingGate(t), 'approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(` · continue-past-analysis ${GRANTED} · Recommended: continue-past-analysis · `));
+  assert.doesNotMatch(oneline(atApproval(t), 'approval').stdout, /also pushes/);
+});
+
+test('grants: the driven request carries them in its checkpoint only', t => {
+  const request = gateForm(atGrantingGate(t), 'approval', '--request');
+  assert.deepEqual(Object.keys(request).sort(), ['context', 'kind', 'multi_select', 'node', 'options', 'question']);
+  assert.deepEqual(request.context.checkpoint.grants, { 'continue-past-analysis': ['push', 'pr-create'] });
+  const [go] = request.options;
+  assert.deepEqual(Object.keys(go).sort(), ['description', 'effect', 'id', 'label', 'recommended']);
+  assert.doesNotMatch(go.label, /pushes/, 'the label stays plain; a cockpit shows the grant its own way');
+  assert.match(request.context.summary, new RegExp(`continue-past-analysis ${GRANTED}`));
+});
