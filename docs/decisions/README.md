@@ -31,6 +31,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - Two enabled editions of the plugin are detected from the settings scopes, failing open: a session-start hook warns and `write-state` refuses to start or resume a run (ADR-0026)
 - An overlay places an added node upstream with `before:`, an edge that only adds a wait; a disabled node never comes back under its own id, and a tuned `with` merges by key (ADR-0027)
 - A gate option may revise: it resets the stretch from a named upstream node to the gate in one write, with the operator's note and a counted attempt, up to a safety ceiling per gate (ten, amended 2026-10-05), while `needs` stays acyclic and an ordinary write can no longer rewind a node (ADR-0028)
+- A gate's continue option may declare `grants: [push, pr-create]`, hashed with the option and shown in every surface's label; the driver registers it and the engine itself pushes nothing (ADR-0033)
 
 ## Index
 
@@ -67,3 +68,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0030](0030-checkpoint-contract.md) | One checkpoint object, projected to every surface | Accepted | 2026-10-06 | Amended by ADR-0031: one engine-written display file beside the run, `display/next.json`, written by `gate-brief` and removed by every state write |
 | [ADR-0031](0031-run-display-module.md) | A Claude Code hooks module draws the run, display only | Accepted | 2026-10-07 | Amends ADR-0030 (operator decision 3: an engine-written display file beside the run, removed by every state write) |
 | [ADR-0032](0032-in-step-questions-under-a-driver.md) | In-step questions suspend as one question set under a driver that can carry it | Accepted | 2026-10-07 | Builds on ADR-0030 (the checkpoint envelope and the operator decision item) |
+| [ADR-0033](0033-gate-options-declare-grants.md) | A gate's continue option declares what its answer grants | Accepted | 2026-10-07 | Fills ADR-0030's reserved checkpoint `grants`; a sibling of ADR-0028's `reruns` on the gate option |
