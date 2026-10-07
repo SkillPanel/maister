@@ -87,14 +87,15 @@ If you ever find yourself reasoning "the user has been approving everything / to
 
 A gate is not the only question a phase asks. A phase may ask its own — a clarification, an opt-in deciding whether a later phase runs, a decision between approaches, or a loop offering another pass — and those are *not* gates: they carry no `→ MANDATORY GATE` marker, every answer continues the run, and no request file exists for them. They follow the same driver the gates do:
 
-| `orchestrator.driver.kind` | A question a phase asks inside itself is |
+| The run's driver | A question a phase asks inside itself is |
 |---|---|
-| absent, or `terminal` | asked in session, exactly as the phase describes it |
-| `cockpit`, `dispatch` | **never asked**; the phase takes the default its own prose names, and records that it did |
+| absent, or `kind: terminal` | asked in session, exactly as the phase describes it |
+| `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator**: every question the phase can form at its first asking point goes out as one `kind: question` request, and the phase resumes `running` with the answers recorded as `by: operator` decisions |
+| any other — `dispatch`, or a cockpit without that feature | **never asked**; the phase takes the default its own prose names, and records that it did |
 
-**Why a default and not a suspension.** Suspending is gate-shaped: a request carries a node id, a kind, a question and its options, and there is no request kind for a question asked inside a phase. A run under a driver therefore has two honest outcomes and no third — take the stated default, or fail. Asking anyway is the defect this rule prevents: nobody is in the session to answer.
+**One request per attempt, written before asking.** A phase under question sets asks once per attempt, so a question that only exists after an answer — a follow-up, another round, a retry — takes its default; and whatever it needs after the answer is on disk before it suspends, because the answer may reach a fresh session. The workflow engine's *In-node questions* holds the mechanism. Asking in session under a driver is the defect this rule prevents: nobody is in the session to answer.
 
-**Every such question names its default, in the phase that asks it.** What each family takes:
+**Every such question names its default, in the phase that asks it** — taken when it cannot be asked. What each family takes:
 
 | The question | What a non-terminal run takes |
 |---|---|
@@ -415,7 +416,9 @@ needs them. The workflow engine's `verification` node prose (development and per
 8. **What the gate is handed.** Issues still needing a decision become `open` risks, with the
    fix as their `change`; items left for later stay `followup` risks; a spent budget with
    critical issues still open is a `stop` risk, which makes Stop the gate's recommended answer.
-9. **Under a non-terminal driver** nothing is asked: the decisions stay open as `open` risks,
+9. **Under a driver** with question sets, the issues needing a decision go out as one
+   question set, one question per issue, when that is the first thing the phase asks in its
+   attempt; otherwise, and under any other driver, nothing is asked: the decisions stay open as `open` risks,
    and the stopping point takes "Continue as is".
 
 Issue numbers stay stable across cycles: an issue keeps the `id` it was first given, and a new
