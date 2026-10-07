@@ -85,7 +85,9 @@ function inProject(root, args) {
   return { ...result, report: result.stdout ? JSON.parse(result.stdout) : null };
 }
 
-const home = name => path.join('.maister', 'workflows', name);
+// Relative paths are printed with `/` on every platform: the freeze records
+// this spelling, so a run frozen on Windows reads the same as any other.
+const home = name => `.maister/workflows/${name}`;
 const builtin = name => path.join(ENGINE_DIR, 'workflows', `${name}.yml`);
 
 test('a project workflow is found in its own home, with its interface and companion', t => {

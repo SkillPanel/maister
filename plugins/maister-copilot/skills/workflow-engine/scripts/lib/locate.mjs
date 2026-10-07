@@ -188,11 +188,14 @@ function definitionsIn(dir) {
 /**
  * A path as a caller passes it on: relative to the project root when it lies
  * inside it — the spelling a freeze records and re-resolves from the run's own
- * root — and absolute otherwise, which is where the built-ins live.
+ * root, written with `/` so a run frozen on Windows records what one frozen
+ * anywhere else does — and absolute otherwise, which is where the built-ins live.
  */
 function shown(file, root) {
   const relative = path.relative(root, file);
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative) ? relative : path.resolve(file);
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+    ? relative.split(path.sep).join('/')
+    : path.resolve(file);
 }
 
 function refused(file, message) {
