@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { parseDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 
@@ -44,15 +44,17 @@ function revise(run, node, option, note) {
  * then the recorded outcomes, summaries and design context replayed in one
  * closing write. `absent` is laid over the recorded summaries by node id.
  */
-function replayRecorded(t, absent = null) {
+function replayRecorded(t, absent = null, { inputs = {}, unrun = [] } = {}) {
   const run = scratch(t, { fixture: 'team-calendar-sharing', type: 'product-design', name: RUN_NAME });
   const recorded = parse(fs.readFileSync(path.join(run.dir, 'recorded-state.yml'), 'utf8'));
-  freeze(run, { definition: PRODUCT_DESIGN, inputs: { ...recorded.orchestrator.options.inputs } });
+  freeze(run, { definition: PRODUCT_DESIGN, inputs: { ...recorded.orchestrator.options.inputs, ...inputs } });
   const nodes = {};
   for (const [id, entry] of Object.entries(recorded.workflow.nodes)) {
+    if (unrun.includes(id)) continue;
     nodes[id] = { status: entry.status, ...(entry.values ? { values: { ...entry.values } } : {}) };
   }
   const summaries = JSON.parse(JSON.stringify(recorded.node_summaries));
+  for (const id of unrun) delete summaries[id];
   if (absent !== null) {
     for (const [id, entries] of Object.entries(absent)) {
       if (entries === null) delete summaries[id].absent;
@@ -150,7 +152,8 @@ test('recorded run: the dashboard projects a product-design run with its charact
   const phase = id => data.phases.find(entry => entry.id === id);
   assert.equal(phase('idea-convergence').icon_hint, 'plan');
   assert.equal(phase('visual-prototyping').icon_hint, 'spec');
-  assert.equal(phase('review-handoff').icon_hint, 'done');
+  assert.equal(phase('review-handoff').icon_hint, 'docs');
+  assert.equal(phase('completion').icon_hint, 'done');
   assert.equal(phase('persona-exploration').status, 'skipped');
 });
 
@@ -187,7 +190,7 @@ test('outputs: the brief, the delivery scope and the mockups are exposed under t
 });
 
 /** A chain whose design step binds the named artifacts of product design and hands them on. */
-function chainBinding(t, artifacts) {
+function chainBinding(t, artifacts, inputs = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-chain-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const declared = Object.entries(artifacts).map(([key, at]) => `        ${key}: ${at}`);
@@ -195,7 +198,9 @@ function chainBinding(t, artifacts) {
   fs.writeFileSync(path.join(dir, 'discovery.yml'), [
     'name: discovery', 'version: 1', 'inputs:', '  task_description: {type: string, required: true}', 'nodes:',
     '  design:', '    uses: workflow:product-design', '    needs: []', '    with:',
-    '      task_description: "${inputs.task_description}"', '    outputs:', '      artifacts:', ...declared,
+    '      task_description: "${inputs.task_description}"',
+    ...Object.entries(inputs).map(([key, value]) => `      ${key}: ${value}`),
+    '    outputs:', '      artifacts:', ...declared,
     '  delivery:', '    uses: direct:delivery', '    needs: [design]', '    with:', ...handed, '',
   ].join('\n'));
   fs.writeFileSync(path.join(dir, 'discovery.md'), '# Discovery\n\n## `delivery`\n\nPlans the delivery.\n');
@@ -389,7 +394,7 @@ test('specification-approval: with no screens to draw, the brief renders the spe
   const picker = brief(run, 'specification-approval');
   assert.equal(picker.header, 'Spec');
   assert.match(picker.brief, /^Feature specification: Five sections, from the sharing model to notifications\.\n\nVisual prototyping: Skipped\.\n/);
-  assert.match(picker.brief, /Next: Review and handoff/);
+  assert.match(picker.brief, /Next: Product brief and delivery scope/);
   assert.equal(picker.options.find(option => option.id === 'revise-specification').description,
     'Re-runs Feature specification with your note, then asks this again.');
   const result = revise(run, 'specification-approval', 'revise-specification', 'Add a revocation section');
@@ -422,5 +427,116 @@ test('specification-approval: a long specification never trims the prototypes an
   assert.match(picker.brief, /^Feature specification: Section 0 specifies/);
   assert.match(picker.brief, /^Visual prototyping: Gallery: http:\/\/localhost:3847 — open a screen from the grid\./m);
   assert.match(picker.brief, /^Decisions \(\+3 more in the dashboard\):\n- Decision 0 settles one scope question\.$/m);
-  assert.match(picker.brief, /Next: Review and handoff/);
+  assert.match(picker.brief, /Next: Product brief and delivery scope/);
+});
+
+// ---------------------------------------------------------------------------
+// as a sub-run, and at the simple depth
+// ---------------------------------------------------------------------------
+
+const DEPTH_SKIPS = ['characteristics-approval', 'context-approval', 'idea-generation', 'idea-convergence', 'direction-approval'];
+
+test('inputs: the depth and the embedded flag are optional bools that default to the full, standalone run', () => {
+  const { doc, errors } = parseDefinition(fs.readFileSync(PRODUCT_DESIGN, 'utf8'), PRODUCT_DESIGN);
+  assert.deepEqual(errors, []);
+  assert.deepEqual({ ...doc.inputs.simple }, { type: 'bool', required: false, default: false });
+  assert.deepEqual({ ...doc.inputs.embedded }, { type: 'bool', required: false, default: false });
+  assert.equal(doc.nodes.completion.when, '!${inputs.embedded}');
+  for (const id of DEPTH_SKIPS) assert.equal(doc.nodes[id].when, '!${inputs.simple}', id);
+});
+
+test('inputs: the shipped definition validates with no warning', () => {
+  const result = verb(['validate', `--definition=${PRODUCT_DESIGN}`]);
+  const report = JSON.parse(result.stdout);
+  assert.equal(result.code, 0);
+  assert.deepEqual(report.errors, []);
+  assert.deepEqual(report.warnings, []);
+});
+
+// A node may read a guarded node only when it carries the very same guard, so
+// the two always run or are skipped together.
+test('guards: no node that may still run interpolates anything from a node a guard may skip', () => {
+  const { doc } = parseDefinition(fs.readFileSync(PRODUCT_DESIGN, 'utf8'), PRODUCT_DESIGN);
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    const refs = [...JSON.stringify(node.with ?? {}).matchAll(/\$\{([a-z0-9-]+)\./g)].map(match => match[1]);
+    for (const ref of refs.filter(ref => ref !== 'inputs')) {
+      const guard = doc.nodes[ref].when;
+      assert.ok(!guard || guard === node.when, `${id} interpolates ${ref}, which ${guard} may skip`);
+    }
+  }
+});
+
+test('outputs: a parent runs product design embedded and at the simple depth, binding the brief and the scope with no warning', t => {
+  const result = chainBinding(t,
+    { brief: 'outputs/product-brief.md', delivery_scope: 'outputs/delivery-scope.yml' },
+    { embedded: 'true', simple: 'true' });
+  const report = JSON.parse(result.stdout);
+  assert.equal(result.code, 0);
+  assert.deepEqual(report.errors, []);
+  assert.deepEqual(report.warnings, []);
+});
+
+test('embedded: the guard keeps completion off the path, so the child ends with the brief written', t => {
+  const run = replayRecorded(t, null, { inputs: { embedded: true }, unrun: ['completion'] });
+  assert.equal(readState(run).workflow.nodes.completion.status, 'pending');
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+});
+
+test('embedded: a standalone run that never reached completion is refused as unfinished', t => {
+  const result = complete(replayRecorded(t, null, { unrun: ['completion'] }));
+  assert.equal(result.stdout, 'RUN-FAILED: run-nodes-unfinished\n');
+  assert.match(result.stderr, /completion/);
+});
+
+/**
+ * A run walked along the simple path only: the nodes the depth skips, the
+ * personas and the prototypes are left pending, for the guards to keep off
+ * the path.
+ */
+function simplePath(t, simple) {
+  const run = scratch(t, { fixture: 'team-calendar-sharing', type: 'product-design', name: RUN_NAME });
+  freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK, simple } });
+  write(run, {
+    nodes: { intake: { status: 'completed', values: { personas_enabled: false, prototyping_enabled: false, complexity_level: 'simple' } } },
+    node_summaries: { intake: { summary: 'A simple enhancement.', absent: { research_context: 'no research task was named' } } },
+  });
+  for (const id of ['context-synthesis', 'problem-exploration', 'problem-approval', 'feature-specification',
+    'specification-approval', 'review-handoff', 'completion']) {
+    write(run, { nodes: { [id]: { status: 'completed' } } });
+  }
+  write(run, { task: { status: 'completed' } });
+  return run;
+}
+
+test('simple: the depth keeps the skipped gates and the idea stretch off the path', t => {
+  const run = simplePath(t, true);
+  const nodes = readState(run).workflow.nodes;
+  for (const id of [...DEPTH_SKIPS, 'persona-exploration', 'visual-prototyping']) assert.equal(nodes[id].status, 'pending', id);
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(lastLine(result.stdout), 'RUN-COMPLETE');
+});
+
+test('simple: the same walk at full depth leaves the characteristics gate owed', t => {
+  const result = complete(simplePath(t, false));
+  assert.equal(result.stdout, 'RUN-FAILED: run-nodes-unfinished\n');
+  assert.match(result.stderr, /characteristics-approval/);
+});
+
+test('simple: the problem gate goes straight to the specification and names what the depth skips', t => {
+  const run = scratch(t, { type: 'product-design', name: RUN_NAME });
+  freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK, simple: true } });
+  write(run, {
+    nodes: { intake: { status: 'completed', values: { personas_enabled: false, prototyping_enabled: false, complexity_level: 'simple' } } },
+    node_summaries: { intake: { summary: 'A simple enhancement.', absent: { research_context: 'no research task was named' } } },
+  });
+  write(run, { nodes: { 'characteristics-approval': { status: 'skipped' } } });
+  write(run, { nodes: { 'context-synthesis': { status: 'completed' } }, node_summaries: { 'context-synthesis': { summary: 'Calendars are private today.' } } });
+  write(run, { nodes: { 'context-approval': { status: 'skipped' } } });
+  write(run, { nodes: { 'problem-exploration': { status: 'completed' } }, node_summaries: { 'problem-exploration': { summary: 'Guests cannot see availability.' } } });
+  write(run, { nodes: { 'persona-exploration': { status: 'skipped' } } });
+  const picker = brief(run, 'problem-approval');
+  assert.match(picker.brief, /^Next: Feature specification \(skipping Idea generation and Idea convergence\)$/m);
 });
