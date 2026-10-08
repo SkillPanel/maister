@@ -541,14 +541,15 @@ test('plain: the specification gate renders as designed — the glance, then the
   assert.ok(plain.question.length <= 1000);
 });
 
-test('rich: the research convergence gate goes on to what runs, skipping the declined design', t => {
+test('rich: the research convergence gate recommending no design goes on to what runs, skipping the design', t => {
   const run = scratch(t);
   const titles = overlay(t, 'research', ['display:', '  titles:', '    completion: "Final summary"']);
   walkTo(t, run, RESEARCH, 'convergence-approval', [titles], { question: 'Can the store corrupt a note?' }, {
-    nodes: { 'optional-phases-decision': { status: 'completed', values: { brainstorming_enabled: true, design_enabled: false } } },
     node_summaries: {
+      'foundation-approval': { answer: 'continue-to-brainstorming' },
       'solution-convergence': {
         status: 'completed',
+        recommends: { option: 'finish-without-design', reason: 'Design declined when the run started' },
         headline: 'The nine decision areas add up to one 2.0.0 release that is projected to close every path that can corrupt a stored note.',
         summary: 'Converged on nine areas.',
         decisions: [
@@ -561,7 +562,8 @@ test('rich: the research convergence gate goes on to what runs, skipping the dec
   });
   const rich = pickerOf(run, 'convergence-approval', 'rich');
   assert.equal(rich.header, 'Solutions');
-  assert.equal(rich.question, 'Brainstorming complete. Ready to go on?');
+  // Two continues, the revise and the stop fill the picker, so More details is typed.
+  assert.equal(rich.question, 'Brainstorming complete. Ready to go on? Type "details" for the full brief.');
   const glance = rich.options[0].preview.split('\n');
   assert.equal(glance[0], 'Done: The nine decision areas add up to one 2.0.0 release that is projected to close every path that can corrupt a stored note.');
   assert.match(glance[1], /^Next: Final summary \(skipping .*High-level design.*\)$/);
@@ -570,20 +572,27 @@ test('rich: the research convergence gate goes on to what runs, skipping the dec
   assert.equal(glance.at(-2), '', 'the user\'s choices stand apart from the last decision');
   assert.ok(glance.indexOf('- The path-closure projection has not been run') < glance.indexOf('- Ship every change together as one 2.0.0 release — solution convergence'),
     'the open risk comes ahead of the decision');
-  // The continue label names where the run goes: the design was declined.
-  assert.equal(rich.options[0].label, 'Continue to final summary (Recommended)');
+  // The recommended continue is the one that finishes without the design, and says where it leads.
+  assert.equal(rich.options[0].label, 'Finish without a design (Recommended)');
+  assert.equal(rich.options[0].description, 'Runs final summary next. Design declined when the run started.');
   const plain = pickerOf(run, 'convergence-approval', 'plain');
   assert.equal(plain.options.find(option => option.id === 'revise-convergence').label,
     'Ask the decision areas again — re-runs solution convergence with your note');
 });
 
-test('rich: with the design taken, the research convergence continue label names the design', t => {
+test('rich: the research convergence gate recommends the design when nothing names another, and each continue names where it leads', t => {
   const run = scratch(t);
   walkTo(t, run, RESEARCH, 'convergence-approval', [], { question: 'Can the store corrupt a note?' }, {
-    nodes: { 'optional-phases-decision': { status: 'completed', values: { brainstorming_enabled: true, design_enabled: true } } },
-    node_summaries: { 'solution-convergence': { status: 'completed', summary: 'Converged on nine areas.' } },
+    node_summaries: {
+      'foundation-approval': { answer: 'continue-to-brainstorming' },
+      'solution-convergence': { status: 'completed', summary: 'Converged on nine areas.' },
+    },
   });
-  assert.equal(pickerOf(run, 'convergence-approval', 'rich').options[0].label, 'Continue to high-level design (Recommended)');
+  const rich = pickerOf(run, 'convergence-approval', 'rich');
+  assert.deepEqual(rich.options.slice(0, 2).map(option => [option.label, option.description]), [
+    ['Continue to the design (Recommended)', 'Runs high-level design next.'],
+    ['Finish without a design', 'Runs final summary next.'],
+  ]);
 });
 
 test('glance: open risks come ahead of the decisions, which give way first when the lines run short', t => {
