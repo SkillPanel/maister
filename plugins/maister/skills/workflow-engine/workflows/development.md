@@ -808,7 +808,8 @@ record what changed in `analysis/technical-clarifications.md` or
 gate. When the audit already ran, recommend it again only when the revision
 changed what it checked, and say so in the reason; when the note asks for or
 against the audit, recommend what the note says. In Part C, hand the specification creator the note, the audit's
-findings when there are any, and the existing `implementation/spec.md`, and ask
+findings still open when there are any — never the ones the audit's fix pass
+already applied — and the existing `implementation/spec.md`, and ask
 it to revise the specification in place. Say in the summary what changed, and
 write the headline again for the revised specification.
 
@@ -846,45 +847,69 @@ again when the gate is asked once more.
 
 ## `spec-audit`
 
-Delegated to the specification auditor through the Task tool, and only when the
-operator chose `continue-to-spec-audit` at `specification-approval`.
+Delegated to the specification auditor through the Task tool, then a fix pass
+for the findings with one obvious fix, and only when the operator chose
+`continue-to-spec-audit` at `specification-approval`.
 
 The `maister:spec-auditor` agent audits the specification rather than an
 inline review, because it checks the spec's claims against the codebase instead
 of trusting them — and it runs before any code exists, so it audits the spec
 itself, not an implementation.
 
-The auditor's prompt names its report path `verification/spec-audit.md`, and
-the auditor writes the report there: a verdict — pass, pass with concerns, or
-fail — issue counts by severity, and the findings themselves. The report is the
-auditor's. If the auditor returns its report as text and the file does not
+The auditor's prompt names its report path `verification/spec-audit.md` and
+hands it the user's earlier answers — `analysis/requirements.md`,
+`analysis/technical-clarifications.md` when it exists, and the decisions
+`prior-context --background` returns — so it can tell a finding with one obvious
+fix from one that needs a decision. The auditor writes the report there: a
+verdict — pass, pass with concerns, or fail — issue counts by severity, and the
+findings themselves, each graded fixable or needing a decision. The report is
+the auditor's. If the auditor returns its report as text and the file does not
 exist, write that returned text to the path verbatim, once; never append to the
-report, edit it, annotate it or resolve its findings. Record the verdict in
-state.
+report, edit it or annotate it. Record the verdict in state.
+
+**The obvious fixes are made without asking**
+(`orchestrator-patterns.md` § 6, *The Specification Audit's Fix Pass*, which
+this follows step by step):
+
+- **One fix pass.** Hand every finding the auditor graded fixable, with its
+  change, to the `maister:specification-creator` agent through the Task tool in
+  its amend mode. It applies exactly those changes to `implementation/spec.md`,
+  and to `analysis/requirements.md` where a fix reaches it, and says per fix
+  whether it was applied and whether it changed a requirement.
+- **One re-audit, only when a fix changed a requirement**: the auditor again,
+  with the same inputs; it rewrites the report. Its new findings are not fixed
+  again, and a fixed finding that comes back is no progress: both stay open.
+- **Record** each applied fix in this node's summary as `fixes_applied` — the
+  finding and the change in a few words each — and the re-audits as
+  `reaudit_count` (0 or 1).
 
 This node asks the operator nothing — no question about findings, no revise
-round; the following gate is the operator's moment.
+round, in a terminal run or under a driver; the following gate is the
+operator's moment.
 
 A failing verdict does not end the run on its own. It is what the operator reads
 at the gate, and the gate's stop option is the route out.
 
 **Gate brief content.** Read `verification/spec-audit.md` and write into this
 node's closing `node_summaries` entry a `headline` giving, in one sentence, the
-verdict and what it means for planning ("The audit passes the spec with two
-concerns, neither blocking a plan"). In `summary`, the verdict, the issue counts
-by severity and the top findings in plain words. The verdict — that the spec can
-be built as written, or what stands in the way — is the headline and the summary,
-never a decision. In `decisions`, only what the audit itself settled one way — a
-point the spec left open that the audit resolved against the codebase — as `by:
-audit`, never an earlier answer restated; a check that merely confirmed the spec is a finding, and goes in the
-summary. In `risks`, each finding still
-open as an `open` risk whose `change` is what a revise of the specification
+final verdict, how many findings the run fixed and what is left for planning
+("The audit passes the spec after three fixes; one concern is left, not blocking
+a plan"). In `summary`, the verdict, the issue counts by severity, how many were
+fixed and the findings still open in plain words; when no re-audit ran, say that
+the report still lists the findings the run fixed. In `decisions`, each fix made
+without asking — its finding and the change in a few words — as `by: run`, so
+the gate shows it as fixed by the run; and only what the audit itself settled
+one way — a point the spec left open that the audit resolved against the
+codebase — as `by: audit`, never an earlier answer restated; a check that merely
+confirmed the spec is a finding, and goes in the summary. In `risks`, only the
+findings still open — needing a decision, not applied, or found by the re-audit
+— each as an `open` risk whose `change` is what a revise of the specification
 would do about it, the critical ones first; a finding about something outside
-this change as a `followup`. The findings are copied from the report, never
-resolved here: the report stays the auditor's.
+this change as a `followup`. A finding the run fixed is never a risk: the
+revise suggestions are drawn from the open ones alone.
 
 **Recovery budget**: none — an audit that returns is an audit, whatever its
-verdict.
+verdict; a fix pass that fails leaves its findings open for the gate.
 
 **Phase summary key**: `spec_audit`. Mirror this node's summary into
 `task_context.phase_summaries.spec_audit` with the verdict, and with `node:
@@ -900,8 +925,10 @@ A gate, guarded by the same condition as the node before it. When the operator
 chose `continue-to-planning` at `specification-approval`, this gate is skipped
 along with `spec-audit` and the run continues to planning without asking.
 
-Its revise option sends the run back to `specification` with the operator's
-note, and the audit's findings reach the re-run through the prior context. The
+Its brief lists what the run fixed and, as open items, only the findings left;
+the revise option's suggested notes come from those. Its revise option sends
+the run back to `specification` with the operator's note, and the audit's open
+findings reach the re-run through the prior context. The
 specification is then approved again at `specification-approval`, which decides
 the audit again, and when the audit is chosen it runs before this gate asks once
 more (engine § Gates, *Revising at a gate*).

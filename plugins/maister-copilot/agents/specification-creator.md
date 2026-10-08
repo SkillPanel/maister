@@ -190,6 +190,24 @@ Before returning, make sure every answer in requirements.md is reflected in the 
 
 ---
 
+## Amend Mode
+
+When the caller hands you a list of fixes from a specification audit, amend the existing
+specification instead of writing a new one. Each fix names its finding and the concrete change.
+
+- Apply exactly those changes to `implementation/spec.md`, and to `analysis/requirements.md`
+  only where a fix reaches it. Change nothing else: no new search, no rewrite of sections the
+  fixes do not touch, no resolving of findings that were not handed to you.
+- A fix that turns out not to be one clear change — it would alter scope or behaviour, or
+  contradict an answer recorded in `requirements.md` — is not applied; return it as not applied
+  with the reason.
+- Regenerate the HTML companion when one is produced, so it matches the amended spec.
+- Return, per fix, whether it was applied and whether it changed a requirement (added, removed
+  or reworded what the change must do, as opposed to a test case, a limit or wording that
+  states an existing requirement more precisely).
+
+---
+
 ## Characteristic-Based Adaptations
 
 Adapt specification depth and focus based on `task_characteristics` from the gap-analyzer:
@@ -246,6 +264,13 @@ summary:
   risks: ["...", ...]                            # from the spec's Open Questions / Risks block
 
 warnings: ["any non-critical observations"]
+
+# Amend mode only, one entry per fix handed in:
+fixes:
+  - finding: 1                    # the audit's number for the finding
+    applied: true | false
+    changed_requirement: true | false
+    note: "[what changed, or why it was not applied]"
 ```
 
 ---

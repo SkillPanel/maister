@@ -448,6 +448,30 @@ critical issue is never proceeded past without an explicit answer saying so.
 | Two automatic re-checks spent, or no progress | Ask: one more round, continue as is, or stop |
 | Critical issues remain unresolved | **MUST NOT proceed** — require user approval first |
 
+### The Specification Audit's Fix Pass
+
+The same idea, scaled down, before any code exists. The workflow engine's `spec-audit` node
+prose (development and performance) carries it. The spec auditor grades each finding
+*fixable* — one clear change, no scope or behaviour change beyond what the spec, the
+requirements or an earlier answer already implies — or *needs decision*, and names the change.
+
+1. **Apply without asking** every fixable finding, in **one fix pass**: the specification
+   creator in its amend mode applies exactly those changes to `implementation/spec.md` (and to
+   `analysis/requirements.md` where a fix reaches it). The audit report stays the auditor's —
+   the run never edits or annotates it.
+2. **Re-audit once, and only when a fix changed a requirement.** A fix that adds a planned test
+   case, a limit or a sentence stating an existing requirement more precisely needs no
+   re-audit. The re-audit rewrites the report; its new fixable findings are not fixed again.
+3. **No progress stops it**: a fixed finding coming back, or a fix the creator could not apply,
+   stays open.
+4. **Nothing is asked in the node**, in a terminal run or under a driver: the gate after it is
+   the operator's moment. Record each fix in the node summary's `fixes_applied` (and
+   `reaudit_count`) and as a `{decision, by: run}`, so the gate lists it as fixed by the run.
+5. **What the gate is handed**: only the findings still open — needing a decision, not applied,
+   or found by the re-audit — as `open` risks with their `change`, the critical ones first; a
+   finding about something outside the change as a `followup`. The gate's revise suggestions
+   come from those alone, never from a fix already made.
+
 ---
 
 ## 7. Artifact Summary Contract

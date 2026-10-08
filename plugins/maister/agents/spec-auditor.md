@@ -86,6 +86,32 @@ Verify every concrete claim the spec makes about existing code (file paths, reus
 
 ---
 
+### 4.5. Grade Fixability
+
+**Purpose**: Tell the caller which findings it can fix without asking anyone
+
+A workflow that runs this audit applies every fixable finding to the specification on its own
+and puts only the rest in front of a person, so grade each finding honestly:
+
+- **Fixable** — one clear change, with no change of scope or behaviour beyond what the spec,
+  the requirements or an earlier answer of the user already implies: a planned test case the
+  requirements call for and the testing approach left out, a test limit the spec missed, a
+  guard an earlier answer already settled, a self-contradiction where one side is plainly
+  meant. Name the change concretely — the section of `spec.md` (or of `requirements.md`) and
+  what it should say.
+- **Needs decision** — the fix changes behaviour or scope, two fixes are plausible, or the fix
+  would contradict an earlier answer. Say what a person has to decide.
+
+Read the user's earlier answers before grading: the questions and answers in
+`analysis/requirements.md`, `analysis/technical-clarifications.md` when it exists, and any
+earlier decisions the caller passes. A finding graded fixable that was not is a change nobody
+chose; when in doubt, it needs a decision. Grade the same way at every severity. Post-implementation
+findings about the built code are never fixable here: this grading is about the specification.
+
+**Output**: Each finding marked fixable, with its change, or needs-decision, with the decision
+
+---
+
 ### 5. Record Clarification Questions
 
 **Purpose**: Resolve specification ambiguities before final assessment
@@ -136,7 +162,7 @@ Verify every concrete claim the spec makes about existing code (file paths, reus
 
 ```markdown
 ## TL;DR
-[3-5 lines max — overall verdict (Compliant / Mostly / Non-Compliant) and the issue counts by severity. Conclusions, not process.]
+[3-5 lines max — overall verdict (Compliant / Mostly / Non-Compliant), the issue counts by severity and how many are fixable. Conclusions, not process.]
 
 ## Key Decisions
 - [what the audit settled that changes the next phase, e.g. "the two missing tests belong in planning, not in a spec revise"] — [one-line rationale]
@@ -152,6 +178,17 @@ the spec or the report defines (T5, R2, C1); keep severity grading and its ratio
 Decisions; and credit a decision the user made to the user only when they made it.
 
 Full evidence-based findings follow below the block, unchanged.
+
+**Structured result** — when a workflow invokes you, return beside the report:
+
+```yaml
+verdict: "compliant" | "mostly_compliant" | "non_compliant"
+findings:
+  - id: 1                       # the report's own number for the finding
+    severity: "critical" | "high" | "medium" | "low"
+    fixable: true | false
+    change: "[the concrete change to the spec, or what a person has to decide]"
+```
 
 ---
 
@@ -188,6 +225,7 @@ Every finding must include:
 3. **Gap Description**: Clear explanation of discrepancy
 4. **Category**: Missing/Incomplete/Incorrect/Extra/Ambiguous
 5. **Severity**: Critical/High/Medium/Low with justification
+6. **Fixability**: Fixable, with the concrete change to the spec, or Needs decision, with what a person has to decide
 
 **Example Finding Format**:
 ```
@@ -203,6 +241,8 @@ Every finding must include:
 **Category**: Missing
 
 **Severity**: High - Core feature specified but not implemented
+
+**Fixability**: Needs decision - whether the export ships in this change or is cut from scope
 
 **Recommendation**: Implement CSV export endpoint and UI button
 ```
@@ -227,7 +267,7 @@ When specifications are unclear:
 
 - **NEVER modify code or specifications**
 - Only examine, analyze, and report
-- Let stakeholders decide on fixes
+- The caller applies the fixable findings and puts the rest to a person; you only grade them
 
 ---
 
@@ -241,6 +281,7 @@ Specification audit is complete when:
 ✅ Gaps categorized (Missing/Incomplete/Incorrect/Extra)
 ✅ All findings have evidence (file:line references)
 ✅ Severity assigned to each finding with justification
+✅ Each finding graded fixable, with its change, or needs-decision
 ✅ Ambiguities identified and clarification questions prepared
 ✅ Comprehensive audit report generated
 ✅ Compliance status determined (✅ Compliant | ⚠️ Mostly | ❌ Non-Compliant)
