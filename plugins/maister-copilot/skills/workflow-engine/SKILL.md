@@ -854,8 +854,9 @@ engine itself grants nothing and pushes nothing.
 A continue option may declare `sets` — the gate values its answer records, such as whether an
 optional audit runs next (grammar § 6). This is how a gate decides an optional step in the same
 question that approves the work before it, so the step itself asks nothing. The writer records
-the chosen option's values on the gate when it records the answer, and a guard downstream reads
-them like any node's. A gate's values are the writer's alone: never send `values` for a gate.
+the chosen option's values on the gate from its recorded answer, on every write once the gate is
+completed — the empty write that re-publishes a driven answer included — and a guard downstream
+reads them like any node's. A gate's values are the writer's alone: never send `values` for a gate.
 
 ### Before every gate — the gate brief
 
@@ -1199,7 +1200,9 @@ re-validation through the writer.
    invocation contract) — the marker is already null, so the file may be written. It is
    not a no-op: the writer reads the file the editor tools just wrote, self-checks it through
    the shared state reader, and re-publishes it. The file changes by one line
-   (`orchestrator.updated`), and that is the expected result. The same write regenerates
+   (`orchestrator.updated`) — two when the chosen continue sets gate values, which the writer
+   records on the gate's entry from the answer the editor tools wrote — and that is the expected
+   result. The same write regenerates
    `gates/index.yml`, closing the answered gate's row. This is what keeps the editor-
    tool exception honest — model-authored state is accepted only after the writer has read
    it back and agreed.

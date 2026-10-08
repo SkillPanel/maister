@@ -1067,7 +1067,7 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
-  if (patch.nodes || patch.node_summaries) stampGateValues(doc, patch, changed);
+  stampGateValues(doc, patch, changed);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -2848,6 +2848,12 @@ function mirrorOntoRecorded(doc, nodePatch, summaryPatch, changed) {
  * document as the write leaves it, so the answer and the status may arrive in
  * one write or in two. A gate a revise sent back holds none: the reset drops
  * them, and the next answer records its own.
+ *
+ * Every completed gate is judged on every write as well, touched or not. A
+ * driven answer is recorded with editor tools and re-published with the empty
+ * patch, which names no gate; judged only when touched, that gate would stay
+ * completed with no values, and the guard after it would read one never
+ * recorded. Values that disagree with the answer are recorded again from it.
  */
 function stampGateValues(doc, patch, changed) {
   const touched = new Set([
@@ -2863,10 +2869,10 @@ function stampGateValues(doc, patch, changed) {
     throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
   }
   const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};
-  for (const id of touched) {
-    if (!Object.hasOwn(nodes, id) || !Object.hasOwn(raw, id)) continue;
-    const entry = nodes[id];
-    if (!isPlainObject(entry) || entry.kind !== 'gate' || !isPlainObject(entry.sets)) continue;
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (!Object.hasOwn(raw, id) || !isPlainObject(entry)) continue;
+    if (!touched.has(id) && entry.status !== 'completed') continue;
+    if (entry.kind !== 'gate' || !isPlainObject(entry.sets)) continue;
     const values = gateValues(entry, latestOption(typed, id));
     if (values === undefined || sameValue(values, entry.values)) continue;
     doc.setNode(id, nodeLine(id, { ...raw[id], values }));
