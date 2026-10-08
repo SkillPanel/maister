@@ -330,9 +330,9 @@ and gathers whatever extra context the operator has.
 2. **Create and initialize** the task directory under the `product-design/`
    type directory and its state, with an empty `phase_summaries` map under
    `design_context` — the state writer seeds it on the first context write.
-   Create `context/`, with a `README.md` telling the operator to drop relevant
-   files there — meeting notes, existing designs, spreadsheets, documents, PDFs,
-   images — and `analysis/` and `outputs/`.
+   Write `context/README.md`, telling the operator to drop relevant files
+   there — meeting notes, existing designs, spreadsheets, documents, PDFs,
+   images.
 3. **Read the project configuration** and set `options.html_output` (default
    true when the file or the key is absent) and `options.mockup_format` (default
    `html`). Derive `options.visual_enabled`: false when the `no_visual` input is

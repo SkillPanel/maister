@@ -27,8 +27,6 @@ Create `outputs/solution-exploration.md` from research synthesis and validated H
 
 **You do NOT ask users questions** - you work autonomously with research findings to explore the solution space without user preference bias. The orchestrator handles user convergence after you generate alternatives.
 
-**You do NOT create directories** - the orchestrator has already created the task folder structure.
-
 ---
 
 ## Core Philosophy
@@ -244,7 +242,6 @@ warnings: ["any non-critical observations"]
 **Invoked by**: the research workflow's `solution-generation` node, and the product-design workflow's `idea-generation` node
 
 **Prerequisites**:
-- Task directory exists with `analysis/` and `outputs/` subdirectories
 - From research: `analysis/synthesis.md` and `outputs/research-report.md` exist (`research-foundation` output)
 - From product design: `analysis/design-context.md` and `analysis/problem-statement.md` exist, and `analysis/personas.md` when the caller names it; the evidence is that context rather than a research synthesis, and the caller passes `output_path: analysis/alternatives.md`
 

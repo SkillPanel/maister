@@ -500,6 +500,7 @@ export function writeState({ state, patch, regress = null }) {
     // the state write already landed and un-publishing it is not on offer.
     project(state, text, now, changed, warnings);
     const freeze = Boolean(patch.workflow) && !hadWorkflow;
+    if (freeze) createFolders(state, text, warnings);
     if (freeze) installViewer(state, text, changed, warnings);
     const banner = freeze ? bannerOf(state, text, patch.workflow) : null;
     // After the viewer, so the status file's dashboard link sees the page the
@@ -716,6 +717,36 @@ function artifactsOf(doc, runDir) {
     }
   }
   return [...paths].sort();
+}
+
+/**
+ * Create the folders the run's declared artifacts open with, at the freeze
+ * only — `analysis/`, `implementation/`, or whatever a project's own workflow
+ * names — so a node or an agent writing a declared artifact finds its folder
+ * there. Prose saying the folders existed was read literally: an agent whose
+ * tools create no parent folder stopped on one nobody had made, and an
+ * instruction to make them is one a model can skip, where the freeze cannot be.
+ *
+ * The first segment only, and never one that is itself a declared artifact:
+ * a deeper folder can be a directory artifact (`analysis/design-context`)
+ * whose absence is how the run tells a step that wrote nothing. A sub-run's
+ * artifacts belong to its own run, which makes its own. An existing folder is
+ * left as it is. Folders are not files, so `changed` does not list them; a
+ * failure is a warning after a write that already landed, on the viewer's
+ * terms, and never a refusal.
+ */
+function createFolders(state, text, warnings) {
+  const runDir = path.dirname(path.resolve(state));
+  const declared = artifactsOf(parseState(text), runDir);
+  const folders = new Set(declared.filter(each => each.includes('/')).map(each => each.split('/')[0]));
+  for (const folder of folders) {
+    if (folder === '' || folder === '.' || declared.includes(folder)) continue;
+    try {
+      fs.mkdirSync(path.join(runDir, folder), { recursive: true });
+    } catch (err) {
+      warnings.push({ file: `${folder}/`, code: 'folder-uncreated', message: err && err.message ? String(err.message) : String(err) });
+    }
+  }
 }
 
 /**

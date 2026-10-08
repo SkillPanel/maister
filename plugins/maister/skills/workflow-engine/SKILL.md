@@ -139,7 +139,10 @@ framework's task-name rule (`orchestrator-patterns.md` § 5), with `-2`, `-3` �
 directory of that name already exists. The writer derives the project root from that depth, so
 the directory sits exactly there and nowhere deeper. Create it once, on a first run, and record
 its repository-relative path as `orchestrator.task_path` in the freeze; a resume keeps the
-directory it has.
+directory it has. **The freeze creates the folders inside it**: the first folder of every
+artifact path the resolved graph declares — `analysis/`, `implementation/`, or whatever a
+project's own workflow names — so a node or an agent writing a declared artifact finds its
+folder there. A deeper folder, a directory artifact included, is its writer's to create.
 
 **`resolve` does not stand in for `validate`**, although it re-runs the same checks and refuses
 the same errors. Only `validate` reports where each target was found and how many nodes and

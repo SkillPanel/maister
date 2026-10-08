@@ -197,9 +197,7 @@ read.
    `phase_summaries` map under `migration_context`. The map is the state writer's to seed — the first write that touches
    the context block creates it empty — so a node that has nothing to mirror
    still leaves a reader something to read.
-4. **Create the subdirectories** the later nodes write into — the analysis,
-   implementation, verification and documentation directories.
-5. **Read the project configuration** and set `options.html_output` (default true
+4. **Read the project configuration** and set `options.html_output` (default true
    when the file or the key is absent) and `options.mockup_format` (default
    `html`) beside it. The second is framework-mandated for every orchestrator and
    inert here — no node reads it — but a reader of state expects it. Mirror the `user_docs` input to
@@ -212,11 +210,11 @@ read.
    the shell — `open "<task path>/dashboard.html"` on macOS,
    `xdg-open` on Linux, `start ""` on Windows. Never build a `file://` URL; the
    opener resolves a plain path itself. On failure print the path; never block.
-6. **Make sure the user has seen the start banner** (engine Step 4). It is the
+5. **Make sure the user has seen the start banner** (engine Step 4). It is the
    run's first message — if your messages since the freeze do not name the workflow
    and task, the checkpoints, the directory and the dashboard link, write them now,
    from the freeze's output, the paths copied as printed.
-7. **Discover the project documentation** — read the documentation index under
+6. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation section, predefined and operator-added alike. Record
    them as `project_context.project_doc_paths`, a top-level sibling of the

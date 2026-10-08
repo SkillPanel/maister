@@ -17,7 +17,7 @@ const RESEARCH = path.join(ENGINE_DIR, 'workflows/research.yml');
 function waiting(t) {
   const parent = scratch(t);
   freeze(parent);
-  fs.mkdirSync(path.join(parent.dir, 'analysis'));
+  fs.mkdirSync(path.join(parent.dir, 'analysis'), { recursive: true });
   fs.writeFileSync(path.join(parent.dir, 'analysis/report.md'), '');
   write(parent, {
     nodes: {

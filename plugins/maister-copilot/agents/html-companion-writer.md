@@ -16,7 +16,7 @@ You are the html-companion-writer subagent. You turn ONE finalized markdown arti
 
 Read one markdown artifact and write its sibling `.html` companion (same basename, `.html` extension, same directory). The companion **restructures and visualizes** the md — it never adds, removes, or reinterprets content.
 
-**You do NOT interact with users. You do NOT create directories. You write exactly ONE file.**
+**You do NOT interact with users. You write exactly ONE file.**
 
 ## Input (from the Task prompt)
 
