@@ -126,8 +126,7 @@ render sites, and stands in for them where they are not drawn:
 - **`AbovePrompt`: the run band.**
   - Two rows. The first: the workflow in the brand colour, the task, and the dashboard and task
     folder links on the right. The second: the phases as dots (done green, the current amber, the
-    rest dim), `phase n of N · <title>` with the title bold, then the next checkpoint and
-    `running for N min`, dim.
+    rest dim), `phase n of N · <title>` with the title bold, then `running for N min`, dim.
   - Framed when the rows allow, with no blank row of its own: the engine's `[-]` sits beside
     the top border, and the row between the band and the prompt rule is the engine's own, there
     with or without the band. With fewer rows it drops the frame.

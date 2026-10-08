@@ -299,7 +299,7 @@ describe('start card', () => {
 // ---------------------------------------------------------------------------
 
 describe('run band', () => {
-  test('draws the run, its links, the phase as dots, the next checkpoint and how long it has run', async ($: any, on: any) => {
+  test('draws the run, its links, the phase as dots and how long it has run, never the next checkpoint', async ($: any, on: any) => {
     const clock = mock.clock(on, { now: Date.parse(LATER) })
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() })
     await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
@@ -309,13 +309,14 @@ describe('run band', () => {
       expect(drawn.texts).toContain('Add count() to the store')
       expect(drawn.texts).toContain('●●●●●●●●●●●●')
       expect(drawn.texts).toContain('phase 5 of 12 · Specification')
-      expect(drawn.texts).toContain('next checkpoint 2 of 10 · running for 9 min')
+      expect(drawn.texts).toContain('running for 9 min')
+      expect(drawn.texts.join(' ')).not.toMatch(/checkpoint/)
       expect(drawn.links).toEqual(surface === 'terminal' ? [{ href: DASHBOARD, text: 'Dashboard ↗' }, { href: RUN_URL, text: 'Task folder ↗' }] : [])
       expect(drawn.colours).toMatchObject({ Development: '#907aca', '●●●●': '#79c08b', '●': '#e3bd59', '●●●●●●●': '#5a5f69' })
       if (surface === 'terminal') expect(drawn.colours).toMatchObject({ 'Dashboard ↗': '#7cc4e8', 'Task folder ↗': '#7cc4e8' })
     }
     await clock.advance(60_000)
-    expect((await band($, 'terminal')).texts).toContain('next checkpoint 2 of 10 · running for 10 min')
+    expect((await band($, 'terminal')).texts).toContain('running for 10 min')
   })
 
   test('never says how long anything will take', async ($: any, on: any) => {
