@@ -387,7 +387,8 @@ Beside the continue option you see the checkpoint at a glance:
 - *Done*: what the stretch since the last checkpoint produced, in a sentence;
 - *Next*: the phase that runs, and any it skips;
 - *Review*: the files to open, named inside the task folder;
-- up to three decisions the run made, each marked as the analysis's, an audit's or a default;
+- how many fixes the run made without asking, with up to three of them named — what was wrong and what changed;
+- up to three decisions the run made, each marked with the phase that settled it, an audit or a default;
 - one line counting your own choices and naming any that differ from the recommendation.
 
 On GitHub Copilot CLI, which shows no previews, the same glance is the question itself, with the

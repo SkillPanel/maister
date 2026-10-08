@@ -697,14 +697,14 @@ severity, and the report's path from the project root
 step by step):
 
 - **Fixed without asking**: every unfixed issue the verifier marked fixable and
-  not risky. Log each in the work log and in
-  `verification_context.fixes_applied`, and clear `skip_test_suite` when a fix
-  changed code.
+  not risky. Log each in the work log, in `verification_context.fixes_applied`
+  and in this node's summary's `fixes_applied` as `{finding, change}`, and clear
+  `skip_test_suite` when a fix changed code.
 - **Re-checked without asking**: a full re-verification after a fix that changed
   behaviour; the verifier's `recheck: tests-only` after fixes that changed none.
   Each raises `verification_context.reverify_count` by one. **Two re-checks run
   without asking.** Say each as "re-check 1 of 2"; never announce a fix before it
-  is made. Each fix is a `by: run` decision.
+  is made. A fix is never a decision: it is recorded in `fixes_applied` alone.
 - **Left for later without asking**: an item whose recommendation is to leave
   it — a pre-existing info item that predates the migration — is a `followup`
   risk, never a question.
@@ -775,8 +775,9 @@ outside is such an answer; a default is not.
 as engine § Gates says: a `headline` — what was fixed, what is left and whether
 the run recommends stopping, in one sentence; the total issues found, how many
 were fixed and how many remain by severity in `summary`; each fix made without
-asking — its issue in a few words — as a `by: run` decision, so the checkpoint
-shows exactly what changed without the user choosing it; each answered question
+asking — the issue and the change in a few words each — in `fixes_applied`, so
+the checkpoint shows exactly what changed without the user choosing it, never
+also as a decision; each answered question
 as a `by: operator` decision; no earlier answer restated; each issue still needing a decision as an `open`
 risk with the fix as its `change`; each item left for later as a `followup`
 risk; a data risk the user accepted as a `tradeoff` risk; and the `stop` risk
