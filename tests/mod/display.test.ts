@@ -319,6 +319,16 @@ describe('run band', () => {
     expect((await band($, 'terminal')).texts).toContain('running for 10 min')
   })
 
+  test('keeps a skipped phase in its place as a hollow dim dot, so the total holds', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ phase: { index: 7, total: 12, title: 'Implementation', skipped: [3, 4] } }) })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const drawn = await band($, 'terminal')
+    expect(drawn.texts).toContain('●●○○●●●●●●●●')
+    expect(drawn.texts).toContain('phase 7 of 12 · Implementation')
+    expect(drawn.colours).toMatchObject({ '●●': '#79c08b', '○○': '#8c909a', '●': '#e3bd59', '●●●●●': '#5a5f69' })
+  })
+
   test('never says how long anything will take', async ($: any, on: any) => {
     mock.clock(on, { now: Date.parse(LATER) })
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() })
@@ -480,6 +490,15 @@ describe('gate panel', () => {
       ] : [])
       expect(panel.rows).toBeLessThanOrEqual(12)
     }
+  })
+
+  test('draws a step title whole beside its checkpoint, however much of the row it takes', async ($: any, on: any) => {
+    const title = 'Implementation planning for the store count and its paging'
+    const parts = PARTS.map(part => (part.key !== 'title' ? part : { ...part, label: 'Checkpoint 6 of 10', text: title }))
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK, { parts }) })
+    const panel = (await askAndDraw($, on)).terminal!
+    expect(panel.texts[0]).toBe(`Checkpoint 6 of 10 · ${title} · 1 decided · 1 open risk`)
+    expect(panel.rows).toBeLessThanOrEqual(12)
   })
 
   test('names the review files without links where their URLs would take the panel past twelve rows', async ($: any, on: any) => {

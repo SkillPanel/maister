@@ -753,6 +753,30 @@ test('panel: the parts hold to the rows too, the review files that do not fit co
   assert.deepEqual(parts.find(part => part.key === 'counts'), { key: 'counts', label: 'Decided', text: '0', risks: '1 open risk', open: 1 });
 });
 
+test('panel: a step title is cut only when its rows truly run out', () => {
+  const checkpoint = title => ({
+    ask: 'Ready to go on?',
+    header: 'Plan',
+    headline: 'The plan has four groups.',
+    progress: { checkpoint: 6, checkpoints_max: 10 },
+    closed: [{ title }],
+    next: { title: 'Implementation' },
+    review: [],
+    decisions: { run: [], audit: [], default: [], operator: { count: 0, not_recommended: [] } },
+    risks: {},
+    options: [{ id: 'continue', label: 'Continue', effect: 'continue', recommended: true, consequence: 'Goes on.' }],
+  });
+  const whole = panelOfCheckpoint(checkpoint('Implementation planning'));
+  assert.deepEqual(whole.parts[0], { key: 'title', label: 'Checkpoint 6 of 10', text: 'Implementation planning' });
+  assert.equal(whole.glance[0], 'Checkpoint 6/10 · Implementation planning');
+  assert.ok(partsRows(whole.parts) <= PANEL_ROWS);
+  const long = panelOfCheckpoint(checkpoint(`Implementation planning ${'and more '.repeat(10)}`));
+  assert.ok(long.parts[0].text.endsWith('…'), long.parts[0].text);
+  assert.ok(long.glance[0].endsWith('…'), long.glance[0]);
+  assert.ok(partsRows(long.parts) <= PANEL_ROWS);
+  assertFits(long.glance);
+});
+
 test('panel: every form writes the same panel', t => {
   const run = atSpecGate(t);
   const file = path.join(run.dir, 'display/next.json');

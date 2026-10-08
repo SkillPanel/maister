@@ -1209,10 +1209,11 @@ development run per member in scope, in its `depends_on` order.
 **Close for whoever reads the end** (the engine skill's run-end rule). In a
 terminal run a person reads it: write the closing patch and call `run-complete`
 first, then end with one wrap-up message that fits one screen and is the last
-thing the run prints — the engine's lead lines (Done: what was designed, in a
-sentence; Needs you; Next; Files: the brief's path and the scope's; Dashboard), then each
-artifact the verb reported missing, named in plain words — with this next step
-exactly, inventing no other command:
+thing the run prints — the engine's six sections (Done: what was designed, in a
+sentence; Needs you, with each artifact the verb reported missing named in plain
+words; Follow-ups; Next; Files: the brief's path and the scope's; Dashboard), and
+nothing after the Dashboard line. **Next** carries this next step exactly,
+inventing no other command:
 
 ```
 Product brief approved and saved to: [task-path]/outputs/product-brief.md

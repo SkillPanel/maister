@@ -57,7 +57,7 @@ test('display: the status counts phases, not gates, and composes the line', t =>
   freeze(run);
   const status = display(run, 'status.json');
   // analysis, approval (a gate), implementation, research: three phases.
-  assert.deepEqual(status.phase, { index: 1, total: 3, title: 'Scope analysis' });
+  assert.deepEqual(status.phase, { index: 1, total: 3, title: 'Scope analysis', skipped: [] });
   assert.equal(status.workflow, 'Development');
   assert.equal(status.task, 'Sample run');
   assert.equal(status.status, 'in_progress');
@@ -68,26 +68,34 @@ test('display: the status counts phases, not gates, and composes the line', t =>
   assert.equal(status.version, 1);
 });
 
-test('display: a later write moves the phase; the gate never counts, a skipped node leaves the total', t => {
+test('display: a later write moves the phase; the gate never counts, a skipped node keeps its place', t => {
   const run = scratch(t);
   freeze(run);
   write(run, { nodes: { analysis: { status: 'running' } } });
-  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: 3, title: 'Scope analysis' });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: 3, title: 'Scope analysis', skipped: [] });
 
   // Waiting at the checkpoint: the phase just finished, never the pending one a guard may yet skip.
   write(run, { nodes: { analysis: { status: 'completed' } } });
-  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: 3, title: 'Scope analysis' });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: 3, title: 'Scope analysis', skipped: [] });
 
   write(run, { nodes: { approval: { status: 'completed' }, implementation: { status: 'running' } } });
-  assert.deepEqual(display(run, 'status.json').phase, { index: 2, total: 3, title: 'Implementation' });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 2, total: 3, title: 'Implementation', skipped: [] });
 
+  // A skip leaves the total as it was and names the place it left.
   write(run, { nodes: { research: { status: 'skipped' } } });
-  assert.deepEqual(display(run, 'status.json').phase, { index: 2, total: 2, title: 'Implementation' });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 2, total: 3, title: 'Implementation', skipped: [3] });
 
   write(run, { nodes: { implementation: { status: 'completed' } } });
   const done = display(run, 'status.json');
-  assert.deepEqual(done.phase, { index: 2, total: 2, title: 'Implementation' });
-  assert.equal(done.line, 'Development · phase 2/2 · Implementation · Sample run');
+  assert.deepEqual(done.phase, { index: 2, total: 3, title: 'Implementation', skipped: [3] });
+  assert.equal(done.line, 'Development · phase 2/3 · Implementation · Sample run');
+});
+
+test('display: a run whose first phase was skipped starts at the first one it runs', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'skipped' } } });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 2, total: 3, title: 'Implementation', skipped: [1] });
 });
 
 test('display: the banner file carries its facts as fields beside the lines', t => {
@@ -197,7 +205,7 @@ test('display: a revise republishes the status from the rerun node', t => {
   assert.equal(after.phase.total, before.phase.total, 'the revise is a write, and the status follows it');
 
   write(run, { nodes: { draft: { status: 'running' } } });
-  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: before.phase.total, title: 'Draft' });
+  assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: before.phase.total, title: 'Draft', skipped: [] });
 });
 
 test('display: a state write removes a gate panel the write has answered', t => {

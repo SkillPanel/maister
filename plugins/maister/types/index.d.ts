@@ -42,7 +42,8 @@ export type DisplayStatus = {
   task?: string | null;
   status?: string | null;
   line?: string;
-  phase?: { index: number | null; total: number; title: string | null };
+  /** `total` holds for the run; `skipped` lists the places, from one, of the phases the run skipped. */
+  phase?: { index: number | null; total: number; title: string | null; skipped?: number[] };
   checkpoint?: { index: number; total: number; title: string } | null;
   started?: string | null;
   dashboard?: string | null;
