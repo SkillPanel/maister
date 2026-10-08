@@ -135,3 +135,132 @@ for (const [label, marker] of [
     assert.equal(fs.readFileSync(run.state, 'utf8'), before);
   });
 }
+
+// ---------------------------------------------------------------------------
+// a driven answer's gate values: recorded by the empty re-publish
+// ---------------------------------------------------------------------------
+
+// A driven answer is folded with editor tools and re-published with the empty
+// patch, which names no gate. The writer still records the values the chosen
+// continue sets, and a guard past the next gate reads them.
+
+const DEFERRED = [
+  'name: deferred', 'version: 1', 'nodes:',
+  '  draft: {uses: "direct:draft", needs: []}',
+  '  first-approval:', '    type: gate', '    needs: [draft]', '    ask: "Drafted. Continue?"',
+  '    options:', '      with-docs: {effect: continue, sets: {docs: true}}', '      without-docs: {effect: continue, sets: {docs: false}}', '      halt: stop',
+  '  build: {uses: "direct:build", needs: [first-approval]}',
+  '  build-approval:', '    type: gate', '    needs: [build]', '    ask: "Built. Continue?"', '    options: {go-on: continue, halt: stop}',
+  '  docs: {uses: "direct:docs", needs: [build-approval], when: "${first-approval.values.docs}"}', '',
+].join('\n');
+
+const FIRST_MARKER = { node: 'first-approval', request: 'gates/first-approval.request.yml', since: '2026-01-05T09:00:00Z' };
+const ANSWERED_AT = '2026-01-05T09:05:00Z';
+
+/** The state text without its write stamp, which every landed write moves. */
+const unstamped = text => text.replace(/^ {2}updated: .*$/m, '');
+
+/** `text` with `pattern` replaced, failing loudly when the pattern is not there. */
+function edited(text, pattern, replacement) {
+  assert.match(text, pattern);
+  return text.replace(pattern, replacement);
+}
+
+/** A run of the deferred-step definition with its draft written, its first gate the question now. */
+function atFirstApproval(t, driver = null) {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'deferred.yml');
+  fs.writeFileSync(definition, DEFERRED);
+  fs.writeFileSync(path.join(run.root, 'deferred.md'), '# Deferred step\n\n## `draft`\n\nDraft.\n\n## `build`\n\nBuild.\n\n## `docs`\n\nDocs.\n');
+  freeze(run, { definition, orchestrator: driver ? { driver } : {} });
+  write(run, { nodes: { draft: { status: 'completed' } }, node_summaries: { draft: { summary: 'Drafted.' } } });
+  return run;
+}
+
+/**
+ * Suspend on the first gate under a cockpit driver and fold `option` the way a
+ * driven resume does: the answer block, then the summary and the status, then
+ * the marker null last, all by editor, and then the empty patch.
+ */
+function drivenAnswer(t, option) {
+  const run = atFirstApproval(t, { kind: 'cockpit', cwd: '/work' });
+  const request = path.join(run.dir, FIRST_MARKER.request);
+  fs.mkdirSync(path.dirname(request), { recursive: true });
+  fs.writeFileSync(request, [
+    'version: 1', 'node: first-approval', 'kind: approval', 'question: "Drafted. Continue?"', 'options:',
+    '  - {id: with-docs, label: "With docs", effect: continue}',
+    '  - {id: without-docs, label: "Without docs", effect: continue}',
+    '  - {id: halt, label: "Halt", effect: stop}',
+    'multiple: false', `asked_at: "${FIRST_MARKER.since}"`, 'answer: null', '',
+  ].join('\n'));
+  write(run, { orchestrator: { gate_pending: FIRST_MARKER }, nodes: { 'first-approval': { status: 'suspended' } } });
+
+  fs.writeFileSync(request, edited(fs.readFileSync(request, 'utf8'), /^answer: null$/m,
+    `answer: {option: ${option}, answered_by: operator, at: "${ANSWERED_AT}"}`));
+  let text = fs.readFileSync(run.state, 'utf8');
+  text = edited(text, /^( +first-approval: \{kind: gate, status: )suspended\b/m, '$1completed');
+  text = edited(text, /^node_summaries:\n/m, [
+    'node_summaries:', '  first-approval:', '    status: completed', '    decisions:',
+    `      - option: ${option}`, '        answered_by: operator', `        at: "${ANSWERED_AT}"`, '',
+  ].join('\n'));
+  text = edited(text, /^ {2}gate_pending: .*$/m, '  gate_pending: null');
+  fs.writeFileSync(run.state, text);
+  return { run, result: write(run, {}) };
+}
+
+/** Complete the build and walk the second gate's checkpoint, whose next reads the first gate's guard. */
+function nextAfterBuild(run) {
+  write(run, { nodes: { build: { status: 'completed' } }, node_summaries: { build: { summary: 'Built.' } } });
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=build-approval', '--checkpoint']);
+  assert.equal(result.code, 0, result.stderr);
+  return JSON.parse(result.stdout).next;
+}
+
+for (const [option, docs, node, skipped] of [['with-docs', true, 'docs', []], ['without-docs', false, null, ['docs']]]) {
+  test(`driven: the empty re-publish records the values ${option} sets, and the guard past the next gate reads them`, t => {
+    const { run, result } = drivenAnswer(t, option);
+    assert.match(result.stdout, /^workflow\.nodes\.first-approval$/m);
+    const gate = readState(run).workflow.nodes['first-approval'];
+    assert.equal(gate.status, 'completed');
+    assert.deepEqual(gate.values, { docs });
+    assert.match(fs.readFileSync(path.join(run.dir, 'gates/index.yml'), 'utf8'), /node: first-approval, .*status: answered\}$/m);
+
+    const next = nextAfterBuild(run);
+    assert.equal(next.node, node);
+    assert.deepEqual(next.skipped.map(each => each.node), skipped);
+  });
+}
+
+test('driven: a write after the re-publish leaves the recorded values as they are', t => {
+  const { run } = drivenAnswer(t, 'without-docs');
+  const before = fs.readFileSync(run.state, 'utf8');
+  const again = write(run, {});
+  assert.doesNotMatch(again.stdout, /^workflow\.nodes\./m);
+  assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), unstamped(before));
+});
+
+test('driven: values edited to disagree with the answer are recorded again from it on the next write', t => {
+  const { run } = drivenAnswer(t, 'with-docs');
+  fs.writeFileSync(run.state, edited(fs.readFileSync(run.state, 'utf8'), /values: \{docs: true\}/, 'values: {docs: false}'));
+  const result = write(run, {});
+  assert.match(result.stdout, /^workflow\.nodes\.first-approval$/m);
+  assert.deepEqual(readState(run).workflow.nodes['first-approval'].values, { docs: true });
+});
+
+test('terminal: an answer written in session records its values in that write, and an empty write after it moves nothing', t => {
+  const run = atFirstApproval(t);
+  const answered = write(run, {
+    nodes: { 'first-approval': { status: 'completed' } },
+    node_summaries: { 'first-approval': { decisions: [{ option: 'with-docs' }] } },
+  });
+  assert.match(answered.stdout, /^workflow\.nodes\.first-approval$/m);
+  const state = readState(run);
+  assert.deepEqual(state.workflow.nodes['first-approval'].values, { docs: true });
+  assert.equal(state.node_summaries['first-approval'].decisions[0].via, 'terminal');
+
+  const before = fs.readFileSync(run.state, 'utf8');
+  const again = write(run, {});
+  assert.doesNotMatch(again.stdout, /^workflow\.nodes\./m);
+  assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), unstamped(before));
+  assert.equal(nextAfterBuild(run).node, 'docs');
+});
