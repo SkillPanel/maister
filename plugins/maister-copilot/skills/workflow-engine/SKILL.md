@@ -878,7 +878,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     nodes' risks `prior-context` prints and leave out each one already there. A node that settles one retags it
     `resolved` on the node that raised it, as the merge rule below describes.
 
-    Only `open` items become a revise's suggested notes, so give each one its `change`.
+    Only `open` and `stop` items become a revise's suggested notes, so give each one its `change`.
     Examples: `{risk: "list(null) now throws", tag: open, change: "keep list(null) returning
     every note"}`; `{risk: "Two breaking changes ship under 1.0.0", tag: tradeoff}`.
   - **`artifacts`** may carry a `role`: `primary`, `review`, `evidence` or `log`. Evidence and
@@ -972,7 +972,7 @@ node's own, and neither does a skipped node: without one, the brief is refused
   lines and 900 characters: when they run short, the decisions give way before the risks, and
   each list cut says how many more are under More details.
 - **The revise preview** names what re-runs and how often this checkpoint has sent the run
-  back, then the suggested notes, each whole: an `open` item's risk, then its `change`.
+  back, then the suggested notes, each whole: a `stop` or `open` item's risk, then its `change`.
 - **The stop preview** says what is kept and what will not run. When a `stop` risk recommends
   stopping, Stop is the focused option and its preview opens with *Why stop*.
 - **More details** previews the full brief, risks included and grouped as Open, Trade-offs
