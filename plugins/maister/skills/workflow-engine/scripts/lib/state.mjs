@@ -2268,6 +2268,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
   let recorded = null;
   let run = null;
   let display = null;
+  let via = null;
   let held = null;
   const heldOf = id => {
     held ??= heldSummaries(doc);
@@ -2294,10 +2295,12 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       recorded ??= recordedNodes(doc);
       if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') {
         display ??= runDir === null ? displayOf() : displayOfRun(parseState(doc.text()), runDir);
-        entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display), runDir);
+        via ??= answerVia(parseState(doc.text()));
+        entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display), runDir, via);
         entry.decisions = [...earlierRevisions(doc, key, entry.decisions), ...entry.decisions];
       } else {
-        entry.decisions = keepAttempts(heldOf(key)?.decisions, stampAnswers(entry.decisions, runDir));
+        via ??= answerVia(parseState(doc.text()));
+        entry.decisions = keepAttempts(heldOf(key)?.decisions, stampAnswers(entry.decisions, runDir, via));
         entry.decisions = [...earlierAnswers(heldOf(key)?.decisions, entry.decisions), ...entry.decisions];
       }
     }
@@ -2568,17 +2571,32 @@ const PLACEHOLDER_NAMES = new Set(['', 'user', 'operator', 'you']);
  * `answered_by` names a person — a cockpit with several operators shows it —
  * and a model left to write it wrote `user`, `operator` or its own guess, three
  * spellings in one run. So the writer stamps it: an answer with no name, or a
- * placeholder, gets the operator's name (`operatorName`) and `via: terminal`,
- * since only an answer given in session arrives without one. A name the answer
- * carries — from a driver's answer line — is kept.
+ * placeholder, gets the operator's name (`operatorName`) and, when it says no
+ * `via`, the way the run is driven (`answerVia`), since only an answer given in
+ * session arrives without one. A name the answer carries — from a driver's
+ * answer line — is kept, and so is a `via` it carries.
  */
-function stampAnswers(decisions, runDir) {
+function stampAnswers(decisions, runDir, via) {
   return decisions.map(item => {
     if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
     const name = typeof item.answered_by === 'string' ? item.answered_by.trim().toLowerCase() : '';
     if (!PLACEHOLDER_NAMES.has(name)) return item;
-    return { ...item, answered_by: operatorName(runDir), ...(Object.hasOwn(item, 'via') ? {} : { via: 'terminal' }) };
+    return { ...item, answered_by: operatorName(runDir), ...(Object.hasOwn(item, 'via') ? {} : { via }) };
   });
+}
+
+/** The driver kinds an answer given in session is stamped with; any other is `terminal`. */
+const DRIVEN_VIA = new Set(['cockpit', 'dispatch']);
+
+/**
+ * How an answer given in this run's session reached it: the driver's kind when
+ * a cockpit or a dispatch drives the run, `terminal` when no driver is set or
+ * the driver is the terminal.
+ */
+function answerVia(state) {
+  const orchestrator = isPlainObject(state?.orchestrator) ? state.orchestrator : null;
+  const kind = isPlainObject(orchestrator?.driver) ? orchestrator.driver.kind : undefined;
+  return DRIVEN_VIA.has(kind) ? kind : 'terminal';
 }
 
 let operatorNameCache = null;
