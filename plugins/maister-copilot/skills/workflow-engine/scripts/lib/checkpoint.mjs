@@ -113,8 +113,12 @@ export function rowsOf(text) {
   return 1 + Math.floor(text.length / ROW_CHARS);
 }
 
-/** The most rows each panel line may take, in the order lines are fitted: title, headline, next, review, counts. */
-const PANEL_SHARES = { title: 1, headline: 4, next: 2, review: 2, counts: 1 };
+/**
+ * The most rows each panel line may take, in the order lines are fitted:
+ * title, headline, next, review, counts. The title has two, so a step's whole
+ * title fits beside its checkpoint label rather than being cut a row short.
+ */
+const PANEL_SHARES = { title: 2, headline: 3, next: 2, review: 2, counts: 1 };
 
 /** The order a panel's lines are drawn in. */
 const PANEL_ORDER = ['title', 'headline', 'counts', 'next', 'review'];

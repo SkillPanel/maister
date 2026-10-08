@@ -482,6 +482,15 @@ describe('gate panel', () => {
     }
   })
 
+  test('draws a step title whole beside its checkpoint, however much of the row it takes', async ($: any, on: any) => {
+    const title = 'Implementation planning for the store count and its paging'
+    const parts = PARTS.map(part => (part.key !== 'title' ? part : { ...part, label: 'Checkpoint 6 of 10', text: title }))
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK, { parts }) })
+    const panel = (await askAndDraw($, on)).terminal!
+    expect(panel.texts[0]).toBe(`Checkpoint 6 of 10 · ${title} · 1 decided · 1 open risk`)
+    expect(panel.rows).toBeLessThanOrEqual(12)
+  })
+
   test('names the review files without links where their URLs would take the panel past twelve rows', async ($: any, on: any) => {
     const deep = `${RUN_URL}/${'a-very-long-directory-name/'.repeat(12)}`
     const parts = PARTS.map(part => (part.key !== 'review' ? part : {
