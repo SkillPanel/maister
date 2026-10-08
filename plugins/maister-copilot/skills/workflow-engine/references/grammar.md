@@ -227,9 +227,12 @@ revise option only `reruns`, and on a continue option only `grants` and `sets`;
 | `stop` | the run ends here; nothing downstream becomes ready |
 | `revise` | the stretch from `reruns` to the gate runs again, with the operator's note, and the gate is asked again |
 
-**The gate rule:** at least one option continues, at least one stops, and any number revise. More
-than one continue is allowed only when every continue carries `sets`, all of them name the same
-keys, and no two set the same combination — otherwise two answers would be one route. An option id
+**The gate rule:** at least one option continues, any number revise, and a gate with a single
+continue offers at least one stop. More than one continue is allowed only when every continue
+carries `sets`, all of them name the same keys, and no two set the same combination — otherwise
+two answers would be one route. Such a gate decides the route, and it may leave out the stop when
+one of its continues is the way to the end — a continue that turns every optional stretch off,
+say, so the run finishes with its closing node rather than stopping before it. An option id
 is lower-case letters, digits and dashes, starting with a letter. A continue or a stop routes
 nowhere: what happens next is decided by the graph and the guards, and the gate brief's `Next:`
 line names the node that actually runs. Under the default `on:`, nothing
@@ -309,7 +312,8 @@ A node is ready when every need is satisfied, its `on:` allows it, and its guard
 whose guard is false is recorded `skipped`, and **a skip satisfies everything downstream** — that
 is how an optional stretch is written without any routing construct.
 
-**`when`** is exactly one reference, optionally negated with a leading `!`, quoted:
+**`when`** is one reference, or several joined by `||`, each optionally negated with a leading
+`!`, the whole quoted. A guard with several references is true when any of them is:
 
 | Form | Reads |
 |---|---|
@@ -317,8 +321,18 @@ is how an optional stretch is written without any routing construct.
 | `"${<node>.values.<key>}"` | A `bool` value declared by a node inside this node's `needs` closure |
 | `"${<gate>.values.<key>}"` | A value a continue option of a gate inside this node's `needs` closure sets |
 
-There is no expression language: no `and`, no comparison, no enum test, no artifact, and no gate
-answer by option id — a gate is read through the values its continues set. A guard on a node that
+There is no further expression language: no `and`, no parentheses, no comparison, no enum test,
+no artifact, and no gate answer by option id — a gate is read through the values its continues
+set. `||` exists for one shape: a stretch two gates can each switch on, the earlier one when the
+stretch between them is skipped and the later one when it ran —
+
+```yaml
+  design:
+    needs: [convergence-approval]
+    when: "${foundation-approval.values.design_enabled} || ${convergence-approval.values.design_enabled}"
+```
+
+An all-of condition is still a `bool` an earlier node records. A reference to a node that
 did not complete — skipped, failed or stopped — reads false. A completed node that never recorded
 the value is a defect the gate brief refuses to paper over. The closing gate of a guarded stretch repeats the stretch's guard,
 because an unguarded gate would fire for a stretch that never ran.

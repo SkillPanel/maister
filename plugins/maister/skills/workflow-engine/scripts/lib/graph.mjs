@@ -71,8 +71,17 @@ const NODE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Gate option ids are recorded verbatim in state, under the same rule. */
 const OPTION_ID = /^[a-z][a-z0-9-]*$/;
 
-/** Exactly one reference, optionally negated. There is no expression language. */
+/**
+ * One operand of a guard: a reference, optionally negated. A guard is one
+ * operand, or several joined by `||` — true when any is. There is no other
+ * operator: no `&&`, no parentheses, no comparison.
+ */
 const WHEN_REF = /^!?\$\{(inputs|[a-z][a-z0-9-]*)\.(values\.)?[a-z_]+\}$/;
+
+/** A guard's operands, in the order written: the pieces between its `||`s, trimmed. */
+export function guardOperands(when) {
+  return when.split('||').map(operand => operand.trim());
+}
 
 /** Every `${…}` occurrence inside a `with` value, wherever it is nested. */
 const INTERPOLATION = /\$\{([^}]*)\}/g;
@@ -2135,10 +2144,12 @@ function checkNodeOutputs(node, id, at, file, errors) {
 }
 
 /**
- * The gate rule and its mirror image. A gate runs nothing and must be able to
- * stop the run; a task node must name something to run. Both halves matter: a
- * gate that cannot stop is not a gate, and a node with no target is a step the
- * engine would silently skip.
+ * The gate rule and its mirror image. A gate runs nothing and must offer a way
+ * out of the run; a task node must name something to run. Both halves matter: a
+ * gate with no way out is not a gate, and a node with no target is a step the
+ * engine would silently skip. The way out of a gate with one continue is a stop.
+ * A gate with several continues decides the route, and one of its ways on may be
+ * the shortest way to the end, so there a stop is the author's choice.
  */
 function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
   checkNodeKeys(node, id, at, file, errors, added);
@@ -2231,12 +2242,13 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
     if (isMap(authored) && authored.grants !== undefined) checkGrants(authored.grants, effect, `${at}.options.${option}.grants`, file, id, errors);
     if (isMap(authored) && authored.sets !== undefined) checkSets(authored.sets, effect, `${at}.options.${option}.sets`, file, id, errors);
   }
-  if (continues < 1 || stops < 1) {
+  if (continues < 1 || (continues === 1 && stops < 1)) {
     fail(
       errors,
       file,
       `${at}.options`,
-      `a gate offers at least one continue and at least one stop, and any number of revise; this one offers ${continues} and ${stops}`,
+      'a gate offers at least one continue and any number of revise, and a gate with a single continue at least one stop; '
+        + `this one offers ${continues} ${continues === 1 ? 'continue' : 'continues'} and ${stops} ${stops === 1 ? 'stop' : 'stops'}`,
       id,
     );
   } else if (continues > 1) {
@@ -2591,8 +2603,9 @@ function childInterface(file, children) {
 }
 
 /**
- * A `when` clause names one boolean and nothing else. The reference must clear
- * the frozen pattern, must reach either a declared `bool` input or a declared
+ * A `when` clause names booleans and nothing else: one reference, or several
+ * joined by `||`, each optionally negated. Every reference must clear the
+ * frozen pattern, must reach either a declared `bool` input or a declared
  * boolean value output, and — for the output case — that node must be inside
  * the guarded node's own `needs` closure, because a value the engine has not
  * necessarily produced yet cannot decide whether to run.
@@ -2600,11 +2613,16 @@ function childInterface(file, children) {
 function checkWhen(node, id, at, file, errors, scope) {
   if (node.when === undefined) return;
   const dotted = `${at}.when`;
-  if (typeof node.when !== 'string' || !WHEN_REF.test(node.when)) {
-    fail(errors, file, dotted, 'a when clause is exactly one reference, optionally negated', id);
+  const operands = typeof node.when === 'string' ? guardOperands(node.when) : [];
+  if (!operands.length || !operands.every(operand => WHEN_REF.test(operand))) {
+    fail(errors, file, dotted, 'a when clause is one reference, or several joined by ||, each optionally negated', id);
     return;
   }
-  const inner = node.when.replace(/^!/, '').slice(2, -1);
+  for (const operand of operands) checkWhenReference(operand, id, dotted, file, errors, scope);
+}
+
+function checkWhenReference(operand, id, dotted, file, errors, scope) {
+  const inner = operand.replace(/^!/, '').slice(2, -1);
   const parts = inner.split('.');
 
   if (parts[0] === 'inputs') {

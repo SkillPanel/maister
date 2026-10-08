@@ -87,7 +87,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, grantOrder, resolve, reviseStretch } from './graph.mjs';
+import { MORE_DETAILS_ID, grantOrder, guardOperands, resolve, reviseStretch } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
@@ -112,7 +112,7 @@ const ENDED_BADLY = new Set(['failed', 'stopped']);
 /** Statuses under which a node's declared values read as false. */
 const NO_VALUES = new Set(['skipped', 'stopped', 'failed']);
 
-/** One `when` reference: an optional `!`, then `${inputs.k}` or `${node.values.k}`. */
+/** One operand of a `when` guard: an optional `!`, then `${inputs.k}` or `${node.values.k}`. */
 const WHEN = /^(!?)\$\{([a-z][a-z0-9-]*)\.(?:(values)\.)?([a-z_]+)\}$/;
 
 /** The drift form of the Next line, and the recommendation when no option is known. */
@@ -584,8 +584,8 @@ function earlierElsewhere(doc, recorded, gate, reruns, titles) {
 
 /**
  * Whether a node of a revise's stretch will be skipped again when the stretch
- * re-runs: its guard reads an input or a node outside the stretch — nothing the
- * re-run changes — and reads false now. A guard on a node inside the stretch is
+ * re-runs: every reference of its guard reads an input or a node outside the
+ * stretch — nothing the re-run changes — and the guard reads false now. A guard on a node inside the stretch is
  * judged again once that node records its values, so its node may run and is
  * named. Without `guards` — the definition drifted — no guard is read and every
  * node is named.
@@ -593,8 +593,10 @@ function earlierElsewhere(doc, recorded, gate, reruns, titles) {
 function skippedAgain(id, stretch, guards) {
   const when = guards?.byId.get(id)?.when;
   if (typeof when !== 'string') return false;
-  const match = WHEN.exec(when);
-  if (!match || (match[2] !== 'inputs' && stretch.includes(match[2]))) return false;
+  for (const operand of guardOperands(when)) {
+    const match = WHEN.exec(operand);
+    if (!match || (match[2] !== 'inputs' && stretch.includes(match[2]))) return false;
+  }
   const guard = evaluate(when, guards);
   return guard.ok && !guard.value;
 }
@@ -1387,12 +1389,28 @@ function optionWith(options, effect) {
 }
 
 /**
+ * A `when` guard: true when any of its operands is (grammar § 7). `{ok,
+ * value}`, or the value-missing refusal when no operand reads true and a
+ * completed node never recorded a value one of them reads — an operand that
+ * reads true decides the guard whatever another one would have said.
+ */
+function evaluate(when, context) {
+  let refusal = null;
+  for (const operand of guardOperands(when)) {
+    const read = evaluateReference(operand, when, context);
+    if (read.ok && read.value) return read;
+    if (!read.ok) refusal ??= read;
+  }
+  return refusal ?? { ok: true, value: false };
+}
+
+/**
  * One `when` reference, honouring a leading `!`. `{ok, value}`, or the
  * value-missing refusal when a completed node never recorded the value its
- * successor is guarded on.
+ * successor is guarded on. `when` is the whole guard, for the message.
  */
-function evaluate(when, { byId, recorded, status, inputs, defaults }) {
-  const match = WHEN.exec(when);
+function evaluateReference(operand, when, { byId, recorded, status, inputs, defaults }) {
+  const match = WHEN.exec(operand);
   if (!match) return { ok: true, value: false };
   const [, bang, owner, , key] = match;
   const negate = value => ({ ok: true, value: bang === '!' ? !value : value });

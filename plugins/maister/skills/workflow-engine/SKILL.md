@@ -474,7 +474,8 @@ A node is ready when all three hold:
 2. **An `on: failure` node has something to recover from:** at least one need ended `failed`
    or `stopped`. When every need ended `completed` or `skipped`, the node is not run.
 3. **Its `when` guard evaluates true** against the values completed nodes recorded: a task
-   node's declared values, or the values a gate's chosen continue option set.
+   node's declared values, or the values a gate's chosen continue option set. A guard of
+   several references joined by `||` is true when any of them is.
 
 A node whose guard is false, and an `on: failure` node with nothing that failed, is marked
 `skipped`, and **a skip satisfies everything downstream** — that is how a definition expresses
@@ -839,7 +840,7 @@ them from there.
 
 A gate node is a question with a closed set of options, at least one of which continues the
 run. A gate with several continues tells them apart by the gate values each one sets, which a
-later guard reads (grammar § 6). What the engine does with it follows the run's driver, and nothing else:
+later guard reads, and may offer no stop when one of them is the way to the end (grammar § 6). What the engine does with it follows the run's driver, and nothing else:
 
 | `orchestrator.driver.kind` | The gate is |
 |---|---|
@@ -909,7 +910,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     recommends and why: `{option: <continue option id>, reason: "<one line>"}`, such as the
     audit continue when the run was started asking for an audit. The brief marks that option
     recommended and shows the reason on it. Without it the continue that turns the most steps on
-    is recommended, and a `stop` risk still recommends stopping. The writer refuses an option
+    is recommended, and a `stop` risk still recommends stopping on a gate that offers a stop. The writer refuses an option
     that is not a continue of a gate waiting on this node, or a missing or multi-line reason,
     with `state-summary-item-invalid`.
 
