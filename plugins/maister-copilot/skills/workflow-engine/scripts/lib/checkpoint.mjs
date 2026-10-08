@@ -59,8 +59,9 @@ const DIFFERS_CAP = 2;
 
 /**
  * The word after a decision an audit or a default settled. A decision the run
- * settled is followed by the step that settled it instead: "analysis" for
- * every one credited the analysis with the fixes verification applied.
+ * settled is followed by the title of the step that recorded it instead: one
+ * word for the run would credit a fix verification applied, or a plan's wave
+ * order, to whichever step that word names.
  */
 const SOURCE_WORD = { audit: 'audit', default: 'default' };
 

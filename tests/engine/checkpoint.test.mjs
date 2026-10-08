@@ -546,6 +546,28 @@ test('glance: each decision the run made names the step that settled it, never "
   assert.doesNotMatch(rich.options[0].preview + rich.more_details, /— analysis/);
 });
 
+test('glance: a plan decision names the planning step on every surface, never the analysis', t => {
+  const run = scratch(t);
+  walkTo(t, run, DEVELOPMENT, 'planning-approval', [], { task_description: 'Tag the notes' }, {
+    nodes: {
+      'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false } },
+      specification: { status: 'completed', values: { spec_audit_enabled: false } },
+    },
+    node_summaries: {
+      planning: {
+        status: 'completed', headline: 'Three task groups, run one after another.', summary: 'Planned.',
+        decisions: [{ decision: 'No parallel waves: every group edits the store module', by: 'run' }],
+      },
+    },
+  });
+  const line = '- No parallel waves: every group edits the store module — implementation planning';
+  const rich = pickerOf(run, 'planning-approval', 'rich');
+  assert.ok(rich.options[0].preview.split('\n').includes(line), rich.options[0].preview);
+  assert.ok(pickerOf(run, 'planning-approval', 'plain').question.split('\n').includes(line));
+  assert.ok(rich.more_details.includes(line));
+  assert.doesNotMatch(rich.options[0].preview + rich.more_details, /— analysis/);
+});
+
 test('note question: what should change, with what re-runs and how often, the same words in both profiles', t => {
   const run = atSpecGate(t);
   const rich = pickerOf(run, 'specification-approval', 'rich').options.find(option => option.effect === undefined && option.note);

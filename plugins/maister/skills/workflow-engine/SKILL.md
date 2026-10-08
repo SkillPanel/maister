@@ -854,7 +854,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     previous gate produced and what it means. The checkpoint opens with it as *Done*. Without it,
     *Done* is the summary's first sentence.
   - **`decisions`** — what was settled, most important first, each as
-    `{decision: "<what>", by: <source>}`. `by` is `run` (the phase's own analysis), `audit` (a
+    `{decision: "<what>", by: <source>}`. `by` is `run` (the step's own work), `audit` (a
     spec audit or a verification review), `default` (a question a driver could not ask, below)
     or `operator` (the user). The gate shows up to three of the `run`, `audit` and `default`
     ones; the user's own answers are only counted. A node's `decisions` hold only what **this
@@ -1877,8 +1877,8 @@ The reader is a first-time user who sees only the terminal.
   screen: write "the per-order customer lookup", or "B1 (the per-order customer lookup)" when
   the code is worth keeping because it recurs.
 - **Say "you".** Never "the operator" or "a person".
-- **Credit each decision to whoever made it** — you, the audit, the analysis, or a default the
-  run took. Its `by` records that; never write the source into the decision text. Never "as you chose" for something the spec decided.
+- **Credit each decision to whoever made it** — you, the audit, the step that settled it, or a
+  default the run took. Its `by` records that; never write the source into the decision text. Never "as you chose" for something the spec decided.
 - **Every recommendation gives its reason**, in the option's description. "(Recommended)" appears
   once per question, on the option, never in the question text.
 - **"Needs your decision"**, not "needs a hand".
