@@ -221,6 +221,11 @@ so the freeze patch need not spell them and a freeze that omits them still lands
 later write of either replaces the whole list; there is no key to merge on, so a caller that
 means to append sends the whole list.
 
+**The writer stamps `orchestrator.created` at the freeze** from the write's own clock, when the
+patch does not supply it and the file does not already carry it — a child run's freeze
+included. A driver drives no run without it, so it is never left to the caller; a value the
+patch does supply is kept.
+
 **The freeze patch carries `orchestrator.options.html_output`**, read from `.maister/config.yml`
 (default `true` when the file or the key is absent). The freeze's banner names the dashboard from
 it, so a freeze that left it for intake to write would announce a dashboard an operator had turned
