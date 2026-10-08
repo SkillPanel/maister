@@ -175,21 +175,24 @@ const PATCH_KEYS = ['orchestrator', 'task', 'workflow', 'nodes', 'context', 'pha
   ...TOP_LEVEL_BLOCKS];
 
 /**
- * Fixed key order inside a one-line node entry. `attempt` and `reruns` are
- * written only where they mean something — a node a revise has reset, a gate
- * that offers a revise — so every other line keeps the bytes it always had.
+ * Fixed key order inside a one-line node entry. `attempt`, `reruns` and `sets`
+ * are written only where they mean something — a node a revise has reset, a
+ * gate that offers a revise, a gate whose continue options set its values — so
+ * every other line keeps the bytes it always had.
  */
-const NODE_KEYS = ['kind', 'status', 'attempt', 'started', 'completed', 'needs', 'reruns', 'on', 'values', 'dir',
+const NODE_KEYS = ['kind', 'status', 'attempt', 'started', 'completed', 'needs', 'reruns', 'sets', 'on', 'values', 'dir',
   'provider', 'session'];
 
 /**
  * The node fields only this writer fills: `attempt` counts the revisions a
- * node has been reset by, and `reruns` is the freeze's record of where each of
- * a gate's revise options sends the run. A patch that carries either has them
- * dropped and noted, like a clock field — a counter a caller could set is a
- * budget a caller could reset.
+ * node has been reset by, `reruns` is the freeze's record of where each of a
+ * gate's revise options sends the run, and `sets` its record of the values
+ * each of a gate's continue options sets. A patch that carries any of them has
+ * it dropped and noted, like a clock field — a counter a caller could set is a
+ * budget a caller could reset, and a value map a caller could set is an answer
+ * the operator never gave.
  */
-const WRITER_FIELDS = ['attempt', 'reruns'];
+const WRITER_FIELDS = ['attempt', 'reruns', 'sets'];
 
 /**
  * The statuses a node is never sent back to `pending` from by an ordinary
@@ -1061,6 +1064,7 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
+  if (patch.nodes || patch.node_summaries) stampGateValues(doc, patch, changed);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -1542,12 +1546,29 @@ function provenNodes(doc, workflow, runDir) {
   const byId = new Map(graph.nodes.map(node => [node.id, node]));
   const filled = {};
   for (const [id, entry] of Object.entries(nodes)) {
-    const { attempt: _attempt, reruns: _reruns, ...sent } = entry;
+    const { attempt: _attempt, reruns: _reruns, sets: _sets, ...sent } = entry;
     filled[id] = { ...sent, needs: byId.get(id).needs };
     const reruns = rerunsOf(byId.get(id));
     if (reruns) filled[id].reruns = reruns;
+    const sets = setsOf(byId.get(id));
+    if (sets) filled[id].sets = sets;
   }
   return filled;
+}
+
+/**
+ * A gate's continue options that set its values, as `{option: {key: bool}}`,
+ * or null when none does. Recorded at the freeze for the reason `rerunsOf`
+ * gives: the writer stamps the chosen option's values on the gate from the
+ * state alone, never re-resolving the definition.
+ */
+function setsOf(node) {
+  if (node?.type !== 'gate' || !isPlainObject(node.options)) return null;
+  const sets = {};
+  for (const [option, value] of Object.entries(node.options)) {
+    if (isPlainObject(value) && value.effect === 'continue' && isPlainObject(value.sets)) sets[option] = { ...value.sets };
+  }
+  return Object.keys(sets).length ? sets : null;
 }
 
 /**
@@ -1686,12 +1707,13 @@ function frozenDifferences(doc, workflow) {
   if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
   const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
   if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
-  // `needs` and `reruns` are carried forward like an omitted scalar: the freeze
-  // filled them from the resolved graph, so a retry re-sending the same entries
-  // without them is still the same patch.
+  // `needs`, `reruns` and `sets` are carried forward like an omitted scalar: the
+  // freeze filled them from the resolved graph, so a retry re-sending the same
+  // entries without them is still the same patch.
   const rewritten = Object.keys(workflow.nodes).filter(id => Object.hasOwn(recorded, id)
-    && !sameValue({ status: 'pending', needs: recorded[id]?.needs, reruns: recorded[id]?.reruns, ...workflow.nodes[id] },
-      recorded[id]));
+    && !sameValue({
+      status: 'pending', needs: recorded[id]?.needs, reruns: recorded[id]?.reruns, sets: recorded[id]?.sets, ...workflow.nodes[id],
+    }, recorded[id]));
   if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
   return differences;
 }
@@ -1758,6 +1780,13 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
         + 'gained since belongs to the next run');
     }
     assertStatus(id, patchEntry);
+    if (Object.hasOwn(patchEntry, 'values') && existing[id]?.kind === 'gate') {
+      throw new Refusal('state-gate-values-sent',
+        `this write sends values for the gate ${id}, and a gate's values are the writer's own: they are recorded from `
+        + 'the option the operator chose, as that option sets them. Nothing was written. Drop values from the gate\'s '
+        + `entry and record the answer as any gate answer is recorded — the gate completed, the chosen option under `
+        + `node_summaries.${id} — and the writer records the values beside it`);
+    }
     if (Object.hasOwn(patchEntry, 'values')) {
       const node = resolvedNode(graphOf(), id);
       if (node) assertValues(id, patchEntry.values, node, undeclared);
@@ -1803,7 +1832,8 @@ function assertForward(id, patchEntry, existing) {
  * One node of a revise's stretch, reset: `pending`, its clocks and values gone
  * — the next attempt records its own — and its `attempt` one higher, counting
  * from the first attempt as 1. Nothing else on the line moves: the edges, the
- * gate's `reruns` and any field a newer build wrote survive as they were.
+ * gate's `reruns` and `sets` and any field a newer build wrote survive as they
+ * were. A gate's values go with the rest: its next answer records its own.
  */
 function reset(existing) {
   const { started: _started, completed: _completed, values: _values, ...kept } = existing;
@@ -2255,6 +2285,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate);
     }
     if (kind === 'node' && Object.hasOwn(entry, 'absent')) assertAbsent(key, entry.absent, graphOf === null ? null : graphOf());
+    if (kind === 'node' && Object.hasOwn(entry, 'recommends')) assertRecommends(key, entry.recommends, graphOf === null ? null : graphOf());
     assertItems(kind === 'node' ? `node_summaries.${key}` : `${contextKey}.phase_summaries.${key}`, entry);
     if (kind === 'node' && Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);
@@ -2370,6 +2401,42 @@ function assertItems(at, entry) {
         refuse(`metrics[${index}]`, metric, 'a {label, value, unit?, of?} map with a label and a number or string value');
       }
     });
+  }
+}
+
+/**
+ * A task node's `recommends`: the continue option it recommends at the gate
+ * that closes it, `{option, reason}`, or null to withdraw one. The gate brief
+ * marks that option recommended and shows the reason on it, so an option the
+ * gate does not offer as a continue would recommend nothing while reading as
+ * though it did — refused, whenever the run's frozen graph still proves. The
+ * reason is shown on the option, so it is one line.
+ */
+function assertRecommends(id, recommends, graph) {
+  if (recommends === null) return;
+  const at = `node_summaries.${id}.recommends`;
+  const refuse = (value, allowed) => {
+    throw new Refusal('state-summary-item-invalid',
+      `${at} is ${JSON.stringify(value)}, which is not ${allowed}. Nothing was written. `
+      + 'Correct that value and send the write again; every other field may stay as it was');
+  };
+  if (!isPlainObject(recommends)) refuse(recommends, 'an {option, reason} map naming the continue option recommended and why');
+  const { option, reason } = recommends;
+  if (typeof option !== 'string' || option.trim() === '') refuse(recommends, 'an {option, reason} map naming the continue option recommended and why');
+  if (typeof reason !== 'string' || reason.trim() === '' || /[\r\n]/.test(reason)) {
+    refuse(recommends, 'an {option, reason} map whose reason is one non-empty sentence on one line');
+  }
+  if (graph === null) return;
+  const own = graph.nodes.find(node => node.id === id);
+  const gates = graph.nodes.filter(node => node.type === 'gate' && Array.isArray(node.needs) && node.needs.includes(id));
+  const continues = gates.flatMap(gate => Object.entries(isPlainObject(gate.options) ? gate.options : {})
+    .filter(([, value]) => (isPlainObject(value) ? value.effect : value) === 'continue')
+    .map(([name]) => name));
+  if (own?.type === 'gate' || continues.length === 0) {
+    refuse(recommends, `a recommendation ${id} can make: no gate waits on ${id} with a continue option to recommend`);
+  }
+  if (!continues.includes(option)) {
+    refuse(option, `a continue option of the gate that waits on ${id}, which offers ${continues.join(', ')}`);
   }
 }
 
@@ -2738,6 +2805,61 @@ function mirrorOntoRecorded(doc, nodePatch, summaryPatch, changed) {
     doc.set(['node_summaries', id, 'status'], [`    status: ${mirrored}`]);
     changed.push(`node_summaries.${id}.status`);
   }
+}
+
+/**
+ * A gate's values, recorded by the writer from the answer. A gate whose freeze
+ * recorded `sets` holds, once it is `completed` with an answer, the values the
+ * chosen option sets — the map itself — and once it is `skipped`, every key it
+ * could set as false, as a skipped task node's bools read. Every gate this
+ * write touched, through its node entry or its summary, is judged against the
+ * document as the write leaves it, so the answer and the status may arrive in
+ * one write or in two. A gate a revise sent back holds none: the reset drops
+ * them, and the next answer records its own.
+ */
+function stampGateValues(doc, patch, changed) {
+  const touched = new Set([
+    ...(isPlainObject(patch.nodes) ? Object.keys(patch.nodes) : []),
+    ...(isPlainObject(patch.node_summaries) ? Object.keys(patch.node_summaries) : []),
+  ]);
+  let typed;
+  let raw;
+  try {
+    typed = parseState(doc.text());
+    raw = scanState(doc.text()).nodes ?? {};
+  } catch (err) {
+    throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
+  }
+  const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};
+  for (const id of touched) {
+    if (!Object.hasOwn(nodes, id) || !Object.hasOwn(raw, id)) continue;
+    const entry = nodes[id];
+    if (!isPlainObject(entry) || entry.kind !== 'gate' || !isPlainObject(entry.sets)) continue;
+    const values = gateValues(entry, latestOption(typed, id));
+    if (values === undefined || sameValue(values, entry.values)) continue;
+    doc.setNode(id, nodeLine(id, { ...raw[id], values }));
+    if (!changed.includes(`workflow.nodes.${id}`)) changed.push(`workflow.nodes.${id}`);
+  }
+}
+
+/** The values a gate holds as recorded, or undefined when its status and answer settle none. */
+function gateValues(entry, option) {
+  if (entry.status === 'skipped') {
+    const keys = Object.values(entry.sets).flatMap(each => (isPlainObject(each) ? Object.keys(each) : []));
+    return Object.fromEntries([...new Set(keys)].map(key => [key, false]));
+  }
+  if (entry.status !== 'completed' || option === null || !Object.hasOwn(entry.sets, option)) return undefined;
+  const set = entry.sets[option];
+  return isPlainObject(set) ? { ...set } : undefined;
+}
+
+/** The option a gate's last recorded decision names, or null. */
+function latestOption(typed, id) {
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  const decisions = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) && Array.isArray(summaries[id].decisions)
+    ? summaries[id].decisions : [];
+  const latest = decisions.length ? decisions[decisions.length - 1] : null;
+  return isPlainObject(latest) && typeof latest.option === 'string' ? latest.option : null;
 }
 
 /** A node status in the summary vocabulary, or undefined when it has none. */

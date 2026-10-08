@@ -251,13 +251,26 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const gateNode = byId.get(node);
   const options = gateNode?.type === 'gate' && isPlainObject(gateNode.options) ? gateNode.options : null;
 
+  // Each continue walked on its own answer: a continue that sets the gate's
+  // values may lead somewhere another does not. `walked` is the preferred
+  // continue's walk, the one every single-next reader shows.
+  const preferred = preferredContinue(doc, options, closing);
+  const continues = continuesOf(options);
+  const walks = new Map();
   let walked = null;
   if (!current.drift) {
-    walked = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults });
-    if (!walked.ok) return { ok: false, text: '', errors: walked.errors, warnings };
+    const ways = continues.length ? continues.map(([id, option]) => [id, setsOf(option)]) : [[null, null]];
+    for (const [id, sets] of ways) {
+      const each = walk({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults: current.defaults, sets });
+      if (!each.ok) return { ok: false, text: '', errors: each.errors, warnings };
+      walks.set(id, each);
+    }
+    walked = walks.get(preferred?.option ?? null) ?? walks.values().next().value;
   }
   const { titles } = current.display;
-  const recommended = recommend(options, closing.risks);
+  const recommended = recommend(options, closing.risks, preferred);
+  // Several continues each name where they lead; one keeps the single line.
+  const several = walks.size > 1;
   // A revise names the nodes it will re-run, and only a trusted definition
   // says which of them a guard will skip again.
   const guards = current.drift ? null : {
@@ -272,10 +285,12 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   // The driven form: one flow-safe line, the shape every driver and cockpit
   // has always read, kept as the fallback beside the checkpoint.
   const onelineText = () => {
-    const next = walked ? nextLine(walked, titles) : NEXT_UNKNOWN;
+    const next = !walked ? [NEXT_UNKNOWN]
+      : several ? [...walks].map(([id, each]) => nextLine(each, titles).replace(/^Next:/, `Next (${id}):`))
+        : [nextLine(walked, titles)];
     const offered = revisions.spent ? [] : revisions.options.map(each => `revise: ${each.id} reruns=${each.reruns} revision=${revisions.revision}/${REVISION_CEILING}`);
     const granting = Object.entries(grantsOf(options)).map(([id, names]) => `${id} ${grantsText(names)}`);
-    const tail = [next, ...offered, ...granting, `Recommended: ${recommended}`, runLine(doc, runDir)];
+    const tail = [...next, ...offered, ...granting, `Recommended: ${recommended}`, runLine(doc, runDir)];
     return fit(closing, DRIVEN, tail, pointerOf(doc, runDir));
   };
 
@@ -283,7 +298,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
-    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, recommended, revisions, gateId,
+    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId,
   }));
   // Every form carries the panel an editor extension draws above the question,
   // whichever form was asked for: a gate may be asked from any of them. The
@@ -297,10 +312,16 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   if (form === 'oneline') return { ok: true, text: onelineText(), panel, errors: [], warnings };
 
   if (form === 'plain') {
-    const next = walked ? readableNext(walked, titles, gateId) : NEXT_UNKNOWN;
+    // Several continues: one line each, named by the option's label as the
+    // picker shows it, so the line and the option read alike.
+    const labelOfOption = id => checkpointOf().options.find(option => option.id === id)?.label ?? id;
+    const next = !walked ? [NEXT_UNKNOWN]
+      : several ? [...walks].map(([id, each]) => readableNext(each, titles, gateId).replace(/^Next:/, `Next (${lowered(labelOfOption(id))}):`))
+        : [readableNext(walked, titles, gateId)];
     const spent = revisions.spent && revisions.options.length ? CEILING_REACHED : '';
+    next[next.length - 1] = `${next.at(-1)}${spent}`;
     const review = reviewLine(doc, runDir, ids, byId);
-    const text = fit(closing, READABLE, [`${next}${spent}`, ...(review ? [review] : [])], placeOf(doc, runDir));
+    const text = fit(closing, READABLE, [...next, ...(review ? [review] : [])], placeOf(doc, runDir));
     return { ok: true, text, panel, errors: [], warnings };
   }
 
@@ -711,7 +732,7 @@ const KEEPS_MAX = 3;
  * gate closes, each tagged with the node that recorded it, an item two nodes
  * recorded kept once; the user's own choices are counted rather than listed.
  */
-function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, recommended, revisions, gateId }) {
+function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId }) {
   const title = id => titleOf(titles, id);
   const order = Object.keys(recorded);
   const sources = summarySources(doc);
@@ -724,20 +745,22 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   if (!own && headline.endsWith('…')) truncated = true;
 
   // Where the run goes: the node the walk lands on, the work skipped on the way.
-  let next = null;
-  if (walked) {
-    const skipReason = id => {
-      const entry = summaryOf(sources, id);
-      return entry ? headline_(entry.summary) : null;
+  const skipReason = id => {
+    const entry = summaryOf(sources, id);
+    return entry ? headline_(entry.summary) : null;
+  };
+  const nextOf = way => {
+    if (!way) return null;
+    const out = {
+      node: way.next,
+      title: way.next === null ? null : title(way.next),
+      end: way.next === null && !(way.waiting ?? []).length,
+      skipped: way.skipped.filter(id => !gateId(id)).map(id => ({ node: id, title: title(id), reason: skipReason(id) })),
     };
-    next = {
-      node: walked.next,
-      title: walked.next === null ? null : title(walked.next),
-      end: walked.next === null && !(walked.waiting ?? []).length,
-      skipped: walked.skipped.filter(id => !gateId(id)).map(id => ({ node: id, title: title(id), reason: skipReason(id) })),
-    };
-    if (walked.next === null && (walked.waiting ?? []).length) next.waiting = walked.waiting.map(id => ({ node: id, title: title(id) }));
-  }
+    if (way.next === null && (way.waiting ?? []).length) out.waiting = way.waiting.map(id => ({ node: id, title: title(id) }));
+    return out;
+  };
+  const next = nextOf(walked);
 
   const reviewed = reviewFiles(doc, runDir, ids, byId);
   const relative = file => path.relative(runDir, file).split(path.sep).join('/');
@@ -799,13 +822,21 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   const listed = !isPlainObject(options) ? [] : Object.entries(options).flatMap(([id, option]) => {
     const effect = isPlainObject(option) ? option.effect : option;
     const base = { id, label: labelOf(labels, node, id), effect, recommended: id === recommended };
-    if (effect === 'continue') base.label = continueLabel(base.label, next);
     if (effect === 'continue') {
+      // A continue that sets the gate's values was walked on its own answer,
+      // and says where that answer leads; any other reads the preferred walk.
+      const sets = isPlainObject(option) && isPlainObject(option.sets) ? { ...option.sets } : null;
+      const own = sets && walks.has(id) ? nextOf(walks.get(id)) : next;
+      base.label = continueLabel(base.label, own);
       let consequence = 'Continues the run.';
-      if (next?.waiting) consequence = `Waits on ${andList(next.waiting.map(each => each.title))}.`;
-      else if (next?.end) consequence = 'Finishes the run.';
-      else if (next?.title) consequence = `Runs ${lowered(next.title)} next.`;
-      return [{ ...base, consequence }];
+      if (own?.waiting) consequence = `Waits on ${andList(own.waiting.map(each => each.title))}.`;
+      else if (own?.end) consequence = 'Finishes the run.';
+      else if (own?.title) consequence = `Runs ${lowered(own.title)} next.`;
+      // The reason a closing node recommended this continue rides on the
+      // option, so either picker shows why it is the one marked.
+      const why = base.recommended && preferred?.option === id ? preferred.reason : null;
+      if (why) consequence = `${consequence} ${sentenceOf(why)}`;
+      return [{ ...base, consequence, ...(why ? { reason: why } : {}), ...(sets ? { sets, next: own } : {}) }];
     }
     if (effect === 'revise') {
       if (revisions.spent || !revise.has(id)) return [];
@@ -832,6 +863,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   const stopping = risks.stop.length > 0 && listed.some(option => option.recommended && option.effect === 'stop');
   let reason = null;
   if (stopping) reason = risks.stop[0].risk;
+  else if (preferred?.reason && preferred.option === recommended) reason = preferred.reason;
   else if (risks.open.length) reason = `${risks.open.length} open ${risks.open.length === 1 ? 'item' : 'items'}; revise to settle ${risks.open.length === 1 ? 'it' : 'them'} first`;
   else if (next?.title) reason = `nothing open blocks ${lowered(next.title)}`;
   else reason = 'nothing open is left';
@@ -901,6 +933,13 @@ function continueLabel(label, next) {
 
 /** The continue label the engine completes with the destination. */
 const BARE_CONTINUE = 'Continue';
+
+/** `text` as a sentence of its own: a capital first letter and a closing stop. */
+function sentenceOf(text) {
+  const trimmed = text.trim();
+  const opened = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(opened) ? opened : `${opened}.`;
+}
 
 /** `value` less its undefined and null fields. */
 function compact(value) {
@@ -1212,7 +1251,7 @@ function list(value) {
 // ---------------------------------------------------------------------------
 
 /**
- * The node that will actually run once `gate` is answered with its continue
+ * The node that will actually run once `gate` is answered with a continue
  * option: `{ok, next, skipped}` with `next` null at the end of the run, or a
  * `gate-brief-value-missing` refusal.
  *
@@ -1220,16 +1259,21 @@ function list(value) {
  * `needs` closure contains it. Everything else is history or a parallel branch,
  * and neither is what this answer moves forward.
  *
- * The gate is simulated as completed. Then, in resolved order, the first pending in-scope node whose needs are all
+ * The gate is simulated as completed — and, when `sets` is given, as holding
+ * the values that continue option sets, so each continue is walked on its own
+ * answer. Then, in resolved order, the first pending in-scope node whose needs are all
  * settled is taken. An `on: failure` node none of whose needs ended badly is
  * simulated as skipped and the loop goes on; otherwise, without a `when` it is
  * next, and with one a true guard makes it next and a false one simulates a
  * skip and the loop goes on.
  */
-export function walk({ graph, recorded, gate, inputs = {}, defaults = {} }) {
+export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, sets = null }) {
   const nodes = graph?.nodes ?? [];
   const byId = new Map(nodes.map(entry => [entry.id, entry]));
   const downstream = downstreamOf(nodes, gate);
+  // The answer simulated: a continue option that sets the gate's values walks
+  // with them recorded, as the writer will record them.
+  const recorded = isPlainObject(sets) ? { ...held, [gate]: { ...entryOf(held, gate), values: { ...sets } } } : held;
 
   const status = new Map();
   for (const entry of nodes) status.set(entry.id, entryOf(recorded, entry.id).status ?? 'pending');
@@ -1340,14 +1384,25 @@ function evaluate(when, { byId, recorded, status, inputs, defaults }) {
   // reads as false (SKILL.md, recording an outcome).
   if (NO_VALUES.has(status.get(owner))) return negate(false);
 
-  // A gate records the option chosen and no value — the validator refuses a
-  // gate that declares one — so a guard on a gate reads false rather than
-  // refusing over a write nobody could make.
-  if (entryOf(recorded, owner).kind === 'gate' || byId.get(owner)?.type === 'gate') return negate(false);
-
+  // A gate holds the values its chosen continue option sets, recorded by the
+  // writer from the answer, so it is read exactly as a task node's are.
   const held = entryOf(recorded, owner).values;
   if (status.get(owner) === 'completed' && isPlainObject(held) && typeof held[key] === 'boolean') {
     return negate(held[key]);
+  }
+
+  // A gate's values are never written by hand: the writer records them from
+  // the answer, so the fix is the answer recorded again, not a values patch.
+  if (entryOf(recorded, owner).kind === 'gate' || byId.get(owner)?.type === 'gate') {
+    return {
+      ok: false,
+      errors: [{
+        code: 'gate-brief-value-missing',
+        message: `gate-brief-value-missing: the guard ${when} reads ${owner}.values.${key}, which the gate ${owner} never recorded; `
+          + `a gate's values are recorded by the writer from the answer, never sent — record ${owner}'s answer again through write-state, `
+          + `the gate completed and the option the operator chose under node_summaries.${owner}, and run gate-brief again`,
+      }],
+    };
   }
 
   const kept = isPlainObject(held) ? JSON.stringify({ ...held }).slice(1, -1) : '';
@@ -1492,12 +1547,44 @@ function readiness(needStatuses, on) {
 // ---------------------------------------------------------------------------
 
 /**
- * The continue option, unless a closing risk opens `recommend stop:` — then the
- * first stop option. Without the options the line names the role, not an id.
+ * The recommended option: the first stop when a closing risk opens
+ * `recommend stop:`, else the preferred continue (`preferredContinue`).
+ * Without the options the line names the role, not an id.
  */
-function recommend(options, risks) {
+function recommend(options, risks, preferred) {
   const stop = risks.some(isStopRisk);
-  return (stop ? optionWith(options, 'stop') : null) ?? optionWith(options, 'continue') ?? RECOMMENDED_UNKNOWN;
+  return (stop ? optionWith(options, 'stop') : null) ?? preferred?.option ?? RECOMMENDED_UNKNOWN;
+}
+
+/**
+ * The continue this gate leans to, `{option, reason}`, or null without a
+ * continue: the one a closing node's summary names under `recommends` when it
+ * is a continue of this gate — the lead closing node first — with its reason,
+ * else the first continue in written order, with none.
+ */
+function preferredContinue(doc, options, closing) {
+  const continues = continuesOf(options).map(([id]) => id);
+  if (!continues.length) return null;
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  const ids = [closing.id, ...closing.entries.map(entry => entry.id).filter(id => id !== closing.id)];
+  for (const id of ids) {
+    const named = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].recommends : null;
+    if (!isPlainObject(named) || !continues.includes(named.option)) continue;
+    const reason = typeof named.reason === 'string' && named.reason.trim() !== '' ? scalarText(named.reason) : null;
+    return { option: named.option, reason };
+  }
+  return { option: continues[0], reason: null };
+}
+
+/** A gate's continue options as `[id, option]`, in written order. */
+function continuesOf(options) {
+  if (!isPlainObject(options)) return [];
+  return Object.entries(options).filter(([, option]) => (isPlainObject(option) ? option.effect : option) === 'continue');
+}
+
+/** The values a continue option sets, or null. */
+function setsOf(option) {
+  return isPlainObject(option) && isPlainObject(option.sets) ? option.sets : null;
 }
 
 /**

@@ -159,12 +159,18 @@ const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 
 /**
  * An authored gate option in its map form: its effect, for a revise option
- * only the node it sends the run back to, and for a continue option only what
- * answering it grants (`OPTION_GRANTS`). An option emits nothing: the answer is
- * the option id, recorded in state, and the effect is whether the run goes on,
- * ends, or goes back over the stretch the gate closes.
+ * only the node it sends the run back to, and for a continue option what
+ * answering it grants (`OPTION_GRANTS`) and the gate values it sets (`sets`).
+ * The answer is the option id, recorded in state, and the effect is whether the
+ * run goes on, ends, or goes back over the stretch the gate closes. A continue
+ * option's `sets` is the one way a gate holds a value: the state writer records
+ * the chosen option's map as the gate's values, so a later guard can read which
+ * way the operator went on.
  */
-const OPTION_KEYS = ['effect', 'reruns', 'grants'];
+const OPTION_KEYS = ['effect', 'reruns', 'grants', 'sets'];
+
+/** A gate value's key, the same class a guard reference ends in (`WHEN_REF`). */
+const VALUE_KEY = /^[a-z_]+$/;
 
 /**
  * What answering a continue option may authorise beyond the run itself, in
@@ -200,7 +206,8 @@ const RETIRED_NODE_KEYS = {
   optional: 'it was accepted without ever changing how a run behaves, and has left the grammar — remove it',
 };
 const RETIRED_OPTION_KEYS = {
-  values: 'an option emits no values; a value a later guard reads is declared by a task node',
+  values: 'an option emits no values of its own; a continue option sets a gate value with sets: {<key>: true|false}, '
+    + 'and a value a task node produces is declared in its outputs',
 };
 
 /** The declared input types. */
@@ -1791,7 +1798,8 @@ function checkOutputs(outputs, nodes, file, errors, removed, warnings) {
         fail(errors, file, dotted, `"${reference}" names "${parts[0]}", which no node declares`, parts[0]);
         continue;
       }
-      if (source.outputs?.[kind]?.[parts[2]] === undefined) {
+      const declared = kind === 'values' ? declaredValue(source, parts[2]) : source.outputs?.[kind]?.[parts[2]];
+      if (declared === undefined) {
         fail(errors, file, dotted, `"${reference}" names an output "${parts[0]}" does not declare`, parts[0]);
       }
     }
@@ -2174,11 +2182,13 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
   }
 
   if (node.uses !== undefined) fail(errors, file, `${at}.uses`, 'a gate runs nothing and may not carry uses', id);
-  // A gate records the option chosen and nothing else, so a value it declared
-  // could never be written — and a guard on one would read false forever.
+  // A gate records the option chosen and the values that option sets, nothing
+  // else, so a value it declared as an output could never be written — and a
+  // guard on one would read false forever.
   if (node.outputs !== undefined) {
     fail(errors, file, `${at}.outputs`,
-      'a gate records only the option chosen and declares no outputs; a value a later guard reads belongs to a task node', id);
+      'a gate records only the option chosen and declares no outputs; a value a later guard reads is set by a continue '
+      + 'option with sets: {<key>: true|false}, or declared by a task node', id);
   }
   if (typeof node.ask !== 'string' || node.ask.trim() === '') {
     fail(errors, file, `${at}.ask`, 'a gate must carry the question it asks', id);
@@ -2219,16 +2229,107 @@ function checkNodeShape(node, id, at, file, errors, { added = false } = {}) {
         `reruns belongs to a revise option; a ${effect} option sends the run nowhere back`, id);
     }
     if (isMap(authored) && authored.grants !== undefined) checkGrants(authored.grants, effect, `${at}.options.${option}.grants`, file, id, errors);
+    if (isMap(authored) && authored.sets !== undefined) checkSets(authored.sets, effect, `${at}.options.${option}.sets`, file, id, errors);
   }
-  if (continues !== 1 || stops < 1) {
+  if (continues < 1 || stops < 1) {
     fail(
       errors,
       file,
       `${at}.options`,
-      `a gate offers exactly one continue and at least one stop, and any number of revise; this one offers ${continues} and ${stops}`,
+      `a gate offers at least one continue and at least one stop, and any number of revise; this one offers ${continues} and ${stops}`,
       id,
     );
+  } else if (continues > 1) {
+    checkContinues(node.options, id, at, file, errors);
   }
+}
+
+/**
+ * A continue option's gate values: a non-empty map of value key to true or
+ * false. Only a continue may set one — a stop ends the run and a revise asks
+ * this gate again, so neither answer leaves the gate completed with a value a
+ * later guard could read.
+ */
+function checkSets(sets, effect, dotted, file, id, errors) {
+  if (effect !== 'continue') {
+    fail(errors, file, dotted,
+      `sets belongs to a continue option; a ${effect} option leaves no gate value for a later guard to read`, id);
+    return;
+  }
+  if (!isMap(sets) || Object.keys(sets).length === 0) {
+    fail(errors, file, dotted,
+      `sets is a map of gate value to true or false, naming at least one; ${isMap(sets) ? 'an empty map' : describe(sets)} is not`, id);
+    return;
+  }
+  for (const [key, value] of Object.entries(sets)) {
+    if (!VALUE_KEY.test(key)) {
+      fail(errors, file, `${dotted}.${key}`,
+        `the gate value "${key}" is outside the closed character set: lower-case letters and underscores, as a guard reference ends`, id);
+    } else if (typeof value !== 'boolean') {
+      fail(errors, file, `${dotted}.${key}`, `a gate value is true or false; ${describe(value)} is not`, id);
+    }
+  }
+}
+
+/**
+ * More than one continue. Each continue is a different way on, and the only
+ * thing that tells two of them apart after the answer is what they set: so
+ * every continue carries `sets`, all of them name the same values, and no two
+ * set the same combination — otherwise two answers would be one route, and a
+ * guard reading a value one continue never set would read nothing.
+ */
+function checkContinues(options, id, at, file, errors) {
+  const continues = Object.entries(options).filter(([, authored]) => optionEffect(authored) === 'continue');
+  const bare = continues.filter(([, authored]) => !isMap(authored) || !isMap(authored.sets));
+  if (bare.length > 0) {
+    for (const [option] of bare) {
+      fail(errors, file, `${at}.options.${option}.sets`,
+        `this gate offers ${continues.length} continue options, and each must set the gate values that tell it from the others; `
+        + `"${option}" sets none — add sets: {<key>: true|false}, or keep a single continue`, id);
+    }
+    return;
+  }
+  const keysOf = authored => Object.keys(authored.sets).sort().join(', ');
+  const [firstId, firstOption] = continues[0];
+  const wanted = keysOf(firstOption);
+  const seen = new Map();
+  for (const [option, authored] of continues) {
+    const keys = keysOf(authored);
+    if (keys !== wanted) {
+      fail(errors, file, `${at}.options.${option}.sets`,
+        `every continue of a gate sets the same values; "${option}" sets ${keys} and "${firstId}" sets ${wanted}`, id);
+      continue;
+    }
+    const combination = JSON.stringify(Object.keys(authored.sets).sort().map(key => [key, authored.sets[key]]));
+    if (seen.has(combination)) {
+      fail(errors, file, `${at}.options.${option}.sets`,
+        `"${option}" sets the same values as "${seen.get(combination)}", so the two answers would be one route; `
+        + 'give each continue its own combination', id);
+      continue;
+    }
+    seen.set(combination, option);
+  }
+}
+
+/**
+ * The bool values a gate declares: every key its continue options set. A gate
+ * declares no `outputs`, so this is the one source of a value on a gate, and a
+ * guard or a reference reading one is checked against it.
+ */
+function gateValueKeys(node) {
+  const keys = new Set();
+  if (node?.type !== 'gate' || !isMap(node.options)) return keys;
+  for (const authored of Object.values(node.options)) {
+    if (optionEffect(authored) !== 'continue' || !isMap(authored) || !isMap(authored.sets)) continue;
+    for (const key of Object.keys(authored.sets)) keys.add(key);
+  }
+  return keys;
+}
+
+/** A node's declared type for a value key: its own outputs, or `bool` for a gate value its continues set. */
+function declaredValue(node, key) {
+  if (node?.outputs?.values?.[key] !== undefined) return node.outputs.values[key];
+  return gateValueKeys(node).has(key) ? 'bool' : undefined;
 }
 
 /**
@@ -2525,8 +2626,9 @@ function checkWhen(node, id, at, file, errors, scope) {
     fail(errors, file, dotted, `when names "${parts[0]}", which is outside this node's needs closure`, id);
     return;
   }
-  if (source.outputs?.values?.[parts[2]] !== 'bool') {
-    fail(errors, file, dotted, `when needs a declared bool output; "${parts[0]}.values.${parts[2]}" is not one`, id);
+  if (declaredValue(source, parts[2]) !== 'bool') {
+    fail(errors, file, dotted,
+      `when needs a declared bool output or a value a gate's continue sets; "${parts[0]}.values.${parts[2]}" is not one`, id);
   }
 }
 
@@ -2582,7 +2684,8 @@ function referenceProblem(inner, scope) {
   const source = scope.nodes.get(parts[0]);
   if (!source) return `"${inner}" names "${parts[0]}", which no node declares`;
   if (!scope.closure.has(parts[0])) return `"${inner}" names "${parts[0]}", which is outside this node's needs closure`;
-  if (source.outputs?.[parts[1]]?.[parts[2]] === undefined) {
+  const declared = parts[1] === 'values' ? declaredValue(source, parts[2]) : source.outputs?.artifacts?.[parts[2]];
+  if (declared === undefined) {
     return `"${inner}" names an output "${parts[0]}" does not declare`;
   }
   return null;
@@ -2764,8 +2867,9 @@ function isDisabledReference(reference, graph) {
  * shipped hash moves.
  *
  * A map carrying anything beside the effect is kept whole: a revise option's
- * `reruns` and a continue option's `grants` are part of what the gate means —
- * grants in the closed set's order, since the order says nothing — and a degraded document's unknown
+ * `reruns` and a continue option's `grants` and `sets` are part of what the gate
+ * means — grants in the closed set's order and sets in key order, since neither
+ * order says anything — and a degraded document's unknown
  * key reduced away would hash a document that says more than this build reads
  * identically to one that says only the effect. So a definition moves its hash
  * by adopting a revise option, and no other definition's hash moves with it.

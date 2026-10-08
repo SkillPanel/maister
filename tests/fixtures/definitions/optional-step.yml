@@ -1,0 +1,46 @@
+# An optional step decided at the gate that approves the work before it: the
+# gate's two continues set `audit_enabled`, and the audit and its own gate are
+# guarded on that value. A skipped audit is passed by the guard alone.
+name: optional-step
+version: 1
+description: "Writes a specification, optionally audits it at the operator's word, then plans."
+nodes:
+  specification:
+    uses: direct:specification
+    needs: []
+  specification-approval:
+    type: gate
+    needs: [specification]
+    ask: "Specification complete. Continue?"
+    options:
+      continue-to-audit: {effect: continue, sets: {audit_enabled: true}}
+      continue-to-planning: {effect: continue, sets: {audit_enabled: false}}
+      revise-specification: {effect: revise, reruns: specification}
+      stop-here: stop
+  audit:
+    uses: direct:audit
+    needs: [specification-approval]
+    when: "${specification-approval.values.audit_enabled}"
+  audit-approval:
+    type: gate
+    needs: [audit]
+    when: "${specification-approval.values.audit_enabled}"
+    ask: "Audit complete. Continue?"
+    options:
+      continue-on: continue
+      redo-specification: {effect: revise, reruns: specification}
+      stop-after-audit: stop
+  planning:
+    uses: direct:planning
+    needs: [audit-approval]
+display:
+  titles:
+    specification: Specification
+    audit: Specification audit
+    planning: Planning
+  option_labels:
+    specification-approval:
+      continue-to-audit: "Continue to the specification audit"
+      continue-to-planning: "Continue to planning, skip the audit"
+      revise-specification: "Revise the specification"
+      stop-here: "Stop here"

@@ -1577,3 +1577,159 @@ test('grants: the driven request carries them in its checkpoint only', t => {
   assert.doesNotMatch(go.label, /pushes/, 'the label stays plain; a cockpit shows the grant its own way');
   assert.match(request.context.summary, new RegExp(`continue-past-analysis ${GRANTED}`));
 });
+
+// ---------------------------------------------------------------------------
+// several continues: a gate that decides an optional step
+// ---------------------------------------------------------------------------
+
+const OPTIONAL_STEP = path.join(FIXTURES, 'definitions/optional-step.yml');
+
+/** The optional-step run paused at its first gate, the specification's summary recorded as given. */
+function atOptionalGate(t, summary = {}) {
+  const run = scratch(t);
+  freeze(run, { definition: OPTIONAL_STEP });
+  write(run, {
+    nodes: { specification: { status: 'completed' } },
+    node_summaries: { specification: { summary: 'Wrote the specification.', ...summary } },
+  });
+  return run;
+}
+
+function checkpointOf(run, node = 'specification-approval') {
+  const result = verb(['gate-brief', `--state=${run.state}`, `--node=${node}`, '--checkpoint']);
+  assert.equal(result.code, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test('gate-brief: each continue that sets the gate\'s values is walked on its own answer', t => {
+  const run = atOptionalGate(t);
+  const checkpoint = checkpointOf(run);
+  const [audit, planning] = checkpoint.options.filter(option => option.effect === 'continue');
+  assert.equal(audit.id, 'continue-to-audit');
+  assert.deepEqual(audit.sets, { audit_enabled: true });
+  assert.equal(audit.next.node, 'audit');
+  assert.equal(audit.consequence, 'Runs specification audit next.');
+  assert.equal(planning.id, 'continue-to-planning');
+  assert.deepEqual(planning.sets, { audit_enabled: false });
+  assert.equal(planning.next.node, 'planning');
+  assert.deepEqual(planning.next.skipped.map(each => each.node), ['audit']);
+  assert.equal(planning.consequence, 'Runs planning next.');
+  assert.equal(checkpoint.recommended.option, 'continue-to-audit', 'without a recommendation the first continue in written order');
+  assert.deepEqual(checkpoint.next, audit.next, 'the checkpoint\'s next is the recommended continue\'s');
+});
+
+test('gate-brief: a bare Continue label on a setting continue is completed from its own walk', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-optional-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const definition = path.join(dir, 'optional-step.yml');
+  fs.writeFileSync(definition, fs.readFileSync(OPTIONAL_STEP, 'utf8')
+    .replace('continue-to-audit: "Continue to the specification audit"', 'continue-to-audit: Continue')
+    .replace('continue-to-planning: "Continue to planning, skip the audit"', 'continue-to-planning: Continue'));
+  fs.copyFileSync(OPTIONAL_STEP.replace(/\.yml$/, '.md'), path.join(dir, 'optional-step.md'));
+  const run = scratch(t);
+  freeze(run, { definition });
+  write(run, { nodes: { specification: { status: 'completed' } }, node_summaries: { specification: { summary: 'Wrote it.' } } });
+  const labels = Object.fromEntries(checkpointOf(run).options.map(option => [option.id, option.label]));
+  assert.equal(labels['continue-to-audit'], 'Continue to specification audit');
+  assert.equal(labels['continue-to-planning'], 'Continue to planning');
+});
+
+test('gate-brief: the closing node\'s recommends picks the continue, and its reason rides on the option in both pickers', t => {
+  const run = atOptionalGate(t, { recommends: { option: 'continue-to-planning', reason: 'the change is two lines' } });
+  const checkpoint = checkpointOf(run);
+  assert.deepEqual(checkpoint.recommended, { option: 'continue-to-planning', reason: 'the change is two lines' });
+  assert.deepEqual(checkpoint.next.node, 'planning');
+  const planning = checkpoint.options.find(option => option.id === 'continue-to-planning');
+  assert.equal(planning.consequence, 'Runs planning next. The change is two lines.');
+
+  const rich = picker(run, 'specification-approval');
+  assert.equal(rich.options[0].id, 'continue-to-planning');
+  assert.equal(rich.options[0].description, 'Runs planning next. The change is two lines.');
+  assert.match(rich.options[0].preview, /^Done: Wrote the specification\.\nNext: Planning \(skipping Specification audit\)/);
+  assert.match(rich.options[1].preview, /\nNext: Specification audit/, 'each continue previews its own next');
+  // Four options fill the picker, so the full brief is asked for by typing.
+  assert.equal(rich.options.length, 4);
+  assert.equal(rich.details, 'typed');
+  assert.match(rich.question, /Type "details" for the full brief\.$/);
+
+  const plain = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--json', '--picker=plain']).stdout);
+  assert.equal(plain.options[0].label, 'Continue to planning, skip the audit — the change is two lines (Recommended)');
+  assert.match(plain.question, /Next \(continue to the specification audit\): Specification audit\nNext \(continue to planning, skip the audit\): Planning \(skipping Specification audit\)/);
+});
+
+test('gate-brief: a recommends naming no continue of this gate is passed over, and a stop risk still wins', t => {
+  const run = atOptionalGate(t, { risks: [{ risk: 'The scope contradicts the brief', tag: 'stop' }], recommends: { option: 'continue-to-planning', reason: 'small' } });
+  const checkpoint = checkpointOf(run);
+  assert.equal(checkpoint.recommended.option, 'stop-here');
+  assert.equal(checkpoint.recommended.reason, 'The scope contradicts the brief');
+  assert.equal(checkpoint.next.node, 'planning', 'the next shown is still the preferred continue\'s');
+  assert.equal(checkpoint.options.find(option => option.id === 'continue-to-planning').reason, undefined);
+});
+
+test('gate-brief: the driven forms carry one Next line per continue and every continue as an option', t => {
+  const run = atOptionalGate(t);
+  const line = oneline(run, 'specification-approval').stdout;
+  assert.match(line, /Next \(continue-to-audit\): Specification audit · Next \(continue-to-planning\): Planning — skipped: Specification audit/);
+  assert.match(line, /Recommended: continue-to-audit/);
+  assert.ok(line.length <= BUDGET, 'the line keeps inside the budget');
+
+  const request = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--request']).stdout);
+  assert.deepEqual(request.options.map(option => [option.id, option.effect]), [
+    ['continue-to-audit', 'continue'], ['continue-to-planning', 'continue'], ['revise-specification', 'revise'], ['stop-here', 'stop'],
+  ]);
+  for (const option of request.options) {
+    assert.deepEqual(Object.keys(option).filter(key => !['id', 'label', 'effect', 'description', 'recommended', 'note', 'suggestions'].includes(key)), []);
+  }
+
+  const plain = brief(run, 'specification-approval').stdout;
+  assert.match(plain, /Next \(continue to the specification audit\): Specification audit\nNext \(continue to planning, skip the audit\): Planning \(skipping Specification audit\)/);
+});
+
+test('gate-brief: a later gate reads the values the answer recorded on an earlier gate', t => {
+  const run = atOptionalGate(t);
+  write(run, {
+    nodes: { 'specification-approval': { status: 'completed' } },
+    node_summaries: { 'specification-approval': { answer: 'continue-to-audit' } },
+  });
+  write(run, { nodes: { audit: { status: 'completed' } }, node_summaries: { audit: { summary: 'Audited the specification.' } } });
+  const result = oneline(run, 'audit-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Next: Planning/);
+});
+
+test('refusal: gate-brief-value-missing — a guard on a gate value the gate never recorded asks for the answer again', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-optional-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const definition = path.join(dir, 'later.yml');
+  fs.writeFileSync(definition, [
+    'name: later', 'version: 1', 'nodes:',
+    '  draft: {uses: "direct:draft", needs: []}',
+    '  first-approval:', '    type: gate', '    needs: [draft]', '    ask: "Drafted. Continue?"',
+    '    options:', '      with-docs: {effect: continue, sets: {docs: true}}', '      without-docs: {effect: continue, sets: {docs: false}}', '      halt: stop',
+    '  build: {uses: "direct:build", needs: [first-approval]}',
+    '  build-approval:', '    type: gate', '    needs: [build]', '    ask: "Built. Continue?"', '    options: {go-on: continue, halt: stop}',
+    '  docs: {uses: "direct:docs", needs: [build-approval], when: "${first-approval.values.docs}"}',
+  ].join('\n') + '\n');
+  fs.writeFileSync(path.join(dir, 'later.md'), '# Later\n\n## `draft`\n\nDraft.\n\n## `build`\n\nBuild.\n\n## `docs`\n\nDocs.\n');
+  const run = scratch(t);
+  freeze(run, { definition });
+  write(run, { nodes: { draft: { status: 'completed' } }, node_summaries: { draft: { summary: 'Drafted.' } } });
+  write(run, { nodes: { 'first-approval': { status: 'completed' } }, node_summaries: { 'first-approval': { answer: 'with-docs' } } });
+  write(run, { nodes: { build: { status: 'completed' } }, node_summaries: { build: { summary: 'Built.' } } });
+  assert.match(oneline(run, 'build-approval').stdout, /Next: Docs/, 'the recorded value is read');
+  // The values hand-removed, as a file an earlier build wrote would hold none.
+  fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8').replace(/, values: \{docs: true\}/, ''));
+  const result = oneline(run, 'build-approval');
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /gate-brief-value-missing: the guard \$\{first-approval\.values\.docs\} reads first-approval\.values\.docs, which the gate first-approval never recorded/);
+  assert.match(result.stderr, /record first-approval's answer again through write-state/);
+  assert.doesNotMatch(result.stderr, /"values"/, 'the hint never offers a values patch for a gate');
+});
+
+test('gate-brief: the display panel at a gate with several continues shows the recommended continue\'s next', t => {
+  const run = atOptionalGate(t, { recommends: { option: 'continue-to-planning', reason: 'small change' } });
+  assert.equal(picker(run, 'specification-approval').code, 0);
+  const panel = JSON.parse(fs.readFileSync(path.join(run.dir, 'display/next.json'), 'utf8'));
+  assert.ok(panel.glance.includes('Next: Planning (skipping Specification audit)'), JSON.stringify(panel.glance));
+  assert.equal(panel.parts.find(part => part.key === 'next').text, 'Planning (skipping Specification audit)');
+});

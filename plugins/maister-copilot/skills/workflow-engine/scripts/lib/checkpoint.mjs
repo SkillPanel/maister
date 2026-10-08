@@ -250,7 +250,8 @@ function openRisks(checkpoint) {
 }
 
 /**
- * The checkpoint at a glance, as lines: *Done*, *Next*, *Review*, the risks
+ * The checkpoint at a glance, as lines: *Done*, *Next* — one line for each of
+ * `ways` when there are several, named by its label — *Review*, the risks
  * still open — a stop first — the decisions the run made and the user's own
  * choices counted. An open risk is what the user weighs before going on, so it
  * comes ahead of the decisions and outlasts them; a trade-off, a follow-up and
@@ -259,8 +260,11 @@ function openRisks(checkpoint) {
  * dropped from the end with a count, then the risks down to one, then the *Done* sentence is cut, and last
  * the one risk left gives way to a count; *Next* is never cut.
  */
-function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false }) {
+function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false, ways = waysOf(checkpoint) }) {
   const items = decided(checkpoint);
+  const nexts = ways.length > 1
+    ? ways.map(option => `Next (${lowered(option.label)}): ${nextText(option.next)}`)
+    : [`Next: ${nextText(ways.length === 1 ? ways[0].next : checkpoint.next)}`];
   const risks = openRisks(checkpoint);
   const review = reviewText(checkpoint.review, companion);
   const choices = choicesLine(checkpoint);
@@ -268,7 +272,7 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   const draw = () => {
     const out = [];
     if (checkpoint.headline) out.push(`Done: ${clip(checkpoint.headline, view.done)}`);
-    out.push(`Next: ${nextText(checkpoint.next)}`);
+    out.push(...nexts);
     if (review) out.push(`Review: ${review}`);
     if (view.risks > 0) {
       const rest = risks.length - view.risks;
@@ -318,6 +322,14 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
     out = draw();
   }
   return out;
+}
+
+/**
+ * The continue options walked on their own answers — those that set the gate's
+ * values — each of which names where it leads when there are several.
+ */
+function waysOf(checkpoint) {
+  return (checkpoint.options ?? []).filter(option => option.effect === 'continue' && option.next !== undefined);
 }
 
 /** The option the checkpoint recommends. */
@@ -446,7 +458,9 @@ export function moreDetails(checkpoint) {
   if (checkpoint.review?.length) {
     blocks.push(['**Files**', ...checkpoint.review.map(each => `- ${each.path}${each.label ? ` — ${each.label}` : ''}${each.html ? ` (HTML: ${each.html})` : ''}`)].join('\n'));
   }
-  blocks.push(`Next: ${nextText(checkpoint.next)}`);
+  const ways = waysOf(checkpoint);
+  if (ways.length > 1) blocks.push(ways.map(option => `Next (${lowered(option.label)}): ${nextText(option.next)}`).join('\n'));
+  else blocks.push(`Next: ${nextText(checkpoint.next)}`);
   return blocks.join('\n\n');
 }
 
@@ -645,7 +659,7 @@ function answerFields(option, profile) {
 export function richPicker(checkpoint) {
   const options = ordered(checkpoint).map(option => {
     let lines;
-    if (option.effect === 'continue') lines = glance(checkpoint, { companion: 'beside', markdown: true });
+    if (option.effect === 'continue') lines = glance(checkpoint, { companion: 'beside', markdown: true, ways: option.next !== undefined ? [option] : [] });
     else if (option.effect === 'revise') lines = reviseLines(option);
     else lines = stopLines(checkpoint, option);
     return {
@@ -678,7 +692,10 @@ export function plainPicker(checkpoint) {
 
 /** An option's title on a labels-only picker: its label and, after a dash, what it does. */
 function plainTitle(checkpoint, option) {
-  if (option.effect === 'continue') return grantedLabel(checkpoint, option);
+  if (option.effect === 'continue') {
+    const label = grantedLabel(checkpoint, option);
+    return option.reason ? `${label} — ${clip(option.reason, 70)}` : label;
+  }
   if (option.effect === 'revise') {
     // "it" only when the label already names the one node that re-runs:
     // "Revise the decisions — re-runs it" hid that the decision areas are asked again.
