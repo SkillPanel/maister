@@ -15,9 +15,9 @@ const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
 const STRETCH = ['draft', 'figures', 'review', 'review-approval'];
 
 /** A run whose first gate is the question now: everything before it has ended. */
-function atGate(t, { figures = true } = {}) {
+function atGate(t, { figures = true, orchestrator = {} } = {}) {
   const run = scratch(t);
-  freeze(run, { definition: REVISE });
+  freeze(run, { definition: REVISE, orchestrator });
   complete(run, { figures });
   return run;
 }
@@ -101,6 +101,20 @@ test('without an at the writer stamps the decision; without a name it stamps the
   assert.equal(decision.answered_by, OPERATOR);
   assert.equal(decision.via, 'terminal');
   assert.match(decision.at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+});
+
+test('a revise answered in a driven session is stamped with the driver\'s kind, as any answer is; a via the caller sends wins', t => {
+  for (const kind of ['cockpit', 'dispatch']) {
+    const run = atGate(t, { orchestrator: { driver: { kind, cwd: '/work' } } });
+    const result = revise(run);
+    assert.equal(result.code, 0, result.stderr);
+    const [decision] = readState(run).node_summaries['review-approval'].decisions;
+    assert.equal(decision.answered_by, OPERATOR);
+    assert.equal(decision.via, kind, `a revise under a ${kind} driver`);
+  }
+  const run = atGate(t, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  revise(run, { via: 'terminal' });
+  assert.equal(readState(run).node_summaries['review-approval'].decisions[0].via, 'terminal');
 });
 
 test('the phases the stretch owned leave completed_phases; the others stay', t => {

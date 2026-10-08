@@ -2601,9 +2601,10 @@ const DRIVEN_VIA = new Set(['cockpit', 'dispatch']);
 /**
  * How an answer given in this run's session reached it: the driver's kind when
  * a cockpit or a dispatch drives the run, `terminal` when no driver is set or
- * the driver is the terminal.
+ * the driver is the terminal. The one default for every answer the engine
+ * stamps, a revise's included.
  */
-function answerVia(state) {
+export function answerVia(state) {
   const orchestrator = isPlainObject(state?.orchestrator) ? state.orchestrator : null;
   const kind = isPlainObject(orchestrator?.driver) ? orchestrator.driver.kind : undefined;
   return DRIVEN_VIA.has(kind) ? kind : 'terminal';
