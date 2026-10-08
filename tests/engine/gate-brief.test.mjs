@@ -159,7 +159,7 @@ test('gate-brief --json: carries the full brief as more_details, every item whol
   assert.match(details, /\*\*Open\*\*\n- section 2 contradicts the summary\n- the intro repeats the title/);
 });
 
-test('gate-brief --json: the focused preview shows no risk, and a stop risk focuses Stop with its reason', t => {
+test('gate-brief --json: with the lines tight the glance keeps the risks, a stop first, ahead of the decisions; a stop risk focuses Stop', t => {
   const run = atReview(t, {
     draft: { decisions: ['D1 first.', 'D2 second.', 'D3 third.', 'D4 fourth.'], risks: ['R1 first.', 'R2 second.'] },
     review: { risks: ['R3 third.', 'recommend stop: the guide documents a removed command'] },
@@ -170,8 +170,18 @@ test('gate-brief --json: the focused preview shows no risk, and a stop risk focu
   assert.equal(stop.recommended, true);
   assert.match(stop.preview, /^Why stop: the guide documents a removed command\n/);
   const glance = result.options.find(option => option.description.startsWith('Runs ')).preview;
-  assert.doesNotMatch(glance, /R1|R2|R3|removed command/, 'no risk in the glance');
-  assert.match(glance, /^Decided by the run \(\+1 more under More details\):$/m);
+  assert.deepEqual(glance.split('\n'), [
+    'Done: Reviewed the draft.',
+    'Next: Publish',
+    'Open risks (+1 more under More details):',
+    '- Recommends stopping: the guide documents a removed command',
+    '- R3 third.',
+    '- R1 first.',
+    '',
+    'Decided by the run (+3 more under More details):',
+    '- D1 first. — draft',
+  ], 'the decisions give way before the risks, each cut counted');
+  assert.ok(glance.split('\n').length <= 9 && glance.length <= 900);
 });
 
 test('gate-brief --json: a refusal carries no material', t => {
@@ -363,8 +373,8 @@ test('gate-brief: --oneline folds the brief onto one flow-safe line', t => {
   assert.doesNotMatch(line, /[\r\n"]/);
   assert.ok(line.includes('Next: Implementation · Recommended: continue'), line);
   // Each decision names who settled it and each risk what it is.
-  assert.equal(line, "Two gaps found in the 'parser'. · Decisions: run: Patch the tokenizer — smallest change"
-    + ` · Risks: open: The fixture corpus is thin · Next: Implementation · Recommended: continue · ${runLine(run)}`);
+  assert.equal(line, "Two gaps found in the 'parser'. · Risks: open: The fixture corpus is thin"
+    + ` · Decisions: run: Patch the tokenizer — smallest change · Next: Implementation · Recommended: continue · ${runLine(run)}`);
   assert.doesNotThrow(() => scalar(line));
 });
 
@@ -842,7 +852,7 @@ test('gate-brief: an item two closing nodes record is listed once, in every form
   const plainProfile = verb(['gate-brief', `--state=${run.state}`, '--node=verification-approval', '--json', '--picker=plain']);
   const question = JSON.parse(plainProfile.stdout).question;
   once(question, 'AND semantics');
-  assert.doesNotMatch(question, /notes map can bypass/, 'no risk in the plain question either');
+  once(question, 'notes map can bypass');
 
   const driven = oneline(run, 'verification-approval').stdout;
   once(driven, 'AND semantics');
@@ -1317,7 +1327,7 @@ function atFullGate(t) {
   return run;
 }
 
-test('picker rich: the continue option previews the checkpoint at a glance, no risk in it; More details previews the rest', t => {
+test('picker rich: the continue option previews the checkpoint at a glance, an open risk cut ahead of the decisions; More details previews the rest', t => {
   const long = 'The fixture corpus is thin. It covers two of the five dialects, so a regression in the others would pass unseen.';
   const run = atApproval(t, { ...SUMMARY, risks: [long] });
   const result = profiled(run, 'approval', 'rich');
@@ -1327,6 +1337,9 @@ test('picker rich: the continue option previews the checkpoint at a glance, no r
   assert.equal(recommended.preview, [
     'Done: Two gaps found in the parser.',
     'Next: Implementation',
+    'Open risks:',
+    '- The fixture corpus is thin. It covers two of the five dialects, so a regression in the others would pass…',
+    '',
     'Decided by the run:',
     '- Patch the tokenizer — scope analysis',
   ].join('\n'));
@@ -1363,6 +1376,8 @@ test('picker plain: the question carries the glance then the ask, and each title
   assert.equal(result.question, [
     'Done: Two gaps found in the parser.',
     'Next: Implementation',
+    'Open risks:',
+    '- The fixture corpus is thin',
     'Decided by the run:',
     '- Patch the tokenizer — scope analysis',
     'Analysis complete. Ready to go on?',

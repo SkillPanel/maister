@@ -1754,14 +1754,16 @@ function renderPlain({ summary, decisions, risks, tail }) {
 
 /**
  * The driven form: one line a gate request's `context.summary` can carry. The
- * request writer refuses a newline or a double quote in a flow scalar, so every
- * line break folds to a space and every `"` becomes `'`.
+ * risks come ahead of the decisions, as at the glance: they are what a reader
+ * weighs before answering. The request writer refuses a newline or a double
+ * quote in a flow scalar, so every line break folds to a space and every `"`
+ * becomes `'`.
  */
 function renderOneline({ summary, decisions, risks, tail }) {
   const all = ({ kept, rest }) => (rest ? [...kept, rest] : kept);
   const sections = [summary];
-  if (all(decisions).length) sections.push(`Decisions: ${all(decisions).join('; ')}`);
   if (all(risks).length) sections.push(`Risks: ${all(risks).join('; ')}`);
+  if (all(decisions).length) sections.push(`Decisions: ${all(decisions).join('; ')}`);
   sections.push(...tail);
   const line = sections.join(' · ').replace(/\s*[\r\n]+\s*/g, ' ').replace(/"/g, "'").trim();
   return `${line}\n`;

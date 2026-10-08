@@ -342,6 +342,9 @@ const SPEC_GLANCE = [
   'Done: The revised spec makes null mean "not given" for tags and list, and keeps 11 requirements: tags with addTag/removeTag, the all-of filter, toCsv and both copy-leak fixes.',
   'Next: Specification audit',
   'Review: implementation/spec.md (HTML beside it), analysis/requirements.md',
+  'Open risks:',
+  '- A null element inside the filter array still throws',
+  '- addTag(id, null) throws',
   'Decided by the run:',
   '- Tags stay inside the store, one shared check for every entry point — specification',
   '- toCsv is a separate function exported from the package — specification',
@@ -349,10 +352,18 @@ const SPEC_GLANCE = [
   'You made 9 choices; 1 differs from the recommendation: CSV line endings, strict \\r\\n.',
 ];
 
-/** The glance as the rich preview shows it: markdown, so the user's own choices stand apart from the last bullet. */
-const SPEC_PREVIEW = [...SPEC_GLANCE.slice(0, -1), '', SPEC_GLANCE.at(-1)];
+/**
+ * The glance as the rich preview shows it: markdown, so a line after a bullet
+ * stands apart from it, and within nine lines, so the open risks stay and the
+ * decisions give way to a count.
+ */
+const SPEC_PREVIEW = [
+  ...SPEC_GLANCE.slice(0, 6), '',
+  'Decided by the run: 3 decisions, under More details.',
+  SPEC_GLANCE.at(-1),
+];
 
-test('rich: the specification gate renders as designed — a one-line ask, the glance focused, no risk in it', t => {
+test('rich: the specification gate renders as designed — a one-line ask, the glance focused, open risks ahead of decisions', t => {
   const rich = pickerOf(atSpecGate(t), 'specification-approval', 'rich');
   assert.equal(rich.header, 'Spec');
   assert.equal(rich.question, 'Specification complete. Ready to go on?');
@@ -362,7 +373,7 @@ test('rich: the specification gate renders as designed — a one-line ask, the g
   const [focused, revise, stop, more] = rich.options;
   assert.equal(focused.preview, SPEC_PREVIEW.join('\n'));
   assert.ok(focused.preview.length <= 900 && focused.preview.split('\n').length <= 9);
-  assert.doesNotMatch(focused.preview, /null element|breaking changes|formula guard/, 'no risk at the glance');
+  assert.doesNotMatch(focused.preview, /breaking changes|formula guard|→/, 'no trade-off at the glance, and no risk\'s change');
   assert.equal(revise.preview, [
     'Re-runs: Specification, then asks this checkpoint again.',
     'Suggested notes:',
@@ -429,7 +440,8 @@ test('rich: the research convergence gate goes on to what runs, skipping the dec
   assert.ok(glance.includes('- Ship every change together as one 2.0.0 release — solution convergence'));
   assert.equal(glance.at(-1), 'You made 10 choices, all as recommended.');
   assert.equal(glance.at(-2), '', 'the user\'s choices stand apart from the last decision');
-  assert.doesNotMatch(rich.options[0].preview, /projection has not been run/);
+  assert.ok(glance.indexOf('- The path-closure projection has not been run') < glance.indexOf('- Ship every change together as one 2.0.0 release — solution convergence'),
+    'the open risk comes ahead of the decision');
   // The continue label names where the run goes: the design was declined.
   assert.equal(rich.options[0].label, 'Continue to final summary (Recommended)');
   const plain = pickerOf(run, 'convergence-approval', 'plain');
@@ -446,8 +458,52 @@ test('rich: with the design taken, the research convergence continue label names
   assert.equal(pickerOf(run, 'convergence-approval', 'rich').options[0].label, 'Continue to high-level design (Recommended)');
 });
 
+test('glance: open risks come ahead of the decisions, which give way first when the lines run short', t => {
+  const decisions = Array.from({ length: 4 }, (_, index) => ({ decision: `Audit finding ${index + 1} holds for every entry point`, by: 'audit' }));
+  const risks = [
+    { risk: 'The type module setting may break the build script', tag: 'open', change: 'Check the build script under the module setting' },
+    { risk: 'Test discovery depends on the file name only', tag: 'open', change: 'Name the discovery rule in the spec' },
+    { risk: 'The README example was stale', tag: 'resolved' },
+  ];
+  const run = atSpecGate(t, { decisions, risks });
+  const glance = pickerOf(run, 'specification-approval', 'rich').options[0].preview.split('\n');
+  assert.ok(glance.length <= 9 && glance.join('\n').length <= 900, glance.join('\n'));
+  const at = text => glance.indexOf(text);
+  assert.ok(at('Open risks:') > -1, glance.join('\n'));
+  assert.ok(at('- The type module setting may break the build script') > at('Open risks:'));
+  assert.ok(at('- Test discovery depends on the file name only') > -1);
+  const heading = glance.find(line => line.startsWith('Decided by the audit'));
+  assert.ok(at(heading) > at('- Test discovery depends on the file name only'), 'the decisions come after the risks');
+  assert.match(heading, /^Decided by the audit (\(\+\d+ more under More details\):|: 4 decisions, under More details\.)$/);
+  assert.ok(!glance.some(line => /README example|→/.test(line)), 'neither a settled risk nor a risk\'s change at the glance');
+
+  // The plain profile lists them in the same order, its lines not rationed.
+  const question = pickerOf(run, 'specification-approval', 'plain').question.split('\n');
+  const decided = question.findIndex(line => line.startsWith('Decided by the audit'));
+  assert.ok(question.indexOf('- Test discovery depends on the file name only') > -1);
+  assert.ok(question.indexOf('- Test discovery depends on the file name only') < decided);
+  assert.ok(question.includes('- Audit finding 3 holds for every entry point — audit'));
+});
+
+test('glance: a stop risk leads the risks, and the risks past three are counted', t => {
+  const risks = [
+    ...Array.from({ length: 4 }, (_, index) => ({ risk: `Open risk ${index + 1}`, tag: 'open', change: `Settle risk ${index + 1}` })),
+    { risk: 'The guide documents a removed command', tag: 'stop' },
+  ];
+  const glance = pickerOf(atSpecGate(t, { decisions: [], risks }), 'specification-approval', 'rich')
+    .options.find(option => option.description?.startsWith('Runs ')).preview.split('\n');
+  const from = glance.findIndex(line => line.startsWith('Open risks'));
+  assert.deepEqual(glance.slice(from, from + 4), [
+    'Open risks (+2 more under More details):',
+    '- Recommends stopping: The guide documents a removed command',
+    '- Open risk 1',
+    '- Open risk 2',
+  ]);
+});
+
 test('glance: the heading names who settled what it lists — an audit, defaults, or the run beside them', t => {
-  const headings = decisions => pickerOf(atSpecGate(t, { decisions }), 'specification-approval', 'rich').options[0].preview
+  // No risk beside them, so every decision has the room to be listed under its heading.
+  const headings = decisions => pickerOf(atSpecGate(t, { decisions, risks: [] }), 'specification-approval', 'rich').options[0].preview
     .split('\n').find(line => /^(Decided|Taken) by/.test(line));
   assert.equal(headings([{ decision: 'Null filter elements are rejected', by: 'audit' }]), 'Decided by the audit:');
   assert.equal(headings([{ decision: 'Run the audit', by: 'default' }]), 'Taken by default:');

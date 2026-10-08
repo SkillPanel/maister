@@ -16,9 +16,10 @@
  *
  * - **rich** (a picker that shows option previews): the question is the one-line
  *   ask; the continue option's preview is the checkpoint at a glance — *Done*,
- *   *Next*, *Review*, up to three decisions the run made and one counted line for
- *   the user's own choices, never a risk — within `FOCUS_LINES` lines and
- *   `FOCUS_BUDGET` characters; revise and stop preview what choosing them does;
+ *   *Next*, *Review*, up to three risks still open, a stop first, up to three
+ *   decisions the run made and one counted line for the user's own choices —
+ *   within `FOCUS_LINES` lines and `FOCUS_BUDGET` characters, the decisions
+ *   giving way to the risks; revise and stop preview what choosing them does;
  *   More details previews the full brief, risks grouped by tag.
  * - **plain** (a picker that shows labels only): the same selection carried in
  *   the question, the ask last so it stays on screen, and each option's title
@@ -46,6 +47,12 @@ export const PREVIEW_BUDGET = 2000;
 /** How many decisions the run made a glance shows, and how long each may run. */
 const DECIDED_CAP = 3;
 const DECISION_MAX = 110;
+
+/** How many open risks a glance shows. */
+const RISK_CAP = 3;
+
+/** How a risk that recommends stopping opens, wherever risks are listed. */
+const STOP_MARK = 'Recommends stopping: ';
 
 /** How many of the user's choices that differ from the recommendation are named. */
 const DIFFERS_CAP = 2;
@@ -231,23 +238,40 @@ export function choicesLine(checkpoint) {
   return `${made}; ${differs.length} ${verb} from the recommendation: ${named.replace(/\.$/, '')}.`;
 }
 
+/** The risks still open, a stop first, each marked as More details marks it. */
+function openRisks(checkpoint) {
+  const risks = checkpoint.risks ?? {};
+  return [...(risks.stop ?? []).map(risk => ({ ...risk, risk: `${STOP_MARK}${risk.risk}` })), ...(risks.open ?? [])];
+}
+
 /**
- * The checkpoint at a glance, as lines: *Done*, *Next*, *Review*, the
- * decisions the run made and the user's own choices counted. No risk of any
- * tag: those are one focus away, in More details. Within `lines` and `budget`,
- * the decisions are cut, then dropped from the end with a count, and last the
- * *Done* sentence is cut; *Next* is never cut.
+ * The checkpoint at a glance, as lines: *Done*, *Next*, *Review*, the risks
+ * still open — a stop first — the decisions the run made and the user's own
+ * choices counted. An open risk is what the user weighs before going on, so it
+ * comes ahead of the decisions and outlasts them; a trade-off, a follow-up and
+ * a settled risk are one focus away, in More details. Within `lines` and
+ * `budget`, the items are cut while the text runs long, then the decisions
+ * dropped from the end with a count, then the risks down to one, then the *Done* sentence is cut, and last
+ * the one risk left gives way to a count; *Next* is never cut.
  */
 function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false }) {
   const items = decided(checkpoint);
+  const risks = openRisks(checkpoint);
   const review = reviewText(checkpoint.review, companion);
   const choices = choicesLine(checkpoint);
-  const view = { shown: Math.min(items.length, DECIDED_CAP), item: DECISION_MAX, done: Infinity };
+  const view = { shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), item: DECISION_MAX, done: Infinity };
   const draw = () => {
     const out = [];
     if (checkpoint.headline) out.push(`Done: ${clip(checkpoint.headline, view.done)}`);
     out.push(`Next: ${nextText(checkpoint.next)}`);
     if (review) out.push(`Review: ${review}`);
+    if (view.risks > 0) {
+      const rest = risks.length - view.risks;
+      out.push(`Open risks${rest > 0 ? ` (+${rest} more under More details)` : ''}:`);
+      out.push(...risks.slice(0, view.risks).map(risk => `- ${clip(risk.risk, Math.max(20, view.item))}`));
+    } else if (risks.length) {
+      out.push(`Open risks: ${risks.length}, under More details.`);
+    }
     if (view.shown > 0) {
       const rest = items.length - view.shown;
       out.push(`${decidedHeading(items)}${rest > 0 ? ` (+${rest} more under More details)` : ''}:`);
@@ -255,15 +279,20 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
     } else if (items.length) {
       out.push(`${decidedHeading(items)}: ${items.length} ${items.length === 1 ? 'decision' : 'decisions'}, under More details.`);
     }
+    if (choices) out.push(choices);
     // A line straight after a bullet continues that bullet where the preview is
-    // read as markdown, so the user's own choices read as part of the last
-    // decision; a blank line keeps them a line of their own.
-    if (choices) out.push(...(markdown && out.at(-1).startsWith('- ') ? ['', choices] : [choices]));
-    return out;
+    // read as markdown, so the decisions' heading read as part of the last risk
+    // and the user's own choices as part of the last decision; a blank line
+    // keeps each a line of its own.
+    if (!markdown) return out;
+    return out.flatMap((line, index) => (index > 0 && !line.startsWith('- ') && out[index - 1].startsWith('- ') ? ['', line] : [line]));
   };
   let out = draw();
-  const fits = () => out.length <= lines && out.join('\n').length <= budget;
-  while (!fits() && view.item > 40) {
+  const long = () => out.join('\n').length > budget;
+  const fits = () => out.length <= lines && !long();
+  // Cutting an item saves characters, never a line: it answers the character
+  // budget alone, and a glance with too many lines drops items instead.
+  while (long() && view.item > 40) {
     view.item -= 10;
     out = draw();
   }
@@ -271,8 +300,16 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
     view.shown--;
     out = draw();
   }
+  while (!fits() && view.risks > 1) {
+    view.risks--;
+    out = draw();
+  }
   if (!fits() && checkpoint.headline) {
     view.done = Math.max(40, checkpoint.headline.length - (out.join('\n').length - budget));
+    out = draw();
+  }
+  if (!fits() && view.risks > 0) {
+    view.risks = 0;
     out = draw();
   }
   return out;
@@ -396,7 +433,7 @@ export function moreDetails(checkpoint) {
   }
   const risks = checkpoint.risks ?? {};
   const riskLine = risk => `- ${risk.risk}${risk.change ? ` → ${risk.change}` : ''}`;
-  const open = [...(risks.stop ?? []).map(risk => ({ ...risk, risk: `Recommends stopping: ${risk.risk}` })), ...(risks.open ?? [])];
+  const open = openRisks(checkpoint);
   if (open.length) blocks.push(['**Open**', ...open.map(riskLine)].join('\n'));
   if (risks.tradeoff?.length) blocks.push(['**Trade-offs accepted**', ...risks.tradeoff.map(riskLine)].join('\n'));
   if (risks.followup?.length) blocks.push(['**Follow-ups**', ...risks.followup.map(riskLine)].join('\n'));
