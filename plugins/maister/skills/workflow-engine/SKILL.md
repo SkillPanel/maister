@@ -918,7 +918,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   `{decision, by: operator, question_id, question, answer, recommended, as_recommended}`.
   `recommended` is the text of the recommended answer, and `as_recommended` says whether the
   user took it. `question_id` names the question, never its page or tab group. Never write `answered_by` or `via` for an answer given in session: the writer
-  stamps the person's name and `via: terminal` on every `by: operator` item that names nobody. This is how the gate counts the user's choices and names the ones that differed
+  stamps the person's name on every `by: operator` item that names nobody, and a `via` that is the run's driver kind under a `cockpit` or `dispatch` driver and `terminal` otherwise. This is how the gate counts the user's choices and names the ones that differed
   from the recommendation. An answer that came back from a driver's question set is folded
   into the same shape by the writer, `answered_by`, `at` and `via` copied from the answer
   (*In-node questions*). A question a driver could not ask is recorded as
@@ -1063,7 +1063,7 @@ node's own, and neither does a skipped node: without one, the brief is refused
    and marks the node `completed`, in one write. That is the one shape of a gate answer: never a
    flat `answer:` on the summary, which the writer folds into this item anyway. The writer adds
    the option's label as `decision`, `by: operator`, and the person's name as `answered_by`
-   with `via: terminal`. When the chosen continue sets gate values, the writer records them on
+   with `via` the run's driver kind under a `cockpit` or `dispatch` driver, `terminal` otherwise. When the chosen continue sets gate values, the writer records them on
    the gate's entry in the same write; a `values` sent for a gate is refused
    `state-gate-values-sent`. A revise option — its `note` is `true` — is
    recorded by `gate-revise` instead, after its note is asked at once (*Revising at a gate*). The option is one of the gate's own ids, spelled as

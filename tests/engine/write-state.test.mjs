@@ -895,6 +895,39 @@ test('write-state: an answer naming nobody, or a placeholder, is stamped with th
   assert.deepEqual(stored[5], { decision: 'Kept', by: 'run' }, 'a decision the run made names nobody');
 });
 
+test('write-state: under a cockpit or a dispatch driver an answer naming nobody is stamped with that driver; a via it carries is kept', t => {
+  for (const kind of ['cockpit', 'dispatch']) {
+    const run = scratch(t);
+    freeze(run, { orchestrator: { driver: { kind, cwd: '/work' } } });
+    const asked = (id, via) => ({ decision: 'Yes', by: 'operator', question_id: id, question: 'Proceed?', answer: 'Yes', ...(via === undefined ? {} : { via }) });
+    write(run, { node_summaries: { analysis: { decisions: [asked('a'), asked('b', 'terminal')] } } });
+    const stored = readState(run).node_summaries.analysis.decisions;
+    assert.deepEqual(stored.map(item => [item.answered_by, item.via]), [[OPERATOR, kind], [OPERATOR, 'terminal']], kind);
+  }
+});
+
+test('write-state: a gate answer under a cockpit or a dispatch driver is stamped with that driver', t => {
+  for (const kind of ['cockpit', 'dispatch']) {
+    const run = scratch(t);
+    freeze(run, { definition: REVISE, orchestrator: { driver: { kind, cwd: '/work' } } });
+    const result = write(run, {
+      nodes: { 'review-approval': { status: 'completed' } },
+      node_summaries: { 'review-approval': { decisions: [{ option: 'publish-draft' }] } },
+    });
+    assert.equal(result.code, 0, result.stderr);
+    const [stored] = readState(run).node_summaries['review-approval'].decisions;
+    assert.deepEqual([stored.answered_by, stored.via], [OPERATOR, kind], kind);
+  }
+});
+
+test('write-state: under a terminal driver an answer naming nobody is stamped terminal', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: { kind: 'terminal' } } });
+  write(run, { node_summaries: { analysis: { decisions: [{ decision: 'Yes', by: 'operator', question_id: 'a', question: 'Proceed?', answer: 'Yes' }] } } });
+  const [stored] = readState(run).node_summaries.analysis.decisions;
+  assert.deepEqual([stored.answered_by, stored.via], [OPERATOR, 'terminal']);
+});
+
 // ---------------------------------------------------------------------------
 // typed summary items: headline, decisions by source, risks by tag, roles, metrics
 // ---------------------------------------------------------------------------
