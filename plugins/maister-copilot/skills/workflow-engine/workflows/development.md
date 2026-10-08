@@ -1245,10 +1245,10 @@ every gate*):
 
 **Node summary**: no phase key. Register `verification/implementation-verification.md`
 under `node_summaries.verification.artifacts`, with its companion path as the
-entry's `html`, in the closing write. `verification_context.last_status` and
-`verification_context.issues_found` are already recorded: the verifier writes
-both on every cycle, and the dashboard's verification panel is projected from
-them. The closing write does not repeat them.
+entry's `html`, in the closing write. `verification_context.last_status`,
+`verification_context.issues_found` and `verification_context.reviews` are
+already recorded: the verifier writes them on every cycle, and the dashboard's
+verification panel and the status line's reviews are projected from them. The closing write does not repeat them.
 
 **Recovery budget**: 3 attempts — fix the failing tests and re-run, three times
 over, before asking the operator how to proceed.

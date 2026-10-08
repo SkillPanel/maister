@@ -19,8 +19,11 @@
  *   task, the phase by `phaseOf`'s rule, the next checkpoint by
  *   `checkpointOf`'s, the run's status, `line`, the status line composed, when
  *   the run started, the nodes — each one's title and status, and the ones
- *   this write changed — and the artifact paths the nodes declare, relative to
- *   the run directory.
+ *   this write changed — the artifact paths the nodes declare, relative to
+ *   the run directory, and `parts`: the parts of the phase under way, when it
+ *   has any — the implementation plan's task groups, or the reviews the
+ *   verification phase dispatched — one state each and a line composed to
+ *   name them.
  * - `<run>/display/banner.json`, from the freeze: the start banner's lines, the
  *   ones the freeze prints for the model, without the line addressed to it, and
  *   the same facts as fields, for a reader that draws a card of its own.
@@ -93,6 +96,9 @@ const TASK_MAX = 60;
 /** The node statuses of a phase under way. */
 const ONGOING = new Set(['running', 'waiting', 'suspended']);
 
+/** The states a part can be in. */
+const PART_STATES = new Set(['done', 'running', 'reverted', 'skipped', 'to_run']);
+
 /** The node statuses after which a gate is behind the run. */
 const SETTLED = new Set(['completed', 'skipped']);
 
@@ -111,18 +117,19 @@ const SETTLED = new Set(['completed', 'skipped']);
  * total is what the run may still run, and it shrinks as guards settle.
  */
 export function phaseOf(doc, titles) {
-  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
-  const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
-  const statusOf = id => (isPlainObject(nodes[id]) ? nodes[id].status : undefined);
-  const phases = Object.keys(nodes).filter(id => {
-    const entry = isPlainObject(nodes[id]) ? nodes[id] : {};
-    return entry.kind !== 'gate' && entry.status !== 'skipped';
-  });
+  const { phases, at } = currentPhase(doc);
   if (!phases.length) return { index: null, total: 0, title: null };
-  let at = phases.findIndex(id => ONGOING.has(statusOf(id)));
-  if (at === -1) at = phases.findLastIndex(id => statusOf(id) === 'completed');
-  if (at === -1) at = 0;
   return { index: at + 1, total: phases.length, title: titleOf(titles, phases[at]) };
+}
+
+/** The phases `phaseOf` counts, and the place of the current one among them. */
+function currentPhase(doc) {
+  const nodes = nodesOf(doc);
+  const phases = Object.keys(nodes).filter(id => nodes[id].kind !== 'gate' && nodes[id].status !== 'skipped');
+  let at = phases.findIndex(id => ONGOING.has(nodes[id].status));
+  if (at === -1) at = phases.findLastIndex(id => nodes[id].status === 'completed');
+  if (at === -1) at = 0;
+  return { phases, at };
 }
 
 /**
@@ -143,16 +150,18 @@ export function checkpointOf(doc, titles) {
  * when this write was the freeze, the session's pointer, and the removal of a
  * gate's panel the write has answered. `doc` is the committed state, parsed;
  * `banner` the freeze's banner (`{lines, ...fields}`) or null; `dashboard` the
- * run's link or null; `artifacts` the declared artifact paths, run-relative.
+ * run's link or null; `artifacts` the declared artifact paths, run-relative;
+ * `progress` the implementation progress keyed by its node, as the dashboard
+ * projects it; `verifier` the node that runs the reviews, or null.
  * Returns the warnings, `{file, code, message}` each.
  */
-export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], banner = null, session = process.env[SESSION_ENV] }) {
+export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], progress = {}, verifier = null, banner = null, session = process.env[SESSION_ENV] }) {
   const warnings = [];
   const dir = path.join(runDir, DISPLAY_DIR);
   attempt(warnings, `${DISPLAY_DIR}/${NEXT}`, () => remove(path.join(dir, NEXT)));
   const started = banner !== null ? now : startedOf(dir, doc);
   const before = previousNodes(dir);
-  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, artifacts, started, before })));
+  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, started, before })));
   if (banner !== null) {
     const { lines, ...card } = banner;
     attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: now, lines, ...card }));
@@ -180,10 +189,10 @@ export function publishNext({ runDir, panel }) {
  * The status file's document, its `line` composed for a status line to show as
  * it stands. Beside it: when the run started, the checkpoint it reaches next,
  * every frozen node's title and status, the nodes this write changed against
- * the status file it replaces (`saved`), whether a gate is under way now, and
- * the declared artifact paths (`artifacts`).
+ * the status file it replaces (`saved`), whether a gate is under way now, the
+ * declared artifact paths (`artifacts`) and the running phase's `parts`.
  */
-function statusOf({ runDir, doc, now, titles, dashboard, artifacts, started, before }) {
+function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, started, before }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const task = isPlainObject(doc.task) ? doc.task : {};
   const name = typeof workflow.name === 'string' && workflow.name !== '' ? humanize(workflow.name) : 'Workflow';
@@ -217,8 +226,55 @@ function statusOf({ runDir, doc, now, titles, dashboard, artifacts, started, bef
     saved,
     gate_open: gateOpen,
     artifacts,
+    parts: partsOf(doc, progress, verifier),
     updated: now,
   };
+}
+
+/**
+ * The parts of the phase under way, or null: the current phase by `phaseOf`'s
+ * rule, while it runs, when it has parts to show — the implementation plan's
+ * groups from `progress`, or the reviews the verifier recorded it dispatched
+ * (`verification_context.reviews`). Each part carries one state, and `line`
+ * names them, its counts adding up to the total.
+ */
+function partsOf(doc, progress, verifier) {
+  const nodes = nodesOf(doc);
+  const { phases, at } = currentPhase(doc);
+  const node = phases[at];
+  if (node === undefined || !ONGOING.has(nodes[node].status)) return null;
+  const derived = isPlainObject(progress) && Object.hasOwn(progress, node) ? progress[node] : null;
+  if (isPlainObject(derived) && Array.isArray(derived.groups) && derived.groups.length) return groupParts(node, derived);
+  const reviewer = verifier ?? (Object.hasOwn(nodes, 'verification') ? 'verification' : null);
+  if (node === reviewer) return reviewParts(node, doc.verification_context);
+  return null;
+}
+
+/** The task groups as parts: `groups 3 of 7 done · 2 running in wave 2 · 2 to run`. */
+function groupParts(node, derived) {
+  const items = derived.groups.map(group => ({ state: PART_STATES.has(group?.state) ? group.state : 'to_run' }));
+  const count = state => items.filter(item => item.state === state).length;
+  const wave = Number.isInteger(derived.running_wave) ? derived.running_wave : null;
+  const terms = [`groups ${count('done')} of ${items.length} done`];
+  if (count('running')) terms.push(`${count('running')} running${wave === null ? '' : ` in wave ${wave}`}`);
+  if (count('reverted')) terms.push(`${count('reverted')} reverted`);
+  if (count('skipped')) terms.push(`${count('skipped')} skipped`);
+  if (count('to_run')) terms.push(`${count('to_run')} to run`);
+  return { node, kind: 'groups', wave, items, line: terms.join(' · ') };
+}
+
+/** The reviews as parts: `reviews 2 of 5 done · 3 running: pragmatic, reality check, production readiness`. */
+function reviewParts(node, context) {
+  const reviews = isPlainObject(context) && isPlainObject(context.reviews) ? context.reviews : {};
+  const names = list => (Array.isArray(list) ? list.filter(name => typeof name === 'string' && name.trim() !== '').map(name => name.trim()) : []);
+  const chosen = [...new Set(names(reviews.chosen))];
+  if (!chosen.length) return null;
+  const done = new Set(names(reviews.done));
+  const items = chosen.map(name => ({ name, state: done.has(name) ? 'done' : 'running' }));
+  const running = items.filter(item => item.state === 'running').map(item => item.name);
+  const terms = [`reviews ${items.length - running.length} of ${items.length} done`];
+  if (running.length) terms.push(`${running.length} running: ${running.join(', ')}`);
+  return { node, kind: 'reviews', wave: null, items, line: terms.join(' · ') };
 }
 
 /** The frozen nodes, each a plain object. */

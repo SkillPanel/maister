@@ -80,6 +80,9 @@ export const EXECUTOR_FALLBACK = ['implementation', 'execution'];
 /** The target whose `uses` marks the node that runs the implementation plan. */
 const EXECUTOR_USES = 'skill:implementation-plan-executor';
 
+/** The target whose `uses` marks the node that runs the verification reviews. */
+const VERIFIER_USES = 'skill:implementation-verifier';
+
 /**
  * The node-status mirror: eight statuses a node can carry, five a phase can.
  *
@@ -581,9 +584,19 @@ function verificationOf(state) {
  * when no definition could be read.
  */
 export function executorNodeOf(definitionDoc) {
+  return nodeUsing(definitionDoc, EXECUTOR_USES);
+}
+
+/** The node that runs the verification reviews, or null, by the same reading. */
+export function verifierNodeOf(definitionDoc) {
+  return nodeUsing(definitionDoc, VERIFIER_USES);
+}
+
+/** The first node of the definition whose `uses` is `target`, or null. */
+function nodeUsing(definitionDoc, target) {
   if (!isPlainObject(definitionDoc) || !isPlainObject(definitionDoc.nodes)) return null;
   for (const [id, node] of Object.entries(definitionDoc.nodes)) {
-    if (isPlainObject(node) && node.uses === EXECUTOR_USES) return id;
+    if (isPlainObject(node) && node.uses === target) return id;
   }
   return null;
 }
@@ -663,6 +676,16 @@ const WAVE_HEADING = /^##\s.*\bGroup \d+ (?:Complete|Reverted) \(wave\s*(\d+)/gi
  */
 const REVERT_HEADING = /^##\s.*\bGroup (\d+) Reverted \(wave\s*\d+\):\s*(.+)$/gim;
 
+/**
+ * A work-log entry announcing a wave's start, with its number and its groups.
+ *
+ * Matches `## 2026-09-20 14:02 - Wave 2 Started: Groups 4, 5` — the entry the
+ * executor writes before it dispatches a wave, so the groups it names are the
+ * ones running until each is finished or reverted. The group list is read as
+ * every number after the colon, so `Groups 4 and 5` and `Group 4` read too.
+ */
+const WAVE_START = /^##\s.*\bWave (\d+) Started:([^\n]*)$/gim;
+
 /** How a group-level note is labelled for the viewer, which renders it verbatim. */
 const GROUP_LABEL = (group, reason) => `Group ${group} — ${reason}`;
 
@@ -675,12 +698,18 @@ const GROUP_LABEL = (group, reason) => `Group ${group} — ${reason}`;
  * behind. A guess there is worse than an absence: this file's whole purpose is
  * to stop looking plausible the moment it is not current.
  *
- * The work-log side is the opposite bargain. Only two of its headings are a
+ * The work-log side is the opposite bargain. Only three of its headings are a
  * contract and the rest are free prose, so real logs are full of forms no regex can
  * account for, and treating an unaccountable heading as fatal would blank the
  * group counts — which are perfectly sound — over a line that only ever carried
  * a wave number. An unmatched log therefore yields `current_wave: null` and
  * `reverted: []` beside valid counts.
+ *
+ * `groups` gives each group's state in plan order, for a display that draws one
+ * segment per group: `done` or `skipped` from the plan, `running` while the last
+ * wave started names it and it is neither finished nor reverted since, then
+ * `reverted` for a group the log reverted, else `to_run`. `running_wave` is that
+ * wave's number while any of its groups runs, and null once none does.
  *
  * Both arguments are text, never paths: nothing here reads a file, so the whole
  * derivation is a total function of two strings and golden-file testable.
@@ -699,12 +728,16 @@ export function deriveProgress(planText, logText) {
   const boundaries = [...plan.matchAll(SECTION_HEADING)].map(match => match.index);
 
   let done = 0;
+  const finished = new Map();
   for (const heading of headings) {
     const start = heading.index;
     const end = boundaries.find(index => index > start) ?? plan.length;
     const marks = [...plan.slice(start, end).matchAll(CHECKBOX)].map(match => match[1]);
     if (marks.length === 0) return null;
-    if (marks.every(mark => mark !== ' ')) done += 1;
+    if (marks.every(mark => mark !== ' ')) {
+      done += 1;
+      finished.set(heading[1], marks.includes('~') ? 'skipped' : 'done');
+    }
   }
 
   // Insertion order is document order, and the first skipped step in a group is
@@ -716,13 +749,31 @@ export function deriveProgress(planText, logText) {
 
   const waves = [...log.matchAll(WAVE_HEADING)];
   const last = waves.length === 0 ? null : waves[waves.length - 1][1];
+  const reverts = [...log.matchAll(REVERT_HEADING)];
+
+  // The groups of the last wave started, less those finished in the plan or
+  // reverted since it started: the wave is running while any of them is left.
+  const started = [...log.matchAll(WAVE_START)].at(-1);
+  const running = new Set();
+  if (started) {
+    const revertedSince = new Set(reverts.filter(entry => entry.index > started.index).map(entry => entry[1]));
+    for (const number of started[2].match(/\d+/g) ?? []) {
+      const group = String(Number(number));
+      if (!finished.has(group) && !revertedSince.has(group)) running.add(group);
+    }
+  }
+  const everReverted = new Set(reverts.map(entry => entry[1]));
+  const stateOf = group => finished.get(group)
+    ?? (running.has(group) ? 'running' : everReverted.has(group) ? 'reverted' : 'to_run');
 
   return {
     groups_done: done,
     groups_total: headings.length,
     current_wave: last === null ? null : Number(last),
     skipped: [...reasons].map(([group, reason]) => GROUP_LABEL(group, reason)),
-    reverted: [...log.matchAll(REVERT_HEADING)].map(entry => GROUP_LABEL(entry[1], entry[2].trim())),
+    reverted: reverts.map(entry => GROUP_LABEL(entry[1], entry[2].trim())),
+    running_wave: running.size > 0 ? Number(started[1]) : null,
+    groups: headings.map(heading => ({ group: Number(heading[1]), state: stateOf(heading[1]) })),
   };
 }
 

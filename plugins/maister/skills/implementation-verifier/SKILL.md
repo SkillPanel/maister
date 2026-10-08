@@ -23,7 +23,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 
 The verification phase can run many cycles under this skill: the initial pass, then one re-verification after each round of fixes. While control sits here, the orchestrator cannot record any of them. So this skill records each cycle itself, in `verification_context`, and it **never writes `dashboard-data.js`**. The workflow engine's state writer is that file's only writer: it projects the verification panel from `verification_context` on every state write. Each record is one `write-state` call, with the patch in the patch file, following the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract).
 
-- **Two writes per cycle**: one at entry, which clears the previous cycle's verdict (Phase 1), and one once this cycle's report is written (Phase 3). `verification_context` merges key by key, so neither write touches `fixes_applied`, `decisions_made` or `reverify_count`. Those belong to the caller's fix loop.
+- **Three writes per cycle**: one at entry, which clears the previous cycle's verdict (Phase 1); one as the reviews are dispatched, naming them (Phase 2, Step 3b); and one once this cycle's report is written (Phase 3). `verification_context` merges key by key, so none of them touches `fixes_applied`, `decisions_made` or `reverify_count`. Those belong to the caller's fix loop. A cycle that dispatches no reviews — a `recheck: tests-only` — skips the middle write.
 - **Orchestrator mode only.** A standalone run has no `orchestrator-state.yml`, so it has no workflow run and no dashboard. The report is that run's record, and there is nothing to write. `html_output` does not gate these writes: they are state, and the writer itself decides whether a dashboard is published.
 - **Never blocks**: a refused write is noted in the Phase 5 summary and the verdict stands regardless.
 
@@ -130,6 +130,8 @@ Task tool call (if NOT skip_test_suite) — **the only Task call in its message*
 
 ### Step 3b: Run all other verifications (parallel)
 
+**First, record the reviews being dispatched** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context.reviews` as `{chosen: [...], done: []}`, listing every verification this step sends by its short name — `completeness`, `code review`, `pragmatic`, `production readiness`, `reality check`. The run's status line draws them as running from this write until Phase 3 records them done.
+
 **INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 parallel Task tool calls). **Every prompt below also carries the test-suite result from Step 3a** — status, counts and results path, or the skip line — so each review weighs its findings against the tests' actual outcome:
 
 Task tool call (always):
@@ -223,7 +225,7 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Same content as the md — restructure and visualize, never add findings
    - Never block on it: if generation fails, keep the md, note the miss, continue
 5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 5 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
-6. **Record this cycle** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status` set to this cycle's verdict and `issues_found` set to the report's issues, in the issue shape of `../orchestrator-framework/references/orchestrator-patterns.md` § 4. Keep each issue's original severity, and set `fixed: true` on the ones fixed since. Registering the report and its companion as artifacts is not part of this write: the caller's closing `node_summaries` write carries it. This is the state counterpart of the **Re-verification rule** above. The canonical report and the recorded verdict change together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
+6. **Record this cycle** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status` set to this cycle's verdict, `reviews.done` set to the reviews that returned (their short names, as Step 3b recorded them), and `issues_found` set to the report's issues, in the issue shape of `../orchestrator-framework/references/orchestrator-patterns.md` § 4. Keep each issue's original severity, and set `fixed: true` on the ones fixed since. Registering the report and its companion as artifacts is not part of this write: the caller's closing `node_summaries` write carries it. This is the state counterpart of the **Re-verification rule** above. The canonical report and the recorded verdict change together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
 7. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
 ---

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ROOT, freeze, readDashboard, scratch, verb, write } from '../helpers.mjs';
+import { FIXTURES, ROOT, freeze, readDashboard, scratch, verb, write } from '../helpers.mjs';
 
 // The implementation and verification phases run under a skill rather than under
 // the engine, for hours and many waves. The dashboard stays live inside them
@@ -21,6 +21,11 @@ function reproject(run) {
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^dashboard-data\.js$/m, 'the re-projection publishes the dashboard');
   return readDashboard(run).phases.find(phase => phase.id === 'implementation');
+}
+
+/** The run's status file, as the display module reads it. */
+function status(run) {
+  return JSON.parse(fs.readFileSync(path.join(run.dir, 'display', 'status.json'), 'utf8'));
 }
 
 function plan(groups) {
@@ -44,25 +49,48 @@ test('the implementation phase progresses wave by wave through write-state alone
   const planFile = path.join(dir, 'implementation-plan.md');
   const logFile = path.join(dir, 'work-log.md');
   const log = entries => fs.writeFileSync(logFile, ['# Work Log', '', ...entries].join('\n\n') + '\n');
+  const parts = () => status(run).parts;
+  const states = (...list) => list.map(state => ({ state }));
 
   // Entry: work log initialised, then the re-projection.
   fs.writeFileSync(planFile, plan([[1, [' ', ' ']], [2, [' ', ' ']], [3, [' ', ' ']]]));
-  log(['## 2026-01-05 10:00 - Implementation Started']);
+  const entry = ['## 2026-01-05 10:00 - Implementation Started'];
+  log(entry);
   let phase = reproject(run);
   assert.equal(phase.status, 'in_progress');
-  assert.deepEqual(phase.progress, { groups_done: 0, groups_total: 3, current_wave: null, skipped: [], reverted: [] });
+  assert.deepEqual(phase.progress, {
+    groups_done: 0, groups_total: 3, current_wave: null, skipped: [], reverted: [],
+    running_wave: null,
+    groups: [{ group: 1, state: 'to_run' }, { group: 2, state: 'to_run' }, { group: 3, state: 'to_run' }],
+  });
+  assert.equal(parts().line, 'groups 0 of 3 done · 3 to run');
 
-  // Wave 1.
-  fs.writeFileSync(planFile, plan([[1, ['x', 'x']], [2, [' ', ' ']], [3, [' ', ' ']]]));
-  log(['## 2026-01-05 10:00 - Implementation Started', '## 2026-01-05 10:30 - Group 1 Complete (wave 1)']);
+  // Wave 1 starts: its group runs until the wave resolves.
+  const wave1 = [...entry, '## 2026-01-05 10:05 - Wave 1 Started: Groups 1'];
+  log(wave1);
   phase = reproject(run);
-  assert.deepEqual(phase.progress, { groups_done: 1, groups_total: 3, current_wave: 1, skipped: [], reverted: [] });
+  assert.equal(phase.progress.running_wave, 1);
+  assert.deepEqual(parts(), {
+    node: 'implementation', kind: 'groups', wave: 1,
+    items: states('running', 'to_run', 'to_run'),
+    line: 'groups 0 of 3 done · 1 running in wave 1 · 2 to run',
+  });
+
+  // Wave 1 resolves: a started wave whose groups all completed is no longer running.
+  fs.writeFileSync(planFile, plan([[1, ['x', 'x']], [2, [' ', ' ']], [3, [' ', ' ']]]));
+  log([...wave1, '## 2026-01-05 10:30 - Group 1 Complete (wave 1)']);
+  phase = reproject(run);
+  assert.equal(phase.progress.groups_done, 1);
+  assert.equal(phase.progress.current_wave, 1);
+  assert.equal(phase.progress.running_wave, null);
+  assert.equal(parts().line, 'groups 1 of 3 done · 2 to run');
 
   // Wave 2: group 2 lands with a skipped step, group 3 is reverted and stays open.
   fs.writeFileSync(planFile, plan([[1, ['x', 'x']], [2, ['x', '~']], [3, [' ', ' ']]]));
   const wave2 = [
-    '## 2026-01-05 10:00 - Implementation Started',
+    ...wave1,
     '## 2026-01-05 10:30 - Group 1 Complete (wave 1)',
+    '## 2026-01-05 10:35 - Wave 2 Started: Groups 2, 3',
     '## 2026-01-05 11:00 - Group 2 Complete (wave 2)',
     '## 2026-01-05 11:05 - Group 3 Reverted (wave 2): migration left the schema half-applied',
   ];
@@ -74,13 +102,21 @@ test('the implementation phase progresses wave by wave through write-state alone
     current_wave: 2,
     skipped: ['Group 2 — no fixture for this platform'],
     reverted: ['Group 3 — migration left the schema half-applied'],
+    running_wave: null,
+    groups: [{ group: 1, state: 'done' }, { group: 2, state: 'skipped' }, { group: 3, state: 'reverted' }],
   });
+  assert.deepEqual(parts().items, states('done', 'skipped', 'reverted'));
+  assert.equal(parts().line, 'groups 1 of 3 done · 1 reverted · 1 skipped');
 
-  // Wave 3, then finalize: the phase stays in progress — the caller completes it.
+  // Wave 3 retries the reverted group: running again, then done.
+  log([...wave2, '## 2026-01-05 11:30 - Wave 3 Started: Groups 3']);
+  reproject(run);
+  assert.equal(parts().line, 'groups 1 of 3 done · 1 running in wave 3 · 1 skipped');
   fs.writeFileSync(planFile, plan([[1, ['x', 'x']], [2, ['x', '~']], [3, ['x', 'x']]]));
-  log([...wave2, '## 2026-01-05 12:00 - Group 3 Complete (wave 3)']);
+  log([...wave2, '## 2026-01-05 11:30 - Wave 3 Started: Groups 3', '## 2026-01-05 12:00 - Group 3 Complete (wave 3)']);
   phase = reproject(run);
   phase = reproject(run);
+  // The phase stays in progress at finalize — the caller completes it.
   assert.equal(phase.status, 'in_progress');
   assert.deepEqual(phase.progress, {
     groups_done: 3,
@@ -88,7 +124,43 @@ test('the implementation phase progresses wave by wave through write-state alone
     current_wave: 3,
     skipped: ['Group 2 — no fixture for this platform'],
     reverted: ['Group 3 — migration left the schema half-applied'],
+    running_wave: null,
+    groups: [{ group: 1, state: 'done' }, { group: 2, state: 'skipped' }, { group: 3, state: 'done' }],
   });
+
+  // Once the phase is no longer under way, the status carries no parts.
+  write(run, { nodes: { implementation: { status: 'completed' } } });
+  assert.equal(parts(), null);
+});
+
+test('the reviews the verifier dispatched reach the status as parts', t => {
+  // The overlay adds the verifier under its own id, `review`: the node is found by what it runs.
+  const run = scratch(t);
+  freeze(run, { overlays: [path.join(FIXTURES, 'definitions/sample.overlay.yml')] });
+  write(run, { nodes: { review: { status: 'running' } } });
+  assert.equal(status(run).parts, null, 'no reviews recorded yet, no parts');
+
+  const chosen = ['completeness', 'code review', 'pragmatic', 'reality check', 'production readiness'];
+  write(run, { verification_context: { reviews: { chosen, done: [] } } });
+  assert.equal(status(run).parts.line, 'reviews 0 of 5 done · 5 running: completeness, code review, pragmatic, reality check, production readiness');
+
+  write(run, { verification_context: { reviews: { chosen, done: ['completeness', 'code review'] } } });
+  assert.deepEqual(status(run).parts, {
+    node: 'review',
+    kind: 'reviews',
+    wave: null,
+    items: [
+      { name: 'completeness', state: 'done' },
+      { name: 'code review', state: 'done' },
+      { name: 'pragmatic', state: 'running' },
+      { name: 'reality check', state: 'running' },
+      { name: 'production readiness', state: 'running' },
+    ],
+    line: 'reviews 2 of 5 done · 3 running: pragmatic, reality check, production readiness',
+  });
+
+  write(run, { verification_context: { reviews: { chosen, done: chosen } } });
+  assert.equal(status(run).parts.line, 'reviews 5 of 5 done');
 });
 
 test('each verification cycle reaches the dashboard through its verification_context write', t => {

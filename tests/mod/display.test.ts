@@ -367,6 +367,63 @@ describe('run band', () => {
     }
   })
 
+  const GROUPS = {
+    node: 'implementation',
+    kind: 'groups',
+    wave: 2,
+    items: ['done', 'done', 'done', 'running', 'running', 'reverted', 'to_run'].map(state => ({ state })),
+    line: 'groups 3 of 7 done · 2 running in wave 2 · 1 reverted · 1 to run',
+  }
+
+  test('draws a phase\'s parts as a third line, a segment per part, when the rows allow', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ parts: GROUPS }) })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const ui = await $.ui.mount({ plugin: 'maister', surface, component: 'AbovePrompt', props: { ...BAND, maxRows: 5 } })
+      const drawn: any = await ui.drawn()
+      expect(drawn.props.borderStyle).toBe('round')
+      expect(drawn.children).toHaveLength(3)
+      const line = drawn.children[2]
+      expect(flatten(line)).toBe(`■■■■■■■${GROUPS.line}`)
+      const segments = line.children[0].children.map((each: any) => each.props.color)
+      expect(segments).toEqual(['#79c08b', '#79c08b', '#79c08b', '#e3bd59', '#e3bd59', '#e06c75', '#5a5f69'])
+      await ui.unmount()
+    }
+    const text = (await band($, 'terminal', { maxRows: 5 })).texts.join(' ')
+    expect(text).not.toMatch(/usually|about|left|remaining|estimate|eta|of \d+ waves/i)
+  })
+
+  test('folds the parts line away before anything else as the rows shrink', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ parts: GROUPS }) })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const framed: any = (await band($, 'terminal', { maxRows: 4 })).drawn
+    expect(framed.props.borderStyle).toBe('round')
+    expect(framed.children).toHaveLength(2)
+    for (const maxRows of [2, 3]) {
+      const drawn: any = (await band($, 'terminal', { maxRows })).drawn
+      expect(drawn.props.borderStyle).toBeUndefined()
+      expect(drawn.children).toHaveLength(2)
+    }
+    expect((await band($, 'terminal', { maxRows: 1 })).texts.join(' ')).not.toContain('groups')
+  })
+
+  test('draws no parts line for a run without parts or one that has ended', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ parts: null }) })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    expect((await band($, 'terminal', { maxRows: 6 })).drawn).toMatchObject({ props: { borderStyle: 'round' } })
+    expect(((await band($, 'terminal', { maxRows: 6 })).drawn as any).children).toHaveLength(2)
+  })
+
+  test('an ended run draws no parts line even when the status carries one', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ status: 'completed', parts: GROUPS }) })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    expect((await band($, 'terminal', { maxRows: 6 })).texts.join(' ')).not.toContain('groups')
+  })
+
   test('names how an ended run ended, with no dots and no clock', async ($: any, on: any) => {
     mock.clock(on, { now: Date.parse(LATER) })
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ status: 'completed' }) })

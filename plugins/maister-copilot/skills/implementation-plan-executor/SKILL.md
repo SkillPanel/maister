@@ -17,9 +17,9 @@ You are an implementation plan executor that delegates task groups to subagents 
 
 ## Dashboard: Re-project Through the Engine
 
-The implementation phase runs under this skill, and the orchestrator cannot touch the dashboard until control returns, however long that takes. The dashboard still stays live, because this skill **never writes `dashboard-data.js`**. The workflow engine's state writer is the file's only writer: it projects the implementation phase's `progress` from the plan's checkboxes and the work log's wave and revert headings (§ Work-Log Updates) on every state write. So at each re-projection moment below, this skill sends one `write-state` call with the empty patch, `{}`, as the patch file's body. The call and the patch file follow the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract). The call changes nothing in state except its `updated` stamp; it only republishes what the plan and the log now say.
+The implementation phase runs under this skill, and the orchestrator cannot touch the dashboard until control returns, however long that takes. The dashboard still stays live, because this skill **never writes `dashboard-data.js`**. The workflow engine's state writer is the file's only writer: it projects the implementation phase's `progress` from the plan's checkboxes and the work log's wave-start, wave and revert headings (§ Work-Log Updates) on every state write, and the run's status line draws the same figures as one segment per group. So at each re-projection moment below, this skill sends one `write-state` call with the empty patch, `{}`, as the patch file's body. The call and the patch file follow the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract). The call changes nothing in state except its `updated` stamp; it only republishes what the plan and the log now say.
 
-- **Moments**: at entry, once the work log exists; after every wave resolves; at finalize. One call per moment, not one per group.
+- **Moments**: at entry, once the work log exists; when each wave starts, after its start entry is logged; after every wave resolves; at finalize. One call per moment, not one per group.
 - **Skip** when there is no `orchestrator-state.yml`. A standalone run has no workflow run, so it has nothing to project and no dashboard. The plan, its companion and the work log are that run's record. Also skip when `orchestrator.options.html_output` is false: then there is no dashboard, and the call would only re-publish state.
 - **Never blocks**: a refused or failed call gets a warning line in `work-log.md` (`Dashboard re-projection failed after wave N`) and the run continues. A visible miss, never a silent one.
 
@@ -79,7 +79,7 @@ Never assume missing `Files to Modify` means "None" — silent disjoint assumpti
 
 For each wave:
 
-0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister-copilot:task-group-implementer"`.
+0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister-copilot:task-group-implementer"`. Then append the wave's start entry to `work-log.md` (§ Work-Log Updates) and **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), before the fan-out: the groups the entry names show as running until each is completed or reverted.
 
 1. **Prepare group context** (per group):
    - Extract group content from `implementation-plan.md` (including `Visual References` section, if present)
@@ -323,6 +323,12 @@ When processing a group's report, if its test step (N.1) is not marked done whil
 
 ### Work-Log Updates
 
+Before each wave is dispatched — `--sequential` included, as a wave of one:
+
+```markdown
+## [timestamp] - Wave [K] Started: Groups [A], [B]
+```
+
 After each task group:
 
 ```markdown
@@ -342,6 +348,9 @@ After each task group:
 the wave number in the last such heading, so keep `Group [N] Complete (wave [K])`
 intact and put any annotation after the number — `(wave 2, parallel with Group 3)`
 still reads. A heading that renames those words carries nothing to the dashboard.
+The start heading is a contract in the same way: `Wave [K] Started:` followed by
+the wave's group numbers is what tells the dashboard and the status line which
+groups are running.
 
 When a group is reverted rather than completed, record it in the same shape:
 
