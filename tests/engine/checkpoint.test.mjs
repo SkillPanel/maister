@@ -6,7 +6,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
-import { artifactOf, decisionOf, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
+import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import { panelOf as panelOfCheckpoint } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
@@ -95,6 +95,18 @@ test('legacy reading: every stored risk shape reads as {risk, tag, change}', () 
   assert.deepEqual(riskOf({ risk: 'x', tag: 'followup' }), { risk: 'x', tag: 'followup', change: null });
 });
 
+test('legacy reading: a fix reads as {finding, change}, a string as the change alone', () => {
+  assert.deepEqual(fixOf({ finding: 'The tag array was read twice.', change: 'add() reads it once' }),
+    { finding: 'The tag array was read twice.', change: 'add() reads it once' });
+  assert.deepEqual(fixOf('released the lock'), { finding: null, change: 'released the lock' });
+  assert.deepEqual(fixOf({ change: 'Trimmed the tag once' }), { finding: null, change: 'Trimmed the tag once' });
+  assert.equal(fixOf({ issue: 'x' }), null, 'a fix naming neither is no fix');
+  assert.equal(fixOf('  '), null);
+  assert.equal(fixText(fixOf({ finding: 'The tag array was read twice.', change: 'add() reads it once' })),
+    'The tag array was read twice → add() reads it once');
+  assert.equal(fixText(fixOf('released the lock')), 'released the lock');
+});
+
 test('legacy reading: a bare-string artifact is a path with nothing else known', () => {
   assert.deepEqual(artifactOf('analysis/gap-analysis.md'), { path: 'analysis/gap-analysis.md', label: null, html: null, role: null });
 });
@@ -161,7 +173,7 @@ test('checkpoint: its fields, in the contract\'s order', t => {
   const checkpoint = checkpointOf(atSpecGate(t), 'specification-approval');
   assert.deepEqual(Object.keys(checkpoint), [
     'version', 'kind', 'node', 'header', 'ask', 'headline', 'progress', 'next', 'review', 'closed',
-    'decisions', 'risks', 'recommended', 'options', 'grants', 'approves', 'run', 'truncated',
+    'fixes', 'decisions', 'risks', 'recommended', 'options', 'grants', 'approves', 'run', 'truncated',
   ]);
   assert.equal(checkpoint.version, 1);
   assert.equal(checkpoint.kind, 'gate');
@@ -176,6 +188,7 @@ test('checkpoint: its fields, in the contract\'s order', t => {
   assert.ok(checkpoint.progress.checkpoint >= 1 && checkpoint.progress.checkpoint <= checkpoint.progress.checkpoints_max);
   assert.deepEqual(checkpoint.grants, {});
   assert.deepEqual(checkpoint.approves, []);
+  assert.deepEqual(checkpoint.fixes, [], 'nothing fixed at the specification');
   assert.equal(checkpoint.truncated, false);
   assert.match(checkpoint.run.dir, /2026-01-05-sample$/);
 });
@@ -702,7 +715,7 @@ test('panel: the brief writes the checkpoint at a glance, for the question it be
 function partsRows(parts) {
   return parts.reduce((sum, part) => {
     if (part.key === 'review') return sum + rows(`${part.label} ${part.files.map(file => file.label).join('  ')}${part.more ? `  +${part.more} more` : ''}`);
-    if (part.key === 'counts') return sum + rows(`${part.label} ${part.text} · ${part.risks}`);
+    if (part.key === 'counts') return sum + rows(`${part.label} ${part.text}${part.fixed ? ` · ${part.fixed} fixed` : ''} · ${part.risks}`);
     return sum + rows(`${part.label} ${part.text}`);
   }, 0);
 }
@@ -718,7 +731,7 @@ test('panel: the parts carry each label apart from its text, and each review fil
   assert.equal(`Checkpoint ${panel.checkpoint.index} of ${panel.checkpoint.total}`, byKey.title.label);
   assert.equal(byKey.headline.label, 'Done');
   assert.match(byKey.headline.text, /^The revised spec makes null mean "not given"/);
-  assert.deepEqual(byKey.counts, { key: 'counts', label: 'Decided', text: '3', risks: '2 open risks', open: 2 });
+  assert.deepEqual(byKey.counts, { key: 'counts', label: 'Decided', text: '3', risks: '2 open risks', open: 2, fixed: 0 });
   assert.equal(panel.open_risks, 2);
   assert.deepEqual(byKey.next, { key: 'next', label: 'Next', text: 'Specification audit' });
   assert.equal(byKey.review.label, 'Review');
@@ -750,7 +763,7 @@ test('panel: the parts hold to the rows too, the review files that do not fit co
   assert.ok(review.files.length >= 1 && review.more > 0, JSON.stringify(review));
   assert.equal(review.files.length + review.more, 8);
   assert.ok(parts.find(part => part.key === 'headline').text.endsWith('…'));
-  assert.deepEqual(parts.find(part => part.key === 'counts'), { key: 'counts', label: 'Decided', text: '0', risks: '1 open risk', open: 1 });
+  assert.deepEqual(parts.find(part => part.key === 'counts'), { key: 'counts', label: 'Decided', text: '0', risks: '1 open risk', open: 1, fixed: 0 });
 });
 
 test('panel: a step title is cut only when its rows truly run out', () => {
@@ -830,4 +843,136 @@ test('panel: the write that answers the gate removes it', t => {
   assert.ok(fs.existsSync(path.join(run.dir, 'display/next.json')));
   write(run, { nodes: { 'specification-approval': { status: 'completed' } } });
   assert.equal(fs.existsSync(path.join(run.dir, 'display/next.json')), false);
+});
+
+// ---------------------------------------------------------------------------
+// what the run fixed: apart from what it decided
+// ---------------------------------------------------------------------------
+
+const FIXES = [
+  { finding: 'add() read the caller\'s tag array twice', change: 'add() reads it once' },
+  { finding: 'No test pinned the read-once check', change: 'Added one' },
+];
+
+/**
+ * A development run paused at `verification-approval`, the verification node's
+ * closing summary `verification` on top: what its fix loop applied in
+ * `fixes_applied`, and what the reviews settled in `decisions`.
+ */
+function atVerificationGate(t, verification) {
+  const run = scratch(t);
+  walkTo(t, run, DEVELOPMENT, 'verification-approval', [], { task_description: 'Tag the notes' }, {
+    nodes: {
+      'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false } },
+      'specification-approval': { status: 'completed', decisions: [{ option: 'continue-to-spec-audit' }] },
+      'tdd-green': { status: 'skipped' },
+      'verification-options': { status: 'completed', values: { user_docs_enabled: false } },
+    },
+    node_summaries: {
+      verification: {
+        status: 'completed', headline: 'Verification passes after two fixes.', summary: 'Verified: two issues found, both fixed.',
+        ...verification,
+      },
+    },
+  });
+  return run;
+}
+
+const fixLines = fixes => fixes.map(fix => `- ${fix.finding} → ${fix.change}`);
+
+test('fixes: the checkpoint carries what the run fixed apart from its decisions, each with the step that fixed it', t => {
+  const run = atVerificationGate(t, {
+    fixes_applied: FIXES,
+    decisions: [{ decision: 'The repeated missing-note lookup is one helper', by: 'audit' }],
+  });
+  const checkpoint = checkpointOf(run, 'verification-approval');
+  assert.deepEqual(checkpoint.fixes, FIXES.map(fix => ({ ...fix, node: 'verification' })));
+  assert.deepEqual(checkpoint.decisions.run, [], 'a fix is never a decision the run made');
+  assert.deepEqual(checkpoint.decisions.audit.map(each => each.decision), ['The repeated missing-note lookup is one helper']);
+  assert.equal(checkpoint.version, 1, 'an additive field: the version stays');
+});
+
+test('fixes: every surface shows them as "Fixed by the run", never under the decisions', t => {
+  const run = atVerificationGate(t, {
+    fixes_applied: FIXES,
+    decisions: [{ decision: 'The repeated missing-note lookup is one helper', by: 'audit' }],
+  });
+
+  // The rich preview: the count, then each fix, ahead of the decisions.
+  const rich = pickerOf(run, 'verification-approval', 'rich');
+  const glance = rich.options[0].preview.split('\n');
+  const at = glance.indexOf('Fixed by the run: 2');
+  assert.ok(at > -1, glance.join('\n'));
+  assert.deepEqual(glance.slice(at + 1, at + 3), fixLines(FIXES));
+  assert.ok(glance.indexOf('Decided by the audit:') > at + 2, glance.join('\n'));
+  assert.ok(!glance.some(line => line.startsWith('Decided by the run')), glance.join('\n'));
+
+  // More details: a block of their own, before the decisions.
+  const details = rich.more_details;
+  assert.ok(details.includes(['**Fixed by the run**', ...fixLines(FIXES)].join('\n')), details);
+  assert.ok(details.indexOf('**Fixed by the run**') < details.indexOf('**Decided by the audit**'));
+
+  // The plain profile's question carries the same lines.
+  const question = pickerOf(run, 'verification-approval', 'plain').question.split('\n');
+  const plainAt = question.indexOf('Fixed by the run: 2');
+  assert.deepEqual(question.slice(plainAt + 1, plainAt + 3), fixLines(FIXES));
+
+  // The text form, the one-line form and the request's summary.
+  const text = gateBrief(run, 'verification-approval').stdout;
+  assert.ok(text.includes(['Fixed by the run:', ...fixLines(FIXES)].join('\n')), text);
+  const line = gateBrief(run, 'verification-approval', '--oneline').stdout;
+  assert.ok(line.includes(`Fixed by the run: ${FIXES.map(fix => `${fix.finding} → ${fix.change}`).join('; ')}`), line);
+  assert.doesNotMatch(line, /Decisions:[^·]*add\(\)/, 'no fix is listed as a decision');
+  const request = JSON.parse(gateBrief(run, 'verification-approval', '--request').stdout);
+  assert.equal(request.context.summary, line.trimEnd());
+  assert.deepEqual(request.context.checkpoint.fixes, checkpointOf(run, 'verification-approval').fixes);
+
+  // The panel counts them beside the decisions and the open risks.
+  const panel = panelOf(run);
+  assert.ok(panel.glance.includes('Decided: 1 · fixed: 2 · open risks: 0'), JSON.stringify(panel.glance));
+  const counts = panel.parts.find(part => part.key === 'counts');
+  assert.equal(counts.fixed, 2);
+  assert.ok(partsRows(panel.parts) <= PANEL_ROWS);
+  assertFits(panel.glance);
+});
+
+test('fixes: when the lines run short the decisions give way to their count before the fixes do', t => {
+  const decisions = [{ decision: 'The repeated missing-note lookup is one helper', by: 'audit' }];
+  const risks = [{ risk: 'Export size is unbounded', tag: 'open', change: 'Cap the export' }];
+  const glance = pickerOf(atVerificationGate(t, { fixes_applied: FIXES, decisions, risks }), 'verification-approval', 'rich')
+    .options[0].preview.split('\n');
+  assert.ok(glance.length <= 9, glance.join('\n'));
+  const at = glance.indexOf('Fixed by the run: 2 (+1 more under More details)');
+  assert.equal(glance[at + 1], fixLines(FIXES)[0], glance.join('\n'));
+  assert.ok(glance.includes('Decided by the audit: 1 decision, under More details.'), glance.join('\n'));
+  assert.ok(glance.includes('- Export size is unbounded'), glance.join('\n'));
+});
+
+test('fixes: past three the glance counts the rest under More details, which lists every one', t => {
+  const many = Array.from({ length: 5 }, (_, index) => ({ finding: `Issue ${index + 1} was open`, change: `Fixed issue ${index + 1}` }));
+  const rich = pickerOf(atVerificationGate(t, { fixes_applied: many }), 'verification-approval', 'rich');
+  const glance = rich.options[0].preview.split('\n');
+  const at = glance.indexOf('Fixed by the run: 5 (+2 more under More details)');
+  assert.ok(at > -1, glance.join('\n'));
+  assert.deepEqual(glance.slice(at + 1, at + 4), fixLines(many.slice(0, 3)));
+  assert.ok(rich.more_details.includes(['**Fixed by the run**', ...fixLines(many)].join('\n')), rich.more_details);
+});
+
+test('fixes: when the lines run short they outlast the decisions and give way to a count before the open risks do', t => {
+  const many = Array.from({ length: 5 }, (_, index) => ({ finding: `Issue ${index + 1} was open`, change: `Fixed issue ${index + 1}` }));
+  const risks = Array.from({ length: 3 }, (_, index) => ({ risk: `Open issue ${index + 1}`, tag: 'open', change: `Settle issue ${index + 1}` }));
+  const decisions = Array.from({ length: 4 }, (_, index) => ({ decision: `Review finding ${index + 1} holds`, by: 'audit' }));
+  const glance = pickerOf(atVerificationGate(t, { fixes_applied: many, risks, decisions }), 'verification-approval', 'rich')
+    .options[0].preview.split('\n');
+  assert.ok(glance.length <= 9 && glance.join('\n').length <= 900, glance.join('\n'));
+  assert.ok(glance.includes('Fixed by the run: 5, under More details.'), glance.join('\n'));
+  assert.ok(glance.includes('Decided by the audit: 4 decisions, under More details.'), glance.join('\n'));
+  for (const risk of risks) assert.ok(glance.includes(`- ${risk.risk}`), `${risk.risk} stays in view: ${glance.join('\n')}`);
+});
+
+test('fixes: one a fix loop logged as a string is shown as the change it names', t => {
+  const run = atVerificationGate(t, { fixes_applied: ['released the lock'] });
+  const glance = pickerOf(run, 'verification-approval', 'rich').options[0].preview.split('\n');
+  const at = glance.indexOf('Fixed by the run: 1');
+  assert.equal(glance[at + 1], '- released the lock', glance.join('\n'));
 });

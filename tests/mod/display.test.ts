@@ -492,6 +492,21 @@ describe('gate panel', () => {
     }
   })
 
+  test('names how many fixes the run applied beside the decisions', async ($: any, on: any) => {
+    const parts = PARTS.map(part => (part.key !== 'counts' ? part : { ...part, fixed: 2 }))
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK, { parts }) })
+    const panel = (await askAndDraw($, on)).terminal!
+    expect(panel.texts[0]).toBe('Checkpoint 2 of 10 · Specification · 1 decided · 2 fixed · 1 open risk')
+    expect(panel.rows).toBeLessThanOrEqual(12)
+  })
+
+  test('draws no fixed count when the run fixed nothing', async ($: any, on: any) => {
+    const parts = PARTS.map(part => (part.key !== 'counts' ? part : { ...part, fixed: 0 }))
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: nextDoc(ASK, { parts }) })
+    const panel = (await askAndDraw($, on)).terminal!
+    expect(panel.texts[0]).toBe('Checkpoint 2 of 10 · Specification · 1 decided · 1 open risk')
+  })
+
   test('draws a step title whole beside its checkpoint, however much of the row it takes', async ($: any, on: any) => {
     const title = 'Implementation planning for the store count and its paging'
     const parts = PARTS.map(part => (part.key !== 'title' ? part : { ...part, label: 'Checkpoint 6 of 10', text: title }))

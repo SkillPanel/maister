@@ -35,8 +35,9 @@
  * `gate-brief-questions-invalid` (the set itself, corrected in the patch file).
  *
  * Three forms, one reading. The plain form is what a user reads in session:
- * the summary, at most three decisions and three risks — each item on a line of
- * its own and by its lead sentence alone, the rest of it left to the dashboard —
+ * the summary, at most three fixes the run applied, three decisions and three
+ * risks — each item on a line of its own and by its lead sentence alone, the
+ * rest of it left to the dashboard —
  * a `Next:` line naming the node that runs and any work skipped on the way —
  * never a gate — and a `Review:` line naming the files the closing nodes wrote
  * that are on disk, their HTML companions and the dashboard. It carries no
@@ -58,7 +59,7 @@
  *
  * The budget. A picker cuts a question off at about 2,000 characters, and what
  * it cut was the tail — the risks, `Next:` and the ask. So the brief keeps
- * inside `BUDGET`, trimming the summary, the decisions and the risks with a
+ * inside `BUDGET`, trimming the summary, the fixes, the decisions and the risks with a
  * pointer to the dashboard — or to the state file, when the run has no
  * dashboard or its viewer is missing — and never its closing lines: `Next:`,
  * and in the driven form `Recommended:` and the run line. A summary drawn from
@@ -92,7 +93,7 @@ import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
 import { grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
-import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
+import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 
@@ -727,10 +728,12 @@ const KEEPS_MAX = 3;
  * from it, so what the operator is shown is decided here once.
  *
  * Field order is the contract's: identity, the ask, what was done and what
- * comes next, what was decided and what is open, the options, then the
- * reserved and run-level fields. Decisions and risks cover the whole stretch the
- * gate closes, each tagged with the node that recorded it, an item two nodes
- * recorded kept once; the user's own choices are counted rather than listed.
+ * comes next, what the run fixed, what was decided and what is open, the
+ * options, then the reserved and run-level fields. Fixes, decisions and risks
+ * cover the whole stretch the gate closes, each tagged with the node that
+ * recorded it, an item two nodes recorded kept once; the user's own choices are
+ * counted rather than listed. A fix is kept apart from the decisions: the run
+ * changed it without asking, and settled nothing by it.
  */
 function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId }) {
   const title = id => titleOf(titles, id);
@@ -766,7 +769,9 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   const relative = file => path.relative(runDir, file).split(path.sep).join('/');
   const review = reviewed.map(each => ({ path: relative(each.file), label: each.label, html: each.html ? relative(each.html) : null, role: each.role }));
 
-  // Decided and open, grouped by who settled them and by what they are.
+  // Fixed, decided and open: the fixes in the order they were made, the rest
+  // grouped by who settled them and by what they are.
+  const fixes = [];
   const decisions = { run: [], audit: [], default: [], operator: { count: 0, not_recommended: [] } };
   const risks = { open: [], tradeoff: [], followup: [], stop: [], resolved: [] };
   const seen = new Set();
@@ -778,6 +783,11 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   };
   let asRecommended = true;
   for (const entry of closing.entries) {
+    for (const item of entry.fixes ?? []) {
+      const fix = fixOf(item);
+      if (!fix || !once('fix', fixText(fix))) continue;
+      fixes.push(compact({ finding: fix.finding, change: fix.change, node: entry.id }));
+    }
     for (const item of entry.decisions) {
       const decision = decisionOf(item);
       if (!decision || !once('decision', decision.decision)) continue;
@@ -880,6 +890,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     next,
     review,
     closed: closing.entries.map(entry => ({ node: entry.id, title: title(entry.id), headline: entry.skipped ? null : entryHeadline(entry) || null, summary: entry.summary })),
+    fixes,
     decisions,
     risks,
     recommended: { option: recommended, reason },
@@ -1113,7 +1124,7 @@ function closingCandidates(recorded, byId, gate) {
 
 /**
  * Every node of the stretch that recorded a summary, folded into the one
- * `{id, sections, decisions, risks}` the renderer draws, or null when none of
+ * `{id, sections, fixes, decisions, risks}` the renderer draws, or null when none of
  * the `direct` nodes carries one — a summary further back never stands in for
  * the summary of the node that closed.
  *
@@ -1123,7 +1134,7 @@ function closingCandidates(recorded, byId, gate) {
  * counts as the closing summary. One node renders exactly as it always has, as
  * one untitled section. Several are each a section named by the node's title,
  * which the budget trims one by one rather than from the end, and their
- * decisions and risks are pooled in the same order, so a `recommend stop:`
+ * fixes, decisions and risks are pooled in the same order, so a `recommend stop:`
  * from any of them decides the recommendation. An item two of them recorded is
  * pooled once, where it first appears, so a repeat never takes a line or a
  * count of its own.
@@ -1133,7 +1144,7 @@ function closingStretch(doc, recorded, direct, stretch, titles) {
   const order = Object.keys(recorded);
   const sorted = ids => [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
   const skipped = id => (entryOf(recorded, id).status === 'skipped'
-    ? { id, summary: SKIPPED, decisions: [], risks: [], skipped: true } : null);
+    ? { id, summary: SKIPPED, fixes: [], decisions: [], risks: [], skipped: true } : null);
   const closing = sorted(direct).map(id => summaryOf(sources, id) ?? skipped(id)).filter(Boolean);
   const lead = closing.find(entry => !entry.skipped);
   if (!lead) return null;
@@ -1143,6 +1154,7 @@ function closingStretch(doc, recorded, direct, stretch, titles) {
     id: lead.id,
     entries,
     sections: entries.map(entry => ({ title: titleOf(titles, entry.id), text: entry.summary })),
+    fixes: distinct(entries.flatMap(entry => entry.fixes), fixKey),
     decisions: distinct(entries.flatMap(entry => entry.decisions)),
     risks: distinct(entries.flatMap(entry => entry.risks)),
   };
@@ -1153,10 +1165,10 @@ function closingStretch(doc, recorded, direct, stretch, titles) {
  * Items compare as they read — a leading slug key dropped, the rest by
  * `itemKey` — so the same finding recorded by two nodes is one item.
  */
-function distinct(items) {
+function distinct(items, textOf = item => itemText(item, true)) {
   const seen = new Set();
   return items.filter(item => {
-    const key = itemKey(itemText(item, true));
+    const key = itemKey(textOf(item));
     if (!key) return true;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -1188,12 +1200,20 @@ function closingNode(doc, candidates) {
 
 /** One node's summary as the renderer draws it: a single section, untitled. */
 function closingOf(entry) {
-  const { id, summary, decisions, risks } = entry;
-  return { id, entries: [entry], sections: [{ title: null, text: summary }], decisions, risks };
+  const { id, summary, fixes, decisions, risks } = entry;
+  return { id, entries: [entry], sections: [{ title: null, text: summary }], fixes, decisions, risks };
+}
+
+/** What a fix compares by when two nodes recorded it: the text a reader sees. */
+function fixKey(item) {
+  const fix = fixOf(item);
+  return fix ? fixText(fix) : '';
 }
 
 /**
- * One node's `{id, summary, decisions, risks}`, or null when it carries no summary.
+ * One node's `{id, summary, fixes, decisions, risks}`, or null when it carries no
+ * summary. `fixes` is its `fixes_applied`: what it changed without asking, which
+ * the brief lists apart from what it decided.
  *
  * Each field is picked on its own from the first source carrying it filled — the
  * dashboard's `pick` rule, mirrored rather than imported so the projection stays
@@ -1204,7 +1224,7 @@ function closingOf(entry) {
 function summaryOf(sources, id) {
   const entries = sources.flatMap(source => source(id));
   const picked = {};
-  for (const field of ['summary', 'headline', 'decisions', 'risks']) {
+  for (const field of ['summary', 'headline', 'fixes_applied', 'decisions', 'risks']) {
     const entry = entries.find(candidate => filled(candidate[field]));
     if (entry) picked[field] = entry[field];
   }
@@ -1216,6 +1236,7 @@ function summaryOf(sources, id) {
     id,
     summary: picked.summary,
     headline: typeof picked.headline === 'string' ? picked.headline : null,
+    fixes: list(picked.fixes_applied),
     decisions: decisions.filter(item => !isEarlierAnswer(item, decisions)),
     risks: list(picked.risks),
   };
@@ -1715,6 +1736,10 @@ const DRIVEN = {
     const risk = riskOf(item);
     return risk ? `${risk.tag}: ${riskText(risk)}` : '';
   },
+  fix: item => {
+    const fix = fixOf(item);
+    return fix ? fixText(fix) : '';
+  },
   cap: Infinity,
   stopFirst: false,
   cut: shorten,
@@ -1724,6 +1749,10 @@ const DRIVEN = {
 const READABLE = {
   decision: headlineOf,
   risk: headlineOf,
+  fix: item => {
+    const fix = fixOf(item);
+    return fix ? headline(fixText(fix)) : '';
+  },
   cap: LIST_CAP,
   stopFirst: true,
   cut: toSentence,
@@ -1737,15 +1766,17 @@ const READABLE = {
  * moves to the front of the risks, so the reason for the recommendation is the
  * last risk to go, and then, in order, until it fits: each list item is cut to
  * `ITEM_MAX`; the summary gives up what it can down to `SUMMARY_FLOOR`;
- * decisions are dropped from the end down to one, then risks down to one, then
- * the last decision, then the last risk; the summary gives up the rest; and last
- * the pointers the drops left go too. `tail` is never touched, so a tail longer
+ * decisions, then fixes, then risks are dropped from the end down to one each,
+ * then the last decision, fix and risk, in that order — a risk is what the
+ * reader weighs, and a fix changed the work without their choosing it; the
+ * summary gives up the rest; and last the pointers the drops left go too. `tail` is never touched, so a tail longer
  * than the budget on its own is the one brief that exceeds it. Whatever the
  * summary gives up, `drawSummary` spreads over its sections.
  */
 function fit(closing, form, tail, where) {
   const sections = closing.sections.map(({ title, text }) => ({ title, text: text.trim() }));
   const summary = drawSummary(sections, Infinity);
+  const fixes = (closing.fixes ?? []).map(form.fix).filter(text => text !== '');
   const decisions = closing.decisions.map(form.decision).filter(text => text !== '');
   const rendered = raw => raw.map(form.risk).filter(text => text !== '');
   let risks = rendered(closing.risks);
@@ -1758,6 +1789,7 @@ function fit(closing, form, tail, where) {
   const view = {
     summary: summary.length,
     item: Infinity,
+    fixes: Math.min(fixes.length, form.cap),
     decisions: Math.min(decisions.length, form.cap),
     risks: Math.min(risks.length, form.cap),
     pointers: true,
@@ -1769,6 +1801,7 @@ function fit(closing, form, tail, where) {
   };
   const draw = () => form.render({
     summary: drawSummary(sections, view.summary, form.cut, where),
+    fixes: list(fixes, view.fixes),
     decisions: list(decisions, view.decisions),
     risks: list(risks, view.risks),
     tail,
@@ -1785,8 +1818,10 @@ function fit(closing, form, tail, where) {
   }
   const drops = [
     () => view.decisions > 1 && view.decisions--,
+    () => view.fixes > 1 && view.fixes--,
     () => view.risks > 1 && view.risks--,
     () => view.decisions > 0 && view.decisions--,
+    () => view.fixes > 0 && view.fixes--,
     () => view.risks > 0 && view.risks--,
   ];
   for (const drop of drops) {
@@ -1840,16 +1875,17 @@ function shares(lengths, room) {
 }
 
 /**
- * The plain form: the summary, then the decisions and the risks — a heading
- * carrying any pointer to the rest, and one item to a line under it — then
- * `Next:`.
+ * The plain form: the summary, then what the run fixed, the decisions and the
+ * risks — a heading carrying any pointer to the rest, and one item to a line
+ * under it — then `Next:`.
  */
-function renderPlain({ summary, decisions, risks, tail }) {
+function renderPlain({ summary, fixes, decisions, risks, tail }) {
   const out = [summary];
   const list = (label, { kept, rest }) => {
     if (!kept.length && !rest) return;
     out.push(`${label}${rest ? ` ${rest}` : ''}${kept.length ? ':' : ''}`, ...kept.map(text => `- ${text}`));
   };
+  list('Fixed by the run', fixes);
   list('Decisions', decisions);
   list('Risks', risks);
   out.push(...tail);
@@ -1858,15 +1894,16 @@ function renderPlain({ summary, decisions, risks, tail }) {
 
 /**
  * The driven form: one line a gate request's `context.summary` can carry. The
- * risks come ahead of the decisions, as at the glance: they are what a reader
- * weighs before answering. The request writer refuses a newline or a double
- * quote in a flow scalar, so every line break folds to a space and every `"`
- * becomes `'`.
+ * risks come ahead of the fixes and the decisions, as at the glance: they are
+ * what a reader weighs before answering. The request writer refuses a newline
+ * or a double quote in a flow scalar, so every line break folds to a space and
+ * every `"` becomes `'`.
  */
-function renderOneline({ summary, decisions, risks, tail }) {
+function renderOneline({ summary, fixes, decisions, risks, tail }) {
   const all = ({ kept, rest }) => (rest ? [...kept, rest] : kept);
   const sections = [summary];
   if (all(risks).length) sections.push(`Risks: ${all(risks).join('; ')}`);
+  if (all(fixes).length) sections.push(`Fixed by the run: ${all(fixes).join('; ')}`);
   if (all(decisions).length) sections.push(`Decisions: ${all(decisions).join('; ')}`);
   sections.push(...tail);
   const line = sections.join(' · ').replace(/\s*[\r\n]+\s*/g, ' ').replace(/"/g, "'").trim();

@@ -328,6 +328,11 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
       return decision && items.isEarlierAnswer(entry, decisions) ? { ...decision, earlier: true } : decision;
     }).filter((d) => d !== null);
     phase.risks = list(summary.risks).map(items.riskOf).filter((r) => r !== null);
+    // Additive, and only on a node that fixed something without asking: each
+    // fix as `{finding, change}`, apart from its decisions, since the run
+    // settled nothing by it.
+    const fixes = list(summary.fixes_applied).map(items.fixOf).filter((f) => f !== null);
+    if (fixes.length) phase.fixes = fixes;
     phase.artifacts = list(summary.artifacts).map(artifactOf).filter((a) => a !== null);
     // Additive, and only on a node whose summary sanctioned an absence: the
     // declared artifacts it completed without, each with its reason, so the
@@ -352,8 +357,8 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
  * by eye, and a projection that guessed at it would attribute one phase's
  * decisions to another.
  *
- * The choice is made **per field** — `summary`, `decisions`, `risks`,
- * `artifacts` each come from the first source that carries them filled — and
+ * The choice is made **per field** — `summary`, `fixes_applied`, `decisions`,
+ * `risks`, `artifacts` each come from the first source that carries them filled — and
  * **the two are never merged**: a field filled on both is the node summary's
  * alone. Taking the first entry whole instead let a node summary written with
  * empty lists hide the decisions and artifacts its phase summary recorded, and
@@ -398,7 +403,7 @@ function absencesOf(nodeSummaries, declared, id) {
 }
 
 /** The fields a phase card takes from a summary, each chosen on its own. */
-const SUMMARY_FIELDS = ['summary', 'headline', 'decisions', 'risks', 'artifacts'];
+const SUMMARY_FIELDS = ['summary', 'headline', 'fixes_applied', 'decisions', 'risks', 'artifacts'];
 
 /**
  * A phase's summary as a map of the fields in `SUMMARY_FIELDS`, each from the

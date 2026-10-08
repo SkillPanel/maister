@@ -16,11 +16,12 @@
  *
  * - **rich** (a picker that shows option previews): the question is the one-line
  *   ask; the continue option's preview is the checkpoint at a glance — *Done*,
- *   *Next*, *Review*, up to three risks still open, a stop first, up to three
- *   decisions the run made and one counted line for the user's own choices —
- *   within `FOCUS_LINES` lines and `FOCUS_BUDGET` characters, the decisions
- *   giving way to the risks; revise and stop preview what choosing them does;
- *   More details previews the full brief, risks grouped by tag.
+ *   *Next*, *Review*, up to three risks still open, a stop first, how many fixes
+ *   the run applied with up to three of them, up to three decisions the run
+ *   made and one counted line for the user's own choices — within
+ *   `FOCUS_LINES` lines and `FOCUS_BUDGET` characters, the decisions and then
+ *   the fixes giving way to the risks; revise and stop preview what choosing
+ *   them does; More details previews the full brief, risks grouped by tag.
  * - **plain** (a picker that shows labels only): the same selection carried in
  *   the question, the ask last so it stays on screen, and each option's title
  *   carrying its consequence after a dash.
@@ -51,6 +52,12 @@ const DECISION_MAX = 110;
 
 /** How many open risks a glance shows. */
 const RISK_CAP = 3;
+
+/** How many fixes the run applied a glance lists under their count. */
+const FIXED_CAP = 3;
+
+/** The heading over the fixes, which the run applied without asking and decided nothing by. */
+const FIXED_HEADING = 'Fixed by the run';
 
 /** How a risk that recommends stopping opens, wherever risks are listed. */
 const STOP_MARK = 'Recommends stopping: ';
@@ -224,6 +231,12 @@ function decidedHeading(items) {
   return `Decided by ${andList(sources.map(by => SOURCE_HEADING[by]))}${defaults ? ', or by default' : ''}`;
 }
 
+/** A fix as a reader shows it: what was wrong, and what changed after the arrow. */
+function fixText(fix) {
+  if (fix.finding && fix.change) return `${fix.finding.replace(/\.$/, '')} → ${fix.change}`;
+  return fix.finding ?? fix.change ?? '';
+}
+
 /** One decision line: its text, cut, and where it was settled. */
 function decisionLine(item, max = DECISION_MAX) {
   const suffix = item.source ? ` — ${item.source}` : '';
@@ -256,23 +269,27 @@ function openRisks(checkpoint) {
 /**
  * The checkpoint at a glance, as lines: *Done*, *Next* — one line for each of
  * `ways` when there are several, named by its label — *Review*, the risks
- * still open — a stop first — the decisions the run made and the user's own
- * choices counted. An open risk is what the user weighs before going on, so it
- * comes ahead of the decisions and outlasts them; a trade-off, a follow-up and
- * a settled risk are one focus away, in More details. Within `lines` and
+ * still open — a stop first — how many fixes the run applied and up to three
+ * of them, the decisions the run made and the user's own choices counted. An open
+ * risk is what the user weighs before going on, so it comes ahead of the fixes
+ * and the decisions and outlasts them; a fix changed the work without the user
+ * choosing it, so it outlasts what was decided. A trade-off, a follow-up and a
+ * settled risk are one focus away, in More details. Within `lines` and
  * `budget`, the items are cut while the text runs long, then the decisions
- * dropped from the end with a count, then the risks down to one, then the *Done* sentence is cut, and last
- * the one risk left gives way to a count; *Next* is never cut.
+ * dropped from the end down to their count, then the fixes, then the risks
+ * down to one, then the *Done* sentence is cut, and last the one risk left
+ * gives way to a count; *Next* is never cut.
  */
 function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false, ways = waysOf(checkpoint) }) {
   const items = decided(checkpoint);
+  const fixes = checkpoint.fixes ?? [];
   const nexts = ways.length > 1
     ? ways.map(option => `Next (${lowered(option.label)}): ${nextText(option.next)}`)
     : [`Next: ${nextText(ways.length === 1 ? ways[0].next : checkpoint.next)}`];
   const risks = openRisks(checkpoint);
   const review = reviewText(checkpoint.review, companion);
   const choices = choicesLine(checkpoint);
-  const view = { shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), item: DECISION_MAX, done: Infinity };
+  const view = { fixes: Math.min(fixes.length, FIXED_CAP), shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), item: DECISION_MAX, done: Infinity };
   const draw = () => {
     const out = [];
     if (checkpoint.headline) out.push(`Done: ${clip(checkpoint.headline, view.done)}`);
@@ -285,6 +302,13 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
     } else if (risks.length) {
       out.push(`Open risks: ${risks.length}, under More details.`);
     }
+    if (view.fixes > 0) {
+      const rest = fixes.length - view.fixes;
+      out.push(`${FIXED_HEADING}: ${fixes.length}${rest > 0 ? ` (+${rest} more under More details)` : ''}`);
+      out.push(...fixes.slice(0, view.fixes).map(fix => `- ${clip(fixText(fix), Math.max(20, view.item))}`));
+    } else if (fixes.length) {
+      out.push(`${FIXED_HEADING}: ${fixes.length}, under More details.`);
+    }
     if (view.shown > 0) {
       const rest = items.length - view.shown;
       out.push(`${decidedHeading(items)}${rest > 0 ? ` (+${rest} more under More details)` : ''}:`);
@@ -295,8 +319,8 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
     if (choices) out.push(choices);
     // A line straight after a bullet continues that bullet where the preview is
     // read as markdown, so the decisions' heading read as part of the last risk
-    // and the user's own choices as part of the last decision; a blank line
-    // keeps each a line of its own.
+    // or fix and the user's own choices as part of the last decision; a blank
+    // line keeps each a line of its own.
     if (!markdown) return out;
     return out.flatMap((line, index) => (index > 0 && !line.startsWith('- ') && out[index - 1].startsWith('- ') ? ['', line] : [line]));
   };
@@ -311,6 +335,10 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   }
   while (!fits() && view.shown > 0) {
     view.shown--;
+    out = draw();
+  }
+  while (!fits() && view.fixes > 0) {
+    view.fixes--;
     out = draw();
   }
   while (!fits() && view.risks > 1) {
@@ -434,15 +462,18 @@ function noteQuestion(option, profile) {
 
 /**
  * The full brief, risks included: the *Done* sentence; each closed node's
- * summary under its title; every decision with who settled it; the user's
- * choices; risks grouped as Open (a stop first), Trade-offs accepted and
- * Follow-ups; and every file to review with what it holds. Markdown, blocks
- * apart by a blank line. Unclipped: the caller clips the preview.
+ * summary under its title; every fix the run applied; every decision with who
+ * settled it; the user's choices; risks grouped as Open (a stop first),
+ * Trade-offs accepted and Follow-ups; and every file to review with what it
+ * holds. Markdown, blocks apart by a blank line. Unclipped: the caller clips
+ * the preview.
  */
 export function moreDetails(checkpoint) {
   const blocks = [];
   if (checkpoint.headline) blocks.push(`Done: ${checkpoint.headline}`);
   for (const closed of checkpoint.closed ?? []) blocks.push(`**${closed.title}**\n${closed.summary}`);
+  const fixes = checkpoint.fixes ?? [];
+  if (fixes.length) blocks.push([`**${FIXED_HEADING}**`, ...fixes.map(fix => `- ${fixText(fix)}`)].join('\n'));
   const items = decided(checkpoint);
   if (items.length) {
     blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
@@ -485,9 +516,9 @@ function detailsPreview(checkpoint) {
  * `{question, glance}`. `question` is the rich picker's, the one a session asks
  * with, so the extension knows the question the panel belongs to by comparing
  * it. `glance` is plain one-line text fitted to `PANEL_ROWS` — the checkpoint
- * and what it closes, the *Done* sentence, how much was decided and how much is
- * open, *Next* and *Review* — each line cut to the rows left for it, so the
- * extension draws it as it stands and counts nothing. It stays visible
+ * and what it closes, the *Done* sentence, how much was decided, how much the
+ * run fixed and how much is open, *Next* and *Review* — each line cut to the
+ * rows left for it, so the extension draws it as it stands and counts nothing. It stays visible
  * whichever option is in focus, which the preview beside an option does not.
  */
 export function panelOf(checkpoint) {
@@ -495,13 +526,14 @@ export function panelOf(checkpoint) {
   const closing = checkpoint.closed?.[0]?.title ?? checkpoint.header;
   const risks = checkpoint.risks ?? {};
   const open = (risks.stop?.length ?? 0) + (risks.open?.length ?? 0);
+  const fixed = (checkpoint.fixes ?? []).length;
   const review = (checkpoint.review ?? []).map(each => each.path).join(', ');
   const wanted = {
     title: `Checkpoint ${progress.checkpoint}/${progress.checkpoints_max} · ${closing}`,
     headline: checkpoint.headline ?? '',
     next: `Next: ${nextText(checkpoint.next)}`,
     review: review ? `Review: ${review}` : '',
-    counts: `Decided: ${decided(checkpoint).length} · open risks: ${open}`,
+    counts: `Decided: ${decided(checkpoint).length}${fixed ? ` · fixed: ${fixed}` : ''} · open risks: ${open}`,
   };
   const fitted = fittedLines(wanted, PANEL_SHARES);
   return {
@@ -509,7 +541,7 @@ export function panelOf(checkpoint) {
     glance: PANEL_ORDER.filter(key => Object.hasOwn(fitted, key)).map(key => fitted[key]),
     checkpoint: { index: progress.checkpoint, total: progress.checkpoints_max },
     open_risks: open,
-    parts: partsOf(checkpoint, { closing, open }),
+    parts: partsOf(checkpoint, { closing, open, fixed }),
   };
 }
 
@@ -575,11 +607,14 @@ export function questionPanelOf(checkpoint, { title: named, position }) {
  * The same panel as labelled parts, for an extension that styles a label apart
  * from its text: `{key, label, text}` each, in `PANEL_ORDER`, and the review
  * part as files, `{label, path}` each (the path task-folder relative), with
- * `more` counting the files left out. Fitted as the glance is — a part costs
- * the rows of its label, a space and its text, the review part's files
- * separated by two spaces — so a panel drawn from them holds to `PANEL_ROWS`.
+ * `more` counting the files left out. The counts part carries the decisions as
+ * its text, the open risks as words and a number, and `fixed`, how many fixes
+ * the run applied, which an extension names only when it is not 0. Fitted as
+ * the glance is — a part costs the rows of its label, a space and its text,
+ * the review part's files separated by two spaces — so a panel drawn from them
+ * holds to `PANEL_ROWS`.
  */
-function partsOf(checkpoint, { closing, open }) {
+function partsOf(checkpoint, { closing, open, fixed }) {
   const progress = checkpoint.progress ?? {};
   const one = text => String(text ?? '').replace(/\s+/g, ' ').trim();
   const wanted = {
@@ -612,8 +647,8 @@ function partsOf(checkpoint, { closing, open }) {
       continue;
     }
     if (key === 'counts') {
-      fitted.counts = { key, label: part.label, text: part.text, risks: part.risks, open };
-      left -= rowsOf(`${part.label} ${part.text} · ${part.risks}`);
+      fitted.counts = { key, label: part.label, text: part.text, risks: part.risks, open, fixed };
+      left -= rowsOf(`${part.label} ${part.text}${fixed ? ` · ${fixed} fixed` : ''} · ${part.risks}`);
       continue;
     }
     if (!part.text && key !== 'title') continue;

@@ -175,6 +175,7 @@
   .mini.risks { background: var(--warn-soft); color: var(--warn); }
   .mini.time { background: none; color: var(--text-faint); padding-right: 0; }
   .mini.prog { background: var(--ok-soft); color: var(--ok); font-variant-numeric: tabular-nums; }
+  .mini.fixes { background: var(--ok-soft); color: var(--ok); }
   .ph-caret { color: var(--text-faint); flex: none; transition: transform .15s; font-size: 11px; }
   .phase.open .ph-caret { transform: rotate(90deg); }
   .ph-body { display: none; padding: 2px 18px 14px 56px; }
@@ -326,6 +327,14 @@ function byTag(risks) {
 function riskHtml(r) {
   return '<span class="tag ' + esc(r.tag) + '">' + esc(TAG_LABEL[r.tag] || r.tag) + '</span>' + esc(r.risk) +
     (r.change ? ' <span class="rationale">→ ' + esc(r.change) + '</span>' : "");
+}
+/* A fix the run applied without asking, {finding, change} or a string: what was wrong → what changed. */
+function fixHtml(f) {
+  if (typeof f === "string") return esc(f);
+  const finding = f.finding || f.issue || f.description || "";
+  const change = f.change || f.fix || "";
+  if (finding && change) return esc(finding) + ' <span class="rationale">→ ' + esc(change) + '</span>';
+  return esc(finding || change || JSON.stringify(f));
 }
 function sourceChip(x) {
   if (!x || typeof x !== "object" || !SOURCE_LABEL[x.by]) return "";
@@ -527,11 +536,12 @@ function renderTimeline(phases) {
     const decs = (ph.decisions || []).length;
     const decsNow = (ph.decisions || []).filter(x => !x.earlier).length;
     const risks = (ph.risks || []).length;
+    const fixes = (ph.fixes || []).length;
     const arts = (ph.artifacts || []).length;
     const absent = ph.absent || [];
     const prog = progressLine(ph);
     const notes = progressNotes(ph);
-    const hasBody = ph.summary || decs || risks || arts || absent.length || ph.gate || notes.length;
+    const hasBody = ph.summary || fixes || decs || risks || arts || absent.length || ph.gate || notes.length;
     const open = openPhases.has(id) ? " open" : (st === "in_progress" ? " open" : "");
     if (open && !openPhases.has(id) && st === "in_progress") openPhases.add(id);
     const time = phaseTime(ph);
@@ -541,6 +551,8 @@ function renderTimeline(phases) {
       body = '<div class="ph-body">' +
         (ph.headline ? '<p class="ph-headline">' + esc(ph.headline) + '</p>' : "") +
         (ph.summary ? '<p class="ph-summary">' + esc(ph.summary) + '</p>' : "") +
+        (fixes ? '<div class="ph-section"><div class="sec-label">Fixed by the run</div><ul>' +
+          ph.fixes.map(f => '<li>' + fixHtml(f) + '</li>').join("") + '</ul></div>' : "") +
         (decs ? '<div class="ph-section"><div class="sec-label">Key decisions</div><ul>' +
           ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + (x.note ? ' <span class="rationale">— ' + esc(x.note) + '</span>' : '') + sourceChip(x) + earlierNote(x) + '</li>').join("") +
           '</ul></div>' : "") +
@@ -570,6 +582,7 @@ function renderTimeline(phases) {
         '<div class="ph-tags">' +
           (prog ? '<span class="mini prog">' + esc(prog) + '</span>' : "") +
           (ph.attempt > 1 ? '<span class="mini">attempt ' + esc(ph.attempt) + '</span>' : "") +
+          (fixes ? '<span class="mini fixes">' + fixes + ' fixed</span>' : "") +
           (decsNow ? '<span class="mini decisions">' + decsNow + ' decision' + (decsNow > 1 ? "s" : "") + '</span>' : "") +
           (risks ? '<span class="mini risks">' + risks + ' risk' + (risks > 1 ? "s" : "") + '</span>' : "") +
           (arts ? '<span class="mini">' + arts + ' artifact' + (arts > 1 ? "s" : "") + '</span>' : "") +
@@ -600,7 +613,7 @@ function renderDrawer(phases) {
 function renderVerification(v) {
   if (!v || (!v.status && !(v.issues || []).length)) return "";
   const issues = v.issues || [];
-  const fixedSet = new Set((v.fixes || []).map(f => typeof f === "string" ? f : (f.issue || f.description || "")));
+  const fixedSet = new Set((v.fixes || []).map(f => typeof f === "string" ? f : (f.finding || f.issue || f.description || "")));
   const isFixed = i => i.fixed === true || i.severity === "resolved" || fixedSet.has(i.description);
   const sevOrder = { critical: 0, high: 0, warning: 1, medium: 1, info: 2, low: 2 };
   const sorted = issues.slice().sort((a, b) =>
@@ -615,7 +628,7 @@ function renderVerification(v) {
       (i.category ? '<div class="cat">' + esc(i.category) + (i.fixable != null ? (i.fixable ? " · auto-fixable" : " · manual") : "") + '</div>' : "") +
       '</div>').join("") : '<div class="empty">No issues reported.</div>') +
     ((v.fixes || []).length ? '<div class="ph-section"><div class="sec-label">Fixes applied</div><ul>' +
-      v.fixes.map(f => '<li>' + esc(typeof f === "string" ? f : (f.fix || f.description || JSON.stringify(f))) + '</li>').join("") + '</ul></div>' : "") +
+      v.fixes.map(f => '<li>' + fixHtml(f) + '</li>').join("") + '</ul></div>' : "") +
   '</div></div>';
 }
 

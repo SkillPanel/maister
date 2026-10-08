@@ -964,12 +964,14 @@ test('write-state: a summary takes a headline, typed decisions and risks, artifa
     risks: ['open: the corpus is thin', { risk: 'A null element still throws', tag: 'open', change: 'treat it like a missing tag' }, { risk: 'Ships under 1.0.0', tag: 'tradeoff' }],
     artifacts: [{ path: 'analysis/report.md', label: 'Report', html: null, role: 'primary' }],
     metrics: [{ label: 'Tests', value: 40, of: 40 }, { label: 'Coverage', value: '92', unit: '%' }],
+    fixes_applied: [{ finding: 'The parser dropped a trailing comma', change: 'Kept the comma' }, { change: 'Trimmed the tag once' }, 'released the lock'],
   };
   const result = write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: summary } });
   assert.equal(result.code, 0, result.stderr);
   const stored = readState(run).node_summaries.analysis;
   assert.equal(stored.headline, summary.headline);
   assert.deepEqual(stored.decisions, summary.decisions, 'every item kept as sent, strings included');
+  assert.deepEqual(stored.fixes_applied, summary.fixes_applied, 'a fix kept as sent, whichever of its two it names');
   assert.deepEqual(stored.risks, summary.risks);
   assert.deepEqual(stored.metrics, summary.metrics);
   assert.equal(stored.artifacts[0].role, 'primary');
@@ -983,6 +985,8 @@ for (const [label, entry, at] of [
   ['an unknown artifact role', { summary: 'S.', artifacts: [{ path: 'a.md', role: 'draft' }] }, /artifacts\[0\]\.role is "draft", which is not one of primary, review, evidence, log/],
   ['a metric with no value', { summary: 'S.', metrics: [{ label: 'Tests' }] }, /metrics\[0\] is/],
   ['an as_recommended that is not a boolean', { summary: 'S.', decisions: [{ decision: 'x', by: 'operator', as_recommended: 'yes' }] }, /as_recommended is "yes"/],
+  ['fixes that are not a list', { summary: 'S.', fixes_applied: 'released the lock' }, /fixes_applied is "released the lock", which is not a list of \{finding, change\}/],
+  ['a fix naming neither what was wrong nor what changed', { summary: 'S.', fixes_applied: [{ finding: 'x', change: 'y' }, { issue: 'z' }] }, /fixes_applied\[1\] is \{"issue":"z"\}, which is not a \{finding, change\} map/],
 ]) {
   test(`refusal: state-summary-item-invalid — ${label}`, t => {
     const run = scratch(t);

@@ -85,7 +85,7 @@ import * as dashboard from './dashboard.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, attemptNumber, decisionOf, isEarlierAnswer, oneLine } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, attemptNumber, decisionOf, fixOf, isEarlierAnswer, oneLine } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -2376,6 +2376,16 @@ function assertItems(at, entry) {
       if (Object.hasOwn(risk, 'change') && risk.change !== null && typeof risk.change !== 'string') {
         refuse(`risks[${index}].change`, risk.change, 'the change that would resolve it, as a string');
       }
+    });
+  }
+  if (Object.hasOwn(entry, 'fixes_applied') && entry.fixes_applied !== null) {
+    // What the node changed without asking, which the gate lists apart from
+    // its decisions: a fix naming neither what was wrong nor what changed
+    // would be dropped by every reader, so it is refused here instead.
+    const fixes = entry.fixes_applied;
+    if (!Array.isArray(fixes)) refuse('fixes_applied', fixes, 'a list of {finding, change}');
+    fixes.forEach((fix, index) => {
+      if (fixOf(fix) === null) refuse(`fixes_applied[${index}]`, fix, 'a {finding, change} map naming what was wrong and what changed');
     });
   }
   if (Object.hasOwn(entry, 'decision_areas') && entry.decision_areas !== null) {

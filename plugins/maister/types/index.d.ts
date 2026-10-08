@@ -11,6 +11,7 @@ export type DisplayPart = {
   text?: string;
   risks?: string;
   open?: number;
+  fixed?: number;
   count?: number;
   files?: Array<{ label: string; path: string; href?: string }>;
   more?: number;
