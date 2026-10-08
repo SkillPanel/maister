@@ -35,7 +35,7 @@ Every task group is executed by the `task-group-implementer` subagent, however s
    - `implementation/spec.md` (recommended)
    - `.maister/docs/INDEX.md` (optional — skip standards loading when absent)
 3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (fallback when task tools are unavailable or the planner created none).
-4. **Initialize work-log.md**:
+4. **Initialize work-log.md**, its timestamp from the clock (§ Work-Log Updates):
    ```markdown
    # Work Log
 
@@ -326,6 +326,8 @@ When processing a group's report, if its test step (N.1) is not marked done whil
 
 ### Work-Log Updates
 
+**Every `[timestamp]` in `work-log.md` comes from the clock.** Run `date -u +%Y-%m-%dT%H:%M:%SZ` right before the entry is written and copy its output into the heading — never a time typed, estimated or carried over from an earlier reading. Entries land minutes apart as groups return, and the log is the run's timeline: a typed time can read as later than the work it records.
+
 Before each wave is dispatched — `--sequential` included, as a wave of one:
 
 ```markdown
@@ -377,7 +379,7 @@ for an operator reading the run at a glance.
 
 2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas)
 
-3. **Final work-log entry**:
+3. **Final work-log entry**, its timestamp from the clock (§ Work-Log Updates):
    ```markdown
    ## [timestamp] - Implementation Complete
 
@@ -408,7 +410,7 @@ If task-group-implementer reports failure:
 
    When several groups of one wave fail, ask once: one page — one call with a question per failed group, up to four — each worded as above.
 5. **If "Undo this group's changes"**: after the revert, write the revert entry from § Work-Log
-   Updates — `## [timestamp] - Group [N] Reverted (wave [K]): [reason]` — and clear the
+   Updates — `## [timestamp] - Group [N] Reverted (wave [K]): [reason]`, the time from the clock — and clear the
    group's checkboxes back to `- [ ]`. The entry is the only record of the revert the
    dashboard can read; a rollback that leaves nothing behind shows up as a group that
    simply stopped.
