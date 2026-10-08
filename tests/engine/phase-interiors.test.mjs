@@ -163,6 +163,61 @@ test('the reviews the verifier dispatched reach the status as parts', t => {
   assert.equal(status(run).parts.line, 'reviews 5 of 5 done');
 });
 
+test('a group that returns early in a wave reads as done while its siblings still run', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { implementation: { status: 'running' } } });
+  const dir = path.join(run.dir, 'implementation');
+  fs.mkdirSync(dir);
+  const planFile = path.join(dir, 'implementation-plan.md');
+  const logFile = path.join(dir, 'work-log.md');
+  const started = ['# Work Log', '## 2026-01-05T10:00:00Z - Implementation Started', '## 2026-01-05T10:05:00Z - Wave 1 Started: Groups 1, 2, 3'];
+
+  fs.writeFileSync(planFile, plan([[1, [' ', ' ']], [2, [' ', ' ']], [3, [' ', ' ']]]));
+  fs.writeFileSync(logFile, started.join('\n\n') + '\n');
+  reproject(run);
+  assert.equal(status(run).parts.line, 'groups 0 of 3 done · 3 running in wave 1');
+
+  // Group 2 returns first: its checkboxes and its entry, then the re-projection.
+  fs.writeFileSync(planFile, plan([[1, [' ', ' ']], [2, ['x', 'x']], [3, [' ', ' ']]]));
+  fs.writeFileSync(logFile, [...started, '## 2026-01-05T10:20:00Z - Group 2 Complete (wave 1)'].join('\n\n') + '\n');
+  const phase = reproject(run);
+  assert.equal(phase.progress.running_wave, 1);
+  assert.deepEqual(phase.progress.groups, [{ group: 1, state: 'running' }, { group: 2, state: 'done' }, { group: 3, state: 'running' }]);
+  assert.deepEqual(status(run).parts, {
+    node: 'implementation', kind: 'groups', wave: 1,
+    items: [{ state: 'running' }, { state: 'done' }, { state: 'running' }],
+    line: 'groups 1 of 3 done · 2 running in wave 1',
+  });
+});
+
+test('each review recorded as it returns moves the parts and keeps the rest of the cycle', t => {
+  const run = scratch(t);
+  freeze(run, { overlays: [path.join(FIXTURES, 'definitions/sample.overlay.yml')] });
+  write(run, { nodes: { review: { status: 'running' } } });
+  write(run, { verification_context: { last_status: null, issues_found: [] } });
+
+  const chosen = ['completeness', 'code review', 'pragmatic', 'reality check', 'production readiness'];
+  write(run, { verification_context: { reviews: { chosen, done: [] } } });
+  const lines = [status(run).parts.line];
+  // One write per return, in the order they come back, each carrying both lists.
+  const order = ['pragmatic', 'completeness', 'production readiness', 'code review', 'reality check'];
+  for (let n = 1; n <= order.length; n += 1) {
+    write(run, { verification_context: { reviews: { chosen, done: order.slice(0, n) } } });
+    lines.push(status(run).parts.line);
+  }
+  assert.deepEqual(lines, [
+    'reviews 0 of 5 done · 5 running: completeness, code review, pragmatic, reality check, production readiness',
+    'reviews 1 of 5 done · 4 running: completeness, code review, reality check, production readiness',
+    'reviews 2 of 5 done · 3 running: code review, reality check, production readiness',
+    'reviews 3 of 5 done · 2 running: code review, reality check',
+    'reviews 4 of 5 done · 1 running: reality check',
+    'reviews 5 of 5 done',
+  ]);
+  const state = fs.readFileSync(run.state, 'utf8');
+  assert.match(state, /^verification_context:\n(?:  .*\n)*  last_status: null$/m, 'the per-review writes leave the entry clear in place');
+});
+
 test('each verification cycle reaches the dashboard through its verification_context write', t => {
   const run = scratch(t);
   freeze(run);

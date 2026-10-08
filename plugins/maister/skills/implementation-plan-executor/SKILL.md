@@ -19,9 +19,9 @@ You are an implementation plan executor that delegates task groups to subagents 
 
 The implementation phase runs under this skill, and the orchestrator cannot touch the dashboard until control returns, however long that takes. The dashboard still stays live, because this skill **never writes `dashboard-data.js`**. The workflow engine's state writer is the file's only writer: it projects the implementation phase's `progress` from the plan's checkboxes and the work log's wave-start, wave and revert headings (§ Work-Log Updates) on every state write, and the run's status line draws the same figures as one segment per group. So at each re-projection moment below, this skill sends one `write-state` call with the empty patch, `{}`, as the patch file's body. The call and the patch file follow the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract). The call changes nothing in state except its `updated` stamp; it only republishes what the plan and the log now say.
 
-- **Moments**: at entry, once the work log exists; when each wave starts, after its start entry is logged; after every wave resolves; at finalize. One call per moment, not one per group.
+- **Moments**: at entry, once the work log exists; when each wave starts, after its start entry is logged; when a group of a wave returns while others of that wave are still running, after its checkboxes and its complete entry; after every wave resolves; at finalize. One call per moment. The status line redraws only on a state write, so the per-group call is what moves it group by group rather than all at once when the wave resolves; a wave of one group has no such call, its return being the wave's resolution.
 - **Skip** when there is no `orchestrator-state.yml`. A standalone run has no workflow run, so it has nothing to project and no dashboard. The plan, its companion and the work log are that run's record. Also skip when `orchestrator.options.html_output` is false: then there is no dashboard, and the call would only re-publish state.
-- **Never blocks**: a refused or failed call gets a warning line in `work-log.md` (`Dashboard re-projection failed after wave N`) and the run continues. A visible miss, never a silent one.
+- **Never blocks**: a refused or failed call gets a warning line in `work-log.md` (`Dashboard re-projection failed after Group N` or `… after wave N`) and the run continues. A visible miss, never a silent one.
 
 ## Execution Model
 
@@ -102,12 +102,15 @@ For each wave:
 
    **SELF-CHECK before sending the message**: Are you about to emit a message with one `Task` call when the current wave has more than one group? If yes, STOP. Compose every wave member's prompt first, then emit them all in the same message. Awaiting one before composing the next violates this skill's contract. If the wave has exactly one group, a single `Task` call is correct.
 
-3. **Wait for all wave members to return**, then for each result:
+3. **Process each wave member as it returns**, without waiting for its siblings:
    - Parse completed steps, standards applied, test results.
    - Mark all group checkboxes in `implementation-plan.md`.
    - Add a group entry to `work-log.md` with standards trail.
    - Verify test results are acceptable.
    - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
+   - If other members of the wave are still running, **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), after the checkboxes and the entry above, so the group reads as done while its siblings still read as running.
+
+   A member that returns failed is not processed here: it waits for the recovery flow in step 4, once the whole wave is back.
 
    Then, once every member of the wave has been processed, **sync the plan's HTML companion** — one call per wave, after the checkboxes above are marked, with the plugin root written as its absolute path rather than the variable (the workflow engine's invocation contract says why):
    ```
@@ -125,7 +128,7 @@ For each wave:
 
 5. After the wave fully resolves (all members `completed` or recovered), recompute the ready set and proceed to the next wave.
 
-   **SELF-CHECK before dispatching the next wave**: did you run `sync-plan` (step 3) and re-project the dashboard for this wave? If unsure, run both now. Both are idempotent, because each one derives its output from the plan as it stands.
+   **SELF-CHECK before dispatching the next wave**: did you run `sync-plan` (step 3) and re-project the dashboard once the wave resolved? If unsure, run both now. Both are idempotent, because each one derives its output from the plan as it stands.
 
 ### `--sequential` Opt-Out
 
@@ -436,5 +439,5 @@ Before returning success:
 - [ ] implementation-plan.md checkboxes updated
 - [ ] `sync-plan` run after every wave, and any missed marker logged in work-log.md
 - [ ] work-log.md complete with timeline
-- [ ] Dashboard re-projected through `write-state` at entry, after every wave, and at finalize — or skipped because the run is standalone or `html_output` is false
+- [ ] Dashboard re-projected through `write-state` at entry, at each wave start, as each group of a multi-group wave returned, after every wave, and at finalize — or skipped because the run is standalone or `html_output` is false
 - [ ] No uncommitted partial changes
