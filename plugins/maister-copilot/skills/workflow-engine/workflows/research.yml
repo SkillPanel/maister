@@ -1,16 +1,31 @@
 # The research workflow, as a graph.
 #
-# Six nodes named for what they do and three named for what they approve, in
+# Five nodes named for what they do and three named for what they approve, in
 # one linear chain. The branching a reader might expect — brainstorming on or
 # off, design on or off — is carried entirely by the per-node `when` guards
 # plus the rule that a node whose guard is false is skipped and still satisfies
 # everything downstream. There is no routing construct here because the grammar
 # has none and none is needed.
 #
+# The optional stretches are decided at the gates before them. The foundation
+# gate offers one continue per way on — to brainstorming, to the design without
+# brainstorming, or straight to the end — each setting the two values the
+# guards read; the brainstorming gate then decides the design the same way. The
+# operator approves the work and picks the way on in one question, so no node
+# asks either choice. The node each gate closes says which continue it
+# recommends and why.
+#
+# The design runs when either gate chose it, so its guard joins the two gate
+# values with `||`: the foundation's when brainstorming was skipped — the
+# brainstorming gate is then skipped too and reads false — and the brainstorming
+# gate's when it ran.
+#
 # No node carries `on:`. Under the default, a `needs` entry is satisfied by a
 # completed or a skipped predecessor but never by a stopped one, which is what
-# makes each gate's stop option actually end the run: nothing after it is ever
-# ready.
+# makes each stop option actually end the run: nothing after it is ever ready.
+# The foundation gate carries no stop. Its four options are the most its
+# question holds, and finishing with the research is its way out, the final
+# summary still written.
 #
 # The one way back is a revise option, and every gate carries one. The gates
 # that close the research foundation and the high-level design send the run back
@@ -34,8 +49,9 @@ inputs:
   question: {type: string, required: true}
   research_type: {type: string, required: false}
   # Tri-state, and a string rather than a bool for that reason: absent means
-  # ask the operator, `yes`/`no` means the flag was set. Never referenced from
-  # a `when` clause — the decision node turns it into a declared bool first.
+  # the run recommends from what it found, `yes`/`no` means the flag was set.
+  # Neither decides anything: the gate before each stretch is always asked, and
+  # a flag only sets which continue the node it closes recommends.
   brainstorm: {type: string, required: false}
   design: {type: string, required: false}
   # "This run is a sub-run of another run." The engine supplies it at the child
@@ -73,7 +89,6 @@ display:
   icons:
     research-foundation:      analysis
     foundation-approval:      analysis
-    optional-phases-decision: plan
     solution-generation:      spec
     solution-convergence:     plan
     convergence-approval:     plan
@@ -83,7 +98,6 @@ display:
   titles:
     research-foundation:      "Research foundation"
     foundation-approval:      "Approve research foundation"
-    optional-phases-decision: "Optional phases"
     solution-generation:      "Solution brainstorming"
     solution-convergence:     "Solution convergence"
     convergence-approval:     "Approve brainstorming"
@@ -91,12 +105,16 @@ display:
     design-approval:          "Approve design"
     completion:               "Final summary"
   option_labels:
+    # "Finish with the research" takes the place of a stop: the final summary
+    # still runs, unless the run is embedded and simply ends.
     foundation-approval:
-      continue-to-evaluation: "Continue to the optional phases"
+      continue-to-brainstorming: "Continue to brainstorming"
+      continue-to-design: "Continue to the design, skip brainstorming"
+      finish-with-research: "Finish with the research"
       revise-research: "Revise the research"
-      stop-research: "Stop here"
     convergence-approval:
-      continue-to-design: "Continue"
+      continue-to-design: "Continue to the design"
+      finish-without-design: "Finish without a design"
       revise-convergence: "Ask the decision areas again"
       stop-research: "Stop here"
     # The final summary is skipped in an embedded run, which then finishes:
@@ -117,6 +135,10 @@ nodes:
     with:
       question: "${inputs.question}"
       research_type: "${inputs.research_type}"
+      # Read when this node writes its closing summary, to say which continue
+      # of `foundation-approval` it recommends; not the research's input.
+      brainstorm_flag: "${inputs.brainstorm}"
+      design_flag: "${inputs.design}"
     outputs:
       artifacts:
         brief: planning/research-brief.md
@@ -138,26 +160,15 @@ nodes:
     needs: [research-foundation]
     ask: "Research complete. Continue?"
     options:
-      continue-to-evaluation: continue
+      continue-to-brainstorming: {effect: continue, sets: {brainstorming_enabled: true, design_enabled: false}}
+      continue-to-design: {effect: continue, sets: {brainstorming_enabled: false, design_enabled: true}}
+      finish-with-research: {effect: continue, sets: {brainstorming_enabled: false, design_enabled: false}}
       revise-research: {effect: revise, reruns: research-foundation}
-      stop-research: stop
-
-  optional-phases-decision:
-    uses: direct:optional-phases-decision
-    needs: [foundation-approval]
-    with:
-      synthesis: "${research-foundation.artifacts.synthesis}"
-      brainstorm_flag: "${inputs.brainstorm}"
-      design_flag: "${inputs.design}"
-    outputs:
-      values:
-        brainstorming_enabled: bool
-        design_enabled: bool
 
   solution-generation:
     uses: agent:solution-brainstormer
-    needs: [optional-phases-decision]
-    when: "${optional-phases-decision.values.brainstorming_enabled}"
+    needs: [foundation-approval]
+    when: "${foundation-approval.values.brainstorming_enabled}"
     with:
       synthesis: "${research-foundation.artifacts.synthesis}"
       research_report: "${research-foundation.artifacts.report}"
@@ -172,9 +183,12 @@ nodes:
   solution-convergence:
     uses: direct:solution-convergence
     needs: [solution-generation]
-    when: "${optional-phases-decision.values.brainstorming_enabled}"
+    when: "${foundation-approval.values.brainstorming_enabled}"
     with:
       exploration: "${solution-generation.artifacts.exploration}"
+      # Read when this node writes its closing summary, to say which continue
+      # of `convergence-approval` it recommends.
+      design_flag: "${inputs.design}"
     outputs:
       values:
         # A short identifier for the converged approach, not free text: the
@@ -185,17 +199,18 @@ nodes:
   convergence-approval:
     type: gate
     needs: [solution-convergence]
-    when: "${optional-phases-decision.values.brainstorming_enabled}"
+    when: "${foundation-approval.values.brainstorming_enabled}"
     ask: "Brainstorming complete. Continue?"
     options:
-      continue-to-design: continue
+      continue-to-design: {effect: continue, sets: {design_enabled: true}}
+      finish-without-design: {effect: continue, sets: {design_enabled: false}}
       revise-convergence: {effect: revise, reruns: solution-convergence}
       stop-research: stop
 
   high-level-design:
     uses: direct:high-level-design
     needs: [convergence-approval]
-    when: "${optional-phases-decision.values.design_enabled}"
+    when: "${foundation-approval.values.design_enabled} || ${convergence-approval.values.design_enabled}"
     with:
       synthesis: "${research-foundation.artifacts.synthesis}"
       research_report: "${research-foundation.artifacts.report}"
@@ -212,7 +227,7 @@ nodes:
   design-approval:
     type: gate
     needs: [high-level-design]
-    when: "${optional-phases-decision.values.design_enabled}"
+    when: "${foundation-approval.values.design_enabled} || ${convergence-approval.values.design_enabled}"
     ask: "High-level design complete. Continue?"
     options:
       continue-to-completion: continue

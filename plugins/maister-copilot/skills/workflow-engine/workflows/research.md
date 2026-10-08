@@ -10,14 +10,21 @@ operator questions asked *inside* a node, the self-checks that decide whether a
 node succeeded, or how many times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `research.yml` alone cannot see
-that the run asks up to eight further questions beyond its three gates, and the
+that the run asks up to six further questions beyond its three gates, and the
 generated diagram does not show them either. In run order: the research question
-when none was given, a clarification when the question is unclear, the
-brainstorming and design opt-ins as two tabs of one page, a retry when the
-brainstormer fails twice, one question per decision area in the convergence, the
-design constraints, and a retry when the designer fails twice. A typical run
-with brainstorming on and design off answers three plus one per decision area:
-the foundation gate, the opt-in page, the areas and the convergence gate.
+when none was given, a clarification when the question is unclear, a retry when
+the brainstormer fails twice, one question per decision area in the convergence,
+the design constraints, and a retry when the designer fails twice. A typical run
+with brainstorming on and design off answers two plus one per decision area: the
+foundation gate, the areas and the convergence gate.
+
+**The optional stretches are decided at the gates, never inside a node.**
+Whether brainstorming runs, and whether the design runs without it, is the
+answer to `foundation-approval`; whether the design follows brainstorming is the
+answer to `convergence-approval`. Each gate offers one continue per way on, and
+the continue chosen sets the values the stretches' guards read (engine § Gates).
+The node each gate closes writes which continue it recommends and why, as
+`recommends` on its closing summary; its section below says how it chooses.
 Anyone reasoning about how interactive this workflow is must read this file,
 not the graph.
 
@@ -97,7 +104,6 @@ derivable from the node id. Each node writes the hint named here:
 | Node | `icon_hint` |
 |---|---|
 | `research-foundation` | `analysis` |
-| `optional-phases-decision` | `plan` |
 | `solution-generation` | `spec` |
 | `solution-convergence` | `plan` |
 | `high-level-design` | `spec` |
@@ -269,6 +275,36 @@ the Task tool.
 Context for the synthesizer: `task_path`, the findings directory path, the
 research question, the research type and the methodology.
 
+**Recommend the way on, never ask it.** Which way the run goes on is the answer
+to `foundation-approval`, whose three continues set the values the brainstorming
+and design guards read. This node only says which of the three it recommends, as
+`recommends` on its closing summary (engine § *Before every gate*), with a
+one-line reason. It reads the two flags as `brainstorm_flag` and `design_flag`:
+
+- **`brainstorm_flag` is `yes`** — recommend `continue-to-brainstorming`, reason
+  "Brainstorming asked for when the run started". The design is decided at the
+  brainstorming gate.
+- **`brainstorm_flag` is `no`** — recommend `continue-to-design` when
+  `design_flag` is `yes`, reason "Design asked for, brainstorming declined when
+  the run started"; otherwise `finish-with-research`, reason "Brainstorming
+  declined when the run started", with "and the design" added when `design_flag`
+  is `no` too. With `design_flag` absent, judge the design as below and
+  recommend `continue-to-design` when it is valuable.
+- **`brainstorm_flag` is absent** — judge from the synthesis. Brainstorming is
+  valuable when it identified several viable approaches, when the problem sits in
+  a new domain rather than a well-understood one, and when competing trade-offs
+  were found. The design is valuable when the research points at architectural
+  decisions, when the research type is requirements-shaped or mixed, and when the
+  design artifacts would feed a development run. Recommend
+  `continue-to-brainstorming` when brainstorming is valuable, else
+  `continue-to-design` when the design is (or `design_flag` is `yes`), else
+  `finish-with-research`. The reason is in this research's own terms ("The
+  synthesis left three open choices about storage and sync"; "One approach
+  stands; the findings name two architectural decisions"; "The question is
+  answered; nothing is left to choose between").
+
+The gate is still asked: a flag sets the recommendation, never the answer.
+
 The synthesizer returns pattern analysis and cross-references, the report that
 answers the question, a confidence level per finding and the documented gaps.
 Record the overall confidence — it is a declared value output of this node and
@@ -305,7 +341,8 @@ change}`, its `change` the evidence or scope that would close it ("benchmark
 the adapter on the production data set"); one outside this question is `tag:
 followup`. In `artifacts`, the report carries `role: primary` and the brief, the
 plan and the synthesis `role: review`, so the gate offers the report for review
-first.
+first. In `recommends`, the continue of `foundation-approval` this node
+recommends and its reason, as above.
 
 **When re-run after a revise.** `foundation-approval` sent the run back, and
 `prior-context` carries the operator's note under *Revision requested*. The
@@ -345,89 +382,30 @@ the entry.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate. Record the answer, and stop the run on the stop option — nothing after
-a stopped node ever becomes ready. Its
-revise option sends the run back to `research-foundation` with the operator's
-note (engine § Gates, *Revising at a gate*).
+A gate, unguarded, and the one that decides which way the run goes on. Its
+three continues are `continue-to-brainstorming`, which sets
+`brainstorming_enabled` true and `design_enabled` false so the brainstorm runs
+next and its gate decides the design; `continue-to-design`, which sets them the
+other way round so the brainstorm stretch is skipped and the design runs next;
+and `finish-with-research`, which sets both false so every optional stretch is
+skipped and the final summary runs next — or, in an embedded run, the run
+simply ends. Beside them its revise. It carries no stop: finishing with the
+research is the way out, and the four options are the most its question holds,
+so More details is the typed fallback.
 
----
+Record the answer: the writer records the values the chosen continue sets on
+this gate, and the guards after it read them. The continue `research-foundation`
+recommends is the recommended option, its reason on that option; each continue's
+preview names where it leads. Its revise option sends the run back to
+`research-foundation` with the operator's note (engine § Gates, *Revising at a
+gate*), and the way on is decided again when the gate is asked once more.
 
-## `optional-phases-decision`
-
-Executed inline, writes no files, and decides both optional stretches of the
-run independently. Its two declared boolean outputs are what the later `when`
-guards read.
-
-Read the synthesis summary and the research type, then judge each half:
-
-- **Brainstorming is valuable** when the synthesis identified several viable
-  approaches, when the problem sits in a new domain rather than a
-  well-understood one, and when competing trade-offs were found.
-- **Design is valuable** when the research points at architectural decisions,
-  when the research type is requirements-shaped or mixed, and when the design
-  artifacts would feed a development run.
-
-Then ask both as **one page of two tabs** — **unless the corresponding flag was
-already supplied**. This node reads them as `brainstorm_flag` and `design_flag`:
-absent means ask; `yes` or `no` means the invocation settled it, so that tab is
-left out, the page holds the other alone, and the page's message says so in one
-line ("Design: off — declined when the run started"). When both are supplied
-nothing is asked, and the headline says what the flags settled. The two tabs:
-
-1. **Brainstorming**: *"Explore solution alternatives?"*, the question saying
-   in a line what the synthesis found that bears on it ("The research left three
-   open choices about storage and sync"). Options *"Yes, explore
-   alternatives"* and *"No, finish with the research"*.
-2. **Design**: *"Draft a high-level design?"*, the question saying in a line
-   what the research points at ("The findings name two architectural
-   decisions"). Options *"Yes, draft a design"* and *"No, skip the design"*.
-
-In each tab the recommended answer comes first, marked `(Recommended)`, and its
-description is the reason this node judged it so — "Yes, explore alternatives
-(Recommended): the synthesis found three viable approaches with competing
-trade-offs". The other option's description says what the run does instead.
-The recommendation rides on the option, never in the question alone.
-
-Both of these are asked **inside this node** rather than at the gate before
-them. A gate can decide one optional step with one continue per way on, but
-these are two independent choices: deciding both at a gate would need four
-continues beside its revise and its stop, more than a gate's question holds.
-A "no" makes the guarded nodes skip, and a skip satisfies everything
-downstream.
-
-**With question sets** (`brainstorm-opt-in`): asked through the cockpit, in this
-node's one request (*In-node questions*).
-
-**Without question sets** (`brainstorm-opt-in`): the
-recommendation this node computed from the synthesis — the same judgement that
-would have marked the recommended option. It is recorded as the
-node's brainstorming output exactly as an answer would be, and a supplied flag
-still settles it without a default being taken at all.
-
-**With question sets** (`design-opt-in`): asked through the cockpit, in this
-node's one request (*In-node questions*).
-
-**Without question sets** (`design-opt-in`): the computed design
-recommendation, by the same rule, recorded as the node's design output.
-
-**The two choices are also run options.** The node's closing write records the
-same two booleans as `orchestrator.options.brainstorming_enabled` and
-`orchestrator.options.design_enabled`, beside its declared values. That holds
-whether an answer, a supplied flag or a non-terminal default settled them. The
-declared values are what the `when` guards read. The options are where every
-reader of the run's state looks for which optional stretches were chosen, and
-`options` merges key by key, so the write leaves `html_output` and the recorded
-inputs alone.
-
-**Gate brief content.** This node closes the stretch the next gate shows, so its
-closing `node_summaries` entry carries a `headline` saying, in one sentence,
-which optional stretches the run takes and why ("Brainstorming on: the synthesis
-left three open choices about storage; no design"). The two answers are already
-there as the user's own; a supplied flag or a default is recorded as engine
-§ *In-node questions* says.
-
-**Recovery budget**: one attempt — re-evaluate the recommendation when the
-synthesis reads unclearly.
+**The choices are also run options.** The write that records the answer also
+records the two values it set as `orchestrator.options.brainstorming_enabled`
+and `orchestrator.options.design_enabled`, for every reader of the run's state
+that looks there for which optional stretches were chosen. `options` merges key
+by key, so the write leaves `html_output` and the recorded inputs alone. The
+gate's own values are what the guards read.
 
 ---
 
@@ -453,8 +431,7 @@ try again or to go on without the alternatives. The question says what failed
 and why: *"Brainstorming failed twice: <cause>. Try again?"*. Its options are
 *"Try once more (Recommended)"*, its description saying why another attempt may
 work now — the context changed, the failure looked transient — and *"Skip
-brainstorming"*, its description *"finish with the research only"*, or *"go on
-to the design"* when design was chosen.
+brainstorming"*, its description *"go on without the alternatives"*.
 
 That retry-or-skip question is asked inside the node because sending a failed
 node round again needs a construct the grammar reserves without implementing.
@@ -589,18 +566,32 @@ area with no recommendation is not guessed at — it is recorded with
 `chosen_approach` unset and as a `{risk, tag: open, change}` risk naming the
 alternatives to choose between, which the gate's revise offers.
 
+**Recommend the design, never ask it.** Whether the design follows is the
+answer to `convergence-approval`. This node says which of its two continues it
+recommends, as `recommends` on its closing summary, with a one-line reason. It
+reads the design flag as `design_flag`: `yes` recommends `continue-to-design`,
+reason "Design asked for when the run started"; `no` recommends
+`finish-without-design`, reason "Design declined when the run started".
+Absent, recommend `continue-to-design` when the converged approach leaves
+architectural decisions to record, the research type is requirements-shaped or
+mixed, or the design would feed a development run, with the reason in this
+convergence's own terms ("The chosen storage and sync approaches need their
+boundaries drawn"); otherwise `finish-without-design`, saying why ("The chosen
+approach is a configuration change with nothing to design").
+
 **Gate brief content.** `convergence-approval` closes the stretch from the
-opt-in page through the brainstorm to this node. Into this node's closing
+brainstorm to this node. Into this node's closing
 summary: a `headline` naming the converged approach and how many areas it
 settles in one sentence. In `summary`, the chosen combination in a line per
 area and the deferred ideas in one line. In `decisions`, the operator's answer
-per area as recorded above, or the defaults; the opt-in answers and the
-brainstormer's per-area recommendations stay on their own nodes, and nothing
-earlier is restated here. In `risks`,
+per area as recorded above, or the defaults; the brainstormer's per-area
+recommendations stay on its own node, and nothing earlier is restated here. In `risks`,
 the trade-offs the chosen combination accepts on purpose, `tag: tradeoff`; an
 area left open, `tag: open` with the `change` that would settle it; a deferred
 idea worth its own task, `tag: followup` — never a risk the foundation or the
-brainstorm already recorded, which the gate reads from there.
+brainstorm already recorded, which the gate reads from there. In `recommends`,
+the continue of `convergence-approval` this node recommends and its reason, as
+above.
 
 **When re-run after a revise.** `convergence-approval` sent the run back, and
 `prior-context` carries the operator's note under *Revision requested*. The
@@ -632,12 +623,22 @@ the writer refuses any other shape.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate, guarded by the same condition as the two nodes before it. When
-brainstorming was declined, this gate is skipped along with them and the run
-continues to the design without asking. Its revise option sends the run back to
-`solution-convergence` with the operator's note, which re-asks only the areas
-the note reopens (engine § Gates, *Revising at a gate*); the brainstorm is not
-run again.
+A gate, guarded by the same condition as the two nodes before it, and the one
+that decides the design after brainstorming. When the foundation gate skipped
+brainstorming, this gate is skipped along with it, and the design follows the
+foundation gate's answer. Its two continues are `continue-to-design`, which
+sets `design_enabled` true so the design runs next, and `finish-without-design`,
+which sets it false so the design stretch is skipped and the final summary runs
+next; beside them its revise and its stop. Record the answer, and stop the run
+on the stop option. The continue `solution-convergence` recommends is the
+recommended option, its reason on that option.
+
+The write that records a continue also records its value as
+`orchestrator.options.design_enabled`, as `foundation-approval` does.
+
+Its revise option sends the run back to `solution-convergence` with the
+operator's note, which re-asks only the areas the note reopens (engine § Gates,
+*Revising at a gate*); the brainstorm is not run again.
 
 ---
 
@@ -648,7 +649,8 @@ Executed inline in three parts. Read the design-techniques reference first,
 decision-record format and decision-documentation patterns.
 
 **Part A — design direction (inline).** When convergence ran, confirm the
-selected approaches. When it was skipped, use the research report's
+selected approaches. When the foundation gate went to the design and skipped
+brainstorming, use the research report's
 recommendations as the design input instead. Then ask *"Any architectural
 constraints or preferences for the design?"*, the question naming the selected
 approach per area (or the report's recommendations) in a line each, so the user
@@ -737,8 +739,8 @@ the entry.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate, guarded by the design condition. Skipped with the design node when the
-operator declined design. Its revise option sends the run back to
+A gate, guarded by the design condition: the design was chosen at the foundation
+gate or at the brainstorming gate. Skipped with the design node otherwise. Its revise option sends the run back to
 `high-level-design` with the operator's note (engine § Gates, *Revising at a
 gate*).
 

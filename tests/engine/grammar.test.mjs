@@ -795,12 +795,16 @@ test('several revise options are accepted; a second continue that sets nothing i
   assert.match(errorAt(report, 'nodes.review-approval.options.continue-on.sets').message, /"continue-on" sets none/);
 });
 
-test('a gate with no continue, or no stop, is refused at its options', t => {
+test('a gate with no continue, or a single continue and no stop, is refused at its options', t => {
   const { code, report } = validate(definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
     '    options: {stop-here: stop}')));
   assert.equal(code, 1);
   assert.match(errorAt(report, 'nodes.review-approval.options').message,
-    /at least one continue and at least one stop, and any number of revise; this one offers 0 and 1/);
+    /at least one continue and any number of revise, and a gate with a single continue at least one stop; this one offers 0 continues and 1 stop/);
+  const unstoppable = validate(definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options: {continue-on: continue, send-back: {effect: revise, reruns: intake}}')));
+  assert.equal(unstoppable.code, 1);
+  assert.match(errorAt(unstoppable.report, 'nodes.review-approval.options').message, /this one offers 1 continue and 0 stops/);
 });
 
 test('a revise option is hashed whole: it moves the hash of the definition that adopts it and draws its target', t => {
@@ -927,6 +931,34 @@ test('a guard and a reference may read a value a gate continue sets; any other g
   stray.push('    with: {deep: "${review-approval.values.deep}"}');
   assert.match(errorAt(validate(definition(t, stray)).report, 'nodes.audit.with.deep').message,
     /names an output "review-approval" does not declare/);
+});
+
+test('a gate with several continues may offer no stop: one of its ways on is the way to the end', t => {
+  const { code, report } = validate(definition(t, setting({ extra: ['      send-back: {effect: revise, reruns: intake}'] })));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+});
+
+test('a guard may join references with ||, each checked as a single reference is', t => {
+  const either = '"${intake.values.deep} || ${review-approval.values.audit}"';
+  assert.equal(validate(definition(t, setting({ guard: either }))).code, 0);
+  assert.equal(validate(definition(t, setting({ guard: '"!${intake.values.deep}||${review-approval.values.audit}"' }))).code, 0);
+
+  const refused = guard => errorAt(validate(definition(t, setting({ guard }))).report, 'nodes.audit.when').message;
+  assert.match(refused('"${intake.values.deep} && ${review-approval.values.audit}"'),
+    /a when clause is one reference, or several joined by \|\|, each optionally negated/);
+  assert.match(refused('"${intake.values.deep} ||"'), /a when clause is one reference, or several joined by \|\|/);
+  assert.match(refused('"(${intake.values.deep} || ${review-approval.values.audit})"'), /a when clause is one reference/);
+  assert.match(refused('"${intake.values.deep} || ${review-approval.values.deep}"'),
+    /"review-approval.values.deep" is not one/);
+  assert.match(refused('"${review-approval.values.audit} || ${wrapup.values.done}"'), /when names "wrapup", which is outside this node's needs closure/);
+});
+
+test('a guard joined with || moves the hash as written', t => {
+  const hashOf = guard => JSON.parse(verb(['resolve', `--definition=${definition(t, setting({ guard }))}`]).stdout).graph_hash;
+  const single = hashOf('"${review-approval.values.audit}"');
+  const either = hashOf('"${intake.values.deep} || ${review-approval.values.audit}"');
+  assert.ok(single && either);
+  assert.notEqual(single, either);
 });
 
 test('sets is refused off a continue, empty, non-boolean or with a key outside the guard pattern', t => {

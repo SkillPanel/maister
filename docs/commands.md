@@ -173,13 +173,13 @@ Starts migration workflow (8 phases) with mandatory rollback planning and risk a
 
 ### `/maister:research [question | task-path]`
 
-Starts research workflow (8 phases) with multi-source gathering, synthesis, and optional solution brainstorming, or resumes an existing one. Can be run without arguments — the plugin extracts the research question from your conversation.
+Starts research workflow with multi-source gathering, synthesis, and optional solution brainstorming and high-level design, or resumes an existing one. Can be run without arguments — the plugin extracts the research question from your conversation.
 
 | Flag | Description |
 |------|-------------|
 | `--type=technical\|requirements\|literature\|mixed` | Research methodology type |
-| `--brainstorm` / `--no-brainstorm` | Run or skip solution brainstorming without being asked (asked if omitted) |
-| `--design` / `--no-design` | Run or skip the high-level design without being asked (asked if omitted) |
+| `--brainstorm` / `--no-brainstorm` | Recommend going on to solution brainstorming, or past it, at the checkpoint after the research (still asked) |
+| `--design` / `--no-design` | Recommend going on to the high-level design, or finishing without one, at the checkpoint that decides it (still asked) |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
 

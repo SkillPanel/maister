@@ -25,8 +25,10 @@ before the next call, check that you did (engine Step 4).
 
 - **The flags are inputs of the definition**, handed to the engine as such: `--type=TYPE` is
   `research_type`; `--brainstorm` and `--no-brainstorm` are `brainstorm: yes` and
-  `brainstorm: no`; `--design` and `--no-design` are `design: yes` and `design: no`. A flag that
-  was not passed supplies no input, and the step that owns the choice asks it. An invocation
+  `brainstorm: no`; `--design` and `--no-design` are `design: yes` and `design: no`. The two
+  flags set which way on the checkpoint that decides each stretch recommends; the checkpoint is
+  still asked. A flag that was not passed supplies no input, and the run recommends from what it
+  found. An invocation
   with no question takes it from the conversation.
   Any other flag, apart from the two resume flags below, is not an input of this workflow: name
   it as not taken, in one line, and continue without it — never drop one in silence.

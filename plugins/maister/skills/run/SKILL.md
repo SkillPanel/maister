@@ -200,10 +200,10 @@ report says so.
 | `opens a reference with ${ and never closes it` | add the closing `}` |
 | `an artifact path is written literally` | write the path literally; pass the varying part through `with:` |
 | `an artifact path stays inside the run's task directory` | write a path relative to the run's task directory: no leading `/` or `\`, no drive letter, no `..` segment |
-| `a gate offers at least one continue and at least one stop` | make at least one option `continue` and at least one `stop`; revise options are extra |
+| `a gate offers at least one continue` | make at least one option `continue`, and give a gate with a single continue at least one `stop`; revise options are extra |
 | `each must set the gate values that tell it from the others`, `every continue of a gate sets the same values`, `the two answers would be one route` | give every continue of the gate `sets:` naming the same keys, each continue its own combination of true and false — or keep a single continue |
 | `a revise option names the node it sends the run back to`, `reruns names` | write the option as `{effect: revise, reruns: <node>}`, naming a task node the gate waits on — not a gate, not a `workflow:` node, and not one whose stretch to the gate holds a `workflow:` node |
-| `a when clause is exactly one reference` | reduce the guard to one quoted `"${…}"`, optionally `!`; a combined condition is a `bool` an earlier node records |
+| `a when clause is one reference, or several joined by \|\|` | write the guard as quoted `"${…}"` references, each optionally `!`, joined by `\|\|` when any of them should run the node; an all-of condition is a `bool` an earlier node records |
 | `when needs a bool input`, `when needs a declared bool output` | declare that input or value `bool`, or guard on one that is |
 | `no overlay declares a profile named` | select one of the profiles the message lists |
 | `was selected with no overlay` | pass the overlay that declares the profile with `--overlay`, or drop `--profile` |

@@ -98,8 +98,9 @@ questions:
    one stop (§ 6), or one continue per way on when the gate decides the optional phase after it. Where the author wants a way to send a document back, add a revise option
    naming the node that wrote it, and give that node's section its re-run paragraph (§ 6, § 11).
 5. **Optional stretches.** A phase that runs only sometimes is guarded by a `bool` — an input, a
-   value an earlier node records, or a value the answer to the gate before it sets (§ 6, § 7). There is no expression language; say so if the author
-   describes a compound condition, and turn it into one recorded `bool`.
+   value an earlier node records, or a value the answer to the gate before it sets (§ 6, § 7). A
+   stretch either of two gates can switch on joins their values with `||`; there is no other
+   operator, so say so if the author describes an all-of condition, and turn it into one recorded `bool`.
 6. **Artifacts and values** each phase declares (§ 8.2): literal paths relative to the run's task
    directory; values as `bool`, `id` or `enum` rather than `string` where they are handles.
 7. **Will another workflow call this one?** Only on request, apply the child-capable recipe
@@ -232,7 +233,8 @@ Run `locate`, then `validate` — with errors, stop and point to `check` — the
 - **The flow, top to bottom,** one box per node with its title and id, gates visibly different,
   nodes that can run at the same time side by side, joins where a node needs several.
 - **Every guard in words,** next to its node — "runs only when gap analysis found a reproducible
-  defect", "skipped when this run is a child of another" — and every `on:` other than `success`
+  defect", "skipped when this run is a child of another", "runs when either gate chose the
+  design" — and every `on:` other than `success`
   ("runs only if a need failed", "runs however its needs ended").
 - **Dangling leaves:** a node nothing waits for that is not where the run ends. Name each, say
   where the frozen order puts it (ties are broken by id), and say what it means — no gate waits

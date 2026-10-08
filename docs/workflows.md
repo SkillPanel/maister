@@ -230,7 +230,7 @@ Multi-source research with synthesis, optional solution brainstorming, and high-
 
 **Research types**: `technical`, `requirements`, `literature`, `mixed`
 
-**Flags**: `--type=TYPE`, `--brainstorm` / `--no-brainstorm` (run or skip solution brainstorming), `--design` / `--no-design` (run or skip the high-level design). Without a flag, the run asks.
+**Flags**: `--type=TYPE`, `--brainstorm` / `--no-brainstorm`, `--design` / `--no-design`. Solution brainstorming and the high-level design are decided at the checkpoints before them. The research checkpoint offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Finish with the research*. When brainstorming ran, its checkpoint offers *Continue to the design* and *Finish without a design*. The flags set which way on is recommended; the checkpoint still asks.
 
 **Research also runs as a step inside another run.** A chain can name it from a node, and the node
 then starts a research run instead of a command doing it: the question comes from the node rather
@@ -238,7 +238,7 @@ than from you, the run gets a task directory of its own named after the run that
 the node waits until it ends. What the calling run may read back is what the research definition
 declares — its report and its conclusions — and nothing else. A research run started this way
 skips the step that exists only to tell an operator the run is over; everything before it is the
-same eight phases, gates included. Nothing about it needs setting up on your side, and a research
+same phases, checkpoints included. Nothing about it needs setting up on your side, and a research
 run you start yourself is unaffected.
 
 ### How it runs
@@ -249,16 +249,13 @@ Like the other engine workflows, it needs Node.js 20 or newer.
 
 ### Phases
 
-| # | Phase |
-|---|-------|
-| 1 | Research foundation: initialize → plan methodology → gather information (parallel) → synthesize findings |
-| 2 | Brainstorming decision (evaluate value) |
-| 3 | Solution brainstorming (HMW questions, evidence-driven) |
-| 4 | High-level design (C4 diagrams + ADR documentation) |
-| 5 | Review outputs |
-| 6 | Verification (optional) |
-| 7 | Integration (optional) |
-| 8 | Spawn development workflow (optional) |
+| # | Phase | Applies To |
+|---|-------|-----------|
+| 1 | Research foundation: initialize → plan methodology → gather information (parallel) → synthesize findings | All |
+| 2 | Solution brainstorming (alternatives per decision area, evidence-driven) | Decided at the research checkpoint (`--brainstorm` / `--no-brainstorm` set the recommendation) |
+| 3 | Solution convergence (one decision area at a time) | With brainstorming |
+| 4 | High-level design (C4 diagrams + decision records) | Decided at the research checkpoint, or at the brainstorming checkpoint when brainstorming ran (`--design` / `--no-design` set the recommendation) |
+| 5 | Final summary | Runs you start yourself |
 
 Information gathering runs parallel subagents across multiple source categories (codebase, docs, config, external).
 
@@ -382,7 +379,7 @@ answer in one line instead ("User guide: on — asked for when the run started")
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
 At a checkpoint the question is one line: what finished, and whether it is ready to go on. Where the run goes if you continue is named by the continue option.
-Where the next phase is optional, the checkpoint before it decides it in the same question, with one continue for each way on: development's specification checkpoint offers *Continue to the specification audit* and *Continue to planning, skip the audit*, and its verification checkpoint *Continue to the browser checks* and *Continue without browser checks*. The recommended one gives its reason, and each names where it leads.
+Where the next phase is optional, the checkpoint before it decides it in the same question, with one continue for each way on: development's specification checkpoint offers *Continue to the specification audit* and *Continue to planning, skip the audit*, and its verification checkpoint *Continue to the browser checks* and *Continue without browser checks*; research's checkpoint after the research offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Finish with the research*. The recommended one gives its reason, and each names where it leads.
 Beside the continue option you see the checkpoint at a glance:
 - *Done*: what the stretch since the last checkpoint produced, in a sentence;
 - *Next*: the phase that runs, and any it skips;
