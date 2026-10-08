@@ -358,10 +358,12 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
 
 /**
  * The continue options walked on their own answers — those that set the gate's
- * values — each of which names where it leads when there are several.
+ * values — each of which names where it leads when there are several, in the
+ * order the pickers list them: a *Next* line for the skip path read first while
+ * the recommended continue was listed first.
  */
 function waysOf(checkpoint) {
-  return (checkpoint.options ?? []).filter(option => option.effect === 'continue' && option.next !== undefined);
+  return ordered(checkpoint).filter(option => option.effect === 'continue' && option.next !== undefined);
 }
 
 /** The option the checkpoint recommends. */
@@ -671,7 +673,7 @@ function baseName(file) {
 /** The checkpoint's options in picker order: the recommended first, then on, back, out. */
 function ordered(checkpoint) {
   const rank = option => EFFECT_ORDER[option.effect] ?? EFFECT_ORDER.stop;
-  const sorted = checkpoint.options
+  const sorted = (checkpoint.options ?? [])
     .map((option, index) => ({ option, index }))
     .sort((a, b) => rank(a.option) - rank(b.option) || a.index - b.index)
     .map(({ option }) => option);

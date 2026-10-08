@@ -364,6 +364,23 @@ test('checkpoint: with the audit declined, the specification gate recommends goi
   assert.match(line, /Recommended: continue-to-planning/);
 });
 
+test('checkpoint: the per-continue Next lines come in the options\' order on every surface, the recommended first', t => {
+  for (const [option, first, second] of [
+    ['continue-to-spec-audit', 'continue to the specification audit', 'continue to planning, skip the audit'],
+    ['continue-to-planning', 'continue to planning, skip the audit', 'continue to the specification audit'],
+  ]) {
+    const run = atSpecGateRecommending(t, option, 'Asked for when the run started');
+    const plain = pickerOf(run, 'specification-approval', 'plain');
+    const nexts = text => text.split('\n').filter(line => line.startsWith('Next (')).map(line => line.slice(6, line.indexOf('):')));
+    assert.deepEqual(nexts(plain.question), [first, second], `${option}: the plain glance`);
+    assert.deepEqual(plain.options.filter(each => each.id.startsWith('continue')).map(each => each.id)[0], option, `${option}: the options`);
+    assert.deepEqual(nexts(plain.more_details), [first, second], `${option}: More details`);
+    assert.deepEqual(nexts(gateBrief(run, 'specification-approval').stdout), [first, second], `${option}: the text brief`);
+    const ids = gateBrief(run, 'specification-approval', '--oneline').stdout.match(/Next \(([a-z-]+)\)/g);
+    assert.deepEqual(ids, [`Next (${option})`, `Next (${option === 'continue-to-planning' ? 'continue-to-spec-audit' : 'continue-to-planning'})`], `${option}: the oneline`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // the projections reproduce the designed layouts
 // ---------------------------------------------------------------------------
@@ -432,10 +449,11 @@ test('rich: the specification gate renders as designed — a one-line ask, the g
 test('plain: the specification gate renders as designed — the glance, then the ask last; titles carry consequences', t => {
   const plain = pickerOf(atSpecGate(t), 'specification-approval', 'plain');
   assert.equal(plain.header, 'Specification', 'a form property takes the step\'s own title, never the short chip');
-  // The glance gives each continue its own Next line, named by its label.
+  // The glance gives each continue its own Next line, named by its label, in
+  // the options' order: the recommended audit first.
   const glance = SPEC_GLANCE.flatMap(line => line === 'Next: Specification audit' ? [
-    'Next (continue to planning, skip the audit): Implementation planning (skipping Specification audit)',
     'Next (continue to the specification audit): Specification audit',
+    'Next (continue to planning, skip the audit): Implementation planning (skipping Specification audit)',
   ] : [line.replace('(HTML beside it)', '(HTML: spec.html)')]);
   assert.equal(plain.question, [...glance, 'Specification complete. Ready to go on?'].join('\n'));
   assert.deepEqual(plain.options.map(option => option.label), [

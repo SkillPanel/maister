@@ -1705,7 +1705,8 @@ test('gate-brief: the closing node\'s recommends picks the continue, and its rea
 
   const plain = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--json', '--picker=plain']).stdout);
   assert.equal(plain.options[0].label, 'Continue to planning, skip the audit — the change is two lines (Recommended)');
-  assert.match(plain.question, /Next \(continue to the specification audit\): Specification audit\nNext \(continue to planning, skip the audit\): Planning \(skipping Specification audit\)/);
+  assert.match(plain.question, /Next \(continue to planning, skip the audit\): Planning \(skipping Specification audit\)\nNext \(continue to the specification audit\): Specification audit/,
+    'the Next lines in the options\' order, the recommended continue first');
 });
 
 test('gate-brief: a recommends naming no continue of this gate is passed over, and a stop risk still wins', t => {
