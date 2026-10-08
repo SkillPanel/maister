@@ -28,7 +28,8 @@
  * - **request**: the driven gate request, whole — question, options, and the
  *   checkpoint beside the one-line summary older readers take.
  * - **panel**: the glance an editor extension draws above the question, fitted
- *   to the rows Claude Code allows there (`PANEL_ROWS`).
+ *   to the rows Claude Code allows there (`PANEL_ROWS`) — a gate's, or a
+ *   question set's step and count.
  *
  * Pure: no I/O, no imports. Zero dependencies, Node >= 20.
  */
@@ -117,6 +118,9 @@ const PANEL_SHARES = { title: 1, headline: 4, next: 2, review: 2, counts: 1 };
 
 /** The order a panel's lines are drawn in. */
 const PANEL_ORDER = ['title', 'headline', 'counts', 'next', 'review'];
+
+/** The most rows each line of a question set's panel may take: the step, then the first question's header and the count. */
+const QUESTION_SHARES = { title: 2, questions: 2 };
 
 // ---------------------------------------------------------------------------
 // the pieces every layout shares
@@ -481,22 +485,71 @@ export function panelOf(checkpoint) {
     review: review ? `Review: ${review}` : '',
     counts: `Decided: ${decided(checkpoint).length} · open risks: ${open}`,
   };
-  const fitted = {};
-  let left = PANEL_ROWS;
-  for (const [key, share] of Object.entries(PANEL_SHARES)) {
-    const text = String(wanted[key]).replace(/\s+/g, ' ').trim();
-    const rows = Math.min(share, left);
-    if (!text || rows < 1) continue;
-    // The longest line that costs `rows` rows is one character short of their width.
-    fitted[key] = clip(text, rows * ROW_CHARS - 1);
-    left -= rowsOf(fitted[key]);
-  }
+  const fitted = fittedLines(wanted, PANEL_SHARES);
   return {
     question: richPicker(checkpoint).question,
     glance: PANEL_ORDER.filter(key => Object.hasOwn(fitted, key)).map(key => fitted[key]),
     checkpoint: { index: progress.checkpoint, total: progress.checkpoints_max },
     open_risks: open,
     parts: partsOf(checkpoint, { closing, open }),
+  };
+}
+
+/**
+ * Each of `wanted`'s texts on one line, in `shares`' order, cut to the rows
+ * its share and the panel's rows left allow; a text that is empty, or finds
+ * no row left, is left out.
+ */
+function fittedLines(wanted, shares) {
+  const fitted = {};
+  let left = PANEL_ROWS;
+  for (const [key, share] of Object.entries(shares)) {
+    const text = String(wanted[key] ?? '').replace(/\s+/g, ' ').trim();
+    const rows = Math.min(share, left);
+    if (!text || rows < 1) continue;
+    // The longest line that costs `rows` rows is one character short of their width.
+    fitted[key] = clip(text, rows * ROW_CHARS - 1);
+    left -= rowsOf(fitted[key]);
+  }
+  return fitted;
+}
+
+/**
+ * A question set's panel, the one a pending set shows above its question: the
+ * step asking and where it stands among the run's phases, then the first
+ * question's header and how many questions the set holds — never an option or
+ * an answer, which the question itself carries. `title` is the asking step's
+ * title and `position` its `{index, total}` among the phases, counted as the
+ * status line counts them. Fitted to `PANEL_ROWS` as a gate's panel is, as a glance and as
+ * labelled parts; `question` is the first question's text, so an extension
+ * knows the question the panel belongs to by comparing it.
+ */
+export function questionPanelOf(checkpoint, { title: named, position }) {
+  const questions = checkpoint.questions ?? [];
+  const count = questions.length;
+  const one = text => String(text ?? '').replace(/\s+/g, ' ').trim();
+  const step = position?.index ? `Phase ${position.index} of ${position.total}` : 'Questions';
+  const title = one(named ?? checkpoint.header);
+  const header = one(questions[0]?.header);
+  const counted = `${count} ${count === 1 ? 'question' : 'questions'}`;
+  const glance = fittedLines({ title: `${step} · ${title}`, questions: header ? `${header} · ${counted}` : counted }, QUESTION_SHARES);
+  const parts = [];
+  let left = PANEL_ROWS;
+  for (const [key, label, text] of [['title', step, title], ['questions', header || 'Questions', counted]]) {
+    const rows = Math.min(QUESTION_SHARES[key], left);
+    if (rows < 1) continue;
+    const room = rows * ROW_CHARS - 1 - label.length - 1;
+    const part = { key, label, text: clip(text, Math.max(0, room)), ...(key === 'questions' ? { count } : {}) };
+    parts.push(part);
+    left -= rowsOf(`${part.label} ${part.text}`);
+  }
+  return {
+    kind: 'question',
+    question: questions[0]?.question ?? checkpoint.ask,
+    glance: ['title', 'questions'].filter(key => Object.hasOwn(glance, key)).map(key => glance[key]),
+    position: position ?? null,
+    questions: count,
+    parts,
   };
 }
 

@@ -1917,8 +1917,9 @@ The engine honours the framework's contracts; it does not restate them. Follow
 run's `display/status.json` — the workflow, the task, the phase counted without gates or skipped
 nodes, and the status line composed — and the freeze writes `display/banner.json`, the banner's
 lines without the one addressed to you. `gate-brief`, in every form, writes `display/next.json`:
-the gate's question and a glance at it, fitted to the rows a panel above the question may take,
-which the next state write removes. Under a host that names its session, each write also
+the gate's question and a glance at it, fitted to the rows a panel above the question may take —
+for a question set, the step and its place among the phases, the first question's header and
+how many questions it holds — which the next state write removes. Under a host that names its session, each write also
 records the run in `.maister/display/sessions/<session id>.json`, so an editor extension finds
 the run its session is driving. They are what such an extension draws beside the session: no
 node writes them or relays them, and one that cannot be written is a warning on the dashboard's

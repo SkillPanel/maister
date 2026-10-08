@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 import { FIXTURES, freeze, freezePatch, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { PANEL_ROWS, questionPanelOf, rowsOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The display files are what a screen beside the session draws — a status
 // line, the start banner, a gate's panel — written by the engine so a reader
@@ -206,6 +207,54 @@ test('display: a state write removes a gate panel the write has answered', t => 
   fs.writeFileSync(next, '{"version":1}\n');
   write(run, { nodes: { approval: { status: 'completed' } } });
   assert.equal(fs.existsSync(next), false);
+});
+
+/** A running step under a driver that carries question sets, and its set's brief run with `questions`. */
+function questionBriefOf(t, questions) {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work', features: ['question-sets'] } } });
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  const file = path.join(run.dir, '.state-patch.json');
+  fs.writeFileSync(file, JSON.stringify({ questions }));
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=analysis', '--request', `--patch-file=${file}`]);
+  assert.equal(result.code, 0, result.stderr);
+  return run;
+}
+
+const SET = [
+  { id: 'tag-filter', header: 'Tag filter', question: 'Which notes does the tag filter keep?', options: [{ id: 'all', label: 'All of them', recommended: true }, { id: 'tagged', label: 'Only the tagged ones' }] },
+  { id: 'tag-case', question: 'Does a tag match whatever its case?', options: [{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }] },
+  { id: 'csv-extras', question: 'What else goes in the CSV?', multi_select: true, options: [{ id: 'timestamp', label: 'The timestamp' }, { id: 'operator', label: 'The operator' }] },
+];
+
+test('display: a question set writes a panel too — the step and its place, the first header and the count, no option or answer', t => {
+  const run = questionBriefOf(t, SET);
+  const next = display(run, 'next.json');
+  const { phase } = display(run, 'status.json');
+  assert.equal(next.version, 1);
+  assert.equal(next.kind, 'question');
+  assert.equal(next.node, 'analysis');
+  assert.equal(next.question, 'Which notes does the tag filter keep?');
+  assert.deepEqual(next.position, { index: phase.index, total: phase.total }, 'the place the status line gives the step');
+  assert.deepEqual(next.glance, [`Phase ${phase.index} of ${phase.total} · ${phase.title}`, 'Tag filter · 3 questions']);
+  assert.deepEqual(next.parts, [
+    { key: 'title', label: `Phase ${phase.index} of ${phase.total}`, text: phase.title },
+    { key: 'questions', label: 'Tag filter', text: '3 questions', count: 3 },
+  ]);
+  assert.doesNotMatch(JSON.stringify(next), /All of them|Only the tagged|options|answer/);
+
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped.' } } });
+  assert.equal(fs.existsSync(path.join(run.dir, 'display/next.json')), false, 'the next state write removes it');
+});
+
+test('display: a question set\'s panel holds to the panel\'s rows, however long its texts', () => {
+  const words = 'Long words that run on and on. '.repeat(12).trim();
+  const checkpoint = { header: 'Scope', ask: words, questions: Array.from({ length: 12 }, (_, index) => ({ id: `q${index}`, header: 'Tag filter', question: words })) };
+  const panel = questionPanelOf(checkpoint, { title: words, position: { index: 12, total: 14 } });
+  assert.ok(panel.glance.reduce((rows, line) => rows + rowsOf(line), 0) <= PANEL_ROWS, panel.glance.join('\n'));
+  assert.ok(panel.parts.reduce((rows, part) => rows + rowsOf(`${part.label} ${part.text}`), 0) <= PANEL_ROWS);
+  assert.match(panel.glance[0], /^Phase 12 of 14 · Long words .*…$/);
+  assert.deepEqual(panel.parts.at(-1), { key: 'questions', label: 'Tag filter', text: '12 questions', count: 12 });
 });
 
 test('display: the display files are not among the changed paths a write reports', t => {

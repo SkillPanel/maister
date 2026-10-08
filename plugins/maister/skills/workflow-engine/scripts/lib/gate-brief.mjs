@@ -73,7 +73,8 @@
  * carry both meanings.
  *
  * Every form also returns `panel`, the glance an editor extension draws above
- * the question (`panelOf`, with links `panelFor` adds), which `workflow.mjs` writes to the run's
+ * the question (`panelOf`, with links `panelFor` adds; a question set's from
+ * `questionPanelOf`), which `workflow.mjs` writes to the run's
  * `display/next.json` — the one file a brief writes, and never the state.
  *
  * Pure: no stdio, no writes. Returns `{ok, text, panel, errors, warnings}` and leaves
@@ -89,7 +90,8 @@ import { MORE_DETAILS_ID, grantOrder, resolve, reviseStretch } from './graph.mjs
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
-import { grantsText, lowered, moreDetails, panelOf, plainPicker, requestOf, richPicker } from './checkpoint.mjs';
+import { grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
+import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
@@ -364,16 +366,27 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   const runDir = path.dirname(path.resolve(state));
   const { display } = reread(doc, workflow, runDir);
   const order = Object.keys(recorded);
+  const title = titleOf(display.titles, node);
   const checkpoint = questionCheckpoint({
     set: checked.set,
     node,
-    title: titleOf(display.titles, node),
+    title,
     header: headerOf(display, node),
     progress: { node: order.indexOf(node) + 1, nodes_total: order.length },
     run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
   });
-  if (form === 'checkpoint') return { ok: true, checkpoint, errors: [], warnings: [] };
-  return { ok: true, request: questionRequest(checkpoint), errors: [], warnings: [] };
+  // The panel a pending set shows: display only, as a gate's is, so one that
+  // cannot be built costs the brief nothing. The asking node is running, so it
+  // is the phase the status line names, counted the same way.
+  let panel = null;
+  try {
+    const { index, total } = phaseOf(doc, display.titles);
+    panel = { node, header: checkpoint.header, ...questionPanelOf(checkpoint, { title, position: index ? { index, total } : null }) };
+  } catch {
+    panel = null;
+  }
+  if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings: [] };
+  return { ok: true, request: questionRequest(checkpoint), panel, errors: [], warnings: [] };
 }
 
 /** How many files the `Review:` line names before it stops. */

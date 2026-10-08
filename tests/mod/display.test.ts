@@ -91,6 +91,27 @@ const bannerDoc = json({
   dashboard: DASHBOARD,
 })
 const pointer = json({ version: 1, run_dir: RUN, updated: FROZEN })
+const SET_ASK = 'Which notes does the tag filter keep?'
+const SET_QUESTIONS = [{
+  question: SET_ASK,
+  header: 'Tag filter',
+  multiSelect: false,
+  options: [{ label: 'All of them (Recommended)', description: 'keep every note' }, { label: 'Only the tagged ones', description: 'drop the rest' }],
+}]
+const questionDoc = () => json({
+  version: 1,
+  kind: 'question',
+  node: 'codebase-analysis',
+  header: 'Analysis',
+  question: SET_ASK,
+  glance: ['Phase 2 of 12 · Codebase analysis', 'Tag filter · 3 questions'],
+  position: { index: 2, total: 12 },
+  questions: 3,
+  parts: [
+    { key: 'title', label: 'Phase 2 of 12', text: 'Codebase analysis' },
+    { key: 'questions', label: 'Tag filter', text: '3 questions', count: 3 },
+  ],
+})
 const nextDoc = (question: string, fields: Record<string, unknown> = {}) =>
   json({ version: 1, kind: 'gate', node: 'specification-approval', header: 'Spec', question, glance: GLANCE, parts: PARTS, ...fields })
 
@@ -473,6 +494,17 @@ describe('gate panel', () => {
     expect(drawn.desktop).toBeUndefined()
   })
 
+  test('a question set\'s panel names the step and its place, then the first header and the count', async ($: any, on: any) => {
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc(), [NEXT]: questionDoc() })
+    const drawn = await askAndDraw($, on, SET_QUESTIONS)
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const panel = drawn[surface]!
+      expect(panel.texts).toEqual(['Phase 2 of 12 · Codebase analysis', 'Tag filter · 3 questions'])
+      expect(panel.links).toEqual([])
+      expect(panel.rows).toBeLessThanOrEqual(12)
+    }
+  })
+
   test('draws nothing when no gate brief is open', async ($: any, on: any) => {
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() })
     const drawn = await askAndDraw($, on)
@@ -551,6 +583,12 @@ describe('quiet bookkeeping', () => {
     const seen = beneath(on, files(), { shells: [{ stdout: '{"ok":true}', files: { [NEXT]: nextDoc(ASK) } }] })
     await $.tool.call({ tool: 'Bash', command: BRIEF })
     expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checkpoint 2 of 10 · Specification', 'maister'])
+  })
+
+  test('a clean question set brief draws as the questions it asks', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [{ stdout: '{}', files: { [NEXT]: questionDoc() } }] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} gate-brief --state=${RUN}/orchestrator-state.yml --node=codebase-analysis --request --patch-file=${PATCH}` })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · 3 questions · Codebase analysis', 'maister'])
   })
 
   test('a refusal is never collapsed', async ($: any, on: any) => {
