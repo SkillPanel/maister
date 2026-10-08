@@ -11,13 +11,15 @@ export type DisplayPart = {
   text?: string;
   risks?: string;
   open?: number;
+  count?: number;
   files?: Array<{ label: string; path: string; href?: string }>;
   more?: number;
 };
 
-/** A gate's panel, drawn above its question while it is open: `display/next.json`. */
+/** A gate's or a question set's panel, drawn above its question while it is open: `display/next.json`. */
 export type DisplayPanel = {
   version: number;
+  kind?: string;
   question: string;
   glance?: string[];
   parts?: DisplayPart[];

@@ -48,13 +48,6 @@ export const ARTIFACT_ROLES = ['primary', 'review', 'evidence', 'log'];
 /** How long a `headline` may run: one sentence a reader takes in at a glance. */
 export const HEADLINE_MAX = 220;
 
-/**
- * The word a reader shows for each source, after the item: "— analysis". A
- * person's own choice reads "you" on a terminal, where the reader is the person
- * who answered; a multi-operator surface names them by `answered_by` instead.
- */
-export const SOURCE_WORD = { run: 'analysis', audit: 'audit', default: 'default', operator: 'you' };
-
 /** Between a risk and the change that would resolve it: `<risk> → <what would change>`. */
 const CHANGE_ARROW = /\s+(?:→|->)\s+/;
 

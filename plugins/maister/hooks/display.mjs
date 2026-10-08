@@ -23,7 +23,7 @@
  * holds the rest: `status.json` with the phase, the next checkpoint, the
  * nodes a write changed and the run's start; `banner.json` from the freeze;
  * `next.json` with a gate's question and its panel already fitted to the rows
- * Claude Code allows above it. A file that is missing, unreadable or of an
+ * Claude Code allows above it — or a step's question set, by its count. A file that is missing, unreadable or of an
  * unknown version draws nothing. The status file also lists the artifact paths
  * the run declares, which is how a Write into the task folder is told to be one.
  *
@@ -416,9 +416,11 @@ function savedLine(status) {
   return `· maister · saved · ${saved.map(each => `${lowered(each.title)} → ${STATUS_WORDS[each.status] ?? each.status}`).join(', ')}`;
 }
 
-/** `· maister · checkpoint 2 of 10 · Specification`, from the brief's panel. */
+/** `· maister · checkpoint 2 of 10 · Specification`, or `· maister · 3 questions · Scope analysis` for a question set, from the brief's panel. */
 function checkpointLine(brief) {
   const title = Array.isArray(brief.parts) ? brief.parts.find(part => part.key === 'title') : null;
+  const questions = Array.isArray(brief.parts) ? brief.parts.find(part => part.key === 'questions') : null;
+  if (brief.kind === 'question' && title && questions) return `· maister · ${questions.text} · ${title.text}`;
   if (title) return `· maister · ${lowered(title.label)} · ${title.text}`;
   const first = Array.isArray(brief.glance) ? brief.glance[0] : null;
   return typeof first === 'string' ? `· maister · ${lowered(first)}` : '· maister · checkpoint';
@@ -605,13 +607,16 @@ function rowsAround(node, links, inline = false) {
  * The panel's two lines above a gate's question — the option preview under it
  * already says what was done, what comes next and what was decided:
  * `Checkpoint 2 of 10 · Specification · 1 decided · 1 open risk`, then the
- * review files, the first `linked` of them links and the rest named.
+ * review files, the first `linked` of them links and the rest named. A
+ * question set's are the step and its place, then the first question's header
+ * and how many questions the set holds: `Tag filter · 3 questions`.
  */
 function panelRows(elements, parts, linked) {
   const { Text } = elements;
   const title = parts.find(part => part.key === 'title');
   const counts = parts.find(part => part.key === 'counts');
   const review = parts.find(part => part.key === 'review');
+  const questions = parts.find(part => part.key === 'questions');
   const sep = () => h(Text, { color: DIM }, ' · ');
   const head = [];
   if (title) head.push(h(Text, { color: BRAND, bold: true }, title.label), ...(title.text ? [sep(), h(Text, { bold: true }, title.text)] : []));
@@ -621,6 +626,7 @@ function panelRows(elements, parts, linked) {
       counts.open > 0 ? h(Text, { color: AMBER }, counts.risks) : h(Text, { color: DIM }, counts.risks));
   }
   const lines = head.length ? [h(Text, { key: 'head' }, ...head)] : [];
+  if (questions) lines.push(h(Text, { key: 'questions' }, h(Text, { color: DIM }, questions.label), sep(), h(Text, {}, questions.text)));
   const files = Array.isArray(review?.files) ? review.files : [];
   if (files.length) {
     const named = files.flatMap((file, index) => [

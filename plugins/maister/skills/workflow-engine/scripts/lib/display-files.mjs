@@ -26,8 +26,11 @@
  *   the same facts as fields, for a reader that draws a card of its own.
  * - `<run>/display/next.json`, from `gate-brief`: the checkpoint's panel, the
  *   question it belongs to and the glance fitted to the rows a panel above that
- *   question holds (`panelOf` in `checkpoint.mjs`). Every state write removes it:
- *   a write after a brief means its gate was answered or sent back.
+ *   question holds (`panelOf` in `checkpoint.mjs`) — or, for a question set a
+ *   step asks, the step, its place among the phases, the first question's
+ *   header and the count (`questionPanelOf`), its `kind` saying which. Every
+ *   state write removes it: a write after a brief means its gate or its set
+ *   was answered or sent back.
  * - `<project>/.maister/display/sessions/<session id>.json`, from every state
  *   write: the run this session wrote last. A reader knows its own session and
  *   nothing else, so this is how it finds the run. It is keyed by the session
@@ -163,8 +166,9 @@ export function publishRun({ runDir, root, doc, now, titles, dashboard, artifact
 }
 
 /**
- * Publish a gate's panel: `{node, header, question, glance}` from the brief.
- * Returns the warnings, as `publishRun` does.
+ * Publish a brief's panel: `{node, header, question, glance, parts}`, a gate's
+ * unless the panel names its own `kind`. Returns the warnings, as `publishRun`
+ * does.
  */
 export function publishNext({ runDir, panel }) {
   const warnings = [];
