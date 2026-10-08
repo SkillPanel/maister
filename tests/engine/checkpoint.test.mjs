@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
-import { panelOf as panelOfCheckpoint } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+import { panelOf as panelOfCheckpoint, unmarked } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
 // every surface — the two in-session pickers, the driven request, a cockpit
@@ -393,6 +393,50 @@ test('plain: a stop reason shows whole when it fits; More details lists it whole
   assert.equal(plain.options[0].label, `Stop here — ${why} (Recommended)`);
   assert.match(plain.more_details, new RegExp(`^- Recommends stopping: ${why.replace(/[()]/g, '\\$&')}$`, 'm'));
   assert.doesNotMatch(plain.more_details, /^Recommended \(/m, 'a stop recommends for a risk, listed with the risks');
+});
+
+test('plain: inline code reads without its backticks, the code kept; the rich picker and More details keep the marks', t => {
+  const run = atSpecGate(t, {
+    headline: 'The spec adds `byTag(tag)` and `toCsv()` and keeps the old API.',
+    recommends: { option: 'continue-to-spec-audit', reason: 'The `byTag()` contract needs an independent check' },
+    decisions: [
+      { decision: 'Preserve `list()` as text values in insertion order', by: 'run' },
+      { decision: 'Keep ``a`b`` tags as written; it`s the caller\'s call', by: 'run' },
+    ],
+    risks: [
+      { risk: 'The `toCsv()` export escapes nothing', tag: 'open', change: 'Quote every field in `toCsv()`' },
+      { risk: '`add()` accepts a string as tags', tag: 'open', change: 'Refuse a non-array `tags`' },
+    ],
+  });
+  const plain = pickerOf(run, 'specification-approval', 'plain');
+  assert.match(plain.question, /^Done: The spec adds byTag\(tag\) and toCsv\(\) and keeps the old API\.$/m);
+  assert.match(plain.question, /^- Preserve list\(\) as text values in insertion order — specification$/m);
+  assert.match(plain.question, /^- Keep a`b tags as written; it`s the caller's call — specification$/m, 'a double-backtick span keeps its code; an unpaired backtick stays');
+  assert.match(plain.question, /^- The toCsv\(\) export escapes nothing$/m);
+  assert.equal(plain.options[0].label, 'Continue to the specification audit — The byTag() contract needs an independent check (Recommended)');
+  const revise = plain.options.find(option => option.id === 'revise-specification');
+  assert.deepEqual(revise.note_question.options.map(option => option.label), [
+    'The toCsv() export escapes nothing — Quote every field in toCsv()',
+    'add() accepts a string as tags — Refuse a non-array tags',
+  ]);
+  assert.doesNotMatch(JSON.stringify(plain.options) + plain.question.replace('a`b', '').replace('it`s', ''), /`/, 'no other backtick anywhere the plain picker shows');
+
+  assert.match(plain.more_details, /- Preserve `list\(\)` as text values/, 'More details is written out as a message, read as markdown');
+  const rich = pickerOf(run, 'specification-approval', 'rich');
+  assert.match(rich.options[0].preview, /`list\(\)`/);
+  assert.equal(rich.options.find(option => option.id === 'revise-specification').note_question.options[0].label, 'The `toCsv()` export escapes nothing');
+});
+
+test('unmarked: drops each code span\'s backticks and keeps its code', () => {
+  for (const [text, plain] of [
+    ['Preserve `list()` as text', 'Preserve list() as text'],
+    ['`a` and `b`', 'a and b'],
+    ['``a`b`` done', 'a`b done'],
+    ['`` `x` ``', '`x`'],
+    ['it`s fine', 'it`s fine'],
+    ['`one\ntwo`', '`one\ntwo`'],
+    ['no code', 'no code'],
+  ]) assert.equal(unmarked(text), plain, JSON.stringify(text));
 });
 
 test('checkpoint: the per-continue Next lines come in the options\' order on every surface, the recommended first', t => {

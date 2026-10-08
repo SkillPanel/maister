@@ -748,17 +748,41 @@ export function richPicker(checkpoint) {
 /**
  * The picker for a tool that shows labels only. The question carries the
  * glance, then the ask last, so the ask and the options stay on screen on a
- * short pane; each title carries what choosing it does after a dash.
+ * short pane; each title carries what choosing it does after a dash. The tool
+ * prints text as typed, so it is drawn from the checkpoint `unmarked`, before
+ * anything is cut: a cut item never keeps half a pair of backticks.
  */
 export function plainPicker(checkpoint) {
-  const question = [...glance(checkpoint, { companion: 'name', lines: Infinity, budget: Infinity }), checkpoint.ask].join('\n');
-  const options = ordered(checkpoint).map(option => ({
+  const shown = unmarkedAll(checkpoint);
+  const question = [...glance(shown, { companion: 'name', lines: Infinity, budget: Infinity }), shown.ask].join('\n');
+  const options = ordered(shown).map(option => ({
     id: option.id,
-    label: `${plainTitle(checkpoint, option)}${option.recommended ? RECOMMENDED_MARK : ''}`,
+    label: `${plainTitle(shown, option)}${option.recommended ? RECOMMENDED_MARK : ''}`,
     recommended: option.recommended,
     ...answerFields(option, 'plain'),
   }));
   return withDetails('plain', question, options, {});
+}
+
+/** An inline code span: a run of backticks, the code, and a run of the same length. */
+const CODE_SPAN = /(?<!`)(`+)([^`\n][^\n]*?)(?<!`)\1(?!`)/g;
+
+/**
+ * `text` with the backticks of each inline code span dropped and the code
+ * kept — "Preserve `list()`" reads "Preserve list()" — and the one space a
+ * span may pad its code with on each side. A backtick with no partner is left
+ * as it is.
+ */
+export function unmarked(text) {
+  return text.replace(CODE_SPAN, (span, ticks, code) => code.replace(/^ ([^]*[^ ][^]*) $/, '$1'));
+}
+
+/** `value` with every string in it `unmarked`; ids and paths carry no backticks, so they pass as they are. */
+function unmarkedAll(value) {
+  if (typeof value === 'string') return unmarked(value);
+  if (Array.isArray(value)) return value.map(unmarkedAll);
+  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, field]) => [key, unmarkedAll(field)]));
+  return value;
 }
 
 /** An option's title on a labels-only picker: its label and, after a dash, what it does. */
