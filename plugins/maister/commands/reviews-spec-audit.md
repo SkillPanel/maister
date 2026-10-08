@@ -76,6 +76,7 @@ The spec-auditor will provide:
 ## Notes
 
 - This is analysis only - no code or specs will be modified
+- Each finding is graded fixable (one clear change to the spec) or needing a decision; a workflow applies the fixable ones itself, while this standalone audit leaves them to you
 - Senior auditor perspective: healthy skepticism, verify independently
 - Uses external tools (az CLI, gh CLI) for deployment verification
 - Focus on functional reality, not theoretical compliance

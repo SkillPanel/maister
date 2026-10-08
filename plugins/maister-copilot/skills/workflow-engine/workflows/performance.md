@@ -466,7 +466,8 @@ operator's note under *Revision requested*, beside the previous attempt's
 summaries — the audit's findings among them when it was the audit's gate. Keep
 Part A's answers: ask again only what the note reopens, and record the change in
 `analysis/requirements.md`. In Part B, hand the specification creator the note,
-the audit's findings when there are any, and the existing `implementation/spec.md`,
+the audit's findings still open when there are any — never the ones the audit's
+fix pass already applied — and the existing `implementation/spec.md`,
 and ask it to revise the specification in place. Say in the summary what changed.
 
 **Recovery budget**: 2 attempts — regenerate the specification on the second
@@ -494,8 +495,8 @@ every run of this workflow; the gate brief's `Next:` line says the same.
 
 ## `spec-audit`
 
-Delegated to the specification auditor through the Task tool. **It runs on every
-run.** There is no opt-in, no size threshold and no flag: every performance
+Delegated to the specification auditor through the Task tool, then a fix pass
+for the findings with one obvious fix. **It runs on every run.** There is no opt-in, no size threshold and no flag: every performance
 specification is reviewed before planning starts.
 
 The spec-auditor agent audits the specification rather than an inline review,
@@ -503,29 +504,48 @@ because it checks the spec's claims against the codebase instead of trusting
 them — and it runs before any code exists, so it audits the spec itself, not an
 implementation.
 
-The auditor's prompt names its report path `verification/spec-audit.md`, and
-the auditor writes the report there: a verdict — pass, pass with concerns, or
-fail — issue counts by severity, and the findings themselves. The report is the
-auditor's. If the auditor returns its report as text and the file does not
-exist, write that returned text to the path verbatim, once; never append to the
-report, edit it, annotate it or resolve its findings. Record the verdict in
-state.
+The auditor's prompt names its report path `verification/spec-audit.md` and
+hands it the user's earlier answers — `analysis/requirements.md` and the
+decisions `prior-context --background` returns — so it can tell a finding with
+one obvious fix from one that needs a decision. The auditor writes the report
+there: a verdict — pass, pass with concerns, or fail — issue counts by severity,
+and the findings themselves, each graded fixable or needing a decision. The
+report is the auditor's. If the auditor returns its report as text and the file
+does not exist, write that returned text to the path verbatim, once; never
+append to the report, edit it or annotate it. Record the verdict in state.
 
-This node asks the operator nothing — no question about findings, no revise round; the following gate is the operator's moment.
+**The obvious fixes are made without asking**
+(`orchestrator-patterns.md` § 6, *The Specification Audit's Fix Pass*): one fix
+pass, in which the `maister-copilot:specification-creator` agent, through the Task tool
+in its amend mode, applies every finding graded fixable to
+`implementation/spec.md` (and to `analysis/requirements.md` where a fix reaches
+it); then one re-audit, only when a fix changed a requirement. The re-audit's new
+findings are not fixed again, and a fixed finding that comes back stays open.
+Record each applied fix in this node's summary as `fixes_applied` and the
+re-audits as `reaudit_count`.
+
+This node asks the operator nothing — no question about findings, no revise
+round, in a terminal run or under a driver; the following gate is the
+operator's moment.
 
 A failing verdict does not end the run on its own. It is what the operator reads
 at the gate, and the gate's stop option is the route out.
 
 **Gate brief content.** Read `verification/spec-audit.md` and write into this
 node's closing `node_summaries` entry, as engine § Gates says: a `headline` —
-the verdict and what it means for planning, in one sentence; the overall verdict
-and the issue counts by severity in `summary`; each finding the audit settled
-as a `by: audit` decision, never an earlier answer restated; each critical finding still open as an `open` risk
-whose `change` is the fix the audit proposes. The `spec-audit-approval` brief is
-rendered from it.
+the final verdict, how many findings the run fixed and what it means for
+planning, in one sentence; the overall verdict, the issue counts by severity
+and how many were fixed in `summary`; each fix made without asking as a
+`by: run` decision, so the gate shows it as fixed by the run; each finding the
+audit settled as a `by: audit` decision, never an earlier answer restated; each
+finding still open — needing a decision, not applied, or found by the re-audit
+— as an `open` risk whose `change` is the fix the audit proposes, the critical
+ones first. A finding the run fixed is never a risk: the revise suggestions are
+drawn from the open ones alone. The `spec-audit-approval` brief is rendered
+from it.
 
 **Recovery budget**: none — an audit that returns is an audit, whatever its
-verdict.
+verdict; a fix pass that fails leaves its findings open for the gate.
 
 ---
 
@@ -533,9 +553,11 @@ verdict.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate, unguarded. Record the answer, and stop the run on the stop option. Its
-revise option sends the run back to `specification` with the operator's note;
-the audit's findings reach the re-run through the prior context, and the
+A gate, unguarded. Its brief lists what the run fixed and, as open items, only
+the findings left; the revise option's suggested notes come from those. Record
+the answer, and stop the run on the stop option. Its revise option sends the run
+back to `specification` with the operator's note; the audit's open findings
+reach the re-run through the prior context, and the
 specification is approved and audited again before this gate asks once more
 (engine § Gates, *Revising at a gate*).
 
