@@ -17,9 +17,10 @@
  * which splits a long set across several calls in one turn, and never to the
  * request.
  *
- * Pure: no I/O. Zero dependencies beyond the display and item helpers.
+ * Pure: no I/O. Zero dependencies beyond the checkpoint, display and item helpers.
  */
 
+import { flowLine } from './checkpoint.mjs';
 import { HEADER_MAX } from './display.mjs';
 import { oneLine } from './items.mjs';
 
@@ -205,19 +206,21 @@ function requestOptions(question) {
  * per request still answers it; `questions` carries the whole set, each entry
  * the four keys a request question has; and `context.checkpoint` carries the
  * set with its context — header, why, default — for a reader that renders it.
+ * Each question the request carries is one flow-safe line (`flowLine`); the
+ * checkpoint keeps the node's own text.
  */
 export function questionRequest(checkpoint) {
   const [first] = checkpoint.questions;
   return {
     node: checkpoint.node,
     kind: 'question',
-    question: first.question,
+    question: flowLine(first.question),
     context: { summary: summaryOf(checkpoint), artifacts: [], checkpoint },
     options: requestOptions(first),
     multi_select: first.multi_select,
     questions: checkpoint.questions.map(question => ({
       id: question.id,
-      question: question.question,
+      question: flowLine(question.question),
       options: requestOptions(question),
       multi_select: question.multi_select,
     })),

@@ -1050,7 +1050,9 @@ test('a driven request asked again for a revise answered without a note opens by
   const first = request([]);
   const again = request(['--reask=send-back']);
   assert.equal(again.question,
-    `"Send back with notes" needs a note saying what should change. Choose it again with one, or choose another option.\n\n${first.question}`);
+    `“Send back with notes” needs a note saying what should change. Choose it again with one, or choose another option. ${first.question}`);
+  // A driver writes the question as a flow scalar, which refuses a line break and a double quote.
+  assert.doesNotMatch(again.question, /[\r\n"]/);
   assert.deepEqual(again.options, first.options, 'every option is offered again, unchanged');
   assert.deepEqual(again.context, first.context, 'the checkpoint keeps the ask as the gate words it');
 
@@ -1093,7 +1095,7 @@ test('a revise answered without a note is folded as an answered request and aske
   assert.match(fs.readFileSync(path.join(run.dir, 'gates/index.yml'), 'utf8'), /status: answered/);
 
   const again = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request', '--reask=send-back']).stdout);
-  assert.match(again.question, /^"Send back with notes" needs a note saying what should change\./);
+  assert.match(again.question, /^“Send back with notes” needs a note saying what should change\./);
   assert.deepEqual(again.options.map(option => option.id), ['publish-draft', 'send-back', 'abandon']);
   assert.match(again.options.find(option => option.id === 'send-back').description, / Asked again once so far at this checkpoint\.$/);
   assert.match(oneline(run, 'review-approval').stdout, /revision=2\/10/, 'the re-ask counts toward the ceiling of ten');

@@ -117,6 +117,20 @@ test('request: --checkpoint prints the same checkpoint, and the set may name its
   assert.deepEqual(checkpoint.progress, { node: 1, nodes_total: 4 });
 });
 
+test('request: each question it carries is one line with no double quote, the checkpoint keeping the node\'s text', t => {
+  const run = running(t);
+  const set = questionSet();
+  set.questions[0].question = 'Which notes does "tag filter" keep?\nAll of them, or only the tagged ones?';
+  set.questions[1].question = 'Does "Work" match "work"?';
+  const result = brief(run, set);
+  assert.equal(result.code, 0, result.stderr);
+  const request = JSON.parse(result.stdout);
+  // A driver writes each question as a flow scalar, which refuses a line break and a double quote.
+  for (const question of [request.question, ...request.questions.map(each => each.question)]) assert.doesNotMatch(question, /[\r\n"]/);
+  assert.equal(request.question, "Which notes does 'tag filter' keep? All of them, or only the tagged ones?");
+  assert.equal(request.context.checkpoint.questions[0].question, set.questions[0].question);
+});
+
 test('request: a gate request carries the multi-choice flag under its contract name', t => {
   const run = scratch(t, { fixture: 'gate' });
   freeze(run);

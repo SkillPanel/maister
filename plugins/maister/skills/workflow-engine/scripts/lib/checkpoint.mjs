@@ -630,13 +630,13 @@ function withDetails(profile, question, options, more) {
  *
  * `reask` is the revise option an earlier request was answered with but no
  * note: the same gate is asked again, every option still offered, and the
- * question opens by saying that revise needs one.
+ * question opens with a sentence saying that revise needs one.
  */
 export function requestOf(checkpoint, summary, reask = null) {
   return {
     node: checkpoint.node,
     kind: checkpoint.kind,
-    question: reask === null ? checkpoint.ask : `${reaskLine(reask)}\n\n${checkpoint.ask}`,
+    question: flowLine(reask === null ? checkpoint.ask : `${reaskLine(reask)} ${checkpoint.ask}`),
     context: {
       summary,
       artifacts: (checkpoint.review ?? []).map(each => each.path),
@@ -662,7 +662,20 @@ export function requestOf(checkpoint, summary, reask = null) {
   };
 }
 
-/** The line a re-asked request opens with: the revise needs a note. */
+/**
+ * The sentence a re-asked request opens with: the revise needs a note. The
+ * option is named in typographic quotes: the question is one flow-safe line.
+ */
 function reaskLine(option) {
-  return `"${option.label}" needs a note saying what should change. Choose it again with one, or choose another option.`;
+  return `“${option.label}” needs a note saying what should change. Choose it again with one, or choose another option.`;
+}
+
+/**
+ * `text` as a driven request carries it: one line, no ASCII double quote. A
+ * driver writes the request's question as a flow scalar, which refuses both,
+ * so every line break folds to a space and every `"` becomes `'`, as the
+ * one-line summary beside it does.
+ */
+export function flowLine(text) {
+  return String(text).replace(/\s*[\r\n]+\s*/g, ' ').replace(/"/g, "'").trim();
 }
