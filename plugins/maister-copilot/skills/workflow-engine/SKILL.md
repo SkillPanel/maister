@@ -1933,24 +1933,28 @@ already open, and a gate's question and glance stay short. A run without a dashb
 - **Under an absent or `terminal` driver a person reads it.** The verb's lines are for the
   engine, not for them. Write the closing patch and call `run-complete`; settle any refusal first
   (*When `run-complete` refuses*). Then close with one wrap-up message that fits one screen,
-  and that message is the last thing the run prints — nothing after it. Lead with six lines:
+  and that message is the last thing the run prints — nothing after it. It is six labelled
+  sections, in this order, and nothing else:
   - **Done:** the outcome in plain words — completed, stopped at a named checkpoint with the
     option taken, or failed at a named phase;
   - **Needs you:** each `open` risk still open as the run ends, one line each, or "nothing".
     State each as an item: what is open and where to take it ("Open in the design: no
     deprecation release before the old call is removed — take it into the development run").
-    Never ask a question here: the run has ended, and an answer given now reaches nothing;
+    Each `missing-artifact:` line the verb printed goes here too, restated in plain words as a
+    file a named phase should have written and did not. Never ask a question here: the run has
+    ended, and an answer given now reaches nothing;
   - **Follow-ups:** each `followup` risk the run recorded, one line each, or "none";
-  - **Next:** the workflow's own next step as the real command, with its real flags
-    (`/maister-copilot:development --research=<task-dir>`), when there is one;
-  - **Files:** the key files the run wrote, from the project root;
+  - **Next:** every next step, one line each: the workflow's own next step as the real command,
+    with its real flags (`/maister-copilot:development --research=<task-dir>`), when there is one, then
+    the rest the workflow's closing node names;
+  - **Files:** the key files the run wrote, from the project root. Anything long — a commit
+    message — goes into a file in the task directory, named here rather than printed;
   - **Dashboard:** `<link>`.
 
-  Then the details the workflow's closing node names, each in a line or two: the remaining next
-  steps, and each `missing-artifact:` line the verb printed, restated in plain words as a file a
-  named phase should have written and did not. Anything long — a commit message — goes into a
-  file in the task directory, named here rather than printed. Process notes stay out
-  (*Speaking to the user*).
+  **Nothing follows the Dashboard line.** No list, heading or paragraph comes after it: the
+  choices the operator already made are not restated, a fix the run applied belongs under
+  **Done** when it changed the result, and next steps live only under **Next**. Process notes
+  stay out (*Speaking to the user*).
 
   Never show the raw `missing-artifact:`, `run stopped:` or `RUN-` lines, and never type a
   marker. A child run driven in session is the exception: it runs `run-complete` with no wrap-up,

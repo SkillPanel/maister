@@ -856,11 +856,12 @@ workflow as a sub-run, so there is no embedded case to guard against.
 **Close for whoever reads the end** (the engine skill's run-end rule). In a
 terminal run a person reads it: write the closing patch and call `run-complete`
 first, then end with one wrap-up message that fits one screen and is the last
-thing the run prints. Its five lead lines are the engine's — Done, Needs you,
-Next, Files, Dashboard — then, a line or two each: the rest of step 4's next
-steps (all four of this workflow's own, then the fresh-session suggestion, none
-dropped or merged) and each artifact the verb reported missing, named in plain
-words. Nothing about how the run was carried out appears unless it changed the
+thing the run prints. Its sections are the engine's six — Done, Needs you,
+Follow-ups, Next, Files, Dashboard — and nothing follows the Dashboard line.
+**Next** holds every one of step 4's next steps, a line each: all four of this
+workflow's own, then the fresh-session suggestion, none dropped or merged. Each
+artifact the verb reported missing is named in plain words under **Needs you**.
+Nothing about how the run was carried out appears unless it changed the
 result. The verb's own lines are never shown. Under a `cockpit` or `dispatch`
 driver tooling reads it, and the order is reversed: the executive summary and
 every next step are printed as ordinary text **before** the `run-complete` call;

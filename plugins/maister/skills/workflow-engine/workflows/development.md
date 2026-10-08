@@ -1467,11 +1467,12 @@ workflow as a sub-run, so there is no embedded case to guard against.
 **Close for whoever reads the end** (the engine skill's run-end rule). In a
 terminal run a person reads it: write the closing patch and call `run-complete`
 first, then end with one wrap-up message that fits one screen and is the last
-thing the run prints. Its five lead lines are the engine's — Done, Needs you,
-Next (here: commit, with the message file's path), Files, Dashboard — then, a
-line or two each: the rest of step 4's next steps (all four of this workflow's
-own, then the fresh-session suggestion, none dropped or merged) and each
-artifact the verb reported missing, named in plain words. A choice is credited
+thing the run prints. Its sections are the engine's six — Done, Needs you,
+Follow-ups, Next, Files, Dashboard — and nothing follows the Dashboard line.
+**Next** holds every one of step 4's next steps, a line each: commit first,
+with the message file's path, then the rest of this workflow's own four, then
+the fresh-session suggestion, none dropped or merged. Each artifact the verb
+reported missing is named in plain words under **Needs you**. A choice is credited
 to whoever made it ("the spec keeps version 1.0.0", not "as you chose"), and
 nothing about how the run was carried out appears unless it changed the result.
 The verb's own lines are never shown. Under a `cockpit` or `dispatch`
