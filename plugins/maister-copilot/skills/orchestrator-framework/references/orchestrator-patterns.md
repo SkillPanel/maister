@@ -305,6 +305,7 @@ verification_context:
   fixes_applied: []
   decisions_made: []
   reverify_count: 0          # re-checks run; two run without asking (§ 6)
+  reviews: {chosen: [], done: []}  # the reviews dispatched this cycle and those returned, by short name
 ```
 
 Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding — kept across re-checks, a new finding taking the next unused number — `risky` is the verifier's grading of whether its fix would reach beyond the item, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.

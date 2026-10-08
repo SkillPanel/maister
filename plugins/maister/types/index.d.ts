@@ -26,6 +26,15 @@ export type DisplayPanel = {
   [field: string]: unknown;
 };
 
+/** The parts of the phase under way, one state each, and the line naming them. */
+export type DisplayParts = {
+  node: string;
+  kind: 'groups' | 'reviews';
+  wave: number | null;
+  items: Array<{ state: 'done' | 'running' | 'reverted' | 'skipped' | 'to_run'; name?: string }>;
+  line: string;
+};
+
 /** The run's status the band draws: `display/status.json`. */
 export type DisplayStatus = {
   version: number;
@@ -39,6 +48,7 @@ export type DisplayStatus = {
   dashboard?: string | null;
   run_url?: string;
   artifacts?: string[];
+  parts?: DisplayParts | null;
   [field: string]: unknown;
 };
 

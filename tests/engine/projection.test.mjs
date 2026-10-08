@@ -152,6 +152,8 @@ test('the executor phase carries progress derived from the plan and the work log
     current_wave: 2,
     skipped: ['Group 2 — no fixture for the Windows path yet'],
     reverted: [],
+    running_wave: null,
+    groups: [{ group: 1, state: 'done' }, { group: 2, state: 'skipped' }, { group: 11, state: 'to_run' }],
   });
   for (const phase of phases.filter(phase => phase.id !== 'implementation')) {
     assert.equal(Object.hasOwn(phase, 'progress'), false, `${phase.id} carries no progress key`);
@@ -246,7 +248,24 @@ test('deriveProgress: a reverted group is labelled with its reason', () => {
     current_wave: 3,
     skipped: [],
     reverted: ['Group 4 — migration left the schema half-applied'],
+    running_wave: null,
+    groups: [{ group: 4, state: 'reverted' }],
   });
+});
+
+test('deriveProgress: the last wave started runs until its groups finish or revert', () => {
+  const plan = ['### Task Group 1: A', '', '- [x] 1.1 a', '', '### Task Group 2: B', '', '- [ ] 2.1 b', '',
+    '### Task Group 3: C', '', '- [ ] 3.1 c', '', '### Task Group 4: D', '', '- [ ] 4.1 d', ''].join('\n');
+  const start = '## 2026-01-05 10:00 - wave 2 started: Groups 1, 2 and 3\n';
+  const progress = deriveProgress(plan, start);
+  assert.equal(progress.running_wave, 2);
+  assert.deepEqual(progress.groups.map(group => group.state), ['done', 'running', 'running', 'to_run']);
+
+  const reverted = deriveProgress(plan, `${start}## 2026-01-05 10:40 - Group 3 Reverted (wave 2): tests hung\n`);
+  assert.deepEqual(reverted.groups.map(group => group.state), ['done', 'running', 'reverted', 'to_run']);
+
+  const older = deriveProgress(plan, `## … - Wave 1 Started: Group 4\n${start}`);
+  assert.equal(older.groups[3].state, 'to_run', 'only the last wave started is running');
 });
 
 // ---------------------------------------------------------------------------

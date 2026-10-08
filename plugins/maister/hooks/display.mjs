@@ -96,6 +96,7 @@ const AMBER = '#e3bd59';
 const LINK = '#7cc4e8';
 const DIM = '#8c909a';
 const PENDING = '#5a5f69';
+const RED = '#e06c75';
 const BORDER = '#4a4f5a';
 
 /** Where a quiet line starts: under the row's bullet, as a tool result's line does. */
@@ -106,8 +107,12 @@ const DIALOG_ROWS = 12;
 const ROW_CHARS = 40;
 const BORDER_ROWS = 2;
 
-/** The rows the band's two lines take. */
+/** The rows the band's two lines take, and the row its parts line adds. */
 const BAND_ROWS = 2;
+const PARTS_ROWS = 1;
+
+/** A part's segment colour, by its state. */
+const PART_COLORS = { done: DONE, running: AMBER, reverted: RED, skipped: RED, to_run: PENDING };
 
 /** The most phases the band draws as dots; a longer run draws the count alone. */
 const DOTS_MAX = 30;
@@ -488,8 +493,9 @@ function card(elements, start, links) {
  * The band above the prompt: the run and its links where they open, then
  * where it is. Framed when the rows allow, with no blank row of its own: the
  * engine's `[-]` sits beside the top border, and the row between the band and
- * the prompt is the engine's. With fewer rows it drops the frame, then keeps
- * to one row.
+ * the prompt is the engine's. While a phase with parts runs, a third line
+ * shows them. With fewer rows that line folds away first; then the band drops
+ * the frame, then keeps to one row.
  */
 function band(elements, status, time, maxRows, links) {
   const { Box, Text } = elements;
@@ -518,8 +524,17 @@ function band(elements, status, time, maxRows, links) {
     name,
     h(Box, { key: 'task', flexGrow: 1, flexShrink: 1 }, h(Text, { wrap: 'truncate-end' }, status.task ?? '')),
     ...(opens.length ? [h(Box, { key: 'links', flexDirection: 'row', gap: 2, flexShrink: 0 }, ...opens)] : []));
-  if (maxRows >= BAND_ROWS + BORDER_ROWS) return h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: BORDER, paddingX: 1 }, head, progress);
+  const parts = !ended && maxRows >= BAND_ROWS + PARTS_ROWS + BORDER_ROWS ? partsLine(elements, status.parts) : null;
+  if (maxRows >= BAND_ROWS + BORDER_ROWS) return h(Box, { flexDirection: 'column', borderStyle: 'round', borderColor: BORDER, paddingX: 1 }, head, progress, ...(parts ? [parts] : []));
   return h(Box, { flexDirection: 'column', marginLeft: INSET }, head, progress);
+}
+
+/** The running phase's parts: a segment per part, coloured by its state, then the engine's line. */
+function partsLine({ Box, Text }, parts) {
+  if (!parts || typeof parts.line !== 'string' || !Array.isArray(parts.items) || !parts.items.length) return null;
+  return h(Box, { key: 'parts', flexDirection: 'row', gap: 2 },
+    h(Text, { key: 'segments' }, ...parts.items.map((item, index) => h(Text, { key: `part-${index}`, color: PART_COLORS[item?.state] ?? PENDING }, '■'))),
+    h(Box, { key: 'line', flexShrink: 1 }, h(Text, { wrap: 'truncate-end' }, parts.line)));
 }
 
 /** The phases as dots: done, the current one, and those still to come. */

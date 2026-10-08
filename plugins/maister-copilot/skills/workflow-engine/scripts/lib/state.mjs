@@ -684,6 +684,7 @@ function display(state, text, now, banner) {
   try {
     const runDir = path.dirname(path.resolve(state));
     const doc = parseState(text);
+    const definition = definitionOf(doc, runDir);
     return publishRun({
       runDir,
       root: projectRootOf(runDir),
@@ -692,6 +693,8 @@ function display(state, text, now, banner) {
       titles: displayOfRun(doc, runDir).titles,
       dashboard: dashboardUrl(doc, runDir),
       artifacts: artifactsOf(doc, runDir),
+      progress: progressOf(doc, definition, runDir),
+      verifier: dashboard.verifierNodeOf(definition),
       banner,
     });
   } catch (err) {
