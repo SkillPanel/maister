@@ -521,8 +521,8 @@ in its amend mode, applies every finding graded fixable to
 `implementation/spec.md` (and to `analysis/requirements.md` where a fix reaches
 it); then one re-audit, only when a fix changed a requirement. The re-audit's new
 findings are not fixed again, and a fixed finding that comes back stays open.
-Record each applied fix in this node's summary as `fixes_applied` and the
-re-audits as `reaudit_count`.
+Record each applied fix in this node's summary's `fixes_applied` as
+`{finding, change}` and the re-audits as `reaudit_count`.
 
 This node asks the operator nothing — no question about findings, no revise
 round, in a terminal run or under a driver; the following gate is the
@@ -535,12 +535,12 @@ at the gate, and the gate's stop option is the route out.
 node's closing `node_summaries` entry, as engine § Gates says: a `headline` —
 the final verdict, how many findings the run fixed and what it means for
 planning, in one sentence; the overall verdict, the issue counts by severity
-and how many were fixed in `summary`; each fix made without asking as a
-`by: run` decision, so the gate shows it as fixed by the run; each finding the
-audit settled as a `by: audit` decision, never an earlier answer restated; each
-finding still open — needing a decision, not applied, or found by the re-audit
-— as an `open` risk whose `change` is the fix the audit proposes, the critical
-ones first. A finding the run fixed is never a risk: the revise suggestions are
+and how many were fixed in `summary`; the fixes already in `fixes_applied`,
+which the gate shows as fixed by the run, never repeated in `decisions`; each
+finding the audit settled as a `by: audit` decision, never an earlier answer
+restated; each finding still open — needing a decision, not applied, or found
+by the re-audit — as an `open` risk whose `change` is the fix the audit
+proposes, the critical ones first. A finding the run fixed is never a risk: the revise suggestions are
 drawn from the open ones alone. The `spec-audit-approval` brief is rendered
 from it.
 
@@ -751,14 +751,14 @@ severity, and the report's path from the project root
 step by step):
 
 - **Fixed without asking**: every unfixed issue the verifier marked fixable and
-  not risky. Log each in the work log and in
-  `verification_context.fixes_applied`, and clear `skip_test_suite` when a fix
-  changed code.
+  not risky. Log each in the work log, in `verification_context.fixes_applied`
+  and in this node's summary's `fixes_applied` as `{finding, change}`, and clear
+  `skip_test_suite` when a fix changed code.
 - **Re-checked without asking**: a full re-verification after a fix that changed
   behaviour; the verifier's `recheck: tests-only` after fixes that changed none.
   Each raises `verification_context.reverify_count` by one. **Two re-checks run
   without asking.** Say each as "re-check 1 of 2"; never announce a fix before it
-  is made. Each fix is a `by: run` decision.
+  is made. A fix is never a decision: it is recorded in `fixes_applied` alone.
 - **Left for later without asking**: an item whose recommendation is to leave
   it — a pre-existing info item that predates the change — is a `followup`
   risk, never a question.
@@ -808,9 +808,10 @@ outside is such an answer; a default is not.
 write into this node's closing `node_summaries` entry, as engine § Gates says: a
 `headline` — the verdict, what was fixed and what is left, in one sentence; the
 total issues found, how many were fixed and how many remain by severity in
-`summary`; each fix made without asking — its issue in a few words — as a
-`by: run` decision, so the checkpoint shows exactly what changed without the
-user choosing it; each answered fix-loop question as a `by: operator` decision;
+`summary`; each fix made without asking — the issue and the change in a few
+words each — in `fixes_applied`, so the checkpoint shows exactly what changed
+without the user choosing it, never also as a decision; each answered fix-loop
+question as a `by: operator` decision;
 no earlier answer restated; each issue still needing a decision as an `open` risk with the fix as its
 `change`; each item left for later as a `followup` risk; and, when the user
 chose "Stop" or the budget ran out with a critical issue open, a `stop` risk

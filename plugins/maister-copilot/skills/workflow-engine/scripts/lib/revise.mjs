@@ -37,7 +37,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
-import { attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
+import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
 import { reviseStretch } from './graph.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
 
@@ -63,8 +63,9 @@ const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 /**
  * Send the run whose state file is `state` back from the gate `node` by its
  * revise option `option`. `input` is the patch file's document: `{note,
- * answered_by?, at?}` — `at` the answer's stamp when a driver carried one, the
- * writer's own clock otherwise.
+ * answered_by?, at?, via?}` — `at` the answer's stamp when a driver carried one,
+ * the writer's own clock otherwise; `via` how the answer reached the run, when
+ * the caller knows it.
  */
 export function gateRevise({ state, node, option, input }) {
   let doc;
@@ -138,14 +139,20 @@ export function gateRevise({ state, node, option, input }) {
 
   // Who answered: the name the answer carried, the one the driven fold
   // recorded, or — an answer given in session — the operator's own, stamped
-  // the way the writer stamps every answer that arrives without one.
+  // the way the writer stamps every answer that arrives without one. How it
+  // reached the run: the via the caller sent or the fold recorded, else, for
+  // an answer given in session, the writer's own default — the driver's kind
+  // under a cockpit or a dispatch, `terminal` otherwise.
   const named = value => typeof value === 'string' && !PLACEHOLDER_NAMES.has(value.trim().toLowerCase());
   const carried = named(answer.answered_by) ? answer.answered_by
     : (folded && named(latest.answered_by) ? latest.answered_by : null);
+  const sent = typeof answer.via === 'string' && answer.via.trim() !== '' ? answer.via.trim()
+    : (folded && typeof latest.via === 'string' ? latest.via : null);
+  const via = sent ?? (carried === null ? answerVia(doc) : null);
   const decision = {
     option,
     answered_by: carried ?? operatorName(path.dirname(state)),
-    ...(carried === null ? { via: 'terminal' } : (folded && typeof latest.via === 'string' ? { via: latest.via } : {})),
+    ...(via === null ? {} : { via }),
     at: answer.at ?? (folded && typeof latest.at === 'string' ? latest.at : canonical.stamp()),
     attempt,
     reruns,

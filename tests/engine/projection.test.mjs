@@ -95,6 +95,28 @@ test('summary lists are normalized: artifacts to objects, gate answers to decisi
   ]);
 });
 
+test('what a node fixed without asking projects apart from its decisions, and only when it fixed something', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, {
+    node_summaries: {
+      analysis: {
+        status: 'completed',
+        summary: 'Scoped the change.',
+        fixes_applied: [{ finding: 'The parser dropped a trailing comma', change: 'Kept the comma' }, 'released the lock'],
+        decisions: [{ decision: 'keep the parser', by: 'run' }],
+      },
+    },
+  });
+  const [analysis, next] = readDashboard(run).phases;
+  assert.deepEqual(analysis.fixes, [
+    { finding: 'The parser dropped a trailing comma', change: 'Kept the comma' },
+    { finding: null, change: 'released the lock' },
+  ]);
+  assert.deepEqual(analysis.decisions, [{ decision: 'keep the parser', by: 'run' }]);
+  assert.equal(Object.hasOwn(next, 'fixes'), false, 'a phase that fixed nothing carries no fixes key');
+});
+
 test('an empty field on the node summary falls through to the phase summary, field by field', t => {
   const run = scratch(t);
   freeze(run);

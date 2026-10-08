@@ -320,6 +320,7 @@ phase_summaries:
     headline: null       # one sentence (≤ 220 chars) for the stretch a gate closes; on the node the gate needs
     summary: null        # 1-2 sentence prose summary; the top findings go here, never in risks
     decisions: []        # [{decision, by, rationale?}] — by: run | audit | default | operator
+    fixes_applied: []    # [{finding, change}] — what the phase fixed without asking
     risks: []            # [{risk, tag, change?}] — tag: open | tradeoff | followup | stop | resolved
     artifacts: []        # [{path, label, html}] — paths relative to task root; html is the
                          #   optional companion report (§ 9), null when absent
@@ -327,7 +328,7 @@ phase_summaries:
 
 `decisions`, `risks`, and `artifacts` feed the operator dashboard (§ 8) and downstream context passing. Populate them at context extraction time (§ 3) — empty lists are fine when a phase produced none.
 
-**Who settled a decision** is its `by`: `run` for what the phase itself decided, `audit` for what a spec audit or the verification reviews settled, `default` for a question a driven run did not ask (§ 2.2), and `operator` for a person's answer — recorded with the question it answered, never credited to anyone else; the writer stamps who answered (`answered_by`, `via`). A phase's `decisions` hold only what that phase settled: an earlier phase's decision or answer, whoever gave it and however reworded, is never restated as its own. Its `risks` likewise hold only what it raised: a risk an earlier phase recorded stays there, never restated. **What a risk is** is its `tag`: `open` for an uncertainty the user can still change, with `change` naming what would change (a revise at the gate offers it); `tradeoff` for a consequence of a choice already made; `followup` for work outside this run; `stop` when the user should stop here (it makes Stop the recommended answer at the next gate); `resolved` for one a later phase settled. A finding is neither: it belongs in `summary` and `headline`. Plain strings written by older runs still read — a decision as `by: run`, a risk as `open`.
+**Who settled a decision** is its `by`: `run` for what the phase itself decided, `audit` for what a spec audit or the verification reviews settled, `default` for a question a driven run did not ask (§ 2.2), and `operator` for a person's answer — recorded with the question it answered, never credited to anyone else; the writer stamps who answered (`answered_by`, `via`). A phase's `decisions` hold only what that phase settled: an earlier phase's decision or answer, whoever gave it and however reworded, is never restated as its own. Its `risks` likewise hold only what it raised: a risk an earlier phase recorded stays there, never restated. **A fix is not a decision.** What a phase changed without asking — a verification fix, a spec-audit fix, a trim to a guide — goes in `fixes_applied`, each as `{finding, change}`: what was wrong and what changed, a few words each. It never also goes in `decisions`: the run settled nothing by it, and the gate lists it under "Fixed by the run", apart from what was decided. **What a risk is** is its `tag`: `open` for an uncertainty the user can still change, with `change` naming what would change (a revise at the gate offers it); `tradeoff` for a consequence of a choice already made; `followup` for work outside this run; `stop` when the user should stop here (it makes Stop the recommended answer at the next gate); `resolved` for one a later phase settled. A finding is neither: it belongs in `summary` and `headline`. Plain strings written by older runs still read — a decision as `by: run`, a risk as `open`.
 
 `summary`, `decisions` and `risks` are read by the operator, at a gate and on the dashboard, so write them in the operator's words: what was found and what it means, never a state key, a value name, an internal flag or a slug used as a label ("no UI work, so no mockups" — not "ui_heavy false, mockups off"). List decisions and risks most important first, and lead each with a short sentence that stands on its own: a gate question shows the first three of each by that sentence alone, and the dashboard shows the whole item.
 
@@ -376,8 +377,8 @@ needs them. The workflow engine's `verification` node prose (development and per
    A fix is risky when it reaches beyond its item into behaviour the change did not set out to
    alter — a departure from the specification, a change to what callers see, anything beyond
    the code such as staging files in git. Record each fix in `verification_context.fixes_applied`
-   and as a `{decision, by: run}` on the node summary, and clear `skip_test_suite` when one
-   changed code.
+   and in the node summary's `fixes_applied` as `{finding, change}` — never as a decision — and
+   clear `skip_test_suite` when one changed code.
 2. **Re-check, as cheaply as the fixes allow — without asking.** After a fix that changed
    behaviour, re-verify in full: the test suite, then the reviews. After fixes that changed no
    behaviour — comments, docs, regenerated HTML, the run's own bookkeeping — re-check with the
@@ -465,8 +466,9 @@ requirements or an earlier answer already implies — or *needs decision*, and n
 3. **No progress stops it**: a fixed finding coming back, or a fix the creator could not apply,
    stays open.
 4. **Nothing is asked in the node**, in a terminal run or under a driver: the gate after it is
-   the operator's moment. Record each fix in the node summary's `fixes_applied` (and
-   `reaudit_count`) and as a `{decision, by: run}`, so the gate lists it as fixed by the run.
+   the operator's moment. Record each fix in the node summary's `fixes_applied` as
+   `{finding, change}` (and the re-audits in `reaudit_count`), never as a decision, so the gate
+   lists it as fixed by the run.
 5. **What the gate is handed**: only the findings still open — needing a decision, not applied,
    or found by the re-audit — as `open` risks with their `change`, the critical ones first; a
    finding about something outside the change as a `followup`. The gate's revise suggestions

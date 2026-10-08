@@ -27,6 +27,11 @@
  * | `recommend stop:`                              | `stop`                                         |
  * | `resolved:` or `(resolved …)`                  | `resolved`                                     |
  * | a bare-string artifact                         | `{path, label: null, html: null, role: null}`  |
+ * | a fix string                                   | `{finding: null, change: <text>}`              |
+ *
+ * A fix — something a node changed without asking, recorded in its summary's
+ * `fixes_applied` as `{finding, change}` — is neither a decision nor a risk:
+ * the run settled nothing, it repaired what was found.
  *
  * Nothing here rewrites what is stored: a reader normalises on the way in, and
  * the writer keeps every item as it was sent.
@@ -204,6 +209,23 @@ export function riskOf(item) {
 }
 
 /**
+ * One fix a node applied without asking as `{finding, change}` — what was
+ * wrong and what changed — or null when it names neither. A string is the
+ * change alone, as a fix loop's own log wrote it.
+ */
+export function fixOf(item) {
+  if (typeof item === 'string') {
+    const change = oneLine(item);
+    return change === '' ? null : { finding: null, change };
+  }
+  if (!isMap(item)) return null;
+  const finding = oneLine(item.finding);
+  const change = oneLine(item.change);
+  if (finding === '' && change === '') return null;
+  return { finding: finding === '' ? null : finding, change: change === '' ? null : change };
+}
+
+/**
  * One artifact entry as `{path, label, html, role}` beside whatever else it
  * carries, or null when it names no file. A bare string in this field is a path
  * — the only thing it has ever meant — and the optional fields take null rather
@@ -224,6 +246,12 @@ export function decisionText(decision) {
 /** A risk as a reader shows it: its text, and the change after the arrow. */
 export function riskText(risk) {
   return risk.change ? `${risk.risk} → ${risk.change}` : risk.risk;
+}
+
+/** A fix as a reader shows it: what was wrong, and what changed after the arrow. */
+export function fixText(fix) {
+  if (fix.finding && fix.change) return `${fix.finding.replace(/\.$/, '')} → ${fix.change}`;
+  return fix.finding ?? fix.change ?? '';
 }
 
 /**

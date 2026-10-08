@@ -633,7 +633,8 @@ function rowsAround(node, links, inline = false) {
 /**
  * The panel's two lines above a gate's question — the option preview under it
  * already says what was done, what comes next and what was decided:
- * `Checkpoint 2 of 10 · Specification · 1 decided · 1 open risk`, then the
+ * `Checkpoint 2 of 10 · Specification · 1 decided · 1 open risk`, with
+ * `· 3 fixed` after the decisions when the run applied fixes, then the
  * review files, the first `linked` of them links and the rest named. A
  * question set's are the step and its place, then the first question's header
  * and how many questions the set holds: `Tag filter · 3 questions`.
@@ -649,8 +650,9 @@ function panelRows(elements, parts, linked) {
   if (title) head.push(h(Text, { color: BRAND, bold: true }, title.label), ...(title.text ? [sep(), h(Text, { bold: true }, title.text)] : []));
   if (counts) {
     if (head.length) head.push(sep());
-    head.push(h(Text, { color: DIM }, `${counts.text} decided`), sep(),
-      counts.open > 0 ? h(Text, { color: AMBER }, counts.risks) : h(Text, { color: DIM }, counts.risks));
+    head.push(h(Text, { color: DIM }, `${counts.text} decided`), sep());
+    if (counts.fixed > 0) head.push(h(Text, { color: DIM }, `${counts.fixed} fixed`), sep());
+    head.push(counts.open > 0 ? h(Text, { color: AMBER }, counts.risks) : h(Text, { color: DIM }, counts.risks));
   }
   const lines = head.length ? [h(Text, { key: 'head' }, ...head)] : [];
   if (questions) lines.push(h(Text, { key: 'questions' }, h(Text, { color: DIM }, questions.label), sep(), h(Text, {}, questions.text)));

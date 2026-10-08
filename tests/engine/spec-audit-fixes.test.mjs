@@ -5,10 +5,10 @@ import path from 'node:path';
 import { ENGINE_DIR, freeze, readState, scratch, verb, write } from '../helpers.mjs';
 
 // The specification audit fixes the findings that have one obvious fix before
-// its gate asks: each fix is recorded on the audit's node summary, as
-// `fixes_applied` and as a decision the run made, and only the findings left
-// are open risks. The gate shows the fixes as settled by the run, and its
-// revise suggestions come from the open findings alone.
+// its gate asks: each fix is recorded on the audit's node summary in
+// `fixes_applied`, never as a decision, and only the findings left are open
+// risks. The gate shows the fixes as fixed by the run, apart from what the
+// audit decided, and its revise suggestions come from the open findings alone.
 
 const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
 
@@ -21,7 +21,7 @@ const AUDIT = {
   status: 'completed',
   headline: 'The audit passes the spec after two fixes; one concern is left.',
   summary: 'Pass with concerns: three findings, two fixed by the run, one left.',
-  decisions: FIXES.map(fix => ({ decision: `${fix.finding} — ${fix.change}`, by: 'run' })),
+  decisions: [{ decision: 'The export stays CSV-only, as the codebase already writes it', by: 'audit' }],
   risks: [{ risk: 'Export size is unbounded', tag: 'open', change: 'cap the export at 10,000 rows' }],
   fixes_applied: FIXES,
   reaudit_count: 0,
@@ -47,22 +47,24 @@ function atAuditApproval(t, workflow) {
 }
 
 for (const workflow of ['development', 'performance']) {
-  test(`${workflow}: the audit gate lists the fixes as settled by the run and the open finding as open`, t => {
+  test(`${workflow}: the audit gate lists the fixes as fixed by the run, apart from its decisions, and the open finding as open`, t => {
     const run = atAuditApproval(t, workflow);
     const result = verb(['gate-brief', `--state=${run.state}`, '--node=spec-audit-approval', '--json']);
     assert.equal(result.code, 0, result.stderr);
     const brief = JSON.parse(result.stdout);
-    const [decided, open] = brief.more_details.split('**Open**');
-    assert.match(decided, /\*\*Decided by the run\*\*/);
-    for (const fix of FIXES) {
-      assert.ok(decided.includes(`- ${fix.finding.slice(0, 40)}`), `the fix "${fix.finding}" is listed as decided`);
-      assert.ok(!open.includes(fix.finding.slice(0, 40)), `the fix "${fix.finding}" is not open`);
-    }
-    assert.match(decided, /— specification audit$/m);
+    const [settled, open] = brief.more_details.split('**Open**');
+    const fixed = FIXES.map(fix => `- ${fix.finding} → ${fix.change}`);
+    assert.ok(settled.includes(['**Fixed by the run**', ...fixed].join('\n')), settled);
+    assert.match(settled, /\*\*Decided by the audit\*\*\n- The export stays CSV-only, as the codebase already writes it — audit/);
+    assert.doesNotMatch(settled, /Decided by the run/, 'no fix is a decision the run made');
+    for (const fix of FIXES) assert.ok(!open.includes(fix.finding.slice(0, 40)), `the fix "${fix.finding}" is not open`);
     assert.match(open, /^- Export size is unbounded → cap the export at 10,000 rows$/m);
     // The recommended continue's preview is what the picker shows first.
-    assert.match(brief.options[0].preview, /Open risks:\n- Export size is unbounded/);
-    assert.match(brief.options[0].preview, /Decided by the run:/);
+    const preview = brief.options[0].preview;
+    assert.match(preview, /Open risks:\n- Export size is unbounded/);
+    // Nine lines hold the risk and the first fix; the audit's decision gives way to its count first.
+    assert.ok(preview.includes(['Fixed by the run: 2 (+1 more under More details)', fixed[0]].join('\n')), preview);
+    assert.match(preview, /^Decided by the audit: 1 decision, under More details\.$/m);
   });
 
   test(`${workflow}: the revise suggestions come from the open finding alone, never from a fix`, t => {

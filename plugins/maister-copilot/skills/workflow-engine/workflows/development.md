@@ -873,9 +873,9 @@ this follows step by step):
 - **One re-audit, only when a fix changed a requirement**: the auditor again,
   with the same inputs; it rewrites the report. Its new findings are not fixed
   again, and a fixed finding that comes back is no progress: both stay open.
-- **Record** each applied fix in this node's summary as `fixes_applied` — the
-  finding and the change in a few words each — and the re-audits as
-  `reaudit_count` (0 or 1).
+- **Record** each applied fix in this node's summary's `fixes_applied` as
+  `{finding, change}` — the finding and the change in a few words each — and the
+  re-audits as `reaudit_count` (0 or 1).
 
 This node asks the operator nothing — no question about findings, no revise
 round, in a terminal run or under a driver; the following gate is the
@@ -890,12 +890,12 @@ final verdict, how many findings the run fixed and what is left for planning
 ("The audit passes the spec after three fixes; one concern is left, not blocking
 a plan"). In `summary`, the verdict, the issue counts by severity, how many were
 fixed and the findings still open in plain words; when no re-audit ran, say that
-the report still lists the findings the run fixed. In `decisions`, each fix made
-without asking — its finding and the change in a few words — as `by: run`, so
-the gate shows it as fixed by the run; and only what the audit itself settled
-one way — a point the spec left open that the audit resolved against the
-codebase — as `by: audit`, never an earlier answer restated; a check that merely
-confirmed the spec is a finding, and goes in the summary. In `risks`, only the
+the report still lists the findings the run fixed. The fixes are already in
+`fixes_applied`, which the gate shows as fixed by the run: never repeat one in
+`decisions`. In `decisions`, only what the audit itself settled one way — a
+point the spec left open that the audit resolved against the codebase — as
+`by: audit`, never an earlier answer restated; a check that merely confirmed
+the spec is a finding, and goes in the summary. In `risks`, only the
 findings still open — needing a decision, not applied, or found by the re-audit
 — each as an `open` risk whose `change` is what a revise of the specification
 would do about it, the critical ones first; a finding about something outside
@@ -1183,9 +1183,9 @@ severity, and the report's path from the project root
 step by step):
 
 - **Fixed without asking**: every unfixed issue the verifier marked fixable and
-  not risky. Log each in the work log and in
-  `verification_context.fixes_applied`, and clear `skip_test_suite` when a fix
-  changed code.
+  not risky. Log each in the work log, in `verification_context.fixes_applied`
+  and in this node's summary's `fixes_applied` as `{finding, change}`, and clear
+  `skip_test_suite` when a fix changed code.
 - **Re-checked without asking**: a full re-verification after a fix that changed
   behaviour; the verifier's `recheck: tests-only` after fixes that changed none.
   Each raises `verification_context.reverify_count` by one. **Two re-checks run
@@ -1239,11 +1239,12 @@ sentence, the final verdict and what is left ("Verification passes after three
 fixes; two warnings remain"). When `tdd-green` ran in this stretch, the headline
 also says the failing test now passes, because this is the gate that closes it.
 In `summary`, the total issues found, how many were fixed and how many remain by
-severity. In `decisions`, each fix made without asking — its issue in a few
-words — as `by: run`, so the checkpoint shows exactly what changed without the
-user choosing it; each review finding the verifier itself settled as
-`by: audit`; the user's answers on the decision pages are already there as their
-own, and no earlier answer is restated here. In `risks`, each issue still needing a decision as an `open` risk with the
+severity. In `fixes_applied`, every fix made without asking — the issue and the
+change in a few words each — so the checkpoint shows exactly what changed
+without the user choosing it; a fix is never also a decision. In `decisions`,
+each review finding the verifier itself settled as `by: audit`; the user's
+answers on the decision pages are already there as their own, and no earlier
+answer is restated here. In `risks`, each issue still needing a decision as an `open` risk with the
 `change` that would settle it, the critical ones first; each issue the user left
 for later as a `followup`; each warning kept on purpose as a `tradeoff`. When
 the user chose "Stop", or the re-checks are spent with a critical issue left,
@@ -1392,8 +1393,8 @@ of the run.
 only sometimes.** The generator may report content it suggests removing or
 changing — an extra helper beyond the change, a section aimed at maintainers
 rather than users. When every suggestion only removes content that is not for
-the guide's readers, apply them all without asking and record each as a
-`by: run` decision, so the gate shows what was trimmed. Ask only when a
+the guide's readers, apply them all without asking and record each in this
+node's summary's `fixes_applied`, so the gate shows what was trimmed. Ask only when a
 suggestion adds or rewrites content, because that changes what users read: one
 single-select before closing, its question naming each such change in a line,
 with **"Apply them, then continue (Recommended)"** first, its description
@@ -1412,9 +1413,10 @@ changes, recorded as one `by: default` decision.
 `headline` naming, in one sentence, the guide and the flows it covers ("The user
 guide covers filtering by tag and exporting to CSV, with six screenshots"). In
 `summary`, the guide's path, the flows it covers and whether its screenshots were
-reused from the browser stretch or captured fresh. In `decisions`, each fix
-applied without asking, `by: run`. In `risks`, each flow the generator could not
-document as an `open` risk whose `change` is what a second pass would add.
+reused from the browser stretch or captured fresh. In `fixes_applied`, each fix
+applied without asking, `{finding, change}`. In `risks`, each flow the generator
+could not document as an `open` risk whose `change` is what a second pass would
+add.
 
 **Recovery budget**: none — a guide the generator could not complete is reported
 rather than retried.
