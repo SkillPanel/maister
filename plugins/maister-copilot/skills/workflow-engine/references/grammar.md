@@ -194,8 +194,8 @@ warns, as above.
 ## 6. Gates
 
 A gate is a node with `type: gate`. It runs nothing, asks one question, and records the answer as
-the option id the operator chose. It must carry `ask` and `options`, and may not carry `uses` or
-`outputs`.
+the option id the operator chose — and, when that option sets gate values, those values. It must
+carry `ask` and `options`, and may not carry `uses` or `outputs`.
 
 ```yaml
 spec-approval:
@@ -209,15 +209,16 @@ spec-approval:
 ```
 
 An option is written either as its bare effect or as a map. The map carries the effect, on a
-revise option only `reruns`, and on the continue option only `grants`; `approve: continue` and
-`approve: {effect: continue}` mean the same.
+revise option only `reruns`, and on a continue option only `grants` and `sets`;
+`approve: continue` and `approve: {effect: continue}` mean the same.
 
 <!-- vocabulary: OPTION_KEYS -->
 | Option key | Meaning |
 |---|---|
 | `effect` | what the option does — one of the effects below |
 | `reruns` | a revise option's target: the task node the run is sent back to |
-| `grants` | the continue option's list of what answering it authorises beyond the run — names from the closed set below |
+| `grants` | a continue option's list of what answering it authorises beyond the run — names from the closed set below |
+| `sets` | a continue option's gate values: a map of value key to `true` or `false`, recorded on the gate when it is the answer |
 
 <!-- vocabulary: OPTION_EFFECTS -->
 | Effect | What the answer does |
@@ -226,10 +227,12 @@ revise option only `reruns`, and on the continue option only `grants`; `approve:
 | `stop` | the run ends here; nothing downstream becomes ready |
 | `revise` | the stretch from `reruns` to the gate runs again, with the operator's note, and the gate is asked again |
 
-**The gate rule:** exactly one option continues, at least one stops, and any number revise. An
-option id is lower-case letters, digits and dashes, starting with a letter. A continue or a stop
-routes nowhere and emits nothing: what happens next is decided by the graph and the guards, and the
-gate brief's `Next:` line names the node that actually runs. Under the default `on:`, nothing
+**The gate rule:** at least one option continues, at least one stops, and any number revise. More
+than one continue is allowed only when every continue carries `sets`, all of them name the same
+keys, and no two set the same combination — otherwise two answers would be one route. An option id
+is lower-case letters, digits and dashes, starting with a letter. A continue or a stop routes
+nowhere: what happens next is decided by the graph and the guards, and the gate brief's `Next:`
+line names the node that actually runs. Under the default `on:`, nothing
 downstream of a stopped gate ever becomes ready, which is what makes a stop end the run.
 
 **A revise option is the one way back, and it is bounded.** Its `reruns` names a task node the gate
@@ -274,6 +277,28 @@ driver that delivers the answer registers the grant for the worker. The node pro
 gate does the push and opens the pull request, and asks nothing more. The grants are part of the
 graph's identity, in the closed set's order, so adopting one moves the definition's hash.
 
+**A gate may decide an optional step.** When the step after a gate is optional, the gate that
+approves the work before it asks both at once, with one continue per way on, and the step's
+guard reads the value the answer set:
+
+```yaml
+    options:
+      continue-to-audit:    {effect: continue, sets: {audit_enabled: true}}
+      continue-to-planning: {effect: continue, sets: {audit_enabled: false}}
+      stop-here: stop
+  audit:
+    uses: direct:audit
+    needs: [spec-approval]
+    when: "${spec-approval.values.audit_enabled}"
+```
+
+A `sets` key is lower-case letters and underscores, the form a guard reference ends in, and each
+value is `true` or `false`. The writer records the chosen option's map as the gate's values when
+it records the answer, a skipped gate records every key false, and a revise that resets the gate
+clears them. The brief walks each continue on its own answer, so each option names where it leads,
+and the closing node may say which one it recommends and why (engine § Gates). `sets` is part of
+the graph's identity, its keys in sorted order, so adopting it moves the definition's hash.
+
 When the question needs a value from earlier in the run, interpolate it into `ask` (§ 9). The
 gate brief — the closing node's summary, decisions, risks and a recommended option — is rendered
 beside the question by the engine; the node prose feeds it through its summary (engine § Gates).
@@ -290,11 +315,12 @@ is how an optional stretch is written without any routing construct.
 |---|---|
 | `"${inputs.<name>}"` | A declared input of type `bool`: its value, else its default, else false |
 | `"${<node>.values.<key>}"` | A `bool` value declared by a node inside this node's `needs` closure |
+| `"${<gate>.values.<key>}"` | A value a continue option of a gate inside this node's `needs` closure sets |
 
 There is no expression language: no `and`, no comparison, no enum test, no artifact, and no gate
-answer. A guard on a node that did not complete — skipped, failed or stopped — reads false, and
-so does a guard on a gate. A completed node that never recorded the value is a defect the gate
-brief refuses to paper over. The closing gate of a guarded stretch repeats the stretch's guard,
+answer by option id — a gate is read through the values its continues set. A guard on a node that
+did not complete — skipped, failed or stopped — reads false. A completed node that never recorded
+the value is a defect the gate brief refuses to paper over. The closing gate of a guarded stretch repeats the stretch's guard,
 because an unguarded gate would fire for a stretch that never ran.
 
 <!-- vocabulary: ON_VALUES -->
@@ -360,7 +386,8 @@ artifact's declared key (engine § *Recording an outcome*).
 | `string` | Free text. Warns `undecidable-value-type`, because free text is not provably safe on the one-line shapes state carries |
 
 A skipped node records its bools false and its strings and enums null. A value a later guard
-reads must be a `bool`, declared here — a gate records no values.
+reads must be a `bool`, declared here or set by a gate's continue option (§ 6) — a gate declares
+no `outputs`.
 
 ### 8.3 The workflow's own `outputs:` — what a parent may read
 
@@ -387,7 +414,7 @@ definition only and is part of the recorded identity: adding one changes the def
 | Reference | Is |
 |---|---|
 | `${inputs.<name>}` | A declared input |
-| `${<node>.values.<key>}` | A value a node declares |
+| `${<node>.values.<key>}` | A value a node declares, or a gate's continue options set |
 | `${<node>.artifacts.<key>}` | An artifact a node declares |
 
 The node must be inside the referencing node's `needs` closure — reachable through `needs`,
@@ -427,7 +454,7 @@ message rather than a did-you-mean:
 | Retired | Was | Now |
 |---|---|---|
 | `optional` | A node key | It never changed how a run behaved. Remove it |
-| `values` | A gate option key | An option emits no values; declare a value a later guard reads on a task node |
+| `values` | A gate option key | An option emits no values of its own; a continue option sets a gate value with `sets` (§ 6), and a task node declares its own in `outputs` |
 
 ## 11. The prose companion
 

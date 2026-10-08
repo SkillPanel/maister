@@ -596,7 +596,16 @@ test('a hand-edited absence with no reason sanctions nothing', t => {
  * over the recorded summaries by node id. A recorded node the shipped
  * definition no longer has is left out of the replay: the run recorded it,
  * the graph it is replayed against has no such node to write.
+ *
+ * The recorded run predates its two optional stretches being decided at a
+ * gate: the audit and browser-check choices were values of `specification` and
+ * `verification-options`, and the specification gate had one continue. Those
+ * values are dropped from the task nodes, and the gate answer is replayed as
+ * the continue that sets what the run recorded.
  */
+const MOVED_VALUES = { specification: ['spec_audit_enabled'], 'verification-options': ['browser_tests_enabled'] };
+const SPLIT_ANSWERS = { 'specification-approval': { 'continue-past-specification': 'continue-to-spec-audit' } };
+
 function replayRecorded(t, absent = {}) {
   const run = scratch(t, { fixture: 'free-delivery-threshold', name: '2026-09-30-free-delivery-threshold-per-country' });
   const recorded = parse(fs.readFileSync(path.join(run.dir, 'recorded-state.yml'), 'utf8'));
@@ -608,13 +617,17 @@ function replayRecorded(t, absent = {}) {
   const nodes = {};
   for (const [id, entry] of Object.entries(recorded.workflow.nodes)) {
     if (!shipped.has(id)) continue;
-    nodes[id] = { status: entry.status, ...(entry.values ? { values: { ...entry.values } } : {}) };
+    const values = entry.values ? { ...entry.values } : null;
+    for (const key of MOVED_VALUES[id] ?? []) delete values?.[key];
+    nodes[id] = { status: entry.status, ...(values ? { values } : {}) };
   }
   const summaries = {};
   for (const [id, summary] of Object.entries(recorded.node_summaries)) {
     if (!shipped.has(id)) continue;
     summaries[id] = JSON.parse(JSON.stringify(summary));
     if (Object.hasOwn(absent, id)) summaries[id].absent = absent[id];
+    const answer = SPLIT_ANSWERS[id]?.[summaries[id].answer];
+    if (answer) summaries[id].answer = answer;
   }
   write(run, { task: { status: recorded.task.status }, nodes, node_summaries: summaries });
   return run;

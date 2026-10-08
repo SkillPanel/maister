@@ -979,3 +979,122 @@ test('write-state: a gate answer gains the label it was chosen by and who chose 
   assert.equal(typeof answer.decision, 'string');
   assert.notEqual(answer.decision, '');
 });
+
+// ---------------------------------------------------------------------------
+// a gate's values: recorded by the writer from the answer
+// ---------------------------------------------------------------------------
+
+const OPTIONAL_STEP = path.join(FIXTURES, 'definitions/optional-step.yml');
+
+/** A run of the optional-step fixture with its specification written, its first gate the question now. */
+function atSpecificationApproval(t) {
+  const run = scratch(t);
+  freeze(run, { definition: OPTIONAL_STEP });
+  write(run, {
+    nodes: { specification: { status: 'completed' } },
+    node_summaries: { specification: { summary: 'Wrote the specification.' } },
+  });
+  return run;
+}
+
+test('freeze: a gate whose continues set values records each option\'s map, beside its reruns', t => {
+  const run = scratch(t);
+  freeze(run, { definition: OPTIONAL_STEP });
+  const gate = readState(run).workflow.nodes['specification-approval'];
+  assert.deepEqual(gate.sets, { 'continue-to-audit': { audit_enabled: true }, 'continue-to-planning': { audit_enabled: false } });
+  assert.deepEqual(gate.reruns, { 'revise-specification': 'specification' });
+  assert.equal(readState(run).workflow.nodes['audit-approval'].sets, undefined, 'a gate whose continue sets nothing records no sets');
+  assert.match(fs.readFileSync(run.state, 'utf8'), /specification-approval: \{kind: gate, status: pending, needs: \[specification\], reruns: \{[^}]*\}, sets: \{/);
+});
+
+test('write-state: an answer records the values the chosen continue sets on the gate', t => {
+  for (const [option, value] of [['continue-to-audit', true], ['continue-to-planning', false]]) {
+    const run = atSpecificationApproval(t);
+    write(run, {
+      nodes: { 'specification-approval': { status: 'completed' } },
+      node_summaries: { 'specification-approval': { answer: option } },
+    });
+    assert.deepEqual(readState(run).workflow.nodes['specification-approval'].values, { audit_enabled: value }, option);
+  }
+});
+
+test('write-state: the gate values land when the answer and the status arrive in two writes', t => {
+  const run = atSpecificationApproval(t);
+  write(run, { node_summaries: { 'specification-approval': { decisions: [{ option: 'continue-to-planning' }] } } });
+  assert.equal(readState(run).workflow.nodes['specification-approval'].values, undefined, 'a gate still pending holds none');
+  write(run, { nodes: { 'specification-approval': { status: 'completed' } } });
+  assert.deepEqual(readState(run).workflow.nodes['specification-approval'].values, { audit_enabled: false });
+  // A later write to the gate keeps them.
+  write(run, { nodes: { 'specification-approval': { status: 'completed' } } });
+  assert.deepEqual(readState(run).workflow.nodes['specification-approval'].values, { audit_enabled: false });
+});
+
+test('refusal: state-gate-values-sent — a caller sending values on a gate', t => {
+  const run = atSpecificationApproval(t);
+  const result = refused(run, {
+    nodes: { 'specification-approval': { status: 'completed', values: { audit_enabled: true } } },
+    node_summaries: { 'specification-approval': { answer: 'continue-to-planning' } },
+  });
+  assert.match(result.stderr, /^state-gate-values-sent: this write sends values for the gate specification-approval, and a gate's values are the writer's own/);
+});
+
+test('write-state: a gate sent sets has them dropped and noted like any writer field', t => {
+  const run = atSpecificationApproval(t);
+  const result = verb(['write-state', `--state=${run.state}`],
+    { nodes: { 'specification-approval': { status: 'running', sets: { 'continue-to-audit': { audit_enabled: false } } } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stderr, /workflow\.nodes\.specification-approval\.sets/);
+  assert.deepEqual(readState(run).workflow.nodes['specification-approval'].sets['continue-to-audit'], { audit_enabled: true });
+});
+
+test('write-state: a skipped gate with sets records every value it could set false', t => {
+  const run = atSpecificationApproval(t);
+  write(run, { nodes: { 'specification-approval': { status: 'skipped' } } });
+  assert.deepEqual(readState(run).workflow.nodes['specification-approval'].values, { audit_enabled: false });
+});
+
+test('gate-revise: a revise that resets an answered gate clears the values it recorded', t => {
+  const run = atSpecificationApproval(t);
+  write(run, {
+    nodes: { 'specification-approval': { status: 'completed' } },
+    node_summaries: { 'specification-approval': { answer: 'continue-to-audit' } },
+  });
+  write(run, { nodes: { audit: { status: 'completed' } }, node_summaries: { audit: { summary: 'Audited the specification.' } } });
+  const result = verb(['gate-revise', `--state=${run.state}`, '--node=audit-approval', '--option=redo-specification'], { note: 'Narrow the scope' });
+  assert.equal(result.code, 0, result.stderr);
+  const gate = readState(run).workflow.nodes['specification-approval'];
+  assert.equal(gate.status, 'pending');
+  assert.equal(gate.values, undefined, 'the reset gate holds no values until it is answered again');
+  assert.deepEqual(gate.sets['continue-to-planning'], { audit_enabled: false }, 'its sets survive the reset');
+});
+
+test('write-state: a closing node may recommend a continue of the gate that waits on it', t => {
+  const run = scratch(t);
+  freeze(run, { definition: OPTIONAL_STEP });
+  write(run, {
+    nodes: { specification: { status: 'completed' } },
+    node_summaries: { specification: { summary: 'Wrote it.', recommends: { option: 'continue-to-audit', reason: 'asked for when the run started' } } },
+  });
+  assert.deepEqual(readState(run).node_summaries.specification.recommends, { option: 'continue-to-audit', reason: 'asked for when the run started' });
+});
+
+test('refusal: state-summary-item-invalid — a recommends naming no continue of the gate that waits on the node, or with no reason', t => {
+  const cases = [
+    [{ option: 'stop-here', reason: 'nothing to audit' }, /recommends is "stop-here", which is not a continue option of the gate that waits on specification, which offers continue-to-audit, continue-to-planning/],
+    [{ option: 'continue-on', reason: 'r' }, /which is not a continue option of the gate that waits on specification/],
+    [{ option: 'continue-to-audit' }, /whose reason is one non-empty sentence on one line/],
+    [{ option: 'continue-to-audit', reason: 'two\nlines' }, /whose reason is one non-empty sentence on one line/],
+    ['continue-to-audit', /an \{option, reason\} map naming the continue option recommended and why/],
+  ];
+  for (const [recommends, pattern] of cases) {
+    const run = scratch(t);
+    freeze(run, { definition: OPTIONAL_STEP });
+    const result = refused(run, { node_summaries: { specification: { summary: 'Wrote it.', recommends } } });
+    assert.match(result.stderr, /^state-summary-item-invalid: node_summaries\.specification\.recommends is /);
+    assert.match(result.stderr, pattern, JSON.stringify(recommends));
+  }
+  const run = scratch(t);
+  freeze(run, { definition: OPTIONAL_STEP });
+  const planning = refused(run, { node_summaries: { planning: { summary: 'Planned.', recommends: { option: 'continue-on', reason: 'r' } } } });
+  assert.match(planning.stderr, /no gate waits on planning with a continue option to recommend/);
+});

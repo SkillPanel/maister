@@ -12,11 +12,11 @@ diagram (`<name>.mmd`) and a thin hand-off skill. The grammar is
 
 Before considering a workflow complete, verify ALL items:
 
-- [ ] **Definition** — `name:` equals the file stem; a `description:` that says what the workflow is for; every input the command's flags carry, a tri-state flag as a string a node turns into a declared bool
+- [ ] **Definition** — `name:` equals the file stem; a `description:` that says what the workflow is for; every input the command's flags carry, a tri-state flag as a string a node turns into a declared bool, or into the continue it recommends when a gate decides the stretch
 - [ ] **Node ids** — named for what the node does, or for the approval a gate seeks; never a phase number or a process identifier
 - [ ] **Display block** — a title for every node, an icon from the closed set of seven for every node (a gate takes the icon of the node it closes), a label for every gate option and a header of at most 12 characters for every gate
-- [ ] **Gates** — exactly one continue and at least one stop; a revise only on a gate that closes a document, its `reruns` a task node the gate waits on; a node whose own loop refines its output keeps that loop instead
-- [ ] **Guards** — a guard reads one declared bool; the closing gate of a guarded stretch repeats the guard, unless it also closes an unguarded document before it, in which case it needs both nodes of its stretch
+- [ ] **Gates** — at least one continue and at least one stop; several continues only to decide the optional step after the gate, each setting the same gate values (`sets`) to its own combination, and the node the gate closes saying which it `recommends` and why; a revise only on a gate that closes a document, its `reruns` a task node the gate waits on; a node whose own loop refines its output keeps that loop instead
+- [ ] **Guards** — a guard reads one declared bool or one gate value; the closing gate of a guarded stretch repeats the guard, unless it also closes an unguarded document before it, in which case it needs both nodes of its stretch
 - [ ] **No interpolation from a skippable node** — a `${node.…}` reference only into a node that shares the referenced node's guard; anything else reads the state and the disk
 - [ ] **Node prose header** — what the file carries that the graph cannot, the count of in-node questions beside the gates, the default rule, why recovery budgets are prose
 - [ ] **Node prose sections** — one per node and per gate; *Run-scoped context*, *Phase summary keys*, *Icon hints* and *Embedded mode* sections

@@ -391,7 +391,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `gate-revise` | `--state`, `--node` (the gate), `--option` (its revise option), `--patch-file` — `{note, answered_by?, at?}` in the patch file; without `answered_by`, the operator's own name is stamped | the changed paths, one per line, then a blank line and `revised: <gate> reruns=<node> revision=<n>/10 reset=<ids>`; the stretch from the option's rerun node to the gate reset in one write, with the note on the gate (§ Gates) |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state`, optional `--background` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt; `--background` frames them as background for a document written for end users, to stay consistent with rather than reproduce — reads the run, writes nothing |
-| `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=plain` — the profile the asking tool takes — `--checkpoint`, `--request` or `--oneline`; or `--node` (a running node) with `--checkpoint` or `--request` and `--patch-file` — the node's question set as JSON in the patch file | Every form reads the run and writes no state: its one write is the run's `display/next.json`, the panel an editor extension draws above the question (§ Gates). With no form, the brief as text: the summary of each node the gate closes, at most three decisions and three risks by their lead sentences, the `Next:` line and the `Review:` line, within 1,600 characters. `--checkpoint` prints the **checkpoint**, the one structured object every other form projects from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed, decisions, risks, recommended, options, grants, approves, run, truncated}`. `decisions` is grouped by who settled them (`run`, `audit`, `default`, and `operator` as `{count, not_recommended}`), `risks` by tag, and each option carries its `consequence` — a revise also `reruns`, `revision` and `suggestions`, a stop also `keeps` and `not_run`; `grants` maps each option that declares grants to their names, `{}` when none does, and both pickers and `--oneline` say them in words. `--json` returns the in-session picker projected from it: `{ok, picker, question, header, options[{id, label, description, recommended, preview}], details, more_details, errors, warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The `rich` profile's question is the one-line ask — the finished work, never the destination — its header the short chip, and every option has a `preview`; the `plain` profile's question is the glance followed by the ask, its header the title of the step the gate closes, and its options are titles that carry their consequence. Both profiles end with the More details option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.` (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`, `reruns`, `revision`, `suggestions[{label, description, note, recommended}]` — none of them recommended — and `note_question`, the note question built for the profile: `{header, question, multi_select, options}`, its `options` empty when there are fewer than two suggestions, its question then asking for the note typed. `--request` prints the whole driven gate request as JSON: `{node, kind, question, context: {summary, artifacts, checkpoint}, options, multi_select}`, each revise suggestion as `{label, note, recommended}`; with `--reask=<revise option>` its question opens with a sentence saying that option needs a note, every option still offered — the request a driven revise that came without its note is asked again with (§ Revising at a gate), never beside `--patch-file`. With a question set (*In-node questions*), `--checkpoint` prints `{version, kind: question, node, header, ask, headline, progress, questions, run, truncated}` and `--request` a `kind: question` request whose question and options repeat the first question's, with every question under `questions` and the checkpoint under `context.checkpoint`; every question a request carries is one line with no `"`, a line break folded to a space and a double quote turned single, the checkpoint keeping the text as written; the file is read and kept, for the request to be written over it. `--oneline` is that request's one-line summary: every risk prefixed by its tag, then every decision by who settled it, the `Next:` line with every skipped node, one `revise: <id> reruns=<node> revision=<n>/10` section per revise option still offered, `Recommended: <option id>` and `Run: <dir> · Dashboard: <path>`, all within the same budget |
+| `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=plain` — the profile the asking tool takes — `--checkpoint`, `--request` or `--oneline`; or `--node` (a running node) with `--checkpoint` or `--request` and `--patch-file` — the node's question set as JSON in the patch file | Every form reads the run and writes no state: its one write is the run's `display/next.json`, the panel an editor extension draws above the question (§ Gates). With no form, the brief as text: the summary of each node the gate closes, at most three decisions and three risks by their lead sentences, the `Next:` line — one per continue, named by its label, when the gate's continues set its values — and the `Review:` line, within 1,600 characters. `--checkpoint` prints the **checkpoint**, the one structured object every other form projects from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed, decisions, risks, recommended, options, grants, approves, run, truncated}`. `decisions` is grouped by who settled them (`run`, `audit`, `default`, and `operator` as `{count, not_recommended}`), `risks` by tag, and each option carries its `consequence` — a continue that sets gate values also `sets` and its own `next`, walked on its answer (the top-level `next` is the recommended continue's), and the recommended continue the `reason` a closing node's `recommends` gave, a revise also `reruns`, `revision` and `suggestions`, a stop also `keeps` and `not_run`; `grants` maps each option that declares grants to their names, `{}` when none does, and both pickers and `--oneline` say them in words. `--json` returns the in-session picker projected from it: `{ok, picker, question, header, options[{id, label, description, recommended, preview}], details, more_details, errors, warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The `rich` profile's question is the one-line ask — the finished work, never the destination — its header the short chip, and every option has a `preview`; the `plain` profile's question is the glance followed by the ask, its header the title of the step the gate closes, and its options are titles that carry their consequence. Both profiles end with the More details option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.` (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`, `reruns`, `revision`, `suggestions[{label, description, note, recommended}]` — none of them recommended — and `note_question`, the note question built for the profile: `{header, question, multi_select, options}`, its `options` empty when there are fewer than two suggestions, its question then asking for the note typed. `--request` prints the whole driven gate request as JSON: `{node, kind, question, context: {summary, artifacts, checkpoint}, options, multi_select}`, each revise suggestion as `{label, note, recommended}`; with `--reask=<revise option>` its question opens with a sentence saying that option needs a note, every option still offered — the request a driven revise that came without its note is asked again with (§ Revising at a gate), never beside `--patch-file`. With a question set (*In-node questions*), `--checkpoint` prints `{version, kind: question, node, header, ask, headline, progress, questions, run, truncated}` and `--request` a `kind: question` request whose question and options repeat the first question's, with every question under `questions` and the checkpoint under `context.checkpoint`; every question a request carries is one line with no `"`, a line break folded to a space and a double quote turned single, the checkpoint keeping the text as written; the file is read and kept, for the request to be written over it. `--oneline` is that request's one-line summary: every risk prefixed by its tag, then every decision by who settled it, the `Next:` line with every skipped node — one `Next (<option id>):` line per continue when the gate's continues set its values — one `revise: <id> reruns=<node> revision=<n>/10` section per revise option still offered, `Recommended: <option id>` and `Run: <dir> · Dashboard: <path>`, all within the same budget |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
@@ -470,7 +470,8 @@ A node is ready when all three hold:
    too — any need that has ended.
 2. **An `on: failure` node has something to recover from:** at least one need ended `failed`
    or `stopped`. When every need ended `completed` or `skipped`, the node is not run.
-3. **Its `when` guard evaluates true** against the values declared by completed nodes.
+3. **Its `when` guard evaluates true** against the values completed nodes recorded: a task
+   node's declared values, or the values a gate's chosen continue option set.
 
 A node whose guard is false, and an `on: failure` node with nothing that failed, is marked
 `skipped`, and **a skip satisfies everything downstream** — that is how a definition expresses
@@ -833,8 +834,9 @@ them from there.
 
 ## Gates
 
-A gate node is a question with a closed set of options, exactly one of which continues the
-run. What the engine does with it follows the run's driver, and nothing else:
+A gate node is a question with a closed set of options, at least one of which continues the
+run. A gate with several continues tells them apart by the gate values each one sets, which a
+later guard reads (grammar § 6). What the engine does with it follows the run's driver, and nothing else:
 
 | `orchestrator.driver.kind` | The gate is |
 |---|---|
@@ -848,6 +850,12 @@ A continue option may declare `grants` — what answering it authorises beyond t
 pushing the branch and opening the pull request (grammar § 6). Every picker label and the
 checkpoint's `grants` show it, and the node after the gate acts on it without asking again; the
 engine itself grants nothing and pushes nothing.
+
+A continue option may declare `sets` — the gate values its answer records, such as whether an
+optional audit runs next (grammar § 6). This is how a gate decides an optional step in the same
+question that approves the work before it, so the step itself asks nothing. The writer records
+the chosen option's values on the gate when it records the answer, and a guard downstream reads
+them like any node's. A gate's values are the writer's alone: never send `values` for a gate.
 
 ### Before every gate — the gate brief
 
@@ -889,6 +897,13 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   - **`artifacts`** may carry a `role`: `primary`, `review`, `evidence` or `log`. Evidence and
     logs are never offered for review. A node may add `metrics`, a list of
     `{label, value, unit?, of?}`.
+  - **`recommends`** — on a node closed by a gate with several continues, the one this node
+    recommends and why: `{option: <continue option id>, reason: "<one line>"}`, such as the
+    audit continue when the run was started asking for an audit. The brief marks that option
+    recommended and shows the reason on it. Without it the continue that turns the most steps on
+    is recommended, and a `stop` risk still recommends stopping. The writer refuses an option
+    that is not a continue of a gate waiting on this node, or a missing or multi-line reason,
+    with `state-summary-item-invalid`.
 
   **Findings go in the summary and the headline, never in `risks`.** A risk is something open,
   not something found. Write every field for the user, by *Speaking to the user*: plain words,
@@ -917,7 +932,9 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   user is asked. Never write a gate question by hand.
 - **`gate-brief-no-summary` or `gate-brief-value-missing`**: send the patch the message names
   through `write-state`, then run the verb again. The value-missing patch carries the node's
-  whole `values` map, because a node's values are replaced whole on patch.
+  whole `values` map, because a node's values are replaced whole on patch. A missing gate value
+  names no patch: record that gate's answer again — the gate `completed`, the chosen option
+  under its `decisions` — and the writer records the values the option sets.
 - **`gate-brief-unknown-node` or `gate-brief-not-a-gate`**: the `--node` argument is wrong;
   correct it. Nothing is written. A question a node asks inside itself is not a gate: it is
   briefed from its question set (*In-node questions*).
@@ -957,13 +974,15 @@ node's own, and neither does a skipped node: without one, the brief is refused
 **What the checkpoint holds, and how each surface shows it:**
 
 - **The ask** is one line, generated as `<what finished> Ready to go on?` at every gate: it asks
-  about the work the gate approves, never where the run goes, which the continue option's label
+  about the work the gate approves, never where the run goes, which each continue option's label
   and the `Next:` line say. What finished is the lead of the gate's `ask:`, or the closing step's
   title and `complete.`; an `ask:` that does not ask to continue is kept as written.
-- **The glance** is the continue option's preview, and in the `plain` profile it is the question
+- **The glance** is each continue option's preview, and in the `plain` profile it is the question
   above the ask. It holds:
   - *Done*: the headline;
-  - *Next*: the phase that runs, and any work skipped on the way;
+  - *Next*: the phase that runs, and any work skipped on the way. A gate whose continues set
+    its values walks each one on its own answer: each continue's preview names where it leads,
+    and the `plain` profile's glance gives each its own *Next* line, named by its label;
   - *Review*: up to three files, named by their paths inside the task folder, the main
     documents (`role: primary`) first;
   - *Open risks*: up to three `stop` and `open` risks, a stop first, each without its change;
@@ -1024,7 +1043,9 @@ node's own, and neither does a skipped node: without one, the brief is refused
    and marks the node `completed`, in one write. That is the one shape of a gate answer: never a
    flat `answer:` on the summary, which the writer folds into this item anyway. The writer adds
    the option's label as `decision`, `by: operator`, and the person's name as `answered_by`
-   with `via: terminal`. A revise option — its `note` is `true` — is
+   with `via: terminal`. When the chosen continue sets gate values, the writer records them on
+   the gate's entry in the same write; a `values` sent for a gate is refused
+   `state-gate-values-sent`. A revise option — its `note` is `true` — is
    recorded by `gate-revise` instead, after its note is asked at once (*Revising at a gate*). The option is one of the gate's own ids, spelled as
    the gate spells it. The writer refuses any other with `state-gate-option-unknown`.
 3. **Writes no `gate_pending` and no gate request file.** The pending marker is only ever
@@ -1277,8 +1298,8 @@ each from `gate-brief --request`, and never together:
   `--reask` to name, and the verb refuses the two flags together. The request writer stamps the
   new attempt; the fold keeps the earlier attempt's answers as history (*In-node questions*).
 
-**A revise is never recommended.** The brief recommends the continue option, or a stop when a
-closing risk says so; a revise is the operator's choice. A driver that defaults an answer never
+**A revise is never recommended.** The brief recommends a continue option — the one the closing
+node's `recommends` names, else the first — or a stop when a closing risk says so; a revise is the operator's choice. A driver that defaults an answer never
 defaults to one.
 
 **What the reset leaves.** Every node of the stretch is `pending` with its clocks and values gone
@@ -1507,7 +1528,7 @@ bundle already carried the recommendation.
 list:
 
 ```
-{decision: "Run the specification audit", by: default, question_id: audit-opt-in}
+{decision: "All four reviews", by: default, question_id: standard-verifications}
 ```
 
 `question_id` is the id the node prose names, and `decision` is the default actually taken —
@@ -1593,7 +1614,7 @@ able to write:
   `orchestrator.driver`, which is one contract-shaped value written whole. The four **open
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
   — merge key by key instead, because different nodes write different keys of them at
-  different times: a write recording `spec_audit_enabled` leaves an `html_output` an earlier
+  different times: a write recording `user_docs_enabled` leaves an `html_output` an earlier
   node set alone. Send the whole map only when you mean to add to it.
 - `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
   edited in place afterwards. Never send a node's `started` or `completed`, or
@@ -1713,10 +1734,11 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-node-status-unknown` | A node was sent with a status outside the eight (*Recording an outcome*). The message lists them. Nothing was written. Map the outcome onto one of the eight and send the write again. `in_progress` belongs to the summary vocabulary, and `running` is the node status that means the same. |
 | `state-node-regressed` | The patch sends a node that already ended — completed, failed, skipped or stopped — back to `pending`. Nothing was written. A node's record only moves forward: to run it again, re-drive it (`running`), and to redo a stretch the operator sent back, answer the gate with its revise option through `gate-revise`, which resets the stretch in one write and records why. Never rewind a node by hand to make it ready. |
 | `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo or a phase key used as a node id, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
+| `state-gate-values-sent` | The write sends `values` for a gate. A gate's values are recorded by the writer from the answer, as the chosen continue option sets them. Nothing was written. Drop `values` from the gate's entry and record the answer the usual way — the gate `completed`, the chosen option under its `decisions` — and the writer records the values in the same write. |
 | `state-value-invalid` | A value recorded under a key the node declares is not of the declared type. The message names the key, the value and the form it should take. Nothing was written. Send the node's whole `values` map again with that key corrected, because values are replaced whole. If the node produced no such value, the node prose decides whether it failed; never coerce one to get past the check. |
 | `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. |
 | `state-absent-invalid` | A node summary's `absent` map is not a map, names an artifact the node does not declare, or gives an entry no reason (*Recording an outcome*). The message lists the declared keys. Nothing was written. Name each artifact by its declared key, never by its path, give the reason in a few words, and send the write again. An artifact the node was meant to produce and did not is not an absence to sanction: the node has not completed. |
-| `state-summary-item-invalid` | A typed field of a summary holds a value no reader knows: a decision's `by` outside `operator`, `run`, `audit` and `default`; a risk object with no `risk` text, or a `tag` outside `open`, `tradeoff`, `followup`, `stop` and `resolved`; an artifact `role` outside `primary`, `review`, `evidence` and `log`; a `headline` that is empty, spans lines or runs past 220 characters; an `as_recommended` that is not true, false or null; a `metrics` entry without a label and a value; or a `decision_areas` that is not a list of `{area, alternatives_count, chosen_approach}` maps. The message names the field and the allowed values. Nothing was written. Correct that one value and send the write again. A string item is always accepted, so a source or tag you cannot place can be written as plain text. |
+| `state-summary-item-invalid` | A typed field of a summary holds a value no reader knows: a decision's `by` outside `operator`, `run`, `audit` and `default`; a risk object with no `risk` text, or a `tag` outside `open`, `tradeoff`, `followup`, `stop` and `resolved`; an artifact `role` outside `primary`, `review`, `evidence` and `log`; a `headline` that is empty, spans lines or runs past 220 characters; an `as_recommended` that is not true, false or null; a `metrics` entry without a label and a value; a `decision_areas` that is not a list of `{area, alternatives_count, chosen_approach}` maps; or a `recommends` that names no continue option of a gate waiting on the node, or carries no one-line reason. The message names the field and the allowed values. Nothing was written. Correct that one value and send the write again. A string item is always accepted, so a source or tag you cannot place can be written as plain text. |
 | `state-question-answer-invalid` | A node's `answer` block could not be folded into its decisions: the node's request file is missing or carries no question set, a question has no answer, an answer names an option the question does not offer, a list answers a single choice, own words answer a question that does not take them, or `answers` names a question the request does not hold. The message names each. Nothing was written — but the gate was already cleared, so the node is `running` and nothing is pending. Re-read the answer file and send its `answer` block again, whole and unchanged; a block retyped by hand is the usual cause. When the answer file itself holds the fault, record each question it cannot answer as `{decision: <its default>, by: default, question_id}`, with an `open` risk naming the answer that could not be read, and continue the node. Never ask the question again in this attempt. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |

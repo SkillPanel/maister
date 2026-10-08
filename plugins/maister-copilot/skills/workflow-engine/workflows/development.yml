@@ -8,6 +8,17 @@
 # skipped and still satisfies everything downstream. There is no routing
 # construct here because the grammar has none and none is needed.
 #
+# A guard reads a value something recorded earlier: a node's declared value —
+# the gap analysis's characteristics, the user-guide choice — or a value a
+# gate's answer set. Two stretches are decided at the gate before them: the
+# specification audit at `specification-approval` and the browser checks at
+# `verification-approval`. Each of those gates has two continues, one per way
+# on, each setting the value the stretch's guard reads, so the operator approves
+# the work and decides the optional step in one question and the step itself
+# asks nothing. The node the gate closes says which continue it recommends and
+# why; the gate brief walks each continue on its own answer and names where it
+# leads.
+#
 # A skip does not cascade, so the guard of a conditional stretch is repeated on
 # every node of it, its closing gate included. A gate left unguarded would fire
 # for a stretch that never ran.
@@ -33,7 +44,7 @@
 #
 # The node prose lives beside this file in `development.md`, one section per
 # node id. Every `direct:` node is executed from its section there, and the
-# eleven operator questions asked inside nodes, in eight asks, appear only in
+# nine operator questions asked inside nodes, in eight asks, appear only in
 # that prose — a reader of this file alone cannot see them, and neither can the
 # generated diagram. The per-node recovery budgets live there too, never here: a
 # budget written into `with:` would read like a grammar feature while being
@@ -48,9 +59,10 @@ inputs:
   # and mockups the intake copies in as the run's design context.
   design: {type: string, required: false}
   # Tri-state, and a string rather than a bool for that reason: absent means
-  # ask the operator, `yes`/`no` means the flag was set. Never referenced from
-  # a `when` clause — the node that reads one turns it into a declared bool
-  # first, and only a declared bool may guard.
+  # no flag was set, `yes`/`no` means it was. Never referenced from a `when`
+  # clause. `user_docs` is turned into a declared bool by the node that reads
+  # it; `audit` and `browser_tests` only decide which continue the gate that
+  # decides their stretch recommends, because the gate is always asked.
   audit: {type: string, required: false}
   browser_tests: {type: string, required: false}
   user_docs: {type: string, required: false}
@@ -134,7 +146,8 @@ display:
       revise-mockups: "Revise the mockups"
       stop-development: "Stop here"
     specification-approval:
-      continue-past-specification: "Continue"
+      continue-to-spec-audit: "Continue to the specification audit"
+      continue-to-planning: "Continue to planning, skip the audit"
       revise-specification: "Revise the specification"
       stop-development: "Stop here"
     spec-audit-approval:
@@ -149,7 +162,8 @@ display:
       continue-past-implementation: "Continue"
       stop-development: "Stop here"
     verification-approval:
-      continue-past-verification: "Accept the checks and continue"
+      continue-to-browser-checks: "Continue to the browser checks"
+      continue-past-verification: "Continue without browser checks"
       stop-development: "Stop here"
     e2e-approval:
       continue-past-e2e: "Continue"
@@ -286,22 +300,21 @@ nodes:
         requirements: analysis/requirements.md
         spec: implementation/spec.md
         technical_clarifications: analysis/technical-clarifications.md
-      values:
-        spec_audit_enabled: bool
 
   specification-approval:
     type: gate
     needs: [specification]
     ask: "Specification complete. Continue?"
     options:
-      continue-past-specification: continue
+      continue-to-spec-audit: {effect: continue, sets: {spec_audit_enabled: true}}
+      continue-to-planning: {effect: continue, sets: {spec_audit_enabled: false}}
       revise-specification: {effect: revise, reruns: specification}
       stop-development: stop
 
   spec-audit:
     uses: agent:spec-auditor
     needs: [specification-approval]
-    when: "${specification.values.spec_audit_enabled}"
+    when: "${specification-approval.values.spec_audit_enabled}"
     with:
       spec: "${specification.artifacts.spec}"
       requirements: "${specification.artifacts.requirements}"
@@ -313,7 +326,7 @@ nodes:
   spec-audit-approval:
     type: gate
     needs: [spec-audit]
-    when: "${specification.values.spec_audit_enabled}"
+    when: "${specification-approval.values.spec_audit_enabled}"
     ask: "Specification audit complete. Continue to implementation planning?"
     options:
       continue-to-planning: continue
@@ -378,14 +391,10 @@ nodes:
     needs: [tdd-green]
     with:
       gap: "${gap-analysis.artifacts.gap}"
-      browser_tests_flag: "${inputs.browser_tests}"
       user_docs_flag: "${inputs.user_docs}"
     outputs:
       values:
-        # Named for what they enable rather than for the flag that seeds them:
-        # the `when` pattern's trailing character class admits lowercase and
-        # underscore only, so a declared guard value can carry no digit.
-        browser_tests_enabled: bool
+        # Named for what it enables rather than for the flag that seeds it.
         user_docs_enabled: bool
 
   verification:
@@ -395,6 +404,9 @@ nodes:
       spec: "${specification.artifacts.spec}"
       plan: "${planning.artifacts.plan}"
       work_log: "${implementation.artifacts.work_log}"
+      # Read when this node writes its closing summary, to say which continue
+      # of `verification-approval` it recommends; not the verifier's input.
+      browser_tests_flag: "${inputs.browser_tests}"
     outputs:
       artifacts:
         report: verification/implementation-verification.md
@@ -404,13 +416,17 @@ nodes:
     needs: [verification]
     ask: "Verification complete. Continue?"
     options:
-      continue-past-verification: continue
+      # The gate value is named for what it enables: a guard reference ends in
+      # lowercase letters and underscores, so it can carry no digit, and the
+      # state option `e2e_enabled` is the gap analysis's seed, not this value.
+      continue-to-browser-checks: {effect: continue, sets: {browser_tests_enabled: true}}
+      continue-past-verification: {effect: continue, sets: {browser_tests_enabled: false}}
       stop-development: stop
 
   e2e-verification:
     uses: agent:e2e-test-verifier
     needs: [verification-approval]
-    when: "${verification-options.values.browser_tests_enabled}"
+    when: "${verification-approval.values.browser_tests_enabled}"
     with:
       spec: "${specification.artifacts.spec}"
       report: "${verification.artifacts.report}"
@@ -423,7 +439,7 @@ nodes:
   e2e-approval:
     type: gate
     needs: [e2e-verification]
-    when: "${verification-options.values.browser_tests_enabled}"
+    when: "${verification-approval.values.browser_tests_enabled}"
     ask: "E2E verification complete. Continue?"
     options:
       continue-past-e2e: continue

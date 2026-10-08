@@ -106,31 +106,27 @@ test('legacy reading: a bare-string artifact is a path with nothing else known',
 /**
  * The development run of the open audit's specification-gate mock-up: the
  * revised spec with its headline, three decisions the analysis made, nine
- * choices of the user's own (one against the recommendation), typed risks, and
- * the two documents on disk. The labels are an overlay's: the mock-up names the
- * destination in the continue label.
+ * choices of the user's own (one against the recommendation), typed risks, the
+ * audit continue it recommends, and the two documents on disk. The gate decides
+ * the audit: one continue runs it, the other goes to planning.
  */
+const AUDIT_REASON = 'Cheaper than finding the same gaps during implementation';
+
 function atSpecGate(t, extra = {}) {
   const run = scratch(t);
-  const labels = overlay(t, 'development', [
-    'display:',
-    '  option_labels:',
-    '    specification-approval:',
-    '      continue-past-specification: "Continue to the specification audit"',
-  ]);
   const choices = Array.from({ length: 8 }, (_, index) => ({
     decision: `Scope answer ${index + 1}`, by: 'operator', answered_by: 'marek', question_id: `scope-${index + 1}`,
     question: `Scope question ${index + 1}?`, answer: `Scope answer ${index + 1}`, recommended: `Scope answer ${index + 1}`, as_recommended: true,
   }));
-  walkTo(t, run, DEVELOPMENT, 'specification-approval', [labels], { task_description: 'Tag the notes' }, {
+  walkTo(t, run, DEVELOPMENT, 'specification-approval', [], { task_description: 'Tag the notes' }, {
     nodes: {
       'ui-mockups': { status: 'skipped' },
       'mockup-approval': { status: 'skipped' },
-      specification: { status: 'completed', values: { spec_audit_enabled: true } },
     },
     node_summaries: {
       specification: {
         status: 'completed',
+        recommends: { option: 'continue-to-spec-audit', reason: AUDIT_REASON },
         headline: 'The revised spec makes null mean "not given" for tags and list, and keeps 11 requirements: tags with addTag/removeTag, the all-of filter, toCsv and both copy-leak fixes.',
         summary: 'Revised as you asked: null now counts as a missing value. Everything else is unchanged.',
         decisions: [
@@ -200,22 +196,34 @@ test('checkpoint: decisions grouped by who settled them, the user\'s own counted
   assert.equal(checkpoint.risks.open.length, 2);
   assert.equal(checkpoint.risks.tradeoff.length, 2);
   assert.deepEqual(checkpoint.risks.stop, []);
-  assert.equal(checkpoint.recommended.option, 'continue-past-specification');
-  assert.equal(checkpoint.recommended.reason, '2 open items; revise to settle them first');
+  assert.equal(checkpoint.recommended.option, 'continue-to-spec-audit');
+  assert.equal(checkpoint.recommended.reason, AUDIT_REASON, 'the reason the closing node gave for the continue it recommends');
 });
 
 test('checkpoint: options carry what choosing each does, revise and stop with their details', t => {
   const { options } = checkpointOf(atSpecGate(t), 'specification-approval');
   assert.deepEqual(options.map(option => [option.id, option.effect, option.recommended]), [
-    ['continue-past-specification', 'continue', true],
+    ['continue-to-planning', 'continue', false],
+    ['continue-to-spec-audit', 'continue', true],
     ['revise-specification', 'revise', false],
     ['stop-development', 'stop', false],
   ]);
-  assert.equal(options[0].consequence, 'Runs specification audit next.');
-  assert.equal(options[1].consequence, 'Re-runs Specification with your note, then asks this again.');
-  assert.deepEqual(options[1].reruns, [{ node: 'specification', title: 'Specification' }]);
-  assert.deepEqual(options[1].revision, { n: 1, max: 10 });
-  assert.deepEqual(options[1].suggestions, [
+  // Each continue is walked on its own answer: what it sets, and where it leads.
+  assert.equal(options[0].consequence, 'Runs implementation planning next.');
+  assert.deepEqual(options[0].sets, { spec_audit_enabled: false });
+  assert.deepEqual(options[0].next, {
+    node: 'planning', title: 'Implementation planning', end: false,
+    skipped: [{ node: 'spec-audit', title: 'Specification audit', reason: null }],
+  });
+  assert.equal(options[1].consequence, `Runs specification audit next. ${AUDIT_REASON}.`);
+  assert.equal(options[1].reason, AUDIT_REASON);
+  assert.deepEqual(options[1].sets, { spec_audit_enabled: true });
+  assert.deepEqual(options[1].next, { node: 'spec-audit', title: 'Specification audit', end: false, skipped: [] });
+  const [, , revise, stop] = options;
+  assert.equal(revise.consequence, 'Re-runs Specification with your note, then asks this again.');
+  assert.deepEqual(revise.reruns, [{ node: 'specification', title: 'Specification' }]);
+  assert.deepEqual(revise.revision, { n: 1, max: 10 });
+  assert.deepEqual(revise.suggestions, [
     {
       label: 'A null element inside the filter array still throws',
       description: 'Treat a null element in the filter like a missing tag',
@@ -229,9 +237,9 @@ test('checkpoint: options carry what choosing each does, revise and stop with th
       recommended: false,
     },
   ], 'suggestions come from the open items only, each its risk then the change, none recommended');
-  assert.deepEqual(options[2].keeps, ['implementation/spec.md', 'analysis/requirements.md']);
-  assert.equal(options[2].not_run.next, 'Specification audit');
-  assert.ok(options[2].not_run.remaining > 1);
+  assert.deepEqual(stop.keeps, ['implementation/spec.md', 'analysis/requirements.md']);
+  assert.equal(stop.not_run.next, 'Specification audit');
+  assert.ok(stop.not_run.remaining > 1);
 });
 
 test('checkpoint: a stop risk, typed or written the old way, recommends stopping with its reason', t => {
@@ -282,7 +290,7 @@ test('checkpoint: a step is named without an article, whatever its title\'s shap
   walkTo(t, run, DEVELOPMENT, 'implementation-approval', [], { task_description: 'Tag the notes' }, {
     nodes: {
       'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false } },
-      specification: { status: 'completed', values: { spec_audit_enabled: true } },
+      'specification-approval': { status: 'completed', decisions: [{ option: 'continue-to-spec-audit' }] },
     },
     node_summaries: { implementation: { status: 'completed', summary: 'Every group is done.' } },
   });
@@ -294,44 +302,53 @@ test('checkpoint: a step is named without an article, whatever its title\'s shap
   assert.doesNotMatch(JSON.stringify(rich), /the choosing/);
 });
 
-test('checkpoint: a step the run opted into names itself in the continue label and Next, never in the ask', t => {
+/** The specification gate of a run whose closing node recommends `option`, for `reason`. */
+function atSpecGateRecommending(t, option, reason) {
   const run = scratch(t);
   walkTo(t, run, DEVELOPMENT, 'specification-approval', [], { task_description: 'Tag the notes' }, {
     nodes: {
       'ui-mockups': { status: 'skipped' },
       'mockup-approval': { status: 'skipped' },
-      specification: { status: 'completed', values: { spec_audit_enabled: true } },
     },
-    node_summaries: { specification: { status: 'completed', summary: 'The spec is written; the audit was asked for.' } },
+    node_summaries: { specification: { status: 'completed', summary: 'The spec is written.', recommends: { option, reason } } },
   });
+  return run;
+}
+
+test('checkpoint: the gate that decides the audit names it in each continue and its Next, never in the ask', t => {
+  const run = atSpecGateRecommending(t, 'continue-to-spec-audit', 'Asked for when the run started');
   const ask = 'Specification complete. Ready to go on?';
   const rich = pickerOf(run, 'specification-approval', 'rich');
-  assert.equal(rich.question, ask);
-  assert.equal(rich.options[0].label, 'Continue to specification audit (Recommended)');
+  assert.equal(rich.question, `${ask} Type "details" for the full brief.`, 'four options leave no slot for More details');
+  assert.deepEqual(rich.options.map(option => option.id), ['continue-to-spec-audit', 'continue-to-planning', 'revise-specification', 'stop-development']);
+  assert.equal(rich.options[0].label, 'Continue to the specification audit (Recommended)');
+  assert.equal(rich.options[0].description, 'Runs specification audit next. Asked for when the run started.');
   assert.match(rich.options[0].preview, /^Next: Specification audit$/m);
+  assert.equal(rich.options[1].label, 'Continue to planning, skip the audit');
+  assert.match(rich.options[1].preview, /^Next: Implementation planning \(skipping Specification audit\)$/m);
   const plain = pickerOf(run, 'specification-approval', 'plain');
   assert.equal(plain.question.split('\n').at(-1), ask, 'the plain question still ends with the ask');
-  assert.match(plain.question, /^Next: Specification audit$/m);
-  assert.equal(plain.options[0].label, 'Continue to specification audit (Recommended)');
+  assert.match(plain.question, /^Next \(continue to the specification audit\): Specification audit$/m);
+  assert.match(plain.question, /^Next \(continue to planning, skip the audit\): Implementation planning \(skipping Specification audit\)$/m);
+  assert.equal(plain.options[0].label, 'Continue to the specification audit — Asked for when the run started (Recommended)');
   assert.equal(JSON.parse(gateBrief(run, 'specification-approval', '--request').stdout).question, ask);
-  for (const question of [rich.question, plain.question.split('\n').at(-1)]) assert.doesNotMatch(question, /audit/i);
+  for (const question of [ask, plain.question.split('\n').at(-1)]) assert.doesNotMatch(question, /audit/i);
 });
 
-test('checkpoint: with the audit off, the specification gate continues to what runs instead', t => {
-  const run = scratch(t);
-  walkTo(t, run, DEVELOPMENT, 'specification-approval', [], { task_description: 'Tag the notes' }, {
-    nodes: {
-      'ui-mockups': { status: 'skipped' },
-      'mockup-approval': { status: 'skipped' },
-      specification: { status: 'completed', values: { spec_audit_enabled: false } },
-    },
-    node_summaries: { specification: { status: 'completed', summary: 'The spec is written; no audit was asked for.' } },
-  });
-  // A label naming the audit read "Continue to the specification audit" while Next said it was skipped.
+test('checkpoint: with the audit declined, the specification gate recommends going on to planning', t => {
+  const run = atSpecGateRecommending(t, 'continue-to-planning', 'Declined when the run started');
+  const checkpoint = checkpointOf(run, 'specification-approval');
+  assert.deepEqual(checkpoint.recommended, { option: 'continue-to-planning', reason: 'Declined when the run started' });
+  assert.equal(checkpoint.next.node, 'planning', 'the top-level Next is the recommended continue\'s walk');
   const rich = pickerOf(run, 'specification-approval', 'rich');
-  assert.equal(rich.options[0].label, 'Continue to implementation planning (Recommended)');
+  assert.equal(rich.options[0].label, 'Continue to planning, skip the audit (Recommended)');
   assert.match(rich.options[0].preview, /^Next: Implementation planning \(skipping Specification audit\)$/m);
-  assert.equal(pickerOf(run, 'specification-approval', 'plain').options[0].label, 'Continue to implementation planning (Recommended)');
+  assert.equal(pickerOf(run, 'specification-approval', 'plain').options[0].label,
+    'Continue to planning, skip the audit — Declined when the run started (Recommended)');
+  const line = gateBrief(run, 'specification-approval', '--oneline').stdout;
+  assert.match(line, /Next \(continue-to-planning\): Implementation planning/);
+  assert.match(line, /Next \(continue-to-spec-audit\): Specification audit/);
+  assert.match(line, /Recommended: continue-to-planning/);
 });
 
 // ---------------------------------------------------------------------------
@@ -366,11 +383,14 @@ const SPEC_PREVIEW = [
 test('rich: the specification gate renders as designed — a one-line ask, the glance focused, open risks ahead of decisions', t => {
   const rich = pickerOf(atSpecGate(t), 'specification-approval', 'rich');
   assert.equal(rich.header, 'Spec');
-  assert.equal(rich.question, 'Specification complete. Ready to go on?');
+  // Two continues, a revise and a stop fill the four slots, so More details is typed.
+  assert.equal(rich.question, 'Specification complete. Ready to go on? Type "details" for the full brief.');
+  assert.equal(rich.details, 'typed');
   assert.deepEqual(rich.options.map(option => option.label), [
-    'Continue to the specification audit (Recommended)', 'Revise the specification', 'Stop here', 'More details',
+    'Continue to the specification audit (Recommended)', 'Continue to planning, skip the audit', 'Revise the specification', 'Stop here',
   ]);
-  const [focused, revise, stop, more] = rich.options;
+  const [focused, other, revise, stop] = rich.options;
+  assert.match(other.preview, /^Next: Implementation planning \(skipping Specification audit\)$/m, 'each continue previews where it leads');
   assert.equal(focused.preview, SPEC_PREVIEW.join('\n'));
   assert.ok(focused.preview.length <= 900 && focused.preview.split('\n').length <= 9);
   assert.doesNotMatch(focused.preview, /breaking changes|formula guard|→/, 'no trade-off at the glance, and no risk\'s change');
@@ -392,20 +412,22 @@ test('rich: the specification gate renders as designed — a one-line ask, the g
   assert.ok(revise.preview.split('\n').length <= 8);
   assert.match(stop.preview, /^Ends the run here\.\nKept: implementation\/spec\.md, analysis\/requirements\.md and the dashboard\.\nNot run: specification audit and \d+ later phases\.\nStart a new run from these files to pick up later\.$/);
   assert.ok(stop.preview.split('\n').length <= 7);
-  assert.match(more.preview, /\*\*Open\*\*\n- A null element inside the filter array still throws → Treat a null element/);
-  assert.match(more.preview, /\*\*Trade-offs accepted\*\*\n- Two breaking changes ship under 1\.0\.0/);
-  assert.ok(more.preview.length <= 2000);
+  assert.match(rich.more_details, /\*\*Open\*\*\n- A null element inside the filter array still throws → Treat a null element/);
+  assert.match(rich.more_details, /\*\*Trade-offs accepted\*\*\n- Two breaking changes ship under 1\.0\.0/);
 });
 
 test('plain: the specification gate renders as designed — the glance, then the ask last; titles carry consequences', t => {
   const plain = pickerOf(atSpecGate(t), 'specification-approval', 'plain');
   assert.equal(plain.header, 'Specification', 'a form property takes the step\'s own title, never the short chip');
-  assert.equal(plain.question, [
-    ...SPEC_GLANCE.map(line => line.replace('(HTML beside it)', '(HTML: spec.html)')),
-    'Specification complete. Ready to go on?',
-  ].join('\n'));
+  // The glance gives each continue its own Next line, named by its label.
+  const glance = SPEC_GLANCE.flatMap(line => line === 'Next: Specification audit' ? [
+    'Next (continue to planning, skip the audit): Implementation planning (skipping Specification audit)',
+    'Next (continue to the specification audit): Specification audit',
+  ] : [line.replace('(HTML beside it)', '(HTML: spec.html)')]);
+  assert.equal(plain.question, [...glance, 'Specification complete. Ready to go on?'].join('\n'));
   assert.deepEqual(plain.options.map(option => option.label), [
-    'Continue to the specification audit (Recommended)',
+    `Continue to the specification audit — ${AUDIT_REASON} (Recommended)`,
+    'Continue to planning, skip the audit',
     'Revise the specification — re-runs it with your note',
     'Stop here — keeps everything written so far',
     'More details',
@@ -518,9 +540,9 @@ test('glance: each decision the run made names the step that settled it, never "
   walkTo(t, run, DEVELOPMENT, 'verification-approval', [], { task_description: 'Tag the notes' }, {
     nodes: {
       'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false } },
-      specification: { status: 'completed', values: { spec_audit_enabled: true } },
+      'specification-approval': { status: 'completed', decisions: [{ option: 'continue-to-spec-audit' }] },
       'tdd-green': { status: 'skipped' },
-      'verification-options': { status: 'completed', values: { browser_tests_enabled: false, user_docs_enabled: false } },
+      'verification-options': { status: 'completed', values: { user_docs_enabled: false } },
     },
     node_summaries: {
       'verification-options': {
@@ -551,7 +573,9 @@ test('glance: a plan decision names the planning step on every surface, never th
   walkTo(t, run, DEVELOPMENT, 'planning-approval', [], { task_description: 'Tag the notes' }, {
     nodes: {
       'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false } },
-      specification: { status: 'completed', values: { spec_audit_enabled: false } },
+      'specification-approval': { status: 'completed', decisions: [{ option: 'continue-to-planning' }] },
+      'spec-audit': { status: 'skipped' },
+      'spec-audit-approval': { status: 'skipped' },
     },
     node_summaries: {
       planning: {
@@ -596,12 +620,15 @@ test('request: the whole gate request, its summary the one-line form, its artifa
   assert.equal(request.context.summary, gateBrief(run, 'specification-approval', '--oneline').stdout.trimEnd());
   assert.deepEqual(request.context.artifacts, ['implementation/spec.md', 'analysis/requirements.md']);
   assert.deepEqual(request.context.checkpoint, checkpointOf(run, 'specification-approval'));
-  assert.deepEqual(request.options.map(option => option.id), ['continue-past-specification', 'revise-specification', 'stop-development']);
+  assert.deepEqual(request.options.map(option => [option.id, option.effect]), [
+    ['continue-to-spec-audit', 'continue'], ['continue-to-planning', 'continue'], ['revise-specification', 'revise'], ['stop-development', 'stop'],
+  ]);
   assert.equal(request.options[0].recommended, true);
-  assert.equal(request.options[0].description, 'Runs specification audit next.');
-  assert.equal(request.options[1].note, true);
-  assert.ok(request.options[1].suggestions.length >= 2);
-  for (const suggestion of request.options[1].suggestions) {
+  assert.equal(request.options[0].description, `Runs specification audit next. ${AUDIT_REASON}.`);
+  assert.ok(!request.options[1].recommended);
+  assert.equal(request.options[2].note, true);
+  assert.ok(request.options[2].suggestions.length >= 2);
+  for (const suggestion of request.options[2].suggestions) {
     assert.deepEqual(Object.keys(suggestion), ['label', 'note', 'recommended'], 'a request suggestion carries the gate contract keys only');
   }
   assert.equal(request.multi_select, false);

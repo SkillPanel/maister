@@ -781,7 +781,7 @@ test('an unknown effect names all three', t => {
   assert.match(errorAt(report, 'nodes.review-approval.options.jump').message, /an option effect is "continue", "stop" or "revise", never "goto"/);
 });
 
-test('several revise options are accepted; a second continue is still refused', t => {
+test('several revise options are accepted; a second continue that sets nothing is refused', t => {
   const several = [...revising('intake')];
   several.splice(several.indexOf('      stop-here: stop'), 0, '      redo-intake: {effect: revise, reruns: intake}');
   assert.equal(validate(definition(t, several)).code, 0);
@@ -790,8 +790,17 @@ test('several revise options are accepted; a second continue is still refused', 
   twice.splice(twice.indexOf('      stop-here: stop'), 0, '      also-on: continue');
   const { code, report } = validate(definition(t, twice));
   assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.review-approval.options.also-on.sets').message,
+    /this gate offers 2 continue options, and each must set the gate values that tell it from the others; "also-on" sets none/);
+  assert.match(errorAt(report, 'nodes.review-approval.options.continue-on.sets').message, /"continue-on" sets none/);
+});
+
+test('a gate with no continue, or no stop, is refused at its options', t => {
+  const { code, report } = validate(definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options: {stop-here: stop}')));
+  assert.equal(code, 1);
   assert.match(errorAt(report, 'nodes.review-approval.options').message,
-    /exactly one continue and at least one stop, and any number of revise; this one offers 2 and 1/);
+    /at least one continue and at least one stop, and any number of revise; this one offers 0 and 1/);
 });
 
 test('a revise option is hashed whole: it moves the hash of the definition that adopts it and draws its target', t => {
@@ -878,4 +887,93 @@ test('grants are part of the graph identity, and the order they are written in i
   const drawn = verb(['diagram', `--definition=${definition(t, granting('{effect: continue, grants: [push]}'))}`]);
   assert.equal(drawn.code, 0, drawn.stderr);
   assert.match(drawn.stdout, /continue-on: continue/);
+});
+
+// ---------------------------------------------------------------------------
+// sets: a continue option that sets a gate value a later guard reads
+// ---------------------------------------------------------------------------
+
+/** BASE with two continues setting `audit`, an audit node guarded on it, and `extra` options after them. */
+function setting({ on = '{effect: continue, sets: {audit: true}}', past = '{effect: continue, sets: {audit: false}}', extra = ['      stop-here: stop'], guard = '"${review-approval.values.audit}"' } = {}) {
+  return [
+    ...replacing('    options: {continue-on: continue, stop-here: stop}',
+      '    options:', `      continue-on: ${on}`, `      continue-past: ${past}`, ...extra),
+    '  audit:',
+    '    uses: direct:wrapup',
+    '    needs: [review-approval]',
+    ...(guard === null ? [] : [`    when: ${guard}`]),
+  ];
+}
+
+test('a gate may offer several continues when each sets its own combination of the same values', t => {
+  const { code, report } = validate(definition(t, setting()));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  const one = validate(definition(t, replacing('    options: {continue-on: continue, stop-here: stop}',
+    '    options:', '      continue-on: {effect: continue, sets: {audit: true}}', '      stop-here: stop')));
+  assert.equal(one.code, 0, 'a single continue may carry sets');
+});
+
+test('a guard and a reference may read a value a gate continue sets; any other gate value is refused', t => {
+  assert.equal(validate(definition(t, setting({ guard: '"!${review-approval.values.audit}"' }))).code, 0);
+  const referenced = setting();
+  referenced.push('    with: {audit: "${review-approval.values.audit}"}');
+  assert.equal(validate(definition(t, referenced)).code, 0);
+
+  const { code, report } = validate(definition(t, setting({ guard: '"${review-approval.values.deep}"' })));
+  assert.equal(code, 1);
+  assert.match(errorAt(report, 'nodes.audit.when').message,
+    /when needs a declared bool output or a value a gate's continue sets; "review-approval.values.deep" is not one/);
+  const stray = setting({ guard: null });
+  stray.push('    with: {deep: "${review-approval.values.deep}"}');
+  assert.match(errorAt(validate(definition(t, stray)).report, 'nodes.audit.with.deep').message,
+    /names an output "review-approval" does not declare/);
+});
+
+test('sets is refused off a continue, empty, non-boolean or with a key outside the guard pattern', t => {
+  const at = 'nodes.review-approval.options';
+  const stop = validate(definition(t, setting({ extra: ['      stop-here: {effect: stop, sets: {audit: false}}'] })));
+  assert.match(errorAt(stop.report, `${at}.stop-here.sets`).message, /sets belongs to a continue option; a stop option leaves no gate value/);
+  const revise = validate(definition(t, setting({ extra: ['      send-back: {effect: revise, reruns: intake, sets: {audit: true}}', '      stop-here: stop'] })));
+  assert.match(errorAt(revise.report, `${at}.send-back.sets`).message, /a revise option leaves no gate value/);
+  for (const [written, pattern, where] of [
+    ['{effect: continue, sets: {}}', /sets is a map of gate value to true or false, naming at least one; an empty map is not/, 'continue-on.sets'],
+    ['{effect: continue, sets: [audit]}', /sets is a map of gate value to true or false/, 'continue-on.sets'],
+    ['{effect: continue, sets: {audit: yes}}', /a gate value is true or false; "yes" is not/, 'continue-on.sets.audit'],
+    ['{effect: continue, sets: {Audit-x: true}}', /the gate value "Audit-x" is outside the closed character set/, 'continue-on.sets.Audit-x'],
+  ]) {
+    const { code, report } = validate(definition(t, setting({ on: written, guard: null })));
+    assert.equal(code, 1, written);
+    assert.match(errorAt(report, `${at}.${where}`).message, pattern, written);
+  }
+});
+
+test('several continues name the same values and never the same combination', t => {
+  const at = 'nodes.review-approval.options.continue-past.sets';
+  const mismatched = validate(definition(t, setting({ past: '{effect: continue, sets: {other: false}}', guard: null })));
+  assert.equal(mismatched.code, 1);
+  assert.match(errorAt(mismatched.report, at).message,
+    /every continue of a gate sets the same values; "continue-past" sets other and "continue-on" sets audit/);
+  const same = validate(definition(t, setting({ past: '{effect: continue, sets: {audit: true}}' })));
+  assert.equal(same.code, 1);
+  assert.match(errorAt(same.report, at).message,
+    /"continue-past" sets the same values as "continue-on", so the two answers would be one route/);
+});
+
+test('sets is part of the graph identity, and the order its keys are written in is not', t => {
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout);
+  const both = ['{effect: continue, sets: {audit: true, docs: false}}', '{effect: continue, sets: {audit: false, docs: false}}'];
+  const first = hashOf(definition(t, setting({ on: both[0], past: both[1] })));
+  const reordered = hashOf(definition(t, setting({ on: '{effect: continue, sets: {docs: false, audit: true}}', past: both[1] })));
+  const flipped = hashOf(definition(t, setting({ on: '{effect: continue, sets: {audit: true, docs: true}}', past: both[1] })));
+  assert.equal(first.ok, true, JSON.stringify(first.errors));
+  assert.equal(reordered.graph_hash, first.graph_hash, 'the written key order does not move the hash');
+  assert.notEqual(flipped.graph_hash, first.graph_hash, 'what is set moves the hash');
+  const gate = first.nodes.find(node => node.id === 'review-approval');
+  assert.deepEqual(JSON.parse(JSON.stringify(gate.options['continue-on'])), { effect: 'continue', sets: { audit: true, docs: false } });
+});
+
+test('a workflow may expose a value a gate continue sets', t => {
+  const lines = ['name: acme', 'version: 1', 'outputs:', '  values: {audited: review-approval.values.audit}', ...setting().slice(2)];
+  const { code, report } = validate(definition(t, lines));
+  assert.equal(code, 0, JSON.stringify(report.errors));
 });

@@ -388,10 +388,12 @@ description is the reason this node judged it so — "Yes, explore alternatives
 trade-offs". The other option's description says what the run does instead.
 The recommendation rides on the option, never in the question alone.
 
-Both of these are asked **inside this node** rather than as gate nodes, because
-both answers continue the run: a gate has exactly one continue, and neither
-answer here stops anything or sends the run back. A "no" makes
-the guarded nodes skip, and a skip satisfies everything downstream.
+Both of these are asked **inside this node** rather than at the gate before
+them. A gate can decide one optional step with one continue per way on, but
+these are two independent choices: deciding both at a gate would need four
+continues beside its revise and its stop, more than a gate's question holds.
+A "no" makes the guarded nodes skip, and a skip satisfies everything
+downstream.
 
 **With question sets** (`brainstorm-opt-in`): asked through the cockpit, in this
 node's one request (*In-node questions*).
