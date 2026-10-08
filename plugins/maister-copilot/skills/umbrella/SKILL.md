@@ -261,8 +261,9 @@ engine freezes the resolved graph into the run's state before the first node
 executes, and the only later read of the definition is the envelope's, made
 while a node is dispatched and proved against the frozen hash; a run whose
 status is terminal and whose gate marker is clear dispatches nothing again. So
-`prune` deletes a chain's three files when at least one run named it and every
-such run has closed. A chain no run ever named is kept by a sweep — the moment
+`prune` deletes a chain's files — its definition, its prose, its plan and, when
+the planner wrote one, its outcome marker — when at least one run named it and
+every such run has closed. A chain no run ever named is kept by a sweep — the moment
 between publishing and starting is exactly when a sweep would otherwise
 delete it — and removed only when `--name` spells its stem. `--name` on a
 chain an open run names is a refusal, not a wait, and the refusal is where the

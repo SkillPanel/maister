@@ -130,8 +130,14 @@ const STATE_FILE = 'orchestrator-state.yml';
 /** A run whose `task.status` is one of these dispatches nothing again. */
 const CLOSED_STATUSES = ['completed', 'failed', 'stopped'];
 
-/** The three files a chain of one stem consists of, by extension, in publish order. */
-const CHAIN_EXTENSIONS = ['yml', 'md', 'plan.md'];
+/**
+ * The four files a chain of one stem consists of, by extension: the three the
+ * planner publishes, in publish order, then the outcome marker it writes when it
+ * finishes. The marker is absent while the planner runs or if it never finished.
+ * Only `prune` reads this list; the marker never counts as a chain, because its
+ * stem carries a dot and `CHAIN_STEM` admits none.
+ */
+const CHAIN_EXTENSIONS = ['yml', 'md', 'plan.md', 'outcome.yml'];
 
 /** A chain stem: the planner's charset, so `--name` can never spell a path. */
 const CHAIN_STEM = /^[a-z][a-z0-9-]*$/;
