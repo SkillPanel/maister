@@ -1054,6 +1054,68 @@ test('picker: a stretch with nothing open offers no suggestion, and the note is 
   assert.deepEqual(request.options.find(option => option.id === 'send-back').suggestions, []);
 });
 
+// The stretch's other items stay in every case: a decision, a trade-off and a
+// follow-up name no change, so none of them is a suggestion.
+const NO_CHANGE = {
+  draft: { decisions: ['Wrote it for new operators'], risks: [{ risk: 'Two breaking changes ship under 1.0.0', tag: 'tradeoff' }] },
+  review: { decisions: ['Kept the glossary'], risks: ['followup: rename the CLI flag'] },
+};
+const FILLER = /Revisit the decision|more specific where|down to what the next step needs/;
+
+for (const [count, open] of [
+  [0, []],
+  [1, [{ risk: 'section 2 is thin', tag: 'open', change: 'expand section 2' }]],
+  [3, [{ risk: 'section 2 is thin', tag: 'open', change: 'expand section 2' }, 'open: the intro repeats the title', 'open: the index is stale → rebuild the index']],
+]) {
+  test(`every form offers exactly the ${count} suggestion(s) that name a change, and never a filler`, t => {
+    const run = atReview(t, { draft: NO_CHANGE.draft, review: { ...NO_CHANGE.review, risks: [...NO_CHANGE.review.risks, ...open] } });
+    const form = flags => verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', ...flags]);
+    const sendBack = options => options.find(option => option.id === 'send-back');
+    const outputs = {};
+    for (const [name, flags] of Object.entries({ rich: ['--json'], plain: ['--json', '--picker=plain'], request: ['--request'], checkpoint: ['--checkpoint'], oneline: ['--oneline'], text: [] })) {
+      const result = form(flags);
+      assert.equal(result.code, 0, `${name}: ${result.stderr}`);
+      assert.doesNotMatch(result.stdout, FILLER, name);
+      outputs[name] = result.stdout;
+    }
+    const rich = sendBack(JSON.parse(outputs.rich).options);
+    const notes = rich.suggestions.map(each => each.note);
+    assert.equal(notes.length, count);
+    assert.ok(rich.suggestions.every(each => !each.recommended));
+    for (const name of ['request', 'checkpoint']) {
+      assert.deepEqual(sendBack(JSON.parse(outputs[name]).options).suggestions.map(each => each.note), notes, name);
+    }
+    const plain = sendBack(JSON.parse(outputs.plain).options);
+    for (const [profile, option] of [['rich', rich], ['plain', plain]]) {
+      const asked = option.note_question;
+      if (count < 2) {
+        // A picker lists two options at the least: fewer is a note typed.
+        assert.deepEqual(asked.options, [], profile);
+        assert.equal(asked.multi_select, false, profile);
+        assert.match(asked.question, count ? /Type "yes" to send it, or type your own change\.$/ : /Type the change\.$/, profile);
+      } else {
+        assert.equal(asked.multi_select, true, profile);
+        assert.deepEqual(asked.options.map(each => each.label),
+          profile === 'rich' ? rich.suggestions.map(each => each.label) : notes, profile);
+      }
+    }
+    assert.match(outputs.oneline, / · revise: send-back reruns=draft revision=1\/10 · /);
+  });
+}
+
+test('a risk that recommends stopping is the first suggestion, before the open ones', t => {
+  const run = atReview(t, {
+    draft: { risks: ['recommend stop: the guide documents a removed command'] },
+    review: { risks: ['open: section 2 is thin → expand section 2', { risk: 'The API it describes is not shipped yet', tag: 'stop', change: 'describe only the shipped commands' }] },
+  });
+  const { suggestions } = picker(run, 'review-approval').options.find(option => option.id === 'send-back');
+  assert.deepEqual(suggestions.map(each => each.note), [
+    'The API it describes is not shipped yet — describe only the shipped commands',
+    'Address this in the re-run: the guide documents a removed command',
+    'section 2 is thin — expand section 2',
+  ]);
+});
+
 test('a driven request asked again for a revise answered without a note opens by asking for it', t => {
   const run = atReview(t, { review: { risks: [] }, draft: { risks: [] } });
   const request = flags => JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', '--request', ...flags]).stdout);

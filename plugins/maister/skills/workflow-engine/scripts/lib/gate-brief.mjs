@@ -577,8 +577,10 @@ function skippedAgain(id, stretch, guards) {
 
 /**
  * What the operator might ask a revise to change, generated from what the
- * stretch it re-runs left open: each open risk as a thing to resolve, nearest
- * the gate first — the order the brief lists them in, most important first.
+ * stretch it re-runs left open: each risk that recommends stopping, then each
+ * open risk, as a thing to resolve — a reason to stop is what a revise most
+ * needs to answer, as the brief lists it first — each nearest the gate first,
+ * the order the brief lists them in, most important first.
  * Duplicates go: a risk two nodes recorded, compared as `distinct` compares
  * it, is offered once, as the brief lists it once; and so is a second risk
  * asking for a change already offered, which would tell the re-run nothing
@@ -610,22 +612,19 @@ function suggestionsFor(sources, stretch) {
   const key = text => text.replace(/\s+/g, ' ').replace(/\.$/, '').trim().toLowerCase();
   const seen = new Set();
   const entries = stretch.map(id => summaryOf(sources, id)).filter(Boolean);
-  for (const entry of entries) {
-    for (const item of entry.risks) {
-      // Only what is still open is a change to ask for: a trade-off was chosen,
-      // a follow-up is for later, and neither is what a revise is for.
-      const risk = riskOf(item);
-      if (!risk || risk.tag !== 'open') continue;
-      const keys = [`risk:${key(risk.risk)}`, ...(risk.change ? [`change:${key(risk.change)}`] : [])];
-      if (keys.some(each => seen.has(each))) continue;
-      for (const each of keys) seen.add(each);
-      const short = headline(risk.risk);
-      // A risk written with the change it needs carries its own fix; without
-      // one, the note says what the rerun does with it rather than a bare
-      // "Resolve:" the user cannot act on.
-      if (risk.change) add(short, risk.change, `${bare(short)} — ${risk.change}`);
-      else add(short, 'Address it in the re-run', `Address this in the re-run: ${risk.risk}`);
-    }
+  // Only what is still open is a change to ask for: a trade-off was chosen, a
+  // follow-up is for later, and neither is what a revise is for.
+  const risks = entries.flatMap(entry => entry.risks.map(riskOf).filter(Boolean));
+  for (const risk of [...risks.filter(each => each.tag === 'stop'), ...risks.filter(each => each.tag === 'open')]) {
+    const keys = [`risk:${key(risk.risk)}`, ...(risk.change ? [`change:${key(risk.change)}`] : [])];
+    if (keys.some(each => seen.has(each))) continue;
+    for (const each of keys) seen.add(each);
+    const short = headline(risk.risk);
+    // A risk written with the change it needs carries its own fix; without
+    // one, the note says what the rerun does with it rather than a bare
+    // "Resolve:" the user cannot act on.
+    if (risk.change) add(short, risk.change, `${bare(short)} — ${risk.change}`);
+    else add(short, 'Address it in the re-run', `Address this in the re-run: ${risk.risk}`);
   }
   return found.slice(0, SUGGESTIONS_MAX);
 }

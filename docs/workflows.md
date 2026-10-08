@@ -393,7 +393,7 @@ On GitHub Copilot CLI, which shows no previews, the same glance is the question 
 ask as its last line.
 
 Risks are kept to **More details**, grouped by what they are:
-- *Open*: still yours to change, and the source of a revise's suggested notes;
+- *Open*: still yours to change, and with any reason to stop the source of a revise's suggested notes;
 - *Trade-offs accepted*: consequences of a choice already made;
 - *Follow-ups*: for after this run.
 
@@ -430,8 +430,10 @@ automatic fix loop ([Answering a question](#answering-a-question)) before the ga
 session; a run driven from outside skips those loops, so its pauses are where the documents change.
 
 - **The note is chosen, not typed.** After you pick revise, the gate offers up to four suggested
-  changes drawn from what the phase found — its open risks and its decisions — none of them
-  ticked in advance. Pick any of them; typing your own is there too, for anything the suggestions miss.
+  changes drawn from what the phase left open — a reason to stop first, each with the change it
+  needs where the phase named one — none of them ticked in advance. Pick any of them; typing your
+  own is there too, for anything the suggestions miss. Nothing is offered just to fill the list:
+  with fewer than two suggestions you type the note, and "yes" sends the one there is.
 - **Revise as often as you need.** The option says how often the checkpoint has sent the run back
   so far, and mentions an earlier revise of the same document at another checkpoint. A safety
   ceiling of ten per checkpoint stops a runaway loop; at it, the gate offers only continue and
