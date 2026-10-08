@@ -50,6 +50,12 @@ export const PREVIEW_BUDGET = 2000;
 const DECIDED_CAP = 3;
 const DECISION_MAX = 110;
 
+/** How long a recommendation's reason may run in a labels-only title before it is cut. */
+const REASON_MAX = 120;
+
+/** An abbreviation whose full stop ends no sentence, read off the text before it. */
+const ABBREVIATION = /(?:^|[\s(])(?:e\.g|i\.e|etc|vs|cf)$/i;
+
 /** How many open risks a glance shows. */
 const RISK_CAP = 3;
 
@@ -164,6 +170,25 @@ function clip(text, max) {
   if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
   const word = cut.lastIndexOf(' ');
   return `${(word > max / 2 ? cut.slice(0, word) : cut).trimEnd()}…`;
+}
+
+/**
+ * A recommendation's reason as a labels-only title carries it: whole when it
+ * fits `REASON_MAX`, else the sentences that fit, else cut at a word. A cut at
+ * a fixed width took the last few words of a one-line reason; More details
+ * carries the reason whole.
+ */
+function reasonText(text) {
+  if (text.length <= REASON_MAX) return text;
+  const ends = [...text.slice(0, REASON_MAX).matchAll(/[.!?](?=\s)/g)]
+    .filter(end => !ABBREVIATION.test(text.slice(0, end.index)));
+  return ends.length ? text.slice(0, ends.at(-1).index + 1) : clip(text, REASON_MAX);
+}
+
+/** `text` as a sentence of its own: a capital first letter and a closing stop. */
+function sentenceOf(text) {
+  const opened = text.trim().charAt(0).toUpperCase() + text.trim().slice(1);
+  return /[.!?]$/.test(opened) ? opened : `${opened}.`;
 }
 
 /**
@@ -466,8 +491,9 @@ function noteQuestion(option, profile) {
  * The full brief, risks included: the *Done* sentence; each closed node's
  * summary under its title; every fix the run applied; every decision with who
  * settled it; the user's choices; risks grouped as Open (a stop first),
- * Trade-offs accepted and Follow-ups; and every file to review with what it
- * holds. Markdown, blocks apart by a blank line. Unclipped: the caller clips
+ * Trade-offs accepted and Follow-ups; every file to review with what it
+ * holds; and where the run goes, with the reason a recommended continue
+ * gave. Markdown, blocks apart by a blank line. Unclipped: the caller clips
  * the preview.
  */
 export function moreDetails(checkpoint) {
@@ -496,8 +522,12 @@ export function moreDetails(checkpoint) {
     blocks.push(['**Files**', ...checkpoint.review.map(each => `- ${each.path}${each.label ? ` — ${each.label}` : ''}${each.html ? ` (HTML: ${each.html})` : ''}`)].join('\n'));
   }
   const ways = waysOf(checkpoint);
-  if (ways.length > 1) blocks.push(ways.map(option => `Next (${lowered(option.label)}): ${nextText(option.next)}`).join('\n'));
-  else blocks.push(`Next: ${nextText(checkpoint.next)}`);
+  const nexts = ways.length > 1 ? ways.map(option => `Next (${lowered(option.label)}): ${nextText(option.next)}`) : [`Next: ${nextText(checkpoint.next)}`];
+  // The reason the recommended continue is the one marked, whole: a labels-only
+  // title may carry only its first sentences.
+  const reasoned = (checkpoint.options ?? []).find(option => option.recommended && option.reason);
+  if (reasoned) nexts.push(`Recommended (${lowered(reasoned.label)}): ${sentenceOf(reasoned.reason)}`);
+  blocks.push(nexts.join('\n'));
   return blocks.join('\n\n');
 }
 
@@ -735,7 +765,7 @@ export function plainPicker(checkpoint) {
 function plainTitle(checkpoint, option) {
   if (option.effect === 'continue') {
     const label = grantedLabel(checkpoint, option);
-    return option.reason ? `${label} — ${clip(option.reason, 70)}` : label;
+    return option.reason ? `${label} — ${reasonText(option.reason)}` : label;
   }
   if (option.effect === 'revise') {
     // "it" only when the label already names the one node that re-runs:
@@ -745,7 +775,7 @@ function plainTitle(checkpoint, option) {
     return `${option.label} — re-runs ${own ? 'it' : andList(names)} with your note`;
   }
   const why = option.recommended ? stopReason(checkpoint) : '';
-  return `${option.label} — ${why ? clip(why, 70) : 'keeps everything written so far'}`;
+  return `${option.label} — ${why ? reasonText(why) : 'keeps everything written so far'}`;
 }
 
 /**

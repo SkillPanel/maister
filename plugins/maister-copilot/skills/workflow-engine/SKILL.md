@@ -1006,8 +1006,9 @@ node's own, and neither does a skipped node: without one, the brief is refused
   back, then the suggested notes, each whole: a `stop` or `open` item's risk, then its `change`.
 - **The stop preview** says what is kept and what will not run. When a `stop` risk recommends
   stopping, Stop is the focused option and its preview opens with *Why stop*.
-- **More details** previews the full brief, every fix included and risks grouped as Open,
-  Trade-offs accepted and Follow-ups, within 2,000 characters. `more_details` is the same text, whole.
+- **More details** previews the full brief, every fix included, risks grouped as Open,
+  Trade-offs accepted and Follow-ups, and the recommended continue's reason whole, within 2,000
+  characters. `more_details` is the same text, whole.
 - **The driven request** carries the checkpoint itself as `context.checkpoint`, beside the
   one-line `context.summary` that older readers take. Its `Next:`, `Recommended:` and run
   sections are never trimmed.

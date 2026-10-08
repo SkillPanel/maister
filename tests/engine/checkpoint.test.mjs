@@ -364,6 +364,37 @@ test('checkpoint: with the audit declined, the specification gate recommends goi
   assert.match(line, /Recommended: continue-to-planning/);
 });
 
+test('plain: a recommendation reason shows whole when it fits, else its sentences that fit, else cut at a word; More details has it whole', t => {
+  const audit = 'Continue to the specification audit';
+  const labelFor = reason => pickerOf(atSpecGateRecommending(t, 'continue-to-spec-audit', reason), 'specification-approval', 'plain').options[0].label;
+  // The reason a fixed width cut a few words before its end.
+  const short = 'An independent check can catch validation or CSV contract gaps before implementation.';
+  assert.equal(labelFor(short), `${audit} — ${short} (Recommended)`);
+  const second = 'The audit reads the specification against the codebase and lists every requirement it cannot place, with the reason.';
+  assert.equal(labelFor(`Asked for when the run started. ${second}`), `${audit} — Asked for when the run started. (Recommended)`,
+    'cut at the end of the sentence that fits');
+  assert.equal(labelFor(`It is cheap, e.g. a minute. ${second}`), `${audit} — It is cheap, e.g. a minute. (Recommended)`,
+    'an abbreviation\'s full stop ends no sentence');
+  const long = `An independent check reads ${'the specification and the codebase side by side '.repeat(3)}before implementation`;
+  const cut = labelFor(long).replace(`${audit} — `, '').replace(' (Recommended)', '');
+  assert.ok(cut.endsWith('…') && cut.length <= 120, cut);
+  assert.ok(long.startsWith(cut.slice(0, -1)) && long[cut.length - 1] === ' ', 'cut at a word, never inside one');
+
+  const run = atSpecGateRecommending(t, 'continue-to-spec-audit', long);
+  const details = pickerOf(run, 'specification-approval', 'plain').more_details;
+  assert.match(details, new RegExp(`^Recommended \\(continue to the specification audit\\): ${long}\\.$`, 'm'), 'More details carries the reason whole');
+  assert.equal(pickerOf(run, 'specification-approval', 'rich').more_details, details, 'one full brief for both profiles');
+});
+
+test('plain: a stop reason shows whole when it fits; More details lists it whole under Open', t => {
+  const why = 'The specification contradicts itself on what a null tag means in add() and in the filter';
+  const run = atSpecGate(t, { risks: [{ risk: why, tag: 'stop' }] });
+  const plain = pickerOf(run, 'specification-approval', 'plain');
+  assert.equal(plain.options[0].label, `Stop here — ${why} (Recommended)`);
+  assert.match(plain.more_details, new RegExp(`^- Recommends stopping: ${why.replace(/[()]/g, '\\$&')}$`, 'm'));
+  assert.doesNotMatch(plain.more_details, /^Recommended \(/m, 'a stop recommends for a risk, listed with the risks');
+});
+
 test('checkpoint: the per-continue Next lines come in the options\' order on every surface, the recommended first', t => {
   for (const [option, first, second] of [
     ['continue-to-spec-audit', 'continue to the specification audit', 'continue to planning, skip the audit'],
