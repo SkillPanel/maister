@@ -503,11 +503,8 @@ function band(elements, status, time, maxRows, links) {
   const where = [];
   const phase = status.phase ?? {};
   if (!ended && phase.title && Number.isInteger(phase.index)) where.push(h(Text, { key: 'phase' }, `phase ${phase.index} of ${phase.total} · `, h(Text, { bold: true }, phase.title)));
-  const after = [];
-  if (!ended && status.checkpoint) after.push(`next checkpoint ${status.checkpoint.index} of ${status.checkpoint.total}`);
   const elapsed = ended ? null : elapsedText(status.started, time);
-  if (elapsed) after.push(elapsed);
-  if (after.length) where.push(h(Text, { key: 'after', color: DIM }, after.join(' · ')));
+  if (elapsed) where.push(h(Text, { key: 'elapsed', color: DIM }, elapsed));
 
   const dots = !ended && Number.isInteger(phase.index) && phase.total <= DOTS_MAX ? dotsOf({ Text }, phase) : null;
   const progress = h(Box, { key: 'progress', flexDirection: 'row', gap: 2 },
