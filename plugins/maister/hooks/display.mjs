@@ -117,6 +117,9 @@ const PART_COLORS = { done: DONE, running: AMBER, reverted: RED, skipped: RED, t
 /** The most phases the band draws as dots; a longer run draws the count alone. */
 const DOTS_MAX = 30;
 
+/** The colour of a phase's dot, by where it stands. */
+const DOT_COLORS = { done: DONE, current: AMBER, skipped: DIM, pending: PENDING };
+
 /** @type {import('claude-code').Register} */
 export const register = on => {
   on('session.start', async ($, e, next) => {
@@ -534,14 +537,26 @@ function partsLine({ Box, Text }, parts) {
     h(Box, { key: 'line', flexShrink: 1 }, h(Text, { wrap: 'truncate-end' }, parts.line)));
 }
 
-/** The phases as dots: done, the current one, and those still to come. */
+/**
+ * The phases as dots: done, the current one, and those still to come, with a
+ * phase the run skipped as a hollow dim dot in its place, so the total holds
+ * and the dots say what was left out. A run of dots of one kind is one text.
+ */
 function dotsOf({ Text }, phase) {
-  const done = Math.max(0, phase.index - 1);
-  const pending = Math.max(0, phase.total - phase.index);
-  return h(Text, { key: 'dots' },
-    h(Text, { color: DONE }, '●'.repeat(done)),
-    h(Text, { color: AMBER }, '●'),
-    h(Text, { color: PENDING }, '●'.repeat(pending)));
+  const skipped = new Set(Array.isArray(phase.skipped) ? phase.skipped : []);
+  const kindAt = place => {
+    if (place === phase.index) return 'current';
+    if (skipped.has(place)) return 'skipped';
+    return place < phase.index ? 'done' : 'pending';
+  };
+  const runs = [];
+  for (let place = 1; place <= phase.total; place += 1) {
+    const kind = kindAt(place);
+    if (runs.length && runs[runs.length - 1].kind === kind) runs[runs.length - 1].count += 1;
+    else runs.push({ kind, count: 1 });
+  }
+  return h(Text, { key: 'dots' }, ...runs.map(({ kind, count }, index) =>
+    h(Text, { key: `dots-${index}`, color: DOT_COLORS[kind] }, (kind === 'skipped' ? '○' : '●').repeat(count))));
 }
 
 /**

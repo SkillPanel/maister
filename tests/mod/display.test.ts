@@ -319,6 +319,16 @@ describe('run band', () => {
     expect((await band($, 'terminal')).texts).toContain('running for 10 min')
   })
 
+  test('keeps a skipped phase in its place as a hollow dim dot, so the total holds', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ phase: { index: 7, total: 12, title: 'Implementation', skipped: [3, 4] } }) })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const drawn = await band($, 'terminal')
+    expect(drawn.texts).toContain('●●○○●●●●●●●●')
+    expect(drawn.texts).toContain('phase 7 of 12 · Implementation')
+    expect(drawn.colours).toMatchObject({ '●●': '#79c08b', '○○': '#8c909a', '●': '#e3bd59', '●●●●●': '#5a5f69' })
+  })
+
   test('never says how long anything will take', async ($: any, on: any) => {
     mock.clock(on, { now: Date.parse(LATER) })
     beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() })

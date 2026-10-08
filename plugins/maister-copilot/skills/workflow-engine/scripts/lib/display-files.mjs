@@ -104,32 +104,34 @@ const SETTLED = new Set(['completed', 'skipped']);
 
 /**
  * The phase a run is in, by the one rule every display file uses: the frozen
- * nodes in frozen order, less its gates — a checkpoint is not a phase — and less
- * the nodes recorded skipped, which the run will not run. `total` counts those.
- * The current phase is the first of them under way; when none is — the run
- * waits at a checkpoint, or has just started or finished — it is the last one
- * completed, or else the first. `index` is its place among them, `title` its
- * title; both are null only for a run with no phase at all.
+ * nodes in frozen order, less its gates — a checkpoint is not a phase. `total`
+ * counts those, and holds for the whole run: a node recorded skipped keeps its
+ * place, and `skipped` lists the places of those, counted from one, so a
+ * reader can draw it apart from one done or one still to come. The current
+ * phase is the first under way; when none is — the run waits at a checkpoint,
+ * or has just started or finished — it is the last one completed, or else the
+ * first not skipped. `index` is its place, `title` its title; both are null
+ * only for a run with no phase at all.
  *
  * Never a pending node after a completed one: a guard may skip it, and only
- * the brief's walk knows, so naming it would name work that never runs. A
- * guarded node still pending is counted until it is recorded skipped: the
- * total is what the run may still run, and it shrinks as guards settle.
+ * the brief's walk knows, so naming it would name work that never runs.
  */
 export function phaseOf(doc, titles) {
-  const { phases, at } = currentPhase(doc);
-  if (!phases.length) return { index: null, total: 0, title: null };
-  return { index: at + 1, total: phases.length, title: titleOf(titles, phases[at]) };
+  const { phases, at, nodes } = currentPhase(doc);
+  if (!phases.length) return { index: null, total: 0, title: null, skipped: [] };
+  const skipped = phases.flatMap((id, place) => (nodes[id].status === 'skipped' ? [place + 1] : []));
+  return { index: at + 1, total: phases.length, title: titleOf(titles, phases[at]), skipped };
 }
 
 /** The phases `phaseOf` counts, and the place of the current one among them. */
 function currentPhase(doc) {
   const nodes = nodesOf(doc);
-  const phases = Object.keys(nodes).filter(id => nodes[id].kind !== 'gate' && nodes[id].status !== 'skipped');
+  const phases = Object.keys(nodes).filter(id => nodes[id].kind !== 'gate');
   let at = phases.findIndex(id => ONGOING.has(nodes[id].status));
   if (at === -1) at = phases.findLastIndex(id => nodes[id].status === 'completed');
+  if (at === -1) at = phases.findIndex(id => nodes[id].status !== 'skipped');
   if (at === -1) at = 0;
-  return { phases, at };
+  return { phases, at, nodes };
 }
 
 /**

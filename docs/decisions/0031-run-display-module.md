@@ -71,9 +71,11 @@ reported among a write's changed paths.
   - `artifacts`, the artifact paths the nodes declare, relative to the run's folder, a sub-run's
     left out until it has a folder of its own;
   - the task folder's and the dashboard's `file://` URLs.
-  - Phases are the frozen nodes, less gates and less the nodes recorded skipped.
+  - Phases are the frozen nodes, less gates. The total holds for the whole run: a node recorded
+    skipped keeps its place, and `phase.skipped` lists those places, so an operator never sees
+    `phase 9 of 12` turn into `phase 10 of 10` as guards settle.
   - The current phase is the first one under way. With none under way, it is the last one
-    completed, or else the first.
+    completed, or else the first not skipped.
   - It never names pending work after a completed phase, because only the gate brief's walk
     knows what a guard will skip.
 - **`<run>/display/banner.json`**, from the freeze. It holds the banner's lines, without the relay
@@ -125,8 +127,8 @@ render sites, and stands in for them where they are not drawn:
     instead (`$.ui.log`).
 - **`AbovePrompt`: the run band.**
   - Two rows. The first: the workflow in the brand colour, the task, and the dashboard and task
-    folder links on the right. The second: the phases as dots (done green, the current amber, the
-    rest dim), `phase n of N · <title>` with the title bold, then `running for N min`, dim.
+    folder links on the right. The second: the phases as dots (done green, the current amber, a
+    skipped one hollow and dim, the rest dim), `phase n of N · <title>` with the title bold, then `running for N min`, dim.
   - Framed when the rows allow, with no blank row of its own: the engine's `[-]` sits beside
     the top border, and the row between the band and the prompt rule is the engine's own, there
     with or without the band. With fewer rows it drops the frame.
@@ -264,7 +266,7 @@ its projections, not a second source.
   the Desktop Code tab, whatever the model writes. In the attended check on 2.1.292:
   - the banner drew line by line;
   - the status line followed every write, with gates uncounted and the total shrinking as skips
-    were recorded;
+    were recorded — since changed: the total holds and a skip keeps its place;
   - two gate panels drew above their dialogs with none refused;
   - a non-gate question was left untouched;
   - a resumed session drew its status line at start.

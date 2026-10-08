@@ -610,8 +610,8 @@ short panel sits above the question: what the checkpoint closes, what was done, 
 decided and how much is open, what runs next and which files to review. It stays in view whichever
 option you are looking at. A question that is not a checkpoint gets no panel.
 
-The phase count leaves out checkpoints and the steps a run skips, so the total can shrink as the
-run settles which optional steps it takes.
+The phase count leaves out checkpoints. It holds for the whole run: a step the run skips keeps its
+place, drawn as a hollow dot among the phase dots, so the total never shrinks.
 
 What it draws comes from small files the engine writes for it, in each run's `display/` directory.
 The engine also keeps a pointer per session under `.maister/display/sessions/`, which is how the
