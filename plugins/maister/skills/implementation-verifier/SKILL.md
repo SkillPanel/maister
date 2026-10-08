@@ -23,7 +23,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 
 The verification phase can run many cycles under this skill: the initial pass, then one re-verification after each round of fixes. While control sits here, the orchestrator cannot record any of them. So this skill records each cycle itself, in `verification_context`, and it **never writes `dashboard-data.js`**. The workflow engine's state writer is that file's only writer: it projects the verification panel from `verification_context` on every state write. Each record is one `write-state` call, with the patch in the patch file, following the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract).
 
-- **Three writes per cycle**: one at entry, which clears the previous cycle's verdict (Phase 1); one as the reviews are dispatched, naming them (Phase 2, Step 3b); and one once this cycle's report is written (Phase 3). `verification_context` merges key by key, so none of them touches `fixes_applied`, `decisions_made` or `reverify_count`. Those belong to the caller's fix loop. A cycle that dispatches no reviews — a `recheck: tests-only` — skips the middle write.
+- **The writes of a cycle**: one at entry, which clears the previous cycle's verdict (Phase 1); one as the reviews are dispatched, naming them (Phase 2, Step 3b); one as each review returns, adding it to the done list (Step 4); and one once this cycle's report is written (Phase 3). The status line redraws only on a state write, so the per-review writes are what move it review by review rather than all at once at the report. `verification_context` merges key by key, so none of them touches `fixes_applied`, `decisions_made` or `reverify_count`. Those belong to the caller's fix loop. `reviews` is one of those keys and is replaced whole, so every write of it carries both lists: `chosen` as Step 3b recorded it, and `done` as it stands. A cycle that dispatches no reviews — a `recheck: tests-only` — skips the dispatch and per-review writes.
 - **Orchestrator mode only.** A standalone run has no `orchestrator-state.yml`, so it has no workflow run and no dashboard. The report is that run's record, and there is nothing to write. `html_output` does not gate these writes: they are state, and the writer itself decides whether a dashboard is published.
 - **Never blocks**: a refused write is noted in the Phase 5 summary and the verdict stands regardless.
 
@@ -130,7 +130,7 @@ Task tool call (if NOT skip_test_suite) — **the only Task call in its message*
 
 ### Step 3b: Run all other verifications (parallel)
 
-**First, record the reviews being dispatched** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context.reviews` as `{chosen: [...], done: []}`, listing every verification this step sends by its short name — `completeness`, `code review`, `pragmatic`, `production readiness`, `reality check`. The run's status line draws them as running from this write until Phase 3 records them done.
+**First, record the reviews being dispatched** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context.reviews` as `{chosen: [...], done: []}`, listing every verification this step sends by its short name — `completeness`, `code review`, `pragmatic`, `production readiness`, `reality check`. The run's status line draws them as running from this write until each one's return is recorded (Step 4).
 
 **INVOKE NOW** — send ALL remaining enabled subagents in a SINGLE message (up to 5 parallel Task tool calls). **Every prompt below also carries the test-suite result from Step 3a** — status, counts and results path, or the skip line — so each review weighs its findings against the tests' actual outcome:
 
@@ -165,8 +165,10 @@ Task tool call (if reality_check_enabled):
 
 ### Step 4: Process all results
 
+**As each review returns**, while others are still out: use `TaskUpdate` to set its verification task to `status: "completed"`, then (orchestrator mode) record it done — one `write-state` of `verification_context.reviews`, `done` now holding every review returned so far. One write per return, never batched until the last; a refused write follows the never-blocks rule (§ State and Dashboard: Through the Engine).
+
 After ALL subagents return:
-1. Use `TaskUpdate` to set each verification task to `status: "completed"`
+1. Use `TaskUpdate` to set any verification task still open to `status: "completed"`
 2. Extract status, issues, and findings from each
 3. **Confirm each report reached disk**: every enabled review owes the file at the `report_path` you passed it. Check them; for each one missing, record an issue with `source: "artifacts"`, `severity: "warning"`, naming the agent that owed it and the path, and say plainly in the compiled report that its findings are the subagent's reply transcribed rather than its own artifact. Never let a transcription pass silently for the artifact — that substitution is the defect this check exists to surface.
 4. Aggregate issue counts
@@ -335,5 +337,5 @@ Before finalizing verification:
 - All subagent results processed
 - Verification report created
 - Overall status determined from aggregated results
-- `verification_context` cleared at entry and recorded after this cycle's report through `write-state` — or skipped in standalone mode
+- `verification_context` cleared at entry, each review recorded done as it returned, and the cycle recorded after its report through `write-state` — or skipped in standalone mode
 - No direct analysis performed (all delegated)
