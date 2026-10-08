@@ -15,8 +15,6 @@ Create `implementation/implementation-plan.md` from an approved specification. B
 
 **You do NOT ask users questions** - you work autonomously from the specification and accumulated context.
 
-**You do NOT create directories** - the orchestrator has already created the task folder structure.
-
 **You do NOT write specifications or code** - specs come from specification-creator; code comes from implementation-plan-executor.
 
 ---
@@ -386,7 +384,6 @@ visual_coverage:  # present only when design-context/INDEX.md existed
 **Invoked by**: the `planning` node of the development, performance and migration workflows
 
 **Prerequisites**:
-- Task directory exists with `implementation/` subdirectory
 - `implementation/spec.md` exists (created by specification-creator)
 
 **Input**: Task path, task_characteristics, description, accumulated context

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
-import { panelOf as panelOfCheckpoint } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+import { panelOf as panelOfCheckpoint, unmarked } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
 // every surface — the two in-session pickers, the driven request, a cockpit
@@ -364,6 +364,98 @@ test('checkpoint: with the audit declined, the specification gate recommends goi
   assert.match(line, /Recommended: continue-to-planning/);
 });
 
+test('plain: a recommendation reason shows whole when it fits, else its sentences that fit, else cut at a word; More details has it whole', t => {
+  const audit = 'Continue to the specification audit';
+  const labelFor = reason => pickerOf(atSpecGateRecommending(t, 'continue-to-spec-audit', reason), 'specification-approval', 'plain').options[0].label;
+  // The reason a fixed width cut a few words before its end.
+  const short = 'An independent check can catch validation or CSV contract gaps before implementation.';
+  assert.equal(labelFor(short), `${audit} — ${short} (Recommended)`);
+  const second = 'The audit reads the specification against the codebase and lists every requirement it cannot place, with the reason.';
+  assert.equal(labelFor(`Asked for when the run started. ${second}`), `${audit} — Asked for when the run started. (Recommended)`,
+    'cut at the end of the sentence that fits');
+  assert.equal(labelFor(`It is cheap, e.g. a minute. ${second}`), `${audit} — It is cheap, e.g. a minute. (Recommended)`,
+    'an abbreviation\'s full stop ends no sentence');
+  const long = `An independent check reads ${'the specification and the codebase side by side '.repeat(3)}before implementation`;
+  const cut = labelFor(long).replace(`${audit} — `, '').replace(' (Recommended)', '');
+  assert.ok(cut.endsWith('…') && cut.length <= 120, cut);
+  assert.ok(long.startsWith(cut.slice(0, -1)) && long[cut.length - 1] === ' ', 'cut at a word, never inside one');
+
+  const run = atSpecGateRecommending(t, 'continue-to-spec-audit', long);
+  const details = pickerOf(run, 'specification-approval', 'plain').more_details;
+  assert.match(details, new RegExp(`^Recommended \\(continue to the specification audit\\): ${long}\\.$`, 'm'), 'More details carries the reason whole');
+  assert.equal(pickerOf(run, 'specification-approval', 'rich').more_details, details, 'one full brief for both profiles');
+});
+
+test('plain: a stop reason shows whole when it fits; More details lists it whole under Open', t => {
+  const why = 'The specification contradicts itself on what a null tag means in add() and in the filter';
+  const run = atSpecGate(t, { risks: [{ risk: why, tag: 'stop' }] });
+  const plain = pickerOf(run, 'specification-approval', 'plain');
+  assert.equal(plain.options[0].label, `Stop here — ${why} (Recommended)`);
+  assert.match(plain.more_details, new RegExp(`^- Recommends stopping: ${why.replace(/[()]/g, '\\$&')}$`, 'm'));
+  assert.doesNotMatch(plain.more_details, /^Recommended \(/m, 'a stop recommends for a risk, listed with the risks');
+});
+
+test('plain: inline code reads without its backticks, the code kept; the rich picker and More details keep the marks', t => {
+  const run = atSpecGate(t, {
+    headline: 'The spec adds `byTag(tag)` and `toCsv()` and keeps the old API.',
+    recommends: { option: 'continue-to-spec-audit', reason: 'The `byTag()` contract needs an independent check' },
+    decisions: [
+      { decision: 'Preserve `list()` as text values in insertion order', by: 'run' },
+      { decision: 'Keep ``a`b`` tags as written; it`s the caller\'s call', by: 'run' },
+    ],
+    risks: [
+      { risk: 'The `toCsv()` export escapes nothing', tag: 'open', change: 'Quote every field in `toCsv()`' },
+      { risk: '`add()` accepts a string as tags', tag: 'open', change: 'Refuse a non-array `tags`' },
+    ],
+  });
+  const plain = pickerOf(run, 'specification-approval', 'plain');
+  assert.match(plain.question, /^Done: The spec adds byTag\(tag\) and toCsv\(\) and keeps the old API\.$/m);
+  assert.match(plain.question, /^- Preserve list\(\) as text values in insertion order — specification$/m);
+  assert.match(plain.question, /^- Keep a`b tags as written; it`s the caller's call — specification$/m, 'a double-backtick span keeps its code; an unpaired backtick stays');
+  assert.match(plain.question, /^- The toCsv\(\) export escapes nothing$/m);
+  assert.equal(plain.options[0].label, 'Continue to the specification audit — The byTag() contract needs an independent check (Recommended)');
+  const revise = plain.options.find(option => option.id === 'revise-specification');
+  assert.deepEqual(revise.note_question.options.map(option => option.label), [
+    'The toCsv() export escapes nothing — Quote every field in toCsv()',
+    'add() accepts a string as tags — Refuse a non-array tags',
+  ]);
+  assert.doesNotMatch(JSON.stringify(plain.options) + plain.question.replace('a`b', '').replace('it`s', ''), /`/, 'no other backtick anywhere the plain picker shows');
+
+  assert.match(plain.more_details, /- Preserve `list\(\)` as text values/, 'More details is written out as a message, read as markdown');
+  const rich = pickerOf(run, 'specification-approval', 'rich');
+  assert.match(rich.options[0].preview, /`list\(\)`/);
+  assert.equal(rich.options.find(option => option.id === 'revise-specification').note_question.options[0].label, 'The `toCsv()` export escapes nothing');
+});
+
+test('unmarked: drops each code span\'s backticks and keeps its code', () => {
+  for (const [text, plain] of [
+    ['Preserve `list()` as text', 'Preserve list() as text'],
+    ['`a` and `b`', 'a and b'],
+    ['``a`b`` done', 'a`b done'],
+    ['`` `x` ``', '`x`'],
+    ['it`s fine', 'it`s fine'],
+    ['`one\ntwo`', '`one\ntwo`'],
+    ['no code', 'no code'],
+  ]) assert.equal(unmarked(text), plain, JSON.stringify(text));
+});
+
+test('checkpoint: the per-continue Next lines come in the options\' order on every surface, the recommended first', t => {
+  for (const [option, first, second] of [
+    ['continue-to-spec-audit', 'continue to the specification audit', 'continue to planning, skip the audit'],
+    ['continue-to-planning', 'continue to planning, skip the audit', 'continue to the specification audit'],
+  ]) {
+    const run = atSpecGateRecommending(t, option, 'Asked for when the run started');
+    const plain = pickerOf(run, 'specification-approval', 'plain');
+    const nexts = text => text.split('\n').filter(line => line.startsWith('Next (')).map(line => line.slice(6, line.indexOf('):')));
+    assert.deepEqual(nexts(plain.question), [first, second], `${option}: the plain glance`);
+    assert.deepEqual(plain.options.filter(each => each.id.startsWith('continue')).map(each => each.id)[0], option, `${option}: the options`);
+    assert.deepEqual(nexts(plain.more_details), [first, second], `${option}: More details`);
+    assert.deepEqual(nexts(gateBrief(run, 'specification-approval').stdout), [first, second], `${option}: the text brief`);
+    const ids = gateBrief(run, 'specification-approval', '--oneline').stdout.match(/Next \(([a-z-]+)\)/g);
+    assert.deepEqual(ids, [`Next (${option})`, `Next (${option === 'continue-to-planning' ? 'continue-to-spec-audit' : 'continue-to-planning'})`], `${option}: the oneline`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // the projections reproduce the designed layouts
 // ---------------------------------------------------------------------------
@@ -432,10 +524,11 @@ test('rich: the specification gate renders as designed — a one-line ask, the g
 test('plain: the specification gate renders as designed — the glance, then the ask last; titles carry consequences', t => {
   const plain = pickerOf(atSpecGate(t), 'specification-approval', 'plain');
   assert.equal(plain.header, 'Specification', 'a form property takes the step\'s own title, never the short chip');
-  // The glance gives each continue its own Next line, named by its label.
+  // The glance gives each continue its own Next line, named by its label, in
+  // the options' order: the recommended audit first.
   const glance = SPEC_GLANCE.flatMap(line => line === 'Next: Specification audit' ? [
-    'Next (continue to planning, skip the audit): Implementation planning (skipping Specification audit)',
     'Next (continue to the specification audit): Specification audit',
+    'Next (continue to planning, skip the audit): Implementation planning (skipping Specification audit)',
   ] : [line.replace('(HTML beside it)', '(HTML: spec.html)')]);
   assert.equal(plain.question, [...glance, 'Specification complete. Ready to go on?'].join('\n'));
   assert.deepEqual(plain.options.map(option => option.label), [

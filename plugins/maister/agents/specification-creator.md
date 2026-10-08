@@ -15,8 +15,6 @@ Create `implementation/spec.md` from pre-gathered requirements. Search the codeb
 
 **You do NOT ask users questions** - requirements are already gathered by the orchestrator and provided in `analysis/requirements.md`. You work autonomously with the provided context.
 
-**You do NOT create directories** - the orchestrator has already created the task folder structure.
-
 ---
 
 ## Core Philosophy
@@ -287,7 +285,6 @@ fixes:
 **Invoked by**: the `specification` node of the development, performance and migration workflows
 
 **Prerequisites**:
-- Task directory exists with `analysis/` and `implementation/` subdirectories
 - `analysis/requirements.md` exists (created by orchestrator from user Q&A)
 - `analysis/codebase-analysis.md` exists (`codebase-analysis` output)
 - `analysis/gap-analysis.md` exists (`gap-analysis` output)

@@ -1094,12 +1094,14 @@ the reviews are a set of checks rather than a route, and the user guide comes
 after a stretch that may be skipped, so no one gate always precedes it.
 
 1. **The reviews tab, which carries the verification plan.** Its question is the
-   plan — the checks that always run, the recommended reviews, the user guide
-   with the reason it is on or off, and one line saying the browser checks are
-   decided at the verification gate ("Browser checks: decided when you approve
-   the verification") — written into the question rather than printed ahead
-   of it. The user adjusts what they see; a
-   question that does not carry the plan asks about nothing. Say exactly when
+   plan — the checks that always run, the recommended reviews and one line
+   saying the browser checks are decided at the verification gate ("Browser
+   checks: decided when you approve the verification") — written into the
+   question rather than printed ahead of it. The user adjusts what they see; a
+   question that does not carry the plan asks about nothing. **Each tab states
+   its own choice only**: the user guide and the reason it is on or off belong
+   to the user-guide tab, and a plan that named them too said them twice on one
+   page. Say exactly when
    the test suite runs: it already passed during implementation, so the first
    verification pass does not run it again, and it runs on every pass after a
    fix changes code — "Test suite: passed in implementation (40 of 40); runs
@@ -1128,9 +1130,10 @@ tri-state, and this node reads it as `user_docs_flag`. Absent means ask, as
 above. `yes` or `no` means the invocation settled it: leave the user-guide tab
 off the page, record the value as the declared `user_docs_enabled` and its state
 mirror, record it on this node's summary as a decision `by: operator` — the
-user chose it when they started the run — and say so in the plan line in the
-reviews tab ("User guide: on — asked for when the run started"); the page then
-holds the reviews tab alone. In a terminal run the seed `gap-analysis` wrote
+user chose it when they started the run — and, since no tab asks it then, say
+so in one line of the reviews tab's plan ("User guide: on — asked for when the
+run started"). That is the one case the reviews tab names the guide; the page
+then holds the reviews tab alone. In a terminal run the seed `gap-analysis` wrote
 from the task characteristics is a default for the recommendation, not an
 answer — an operator is there, and the operator answers.
 

@@ -179,12 +179,10 @@ state file and the profiling-data drop point the analysis node reads from.
    `performance_context`. The map is the state writer's to seed — the first write that touches
    the context block creates it empty — so a node that has nothing to mirror
    still leaves a reader something to read.
-3. **Create the subdirectories** the later nodes write into — the analysis,
-   implementation and verification directories, and
-   `analysis/user-profiling-data/` beside them. That last one is the declared
-   artifact of this node and it is created empty. **An empty directory is the
-   answer "no profiling data", not a missing artifact**, and the node that reads
-   it treats it that way.
+3. **Create `analysis/user-profiling-data/`**, empty. It is the declared
+   artifact of this node. **An empty directory is the answer "no profiling
+   data", not a missing artifact**, and the node that reads it treats it that
+   way.
 4. **Read the project configuration** and set `options.html_output` (default true
    when the file or the key is absent) and `options.mockup_format` (default
    `html`) beside it. The second is framework-mandated for every orchestrator and

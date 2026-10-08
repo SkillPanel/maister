@@ -319,7 +319,7 @@ test('a node an overlay added gets its declared artifact registered on completio
   ]);
   const run = scratch(t);
   freeze(run, { overlays: [overlay] });
-  fs.mkdirSync(path.join(run.dir, 'check'));
+  fs.mkdirSync(path.join(run.dir, 'check'), { recursive: true });
   fs.writeFileSync(path.join(run.dir, 'check/report.md'), '# Check\n');
   write(run, { nodes: { analysis: { status: 'completed' }, check: { status: 'completed' } }, node_summaries: { check: { summary: 'Checked.' } } });
   const expected = [{ path: 'check/report.md', label: null, html: null }];

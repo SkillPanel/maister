@@ -256,7 +256,10 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   // values may lead somewhere another does not. `walked` is the preferred
   // continue's walk, the one every single-next reader shows.
   const preferred = preferredContinue(doc, options, closing);
-  const continues = continuesOf(options);
+  const recommended = recommend(options, closing.risks, preferred);
+  // The recommended continue walked first, as the pickers list it, so every
+  // form's per-continue Next lines read in the options' order.
+  const continues = continuesOf(options).sort(([a], [b]) => (b === recommended) - (a === recommended));
   const walks = new Map();
   let walked = null;
   if (!current.drift) {
@@ -269,7 +272,6 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     walked = walks.get(preferred?.option ?? null) ?? walks.values().next().value;
   }
   const { titles } = current.display;
-  const recommended = recommend(options, closing.risks, preferred);
   // Several continues each name where they lead; one keeps the single line.
   const several = walks.size > 1;
   // A revise names the nodes it will re-run, and only a trusted definition

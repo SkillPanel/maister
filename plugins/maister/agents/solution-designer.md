@@ -28,8 +28,6 @@ Create `outputs/high-level-design.md` and `outputs/decision-log.md` from the sel
 
 **You do NOT ask users questions** - the orchestrator has already confirmed the selected approach and gathered design preferences. You work autonomously with the provided context.
 
-**You do NOT create directories** - the orchestrator has already created the task folder structure.
-
 ---
 
 ## Core Philosophy
@@ -360,7 +358,6 @@ warnings: ["any non-critical observations"]
 **Invoked by**: the research workflow's `high-level-design` node
 
 **Prerequisites**:
-- Task directory exists with `analysis/` and `outputs/` subdirectories
 - `outputs/solution-exploration.md` exists (`solution-generation` output)
 - `analysis/synthesis.md` exists (`research-foundation` output)
 - `outputs/research-report.md` exists (`research-foundation` output)

@@ -227,6 +227,53 @@ test('viewer: a link already named dashboard.html is left alone, dangling or not
   assert.match(result.stdout, /^Maister run started: /m);
 });
 
+/** The folders directly under the run directory, sorted; `display/` is the writer's own. */
+const foldersOf = run => fs.readdirSync(run.dir, { withFileTypes: true })
+  .filter(entry => entry.isDirectory() && entry.name !== 'display').map(entry => entry.name).sort();
+
+test('folders: the freeze creates the folder every declared artifact opens with, and no directory artifact', t => {
+  const run = scratch(t);
+  const result = write(run, freezePatch({ definition: DEVELOPMENT, inputs: { task_description: 'Tag the notes' } }).patch);
+  assert.deepEqual(foldersOf(run), ['analysis', 'documentation', 'implementation', 'verification']);
+  assert.equal(fs.existsSync(path.join(run.dir, 'analysis/design-context')), false, 'a directory artifact is the step\'s to write');
+  assert.deepEqual(fs.readdirSync(path.join(run.dir, 'implementation')), [], 'a folder only, nothing in it');
+  assert.doesNotMatch(result.stdout, /^(analysis|implementation)\/?$/m, 'folders are not reported as changed files');
+});
+
+test('folders: a project\'s own workflow gets the folders it declares; a sub-run\'s and a bare path\'s are left out', t => {
+  const run = scratch(t, { type: 'audits', name: '2026-01-05-release-audit' });
+  const home = path.join(run.root, '.maister/workflows');
+  fs.cpSync(path.join(FIXTURES, 'custom-workflow'), home, { recursive: true });
+  write(run, freezePatch({ definition: path.join(home, 'release-audit.yml'), inputs: { release: 'v2.4.0' } }).patch);
+  // intake/brief.md, outputs/audit-summary.md and outputs/evidence; the sub-run's `findings` is the child's.
+  assert.deepEqual(foldersOf(run), ['intake', 'outputs']);
+  assert.equal(fs.existsSync(path.join(run.dir, 'outputs/evidence')), false);
+});
+
+test('folders: a first segment that is itself a declared artifact is not created', t => {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'bundle.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    '  pack:', '    uses: "direct:pack"', '    needs: []', '    outputs: {artifacts: {bundle: bundle}}',
+    '  note:', '    uses: "direct:note"', '    needs: [pack]', '    outputs: {artifacts: {readme: bundle/readme.md, notes: notes/today.md}}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'bundle.md'), '# Bundle — node prose\n\n## `pack`\n\nP.\n\n## `note`\n\nN.\n');
+  write(run, freezePatch({ definition }).patch);
+  assert.deepEqual(foldersOf(run), ['notes'], 'bundle is the pack step\'s directory artifact');
+});
+
+test('folders: an existing folder keeps what it holds, and a later write creates none', t => {
+  const run = scratch(t);
+  fs.mkdirSync(path.join(run.dir, 'analysis'));
+  fs.writeFileSync(path.join(run.dir, 'analysis/notes.md'), '# the operator\'s own\n');
+  write(run, FROZEN());
+  assert.equal(fs.readFileSync(path.join(run.dir, 'analysis/notes.md'), 'utf8'), '# the operator\'s own\n');
+  fs.rmSync(path.join(run.dir, 'analysis'), { recursive: true });
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  assert.deepEqual(foldersOf(run), [], 'the freeze alone creates folders');
+});
+
 test('banner: a title spanning lines is folded onto the Task line', t => {
   const run = scratch(t);
   // The writer refuses a newline in a title it is sent, so only a file written
