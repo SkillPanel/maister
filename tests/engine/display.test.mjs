@@ -202,7 +202,10 @@ test('a label or a header for a node that is not a gate, or for an option the ga
 
 test('no built-in continue label names a destination a guard can skip', () => {
   // "Continue to the specification audit" read while Next said the audit was
-  // skipped. A label "Continue" alone is completed from the walk instead.
+  // skipped. A label "Continue" alone is completed from the walk instead. A
+  // continue that sets the gate values the guard after it reads decides the
+  // destination itself, so its label may name where it leads — but only when
+  // every guarded node after the gate reads this gate's values.
   const offenders = [];
   for (const file of BUILTINS) {
     const { doc } = readDefinition(file);
@@ -215,7 +218,8 @@ test('no built-in continue label names a destination a guard can skip', () => {
       for (const [option, effect] of Object.entries(node.options ?? {})) {
         const label = labels[gate]?.[option];
         if ((effect?.effect ?? effect) !== 'continue' || typeof label !== 'string' || !/^Continue to /.test(label)) continue;
-        if (guarded.length) offenders.push(`${path.basename(file)} ${gate}.${option} "${label}" (guarded: ${guarded.join(', ')})`);
+        const decided = effect?.sets !== undefined && guarded.every(id => nodes[id].when.includes(`\${${gate}.values.`));
+        if (guarded.length && !decided) offenders.push(`${path.basename(file)} ${gate}.${option} "${label}" (guarded: ${guarded.join(', ')})`);
       }
     }
   }

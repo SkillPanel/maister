@@ -1,6 +1,6 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: development
-%% graph_hash: sha256:65f937a584ff1da38d1ebdb84c20b0136493b40e04bbe27b33975a70bdf9e15a
+%% graph_hash: sha256:3707c56158e9bcd4132d6554625a008b3daa845ab087d0e9c265499a72027b61
 
 flowchart TD
   n_intake["Intake<br/>intake<br/>direct:intake"]
@@ -12,9 +12,9 @@ flowchart TD
   n_ui_mockups{"UI mockups<br/>ui-mockups<br/>skill:mockup-studio<br/>when: ${gap-analysis.values.mockups_needed}"}
   n_mockup_approval{{"Approve UI mockups<br/>mockup-approval<br/>gate<br/>UI mockups complete. Continue to specification?<br/>continue-to-specification: continue, revise-mockups: revise → ui-mockups, stop-development: stop<br/>when: ${gap-analysis.values.mockups_needed}"}}
   n_specification["Specification<br/>specification<br/>direct:specification"]
-  n_specification_approval{{"Approve specification<br/>specification-approval<br/>gate<br/>Specification complete. Continue?<br/>continue-past-specification: continue, revise-specification: revise → specification, stop-development: stop"}}
-  n_spec_audit{"Specification audit<br/>spec-audit<br/>agent:spec-auditor<br/>when: ${specification.values.spec_audit_enabled}"}
-  n_spec_audit_approval{{"Approve specification audit<br/>spec-audit-approval<br/>gate<br/>Specification audit complete. Continue to implementation planning?<br/>continue-to-planning: continue, revise-specification: revise → specification, stop-development: stop<br/>when: ${specification.values.spec_audit_enabled}"}}
+  n_specification_approval{{"Approve specification<br/>specification-approval<br/>gate<br/>Specification complete. Continue?<br/>continue-to-planning: continue, continue-to-spec-audit: continue, revise-specification: revise → specification, stop-development: stop"}}
+  n_spec_audit{"Specification audit<br/>spec-audit<br/>agent:spec-auditor<br/>when: ${specification-approval.values.spec_audit_enabled}"}
+  n_spec_audit_approval{{"Approve specification audit<br/>spec-audit-approval<br/>gate<br/>Specification audit complete. Continue to implementation planning?<br/>continue-to-planning: continue, revise-specification: revise → specification, stop-development: stop<br/>when: ${specification-approval.values.spec_audit_enabled}"}}
   n_planning["Implementation planning<br/>planning<br/>agent:implementation-planner"]
   n_planning_approval{{"Approve implementation plan<br/>planning-approval<br/>gate<br/>Implementation plan complete. Continue to implementation?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-development: stop"}}
   n_implementation["Implementation<br/>implementation<br/>skill:implementation-plan-executor"]
@@ -22,9 +22,9 @@ flowchart TD
   n_tdd_green{"Passing test<br/>tdd-green<br/>direct:tdd-green<br/>when: ${gap-analysis.values.has_reproducible_defect}"}
   n_verification_options["Choosing the checks<br/>verification-options<br/>direct:verification-options"]
   n_verification["Verification<br/>verification<br/>skill:implementation-verifier"]
-  n_verification_approval{{"Approve verification<br/>verification-approval<br/>gate<br/>Verification complete. Continue?<br/>continue-past-verification: continue, stop-development: stop"}}
-  n_e2e_verification{"Browser checks<br/>e2e-verification<br/>agent:e2e-test-verifier<br/>when: ${verification-options.values.browser_tests_enabled}"}
-  n_e2e_approval{{"Approve browser checks<br/>e2e-approval<br/>gate<br/>E2E verification complete. Continue?<br/>continue-past-e2e: continue, stop-development: stop<br/>when: ${verification-options.values.browser_tests_enabled}"}}
+  n_verification_approval{{"Approve verification<br/>verification-approval<br/>gate<br/>Verification complete. Continue?<br/>continue-past-verification: continue, continue-to-browser-checks: continue, stop-development: stop"}}
+  n_e2e_verification{"Browser checks<br/>e2e-verification<br/>agent:e2e-test-verifier<br/>when: ${verification-approval.values.browser_tests_enabled}"}
+  n_e2e_approval{{"Approve browser checks<br/>e2e-approval<br/>gate<br/>E2E verification complete. Continue?<br/>continue-past-e2e: continue, stop-development: stop<br/>when: ${verification-approval.values.browser_tests_enabled}"}}
   n_user_docs{"User documentation<br/>user-docs<br/>agent:user-docs-generator<br/>when: ${verification-options.values.user_docs_enabled}"}
   n_docs_approval{{"Approve documentation<br/>docs-approval<br/>gate<br/>Documentation complete. Continue to finalization?<br/>continue-to-finalization: continue, stop-development: stop<br/>when: ${verification-options.values.user_docs_enabled}"}}
   n_finalization["Finalization<br/>finalization<br/>direct:finalization"]

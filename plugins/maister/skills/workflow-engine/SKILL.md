@@ -900,8 +900,8 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   - **`recommends`** — on a node closed by a gate with several continues, the one this node
     recommends and why: `{option: <continue option id>, reason: "<one line>"}`, such as the
     audit continue when the run was started asking for an audit. The brief marks that option
-    recommended and shows the reason on it. Without it the first continue in written order is
-    recommended, and a `stop` risk still recommends stopping. The writer refuses an option
+    recommended and shows the reason on it. Without it the continue that turns the most steps on
+    is recommended, and a `stop` risk still recommends stopping. The writer refuses an option
     that is not a continue of a gate waiting on this node, or a missing or multi-line reason,
     with `state-summary-item-invalid`.
 
@@ -1567,7 +1567,7 @@ bundle already carried the recommendation.
 list:
 
 ```
-{decision: "Run the specification audit", by: default, question_id: audit-opt-in}
+{decision: "All four reviews", by: default, question_id: standard-verifications}
 ```
 
 `question_id` is the id the node prose names, and `decision` is the default actually taken —
@@ -1653,7 +1653,7 @@ able to write:
   `orchestrator.driver`, which is one contract-shaped value written whole. The four **open
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
   — merge key by key instead, because different nodes write different keys of them at
-  different times: a write recording `spec_audit_enabled` leaves an `html_output` an earlier
+  different times: a write recording `user_docs_enabled` leaves an `html_output` an earlier
   node set alone. Send the whole map only when you mean to add to it.
 - `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
   edited in place afterwards. Never send a node's `started` or `completed`, or

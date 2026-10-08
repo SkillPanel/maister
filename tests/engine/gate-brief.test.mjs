@@ -87,7 +87,8 @@ function atApproval(t, summary = SUMMARY) {
 /**
  * A development run paused at `verification-approval`: every node before the
  * gate ended, the verification-options values recorded as given, and the
- * verification summary in place.
+ * verification summary in place. The gate decides the browser checks: one
+ * continue runs them, the other goes past them.
  */
 function atVerificationApproval(t, values) {
   const run = scratch(t);
@@ -198,17 +199,20 @@ test('gate-brief --json: a stop recommendation moves the stop option first', t =
 });
 
 test('gate-brief --json: a built-in gate reads its labels and header from the definition, and records by id', t => {
-  const { run } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: true });
+  const { run } = atVerificationApproval(t, { user_docs_enabled: true });
   const result = picker(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.header, 'Verification');
   assert.deepEqual(result.options.map(option => [option.id, option.label]), [
-    ['continue-past-verification', 'Accept the checks and continue (Recommended)'],
+    ['continue-to-browser-checks', 'Continue to the browser checks (Recommended)'],
+    ['continue-past-verification', 'Continue without browser checks'],
     ['stop-development', 'Stop here'],
     ['more-details', 'More details'],
   ]);
-  assert.equal(result.options[0].description, 'Runs user documentation next.');
-  assert.match(result.options[0].preview, /^Next: User documentation \(skipping Browser checks\)$/m);
+  assert.equal(result.options[0].description, 'Runs browser checks next.');
+  assert.match(result.options[0].preview, /^Next: Browser checks$/m);
+  assert.equal(result.options[1].description, 'Runs user documentation next.');
+  assert.match(result.options[1].preview, /^Next: User documentation \(skipping Browser checks\)$/m);
 });
 
 test('gate-brief --json: an overlay relabels an option and sets the header, and neither moves the frozen graph', t => {
@@ -226,7 +230,8 @@ test('gate-brief --json: an overlay relabels an option and sets the header, and 
   const result = picker(run, 'verification-approval');
   assert.equal(result.header, 'Checks');
   assert.deepEqual(result.options.map(option => [option.id, option.label]), [
-    ['continue-past-verification', 'Ship it (Recommended)'],
+    ['continue-to-browser-checks', 'Continue to the browser checks (Recommended)'],
+    ['continue-past-verification', 'Ship it'],
     ['stop-development', 'Stop here'],
     ['more-details', 'More details'],
   ]);
@@ -277,27 +282,60 @@ test('gate-brief: writes no state, only the panel beside it', t => {
   assert.equal(JSON.parse(fs.readFileSync(panel, 'utf8')).node, 'approval');
 });
 
-test('gate-brief: a false guard skips its stretch, and the Next line names the node that actually runs', t => {
-  const { run, graph } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: true });
+test('gate-brief: a false guard skips its stretch, and each continue\'s Next line names the node that actually runs', t => {
+  const { run, graph } = atVerificationApproval(t, { user_docs_enabled: true });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: User documentation \(skipping Browser checks\)$/m);
-  assert.equal(recommendedOf(run, 'verification-approval'), continueOf(graph, 'verification-approval'));
+  assert.match(result.stdout, /^Next \(continue without browser checks\): User documentation \(skipping Browser checks\)$/m);
+  assert.match(result.stdout, /^Next \(continue to the browser checks\): Browser checks$/m);
+  assert.equal(recommendedOf(run, 'verification-approval'), 'continue-to-browser-checks');
   assert.match(result.stdout, /^Verification passed with 2 warnings\.$/m);
   assert.match(oneline(run, 'verification-approval').stdout,
-    / · Next: User documentation — skipped: Browser checks, Approve browser checks · /, 'the driven form keeps its list');
+    / · Next \(continue-past-verification\): User documentation — skipped: Browser checks, Approve browser checks · /, 'the driven form keeps its list');
 });
 
 test('gate-brief: with every optional stretch off, the Next line lands on finalization', t => {
-  const { run } = atVerificationApproval(t, { browser_tests_enabled: false, user_docs_enabled: false });
+  const { run } = atVerificationApproval(t, { user_docs_enabled: false });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: Finalization \(skipping Browser checks and User documentation\)$/m);
+  assert.match(result.stdout, /^Next \(continue without browser checks\): Finalization \(skipping Browser checks and User documentation\)$/m);
 });
 
 test('gate-brief: an unguarded next node carries no skipped list', t => {
-  const { run } = atVerificationApproval(t, { browser_tests_enabled: true, user_docs_enabled: true });
-  assert.match(brief(run, 'verification-approval').stdout, /^Next: Browser checks$/m);
+  const { run } = atVerificationApproval(t, { user_docs_enabled: true });
+  assert.match(brief(run, 'verification-approval').stdout, /^Next \(continue to the browser checks\): Browser checks$/m);
+});
+
+test('gate-brief: the verification node\'s recommends decides which continue is recommended, with its reason', t => {
+  const run = scratch(t);
+  const graph = freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Fix the parser' } });
+  const nodes = {};
+  for (const node of graph.nodes) {
+    if (node.id === 'verification-approval') break;
+    nodes[node.id] = { status: 'completed' };
+  }
+  nodes['verification-options'] = { status: 'completed', values: { user_docs_enabled: false } };
+  const reason = 'The change adds a page; driving it in a browser catches what the reviews cannot';
+  write(run, { nodes, node_summaries: { verification: { ...SUMMARY, recommends: { option: 'continue-to-browser-checks', reason } } } });
+  assert.equal(recommendedOf(run, 'verification-approval'), 'continue-to-browser-checks');
+  const result = picker(run, 'verification-approval');
+  assert.equal(result.options[0].id, 'continue-to-browser-checks');
+  assert.equal(result.options[0].label, 'Continue to the browser checks (Recommended)');
+  assert.equal(result.options[0].description, `Runs browser checks next. ${reason}.`);
+});
+
+test('gate-brief: without recommends the continue that turns the step on is recommended, wherever its id sorts', t => {
+  const run = scratch(t);
+  const graph = freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Fix the parser' } });
+  const nodes = {};
+  for (const node of graph.nodes) {
+    if (node.id === 'verification-approval') break;
+    nodes[node.id] = { status: 'completed' };
+  }
+  nodes['verification-options'] = { status: 'completed', values: { user_docs_enabled: false } };
+  write(run, { nodes, node_summaries: { verification: SUMMARY } });
+  // continue-past-verification sorts first and turns nothing on.
+  assert.equal(recommendedOf(run, 'verification-approval'), 'continue-to-browser-checks');
 });
 
 test('gate-brief: a risk that recommends stopping makes the stop option the recommended one', t => {
@@ -328,6 +366,7 @@ for (const [label, setup, node, code] of [
   ['a node that is not a gate', t => atApproval(t), 'analysis', 'gate-brief-not-a-gate'],
   ['a node the graph does not have', t => atApproval(t), 'nowhere', 'gate-brief-unknown-node'],
   ['a guard value the completed node never recorded', t => atVerificationApproval(t, null).run, 'verification-approval', 'gate-brief-value-missing'],
+  ['a guard value the completed node recorded beside, never itself', t => atGapApproval(t, { has_reproducible_defect: false }), 'gap-approval', 'gate-brief-value-missing'],
 ]) {
   test(`refusal: ${label}`, t => {
     const run = setup(t);
@@ -341,15 +380,26 @@ for (const [label, setup, node, code] of [
 test('refusal: the missing value is named with the patch that records it', t => {
   const { run } = atVerificationApproval(t, null);
   const result = brief(run, 'verification-approval');
-  assert.match(result.stderr, /verification-options\.values\.browser_tests_enabled/);
+  assert.match(result.stderr, /verification-options\.values\.user_docs_enabled/);
 });
 
+/** A development run paused at `gap-approval`, the gap analysis's values recorded as given. */
+function atGapApproval(t, values) {
+  const run = scratch(t);
+  freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Fix the parser' } });
+  write(run, {
+    nodes: { intake: { status: 'completed' }, 'codebase-analysis': { status: 'completed' }, 'gap-analysis': { status: 'completed', values } },
+    node_summaries: { 'gap-analysis': SUMMARY },
+  });
+  return run;
+}
+
 test('refusal: the value-missing patch re-sends the values already recorded beside the missing key', t => {
-  const { run } = atVerificationApproval(t, { user_docs_enabled: true });
-  const result = brief(run, 'verification-approval');
+  const run = atGapApproval(t, { has_reproducible_defect: false });
+  const result = brief(run, 'gap-approval');
   assert.equal(result.code, 1);
   assert.match(result.stderr, /^gate-brief-value-missing: /);
-  assert.ok(result.stderr.includes('{"nodes":{"verification-options":{"values":{"user_docs_enabled":true,"browser_tests_enabled":<true|false>}}}}'), result.stderr);
+  assert.ok(result.stderr.includes('{"nodes":{"gap-analysis":{"values":{"has_reproducible_defect":false,"mockups_needed":<true|false>}}}}'), result.stderr);
 });
 
 test('gate-brief: a definition changed since the freeze degrades the Next line and still exits 0', t => {
@@ -408,7 +458,7 @@ test('gate-brief: a skipped node\'s values read as false', t => {
   write(run, { nodes, node_summaries: { verification: { status: 'completed', summary: 'Verified.' } } });
   const result = brief(run, 'verification-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Next: Finalization \(skipping Browser checks and User documentation\)$/m);
+  assert.match(result.stdout, /^Next \(continue without browser checks\): Finalization \(skipping Browser checks and User documentation\)$/m);
 });
 
 test('gate-brief: an input the run never recorded takes the definition\'s default', t => {
@@ -755,7 +805,7 @@ function atOverlaidVerificationApproval(t, overlays, summaries) {
     if (node.id === 'verification-approval') break;
     nodes[node.id] = { status: 'completed' };
   }
-  nodes['verification-options'] = { status: 'completed', values: { browser_tests_enabled: false, user_docs_enabled: false } };
+  nodes['verification-options'] = { status: 'completed', values: { user_docs_enabled: false } };
   write(run, { nodes, node_summaries: summaries });
   return run;
 }
@@ -779,7 +829,8 @@ test('gate-brief: a verifier placed before the gate is reported beside the node 
     'Risks:',
     '- recommend stop: critical — the rate limiter trusts X-Forwarded-For',
     '- open: 2 warnings in the parser tests',
-    'Next: Finalization (skipping Browser checks and User documentation)',
+    'Next (continue without browser checks): Finalization (skipping Browser checks and User documentation)',
+    'Next (continue to the browser checks): Browser checks',
     '',
   ].join('\n'));
   assert.equal(recommendedOf(run, 'verification-approval'), 'stop-development');

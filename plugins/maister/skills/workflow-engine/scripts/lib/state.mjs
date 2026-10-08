@@ -354,7 +354,7 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  * All four are **open maps whose keys are written by different nodes at
  * different times**, which is the whole of the test. `options` is the one that
  * cost a live run: `intake` writes `html_output` and `mockup_format`,
- * `specification` writes `spec_audit_enabled`, `verification-options` writes
+ * `gap-analysis` writes the `e2e_enabled` seed, `verification-options` writes
  * six more — and a replacing write meant an operator who had deliberately set
  * `html_output: false` silently got the dashboard and every companion report
  * back at the next option write, through the success path. `task_ids`,

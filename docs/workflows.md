@@ -29,7 +29,7 @@ The unified development workflow handles features, enhancements, and bug fixes t
 
 When run without arguments, the plugin extracts the task description from your conversation. The analysis detects whether the task fixes a reproducible bug, and adds the failing-test-first phases when it does.
 
-**Flags**: `--research=PATH`, `--design=PATH`, `--audit` / `--no-audit`, `--e2e` / `--no-e2e`, `--user-docs` / `--no-user-docs`, `--sequential`. A flag answers its question up front; without it, the run asks.
+**Flags**: `--research=PATH`, `--design=PATH`, `--audit` / `--no-audit`, `--e2e` / `--no-e2e`, `--user-docs` / `--no-user-docs`, `--sequential`. `--user-docs` / `--no-user-docs` answers its question up front; without it, the run asks. The specification audit and the browser checks are decided at the checkpoint before each — *Continue to the specification audit* or *Continue to planning, skip the audit*, and *Continue to the browser checks* or *Continue without browser checks* — so `--audit` / `--no-audit` and `--e2e` / `--no-e2e` set which of the two is recommended; the checkpoint still asks.
 
 ### How it runs
 
@@ -77,13 +77,13 @@ or start a new task. A task started on 2.x that needs a phase jump is finished o
 | 3 | TDD Red gate (write failing test first) | Bug fixes only |
 | 4 | UI mockups | Features & enhancements (UI-heavy) |
 | 5 | Requirements + specification | All |
-| 6 | Specification audit | All (recommended) |
+| 6 | Specification audit | Decided at the specification checkpoint (recommended; `--audit` / `--no-audit` set the recommendation) |
 | 7 | Implementation planning | All |
 | 8 | Implementation execution | All |
 | 9 | TDD Green (confirm the failing test now passes) | Bug fixes only |
-| 10 | Verification options selection | All |
+| 10 | Verification options selection (reviews, user guide) | All |
 | 11 | Verification + issue resolution | All |
-| 12 | E2E testing | Optional (`--e2e`) |
+| 12 | E2E testing | Decided at the verification checkpoint (`--e2e` / `--no-e2e` set the recommendation) |
 | 13 | User documentation | Optional (`--user-docs`) |
 | 14 | Finalization | All |
 
@@ -378,10 +378,11 @@ confirm, issues to decide — come as pages of up to four, and a later page says
 A design decision comes one area at a time, each with every alternative, its pros and cons and
 the recommendation, because a later area can depend on an earlier answer; it is never offered as
 accept-all. A question the run can already answer from its own analysis is not asked: it says the
-answer in one line instead ("Browser verification: off — this change has no user interface").
+answer in one line instead ("User guide: on — asked for when the run started").
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
 At a checkpoint the question is one line: what finished, and whether it is ready to go on. Where the run goes if you continue is named by the continue option.
+Where the next phase is optional, the checkpoint before it decides it in the same question, with one continue for each way on: development's specification checkpoint offers *Continue to the specification audit* and *Continue to planning, skip the audit*, and its verification checkpoint *Continue to the browser checks* and *Continue without browser checks*. The recommended one gives its reason, and each names where it leads.
 Beside the continue option you see the checkpoint at a glance:
 - *Done*: what the stretch since the last checkpoint produced, in a sentence;
 - *Next*: the phase that runs, and any it skips;

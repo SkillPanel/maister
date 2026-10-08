@@ -11,9 +11,9 @@ writes into its closing summary for the gate brief, the self-checks that decide 
 node succeeded, or how many times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `development.yml` alone cannot
-see that the run asks eleven further questions beyond its ten gates, and the
+see that the run asks nine further questions beyond its ten gates, and the
 generated diagram does not show them either. Anyone reasoning about how
-interactive this workflow is must read this file, not the graph. The eleven
+interactive this workflow is must read this file, not the graph. The nine
 reach the user as eight asks, in run order:
 
 1. `intake` — the task description, only when the invocation gave none.
@@ -22,10 +22,9 @@ reach the user as eight asks, in run order:
 3. `gap-analysis` — the scope decisions.
 4. `specification`, Part A — a page of technical questions, then each open
    architecture choice in its own call.
-5. `specification`, Part B — the assumptions page, with the audit opt-in as its
-   last tab.
-6. `verification-options` — the checks page: the reviews, browser checks and
-   user documentation, one tab each.
+5. `specification`, Part B — the assumptions page.
+6. `verification-options` — the checks page: the reviews and the user
+   documentation, one tab each.
 7. `verification` — the fix loop's decision pages and its stopping question,
    only when something needs the user.
 8. `user-docs` — the guide fixes, only when a suggestion adds or rewrites
@@ -33,6 +32,15 @@ reach the user as eight asks, in run order:
 
 Only the assumptions page and the checks page are asked on every attended run;
 the rest are asked only when the run does not already know the answer.
+
+**Two optional stretches are decided at a gate, not inside a node.** Whether the
+specification audit runs is the answer to `specification-approval`, and whether
+the browser checks run is the answer to `verification-approval`: each gate
+offers one continue per way on, and the continue chosen sets the value the
+stretch's guard reads (engine § Gates). The operator approves the work and
+decides the step in one question, so neither step asks anything first. The node
+each gate closes writes which continue it recommends and why, as `recommends` on
+its closing summary; its section below says how it chooses.
 
 **Every answer is recorded as one decision**, on the asking node's summary: one
 `by: operator` entry per answered question — a page of four tabs is four entries
@@ -443,9 +451,11 @@ task seeds both browser tests and user documentation on; a task that creates new
 entities seeds user documentation on. Command flags override the seeds. The two
 keys are `orchestrator.options.e2e_enabled` and
 `orchestrator.options.user_docs_enabled`, by those exact names — they are
-`orchestrator.options` keys at this point, not declared values — the
-declared bools that guard the two stretches are emitted later, by
-`verification-options`.
+`orchestrator.options` keys at this point, not declared values. The values
+that guard the two stretches come later: `user_docs_enabled` is declared by
+`verification-options`, and `browser_tests_enabled` is set by the answer to
+`verification-approval`, whose recommendation `verification` takes from this
+seed.
 
 **Gate brief content.** Read `analysis/gap-analysis.md` and write into this
 node's closing `node_summaries` entry a `headline` saying, in one sentence, what
@@ -649,8 +659,8 @@ is frozen into the graph hash and cannot carry a value that differs per run.
 
 Executed inline in three parts, the last of them delegated. This is the widest
 node in the run: it holds two of the eight asks — the technical questions and
-the assumptions page — writes three artifacts and emits the guard for the audit
-stretch.
+the assumptions page — writes three artifacts and recommends whether the audit
+runs, which `specification-approval` decides.
 
 **Part A — technical and architecture clarification (inline, conditional).** The
 fourth of the eight asks, in two kinds:
@@ -698,8 +708,7 @@ risk in this node's summary, its `change` naming the choice still to make, so it
 reaches an operator at `specification-approval`.
 
 **Part B — requirements gathering (inline).** The fifth of the eight asks: one
-page whose first tab confirms the specification's assumptions and whose last
-tab is the audit opt-in.
+page confirming the specification's assumptions.
 
 *The assumptions tab.* Frame the specification questions as confirmable
 assumptions rather than open prompts, with the count adapted to how much the
@@ -721,19 +730,6 @@ asking only what the run does not know). Save the whole round to
 answers, the similar features found, the functional requirements, the reuse
 opportunities, the scope boundaries and the technical considerations.
 
-*The audit tab.* Ask "Check the spec with an independent audit before planning?
-It catches gaps and contradictions before any code is written." Its options: **"Yes, audit it (Recommended)"**, its description
-"Cheaper than finding the same gaps during implementation", and **"No, go
-straight to planning"**. Leave the tab off the page when the audit input was
-already supplied — this node reads it as `audit_flag`: `yes` or `no` settles it
-and nothing is asked, and the page's message says so in one line ("Specification
-audit: on — asked for when the run started"). Absent means ask. Either way, the
-answer becomes this node's declared boolean output in Part C. It is asked here
-rather than as a gate because it decides *whether a phase runs*, which is
-exactly what a `when` guard expresses, and because both answers continue the
-run. A declining answer makes the audit stretch skip, and a skip satisfies
-everything downstream.
-
 **With question sets** (`specification-requirements`): asked through the
 cockpit, in the same request as the technical questions (*In-node questions*);
 going through the assumptions one by one would be a second ask, so it is not
@@ -744,13 +740,6 @@ assumptions stand as framed. They are already written to be confirmable, so an
 unconfirmed one is recorded in `analysis/requirements.md` and carried into the
 specification as a stated assumption rather than as settled fact — which is what
 `specification-approval` puts in front of an operator.
-
-**With question sets** (`audit-opt-in`): asked through the cockpit, in this
-node's one request (*In-node questions*).
-
-**Without question sets** (`audit-opt-in`): the recommended
-option, so the audit runs. A supplied audit input still settles it without a
-default being taken at all.
 
 **Part C — specification creation (delegate).**
 
@@ -766,11 +755,23 @@ If the agent returns without `implementation/spec.md`, or with one that leaves a
 requirement gathered in Part B uncovered, re-invoke it with the missing context
 rather than writing the specification yourself.
 
-**Record the audit choice.** The audit tab's answer — or the supplied input, or
-the default — is this node's declared boolean output, which is what guards
-`spec-audit` and `spec-audit-approval`. Record the same value as
-`orchestrator.options.spec_audit_enabled`, so the state file names the choice
-for every reader that never sees the graph values.
+**Recommend the audit, never ask it.** Whether the audit runs is the answer to
+`specification-approval`, whose two continues set the value the audit stretch's
+guard reads. This node only says which of the two it recommends, as
+`recommends` on its closing summary (engine § *Before every gate*), with a
+one-line reason:
+
+- **The audit input was supplied** — this node reads it as `audit_flag`. `yes`
+  recommends `continue-to-spec-audit`, reason "Asked for when the run started";
+  `no` recommends `continue-to-planning`, reason "Declined when the run
+  started". The gate is still asked: the flag sets the recommendation, never
+  the answer.
+- **Absent** — recommend `continue-to-spec-audit`, reason "Cheaper than finding
+  the same gaps during implementation", or a reason in this change's own terms
+  when the specification gives one ("The spec changes a public API; an audit
+  checks every caller before planning"). Recommend `continue-to-planning` only
+  when this specification has nothing an audit would check, and say why ("A
+  one-line configuration change with no open assumption").
 
 **Gate brief content.** Read `implementation/spec.md` and write into this node's
 closing `node_summaries` entry a `headline` naming, in one sentence, what the
@@ -787,7 +788,8 @@ says what would change if it is wrong ("CSV cells are never quoted", change:
 "quote cells that hold a comma") — never a bare "Assumption: …", because a revise
 offers that change; each consequence the specification accepts on purpose, such
 as a breaking change it ships, as a `tradeoff`; each related problem it leaves
-out of scope as a `followup`.
+out of scope as a `followup`. In `recommends`, the continue of
+`specification-approval` this node recommends and its reason, as above.
 
 **When re-run after a revise.** `specification-approval` or
 `spec-audit-approval` sent the run back, and `prior-context` carries the
@@ -795,10 +797,11 @@ operator's note under *Revision requested*, beside the previous attempt's
 summaries — the audit's findings among them when the audit ran. Keep the answers
 Part A and Part B already have: ask again only a question the note reopens, and
 record what changed in `analysis/technical-clarifications.md` or
-`analysis/requirements.md`. Do not ask the audit tab again: the answer given the
-first time is `orchestrator.options.spec_audit_enabled`, and it is recorded as
-the declared bool once more, because a revise clears it — unless the note asks
-to change it. In Part C, hand the specification creator the note, the audit's
+`analysis/requirements.md`. Write `recommends` again: a revise resets
+`specification-approval` with this node, so the audit is decided again at that
+gate. When the audit already ran, recommend it again only when the revision
+changed what it checked, and say so in the reason; when the note asks for or
+against the audit, recommend what the note says. In Part C, hand the specification creator the note, the audit's
 findings when there are any, and the existing `implementation/spec.md`, and ask
 it to revise the specification in place. Say in the summary what changed, and
 write the headline again for the revised specification.
@@ -821,19 +824,24 @@ companion path under the specification entry's `artifacts[].html`.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate, unguarded. Record the answer, and stop the run on the stop option. Its
-revise option sends the run back to `specification` with the operator's note
-(engine § Gates, *Revising at a gate*).
-
-The node after it, `spec-audit`, is guarded by the boolean `specification` just
-emitted. The gate brief names the node that actually runs next.
+A gate, unguarded, and the one that decides the audit. Its two continues are
+`continue-to-spec-audit`, which sets `spec_audit_enabled` true so the audit
+stretch runs next, and `continue-to-planning`, which sets it false so the
+stretch is skipped and planning runs next; beside them its revise and its stop.
+Record the answer, and stop the run on the stop option: the writer records the
+value the chosen continue sets on this gate, and the guards of `spec-audit` and
+`spec-audit-approval` read it. The continue `specification` recommends is the
+recommended option, its reason on that option; each continue's preview names
+where it leads. Its revise option sends the run back to `specification` with the
+operator's note (engine § Gates, *Revising at a gate*), and the audit is decided
+again when the gate is asked once more.
 
 ---
 
 ## `spec-audit`
 
 Delegated to the specification auditor through the Task tool, and only when the
-audit opt-in came back yes.
+operator chose `continue-to-spec-audit` at `specification-approval`.
 
 The `maister-copilot:spec-auditor` agent audits the specification rather than an
 inline review, because it checks the spec's claims against the codebase instead
@@ -882,14 +890,15 @@ spec-audit` on the entry.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate, guarded by the same condition as the node before it. When the audit was
-declined, this gate is skipped along with `spec-audit` and the run continues to
-planning without asking.
+A gate, guarded by the same condition as the node before it. When the operator
+chose `continue-to-planning` at `specification-approval`, this gate is skipped
+along with `spec-audit` and the run continues to planning without asking.
 
 Its revise option sends the run back to `specification` with the operator's
 note, and the audit's findings reach the re-run through the prior context. The
-specification is then approved again at `specification-approval` and audited
-again before this gate asks once more (engine § Gates, *Revising at a gate*).
+specification is then approved again at `specification-approval`, which decides
+the audit again, and when the audit is chosen it runs before this gate asks once
+more (engine § Gates, *Revising at a gate*).
 
 ---
 
@@ -1041,19 +1050,22 @@ the documented failure mode of this node.
 
 ## `verification-options`
 
-Executed inline, writes no files, and decides both optional verification
-stretches of the run. Its two declared boolean outputs are what the later `when`
-guards read.
+Executed inline, writes no files, and decides which reviews run and whether the
+user guide is written. Its declared boolean output is what the user-docs guards
+read. Whether the browser checks run is not asked here: `verification-approval`
+decides it, once the verification report is in front of the operator.
 
-**The checks page — the sixth of the eight asks.** One page of up to three tabs,
+**The checks page — the sixth of the eight asks.** One page of up to two tabs,
 asked together because each answer stands on its own. A gate cannot express it:
-a gate's options map option ids to routes — continue, stop or revise — and this
-page picks a set of checks rather than a route.
+the reviews are a set of checks rather than a route, and the user guide comes
+after a stretch that may be skipped, so no one gate always precedes it.
 
 1. **The reviews tab, which carries the verification plan.** Its question is the
-   plan — the checks that always run, the recommended reviews, and the two
-   conditional stretches with the reason each is on or off — written into the
-   question rather than printed ahead of it. The user adjusts what they see; a
+   plan — the checks that always run, the recommended reviews, the user guide
+   with the reason it is on or off, and one line saying the browser checks are
+   decided at the verification gate ("Browser checks: decided when you approve
+   the verification") — written into the question rather than printed ahead
+   of it. The user adjusts what they see; a
    question that does not carry the plan asks about nothing. Say exactly when
    the test suite runs: it already passed during implementation, so the first
    verification pass does not run it again, and it runs on every pass after a
@@ -1067,35 +1079,25 @@ page picks a set of checks rather than a route.
    page. **None of the four carries `(Recommended)` there**: the bundle already
    carried the recommendation, and a user who opened the list is choosing for
    themselves.
-2. **The browser-checks tab — on or off.** The recommended option is the seed
-   `gap-analysis` wrote to `orchestrator.options.e2e_enabled` — on when it is
-   true, off when it is false or absent — and its description gives the reason
-   in the change's own terms ("Recommended: the change adds a page, so driving
-   it in a browser catches what the reviews cannot"). Its answer is this node's
-   `browser_tests_enabled` output. **Not asked when the run already knows**: the
-   gap analysis recorded the task as not UI-heavy, so there is no page to drive —
-   record browser verification off and say so in the plan line ("Browser
-   verification: off — this change has no user interface").
-3. **The user-guide tab — on or off.** The recommended option is the seed
-   `gap-analysis` wrote to `orchestrator.options.user_docs_enabled`, by the same
-   rule, and its description gives the reason ("Recommended: the change adds
+2. **The user-guide tab — on or off.** The recommended option is the seed
+   `gap-analysis` wrote to `orchestrator.options.user_docs_enabled` — on when it
+   is true, off when it is false or absent — and its description gives the reason ("Recommended: the change adds
    public API, so a usage guide helps"). Its answer is this node's
    `user_docs_enabled` output.
 Under a form picker the page is one form with a property per tab, and "Choose
 individually" opens a second form with one array property holding the four
 reviews, none of them preselected.
 
-**Skip a question whose answer was already supplied.** The browser-tests and
-user-docs inputs are tri-state, and this node reads them as `browser_tests_flag`
-and `user_docs_flag`. Absent means ask, as above. `yes` or `no` means the
-invocation settled it: leave that tab off the page, record the value as the
-declared output (`browser_tests_enabled` or `user_docs_enabled`) and its state
+**Skip a question whose answer was already supplied.** The user-docs input is
+tri-state, and this node reads it as `user_docs_flag`. Absent means ask, as
+above. `yes` or `no` means the invocation settled it: leave the user-guide tab
+off the page, record the value as the declared `user_docs_enabled` and its state
 mirror, record it on this node's summary as a decision `by: operator` — the
 user chose it when they started the run — and say so in the plan line in the
-reviews tab ("Browser verification: on — asked for when the run started").
-When both are supplied the page holds the reviews tab alone. In a terminal run the seeds `gap-analysis` wrote from the task
-characteristics are defaults for the recommendation, not answers — an operator
-is there, and the operator answers.
+reviews tab ("User guide: on — asked for when the run started"); the page then
+holds the reviews tab alone. In a terminal run the seed `gap-analysis` wrote
+from the task characteristics is a default for the recommendation, not an
+answer — an operator is there, and the operator answers.
 
 **With question sets** (`standard-verifications`): asked through the cockpit, in
 this node's one request (*In-node questions*); "Choose individually" would need
@@ -1104,30 +1106,14 @@ a second ask, so it is not offered.
 **Without question sets** (`standard-verifications`): the
 recommended bundle, all four reviews.
 
-**With question sets** (`browser-tests`): asked through the cockpit, in this
-node's one request (*In-node questions*).
-
-**Without question sets** (`browser-tests`): the option this
-node labels `(Recommended)`, which is the seed `gap-analysis` wrote — on for a
-UI-heavy task, off otherwise. With nobody to answer, the recommendation is the
-answer, and it is recorded as this node's `browser_tests_enabled` output.
-
 **With question sets** (`user-docs`): asked through the cockpit, in this node's
 one request (*In-node questions*).
 
 **Without question sets** (`user-docs`): the recommendation, by
 the same rule, recorded as `user_docs_enabled`.
 
-All three tabs are asked here rather than at a gate because every answer
-continues the run. A "no" makes the guarded stretch skip, and a skip satisfies everything
-downstream.
-
-**The three names of the browser-test concept are deliberate.** The input is
-`browser_tests`, the declared value is `browser_tests_enabled`, and the state
-option this node also writes is `e2e_enabled`. The declared value cannot carry
-the digit the option name carries — the guard grammar's trailing character class
-is lowercase and underscore only — and the state option is not a graph value, so
-renaming it would break every existing state reader for nothing.
+A "no" on the user-guide tab makes the guarded stretch skip, and a skip
+satisfies everything downstream.
 
 Also record the outcome as `orchestrator.options` keys, by these exact names.
 The verifier reads them by name to decide which reviews run, so a key that is
@@ -1139,9 +1125,8 @@ missing or spelled differently silently runs a different review set:
   otherwise.
 - `skip_test_suite` — true here, because the full suite already ran during
   implementation; the fix loop clears it the moment a fix changes code.
-- `e2e_enabled` and `user_docs_enabled` — the second and third tabs, mirrored
-  from the two declared values under the state names the run has used since
-  `gap-analysis` seeded them.
+- `user_docs_enabled` — the user-guide tab, mirrored from the declared value
+  under the state name the run has used since `gap-analysis` seeded it.
 
 **There is no gate after this node.** It auto-continues into verification.
 
@@ -1238,6 +1223,26 @@ the user chose "Stop", or the re-checks are spent with a critical issue left,
 add one `stop` risk saying why the run should not go on, so the stop option is
 the recommended one at the gate.
 
+**Recommend whether the browser checks run.** `verification-approval` decides
+them: `continue-to-browser-checks` runs the browser stretch next and
+`continue-past-verification` skips it. Write, in the same closing entry,
+`recommends` naming one of the two with a one-line reason (engine § *Before
+every gate*):
+
+- **The browser-tests input was supplied** — this node reads it as
+  `browser_tests_flag`. `yes` recommends `continue-to-browser-checks`, reason
+  "Asked for when the run started"; `no` recommends
+  `continue-past-verification`, reason "Declined when the run started". The
+  gate is still asked: the flag sets the recommendation, never the answer.
+- **The change has no user interface** — the gap analysis recorded the task as
+  not UI-heavy, so there is no page to drive: recommend
+  `continue-past-verification`, reason "This change has no user interface".
+- **Otherwise** — follow the seed `gap-analysis` wrote to
+  `orchestrator.options.e2e_enabled`: true recommends
+  `continue-to-browser-checks`, false or absent `continue-past-verification`,
+  each with its reason in the change's own terms ("The change adds a page;
+  driving it in a browser catches what the reviews cannot").
+
 **Node summary**: no phase key. Register `verification/implementation-verification.md`
 under `node_summaries.verification.artifacts`, with its companion path as the
 entry's `html`, in the closing write. `verification_context.last_status` and
@@ -1254,18 +1259,32 @@ over, before asking the operator how to proceed.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate, unguarded. Record the answer, and stop the run on the stop option.
+A gate, unguarded, and the one that decides the browser checks. Its two
+continues are `continue-to-browser-checks`, which sets `browser_tests_enabled`
+true so the browser stretch runs next, and `continue-past-verification`, which
+sets it false so the stretch is skipped; beside them its stop. Record the
+answer, and stop the run on the stop option: the writer records the value the
+chosen continue sets on this gate, and the guards of `e2e-verification` and
+`e2e-approval` read it. The continue `verification` recommends is the
+recommended option, its reason on that option, and each continue's preview
+names where it leads. A `stop` risk from `verification` recommends the stop
+instead.
 
-The node after it, `e2e-verification`, is guarded by a boolean
-`verification-options` settled before the verification node ran. The gate
-brief names the node that actually runs next.
+**Three names for the browser checks, on purpose.** The input is
+`browser_tests`, the gate value is `browser_tests_enabled`, and
+`orchestrator.options.e2e_enabled` is the seed `gap-analysis` wrote, which only
+shapes the recommendation. The gate value cannot carry the digit the state
+option carries — a guard reference ends in lowercase letters and underscores —
+and the seed is not mirrored from the answer: nothing reads it after
+`verification` has written its recommendation, and the gate's recorded value is
+the answer.
 
 ---
 
 ## `e2e-verification`
 
 Delegated to the browser-verification agent through the Task tool, and only when
-the browser-tests bool came back true.
+the operator chose `continue-to-browser-checks` at `verification-approval`.
 
 The `maister-copilot:e2e-test-verifier` agent drives a live browser through the running
 application and collects evidence; it is a verification pass, so no browser
@@ -1304,9 +1323,10 @@ reported as a finding rather than retried blindly.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate, guarded by the same condition as the node before it. When browser
-verification was declined, this gate is skipped along with `e2e-verification` and
-the run continues to the user documentation without asking.
+A gate, guarded by the same condition as the node before it. When the operator
+chose `continue-past-verification` at `verification-approval`, this gate is
+skipped along with `e2e-verification` and the run continues to the user
+documentation without asking.
 
 The node after it, `user-docs`, is guarded by a boolean already settled. The gate
 brief names the node that actually runs next.

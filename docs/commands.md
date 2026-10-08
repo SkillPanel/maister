@@ -114,8 +114,8 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 
 | Flag | Description |
 |------|-------------|
-| `--audit` / `--no-audit` | Run or skip the specification audit without being asked (asked if omitted) |
-| `--e2e` / `--no-e2e` | Run or skip E2E browser verification without being asked (asked if omitted) |
+| `--audit` / `--no-audit` | Recommend running or skipping the specification audit; the specification checkpoint still asks, with one continue for each |
+| `--e2e` / `--no-e2e` | Recommend running or skipping the E2E browser checks; the verification checkpoint still asks, with one continue for each |
 | `--user-docs` / `--no-user-docs` | Generate or skip user documentation without being asked (asked if omitted) |
 | `--research=PATH` | Start development informed by a completed research task |
 | `--design=PATH` | Start development from a completed product-design task: its brief and mockups become the design context |

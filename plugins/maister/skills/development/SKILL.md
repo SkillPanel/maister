@@ -27,7 +27,9 @@ before the next call, check that you did (engine Step 4).
   `research`; `--design=PATH` is `design`; `--audit` and `--no-audit` are `audit: yes` and `audit: no`; `--e2e` and `--no-e2e`
   are `browser_tests: yes` and `browser_tests: no`; `--user-docs` and `--no-user-docs` are
   `user_docs: yes` and `user_docs: no`; `--sequential` is `sequential: true`. A flag that was not
-  passed supplies no input, and the step that owns the choice asks it. There is no task-type
+  passed supplies no input, and the step that owns the choice asks it. The audit and the browser
+  checks are decided at the gate before them, which is always asked, so `audit` and
+  `browser_tests` set which continue that gate recommends rather than skipping a question. There is no task-type
   flag: the analysis finds whether the task fixes a reproducible defect. An invocation with no
   description takes it from the conversation.
   Any other flag, apart from the two resume flags below, is not an input of this workflow: name

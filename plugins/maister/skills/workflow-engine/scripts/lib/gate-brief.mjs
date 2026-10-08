@@ -1560,7 +1560,10 @@ function recommend(options, risks, preferred) {
  * The continue this gate leans to, `{option, reason}`, or null without a
  * continue: the one a closing node's summary names under `recommends` when it
  * is a continue of this gate — the lead closing node first — with its reason,
- * else the first continue in written order, with none.
+ * else the continue that turns the most steps on, with none. The resolved graph
+ * holds a gate's options in key order, not as written, so the fallback reads
+ * what each continue sets rather than where it stands; a tie, and a gate whose
+ * continues set nothing, falls to the first in that order.
  */
 function preferredContinue(doc, options, closing) {
   const continues = continuesOf(options).map(([id]) => id);
@@ -1573,10 +1576,12 @@ function preferredContinue(doc, options, closing) {
     const reason = typeof named.reason === 'string' && named.reason.trim() !== '' ? scalarText(named.reason) : null;
     return { option: named.option, reason };
   }
-  return { option: continues[0], reason: null };
+  const on = id => Object.values(setsOf(options[id]) ?? {}).filter(value => value === true).length;
+  const most = continues.reduce((best, id) => (on(id) > on(best) ? id : best), continues[0]);
+  return { option: most, reason: null };
 }
 
-/** A gate's continue options as `[id, option]`, in written order. */
+/** A gate's continue options as `[id, option]`, in the graph's order. */
 function continuesOf(options) {
   if (!isPlainObject(options)) return [];
   return Object.entries(options).filter(([, option]) => (isPlainObject(option) ? option.effect : option) === 'continue');

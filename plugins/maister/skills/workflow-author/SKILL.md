@@ -94,11 +94,11 @@ questions:
    - `workflow:` — another workflow as a child run, only if that workflow is child-capable
      (§ 13.1).
 4. **Gates.** After which phases should a person approve before the run goes on? Propose one after
-   each phase that produces something reviewable; each gate gets exactly one continue option and at
-   least one stop (§ 6). Where the author wants a way to send a document back, add a revise option
+   each phase that produces something reviewable; each gate gets one continue option and at least
+   one stop (§ 6), or one continue per way on when the gate decides the optional phase after it. Where the author wants a way to send a document back, add a revise option
    naming the node that wrote it, and give that node's section its re-run paragraph (§ 6, § 11).
-5. **Optional stretches.** A phase that runs only sometimes is guarded by a `bool` — an input, or a
-   value an earlier node records (§ 7). There is no expression language; say so if the author
+5. **Optional stretches.** A phase that runs only sometimes is guarded by a `bool` — an input, a
+   value an earlier node records, or a value the answer to the gate before it sets (§ 6, § 7). There is no expression language; say so if the author
    describes a compound condition, and turn it into one recorded `bool`.
 6. **Artifacts and values** each phase declares (§ 8.2): literal paths relative to the run's task
    directory; values as `bool`, `id` or `enum` rather than `string` where they are handles.
