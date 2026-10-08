@@ -1032,7 +1032,10 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
 
   // Before the patch's own `orchestrator` keys, so the seeded sequences open
   // the block and a freeze's `parent` still follows every key the patch sends.
-  if (patch.workflow) seedSequences(doc, orchestrator, changed);
+  if (patch.workflow) {
+    seedSequences(doc, orchestrator, changed);
+    seedCreated(doc, orchestrator, now, changed);
+  }
   if (orchestrator) applyScalars(doc, 'orchestrator', orchestrator, changed);
   if (patch.task) {
     applyScalars(doc, 'task', patch.task, changed);
@@ -2155,6 +2158,26 @@ function seedSequences(doc, orchestrator, changed) {
     doc.set(['orchestrator', key], [`  ${key}: ${empty}`]);
     changed.push(`orchestrator.${key}`);
   }
+}
+
+/**
+ * `orchestrator.created`, stamped from this write's clock by the write that
+ * installs the `workflow:` block.
+ *
+ * The state contract requires it on every run, and a driver drives only a run
+ * that carries it: one without it is listed as found on disk and never picked
+ * up. The freeze patch was trusted to carry it, and a child run's freeze — sent
+ * by a session that has no clock to read — landed without it, so the parent
+ * waited on a child nothing would ever run. The writer has the clock, so the
+ * writer carries the rule, for a child's freeze as for any other. A value the
+ * patch supplies, or one the file already holds, is kept; the stamp is the
+ * write's own `now`, so a fresh run's `created` and first `updated` agree.
+ */
+function seedCreated(doc, orchestrator, now, changed) {
+  if (isPlainObject(orchestrator) && Object.hasOwn(orchestrator, 'created')) return;
+  if (doc.locate(['orchestrator', 'created'])) return;
+  doc.set(['orchestrator', 'created'], [`  created: ${flow(now, 'orchestrator.created')}`]);
+  changed.push('orchestrator.created');
 }
 
 /**

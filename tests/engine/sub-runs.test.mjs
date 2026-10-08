@@ -52,6 +52,7 @@ test('the child freezes with its parent link, its inputs and its own context blo
   assert.deepEqual(state.orchestrator.options.inputs, { question: 'What did the implementation leave open?', embedded: true });
   assert.equal(state.workflow.name, 'research');
   assert.equal(state.orchestrator.started_phase, null, 'a child freeze seeds started_phase like a parent freeze');
+  assert.match(state.orchestrator.created, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/, 'a child freeze stamps created although its patch carried none');
   write(child, { context: { research_type: 'technical' } });
   assert.equal(readState(child).research_context.research_type, 'technical');
 });

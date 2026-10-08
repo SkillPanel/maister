@@ -99,6 +99,19 @@ test('freeze: seeds started_phase as null, and a later write replaces it', t => 
   assert.equal(readState(supplied).orchestrator.started_phase, 'intake', 'a value the freeze patch supplies is kept');
 });
 
+test('freeze: stamps created from the write\'s clock, and a supplied value is kept', t => {
+  const run = scratch(t);
+  freeze(run);
+  const state = readState(run);
+  assert.match(state.orchestrator.created, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+  assert.equal(state.orchestrator.created, state.orchestrator.updated, 'one clock for the whole write');
+  write(run, { orchestrator: { started_phase: 'analysis' } });
+  assert.equal(readState(run).orchestrator.created, state.orchestrator.created, 'a later write never re-stamps it');
+  const supplied = scratch(t);
+  freeze(supplied, { orchestrator: { created: '2026-01-05T09:00:00Z' } });
+  assert.equal(readState(supplied).orchestrator.created, '2026-01-05T09:00:00Z', 'a value the freeze patch supplies is kept');
+});
+
 test('freeze: a sequence the patch supplies is not re-seeded', t => {
   const run = scratch(t);
   write(run, freezePatch({ task: { title: 'Seeded' }, orchestrator: { completed_phases: ['intake'] } }).patch);
