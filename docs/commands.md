@@ -125,6 +125,7 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 | `--design=PATH` | Start development from a completed product-design task: its brief and mockups become the design context |
 | `--architecture=PATH` | Build within a high-level design — a design document, or a research task that wrote one: its interfaces, contracts and decisions constrain the specification and the plan |
 | `--sequential` | Run task groups one at a time instead of in parallel waves |
+| `--publish` | Approving the plan also publishes: when the run finishes it pushes its branch and opens a pull request, or updates the one already open from that branch |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
 

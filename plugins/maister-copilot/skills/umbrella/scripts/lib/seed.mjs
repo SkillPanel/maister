@@ -420,6 +420,15 @@ function outboxLines(document, pluginRoot) {
  * predicate the envelope builder used to *decide* the value answers here what it
  * means. The envelope does not move, and the seed stays a pure function of the
  * document.
+ *
+ * A tier that denies the pull request and has no operator to relay it to — the
+ * auto tiers below the top one — gets one more line. Such a worker can finish
+ * with commits on its branch and nothing published, because it never tried a
+ * push its tier forbids. Saying so only in the close-out summary leaves a
+ * reader acting on structured needs with nothing to offer. So it names the held
+ * commands in a followup carrying `needs: [permission]`, and then closes out in
+ * the same turn: nothing answers a held command inside the dispatch at these
+ * tiers, and a dispatch that ends with no close-out leaves its chain waiting.
  */
 function closeoutLines({ closeout, autonomy, permissions }) {
   const lines = [];
@@ -430,7 +439,10 @@ function closeoutLines({ closeout, autonomy, permissions }) {
   } else if (closeoutReachable({ autonomy, permissions })) {
     lines.push('No pull request is required - the chain dispatching you declared it, though your tier could open one. Do not open one anyway: say in the closeout what a reviewer has to open and merge.');
   } else {
-    lines.push('No pull request is required - your tier can never open one. Say in the closeout what a reviewer has to open and merge.');
+    lines.push('No pull request is required - your tier denies opening one. Say in the closeout what a reviewer has to open and merge.');
+  }
+  if (autonomy !== RELAYED && !closeoutReachable({ autonomy, permissions })) {
+    lines.push('Your tier denies `git push` and `gh pr create` unless a gate\'s answer granted them. If you end with commits on your branch that are not pushed - because the tier forbids the push, or a push or a pull request was refused - write a followup message naming each held command (`git push` of your branch, and `gh pr create` when a pull request is owed) and what is left to do, with `needs: [permission]` in its body beside that summary. Then publish the closeout in the same turn, `prs` empty and its summary saying the branch is unpublished.');
   }
   if (autonomy === RELAYED) {
     // The line a live worker needed. It used to say "wait for that approval",

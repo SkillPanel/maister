@@ -1,6 +1,6 @@
 # The development workflow, as a graph.
 #
-# Fifteen nodes named for what they do and ten named for what they approve,
+# Fifteen nodes named for what they do and eleven named for what they approve,
 # in one linear chain. Gates serialize the run, so a wider fan-in would buy
 # nothing. The branching a reader might expect — a TDD pair on or off, mockups
 # on or off, an audit, browser tests, a user guide — is carried entirely by the
@@ -33,6 +33,15 @@
 # its own approval and after its audit) and the plan — can send the run back to
 # re-run that node with the operator's note. Verification keeps its in-node fix
 # loop instead.
+#
+# The plan has two gates, and exactly one of them is asked: the `publish`
+# input picks which. `planning-approval` is the plain approval;
+# `planning-approval-publish` asks the same question and its continue also
+# grants the push of the run's branch and the pull request from it, which
+# `finalization` acts on once there is something to publish. Both guards read
+# an input, a choice made when the run started, so the gate not chosen is
+# skipped. The two stand in line, the publishing one after the plain one, so
+# the chain stays linear and the walk from either gate passes the other.
 #
 # The failing test written first has no approval of its own once it passes: the
 # red-to-green evidence rides in the passing-test node's headline, which the
@@ -71,6 +80,9 @@ inputs:
   browser_tests: {type: string, required: false}
   user_docs: {type: string, required: false}
   sequential: {type: bool, required: false, default: false}
+  # Whether approving the plan also publishes: the run pushes its own branch
+  # and opens one pull request from it when it finishes. Off unless asked for.
+  publish: {type: bool, required: false, default: false}
 
 # What the dashboard draws beside each node. Definition data rather than graph
 # data: the block sits outside `nodes:` and outside the hashed envelope, so
@@ -97,6 +109,7 @@ display:
     spec-audit-approval:     verify
     planning:                plan
     planning-approval:       plan
+    planning-approval-publish: plan
     implementation:          code
     implementation-approval: code
     tdd-green:               verify
@@ -123,6 +136,7 @@ display:
     spec-audit-approval:     "Approve specification audit"
     planning:                "Implementation planning"
     planning-approval:       "Approve implementation plan"
+    planning-approval-publish: "Approve implementation plan and publish"
     implementation:          "Implementation"
     implementation-approval: "Approve implementation"
     tdd-green:               "Passing test"
@@ -162,6 +176,10 @@ display:
       continue-to-implementation: "Continue to the implementation"
       revise-plan: "Revise the plan"
       stop-development: "Stop here"
+    planning-approval-publish:
+      continue-to-implementation: "Continue to the implementation"
+      revise-plan: "Revise the plan"
+      stop-development: "Stop here"
     implementation-approval:
       continue-past-implementation: "Continue"
       stop-development: "Stop here"
@@ -182,6 +200,7 @@ display:
     specification-approval:   "Spec"
     spec-audit-approval:      "Spec audit"
     planning-approval:        "Plan"
+    planning-approval-publish: "Plan"
     implementation-approval:  "Implemented"
     verification-approval:    "Verification"
     e2e-approval:             "Browser"
@@ -357,15 +376,26 @@ nodes:
   planning-approval:
     type: gate
     needs: [planning]
+    when: "!${inputs.publish}"
     ask: "Implementation plan complete. Continue to implementation?"
     options:
       continue-to-implementation: continue
       revise-plan: {effect: revise, reruns: planning}
       stop-development: stop
 
+  planning-approval-publish:
+    type: gate
+    needs: [planning-approval]
+    when: "${inputs.publish}"
+    ask: "Implementation plan complete. Continue to implementation, then push the branch and open a pull request?"
+    options:
+      continue-to-implementation: {effect: continue, grants: [push, pr-create]}
+      revise-plan: {effect: revise, reruns: planning}
+      stop-development: stop
+
   implementation:
     uses: skill:implementation-plan-executor
-    needs: [planning-approval]
+    needs: [planning-approval-publish]
     with:
       plan: "${planning.artifacts.plan}"
       spec: "${specification.artifacts.spec}"

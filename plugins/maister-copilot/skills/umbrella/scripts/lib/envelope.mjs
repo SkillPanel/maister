@@ -131,7 +131,7 @@ const CAN = {
  * provider flag; that mapping is a separate concern and is not built in this
  * module.
  */
-const PERMISSIONS = {
+export const PERMISSIONS = {
   attended: {
     // `write` and `commit` are named explicitly rather than left off both
     // lists. An atom in neither list has no defined answer, and the flag

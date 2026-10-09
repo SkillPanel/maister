@@ -11,7 +11,7 @@ writes into its closing summary for the gate brief, the self-checks that decide 
 node succeeded, or how many times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `development.yml` alone cannot
-see that the run asks nine further questions beyond its ten gates, and the
+see that the run asks nine further questions beyond its gates, and the
 generated diagram does not show them either. Anyone reasoning about how
 interactive this workflow is must read this file, not the graph. The nine
 reach the user as eight asks, in run order:
@@ -81,6 +81,14 @@ no later than the next executed node's `running` patch — earlier, or in that
 same patch — never after the run has moved on. That is why the closing gate of a
 conditional stretch repeats its stretch's guard: an unguarded gate would fire
 for a stretch that never ran.
+
+**The plan gate comes in two forms, and the run asks one.** The `publish` input
+decides which: off, the default, asks `planning-approval`; on asks
+`planning-approval-publish`, whose continue also grants the push of the run's own
+branch and opening one pull request from it. The unasked form is skipped by its
+guard. Right after the plan the branch has nothing to publish, so the grant is
+used by `finalization`, which pushes and opens the pull request when the run
+finishes, and asks nothing more.
 
 ## The phase numbers, and where they went
 
@@ -186,11 +194,12 @@ derivable from the node id. Each node writes the hint named here:
 | `user-docs` | `docs` |
 | `finalization` | `done` |
 
-The ten gates are not in that table on purpose:
+The eleven gates are not in that table on purpose:
 **each gate node renders the icon of the node it closes** — `gap-approval`
 `analysis`, `tdd-red-approval` `verify`, `mockup-approval` `spec`,
 `specification-approval` `spec`, `spec-audit-approval` `verify`,
-`planning-approval` `plan`, `implementation-approval` `code`,
+`planning-approval` and `planning-approval-publish` `plan`,
+`implementation-approval` `code`,
 `verification-approval` `verify`, `e2e-approval` `verify`, `docs-approval`
 `docs`. A gate inherits rather than owns its icon, so
 a gate that picked its own would break the visual pairing between a stretch and
@@ -1020,11 +1029,26 @@ entry's `artifacts[].html`.
 
 ## `planning-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine § Gates says. Asked when the `publish`
+input is off, which is the default.
 
-A gate, unguarded. Record the answer, and stop the run on the stop option. Its
-revise option sends the run back to `planning` with the operator's note (engine
-§ Gates, *Revising at a gate*).
+A gate, guarded by that input alone. Record the answer, and stop the run on the
+stop option. Its revise option sends the run back to `planning` with the
+operator's note (engine § Gates, *Revising at a gate*).
+
+---
+
+## `planning-approval-publish`
+
+Ask it from `gate-brief --json` as engine § Gates says. Asked instead of
+`planning-approval` when the `publish` input is on.
+
+A gate, guarded by that input alone. Record the answer, and stop the run on the
+stop option. Its revise option sends the run back to `planning` with the
+operator's note. Its continue grants `push` and `pr-create`: every picker label
+and the checkpoint say so, the answer is the approval, and a driver registers
+the grant for the worker when it delivers the answer. Nothing is pushed here;
+`finalization` publishes.
 
 ---
 
@@ -1499,6 +1523,21 @@ workflow as a sub-run, so there is no embedded case to guard against.
    message to `commit-message.txt` in the task directory** and name the file;
    never print the message itself — it alone pushed a closing message past one
    screen.
+
+5. **Publish when the plan gate granted it.** Only when `planning-approval-publish`
+   completed on its continue — read from state; under the plain plan gate this
+   step does not exist. Commit what the run changed on its own branch if any of
+   it is uncommitted, with `commit-message.txt` as the message. Never push the
+   repository's default branch: on it, create a branch named for the task first.
+   Push the branch, then publish once per branch — `gh pr view` first, and when a
+   pull request from it is already open the push has updated it, so it is not
+   opened again; otherwise `gh pr create` against the default branch, its body
+   drawn from the executive summary. Merging is never part of this. The pull
+   request's URL goes in the close-out's `prs` under a dispatch driver, and under
+   **Done** in a terminal run, where step 4's pull request is then dropped from
+   **Next**. A push or a pull request that is refused or held is not routed
+   around: under a dispatch driver the seed's close-out section says how it is
+   reported; in a terminal run the held command goes under **Needs you**.
 
 **Close for whoever reads the end** (the engine skill's run-end rule). In a
 terminal run a person reads it: write the closing patch and call `run-complete`
