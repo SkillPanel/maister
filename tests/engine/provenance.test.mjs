@@ -253,6 +253,20 @@ test('a flat gate answer moves its provenance onto the decision; an actor it car
   for (const key of PROVENANCE) assert.equal(Object.hasOwn(summary, key), false, `no flat ${key} is left`);
 });
 
+test('a flat gate answer drops a grants key written beside it', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { answer: 'publish-draft', grants: ['push'], on_behalf_of: 'lee' } },
+  });
+  const summary = readState(run).node_summaries['review-approval'];
+  assert.equal(Object.hasOwn(summary, 'grants'), false, 'no summary-level grants is left');
+  assert.equal(summary.decisions[0].option, 'publish-draft');
+  assert.equal(summary.decisions[0].on_behalf_of, 'lee');
+  noGrants(run);
+});
+
 /** The `gate` fixture run, driven, its approval gate suspended on a request file holding `request`. */
 function drivenAt(t, request) {
   const run = scratch(t, { fixture: 'gate' });
@@ -283,9 +297,11 @@ test('a driven answer whose provenance holds an unusable map key is recorded wit
   assert.match(recorded.stderr, /^warning: provenance-unusable:approval:evidence — .*gates[\\/]approval\.request\.yml/m);
   const [item] = readState(run).node_summaries.approval.decisions;
   assert.deepEqual(pick(item, PROVENANCE), { on_behalf_of: 'lee', policy: { name: 'sample-policy', rule: 'review-first' }, override_of: 'stop-here' });
-  // Every later write lands too: the copy pass skips the key again rather than refusing.
+  // Every later write lands too: the copy pass skips the key again rather than
+  // refusing, and says so only on the write that judged the gate.
   const again = write(run, {});
-  assert.match(again.stderr, /provenance-unusable:approval:evidence/);
+  assert.doesNotMatch(again.stderr, /provenance-unusable/);
+  assert.equal(Object.hasOwn(readState(run).node_summaries.approval.decisions[0], 'evidence'), false);
 });
 
 test('a question-set answer whose provenance holds an unusable map key folds without that key, with a warning', t => {
@@ -302,12 +318,21 @@ test('a question-set answer whose provenance holds an unusable map key folds wit
   for (const item of decisions) assert.deepEqual(pick(item, PROVENANCE), pick(answer, ['actor', 'on_behalf_of', 'evidence', 'override_of']));
 });
 
-test('a stale request answer — same option, another answerer or time — copies nothing onto the gate\'s answer', t => {
+test('a stale request answer — same option, another answerer — copies nothing onto the gate\'s answer', t => {
   const run = drivenAt(t, PROVENANCE_REQUEST);
   recordDriven(run, { answered_by: 'kim', at: '2026-01-06T10:00:00Z' });
   write(run, {});
   const [item] = readState(run).node_summaries.approval.decisions;
   assert.deepEqual(pick(item, PROVENANCE), {});
+});
+
+test('a driven answer recorded at another stamp than the request block\'s still gains its provenance', t => {
+  const run = drivenAt(t, PROVENANCE_REQUEST);
+  recordDriven(run, { answered_by: 'dana', at: '2026-01-05T09:07:30Z' });
+  write(run, {});
+  const [item] = readState(run).node_summaries.approval.decisions;
+  assert.equal(item.at, '2026-01-05T09:07:30Z');
+  assert.deepEqual(pick(item, PROVENANCE), { on_behalf_of: 'lee', policy: { name: 'sample-policy', rule: 'review-first' }, evidence: ['analysis/report.md'], override_of: 'stop-here' });
 });
 
 test('a changed in-node answer does not inherit the held answer\'s provenance, and a terminal one gains its person actor', t => {

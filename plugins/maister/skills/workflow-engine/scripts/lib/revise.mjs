@@ -39,7 +39,7 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
 import { reviseStretch } from './graph.mjs';
-import { gateAnswer, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
+import { gateAnswer, isPlaceholderName, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
 
 /**
@@ -55,9 +55,6 @@ const SETTLED = new Set(['completed', 'skipped']);
 
 /** Statuses of a gate still waiting for its answer, in the one turn it is asked. */
 const ASKING = new Set(['pending', 'running']);
-
-/** What a model has written in place of the person's name, as the writer reads it. */
-const PLACEHOLDER_NAMES = new Set(['', 'user', 'operator', 'you']);
 
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
@@ -146,7 +143,7 @@ export function gateRevise({ state, node, option, input }) {
   // reached the run: the via the caller sent or the fold recorded, else, for
   // an answer given in session, the writer's own default — the driver's kind
   // under a cockpit or a dispatch, `terminal` otherwise.
-  const named = value => typeof value === 'string' && !PLACEHOLDER_NAMES.has(value.trim().toLowerCase());
+  const named = value => !isPlaceholderName(value);
   const carried = named(answer.answered_by) ? answer.answered_by
     : (folded && named(latest.answered_by) ? latest.answered_by : null);
   const sent = typeof answer.via === 'string' && answer.via.trim() !== '' ? answer.via.trim()
