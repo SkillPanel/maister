@@ -1259,3 +1259,11 @@ test('task status: a sub-run records itself in progress at its own first step, a
   assert.equal(readState(child).task.status, 'in_progress');
   assert.equal(readState(parent).task.status, 'in_progress');
 });
+
+test('write-state: a double quote in a state value is still refused — prose is spelled only in a dispatch envelope', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = verb(['write-state', `--state=${run.state}`], { orchestrator: { options: { note: 'the "Save" button' } } });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout + result.stderr, /value-not-flow-safe/);
+});

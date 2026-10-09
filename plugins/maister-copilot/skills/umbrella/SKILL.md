@@ -537,7 +537,7 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. If the dispatch really is being redone, it is a new dispatch. |
 | `dispatch-unwritable` | The dispatch directory could not be written. Fix the path or its permissions, then re-run. |
 | `dispatch-temp-exists` | Another writer holds the temp twin. Wait a minute and re-run; delete nothing. |
-| `value-not-flow-safe` | As above — an envelope value cannot be emitted safely on one line. Simplify it rather than repeating the write. |
+| `value-not-flow-safe` | As above — an envelope value cannot be emitted safely on one line. A double quote in the statement or a node's `with:` arguments is spelled safely and never refused; a line break there, or a quote in any other field, is. Simplify the value the report names rather than repeating the write. |
 
 ### Seed
 
