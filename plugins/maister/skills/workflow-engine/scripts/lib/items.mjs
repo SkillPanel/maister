@@ -165,13 +165,22 @@ export function decisionOf(item, labelFor = null) {
 export const PROVENANCE_KEYS = ['actor', 'on_behalf_of', 'policy', 'evidence', 'override_of'];
 
 /**
+ * The provenance keys `source` carries, as a map of just those keys. A key
+ * holding null or nothing counts as absent; anything not a map carries none.
+ */
+export function provenanceOf(source) {
+  if (!isMap(source)) return {};
+  return Object.fromEntries(PROVENANCE_KEYS.filter(key => hasValue(source, key)).map(key => [key, source[key]]));
+}
+
+/**
  * `item` with each provenance key `source` carries and `item` lacks. A key
  * holding null or nothing counts as absent on either side.
  */
 export function withProvenance(item, source) {
-  if (!isMap(item) || !isMap(source)) return item;
-  const missing = PROVENANCE_KEYS.filter(key => !hasValue(item, key) && hasValue(source, key));
-  return missing.length ? { ...item, ...Object.fromEntries(missing.map(key => [key, source[key]])) } : item;
+  if (!isMap(item)) return item;
+  const missing = Object.entries(provenanceOf(source)).filter(([key]) => !hasValue(item, key));
+  return missing.length ? { ...item, ...Object.fromEntries(missing) } : item;
 }
 
 /**

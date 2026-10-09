@@ -39,7 +39,7 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
 import { reviseStretch } from './graph.mjs';
-import { PROVENANCE_KEYS, gateAnswer, withPersonActor, withProvenance } from './items.mjs';
+import { gateAnswer, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
 
 /**
@@ -155,8 +155,7 @@ export function gateRevise({ state, node, option, input }) {
   // Provenance: each key the patch file carries, else the folded answer's;
   // `grants` is never copied. An answer given at this terminal is then
   // credited to the person who gave it, as the writer credits every one.
-  const provenance = withProvenance(Object.fromEntries(PROVENANCE_KEYS
-    .filter(key => answer[key] !== undefined && answer[key] !== null).map(key => [key, answer[key]])), folded ? latest : null);
+  const provenance = withProvenance(provenanceOf(answer), folded ? latest : null);
   const decision = withPersonActor({
     option,
     answered_by: carried ?? operatorName(path.dirname(state)),

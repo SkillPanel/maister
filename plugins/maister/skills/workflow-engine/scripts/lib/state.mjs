@@ -83,9 +83,9 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, oneLine, withPersonActor, withProvenance } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -2010,7 +2010,7 @@ function warnSkippedAsked(nodes, graphOf, policyWarnings) {
   const graph = graphOf();
   if (!graph) return;
   const byId = new Map(graph.nodes.map(node => [node.id, node]));
-  const kindOf = id => (byId.has(id) ? (byId.get(id)?.type === 'gate' ? 'gate' : 'task') : null);
+  const kindOf = nodeKindIn(byId);
   for (const [id] of skipped) {
     const code = `skip-guard-skipped:${id}`;
     if (!skipGuardAsks(byId.get(id), kindOf) || policyWarnings.some(each => each.startsWith(`${code} `))) continue;
@@ -3185,10 +3185,7 @@ function settlementOf(gate, { key, value, triage }, answer) {
   const item = { decision: `${key}: ${scalarText(value)}`, by: 'operator', ref: key, node: gate, triage };
   if (answer.answered_by !== undefined) item.answered_by = answer.answered_by;
   if (answer.via !== undefined) item.via = answer.via;
-  for (const field of PROVENANCE_KEYS) {
-    if (answer[field] !== undefined && answer[field] !== null) item[field] = answer[field];
-  }
-  return item;
+  return { ...item, ...provenanceOf(answer) };
 }
 
 /** Is `item` a settlement item the writer recorded for `gate`? */

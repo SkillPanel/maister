@@ -22,7 +22,7 @@
 
 import { flowLine } from './checkpoint.mjs';
 import { HEADER_MAX } from './display.mjs';
-import { PROVENANCE_KEYS, oneLine } from './items.mjs';
+import { oneLine, provenanceOf } from './items.mjs';
 
 /** The keys a question may carry; any other is a typo the operator would never see answered. */
 const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage'];
@@ -269,7 +269,7 @@ export function foldAnswer(questions, answer) {
   const who = {};
   for (const key of ['answered_by', 'at', 'via']) if (isText(answer[key])) who[key] = answer[key];
   // The answer's provenance rides on every decision it becomes; `grants` never does.
-  for (const key of PROVENANCE_KEYS) if (answer[key] !== undefined && answer[key] !== null) who[key] = answer[key];
+  Object.assign(who, provenanceOf(answer));
   const decisions = questions.map((question, index) => {
     const where = `question "${question.id}"`;
     let given = Object.hasOwn(answers, question.id) ? answers[question.id] : undefined;

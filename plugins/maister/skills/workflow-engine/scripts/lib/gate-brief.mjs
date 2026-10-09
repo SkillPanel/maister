@@ -87,7 +87,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, grantOrder, guardOperands, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, grantOrder, guardOperands, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
@@ -668,7 +668,7 @@ function earlierElsewhere(doc, recorded, gate, reruns, titles) {
 export function skippedAgain(id, stretch, guards) {
   const when = guards?.byId.get(id)?.when;
   if (typeof when !== 'string') return false;
-  if (skipGuardAsks(guards.byId.get(id), kindIn(guards.byId))) return false;
+  if (skipGuardAsks(guards.byId.get(id), nodeKindIn(guards.byId))) return false;
   for (const operand of guardOperands(when)) {
     const match = WHEN.exec(operand);
     if (!match || (match[2] !== 'inputs' && stretch.includes(match[2]))) return false;
@@ -1425,7 +1425,7 @@ export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, 
       continue;
     }
     if (typeof ready.when !== 'string') return { ok: true, next: ready.id, skipped };
-    if (skipGuardAsks(ready, kindIn(byId))) return { ok: true, next: ready.id, skipped };
+    if (skipGuardAsks(ready, nodeKindIn(byId))) return { ok: true, next: ready.id, skipped };
 
     const guard = evaluate(ready.when, { byId, recorded, status, inputs, defaults });
     if (!guard.ok) return guard;
@@ -1451,14 +1451,6 @@ function blockers(nodes, downstream, status) {
     }
   }
   return nodes.map(entry => entry.id).filter(id => waiting.has(id));
-}
-
-/**
- * A node's kind for the skip-guard rule, read off the resolved graph: `gate`
- * for a gate, `task` for any other node it holds, null for one it does not.
- */
-function kindIn(byId) {
-  return id => (byId.has(id) ? (byId.get(id)?.type === 'gate' ? 'gate' : 'task') : null);
 }
 
 /** Every node whose transitive needs closure contains `gate`. */
@@ -1680,7 +1672,7 @@ export function atClose({ doc, runDir }) {
       owe(next);
       continue;
     }
-    if (skipGuardAsks(byId.get(next), kindIn(byId))) {
+    if (skipGuardAsks(byId.get(next), nodeKindIn(byId))) {
       owe(next, null, true);
       continue;
     }
