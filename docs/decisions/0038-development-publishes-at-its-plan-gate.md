@@ -15,7 +15,7 @@ push, and that ends with commits unpushed, now says so in a followup carrying
 
 ### Status
 Accepted. The definition's hash moves to
-`sha256:6aa074833ba17c6362a258d415017ee443e8397efdc25ab88a750c413d21ed47`.
+`sha256:07283f38099328aa45b9031c81e9320e199f2cc2bd14d6dc97d8e76bdb56d47c`.
 
 ### Context
 A workspace that dispatches one development run per repository expects each repository to end
