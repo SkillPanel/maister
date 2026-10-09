@@ -1,0 +1,1839 @@
+{
+  "development": {
+    "drivers": {
+      "cockpit": {
+        "gates": {
+          "docs-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-finalization",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "e2e-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-past-e2e",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "gap-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-past-analysis",
+              "revise-gap-analysis",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "implementation-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-past-implementation",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "mockup-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification",
+              "revise-mockups",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "planning-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "spec-audit-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "specification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-spec-audit",
+              "continue-to-planning",
+              "revise-specification",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "tdd-red-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-past-tdd-red",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "verification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-browser-checks",
+              "continue-past-verification",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "task-description",
+            "node": "intake",
+            "transport": "question-set"
+          },
+          {
+            "id": "clarifications",
+            "node": "codebase-analysis",
+            "transport": "question-set"
+          },
+          {
+            "id": "scope-decisions",
+            "node": "gap-analysis",
+            "transport": "question-set"
+          },
+          {
+            "id": "technical-questions",
+            "node": "specification",
+            "transport": "question-set"
+          },
+          {
+            "id": "specification-requirements",
+            "node": "specification",
+            "transport": "question-set"
+          },
+          {
+            "id": "standard-verifications",
+            "node": "verification-options",
+            "transport": "question-set"
+          },
+          {
+            "id": "user-docs",
+            "node": "verification-options",
+            "transport": "question-set"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "verification",
+            "transport": "question-set"
+          },
+          {
+            "id": "docs-fixes",
+            "node": "user-docs",
+            "transport": "question-set"
+          }
+        ]
+      },
+      "dispatch": {
+        "gates": {
+          "docs-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-finalization",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "e2e-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-past-e2e",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "gap-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-past-analysis",
+              "revise-gap-analysis",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "implementation-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-past-implementation",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "mockup-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification",
+              "revise-mockups",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "planning-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "spec-audit-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "specification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-spec-audit",
+              "continue-to-planning",
+              "revise-specification",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "tdd-red-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-past-tdd-red",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "verification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-browser-checks",
+              "continue-past-verification",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "task-description",
+            "node": "intake",
+            "transport": "default"
+          },
+          {
+            "id": "clarifications",
+            "node": "codebase-analysis",
+            "transport": "default"
+          },
+          {
+            "id": "scope-decisions",
+            "node": "gap-analysis",
+            "transport": "default"
+          },
+          {
+            "id": "technical-questions",
+            "node": "specification",
+            "transport": "default"
+          },
+          {
+            "id": "specification-requirements",
+            "node": "specification",
+            "transport": "default"
+          },
+          {
+            "id": "standard-verifications",
+            "node": "verification-options",
+            "transport": "default"
+          },
+          {
+            "id": "user-docs",
+            "node": "verification-options",
+            "transport": "default"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "verification",
+            "transport": "default"
+          },
+          {
+            "id": "docs-fixes",
+            "node": "user-docs",
+            "transport": "default"
+          }
+        ]
+      },
+      "terminal": {
+        "gates": {
+          "docs-approval": {
+            "options": [
+              "continue-to-finalization",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "e2e-approval": {
+            "options": [
+              "continue-past-e2e",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "gap-approval": {
+            "options": [
+              "continue-past-analysis",
+              "revise-gap-analysis",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "implementation-approval": {
+            "options": [
+              "continue-past-implementation",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "mockup-approval": {
+            "options": [
+              "continue-to-specification",
+              "revise-mockups",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "planning-approval": {
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "spec-audit-approval": {
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "specification-approval": {
+            "options": [
+              "continue-to-spec-audit",
+              "continue-to-planning",
+              "revise-specification",
+              "stop-development"
+            ],
+            "transport": "picker"
+          },
+          "tdd-red-approval": {
+            "options": [
+              "continue-past-tdd-red",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "verification-approval": {
+            "options": [
+              "continue-to-browser-checks",
+              "continue-past-verification",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          }
+        },
+        "in_node": [
+          {
+            "id": "task-description",
+            "node": "intake",
+            "transport": "in-session"
+          },
+          {
+            "id": "clarifications",
+            "node": "codebase-analysis",
+            "transport": "in-session"
+          },
+          {
+            "id": "scope-decisions",
+            "node": "gap-analysis",
+            "transport": "in-session"
+          },
+          {
+            "id": "technical-questions",
+            "node": "specification",
+            "transport": "in-session"
+          },
+          {
+            "id": "specification-requirements",
+            "node": "specification",
+            "transport": "in-session"
+          },
+          {
+            "id": "standard-verifications",
+            "node": "verification-options",
+            "transport": "in-session"
+          },
+          {
+            "id": "user-docs",
+            "node": "verification-options",
+            "transport": "in-session"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "verification",
+            "transport": "in-session"
+          },
+          {
+            "id": "docs-fixes",
+            "node": "user-docs",
+            "transport": "in-session"
+          }
+        ]
+      }
+    },
+    "gates": [
+      {
+        "id": "gap-approval",
+        "options": [
+          "continue-past-analysis",
+          "revise-gap-analysis",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "tdd-red-approval",
+        "options": [
+          "continue-past-tdd-red",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "mockup-approval",
+        "options": [
+          "continue-to-specification",
+          "revise-mockups",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "specification-approval",
+        "options": [
+          "continue-to-planning",
+          "continue-to-spec-audit",
+          "revise-specification",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "spec-audit-approval",
+        "options": [
+          "continue-to-planning",
+          "revise-specification",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "planning-approval",
+        "options": [
+          "continue-to-implementation",
+          "revise-plan",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "implementation-approval",
+        "options": [
+          "continue-past-implementation",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "verification-approval",
+        "options": [
+          "continue-past-verification",
+          "continue-to-browser-checks",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "e2e-approval",
+        "options": [
+          "continue-past-e2e",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "docs-approval",
+        "options": [
+          "continue-to-finalization",
+          "stop-development"
+        ]
+      }
+    ],
+    "in_node": [
+      {
+        "id": "task-description",
+        "node": "intake"
+      },
+      {
+        "id": "clarifications",
+        "node": "codebase-analysis"
+      },
+      {
+        "id": "scope-decisions",
+        "node": "gap-analysis"
+      },
+      {
+        "id": "technical-questions",
+        "node": "specification"
+      },
+      {
+        "id": "specification-requirements",
+        "node": "specification"
+      },
+      {
+        "id": "standard-verifications",
+        "node": "verification-options"
+      },
+      {
+        "id": "user-docs",
+        "node": "verification-options"
+      },
+      {
+        "id": "verification-fix-loop",
+        "node": "verification"
+      },
+      {
+        "id": "docs-fixes",
+        "node": "user-docs"
+      }
+    ]
+  },
+  "migration": {
+    "drivers": {
+      "cockpit": {
+        "gates": {
+          "execution-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-verification",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "gap-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification",
+              "revise-gap-analysis",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "planning-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-execution",
+              "revise-plan",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "resolution-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-documentation",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "specification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "verification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-issue-resolution",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "clarifications",
+            "node": "current-state-analysis",
+            "transport": "question-set"
+          },
+          {
+            "id": "specification-requirements",
+            "node": "specification",
+            "transport": "question-set"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "issue-resolution",
+            "transport": "question-set"
+          }
+        ]
+      },
+      "dispatch": {
+        "gates": {
+          "execution-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-verification",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "gap-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification",
+              "revise-gap-analysis",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "planning-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-execution",
+              "revise-plan",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "resolution-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-documentation",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "specification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          },
+          "verification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-issue-resolution",
+              "stop-migration"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "clarifications",
+            "node": "current-state-analysis",
+            "transport": "default"
+          },
+          {
+            "id": "specification-requirements",
+            "node": "specification",
+            "transport": "default"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "issue-resolution",
+            "transport": "default"
+          }
+        ]
+      },
+      "terminal": {
+        "gates": {
+          "execution-approval": {
+            "options": [
+              "continue-to-verification",
+              "stop-migration",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "gap-approval": {
+            "options": [
+              "continue-to-specification",
+              "revise-gap-analysis",
+              "stop-migration",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "planning-approval": {
+            "options": [
+              "continue-to-execution",
+              "revise-plan",
+              "stop-migration",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "resolution-approval": {
+            "options": [
+              "continue-to-documentation",
+              "stop-migration",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "specification-approval": {
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-migration",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "verification-approval": {
+            "options": [
+              "continue-to-issue-resolution",
+              "stop-migration",
+              "more-details"
+            ],
+            "transport": "picker"
+          }
+        },
+        "in_node": [
+          {
+            "id": "clarifications",
+            "node": "current-state-analysis",
+            "transport": "in-session"
+          },
+          {
+            "id": "specification-requirements",
+            "node": "specification",
+            "transport": "in-session"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "issue-resolution",
+            "transport": "in-session"
+          }
+        ]
+      }
+    },
+    "gates": [
+      {
+        "id": "gap-approval",
+        "options": [
+          "continue-to-specification",
+          "revise-gap-analysis",
+          "stop-migration"
+        ]
+      },
+      {
+        "id": "specification-approval",
+        "options": [
+          "continue-to-planning",
+          "revise-specification",
+          "stop-migration"
+        ]
+      },
+      {
+        "id": "planning-approval",
+        "options": [
+          "continue-to-execution",
+          "revise-plan",
+          "stop-migration"
+        ]
+      },
+      {
+        "id": "execution-approval",
+        "options": [
+          "continue-to-verification",
+          "stop-migration"
+        ]
+      },
+      {
+        "id": "verification-approval",
+        "options": [
+          "continue-to-issue-resolution",
+          "stop-migration"
+        ]
+      },
+      {
+        "id": "resolution-approval",
+        "options": [
+          "continue-to-documentation",
+          "stop-migration"
+        ]
+      }
+    ],
+    "in_node": [
+      {
+        "id": "clarifications",
+        "node": "current-state-analysis"
+      },
+      {
+        "id": "specification-requirements",
+        "node": "specification"
+      },
+      {
+        "id": "verification-fix-loop",
+        "node": "issue-resolution"
+      }
+    ]
+  },
+  "performance": {
+    "drivers": {
+      "cockpit": {
+        "gates": {
+          "bottleneck-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification",
+              "revise-analysis",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "implementation-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-verification-options",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "planning-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "spec-audit-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "specification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-spec-audit",
+              "revise-specification",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "verification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-finalization",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "clarifications",
+            "node": "codebase-analysis",
+            "transport": "question-set"
+          },
+          {
+            "id": "profiling-data",
+            "node": "codebase-analysis",
+            "transport": "question-set"
+          },
+          {
+            "id": "optimization-priorities",
+            "node": "specification",
+            "transport": "question-set"
+          },
+          {
+            "id": "standard-verifications",
+            "node": "verification-options",
+            "transport": "question-set"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "verification",
+            "transport": "question-set"
+          }
+        ]
+      },
+      "dispatch": {
+        "gates": {
+          "bottleneck-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification",
+              "revise-analysis",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "implementation-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-verification-options",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "planning-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "spec-audit-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "specification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-spec-audit",
+              "revise-specification",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          },
+          "verification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-finalization",
+              "stop-performance"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "clarifications",
+            "node": "codebase-analysis",
+            "transport": "default"
+          },
+          {
+            "id": "profiling-data",
+            "node": "codebase-analysis",
+            "transport": "default"
+          },
+          {
+            "id": "optimization-priorities",
+            "node": "specification",
+            "transport": "default"
+          },
+          {
+            "id": "standard-verifications",
+            "node": "verification-options",
+            "transport": "default"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "verification",
+            "transport": "default"
+          }
+        ]
+      },
+      "terminal": {
+        "gates": {
+          "bottleneck-approval": {
+            "options": [
+              "continue-to-specification",
+              "revise-analysis",
+              "stop-performance",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "implementation-approval": {
+            "options": [
+              "continue-to-verification-options",
+              "stop-performance",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "planning-approval": {
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-performance",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "spec-audit-approval": {
+            "options": [
+              "continue-to-planning",
+              "revise-specification",
+              "stop-performance",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "specification-approval": {
+            "options": [
+              "continue-to-spec-audit",
+              "revise-specification",
+              "stop-performance",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "verification-approval": {
+            "options": [
+              "continue-to-finalization",
+              "stop-performance",
+              "more-details"
+            ],
+            "transport": "picker"
+          }
+        },
+        "in_node": [
+          {
+            "id": "clarifications",
+            "node": "codebase-analysis",
+            "transport": "in-session"
+          },
+          {
+            "id": "profiling-data",
+            "node": "codebase-analysis",
+            "transport": "in-session"
+          },
+          {
+            "id": "optimization-priorities",
+            "node": "specification",
+            "transport": "in-session"
+          },
+          {
+            "id": "standard-verifications",
+            "node": "verification-options",
+            "transport": "in-session"
+          },
+          {
+            "id": "verification-fix-loop",
+            "node": "verification",
+            "transport": "in-session"
+          }
+        ]
+      }
+    },
+    "gates": [
+      {
+        "id": "bottleneck-approval",
+        "options": [
+          "continue-to-specification",
+          "revise-analysis",
+          "stop-performance"
+        ]
+      },
+      {
+        "id": "specification-approval",
+        "options": [
+          "continue-to-spec-audit",
+          "revise-specification",
+          "stop-performance"
+        ]
+      },
+      {
+        "id": "spec-audit-approval",
+        "options": [
+          "continue-to-planning",
+          "revise-specification",
+          "stop-performance"
+        ]
+      },
+      {
+        "id": "planning-approval",
+        "options": [
+          "continue-to-implementation",
+          "revise-plan",
+          "stop-performance"
+        ]
+      },
+      {
+        "id": "implementation-approval",
+        "options": [
+          "continue-to-verification-options",
+          "stop-performance"
+        ]
+      },
+      {
+        "id": "verification-approval",
+        "options": [
+          "continue-to-finalization",
+          "stop-performance"
+        ]
+      }
+    ],
+    "in_node": [
+      {
+        "id": "clarifications",
+        "node": "codebase-analysis"
+      },
+      {
+        "id": "profiling-data",
+        "node": "codebase-analysis"
+      },
+      {
+        "id": "optimization-priorities",
+        "node": "specification"
+      },
+      {
+        "id": "standard-verifications",
+        "node": "verification-options"
+      },
+      {
+        "id": "verification-fix-loop",
+        "node": "verification"
+      }
+    ]
+  },
+  "product-design": {
+    "drivers": {
+      "cockpit": {
+        "gates": {
+          "characteristics-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-context-synthesis",
+              "revise-characteristics",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
+          "context-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-problem-exploration",
+              "revise-context",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
+          "direction-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification",
+              "explore-more-alternatives",
+              "refine-direction",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
+          "problem-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-idea-generation",
+              "revise-problem",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
+          "specification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-product-brief",
+              "revise-specification",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "additional-context",
+            "node": "intake",
+            "transport": "question-set"
+          },
+          {
+            "id": "problem-questions",
+            "node": "problem-exploration",
+            "transport": "question-set"
+          },
+          {
+            "id": "problem-refinement",
+            "node": "problem-exploration",
+            "transport": "question-set"
+          },
+          {
+            "id": "persona-questions",
+            "node": "persona-exploration",
+            "transport": "question-set"
+          },
+          {
+            "id": "persona-refinement",
+            "node": "persona-exploration",
+            "transport": "question-set"
+          },
+          {
+            "id": "brainstormer-retry",
+            "node": "idea-generation",
+            "transport": "question-set"
+          },
+          {
+            "id": "convergence-decisions",
+            "node": "idea-convergence",
+            "transport": "question-set"
+          },
+          {
+            "id": "specification-sections",
+            "node": "feature-specification",
+            "transport": "question-set"
+          },
+          {
+            "id": "depth-enrichment",
+            "node": "feature-specification",
+            "transport": "question-set"
+          },
+          {
+            "id": "mockup-refinement",
+            "node": "visual-prototyping",
+            "transport": "question-set"
+          },
+          {
+            "id": "brief-approval",
+            "node": "review-handoff",
+            "transport": "question-set"
+          }
+        ]
+      },
+      "dispatch": {
+        "gates": {
+          "characteristics-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-context-synthesis",
+              "revise-characteristics",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
+          "context-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-problem-exploration",
+              "revise-context",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
+          "direction-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification",
+              "explore-more-alternatives",
+              "refine-direction",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
+          "problem-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-idea-generation",
+              "revise-problem",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
+          "specification-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-product-brief",
+              "revise-specification",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "additional-context",
+            "node": "intake",
+            "transport": "default"
+          },
+          {
+            "id": "problem-questions",
+            "node": "problem-exploration",
+            "transport": "default"
+          },
+          {
+            "id": "problem-refinement",
+            "node": "problem-exploration",
+            "transport": "default"
+          },
+          {
+            "id": "persona-questions",
+            "node": "persona-exploration",
+            "transport": "default"
+          },
+          {
+            "id": "persona-refinement",
+            "node": "persona-exploration",
+            "transport": "default"
+          },
+          {
+            "id": "brainstormer-retry",
+            "node": "idea-generation",
+            "transport": "default"
+          },
+          {
+            "id": "convergence-decisions",
+            "node": "idea-convergence",
+            "transport": "default"
+          },
+          {
+            "id": "specification-sections",
+            "node": "feature-specification",
+            "transport": "default"
+          },
+          {
+            "id": "depth-enrichment",
+            "node": "feature-specification",
+            "transport": "default"
+          },
+          {
+            "id": "mockup-refinement",
+            "node": "visual-prototyping",
+            "transport": "default"
+          },
+          {
+            "id": "brief-approval",
+            "node": "review-handoff",
+            "transport": "default"
+          }
+        ]
+      },
+      "terminal": {
+        "gates": {
+          "characteristics-approval": {
+            "options": [
+              "continue-to-context-synthesis",
+              "revise-characteristics",
+              "stop-design",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "context-approval": {
+            "options": [
+              "continue-to-problem-exploration",
+              "revise-context",
+              "stop-design",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "direction-approval": {
+            "options": [
+              "continue-to-specification",
+              "explore-more-alternatives",
+              "refine-direction",
+              "stop-design"
+            ],
+            "transport": "picker"
+          },
+          "problem-approval": {
+            "options": [
+              "continue-to-idea-generation",
+              "revise-problem",
+              "stop-design",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "specification-approval": {
+            "options": [
+              "continue-to-product-brief",
+              "revise-specification",
+              "stop-design",
+              "more-details"
+            ],
+            "transport": "picker"
+          }
+        },
+        "in_node": [
+          {
+            "id": "additional-context",
+            "node": "intake",
+            "transport": "in-session"
+          },
+          {
+            "id": "problem-questions",
+            "node": "problem-exploration",
+            "transport": "in-session"
+          },
+          {
+            "id": "problem-refinement",
+            "node": "problem-exploration",
+            "transport": "in-session"
+          },
+          {
+            "id": "persona-questions",
+            "node": "persona-exploration",
+            "transport": "in-session"
+          },
+          {
+            "id": "persona-refinement",
+            "node": "persona-exploration",
+            "transport": "in-session"
+          },
+          {
+            "id": "brainstormer-retry",
+            "node": "idea-generation",
+            "transport": "in-session"
+          },
+          {
+            "id": "convergence-decisions",
+            "node": "idea-convergence",
+            "transport": "in-session"
+          },
+          {
+            "id": "specification-sections",
+            "node": "feature-specification",
+            "transport": "in-session"
+          },
+          {
+            "id": "depth-enrichment",
+            "node": "feature-specification",
+            "transport": "in-session"
+          },
+          {
+            "id": "mockup-refinement",
+            "node": "visual-prototyping",
+            "transport": "in-session"
+          },
+          {
+            "id": "brief-approval",
+            "node": "review-handoff",
+            "transport": "in-session"
+          }
+        ]
+      }
+    },
+    "gates": [
+      {
+        "id": "characteristics-approval",
+        "options": [
+          "continue-to-context-synthesis",
+          "revise-characteristics",
+          "stop-design"
+        ]
+      },
+      {
+        "id": "context-approval",
+        "options": [
+          "continue-to-problem-exploration",
+          "revise-context",
+          "stop-design"
+        ]
+      },
+      {
+        "id": "problem-approval",
+        "options": [
+          "continue-to-idea-generation",
+          "revise-problem",
+          "stop-design"
+        ]
+      },
+      {
+        "id": "direction-approval",
+        "options": [
+          "continue-to-specification",
+          "explore-more-alternatives",
+          "refine-direction",
+          "stop-design"
+        ]
+      },
+      {
+        "id": "specification-approval",
+        "options": [
+          "continue-to-product-brief",
+          "revise-specification",
+          "stop-design"
+        ]
+      }
+    ],
+    "in_node": [
+      {
+        "id": "additional-context",
+        "node": "intake"
+      },
+      {
+        "id": "problem-questions",
+        "node": "problem-exploration"
+      },
+      {
+        "id": "problem-refinement",
+        "node": "problem-exploration"
+      },
+      {
+        "id": "persona-questions",
+        "node": "persona-exploration"
+      },
+      {
+        "id": "persona-refinement",
+        "node": "persona-exploration"
+      },
+      {
+        "id": "brainstormer-retry",
+        "node": "idea-generation"
+      },
+      {
+        "id": "convergence-decisions",
+        "node": "idea-convergence"
+      },
+      {
+        "id": "specification-sections",
+        "node": "feature-specification"
+      },
+      {
+        "id": "depth-enrichment",
+        "node": "feature-specification"
+      },
+      {
+        "id": "mockup-refinement",
+        "node": "visual-prototyping"
+      },
+      {
+        "id": "brief-approval",
+        "node": "review-handoff"
+      }
+    ]
+  },
+  "research": {
+    "drivers": {
+      "cockpit": {
+        "gates": {
+          "convergence-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-design",
+              "finish-without-design",
+              "revise-convergence",
+              "stop-research"
+            ],
+            "transport": "gate-request"
+          },
+          "design-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-completion",
+              "revise-design",
+              "stop-research"
+            ],
+            "transport": "gate-request"
+          },
+          "findings-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-completion",
+              "revise-research",
+              "stop-research"
+            ],
+            "transport": "gate-request"
+          },
+          "foundation-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-brainstorming",
+              "continue-to-design",
+              "finish-with-research",
+              "revise-research"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "research-question",
+            "node": "research-foundation",
+            "transport": "question-set"
+          },
+          {
+            "id": "question-clarification",
+            "node": "research-foundation",
+            "transport": "question-set"
+          },
+          {
+            "id": "brainstormer-retry",
+            "node": "solution-generation",
+            "transport": "question-set"
+          },
+          {
+            "id": "convergence-decisions",
+            "node": "solution-convergence",
+            "transport": "question-set"
+          },
+          {
+            "id": "design-constraints",
+            "node": "high-level-design",
+            "transport": "question-set"
+          },
+          {
+            "id": "designer-retry",
+            "node": "high-level-design",
+            "transport": "question-set"
+          }
+        ]
+      },
+      "dispatch": {
+        "gates": {
+          "convergence-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-design",
+              "finish-without-design",
+              "revise-convergence",
+              "stop-research"
+            ],
+            "transport": "gate-request"
+          },
+          "design-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-completion",
+              "revise-design",
+              "stop-research"
+            ],
+            "transport": "gate-request"
+          },
+          "findings-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-completion",
+              "revise-research",
+              "stop-research"
+            ],
+            "transport": "gate-request"
+          },
+          "foundation-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-brainstorming",
+              "continue-to-design",
+              "finish-with-research",
+              "revise-research"
+            ],
+            "transport": "gate-request"
+          }
+        },
+        "in_node": [
+          {
+            "id": "research-question",
+            "node": "research-foundation",
+            "transport": "default"
+          },
+          {
+            "id": "question-clarification",
+            "node": "research-foundation",
+            "transport": "default"
+          },
+          {
+            "id": "brainstormer-retry",
+            "node": "solution-generation",
+            "transport": "default"
+          },
+          {
+            "id": "convergence-decisions",
+            "node": "solution-convergence",
+            "transport": "default"
+          },
+          {
+            "id": "design-constraints",
+            "node": "high-level-design",
+            "transport": "default"
+          },
+          {
+            "id": "designer-retry",
+            "node": "high-level-design",
+            "transport": "default"
+          }
+        ]
+      },
+      "terminal": {
+        "gates": {
+          "convergence-approval": {
+            "options": [
+              "continue-to-design",
+              "finish-without-design",
+              "revise-convergence",
+              "stop-research"
+            ],
+            "transport": "picker"
+          },
+          "design-approval": {
+            "options": [
+              "continue-to-completion",
+              "revise-design",
+              "stop-research",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "findings-approval": {
+            "options": [
+              "continue-to-completion",
+              "revise-research",
+              "stop-research",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
+          "foundation-approval": {
+            "options": [
+              "continue-to-brainstorming",
+              "continue-to-design",
+              "finish-with-research",
+              "revise-research"
+            ],
+            "transport": "picker"
+          }
+        },
+        "in_node": [
+          {
+            "id": "research-question",
+            "node": "research-foundation",
+            "transport": "in-session"
+          },
+          {
+            "id": "question-clarification",
+            "node": "research-foundation",
+            "transport": "in-session"
+          },
+          {
+            "id": "brainstormer-retry",
+            "node": "solution-generation",
+            "transport": "in-session"
+          },
+          {
+            "id": "convergence-decisions",
+            "node": "solution-convergence",
+            "transport": "in-session"
+          },
+          {
+            "id": "design-constraints",
+            "node": "high-level-design",
+            "transport": "in-session"
+          },
+          {
+            "id": "designer-retry",
+            "node": "high-level-design",
+            "transport": "in-session"
+          }
+        ]
+      }
+    },
+    "gates": [
+      {
+        "id": "foundation-approval",
+        "options": [
+          "continue-to-brainstorming",
+          "continue-to-design",
+          "finish-with-research",
+          "revise-research"
+        ]
+      },
+      {
+        "id": "findings-approval",
+        "options": [
+          "continue-to-completion",
+          "revise-research",
+          "stop-research"
+        ]
+      },
+      {
+        "id": "convergence-approval",
+        "options": [
+          "continue-to-design",
+          "finish-without-design",
+          "revise-convergence",
+          "stop-research"
+        ]
+      },
+      {
+        "id": "design-approval",
+        "options": [
+          "continue-to-completion",
+          "revise-design",
+          "stop-research"
+        ]
+      }
+    ],
+    "in_node": [
+      {
+        "id": "research-question",
+        "node": "research-foundation"
+      },
+      {
+        "id": "question-clarification",
+        "node": "research-foundation"
+      },
+      {
+        "id": "brainstormer-retry",
+        "node": "solution-generation"
+      },
+      {
+        "id": "convergence-decisions",
+        "node": "solution-convergence"
+      },
+      {
+        "id": "design-constraints",
+        "node": "high-level-design"
+      },
+      {
+        "id": "designer-retry",
+        "node": "high-level-design"
+      }
+    ]
+  }
+}
