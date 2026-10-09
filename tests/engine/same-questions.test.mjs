@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
+import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
+import { walk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 
 // What every built-in asks, and how each question reaches a person under each
 // driver, pinned against a snapshot taken from the engine before the autonomy
@@ -15,9 +17,23 @@ import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, write } from '.
 // timestamp or state key — so a change that adds bookkeeping beside a question
 // leaves the snapshot as it is. Regenerate it only when a question is meant to
 // change: `SNAPSHOT_QUESTIONS=1 node --test tests/engine/same-questions.test.mjs`.
+//
+// A second snapshot, `fixtures/asked-questions-text.json`, pins the words: per
+// built-in and driver, each gate's question, header and option labels as the
+// rich picker (`gate-brief --json --picker=rich`) or the gate request
+// (`--request`, its checkpoint included, less the run's own paths) puts them, and the gates a walk from
+// the start reaches when every gate is answered with its first continue. The
+// checkpoint's `decisions.operator.actors` and every `actor_kind` are masked:
+// they are bookkeeping the autonomy model added beside the question. It was
+// taken after the autonomy model landed, which is sound: under the built-in
+// default policy an independent comparison of every gate's brief, pickers,
+// checkpoint and request, old engine against new, found no difference beyond
+// those masked keys, so this text is the text from before. Regenerate it with
+// the same variable, and only when a question's words are meant to change.
 
 const WORKFLOWS_DIR = path.join(ENGINE_DIR, 'workflows');
 const SNAPSHOT = path.join(FIXTURES, 'asked-questions.json');
+const TEXT_SNAPSHOT = path.join(FIXTURES, 'asked-questions-text.json');
 
 /** The built-ins, each with the required inputs a freeze takes. */
 const BUILT_INS = {
@@ -54,8 +70,9 @@ const DEFAULT_HASH = 'sha256:2430f1a2ad2982d0067885488a4c89e21ad1d7c83b115ba8f1b
 /**
  * What the projection saw beside the questions, kept out of the snapshot: each
  * frozen run's state after its last write, and every gate request it built.
+ * `texts` is what the second snapshot pins, keyed `<built-in>/<driver>`.
  */
-const seen = { states: [], requests: [] };
+const seen = { states: [], requests: [], texts: {} };
 
 /** The dotted paths of every `triage` key anywhere in `value`. */
 function triageKeys(value, at = '') {
@@ -161,6 +178,7 @@ function gatesUnder(t, name, driverName) {
     orchestrator: { driver },
   });
   const gates = {};
+  const texts = {};
   let done = 0;
   for (const [index, node] of graph.nodes.entries()) {
     if (node.type !== 'gate') continue;
@@ -180,15 +198,82 @@ function gatesUnder(t, name, driverName) {
     if (form === 'picker') {
       const picker = JSON.parse(ok(verb([...base, '--json', '--picker=rich']), `gate-brief ${node.id}`));
       offered = { transport: 'picker', options: picker.options.map(option => option.id) };
+      texts[node.id] = {
+        question: picker.question,
+        header: picker.header,
+        options: picker.options.map(({ id, label, description }) => ({ id, label, description })),
+      };
     } else {
       const request = JSON.parse(ok(verb([...base, '--request']), `gate-brief ${node.id}`));
       seen.requests.push({ at: `${name}/${driverName}/${node.id}`, request });
       offered = { transport: 'gate-request', kind: request.kind, options: request.options.map(option => option.id) };
+      // The checkpoint less `run`, which names the scratch directory.
+      const { run: _run, ...checkpoint } = request.context.checkpoint;
+      texts[node.id] = { question: request.question, options: request.options, checkpoint: withoutActors(checkpoint) };
     }
     gates[node.id] = offered;
   }
   seen.states.push({ at: `${name}/${driverName}`, state: readState(run) });
+  seen.texts[`${name}/${driverName}`] = { gates: texts, reached: reachedUnder(t, name, driverName) };
   return { graph, gates };
+}
+
+/** `value` without `decisions.operator.actors` or any `actor_kind`, the keys the text snapshot masks. */
+function withoutActors(value) {
+  if (Array.isArray(value)) return value.map(withoutActors);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => key !== 'actor_kind')
+    .map(([key, each]) => {
+      if (key === 'decisions' && each?.operator && typeof each.operator === 'object') {
+        const { actors: _actors, ...operator } = each.operator;
+        return [key, withoutActors({ ...each, operator })];
+      }
+      return [key, withoutActors(each)];
+    }));
+}
+
+/** The defaults a built-in's inputs declare, which its guards read when the run sets none. */
+function defaultsOf(name) {
+  const inputs = readDefinition(path.join(WORKFLOWS_DIR, `${name}.yml`)).doc?.inputs ?? {};
+  return Object.fromEntries(Object.entries(inputs)
+    .filter(([, declared]) => declared && typeof declared === 'object' && Object.hasOwn(declared, 'default'))
+    .map(([key, declared]) => [key, declared.default]));
+}
+
+/**
+ * The gates a run of `name` under `driverName` reaches from its start, every
+ * node recorded through the writer as it ends — a task completed with its
+ * declared values, a gate with its first continue — and each next node found
+ * by the engine's own walker over what the run recorded, the nodes it skips
+ * recorded skipped.
+ */
+function reachedUnder(t, name, driverName) {
+  const { driver } = DRIVERS[driverName];
+  const run = scratch(t, { type: name, name: `2026-10-09-${name}-${driverName}-walk` });
+  const inputs = BUILT_INS[name];
+  const graph = freeze(run, { definition: path.join(WORKFLOWS_DIR, `${name}.yml`), inputs, orchestrator: { driver } });
+  const byId = new Map(graph.nodes.map(node => [node.id, node]));
+  const defaults = defaultsOf(name);
+  const reached = [];
+  let current = graph.nodes.find(node => !(node.needs ?? []).length) ?? null;
+  while (current) {
+    const { id } = current;
+    if (current.type === 'gate') {
+      reached.push(id);
+      write(run, {
+        nodes: { [id]: { status: 'completed' } },
+        node_summaries: { [id]: { decisions: [{ option: firstContinue(current), answered_by: 'operator', at: '2026-10-09T09:00:00Z' }] } },
+      });
+    } else {
+      write(run, { nodes: { [id]: completedEntry(current) }, node_summaries: { [id]: SUMMARY } });
+    }
+    const step = walk({ graph, recorded: readState(run).workflow.nodes, gate: id, inputs, defaults });
+    if (!step.ok) throw new Error(`${name}/${driverName}: the walk from ${id} failed: ${JSON.stringify(step.errors)}`);
+    if (step.skipped.length) write(run, { nodes: Object.fromEntries(step.skipped.map(each => [each, { status: 'skipped' }])) });
+    current = step.next === null ? null : byId.get(step.next);
+  }
+  return reached;
 }
 
 /**
@@ -309,4 +394,16 @@ test('every built-in asks the same questions, carried the same way, under each d
   }
   assert.ok(seen.requests.length, 'the projection built gate requests');
   for (const { at, request } of seen.requests) assert.deepEqual(triageKeys(request), [], at);
+
+  // The words: every gate's question and option labels under each driver, and
+  // the gates a walk from the start reaches on each gate's first continue.
+  const texts = stable(seen.texts);
+  if (process.env.SNAPSHOT_QUESTIONS === '1') fs.writeFileSync(TEXT_SNAPSHOT, texts);
+  const pinned = JSON.parse(fs.readFileSync(TEXT_SNAPSHOT, 'utf8'));
+  assert.equal(Object.keys(pinned).length, Object.keys(BUILT_INS).length * Object.keys(DRIVERS).length);
+  for (const [at, { gates, reached }] of Object.entries(pinned)) {
+    assert.ok(reached.length, `${at}: the walk reached no gate`);
+    for (const id of reached) assert.ok(Object.hasOwn(gates, id), `${at}: the walk reached ${id}, which has no pinned text`);
+  }
+  assert.deepEqual(JSON.parse(texts), pinned);
 });
