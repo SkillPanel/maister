@@ -35,16 +35,15 @@
  *     default_ceiling  an ask level
  *
  * Floor ids are opaque non-empty strings, never checked against a list. A
- * family's `floor` is a unique list of them, and its `max` (absent: its own
- * class) is read and checked but bounds nothing yet. A row's `families` lists
- * at least one family, each once, the first being its default reading;
- * `values` maps a gate value key to a family and sits only on a gate row.
- * Family names and a row's `workflow` match `^[a-z][a-z0-9-]*$`, a row's `id`
- * matches the engine's node id pattern, and value keys match `^[a-z_]+$`. A
- * ceiling settles anything below `approve` and says whether it delegates.
- * Beyond the shape, every family a row, `values` or `unknown_family` names
- * must exist, (workflow, id) must be unique across the table, and
- * `default_ceiling` must name a ceiling.
+ * family's `floor` is a unique list of them, and its `max` is a class. A
+ * row's `families` lists at least one family, each once, the first being its
+ * default reading; `values` maps a gate value key to a family and sits only on
+ * a gate row. Family names and a row's `workflow` match `^[a-z][a-z0-9-]*$`, a
+ * row's `id` matches the engine's node id pattern, and value keys match
+ * `^[a-z_]+$`. A ceiling's `settles` is a class below `approve` and its
+ * `delegates` a boolean. Beyond the shape, every family a row, `values` or
+ * `unknown_family` names must exist, (workflow, id) must be unique across the
+ * table, and `default_ceiling` must name a ceiling.
  *
  * Pure apart from the one file read in `loadPolicy`: no stdio, and warnings are
  * returned, never printed.
@@ -75,7 +74,7 @@ export const BANDS = ['clear', 'leaning', 'toss-up'];
 /** The ask levels: the keys of `ceilings` and the values of `default_ceiling`. */
 export const ASK_LEVELS = ['approve', 'advice', 'decide'];
 
-/** The classes a ceiling may settle without a person: all but the top one. */
+/** The classes a ceiling's `settles` may name: all but the top one. */
 const SETTLES = CLASSES.slice(0, -1);
 
 /** The class any floor id sets. */
@@ -365,12 +364,13 @@ function isMap(value) {
  * is above the family's own. Never `advice` or `held`.
  */
 export function triageFor({ policy, workflow, kind, id, declaredIds, key, family, floorIds, band, evidence } = {}) {
-  const families = isMap(policy?.families) ? policy.families : {};
+  // The policy is one `loadPolicy` accepted (or the built-in default), so its
+  // shape is not re-checked here: every family a row or `unknown_family`
+  // names exists, and each class is a known one.
   const name = familyOf({ policy, workflow, kind, id, declaredIds, key, proposed: family });
-  if (name === null || !isMap(families[name])) return null;
-  const own = families[name];
+  if (name === null || !Object.hasOwn(policy.families ?? {}, name)) return null;
+  const own = policy.families[name];
   let level = rank(own.class);
-  if (level < 0) return null;
   const start = level;
   let raisedBy = null;
 
@@ -399,20 +399,14 @@ export function triageFor({ policy, workflow, kind, id, declaredIds, key, family
 
 /** The family an item reads as, or null when it is unclassified. */
 function familyOf({ policy, workflow, kind, id, declaredIds, key, proposed }) {
-  const fallback = typeof policy?.unknown_family === 'string' ? policy.unknown_family : null;
+  const fallback = policy?.unknown_family ?? null;
   const rowKind = kind === 'value' ? 'gate' : kind;
   const rowId = kind === 'question' ? declaredIdOf(id, declaredIds) : id;
-  const row = Array.isArray(policy?.table)
-    ? policy.table.find(each => isMap(each) && each.workflow === workflow && each.kind === rowKind && each.id === rowId)
-    : undefined;
+  const row = (policy?.table ?? []).find(each => each.workflow === workflow && each.kind === rowKind && each.id === rowId);
   if (!row) return fallback;
-  if (kind === 'value') {
-    const named = isMap(row.values) && Object.hasOwn(row.values, key) ? row.values[key] : null;
-    return typeof named === 'string' ? named : fallback;
-  }
-  const listed = Array.isArray(row.families) ? row.families : [];
-  if (typeof proposed === 'string' && listed.includes(proposed)) return proposed;
-  return typeof listed[0] === 'string' ? listed[0] : fallback;
+  if (kind === 'value') return row.values && Object.hasOwn(row.values, key) ? row.values[key] : fallback;
+  if (typeof proposed === 'string' && row.families.includes(proposed)) return proposed;
+  return row.families[0];
 }
 
 /**
@@ -432,10 +426,10 @@ function declaredIdOf(id, declaredIds) {
 
 /** The band applied: the given one, moved once by `without_evidence` when there is no evidence. */
 function bandOf(policy, band, evidence) {
-  const bands = isMap(policy?.bands) ? policy.bands : {};
-  if (typeof band !== 'string' || !isMap(bands[band])) return null;
+  const bands = policy?.bands ?? {};
+  if (typeof band !== 'string' || !Object.hasOwn(bands, band)) return null;
   const moved = bands[band].without_evidence;
-  if (evidence == null && typeof moved === 'string' && isMap(bands[moved])) return moved;
+  if (evidence == null && moved !== undefined && Object.hasOwn(bands, moved)) return moved;
   return band;
 }
 
