@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "note": "A made-up policy that classes the optional-step fixture's first gate and the value its continues set.",
+  "floor": {
+    "floor-a": {
+      "description": "A made-up floor id."
+    }
+  },
+  "families": {
+    "checkpoint-family": {
+      "class": "record",
+      "description": "A gate recorded as it was answered."
+    },
+    "guarded-family": {
+      "class": "record",
+      "floor": [
+        "floor-a"
+      ],
+      "description": "A value carrying a floor id, so approved."
+    }
+  },
+  "table": [
+    {
+      "workflow": "optional-step",
+      "id": "specification-approval",
+      "kind": "gate",
+      "families": [
+        "checkpoint-family"
+      ],
+      "values": {
+        "audit_enabled": "guarded-family"
+      }
+    }
+  ]
+}

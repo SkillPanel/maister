@@ -96,6 +96,7 @@ import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
+import { loadPolicy, triageFor } from './policy.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -298,10 +299,15 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   };
 
   const gateId = id => isGate(recorded, byId, id);
+  // The autonomy policy, read once and only when a form needs it: what it
+  // classes is written only when it is the policy the run recorded at freeze.
+  let reading = null;
+  const policyOf = () => (reading ??= policyReading(doc, workflow.name, node, options));
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
     doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId,
+    approves: policyOf().matches ? policyOf().approves : [],
   }));
   // Every form carries the panel an editor extension draws above the question,
   // whichever form was asked for: a gate may be asked from any of them. The
@@ -341,7 +347,14 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
         `--reask=${reask} is not a revise option this gate offers (${revises.length ? revises.join(', ') : 'it offers none'}); `
         + 'correct the --reask argument to the revise the operator chose — no state write fixes this', warnings);
     }
-    return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd(), asked), panel, errors: [], warnings };
+    const request = requestOf(checkpoint, onelineText().trimEnd(), asked);
+    const policy = policyOf();
+    for (const message of policy.warnings) warnings.push({ code: 'policy-refused', message });
+    if (policy.matches && policy.triage !== null) request.triage = policy.triage;
+    else if (!policy.matches && (policy.triage !== null || policy.approves.length > 0)) {
+      warnings.push({ code: 'policy-hash-mismatch', message: `policy-hash-mismatch:${node}` });
+    }
+    return { ok: true, request, panel, errors: [], warnings };
   }
   const shaped = picker === 'plain' ? plainPicker(checkpoint) : richPicker(checkpoint);
   // The plain profile's header titles a form property, which has no length
@@ -798,7 +811,7 @@ const KEEPS_MAX = 3;
  * counted rather than listed. A fix is kept apart from the decisions: the run
  * changed it without asking, and settled nothing by it.
  */
-function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId }) {
+function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, approves = [] }) {
   const title = id => titleOf(titles, id);
   const order = Object.keys(recorded);
   const sources = summarySources(doc);
@@ -959,10 +972,35 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     recommended: { option: recommended, reason },
     options: listed,
     grants: grantsOf(options),
-    approves: [],
+    approves,
     run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
     truncated,
   };
+}
+
+/**
+ * What the autonomy policy says of this gate: its `triage` (null when the
+ * policy does not class it), the `approves` entries — one `{node, ref, class,
+ * floor?}` per value key a continue sets that the policy classes, in the
+ * options' order, each key once — whether the policy is the one the run
+ * recorded at its freeze (`matches`), and the loader's own warnings. A run
+ * that recorded no hash never matches.
+ */
+function policyReading(doc, workflowName, node, options) {
+  const { policy, hash, warnings } = loadPolicy();
+  const recorded = isPlainObject(doc.orchestrator) ? doc.orchestrator.policy_hash : undefined;
+  const ask = { policy, workflow: workflowName, id: node };
+  const approves = [];
+  const seen = new Set();
+  for (const [, option] of continuesOf(options)) {
+    for (const key of Object.keys(setsOf(option) ?? {})) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const triage = triageFor({ ...ask, kind: 'value', key });
+      if (triage !== null) approves.push({ node, ref: key, class: triage.class, ...(triage.floor ? { floor: triage.floor } : {}) });
+    }
+  }
+  return { triage: triageFor({ ...ask, kind: 'gate' }), approves, matches: typeof recorded === 'string' && recorded === hash, warnings };
 }
 
 /**

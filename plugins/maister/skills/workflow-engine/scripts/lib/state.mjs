@@ -63,13 +63,13 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 // The shared reader lives in the plugin root's `lib/`, because more than one
 // skill reads state through it.
-import { scanState } from '../../../../lib/state-scan.mjs';
+import { scanState, unansweredRequests } from '../../../../lib/state-scan.mjs';
 // `gate_pending: null` is the commit point of a decision, so this module is the
 // one that learns a gate was answered. The index has to learn it here too:
 // regenerating it only when the *next* gate is asked left every run's final
 // gate reading `pending` forever. The renderer is a separate module so the gate
 // writer can import it without a cycle.
-import { syncIndex, REQUEST_SUFFIX } from './gate-index.mjs';
+import { syncIndex, INDEX_FILE, REQUEST_SUFFIX } from './gate-index.mjs';
 // The one state reader. This module carried a private `isPlainObject` until the
 // reader was extracted; two copies of the same predicate is the drift that
 // extraction removed.
@@ -87,7 +87,7 @@ import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve a
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, oneLine, withPersonActor, withProvenance } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
-import { loadPolicy } from './policy.mjs';
+import { loadPolicy, triageFor } from './policy.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -1116,6 +1116,7 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
   if (runDir !== null) copyDrivenProvenance(doc, runDir, changed);
   stampGateValues(doc, patch, changed);
+  judgeGates(doc, patch, changed, runDir, policyWarnings);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -3036,6 +3037,143 @@ function copyDrivenProvenance(doc, runDir, changed) {
     doc.set(['node_summaries', id], block(id, summary, 2));
     if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
   }
+}
+
+/**
+ * A gate's triage and settlement items, written by the writer on the writes
+ * that judge the gate — and on no other, with no marker kept in state. Two
+ * writes judge a gate, each recognised from what the write itself carries:
+ *
+ * - the write that records its answer: the patch's summary for the gate
+ *   carries an operator decision naming an option (or the flat `answer` that
+ *   folds into one) — an answer given in session, a revise, or a closing write
+ *   re-sending the answer;
+ * - the re-validation of a driven answer: the write whose gate-index sync
+ *   closes the gate's row, `pending` in `gates/index.yml` before it and
+ *   `answered` after (`closingRows`).
+ *
+ * On such a write, and only when the autonomy policy loaded now is the one
+ * the run recorded at its freeze (`orchestrator.policy_hash`), the answer item
+ * gains the gate's `triage` unless it carries one — a triage already there is
+ * carried as written — and each value the chosen option `sets` that the
+ * policy classes is recorded as one settlement item right after the answer:
+ * `{decision: "<key>: <value>", by: operator, ref, node, triage}` with the
+ * answer's `answered_by`, `via` and provenance. Settlement items an earlier
+ * answer left are replaced, never repeated. Under a policy that classes
+ * nothing, nothing is written.
+ *
+ * A run whose recorded hash differs from the loaded policy's, or that recorded
+ * none, gets nothing either: the policy it would be judged by is not the one
+ * it started under. That is a warning, `policy-hash-mismatch:<gate>`, raised
+ * only where the loaded policy would have classed the answer or a value.
+ */
+function judgeGates(doc, patch, changed, runDir, policyWarnings) {
+  let typed;
+  try {
+    typed = parseState(doc.text());
+  } catch (err) {
+    throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
+  }
+  const workflow = isPlainObject(typed.workflow) ? typed.workflow : {};
+  const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const isGateNode = id => Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) && nodes[id].kind === 'gate';
+  const judged = new Set();
+  if (isPlainObject(patch.node_summaries)) {
+    for (const [id, entry] of Object.entries(patch.node_summaries)) {
+      if (isGateNode(id) && recordsAnswer(entry)) judged.add(id);
+    }
+  }
+  if (runDir !== null && settled(doc.text())) {
+    for (const id of closingRows(runDir)) if (isGateNode(id)) judged.add(id);
+  }
+  if (judged.size === 0) return;
+
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  const recordedHash = isPlainObject(typed.orchestrator) ? typed.orchestrator.policy_hash : undefined;
+  let loaded = null;
+  for (const id of Object.keys(nodes).filter(each => judged.has(each))) {
+    const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : null;
+    const decisions = Array.isArray(summary?.decisions) ? summary.decisions : null;
+    const answer = gateAnswer(decisions);
+    if (answer === null) continue;
+    loaded ??= loadPolicy();
+    const ask = { policy: loaded.policy, workflow: workflow.name, id };
+    const gateTriage = triageFor({ ...ask, kind: 'gate' });
+    const sets = isPlainObject(nodes[id].sets) && Object.hasOwn(nodes[id].sets, answer.option) && isPlainObject(nodes[id].sets[answer.option])
+      ? nodes[id].sets[answer.option] : {};
+    const values = Object.entries(sets)
+      .map(([key, value]) => ({ key, value, triage: triageFor({ ...ask, kind: 'value', key }) }))
+      .filter(each => each.triage !== null);
+    if (recordedHash !== loaded.hash) {
+      const code = `policy-hash-mismatch:${id}`;
+      if ((gateTriage !== null || values.length > 0) && !policyWarnings.includes(code)) policyWarnings.push(code);
+      continue;
+    }
+    const carried = answer.triage !== undefined && answer.triage !== null;
+    const triaged = carried || gateTriage === null ? answer : { ...answer, triage: gateTriage };
+    const settlements = values.map(each => settlementOf(id, each, answer));
+    const kept = decisions.filter(item => item === answer || !isSettlement(item, id));
+    const at = kept.indexOf(answer);
+    const next = [...kept.slice(0, at), triaged, ...settlements, ...kept.slice(at + 1)];
+    if (sameValue(next, decisions)) continue;
+    doc.set(['node_summaries', id], block(id, { ...summary, decisions: next }, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+  }
+}
+
+/** Does a gate's summary in a patch record an answer: an operator decision naming an option, or a flat answer? */
+function recordsAnswer(entry) {
+  if (!isPlainObject(entry)) return false;
+  if (typeof entry.answer === 'string' && entry.answer.trim() !== '') return true;
+  return Array.isArray(entry.decisions) && entry.decisions.some(item => isPlainObject(item)
+    && typeof item.option === 'string' && (item.by === undefined || item.by === 'operator'));
+}
+
+/**
+ * The gates whose `gates/index.yml` row this write closes: `pending` in the
+ * index as it stands, while the request file already holds an answer — so the
+ * sync this settled write runs turns it `answered`. Read before the sync, which
+ * runs after the document is built.
+ */
+function closingRows(runDir) {
+  let index;
+  try {
+    index = parseState(fs.readFileSync(path.join(runDir, 'gates', INDEX_FILE), 'utf8'));
+  } catch {
+    return [];
+  }
+  const entries = isPlainObject(index) && Array.isArray(index.entries) ? index.entries : [];
+  const pending = entries.filter(row => isPlainObject(row) && row.status === 'pending' && typeof row.node === 'string').map(row => row.node);
+  if (pending.length === 0) return [];
+  let open;
+  try {
+    open = new Set(unansweredRequests(runDir));
+  } catch {
+    return [];
+  }
+  return pending.filter(id => !open.has(id));
+}
+
+/** One settlement item: a classified value the answer's option sets, credited as the answer is. */
+function settlementOf(gate, { key, value, triage }, answer) {
+  const item = { decision: `${key}: ${scalarText(value)}`, by: 'operator', ref: key, node: gate, triage };
+  if (answer.answered_by !== undefined) item.answered_by = answer.answered_by;
+  if (answer.via !== undefined) item.via = answer.via;
+  for (const field of PROVENANCE_KEYS) {
+    if (answer[field] !== undefined && answer[field] !== null) item[field] = answer[field];
+  }
+  return item;
+}
+
+/** Is `item` a settlement item the writer recorded for `gate`? */
+function isSettlement(item, gate) {
+  return isPlainObject(item) && typeof item.option !== 'string' && item.by === 'operator' && item.node === gate
+    && typeof item.ref === 'string' && item.triage !== undefined && item.triage !== null;
+}
+
+/** A set value as a settlement item's text names it. */
+function scalarText(value) {
+  return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
 /** The values a gate holds as recorded, or undefined when its status and answer settle none. */
