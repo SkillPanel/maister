@@ -29,7 +29,7 @@ The unified development workflow handles features, enhancements, and bug fixes t
 
 When run without arguments, the plugin extracts the task description from your conversation. The analysis detects whether the task fixes a reproducible bug, and adds the failing-test-first phases when it does.
 
-**Flags**: `--research=PATH`, `--design=PATH`, `--audit` / `--no-audit`, `--e2e` / `--no-e2e`, `--user-docs` / `--no-user-docs`, `--sequential`. `--user-docs` / `--no-user-docs` answers its question up front; without it, the run asks. The specification audit and the browser checks are decided at the checkpoint before each — *Continue to the specification audit* or *Continue to planning, skip the audit*, and *Continue to the browser checks* or *Continue without browser checks* — so `--audit` / `--no-audit` and `--e2e` / `--no-e2e` set which of the two is recommended; the checkpoint still asks.
+**Flags**: `--research=PATH`, `--design=PATH`, `--architecture=PATH`, `--audit` / `--no-audit`, `--e2e` / `--no-e2e`, `--user-docs` / `--no-user-docs`, `--sequential`. `--user-docs` / `--no-user-docs` answers its question up front; without it, the run asks. The specification audit and the browser checks are decided at the checkpoint before each — *Continue to the specification audit* or *Continue to planning, skip the audit*, and *Continue to the browser checks* or *Continue without browser checks* — so `--audit` / `--no-audit` and `--e2e` / `--no-e2e` set which of the two is recommended; the checkpoint still asks.
 
 ### How it runs
 
@@ -104,6 +104,13 @@ becoming binding visual references for the plan, the implementation and the brow
 ```
 /maister:development "Build the API usage dashboard" --design=.maister/tasks/product-design/2026-03-10-api-dashboard
 ```
+
+A high-level design constrains development the same way: `--architecture=PATH` names the design
+document (or a research task that wrote one), and it is copied to `analysis/architecture-context/`
+with the decision log beside it. The interfaces, contracts and decisions it names are built as
+stated, never decided again; where this repository cannot follow them, the specification or the
+plan raises it as an open risk at its checkpoint. A run started by another — a chain step in a
+multi-repository workspace — passes the same path as its `architecture` input.
 
 ### Resume
 

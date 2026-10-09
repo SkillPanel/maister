@@ -58,6 +58,10 @@ inputs:
   # The path of a completed product-design task, or of its brief, whose brief
   # and mockups the intake copies in as the run's design context.
   design: {type: string, required: false}
+  # The path of a high-level design document, or of a research task whose
+  # outputs hold one; the intake copies it in, with the decision log beside it,
+  # as constraints the specification and the plan work within.
+  architecture: {type: string, required: false}
   # Tri-state, and a string rather than a bool for that reason: absent means
   # no flag was set, `yes`/`no` means it was. Never referenced from a `when`
   # clause. `user_docs` is turned into a declared bool by the node that reads
@@ -191,10 +195,12 @@ nodes:
       task_description: "${inputs.task_description}"
       research: "${inputs.research}"
       design: "${inputs.design}"
+      architecture: "${inputs.architecture}"
     outputs:
       artifacts:
         research_context: analysis/research-context
         design_index: analysis/design-context/INDEX.md
+        architecture_context: analysis/architecture-context
 
   codebase-analysis:
     uses: skill:codebase-analyzer
@@ -293,6 +299,7 @@ nodes:
       gap: "${gap-analysis.artifacts.gap}"
       scope: "${gap-analysis.artifacts.scope}"
       design_index: "${ui-mockups.artifacts.index}"
+      architecture: "${intake.artifacts.architecture_context}"
       risk_level: "${gap-analysis.values.risk_level}"
       audit_flag: "${inputs.audit}"
     outputs:
@@ -341,6 +348,7 @@ nodes:
       spec: "${specification.artifacts.spec}"
       audit: "${spec-audit.artifacts.audit}"
       design_index: "${ui-mockups.artifacts.index}"
+      architecture: "${intake.artifacts.architecture_context}"
     outputs:
       artifacts:
         plan: implementation/implementation-plan.md

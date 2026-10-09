@@ -36,6 +36,7 @@ The Task prompt MUST include:
 **Accumulated Context** (Pattern 7):
 - `phase_summaries`: Prior phase summaries (specification, gap analysis, codebase analysis, design)
 - `research_context`: Research findings path (if research-informed development)
+- `architecture_context`: High-level design path, `analysis/architecture-context/` (if the run was handed an architecture)
 - `design_reference`: Design context pointer (if mockups present) — `analysis/design-context/INDEX.md` enumerates screens/components with stable IDs; `design-context/brief.md` holds product-design intent (when handed off from product-design task)
 - Migration-specific: `migration_type`, `current_system`, `target_system` (if migration)
 
@@ -44,6 +45,7 @@ The Task prompt MUST include:
 
 **Conditional File** (read when present):
 - `{task_path}/analysis/design-context/INDEX.md` — when present, mockups are binding; produce coverage matrix and attach `Visual References` to UI task groups (see Phase 2.5 below)
+- `{task_path}/analysis/architecture-context/high-level-design.md` and `decision-log.md` beside it — when present, the interfaces, contracts and decisions they name are constraints on this repository's part: plan groups that build the contracts this repository provides or consumes as stated, never redesign them, and report a step that cannot follow them as an open risk rather than planning around it
 
 ---
 

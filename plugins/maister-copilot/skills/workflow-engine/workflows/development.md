@@ -219,7 +219,7 @@ embedded behaviour has found the intended answer rather than a gap.
 ## `intake`
 
 Executed inline, before any analysis. It establishes the task directory, the
-state file and the two context ingests the rest of the run reads from.
+state file and the context ingests the rest of the run reads from.
 
 **Before anything else**: when the invocation supplied no task description, ask
 the operator for it. Nothing downstream is meaningful without one, and inventing
@@ -302,21 +302,35 @@ freeze persisted it. A non-terminal run that has no description is
    named that directory. When it resolves to no product-design task — nothing
    there, or no brief — say so in one line in the node summary and continue
    without it; the operator asked for it, so its absence is never silent.
-8. **Generate the design index** when anything was ingested — one row per screen
-   or component with a stable id, its source mockup and a one-line description.
+8. **Ingest the architecture** when the architecture input names one: a
+   high-level design document, or a research task directory whose
+   `outputs/high-level-design.md` is that document. Copy it to
+   `analysis/architecture-context/high-level-design.md`, and the decision log
+   beside it — `decision-log.md` in the same directory — to
+   `analysis/architecture-context/decision-log.md` when it exists. Record
+   `task_context.architecture_reference`, carrying the source path, the copied
+   path and whether a decision log came with it. The architecture **constrains**
+   the specification and the plan (see their sections) and skips no node. When
+   the input resolves to no file, say so in one line in the node summary and
+   continue without it, as for the design input. Without the input nothing is
+   copied and nothing is recorded.
+9. **Generate the design index** when any design source was ingested — one row
+   per screen or component with a stable id, its source mockup and a one-line
+   description.
    Downstream nodes reference screens by those ids and by nothing else.
-9. **Record `task_context.design_reference`** whenever an ingest happened —
-   which of the three sources supplied it, the product-design task path when
-   that was the source, how many mockups were copied, whether a brief came with
-   them, and the index path. It stays unset when no source existed, and the
-   specification node passes it to the specification writer.
+10. **Record `task_context.design_reference`** whenever a design ingest
+    happened — which of the three sources supplied it, the product-design task path when
+    that was the source, how many mockups were copied, whether a brief came with
+    them, and the index path. It stays unset when no source existed, and the
+    specification node passes it to the specification writer.
 
-Both declared artifacts are directories or an index inside one, and either may
-be absent at run time when its source was: a node reading one must treat an
-absent path as "no such context" rather than as a failure. Record each one that
-was not written under this node's `absent` — `research_context` when no research
-was named, `design_index` when nothing was ingested — with that as the reason
-(engine § *Recording an outcome*).
+The three declared artifacts are directories or an index inside one, and any of
+them may be absent at run time when its source was: a node reading one must
+treat an absent path as "no such context" rather than as a failure. Record each
+one that was not written under this node's `absent` — `research_context` when no
+research was named, `design_index` when nothing was ingested,
+`architecture_context` when no architecture was supplied or it resolved to no
+file — with that as the reason (engine § *Recording an outcome*).
 
 **There is no gate after this node.** It auto-continues into the analysis node.
 
@@ -662,6 +676,14 @@ node in the run: it holds two of the eight asks — the technical questions and
 the assumptions page — writes three artifacts and recommends whether the audit
 runs, which `specification-approval` decides.
 
+**An architecture constrains every part.** When the intake copied one in — this
+node reads it as `architecture` — the interfaces, contracts and decisions it
+names are constraints on this repository's part of the change: the contracts
+this repository provides or consumes, built as the architecture states them.
+They are never work to redo and never choices to make again. A point where the
+codebase, the requirements or the specification cannot follow the architecture
+is raised as an `open` risk, never resolved silently either way.
+
 **Part A — technical and architecture clarification (inline, conditional).** The
 fourth of the eight asks, in two kinds:
 
@@ -685,8 +707,10 @@ fourth of the eight asks, in two kinds:
   the form shows no option descriptions beside the choices, and ends with
   "Recommended: <approach> — <reason>" before the ask.
 
-The chosen approach is passed to the specification writer so the document is
-written against a decided architecture rather than around an open one. Skip this
+An area the architecture input already decides is not open, and is not asked:
+only the choices it leaves to this repository's part remain. The chosen approach
+is passed to the specification writer so the document is written against a
+decided architecture rather than around an open one. Skip this
 part entirely for a simple, low-risk task with one obvious approach. Save what
 was asked to `analysis/technical-clarifications.md`, then set
 `task_context.tech_clarified` to true. A run that skipped this part still sets
@@ -749,7 +773,11 @@ requirement coverage before the audit and the planner read the result.
 
 Invoke the specification creator through the Task tool. Everything node-scoped
 it needs is in `with:`; the run-scoped five supply the rest, including the style
-guide path that produces the specification's HTML companion.
+guide path that produces the specification's HTML companion. When an
+architecture was ingested, hand it the architecture context with the rule above:
+what it names is a constraint the specification states and builds within, and a
+conflict the creator finds is listed in the specification as an open risk
+rather than resolved.
 
 If the agent returns without `implementation/spec.md`, or with one that leaves a
 requirement gathered in Part B uncovered, re-invoke it with the missing context
@@ -780,7 +808,9 @@ filtering to list() and CSV export, with 11 requirements and no breaking
 change"). In `summary`, the specification title and the scope boundaries — what
 is included and what is excluded. In `decisions`, the architecture approach the
 analysis settled without asking, `by: run`; an architecture the user chose is
-already there as their own answer, and a defaulted one as `by: default`. Only
+already there as their own answer, and a defaulted one as `by: default`. The
+decisions the architecture input settled for this repository are named as taken
+from it, `by: run`, so an operator sees which were not this run's to make. Only
 what this node settled goes here: the scope answers given at the gap analysis,
 or any other earlier answer, are never restated as the specification's. In
 `risks`, each assumption the specification makes as an `open` risk whose `change`
@@ -788,7 +818,10 @@ says what would change if it is wrong ("CSV cells are never quoted", change:
 "quote cells that hold a comma") — never a bare "Assumption: …", because a revise
 offers that change; each consequence the specification accepts on purpose, such
 as a breaking change it ships, as a `tradeoff`; each related problem it leaves
-out of scope as a `followup`. In `recommends`, the continue of
+out of scope as a `followup`; each conflict with the architecture input as an
+`open` risk whose `change` says what would follow either way — the specification
+changed to fit the architecture, or the architecture revisited upstream. In
+`recommends`, the continue of
 `specification-approval` this node recommends and its reason, as above.
 
 **When re-run after a revise.** `specification-approval` or
@@ -945,6 +978,12 @@ by at least one group. When no design index exists, that artifact is not written
 and the field is omitted entirely — a task with no UI surface sees no change —
 and this node records `visual_coverage` under its `absent`, with the reason that
 there is no design index to cover (engine § *Recording an outcome*).
+
+When an architecture was ingested — this node reads it as `architecture` — hand
+it to the planner with the specification's rule: the groups build this
+repository's part against the interfaces and contracts it names and never
+redesign them, and a step that cannot follow it is raised as an `open` risk in
+this node's summary rather than planned around in silence.
 
 If the planner returns without `implementation/implementation-plan.md`, or with
 groups that leave a specification requirement uncovered, re-invoke it with the

@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, SAMPLE, verb } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, SAMPLE, freeze, readState, scratch, verb } from '../helpers.mjs';
+import { parseDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 
 // Definition-agnostic, like `make diagram`: a built-in added to workflows/ is
 // covered here without an edit.
@@ -94,4 +95,59 @@ test('a chain step passes a product-design path to development as its design inp
   const report = JSON.parse(verb(['validate', `--definition=${chain}`]).stdout);
   assert.deepEqual(report.errors, []);
   assert.deepEqual(report.warnings, []);
+});
+
+// ---------------------------------------------------------------------------
+// development's architecture input
+// ---------------------------------------------------------------------------
+
+test('development declares an optional architecture input, a path beside the design input', () => {
+  const { doc, errors } = parseDefinition(fs.readFileSync(DEVELOPMENT, 'utf8'), DEVELOPMENT);
+  assert.deepEqual(errors, []);
+  assert.deepEqual({ ...doc.inputs.architecture }, { type: 'string', required: false });
+});
+
+test('development hands the architecture to the intake, and the copied context to the specification and the plan', () => {
+  const graph = JSON.parse(verb(['resolve', `--definition=${DEVELOPMENT}`]).stdout);
+  const node = id => graph.nodes.find(entry => entry.id === id);
+  assert.equal(node('intake').with.architecture, '${inputs.architecture}');
+  assert.equal(node('intake').outputs.artifacts.architecture_context, 'analysis/architecture-context');
+  // The intake carries no guard, so both readers may take its artifact whatever
+  // the run skips.
+  assert.equal(node('intake').when, undefined);
+  for (const id of ['specification', 'planning']) {
+    assert.equal(node(id).with.architecture, '${intake.artifacts.architecture_context}', id);
+  }
+});
+
+test('a chain step passes a high-level design to development as its architecture input', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-chain-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const chain = path.join(dir, 'delivery.yml');
+  fs.writeFileSync(chain, [
+    'name: delivery', 'version: 1', 'inputs:',
+    '  task_description: {type: string, required: true}', '  design: {type: string, required: true}',
+    '  architecture: {type: string, required: true}', 'nodes:',
+    '  build:', '    uses: workflow:development', '    needs: []', '    with:',
+    '      task_description: "${inputs.task_description}"', '      design: "${inputs.design}"',
+    '      architecture: "${inputs.architecture}"', '',
+  ].join('\n'));
+  const report = JSON.parse(verb(['validate', `--definition=${chain}`]).stdout);
+  assert.deepEqual(report.errors, []);
+  assert.deepEqual(report.warnings, []);
+});
+
+test('development freezes with the architecture input recorded, and without it as before', t => {
+  const architecture = 'docs/architecture/high-level-design.md';
+  const withIt = scratch(t, { name: '2026-01-05-with-architecture' });
+  freeze(withIt, { definition: DEVELOPMENT, inputs: { task_description: 'Expose the billing API', architecture } });
+  const recorded = readState(withIt);
+  assert.equal(recorded.orchestrator.options.inputs.architecture, architecture);
+  assert.equal(recorded.workflow.nodes.intake.status, 'pending');
+
+  const without = scratch(t, { name: '2026-01-05-without-architecture' });
+  freeze(without, { definition: DEVELOPMENT, inputs: { task_description: 'Expose the billing API' } });
+  const plain = readState(without);
+  assert.equal('architecture' in plain.orchestrator.options.inputs, false);
+  assert.equal(plain.workflow.graph_hash, recorded.workflow.graph_hash);
 });
