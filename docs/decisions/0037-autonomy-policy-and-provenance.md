@@ -62,8 +62,10 @@ answers, question-set folds, `gate-revise`, and a driven answer's request file. 
 copies the answer file's `answer` block into the request whole, less `grants`. A terminal answer
 gains `actor: {kind: person, id: <answered_by>}`; the engine gives a driven answer none. The keys
 are record-only and never reach a delegate's prior context. The checkpoint counts operator answers
-by actor kind, `unknown` for one with none. Held provenance follows a re-sent answer only when it
-is the same answer, and a request file's block only when it holds the gate's answer. A value whose
+by actor kind, `unknown` for one with none. Held provenance follows a re-sent in-node answer only
+when it is the same answer, and a request file's block only when it holds the gate's answer. A
+re-sent gate answer is not matched to the held one, so provenance it does not repeat is not kept;
+a driven gate answer gets it back from its request file on the next write. A value whose
 map keys the state file cannot carry is left off the decision with a `provenance-unusable` warning,
 never a refusal, and `grants` sent on any decision is dropped.
 
