@@ -87,7 +87,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, grantOrder, guardOperands, resolve, reviseStretch } from './graph.mjs';
+import { MORE_DETAILS_ID, grantOrder, guardOperands, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
@@ -660,11 +660,15 @@ function earlierElsewhere(doc, recorded, gate, reruns, titles) {
  * stretch — nothing the re-run changes — and the guard reads false now. A guard on a node inside the stretch is
  * judged again once that node records its values, so its node may run and is
  * named. Without `guards` — the definition drifted — no guard is read and every
- * node is named.
+ * node is named. A gate the skip-guard rule asks (`skipGuardAsks`) is never
+ * skipped again: it is asked whatever its guard reads.
+ *
+ * Exported for the skip-guard rule's own test, which judges it directly.
  */
-function skippedAgain(id, stretch, guards) {
+export function skippedAgain(id, stretch, guards) {
   const when = guards?.byId.get(id)?.when;
   if (typeof when !== 'string') return false;
+  if (skipGuardAsks(guards.byId.get(id), kindIn(guards.byId))) return false;
   for (const operand of guardOperands(when)) {
     const match = WHEN.exec(operand);
     if (!match || (match[2] !== 'inputs' && stretch.includes(match[2]))) return false;
@@ -1392,7 +1396,8 @@ function list(value) {
  * settled is taken. An `on: failure` node none of whose needs ended badly is
  * simulated as skipped and the loop goes on; otherwise, without a `when` it is
  * next, and with one a true guard makes it next and a false one simulates a
- * skip and the loop goes on.
+ * skip and the loop goes on. A gate the skip-guard rule asks (`skipGuardAsks`)
+ * is next whatever its guard reads.
  */
 export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, sets = null }) {
   const nodes = graph?.nodes ?? [];
@@ -1420,6 +1425,7 @@ export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, 
       continue;
     }
     if (typeof ready.when !== 'string') return { ok: true, next: ready.id, skipped };
+    if (skipGuardAsks(ready, kindIn(byId))) return { ok: true, next: ready.id, skipped };
 
     const guard = evaluate(ready.when, { byId, recorded, status, inputs, defaults });
     if (!guard.ok) return guard;
@@ -1445,6 +1451,14 @@ function blockers(nodes, downstream, status) {
     }
   }
   return nodes.map(entry => entry.id).filter(id => waiting.has(id));
+}
+
+/**
+ * A node's kind for the skip-guard rule, read off the resolved graph: `gate`
+ * for a gate, `task` for any other node it holds, null for one it does not.
+ */
+function kindIn(byId) {
+  return id => (byId.has(id) ? (byId.get(id)?.type === 'gate' ? 'gate' : 'task') : null);
 }
 
 /** Every node whose transitive needs closure contains `gate`. */
@@ -1615,7 +1629,9 @@ const ENDED = new Set([...ENDED_OK, ...ENDED_BADLY]);
  * simulated `completed`, so the nodes behind it are judged too rather than
  * passed as blocked. What the loop never reaches waits on a need that ended
  * `failed` or `stopped` and that its `on` does not accept: it can never run, so
- * it is not owed.
+ * it is not owed. A gate the skip-guard rule asks (`skipGuardAsks`) is owed
+ * whatever its guard reads, and marked `asked: true`, so the refusal never
+ * offers it the record-skipped recovery.
  *
  * The edges are the freeze's. `on` and `when` are the re-resolved definition's,
  * and only when it hashes to the freeze: under drift nothing the re-read says is
@@ -1635,8 +1651,8 @@ export function atClose({ doc, runDir }) {
   const recordedStatus = id => entryOf(recorded, id).status ?? 'pending';
   const status = new Map(ids.map(id => [id, recordedStatus(id)]));
   const owed = new Map();
-  const owe = (id, guard = null) => {
-    owed.set(id, { id, status: recordedStatus(id), guard });
+  const owe = (id, guard = null, asked = false) => {
+    owed.set(id, { id, status: recordedStatus(id), guard, ...(asked ? { asked } : {}) });
     status.set(id, 'completed');
   };
 
@@ -1662,6 +1678,10 @@ export function atClose({ doc, runDir }) {
     const when = byId.get(next)?.when;
     if (typeof when !== 'string') {
       owe(next);
+      continue;
+    }
+    if (skipGuardAsks(byId.get(next), kindIn(byId))) {
+      owe(next, null, true);
       continue;
     }
     const guard = evaluate(when, { byId, recorded, status, inputs: inputsOf(doc), defaults: current.defaults });

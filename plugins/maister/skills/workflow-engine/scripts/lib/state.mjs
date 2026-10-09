@@ -83,7 +83,7 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
+import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, oneLine, withPersonActor, withProvenance } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
@@ -455,8 +455,10 @@ const WORKFLOW_CONTEXT = {
  * journey for something that is not a refusal.
  *
  * `policyWarnings` is kept apart from `warnings`: those name a file this write
- * did not publish, while these are code strings (`policy-refused:…`) about the
- * autonomy policy the write read, each printed as its own `warning:` line.
+ * did not publish, while these are code strings about the write's own record —
+ * the autonomy policy it read (`policy-refused:…`), or a gate it recorded
+ * skipped that the skip-guard rule asks (`skip-guard-skipped:…`) — each printed
+ * as its own `warning:` line.
  *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
@@ -472,7 +474,7 @@ export function writeState({ state, patch, regress = null }) {
   // The node values this write recorded that the definition does not declare
   // (`assertValues`), as dotted paths, on the same terms.
   const undeclared = [];
-  // What the autonomy policy loader reported, as code strings; see above.
+  // What the autonomy policy loader and the skip-guard rule reported, as code strings; see above.
   const policyWarnings = [];
   try {
     checkPatch(patch);
@@ -1098,6 +1100,7 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
     intended.add('workflow');
   }
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
+  if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, policyWarnings);
   if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
   if (patch.context || patch.phase_summaries) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
@@ -1991,6 +1994,29 @@ function frozenGraphOf(doc, runDir) {
     }
     return graph;
   };
+}
+
+/**
+ * `skip-guard-skipped:<gate>` for each gate this write records `skipped` that
+ * the skip-guard rule asks whatever its guard reads (`skipGuardAsks`). A
+ * warning and never a refusal: the write lands, and the run's close still
+ * judges the gate. Judged against the graph the frozen block proves; a run
+ * whose graph cannot be proven gets no warning, since nothing reliable says
+ * what its gates are.
+ */
+function warnSkippedAsked(nodes, graphOf, policyWarnings) {
+  const skipped = Object.entries(nodes).filter(([, entry]) => isPlainObject(entry) && entry.status === 'skipped');
+  if (!skipped.length) return;
+  const graph = graphOf();
+  if (!graph) return;
+  const byId = new Map(graph.nodes.map(node => [node.id, node]));
+  const kindOf = id => (byId.has(id) ? (byId.get(id)?.type === 'gate' ? 'gate' : 'task') : null);
+  for (const [id] of skipped) {
+    const code = `skip-guard-skipped:${id}`;
+    if (!skipGuardAsks(byId.get(id), kindOf) || policyWarnings.some(each => each.startsWith(`${code} `))) continue;
+    policyWarnings.push(`${code} — its guard reads a value the run itself records and it is more than a confirmation, `
+      + 'so it is asked whatever its guard reads; the skipped status was written, and nothing checks it later: ask the gate and record its answer');
+  }
 }
 
 /** A node of a resolved graph by id, or null. */

@@ -534,9 +534,10 @@ function reportWrite(result, input) {
     process.stderr.write('note: ignored the supplied orchestrator.policy_hash; the freeze records it from the policy it applied,'
       + ' so no patch sets it\n');
   }
-  // The autonomy policy's own warnings, each a code string: a refused policy
-  // file leaves the run on the built-in default, which is a warning and never
-  // a refusal, so the exit code does not move.
+  // The autonomy policy's own warnings and the skip-guard rule's, each a code
+  // string: a refused policy file leaves the run on the built-in default, and a
+  // gate recorded skipped that the rule asks is written as sent, so each is a
+  // warning and never a refusal, and the exit code does not move.
   for (const code of result.policyWarnings || []) process.stderr.write(`warning: ${code}\n`);
   // A value the node's definition does not declare is written, never refused,
   // because nothing reads one: no guard and no `${…}` reference may name it.

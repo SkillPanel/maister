@@ -475,7 +475,10 @@ A node is ready when all three hold:
    or `stopped`. When every need ended `completed` or `skipped`, the node is not run.
 3. **Its `when` guard evaluates true** against the values completed nodes recorded: a task
    node's declared values, or the values a gate's chosen continue option set. A guard of
-   several references joined by `||` is true when any of them is.
+   several references joined by `||` is true when any of them is. **One exception, the
+   skip-guard rule:** a gate whose guard reads a value a non-gate node records, negated or not,
+   is asked whatever its guard reads unless it is a pure confirmation — exactly one continue,
+   with no `sets` and no `grants` (grammar § 7).
 
 A node whose guard is false, and an `on: failure` node with nothing that failed, is marked
 `skipped`, and **a skip satisfies everything downstream** — that is how a definition expresses
@@ -500,7 +503,8 @@ verb. It reads that status and prints the marker from it:
 
 - `completed` → `RUN-COMPLETE`, once nothing the run can still reach is left: a node still
   `running`, `suspended` or `waiting`, or a `pending` one whose needs are met and which no false
-  guard keeps off the path, is refused `run-nodes-unfinished` (*When `run-complete` refuses*);
+  guard keeps off the path — a gate the skip-guard rule asks is never kept off by its guard — is
+  refused `run-nodes-unfinished` (*When `run-complete` refuses*);
 - `failed` → `RUN-FAILED: node <id> failed`, naming the first failed node, or
   `RUN-FAILED: sub-run <child-run-id> failed` when that node is a `workflow:` node;
 - `stopped` → `RUN-COMPLETE` too, because the vocabulary has no stopped marker and a stop is
@@ -1853,9 +1857,11 @@ rather than a refusal: echo it, there is nothing to recover.
   not finished: one still `running`, `suspended` or `waiting`, or a `pending` one the ready set
   can still reach. A pending node is not owed when a false guard keeps it off the path, or when
   it waits on a need that ended `failed` or `stopped` which its `on:` does not accept; a node
-  behind an owed one is owed too. **The recovery is the work that was missed**: resume the run,
-  run each named node — or record `skipped` for one whose guard is false — write the closing
-  patch again, and run the verb again. A run that cannot finish them ends `failed`, or `stopped`
+  behind an owed one is owed too. A gate the skip-guard rule asks (grammar § 7) is owed even
+  when its guard is false, and the message never offers it the record-skipped recovery.
+  **The recovery is the work that was missed**: resume the run, run each named node — or record
+  `skipped` for one whose guard is false, never for such a gate — write the closing patch again,
+  and run the verb again. A run that cannot finish them ends `failed`, or `stopped`
   with every unexecuted node, instead. Never record a node `completed` that did not run to
   quiet the check. When the definition changed since the freeze no guard can be evaluated, the
   message says so, and a node whose guard is false must be recorded `skipped` through

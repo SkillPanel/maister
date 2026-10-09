@@ -297,6 +297,9 @@ const WARN = {
   ownLeaf: (path, node, position, count, after) => `node-no-dependents:${path}:${node} — nothing needs it and the run `
     + `does not end on it, so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
     + 'add it to the needs of the node that should wait for it',
+  skipGuardNotPure: (node) => `skip-guard-not-pure:${node} — its guard reads a value the run itself records, `
+    + 'and it is more than a confirmation, so it is asked whatever its guard reads: guard it on an input or a gate\'s value, '
+    + 'or make it a single continue with no sets and no grants',
 };
 
 /**
@@ -438,6 +441,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
     checkGraph(graph, errors, warnings, resolved, project);
     warnAddedLeaves(graph, warnings);
     warnOwnLeaves(graph, warnings);
+    warnSkipGuards(graph, warnings);
     checkEveryProfile({ definition, overlays, profile, project }, errors);
   }
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
@@ -503,6 +507,18 @@ function warnOwnLeaves(graph, warnings) {
     if (id === last || needed.has(id)) continue;
     const index = order.indexOf(id);
     warnings.push(WARN.ownLeaf(`nodes.${id}`, id, index + 1, order.length, index > 0 ? order[index - 1] : null));
+  }
+}
+
+/**
+ * A gate the skip-guard rule asks whatever its guard reads (`skipGuardAsks`).
+ * It validates — the run asks it, so nothing is lost — but a guard that never
+ * skips is rarely what its author meant, so it warns and says the two fixes.
+ */
+function warnSkipGuards(graph, warnings) {
+  const kindOf = (id) => (graph.nodes.has(id) ? graph.nodes.get(id)?.type ?? 'task' : null);
+  for (const id of topological(graph.nodes)) {
+    if (skipGuardAsks(graph.nodes.get(id), kindOf)) warnings.push(WARN.skipGuardNotPure(id));
   }
 }
 
@@ -2337,6 +2353,44 @@ function gateValueKeys(node) {
     for (const key of Object.keys(authored.sets)) keys.add(key);
   }
   return keys;
+}
+
+/**
+ * The skip-guard rule: whether `node` is a gate that is asked whatever its
+ * guard reads. That is a gate whose `when` has an operand reading a value a
+ * non-gate node records — `${<node>.values.<key>}`, negated or not, a
+ * `workflow:` node included — and that is more than a pure confirmation. A pure
+ * confirmation has exactly one continue, with no `sets` and no `grants`; a
+ * revise or a stop beside it is allowed.
+ *
+ * A guard on an input or on a gate's value reads a choice someone made, so it
+ * may skip any gate. A guard on what the run recorded may skip only the
+ * approval of work that did not happen: a gate that decides something — which
+ * way to go, what it grants — would otherwise vanish on a value nobody chose.
+ *
+ * `kindOf(id)` tells a node's kind: `'gate'` for a gate, any other string for a
+ * non-gate node, and null or undefined for a node it does not know, which
+ * never counts. One predicate, so validate, the brief, revise, run-complete
+ * and the state writer all judge one rule.
+ */
+export function skipGuardAsks(node, kindOf) {
+  if (node?.type !== 'gate' || typeof node.when !== 'string') return false;
+  const readsRecorded = guardOperands(node.when).some((operand) => {
+    if (!WHEN_REF.test(operand)) return false;
+    const [owner, values] = operand.replace(/^!/, '').slice(2, -1).split('.');
+    if (owner === 'inputs' || values !== 'values') return false;
+    const kind = kindOf(owner);
+    return typeof kind === 'string' && kind !== 'gate';
+  });
+  return readsRecorded && !pureConfirmation(node);
+}
+
+/** One continue, setting no value and granting nothing; any revise or stop beside it. */
+function pureConfirmation(node) {
+  const options = isMap(node.options) ? Object.values(node.options) : [];
+  const continues = options.filter((option) => optionEffect(option) === 'continue');
+  if (continues.length !== 1 || gateValueKeys(node).size > 0) return false;
+  return !(isMap(continues[0]) && continues[0].grants !== undefined);
 }
 
 /** A node's declared type for a value key: its own outputs, or `bool` for a gate value its continues set. */

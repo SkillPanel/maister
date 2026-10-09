@@ -1,0 +1,56 @@
+# A gate guarded by a value the run itself records. The review's
+# `findings_to_review` decides whether `findings-approval` is asked, but that
+# gate is more than a confirmation — two continues setting `design_enabled` —
+# so the skip-guard rule asks it whatever the guard reads. `confirmation` sits
+# under the same kind of guard, negated, and is a pure confirmation: one
+# continue with no sets and no grants, a revise and a stop beside it.
+name: skip-guard
+version: 1
+description: "Reviews the work, settles its findings and whether to design, then finishes."
+nodes:
+  review:
+    uses: direct:review
+    needs: []
+    outputs:
+      values:
+        findings_to_review: bool
+  review-approval:
+    type: gate
+    needs: [review]
+    ask: "Review complete. Continue?"
+    options:
+      continue-on: continue
+      stop-here: stop
+  findings-approval:
+    type: gate
+    needs: [review-approval]
+    when: "${review.values.findings_to_review}"
+    ask: "Findings recorded. Design before finishing?"
+    options:
+      continue-with-design: {effect: continue, sets: {design_enabled: true}}
+      continue-without-design: {effect: continue, sets: {design_enabled: false}}
+      stop-at-findings: stop
+  confirmation:
+    type: gate
+    needs: [findings-approval]
+    when: "!${review.values.findings_to_review}"
+    ask: "Nothing to review. Continue?"
+    options:
+      continue-to-design: continue
+      redo-review: {effect: revise, reruns: review}
+      stop-at-confirmation: stop
+  design:
+    uses: direct:design
+    needs: [confirmation]
+    when: "${findings-approval.values.design_enabled}"
+  finish:
+    uses: direct:finish
+    needs: [design]
+display:
+  titles:
+    review: Review
+    review-approval: Review approval
+    findings-approval: Findings approval
+    confirmation: Confirmation
+    design: Design
+    finish: Finish
