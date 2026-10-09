@@ -56,10 +56,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 10,
-            "checkpoints_max": 10,
-            "node": 24,
-            "nodes_total": 25
+            "checkpoint": 11,
+            "checkpoints_max": 11,
+            "node": 25,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-finalization",
@@ -154,10 +154,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 9,
-            "checkpoints_max": 10,
-            "node": 22,
-            "nodes_total": 25
+            "checkpoint": 10,
+            "checkpoints_max": 11,
+            "node": 23,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-past-e2e",
@@ -288,9 +288,9 @@
           ],
           "progress": {
             "checkpoint": 1,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 4,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-past-analysis",
@@ -393,10 +393,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 7,
-            "checkpoints_max": 10,
-            "node": 16,
-            "nodes_total": 25
+            "checkpoint": 8,
+            "checkpoints_max": 11,
+            "node": 17,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-past-implementation",
@@ -499,9 +499,9 @@
           ],
           "progress": {
             "checkpoint": 3,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 8,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-specification",
@@ -617,9 +617,132 @@
           ],
           "progress": {
             "checkpoint": 6,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 14,
-            "nodes_total": 25
+            "nodes_total": 26
+          },
+          "recommended": {
+            "option": "continue-to-implementation",
+            "reason": "nothing open blocks implementation"
+          },
+          "review": [],
+          "risks": {
+            "followup": [],
+            "open": [],
+            "resolved": [],
+            "stop": [],
+            "tradeoff": []
+          },
+          "truncated": false,
+          "version": 1
+        },
+        "options": [
+          {
+            "description": "Runs implementation next.",
+            "effect": "continue",
+            "id": "continue-to-implementation",
+            "label": "Continue to the implementation",
+            "recommended": true
+          },
+          {
+            "description": "Re-runs Implementation planning with your note, then asks this again.",
+            "effect": "revise",
+            "id": "revise-plan",
+            "label": "Revise the plan",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Ends the run here.",
+            "effect": "stop",
+            "id": "stop-development",
+            "label": "Stop here"
+          }
+        ],
+        "question": "Implementation plan complete. Ready to go on?"
+      },
+      "planning-approval-publish": {
+        "checkpoint": {
+          "approves": [],
+          "ask": "Implementation plan complete. Ready to go on?",
+          "closed": [
+            {
+              "headline": "Done.",
+              "node": "planning",
+              "summary": "Done.",
+              "title": "Implementation planning"
+            }
+          ],
+          "decisions": {
+            "audit": [],
+            "default": [],
+            "operator": {
+              "count": 0,
+              "not_recommended": []
+            },
+            "run": []
+          },
+          "fixes": [],
+          "grants": {
+            "continue-to-implementation": [
+              "push",
+              "pr-create"
+            ]
+          },
+          "header": "Plan",
+          "headline": "Done.",
+          "kind": "gate",
+          "next": {
+            "end": false,
+            "node": "implementation",
+            "skipped": [],
+            "title": "Implementation"
+          },
+          "node": "planning-approval-publish",
+          "options": [
+            {
+              "consequence": "Runs implementation next.",
+              "effect": "continue",
+              "id": "continue-to-implementation",
+              "label": "Continue to the implementation",
+              "recommended": true
+            },
+            {
+              "consequence": "Re-runs Implementation planning with your note, then asks this again.",
+              "effect": "revise",
+              "id": "revise-plan",
+              "label": "Revise the plan",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "planning",
+                  "title": "Implementation planning"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Ends the run here.",
+              "effect": "stop",
+              "id": "stop-development",
+              "keeps": [],
+              "label": "Stop here",
+              "not_run": {
+                "next": "Implementation",
+                "remaining": 7
+              },
+              "recommended": false
+            }
+          ],
+          "progress": {
+            "checkpoint": 7,
+            "checkpoints_max": 11,
+            "node": 15,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-implementation",
@@ -739,9 +862,9 @@
           ],
           "progress": {
             "checkpoint": 5,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 12,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-planning",
@@ -888,9 +1011,9 @@
           ],
           "progress": {
             "checkpoint": 4,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 10,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-spec-audit",
@@ -1000,9 +1123,9 @@
           ],
           "progress": {
             "checkpoint": 2,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 6,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-past-tdd-red",
@@ -1139,10 +1262,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 8,
-            "checkpoints_max": 10,
-            "node": 20,
-            "nodes_total": 25
+            "checkpoint": 9,
+            "checkpoints_max": 11,
+            "node": 21,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-browser-checks",
@@ -1248,10 +1371,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 10,
-            "checkpoints_max": 10,
-            "node": 24,
-            "nodes_total": 25
+            "checkpoint": 11,
+            "checkpoints_max": 11,
+            "node": 25,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-finalization",
@@ -1346,10 +1469,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 9,
-            "checkpoints_max": 10,
-            "node": 22,
-            "nodes_total": 25
+            "checkpoint": 10,
+            "checkpoints_max": 11,
+            "node": 23,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-past-e2e",
@@ -1480,9 +1603,9 @@
           ],
           "progress": {
             "checkpoint": 1,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 4,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-past-analysis",
@@ -1585,10 +1708,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 7,
-            "checkpoints_max": 10,
-            "node": 16,
-            "nodes_total": 25
+            "checkpoint": 8,
+            "checkpoints_max": 11,
+            "node": 17,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-past-implementation",
@@ -1691,9 +1814,9 @@
           ],
           "progress": {
             "checkpoint": 3,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 8,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-specification",
@@ -1809,9 +1932,132 @@
           ],
           "progress": {
             "checkpoint": 6,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 14,
-            "nodes_total": 25
+            "nodes_total": 26
+          },
+          "recommended": {
+            "option": "continue-to-implementation",
+            "reason": "nothing open blocks implementation"
+          },
+          "review": [],
+          "risks": {
+            "followup": [],
+            "open": [],
+            "resolved": [],
+            "stop": [],
+            "tradeoff": []
+          },
+          "truncated": false,
+          "version": 1
+        },
+        "options": [
+          {
+            "description": "Runs implementation next.",
+            "effect": "continue",
+            "id": "continue-to-implementation",
+            "label": "Continue to the implementation",
+            "recommended": true
+          },
+          {
+            "description": "Re-runs Implementation planning with your note, then asks this again.",
+            "effect": "revise",
+            "id": "revise-plan",
+            "label": "Revise the plan",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Ends the run here.",
+            "effect": "stop",
+            "id": "stop-development",
+            "label": "Stop here"
+          }
+        ],
+        "question": "Implementation plan complete. Ready to go on?"
+      },
+      "planning-approval-publish": {
+        "checkpoint": {
+          "approves": [],
+          "ask": "Implementation plan complete. Ready to go on?",
+          "closed": [
+            {
+              "headline": "Done.",
+              "node": "planning",
+              "summary": "Done.",
+              "title": "Implementation planning"
+            }
+          ],
+          "decisions": {
+            "audit": [],
+            "default": [],
+            "operator": {
+              "count": 0,
+              "not_recommended": []
+            },
+            "run": []
+          },
+          "fixes": [],
+          "grants": {
+            "continue-to-implementation": [
+              "push",
+              "pr-create"
+            ]
+          },
+          "header": "Plan",
+          "headline": "Done.",
+          "kind": "gate",
+          "next": {
+            "end": false,
+            "node": "implementation",
+            "skipped": [],
+            "title": "Implementation"
+          },
+          "node": "planning-approval-publish",
+          "options": [
+            {
+              "consequence": "Runs implementation next.",
+              "effect": "continue",
+              "id": "continue-to-implementation",
+              "label": "Continue to the implementation",
+              "recommended": true
+            },
+            {
+              "consequence": "Re-runs Implementation planning with your note, then asks this again.",
+              "effect": "revise",
+              "id": "revise-plan",
+              "label": "Revise the plan",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "planning",
+                  "title": "Implementation planning"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Ends the run here.",
+              "effect": "stop",
+              "id": "stop-development",
+              "keeps": [],
+              "label": "Stop here",
+              "not_run": {
+                "next": "Implementation",
+                "remaining": 7
+              },
+              "recommended": false
+            }
+          ],
+          "progress": {
+            "checkpoint": 7,
+            "checkpoints_max": 11,
+            "node": 15,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-implementation",
@@ -1931,9 +2177,9 @@
           ],
           "progress": {
             "checkpoint": 5,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 12,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-planning",
@@ -2080,9 +2326,9 @@
           ],
           "progress": {
             "checkpoint": 4,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 10,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-spec-audit",
@@ -2192,9 +2438,9 @@
           ],
           "progress": {
             "checkpoint": 2,
-            "checkpoints_max": 10,
+            "checkpoints_max": 11,
             "node": 6,
-            "nodes_total": 25
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-past-tdd-red",
@@ -2331,10 +2577,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 8,
-            "checkpoints_max": 10,
-            "node": 20,
-            "nodes_total": 25
+            "checkpoint": 9,
+            "checkpoints_max": 11,
+            "node": 21,
+            "nodes_total": 26
           },
           "recommended": {
             "option": "continue-to-browser-checks",
@@ -2507,6 +2753,32 @@
             "description": "Runs implementation next.",
             "id": "continue-to-implementation",
             "label": "Continue to the implementation (Recommended)"
+          },
+          {
+            "description": "Re-runs Implementation planning with your note, then asks this again.",
+            "id": "revise-plan",
+            "label": "Revise the plan"
+          },
+          {
+            "description": "Ends the run here.",
+            "id": "stop-development",
+            "label": "Stop here"
+          },
+          {
+            "description": "Shows the full brief, risks included, then asks this again. Nothing is recorded.",
+            "id": "more-details",
+            "label": "More details"
+          }
+        ],
+        "question": "Implementation plan complete. Ready to go on?"
+      },
+      "planning-approval-publish": {
+        "header": "Plan",
+        "options": [
+          {
+            "description": "Runs implementation next.",
+            "id": "continue-to-implementation",
+            "label": "Continue to the implementation — also pushes the branch and opens the pull request (Recommended)"
           },
           {
             "description": "Re-runs Implementation planning with your note, then asks this again.",

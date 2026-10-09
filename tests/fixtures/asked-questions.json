@@ -54,6 +54,15 @@
             ],
             "transport": "gate-request"
           },
+          "planning-approval-publish": {
+            "kind": "gate",
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
           "spec-audit-approval": {
             "kind": "gate",
             "options": [
@@ -184,6 +193,15 @@
             "transport": "gate-request"
           },
           "planning-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-development"
+            ],
+            "transport": "gate-request"
+          },
+          "planning-approval-publish": {
             "kind": "gate",
             "options": [
               "continue-to-implementation",
@@ -330,6 +348,15 @@
             ],
             "transport": "picker"
           },
+          "planning-approval-publish": {
+            "options": [
+              "continue-to-implementation",
+              "revise-plan",
+              "stop-development",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
           "spec-audit-approval": {
             "options": [
               "continue-to-planning",
@@ -458,6 +485,14 @@
       },
       {
         "id": "planning-approval",
+        "options": [
+          "continue-to-implementation",
+          "revise-plan",
+          "stop-development"
+        ]
+      },
+      {
+        "id": "planning-approval-publish",
         "options": [
           "continue-to-implementation",
           "revise-plan",
