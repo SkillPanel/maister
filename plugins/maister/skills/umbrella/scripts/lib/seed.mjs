@@ -309,7 +309,10 @@ function taskLines({ document, workflow, pluginRoot }) {
   // The request is the gate-brief verb's output and nothing else: a request the
   // worker composed itself would carry only what the worker chose to put in it,
   // and a cockpit would lose the checkpoint every surface renders from.
-  lines.push('You run under the dispatch driver: record `orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>}` in your run state - the cwd is required beside the kind, and a block carrying only the kind is an invalid state. At every gate suspend the run, never by writing the gate files yourself. The only source of the request is the engine\'s gate-brief verb:');
+  // The dispatch id goes in beside the kind and the cwd because dispatches into
+  // one member share its worktree: two runs in one checkout are told apart by
+  // the dispatch each records, and by nothing else in their state.
+  lines.push(`You run under the dispatch driver: record \`orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>, dispatch_id: ${oneLine(document.dispatch_id)}}\` in your run state - the cwd is required beside the kind, and a block carrying only the kind is an invalid state; the dispatch id is what tells your run apart from another dispatch working in the same checkout. At every gate suspend the run, never by writing the gate files yourself. The only source of the request is the engine's gate-brief verb:`);
   lines.push(`  node ${workflowScript(pluginRoot)} gate-brief --state=<your own orchestrator-state.yml> --node=<the gate's node id> --request`);
   lines.push('Write what it prints, unchanged, with your file tool to `.state-patch.json` beside that state file - never composed or edited by you, never through a heredoc or a pipe. Then make one call to the gate-request verb:');
   lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml> --patch-file=<the .state-patch.json beside it>`);

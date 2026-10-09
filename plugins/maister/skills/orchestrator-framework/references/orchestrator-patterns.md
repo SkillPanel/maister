@@ -242,6 +242,14 @@ orchestrator:
     mockup_format: html | ascii      # Seeded from .maister/config.yml at init (default html). Passed to mockup-studio (development's ui-mockups node / product-design's visual-prototyping node). See "Project Configuration" below.
     # per-orchestrator keys (development's e2e_enabled, user_docs_enabled, code_review_enabled, …) live here too
 
+  # Who drives the run — absent means terminal; written whole, never merged
+  driver:
+    kind: terminal | cockpit | dispatch  # The gate rule keys on this (§ 2)
+    cwd: [absolute path]                 # Required beside cockpit or dispatch
+    dispatch_id: [id]                    # Optional; a dispatched run records its dispatch, so runs sharing one checkout are told apart
+    session: {id: [session id]}          # A cockpit's, set when it adopts the run; the engine never writes one
+    features: []                         # What the driver carries, e.g. question-sets (§ 2.2); the engine only reads it
+
   # Timestamps
   created: [ISO 8601 timestamp]
   updated: [ISO 8601 timestamp]

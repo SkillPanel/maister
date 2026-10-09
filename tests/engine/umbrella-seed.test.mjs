@@ -36,3 +36,12 @@ test('seed: a driven gate request comes from gate-brief --request alone, written
   assert.match(lines[brief + 1], /Then make one call to the gate-request verb/);
   assert.equal(lines.filter(line => /gate-request --state=/.test(line)).length, 1, 'one gate-request call');
 });
+
+test('seed: the worker records its dispatch id in the driver block, beside the kind and the cwd', () => {
+  const prompt = renderSeed(buildSeed(ENVELOPE, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
+  const lines = prompt.split('\n');
+  assert.ok(lines.length <= SEED_LINE_CAP, `the seed is ${lines.length} lines`);
+  const driver = lines.filter(line => line.includes('orchestrator.driver: {'));
+  assert.equal(driver.length, 1, 'one driver instruction');
+  assert.match(driver[0], /\{kind: dispatch, cwd: <[^>]+>, dispatch_id: d-0001\}/);
+});

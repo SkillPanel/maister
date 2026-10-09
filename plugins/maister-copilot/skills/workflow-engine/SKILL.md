@@ -430,7 +430,7 @@ gate askable. A file that is answered, or that spells a different question, stil
 `run-complete` ends a run and, under a dispatch driver, only once the close-out it owes is
 on disk. It takes three flags where the other two state verbs take one, because the outbox
 root and the dispatch id belong to the dispatch rather than to the run: the state file
-records the driver's kind and nothing that would locate an outbox. A dispatched worker
+records the driver's kind, and at most the dispatch id, but never the outbox root. A dispatched worker
 already holds both — its seed hands them over under exactly these two spellings for the
 outbox verb it publishes with — so pass them through unchanged. Omitting them under a
 dispatch driver is refused the same way an unpublished close-out is: the verb cannot show
@@ -1627,7 +1627,9 @@ The patch vocabulary is closed, and it is exactly the set of state blocks a run 
 able to write:
 
 - `orchestrator` and `task` — the two required core blocks. Scalars replace, and so does
-  `orchestrator.driver`, which is one contract-shaped value written whole. The four **open
+  `orchestrator.driver`, which is one contract-shaped value written whole — a dispatched run's
+  carries an optional `dispatch_id` beside `kind` and `cwd`, the dispatch it runs, which the
+  writer keeps and the engine never reads. The four **open
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
   — merge key by key instead, because different nodes write different keys of them at
   different times: a write recording `user_docs_enabled` leaves an `html_output` an earlier
