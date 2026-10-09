@@ -38,15 +38,27 @@ export const TITLE_BREAKS = /[\r\n\t]/;
 export const HEADER_MAX = 12;
 
 /**
- * A node id made readable: dashes become spaces and every word is capitalized,
- * so `gap-analysis` reads `Gap Analysis`. The fallback for any node the
- * definition gives no title — a definition of your own is valid without one.
+ * The words a readable id spells in capitals wherever they stand, so
+ * `deliver-notes-api` reads `Deliver notes API` rather than `Deliver notes api`.
+ * Kept short: a word missing here reads in lower case, which is still a sentence.
+ */
+export const ACRONYMS = new Set(['api', 'ui', 'ux', 'cli', 'csv', 'json', 'yaml', 'html', 'http', 'url', 'sql', 'id', 'pr', 'tdd', 'e2e']);
+
+/**
+ * A node id made readable: dashes become spaces and it reads in sentence case,
+ * the first word capitalized and every word in `ACRONYMS` in capitals, so
+ * `gap-analysis` reads `Gap analysis` and `deliver-notes-api` reads `Deliver
+ * notes API`. The fallback for any node the definition gives no title — a
+ * definition of your own is valid without one.
  */
 export function humanize(id) {
   return String(id)
     .split('-')
     .filter(word => word !== '')
-    .map(word => word[0].toUpperCase() + word.slice(1))
+    .map((word, index) => {
+      if (ACRONYMS.has(word.toLowerCase())) return word.toUpperCase();
+      return index === 0 ? word[0].toUpperCase() + word.slice(1) : word;
+    })
     .join(' ');
 }
 

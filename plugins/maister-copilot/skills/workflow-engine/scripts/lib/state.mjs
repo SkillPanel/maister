@@ -1083,6 +1083,7 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
     intended.add('workflow');
   }
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
+  if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
   if (patch.context || patch.phase_summaries) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
     // the block and writes its summaries in one invocation resolves from the
@@ -1111,6 +1112,31 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
   if (!changed.includes('orchestrator.updated')) changed.push('orchestrator.updated');
   return intended;
 }
+
+/**
+ * `task.status: in_progress`, written by the first write that moves a node off
+ * `pending`: the moment the run starts executing. The freeze sets the run up and
+ * runs nothing, so it writes no status, and nothing else ever wrote this one —
+ * a run read as starting from its first step to its last. Every kind of run
+ * records its nodes through this writer, so a sub-run and a chain run get it
+ * the same way a top-level run does. A status already recorded other than
+ * `pending` is left alone — the endings a closing patch writes above all — and
+ * so is a write that sends `task.status` itself. Whether it wrote.
+ */
+function markStarted(doc, patch, changed) {
+  if (isPlainObject(patch.task) && Object.hasOwn(patch.task, 'status')) return false;
+  const moved = Object.values(patch.nodes).some(entry => isPlainObject(entry)
+    && typeof entry.status === 'string' && entry.status !== 'pending');
+  if (!moved) return false;
+  const status = parseState(doc.text()).task?.status;
+  if (typeof status === 'string' && status !== '' && status !== 'pending') return false;
+  doc.set(['task', 'status'], [`  status: ${flow(STARTED, 'task.status')}`]);
+  changed.push('task.status');
+  return true;
+}
+
+/** The status a running run records. */
+const STARTED = 'in_progress';
 
 /**
  * Which context block this write belongs in.

@@ -494,7 +494,7 @@ test('gate-brief: a negated guard is honoured, and a pending node outside the ga
     ...['analysis', 'aside', 'report', 'wrap-up'].flatMap(id => [`## \`${id}\``, '', 'Do the step.', '']),
   ].join('\n'));
 
-  for (const [inputs, expected] of [[null, /^Next: Report$/m], [{ quiet: true }, /^Next: Wrap Up \(skipping Report\)$/m]]) {
+  for (const [inputs, expected] of [[null, /^Next: Report$/m], [{ quiet: true }, /^Next: Wrap up \(skipping Report\)$/m]]) {
     const run_ = inputs ? scratch(t) : run;
     freeze(run_, { definition, inputs });
     write(run_, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
@@ -1350,6 +1350,78 @@ test('Review line: it is never trimmed, and the brief still keeps inside the bud
   assert.equal(lastLine(text), `Review: ${fromRoot(run, 'analysis/report.md')}`);
 });
 
+/** A run at a gate closing a specification and a stretch that drew `screens` screens into its declared folder. */
+function mockupsRun(t, screens) {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'drawing.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    '  spec:', '    uses: "direct:spec"', '    needs: []', '    outputs: {artifacts: {spec: analysis/spec.md}}',
+    '  mockups:', '    uses: "direct:mockups"', '    needs: [spec]', '    outputs: {artifacts: {mockups: analysis/mockups}}',
+    '  approval:', '    type: gate', '    needs: [spec, mockups]', '    ask: "Specification complete. Continue?"',
+    '    options: {go-on: continue, halt: stop}',
+    '  wrap-up: {uses: "direct:wrap-up", needs: [approval]}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'drawing.md'),
+    '# Drawing — node prose\n\n## `spec`\n\nS.\n\n## `mockups`\n\nM.\n\n## `wrap-up`\n\nW.\n');
+  freeze(run, { definition });
+  onDisk(run, 'analysis/spec.md');
+  const drawn = Array.from({ length: screens }, (_, index) => `analysis/mockups/screen-${index + 1}.html`);
+  for (const file of drawn) onDisk(run, file, '<p>screen</p>\n');
+  write(run, {
+    nodes: { spec: { status: 'completed' }, mockups: { status: 'completed' } },
+    node_summaries: {
+      spec: { summary: 'Specified.', artifacts: [{ path: 'analysis/spec.md', label: 'Specification', role: 'primary' }] },
+      mockups: { summary: 'Drew the screens.', artifacts: drawn.map((file, index) => ({ path: file, label: `Screen ${index + 1}`, role: 'review' })) },
+    },
+  });
+  return run;
+}
+
+test('Review line: a step whose files outnumber the list is named once by its declared folder, so no screen is dropped', t => {
+  const run = mockupsRun(t, 3);
+  assert.equal(lastLine(brief(run, 'approval').stdout),
+    `Review: ${fromRoot(run, 'analysis/spec.md')}, ${fromRoot(run, 'analysis/mockups')}/`);
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.review, [
+    { path: 'analysis/spec.md', label: 'Specification', html: null, role: 'primary' },
+    { path: 'analysis/mockups/', label: '3 files', html: null, role: 'review' },
+  ]);
+  assert.equal(picker(run, 'approval').code, 0);
+  const panel = JSON.parse(fs.readFileSync(path.join(run.dir, 'display/next.json'), 'utf8'));
+  const part = panel.parts.find(each => each.key === 'review');
+  assert.deepEqual(part.files.map(file => file.label), ['spec.md', 'mockups']);
+  assert.equal(part.more, 0);
+});
+
+test('Review line: files that fit the list are each named, even inside a declared folder', t => {
+  const run = mockupsRun(t, 2);
+  assert.equal(lastLine(brief(run, 'approval').stdout), `Review: ${[
+    'analysis/spec.md', 'analysis/mockups/screen-1.html', 'analysis/mockups/screen-2.html',
+  ].map(file => fromRoot(run, file)).join(', ')}`);
+});
+
+test('checkpoint: a step the definition gives no title reads in sentence case, a known acronym in capitals', t => {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'untitled.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    '  shape-notes-ui: {uses: "direct:shape-notes-ui", needs: []}',
+    '  approval:', '    type: gate', '    needs: [shape-notes-ui]', '    ask: "Shaped. Continue?"',
+    '    options: {go-on: continue, halt: stop}',
+    '  deliver-notes-api: {uses: "direct:deliver-notes-api", needs: [approval]}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'untitled.md'),
+    '# Untitled — node prose\n\n## `shape-notes-ui`\n\nS.\n\n## `deliver-notes-api`\n\nD.\n');
+  freeze(run, { definition });
+  write(run, { nodes: { 'shape-notes-ui': { status: 'completed' } }, node_summaries: { 'shape-notes-ui': SUMMARY } });
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.equal(checkpoint.next.title, 'Deliver notes API');
+  assert.equal(checkpoint.closed[0].title, 'Shape notes UI');
+  assert.equal(checkpoint.options.find(option => option.id === 'go-on').label, 'Go on');
+  assert.match(lastLine(brief(run, 'approval').stdout), /^Next: Deliver notes API$/);
+});
+
 /** A two-node run of a definition whose gate asks `ask`. */
 function askingRun(t, ask) {
   const run = scratch(t);
@@ -1405,7 +1477,7 @@ test('picker: a revise names an earlier revise of the same document chosen at an
   write(run, { nodes: { 'review-approval': { status: 'completed' } } });
   write(run, { nodes: { publish: { status: 'completed' } }, node_summaries: { publish: { summary: 'Published.' } } });
   const redo = picker(run, 'final-approval').options.find(option => option.id === 'redo-draft');
-  assert.match(redo.description, / Draft was already revised once at Review Approval\.$/);
+  assert.match(redo.description, / Draft was already revised once at Review approval\.$/);
   const send = picker(atReview(t), 'review-approval').options.find(option => option.id === 'send-back');
   assert.doesNotMatch(send.description, /already revised/, 'nothing is named when no other gate revised it');
 });

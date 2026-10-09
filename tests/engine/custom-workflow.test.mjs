@@ -281,7 +281,7 @@ test('freeze: the proven freeze lands under the custom task type, every node pen
   const banner = result.stdout.split('\n\n')[0];
   assert.equal(banner, [
     'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below.',
-    'Maister run started: Release Audit',
+    'Maister run started: Release audit',
     'Task: Audit v2.4.0',
     'Checkpoints: one where you decide',
     `Directory: ${run.dir}`,
@@ -337,8 +337,8 @@ test('gate-brief: the fan-out\'s summaries are pooled under their titles, the sk
     '',
     'Licence scan: No copyleft licences.',
     '',
-    'Security Scan: Skipped.',
-    'Next: Deep Audit',
+    'Security scan: Skipped.',
+    'Next: Deep audit',
     reviewOf(run, ['intake/brief.md']),
     '',
   ].join('\n'));
@@ -362,7 +362,7 @@ test('gate-brief: --oneline folds the custom gate\'s brief onto one line', t => 
   const result = brief(run, 'triage', ['--oneline']);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout.split('\n').length, 2, 'one line and its newline');
-  assert.match(result.stdout, /Licence scan: No copyleft licences\. Security Scan: Skipped\. · Next: Deep Audit · Recommended: proceed · Run: /);
+  assert.match(result.stdout, /Licence scan: No copyleft licences\. Security scan: Skipped\. · Next: Deep audit · Recommended: proceed · Run: /);
 });
 
 test('gate-brief: writes no state, only the panel beside it', t => {
@@ -401,8 +401,8 @@ test('dashboard: every phase is named by its title or its humanized id, in froze
   assert.equal(data.task.title, 'Audit v2.4.0');
   assert.deepEqual(data.phases.map(phase => phase.id), ORDER);
   assert.deepEqual(data.phases.map(phase => phase.name), [
-    'Release intake', 'Dependency scan', 'Licence scan', 'Security Scan',
-    'Triage the scans', 'Deep Audit', 'Audit report', 'Rollback Notes',
+    'Release intake', 'Dependency scan', 'Licence scan', 'Security scan',
+    'Triage the scans', 'Deep audit', 'Audit report', 'Rollback notes',
   ]);
   const icons = Object.fromEntries(data.phases.filter(phase => 'icon_hint' in phase).map(phase => [phase.id, phase.icon_hint]));
   assert.deepEqual(icons, { intake: 'analysis', report: 'docs' });
@@ -612,8 +612,8 @@ test('overlay: the gate brief reports the added node beside the scans, under the
     '',
     'Quick bill of materials: Inventory of 212 packages.',
     '',
-    'Security Scan: Skipped.',
-    'Next: Deep Audit',
+    'Security scan: Skipped.',
+    'Next: Deep audit',
     reviewOf(run, ['outputs/sbom.json', 'intake/brief.md']),
     '',
   ].join('\n'));

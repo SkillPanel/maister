@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { DECLARED, ENGINE_DIR, FIXTURES, OPERATOR, SAMPLE, freeze, freezePatch, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, FIXTURES, OPERATOR, SAMPLE, freeze, freezePatch, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 const CLOSING_CHILD = path.join(FIXTURES, 'definitions/closing-child.yml');
@@ -1181,4 +1181,62 @@ test('refusal: state-summary-item-invalid — a recommends naming no continue of
   freeze(run, { definition: OPTIONAL_STEP });
   const planning = refused(run, { node_summaries: { planning: { summary: 'Planned.', recommends: { option: 'continue-on', reason: 'r' } } } });
   assert.match(planning.stderr, /no gate waits on planning with a continue option to recommend/);
+});
+
+// ---------------------------------------------------------------------------
+// task.status: in progress from the first step's start
+// ---------------------------------------------------------------------------
+
+/** A run frozen as the engine freezes one: no task status recorded. */
+function freezeUnstarted(run, options = {}) {
+  const { patch, graph } = freezePatch(options);
+  delete patch.task.status;
+  write(run, patch);
+  return graph;
+}
+
+test('task status: the freeze records none, and the first write that starts a step records the run in progress', t => {
+  const run = scratch(t);
+  freezeUnstarted(run);
+  assert.equal(readState(run).task.status, undefined, 'the freeze runs nothing');
+  write(run, { context: { note: 'before any step' } });
+  assert.equal(readState(run).task.status, undefined, 'a write that starts no step leaves it unset');
+  const result = write(run, { nodes: { analysis: { status: 'running' } } });
+  assert.equal(readState(run).task.status, 'in_progress');
+  assert.match(result.stdout, /task\.status/, 'the write names what it changed');
+});
+
+test('task status: a recorded pending reads as not started, and a step written straight to its end also starts the run', t => {
+  const run = scratch(t);
+  freeze(run, { task: { status: 'pending' } });
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  assert.equal(readState(run).task.status, 'in_progress');
+});
+
+test('task status: a status the patch sends wins, and an ending is never overwritten by a later step write', t => {
+  for (const ending of ['completed', 'failed', 'stopped']) {
+    const run = scratch(t);
+    freezeUnstarted(run);
+    write(run, { task: { status: ending }, nodes: { analysis: { status: ending === 'stopped' ? 'stopped' : ending } } });
+    assert.equal(readState(run).task.status, ending, `${ending}: the patch's own status wins`);
+    write(run, { nodes: { approval: { status: 'skipped' } } });
+    assert.equal(readState(run).task.status, ending, `${ending}: a later step write leaves the ending`);
+  }
+});
+
+test('task status: a sub-run records itself in progress at its own first step, as a top-level run does', t => {
+  const parent = scratch(t);
+  freezeUnstarted(parent);
+  write(parent, { nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'completed' }, research: { status: 'running' } } });
+  const child = sibling(parent, { type: 'research', name: '2026-01-05-open-questions' });
+  const graph = freezeUnstarted(child, {
+    definition: path.join(ENGINE_DIR, 'workflows/research.yml'),
+    task: { title: 'Open questions' },
+    inputs: { question: 'What did the implementation leave open?', embedded: true },
+    orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'research' } },
+  });
+  assert.equal(readState(child).task.status, undefined);
+  write(child, { nodes: { [graph.nodes[0].id]: { status: 'running' } } });
+  assert.equal(readState(child).task.status, 'in_progress');
+  assert.equal(readState(parent).task.status, 'in_progress');
 });

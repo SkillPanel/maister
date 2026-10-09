@@ -40,17 +40,24 @@ function validate(args) {
 // the fallback and the merge
 // ---------------------------------------------------------------------------
 
-test('humanize: dashes become spaces and every word is capitalized', () => {
-  assert.equal(humanize('gap-analysis'), 'Gap Analysis');
-  assert.equal(humanize('e2e-approval'), 'E2e Approval');
+test('humanize: dashes become spaces and the id reads in sentence case', () => {
+  assert.equal(humanize('gap-analysis'), 'Gap analysis');
   assert.equal(humanize('intake'), 'Intake');
+});
+
+test('humanize: a known acronym reads in capitals wherever it stands', () => {
+  assert.equal(humanize('deliver-notes-api'), 'Deliver notes API');
+  assert.equal(humanize('e2e-approval'), 'E2E approval');
+  assert.equal(humanize('ui-review'), 'UI review');
+  assert.equal(humanize('export-csv-to-url'), 'Export CSV to URL');
+  assert.equal(humanize('apis-review'), 'Apis review', 'a word that only starts like one is not an acronym');
 });
 
 test('titleOf: the title when there is one, else the humanized id', () => {
   const { titles } = displayOf({ definition: readDefinition(SAMPLE) });
   assert.equal(titleOf(titles, 'analysis'), 'Scope analysis');
   assert.equal(titleOf(titles, 'implementation'), 'Implementation');
-  assert.equal(titleOf(null, 'user-docs'), 'User Docs');
+  assert.equal(titleOf(null, 'user-docs'), 'User docs');
 });
 
 test('displayOf: an overlay retitles a base node and titles the node it adds; a profile has the last word', () => {
@@ -107,7 +114,7 @@ test('headerOf: the own header, else the closing node\'s title when it fits, els
   const cut = headerOf({ headers: {}, titles }, 'approval', 'analysis');
   assert.equal(cut, 'Approve the…');
   assert.ok([...cut].length <= HEADER_MAX);
-  assert.equal(headerOf({ headers: {}, titles: {} }, 'gap-approval', null), 'Gap Approval');
+  assert.equal(headerOf({ headers: {}, titles: {} }, 'gap-approval', null), 'Gap approval');
 });
 
 // ---------------------------------------------------------------------------

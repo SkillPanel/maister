@@ -993,7 +993,9 @@ node's own, and neither does a skipped node: without one, the brief is refused
     its values walks each one on its own answer: each continue's preview names where it leads,
     and the `plain` profile's glance gives each its own *Next* line, named by its label;
   - *Review*: up to three files, named by their paths inside the task folder, the main
-    documents (`role: primary`) first;
+    documents (`role: primary`) first. When there are more, a step's files inside one of its
+    declared output folders are named once, by that folder with a closing `/`, so a stretch
+    that drew several screens never loses one to the limit;
   - *Open risks*: up to three `stop` and `open` risks, a stop first, each without its change;
   - *Fixed by the run: N*: how many fixes the run applied, with up to three listed, each its
     finding and its change;
@@ -1629,7 +1631,11 @@ able to write:
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
   — merge key by key instead, because different nodes write different keys of them at
   different times: a write recording `user_docs_enabled` leaves an `html_output` an earlier
-  node set alone. Send the whole map only when you mean to add to it.
+  node set alone. Send the whole map only when you mean to add to it. `task.status` is the
+  writer's at one moment: the first write that moves a node off `pending` — the run starting
+  to execute — records `in_progress` when the status is absent or `pending`. The freeze runs
+  nothing and records none; a status already set otherwise, or one the same patch sends, is
+  left alone, and the run's ending is the closing patch's to record.
 - `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
   edited in place afterwards. Never send a node's `started` or `completed`, or
   `orchestrator.updated`: the writer stamps all three from its own clock on each status change
@@ -1931,7 +1937,8 @@ terms.
 **Phases are named by their titles.** A definition's top-level `display:` block may carry
 `titles` — node id to a short one-line title — beside `icons`; an overlay or a profile may add or
 override either, and neither moves `graph_hash`. The dashboard's phase names and the gate brief's
-`Next:` line use them, falling back to the id made readable (`gap-analysis` → `Gap Analysis`);
+`Next:` line use them, falling back to the id made readable in sentence case, a known acronym in capitals
+(`gap-analysis` → `Gap analysis`, `deliver-notes-api` → `Deliver notes API`);
 name phases the same way in the executive summary. The same block's `option_labels` and `headers`
 give a gate's options the words an operator picks and its question a short header; the picker
 `gate-brief --json` returns uses them. Ids stay wherever something is keyed: state, gate files,
