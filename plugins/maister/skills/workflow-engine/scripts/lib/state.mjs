@@ -87,6 +87,7 @@ import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve a
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, oneLine, withPersonActor, withProvenance } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
+import { loadPolicy } from './policy.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -439,7 +440,7 @@ const WORKFLOW_CONTEXT = {
 /**
  * Apply `patch` to the state file at `state`.
  *
- * Returns `{ok, changed, errors, warnings, ignored, undeclared}`. On a refusal `changed` is empty and
+ * Returns `{ok, changed, errors, warnings, ignored, undeclared, policyWarnings}`. On a refusal `changed` is empty and
  * the file on disk is byte-for-byte what it was: every check that can refuse runs
  * before the rename, and the rename is the only thing that publishes a write.
  *
@@ -452,6 +453,10 @@ const WORKFLOW_CONTEXT = {
  * because no module under `scripts/lib/` performs stdio: every refusal already
  * travels to `workflow.mjs` as data and is printed there, and this is the same
  * journey for something that is not a refusal.
+ *
+ * `policyWarnings` is kept apart from `warnings`: those name a file this write
+ * did not publish, while these are code strings (`policy-refused:…`) about the
+ * autonomy policy the write read, each printed as its own `warning:` line.
  *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
@@ -467,6 +472,8 @@ export function writeState({ state, patch, regress = null }) {
   // The node values this write recorded that the definition does not declare
   // (`assertValues`), as dotted paths, on the same terms.
   const undeclared = [];
+  // What the autonomy policy loader reported, as code strings; see above.
+  const policyWarnings = [];
   try {
     checkPatch(patch);
     const doc = readDoc(state);
@@ -479,7 +486,7 @@ export function writeState({ state, patch, regress = null }) {
     // write that starts a run, and a later write re-sending `workflow:` into a
     // file that already carries one is not that write.
     const hadWorkflow = doc.has('workflow');
-    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)), ignored, undeclared, regress)) allowed.add(key);
+    for (const key of apply(doc, patch, changed, now, path.dirname(path.resolve(state)), ignored, undeclared, regress, policyWarnings)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -506,7 +513,7 @@ export function writeState({ state, patch, regress = null }) {
     // After the viewer, so the status file's dashboard link sees the page the
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
-    const result = { ok: true, changed, errors: [], warnings, ignored, undeclared };
+    const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, policyWarnings };
     if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
     return result;
   } catch (err) {
@@ -1052,7 +1059,7 @@ function fallbackExecutor(doc) {
  * a data file stamped a second before the state it describes is a data file whose
  * freshness cannot be reasoned about.
  */
-function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = null) {
+function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = null, policyWarnings = []) {
   const intended = new Set(['orchestrator']);
   // The run's frozen graph, proven, for the checks that need the definition;
   // resolved at most once per write, and only if one of them asks.
@@ -1066,12 +1073,20 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
     orchestrator = rest;
     ignored.push('orchestrator.updated');
   }
+  // `policy_hash` is the freeze's own record of the policy it applied, so a
+  // patch value for it is dropped the same way, on every write.
+  if (isPlainObject(orchestrator) && Object.hasOwn(orchestrator, 'policy_hash')) {
+    const { policy_hash: _supplied, ...rest } = orchestrator;
+    orchestrator = rest;
+    ignored.push('orchestrator.policy_hash');
+  }
 
   // Before the patch's own `orchestrator` keys, so the seeded sequences open
   // the block and a freeze's `parent` still follows every key the patch sends.
   if (patch.workflow) {
     seedSequences(doc, orchestrator, changed);
     seedCreated(doc, orchestrator, now, changed);
+    if (!doc.has('workflow')) seedPolicyHash(doc, changed, policyWarnings);
   }
   if (orchestrator) applyScalars(doc, 'orchestrator', orchestrator, changed);
   if (patch.task) {
@@ -2269,6 +2284,25 @@ function seedCreated(doc, orchestrator, now, changed) {
   if (doc.locate(['orchestrator', 'created'])) return;
   doc.set(['orchestrator', 'created'], [`  created: ${flow(now, 'orchestrator.created')}`]);
   changed.push('orchestrator.created');
+}
+
+/**
+ * `orchestrator.policy_hash`, the hash of the autonomy policy the freeze
+ * applied: the file at the engine's policy location when it loads, else the
+ * built-in default's.
+ *
+ * Only the freeze writes it — the write that installs `workflow:` into a file
+ * with none — so a run keeps the hash of the policy it started under and no
+ * later write adds, changes or removes it. A run frozen before the key existed
+ * stays without one. A patch value is never taken (`apply` drops it), and a
+ * refused policy file is a warning on this write, never a refusal: the run
+ * proceeds under the default and records the default's hash.
+ */
+function seedPolicyHash(doc, changed, policyWarnings) {
+  const { hash, warnings } = loadPolicy();
+  policyWarnings.push(...warnings);
+  doc.set(['orchestrator', 'policy_hash'], [`  policy_hash: ${flow(hash, 'orchestrator.policy_hash')}`]);
+  changed.push('orchestrator.policy_hash');
 }
 
 /**

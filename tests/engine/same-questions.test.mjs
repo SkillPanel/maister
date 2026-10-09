@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
 
 // What every built-in asks, and how each question reaches a person under each
 // driver, pinned against a snapshot taken from the engine before the autonomy
@@ -47,6 +47,25 @@ const IN_NODE_COUNTS = {
   'product-design': 11,
   research: 6,
 };
+
+/** The built-in default policy's hash, which every run frozen under it records. */
+const DEFAULT_HASH = 'sha256:2430f1a2ad2982d0067885488a4c89e21ad1d7c83b115ba8f1b20acc88dfaea8';
+
+/**
+ * What the projection saw beside the questions, kept out of the snapshot: each
+ * frozen run's state after its last write, and every gate request it built.
+ */
+const seen = { states: [], requests: [] };
+
+/** The dotted paths of every `triage` key anywhere in `value`. */
+function triageKeys(value, at = '') {
+  if (Array.isArray(value)) return value.flatMap((each, index) => triageKeys(each, `${at}.${index}`));
+  if (!value || typeof value !== 'object') return [];
+  return Object.entries(value).flatMap(([key, each]) => [
+    ...(key === 'triage' ? [`${at}.${key}`] : []),
+    ...triageKeys(each, `${at}.${key}`),
+  ]);
+}
 
 /** The summary every node before a gate records, so each gate's brief renders. */
 const SUMMARY = { status: 'completed', summary: 'Done.', decisions: [], risks: [] };
@@ -163,10 +182,12 @@ function gatesUnder(t, name, driverName) {
       offered = { transport: 'picker', options: picker.options.map(option => option.id) };
     } else {
       const request = JSON.parse(ok(verb([...base, '--request']), `gate-brief ${node.id}`));
+      seen.requests.push({ at: `${name}/${driverName}/${node.id}`, request });
       offered = { transport: 'gate-request', kind: request.kind, options: request.options.map(option => option.id) };
     }
     gates[node.id] = offered;
   }
+  seen.states.push({ at: `${name}/${driverName}`, state: readState(run) });
   return { graph, gates };
 }
 
@@ -188,6 +209,7 @@ function inNodeUnder(t, name, driverName, questions) {
     let transport;
     if (result.code === 0) {
       const request = JSON.parse(result.stdout);
+      seen.requests.push({ at: `${name}/${driverName}/${node}/${id}`, request });
       transport = request.kind === 'question' ? 'question-set' : `request:${request.kind}`;
     } else if (/^gate-brief-questions-unsupported: /.test(result.stderr)) {
       transport = driver.kind === 'terminal' ? 'in-session' : 'default';
@@ -197,6 +219,7 @@ function inNodeUnder(t, name, driverName, questions) {
     carried.push({ node, id, transport });
     write(run, { nodes: { [node]: { status: 'pending' } } });
   }
+  seen.states.push({ at: `${name}/${driverName}/asked`, state: readState(run) });
   return carried;
 }
 
@@ -276,4 +299,14 @@ test('every built-in asks the same questions, carried the same way, under each d
     }
   }
   assert.deepEqual(JSON.parse(projected), snapshot);
+
+  // Under the built-in default every frozen built-in records the default's
+  // hash, and nothing the runs wrote or were asked carries a triage.
+  assert.equal(seen.states.length, Object.keys(BUILT_INS).length * Object.keys(DRIVERS).length * 2);
+  for (const { at, state } of seen.states) {
+    assert.equal(state.orchestrator.policy_hash, DEFAULT_HASH, at);
+    assert.deepEqual(triageKeys(state), [], at);
+  }
+  assert.ok(seen.requests.length, 'the projection built gate requests');
+  for (const { at, request } of seen.requests) assert.deepEqual(triageKeys(request), [], at);
 });
