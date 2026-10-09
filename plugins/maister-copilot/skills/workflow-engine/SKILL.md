@@ -1933,7 +1933,8 @@ terms.
 **Phases are named by their titles.** A definition's top-level `display:` block may carry
 `titles` — node id to a short one-line title — beside `icons`; an overlay or a profile may add or
 override either, and neither moves `graph_hash`. The dashboard's phase names and the gate brief's
-`Next:` line use them, falling back to the id made readable (`gap-analysis` → `Gap Analysis`);
+`Next:` line use them, falling back to the id made readable in sentence case, a known acronym in capitals
+(`gap-analysis` → `Gap analysis`, `deliver-notes-api` → `Deliver notes API`);
 name phases the same way in the executive summary. The same block's `option_labels` and `headers`
 give a gate's options the words an operator picks and its question a short header; the picker
 `gate-brief --json` returns uses them. Ids stay wherever something is keyed: state, gate files,

@@ -494,7 +494,7 @@ test('gate-brief: a negated guard is honoured, and a pending node outside the ga
     ...['analysis', 'aside', 'report', 'wrap-up'].flatMap(id => [`## \`${id}\``, '', 'Do the step.', '']),
   ].join('\n'));
 
-  for (const [inputs, expected] of [[null, /^Next: Report$/m], [{ quiet: true }, /^Next: Wrap Up \(skipping Report\)$/m]]) {
+  for (const [inputs, expected] of [[null, /^Next: Report$/m], [{ quiet: true }, /^Next: Wrap up \(skipping Report\)$/m]]) {
     const run_ = inputs ? scratch(t) : run;
     freeze(run_, { definition, inputs });
     write(run_, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: SUMMARY } });
@@ -1401,6 +1401,27 @@ test('Review line: files that fit the list are each named, even inside a declare
   ].map(file => fromRoot(run, file)).join(', ')}`);
 });
 
+test('checkpoint: a step the definition gives no title reads in sentence case, a known acronym in capitals', t => {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'untitled.yml');
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    '  shape-notes-ui: {uses: "direct:shape-notes-ui", needs: []}',
+    '  approval:', '    type: gate', '    needs: [shape-notes-ui]', '    ask: "Shaped. Continue?"',
+    '    options: {go-on: continue, halt: stop}',
+    '  deliver-notes-api: {uses: "direct:deliver-notes-api", needs: [approval]}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'untitled.md'),
+    '# Untitled — node prose\n\n## `shape-notes-ui`\n\nS.\n\n## `deliver-notes-api`\n\nD.\n');
+  freeze(run, { definition });
+  write(run, { nodes: { 'shape-notes-ui': { status: 'completed' } }, node_summaries: { 'shape-notes-ui': SUMMARY } });
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.equal(checkpoint.next.title, 'Deliver notes API');
+  assert.equal(checkpoint.closed[0].title, 'Shape notes UI');
+  assert.equal(checkpoint.options.find(option => option.id === 'go-on').label, 'Go on');
+  assert.match(lastLine(brief(run, 'approval').stdout), /^Next: Deliver notes API$/);
+});
+
 /** A two-node run of a definition whose gate asks `ask`. */
 function askingRun(t, ask) {
   const run = scratch(t);
@@ -1456,7 +1477,7 @@ test('picker: a revise names an earlier revise of the same document chosen at an
   write(run, { nodes: { 'review-approval': { status: 'completed' } } });
   write(run, { nodes: { publish: { status: 'completed' } }, node_summaries: { publish: { summary: 'Published.' } } });
   const redo = picker(run, 'final-approval').options.find(option => option.id === 'redo-draft');
-  assert.match(redo.description, / Draft was already revised once at Review Approval\.$/);
+  assert.match(redo.description, / Draft was already revised once at Review approval\.$/);
   const send = picker(atReview(t), 'review-approval').options.find(option => option.id === 'send-back');
   assert.doesNotMatch(send.description, /already revised/, 'nothing is named when no other gate revised it');
 });

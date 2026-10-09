@@ -591,7 +591,7 @@ legitimately leaves its hint behind.
 
 `titles` maps a node id to the name the dashboard shows for that phase and the gate brief uses in its
 `Next:` line — short, one line, sentence case. A node without one is shown as its id made readable:
-`gap-analysis` becomes `Gap Analysis`. An empty or multi-line title is refused when the definition is
+`gap-analysis` becomes `Gap analysis`, a known acronym kept in capitals (`notes-api` becomes `Notes API`). An empty or multi-line title is refused when the definition is
 validated; a title for a node the graph does not declare warns, as a hint does.
 
 `option_labels` maps a gate id, then each of its option ids, to the words the operator picks at
