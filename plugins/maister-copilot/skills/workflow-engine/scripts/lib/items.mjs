@@ -183,6 +183,18 @@ export function withProvenance(item, source) {
   return missing.length ? { ...item, ...Object.fromEntries(missing) } : item;
 }
 
+/** What a model has written in place of the person's name. */
+const PLACEHOLDER_NAMES = new Set(['', 'user', 'operator', 'you']);
+
+/**
+ * Does `name` name nobody: not a string, or — trimmed, in any case — empty or
+ * one of the placeholders a model writes for the person (`user`, `operator`,
+ * `you`)?
+ */
+export function isPlaceholderName(name) {
+  return typeof name !== 'string' || PLACEHOLDER_NAMES.has(name.trim().toLowerCase());
+}
+
 /**
  * An operator answer given at this terminal credited to the person who gave
  * it: `actor: {kind: person, id: <answered_by>}` added when its `via` is

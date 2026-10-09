@@ -35,10 +35,10 @@
  *     default_ceiling  an ask level
  *
  * Floor ids are opaque non-empty strings, never checked against a list. A
- * family's `floor` is a unique list of them, and its `max` is a class. A
- * row's `families` lists at least one family, each once, the first being its
- * default reading; `values` maps a gate value key to a family and sits only on
- * a gate row. Family names and a row's `workflow` match `^[a-z][a-z0-9-]*$`, a
+ * family's `floor` is a unique list of them, and its `max` is a class, read
+ * and checked but bounding nothing yet. A row's `families` lists at least one
+ * family, each once, the first being its default reading; `values` maps a gate
+ * value key to a family and sits only on a gate row. Family names and a row's `workflow` match `^[a-z][a-z0-9-]*$`, a
  * row's `id` matches the engine's node id pattern, and value keys match
  * `^[a-z_]+$`. A ceiling's `settles` is a class below `approve` and its
  * `delegates` a boolean. Beyond the shape, every family a row, `values` or
