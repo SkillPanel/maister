@@ -183,12 +183,13 @@ const VALUE_KEY = /^[a-z_]+$/;
 
 /**
  * What answering a continue option may authorise beyond the run itself, in
- * this order. The engine grants no permission: it carries the names to every
- * surface the gate is shown on, the driver that delivers the answer registers
- * them for the worker, and the node prose after the gate pushes the branch and
- * opens the pull request without asking a second time.
+ * this order, which is also the order a grant list hashes in; a new name is
+ * appended, never inserted, so no hash moves. The engine grants no permission:
+ * it carries the names to every surface the gate is shown on, the driver that
+ * delivers the answer registers them for the worker, and the node prose after
+ * the gate does what each grant names without asking a second time.
  */
-const OPTION_GRANTS = ['push', 'pr-create'];
+const OPTION_GRANTS = ['push', 'pr-create', 'tag', 'tracker-write', 'browser-remote', 'spend'];
 
 /**
  * What an option does. `continue` moves the run past the gate and `stop` ends

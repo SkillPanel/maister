@@ -271,14 +271,19 @@ one answer and is not asked a second time:
 |---|---|
 | `push` | pushing the run's own branch |
 | `pr-create` | opening a pull request from it; never merging one |
+| `tag` | creating a release tag and pushing it |
+| `tracker-write` | writing to the issue tracker |
+| `browser-remote` | browsing named hosts beyond this machine |
+| `spend` | starting or steering runs that spend budget |
 
 `grants` is a non-empty list, each name once, on the continue option only — a stop ends the run
 and a revise asks the gate again, so no node after either answer would act on it. The engine
-itself grants no permission and pushes nothing. It shows the grant wherever the gate is shown, in
+itself grants no permission and acts on none. It shows each grant wherever the gate is shown, in
 the option's label and in the checkpoint, and that makes the answer an informed approval. A
-driver that delivers the answer registers the grant for the worker. The node prose after the
-gate does the push and opens the pull request, and asks nothing more. The grants are part of the
-graph's identity, in the closed set's order, so adopting one moves the definition's hash.
+driver that delivers the answer registers the grants for the worker. The node prose after the
+gate does what each grant names, and asks nothing more. The grants are part of the graph's
+identity, in the closed set's order, so adopting one moves the definition's hash; a name is only
+ever appended to the set, so a definition's hash stays where it was. No grant merges.
 
 **A gate may decide an optional step.** When the step after a gate is optional, the gate that
 approves the work before it asks both at once, with one continue per way on, and the step's

@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, SAMPLE, freeze, scratch, verb, write } from '../helpers.mjs';
+import { grantsText } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // A version 1 document is closed: everything the file in hand can decide is
 // decided at validate time. Each case below starts from BASE — an intake node,
@@ -840,11 +841,11 @@ test('a continue option may declare the grants its answer gives', t => {
 test('grants outside the closed set, repeated, empty or not a list are refused at the option', t => {
   const at = 'nodes.review-approval.options.continue-on.grants';
   const cases = [
-    ['{effect: continue, grants: [pussh]}', /"pussh" is not a grant; did you mean "push"\? the grants are push, pr-create/],
-    ['{effect: continue, grants: [merge]}', /"merge" is not a grant; the grants are push, pr-create/],
+    ['{effect: continue, grants: [pussh]}', /"pussh" is not a grant; did you mean "push"\? the grants are push, pr-create, tag, tracker-write, browser-remote, spend/],
+    ['{effect: continue, grants: [merge]}', /"merge" is not a grant; the grants are push, pr-create, tag, tracker-write, browser-remote, spend/],
     ['{effect: continue, grants: [push, push]}', /grants names "push" twice/],
-    ['{effect: continue, grants: []}', /grants is a list naming at least one of push, pr-create; an empty list is not/],
-    ['{effect: continue, grants: push}', /grants is a list naming at least one of push, pr-create; "push" is not/],
+    ['{effect: continue, grants: []}', /grants is a list naming at least one of push, pr-create, tag, tracker-write, browser-remote, spend; an empty list is not/],
+    ['{effect: continue, grants: push}', /grants is a list naming at least one of push, pr-create, tag, tracker-write, browser-remote, spend; "push" is not/],
   ];
   for (const [option, message] of cases) {
     const { code, report } = validate(definition(t, granting(option)));
@@ -891,6 +892,53 @@ test('grants are part of the graph identity, and the order they are written in i
   const drawn = verb(['diagram', `--definition=${definition(t, granting('{effect: continue, grants: [push]}'))}`]);
   assert.equal(drawn.code, 0, drawn.stderr);
   assert.match(drawn.stdout, /continue-on: continue/);
+});
+
+const GRANTS = ['push', 'pr-create', 'tag', 'tracker-write', 'browser-remote', 'spend'];
+
+test('each grant beyond the push and the pull request is accepted on a continue', t => {
+  for (const name of ['tag', 'tracker-write', 'browser-remote', 'spend']) {
+    const { code, report } = validate(definition(t, granting(`{effect: continue, grants: [${name}]}`)));
+    assert.equal(code, 0, `${name}: ${JSON.stringify(report.errors)}`);
+  }
+  assert.equal(validate(definition(t, granting(`{effect: continue, grants: [${GRANTS.join(', ')}]}`))).code, 0);
+});
+
+test('merge is still not a grant, and the refusal lists the six in the closed order', t => {
+  const { code, report } = validate(definition(t, granting('{effect: continue, grants: [merge]}')));
+  assert.equal(code, 1);
+  const message = errorAt(report, 'nodes.review-approval.options.continue-on.grants').message;
+  assert.ok(message.endsWith(`the grants are ${GRANTS.join(', ')}`), message);
+});
+
+test('each new grant is said in plain words, in the closed order', () => {
+  assert.equal(grantsText(['tag']), 'also creates and pushes the release tag');
+  assert.equal(grantsText(['tracker-write']), 'also writes to the issue tracker');
+  assert.equal(grantsText(['browser-remote']), 'also browses named remote hosts');
+  assert.equal(grantsText(['spend']), 'also spends budget starting and steering runs');
+  assert.equal(grantsText(GRANTS), 'also pushes the branch, opens the pull request, creates and pushes the release tag, '
+    + 'writes to the issue tracker, browses named remote hosts and spends budget starting and steering runs');
+  for (const name of GRANTS) assert.match(grantsText([name]), /^also [a-z][a-z ]+$/, name);
+});
+
+test('appending grant names moves no hash a definition already had', t => {
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout).graph_hash;
+  assert.equal(hashOf(definition(t, granting('{effect: continue, grants: [push, pr-create]}'))),
+    'sha256:85dfa8562b0263c4d061cb7b7bb16192e57d28b6263eb748580bfd8d0c52ebd3');
+  assert.equal(hashOf(definition(t, granting('{effect: continue, grants: [pr-create]}'))), 'sha256:46302ceda203efb1b0c429b7b2cf01a24a41e2267a755f770673bf4f79530d6a');
+  assert.equal(hashOf(SAMPLE), 'sha256:a2385ab71519bf5ff93fcdc21e020e1185e025166af86c64d2939f92858931b0');
+});
+
+test('every built-in workflow diagram carries the hash a fresh freeze computes', () => {
+  const dir = path.join(ENGINE_DIR, 'workflows');
+  const names = fs.readdirSync(dir).filter(name => name.endsWith('.yml'));
+  assert.ok(names.length >= 5);
+  for (const name of names) {
+    const resolved = JSON.parse(verb(['resolve', `--definition=${path.join(dir, name)}`]).stdout);
+    const line = fs.readFileSync(path.join(dir, name.replace(/\.yml$/, '.mmd')), 'utf8').match(/^%% graph_hash: (\S+)$/m);
+    assert.ok(line, `${name}: the diagram carries no graph_hash line`);
+    assert.equal(resolved.graph_hash, line[1], name);
+  }
 });
 
 // ---------------------------------------------------------------------------
