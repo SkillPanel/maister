@@ -156,6 +156,79 @@ export function decisionOf(item, labelFor = null) {
 }
 
 /**
+ * The keys an answer's provenance is carried in, copied from an answer onto
+ * the decision it becomes: who acted (`actor`), for whom (`on_behalf_of`),
+ * under which rule (`policy`), on what (`evidence`) and which recommendation
+ * it set aside (`override_of`). `grants` is never among them: what an answer
+ * authorises belongs to the option, and is never copied onto a decision.
+ */
+export const PROVENANCE_KEYS = ['actor', 'on_behalf_of', 'policy', 'evidence', 'override_of'];
+
+/**
+ * The provenance keys `source` carries, as a map of just those keys. A key
+ * holding null or nothing counts as absent; anything not a map carries none.
+ */
+export function provenanceOf(source) {
+  if (!isMap(source)) return {};
+  return Object.fromEntries(PROVENANCE_KEYS.filter(key => hasValue(source, key)).map(key => [key, source[key]]));
+}
+
+/**
+ * `item` with each provenance key `source` carries and `item` lacks. A key
+ * holding null or nothing counts as absent on either side.
+ */
+export function withProvenance(item, source) {
+  if (!isMap(item)) return item;
+  const missing = Object.entries(provenanceOf(source)).filter(([key]) => !hasValue(item, key));
+  return missing.length ? { ...item, ...Object.fromEntries(missing) } : item;
+}
+
+/** What a model has written in place of the person's name. */
+const PLACEHOLDER_NAMES = new Set(['', 'user', 'operator', 'you']);
+
+/**
+ * Does `name` name nobody: not a string, or — trimmed, in any case — empty or
+ * one of the placeholders a model writes for the person (`user`, `operator`,
+ * `you`)?
+ */
+export function isPlaceholderName(name) {
+  return typeof name !== 'string' || PLACEHOLDER_NAMES.has(name.trim().toLowerCase());
+}
+
+/**
+ * An operator answer given at this terminal credited to the person who gave
+ * it: `actor: {kind: person, id: <answered_by>}` added when its `via` is
+ * `terminal` and it carries no `actor`. An answer with no `via`, or one a
+ * driver carried, is left as it is: the engine knows who sat at the terminal,
+ * and nothing about who acted elsewhere.
+ */
+export function withPersonActor(item) {
+  if (!isMap(item) || item.via !== 'terminal' || hasValue(item, 'actor')) return item;
+  const id = typeof item.answered_by === 'string' ? item.answered_by.trim() : '';
+  return id === '' ? item : { ...item, actor: { kind: 'person', id } };
+}
+
+function hasValue(map, key) {
+  return Object.hasOwn(map, key) && map[key] !== null && map[key] !== undefined;
+}
+
+/**
+ * A gate's answer among its decisions: the last item carrying a string
+ * `option`, or null when none does. A gate's decisions may hold more than its
+ * answer — a note the run recorded after it, an earlier attempt's revise — so
+ * the last item is not the answer, and every reader of a gate's answer asks
+ * here rather than taking the tail of the list.
+ */
+export function gateAnswer(decisions) {
+  if (!Array.isArray(decisions)) return null;
+  for (let index = decisions.length - 1; index >= 0; index -= 1) {
+    const item = decisions[index];
+    if (isMap(item) && typeof item.option === 'string') return item;
+  }
+  return null;
+}
+
+/**
  * Whether a decision is an earlier attempt's answer to a question the node
  * asked again: it carries its own `attempt`, and `list` — the node's decisions
  * — holds an answer to the same `question_id` from a later one. Such an answer

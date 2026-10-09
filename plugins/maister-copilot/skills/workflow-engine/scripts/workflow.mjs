@@ -520,7 +520,9 @@ function reportWrite(result, input) {
   // `attempt` and `reruns` are the writer's too, but no clock fills them: a
   // revise sets the one and the freeze the other, and the note says so.
   const owned = (result.ignored || []).filter(field => /\.(?:attempt|reruns)$/.test(field));
-  const clocked = (result.ignored || []).filter(field => !owned.includes(field));
+  // `policy_hash` is the writer's as well, and no clock fills it either.
+  const policyHash = (result.ignored || []).filter(field => field === 'orchestrator.policy_hash');
+  const clocked = (result.ignored || []).filter(field => !owned.includes(field) && !policyHash.includes(field));
   if (clocked.length) {
     process.stderr.write(`note: ignored the supplied ${clocked.join(', ')}; the writer stamps these from its own clock\n`);
   }
@@ -528,6 +530,15 @@ function reportWrite(result, input) {
     process.stderr.write(`note: ignored the supplied ${owned.join(', ')}; the freeze records reruns and a revise counts attempts,`
       + ' so no patch sets either\n');
   }
+  if (policyHash.length) {
+    process.stderr.write('note: ignored the supplied orchestrator.policy_hash; the freeze records it from the policy it applied,'
+      + ' so no patch sets it\n');
+  }
+  // The autonomy policy's own warnings and the skip-guard rule's, each a code
+  // string: a refused policy file leaves the run on the built-in default, and a
+  // gate recorded skipped that the rule asks is written as sent, so each is a
+  // warning and never a refusal, and the exit code does not move.
+  for (const code of result.writeWarnings || []) process.stderr.write(`warning: ${code}\n`);
   // A value the node's definition does not declare is written, never refused,
   // because nothing reads one: no guard and no `${…}` reference may name it.
   // Which is also why it is worth a line — a name meant to be declared, or

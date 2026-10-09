@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "note": "A made-up policy for the loader and triage tests. Unknown keys like this one are ignored.",
+  "floor": {
+    "floor-a": {
+      "description": "A made-up floor id."
+    },
+    "floor-b": {
+      "description": "Another made-up floor id."
+    }
+  },
+  "families": {
+    "example-family": {
+      "class": "decide-alone",
+      "max": "record",
+      "description": "Settles alone, up to record."
+    },
+    "guarded-family": {
+      "class": "record",
+      "floor": [
+        "floor-a"
+      ],
+      "description": "Carries a floor id."
+    },
+    "careful-family": {
+      "class": "approve",
+      "description": "Always approved.",
+      "extra": {
+        "nested": true
+      }
+    },
+    "fallback-family": {
+      "class": "consult",
+      "description": "Read for an item with no row."
+    }
+  },
+  "unknown_family": "fallback-family",
+  "table": [
+    {
+      "workflow": "sample",
+      "id": "gate-row",
+      "kind": "gate",
+      "families": [
+        "example-family",
+        "careful-family"
+      ],
+      "values": {
+        "enabled": "guarded-family"
+      },
+      "comment": "ignored"
+    },
+    {
+      "workflow": "sample",
+      "id": "floored-gate",
+      "kind": "gate",
+      "families": [
+        "guarded-family"
+      ]
+    },
+    {
+      "workflow": "sample",
+      "id": "area-choice",
+      "kind": "question",
+      "families": [
+        "example-family"
+      ]
+    }
+  ],
+  "bands": {
+    "clear": {
+      "description": "No raise of its own.",
+      "without_evidence": "leaning"
+    },
+    "leaning": {
+      "description": "At least consult.",
+      "at_least": "consult",
+      "without_evidence": "toss-up"
+    },
+    "toss-up": {
+      "description": "At least approve.",
+      "at_least": "approve"
+    }
+  },
+  "ceilings": {
+    "approve": {
+      "settles": "decide-alone",
+      "delegates": false
+    },
+    "advice": {
+      "settles": "record",
+      "delegates": true,
+      "description": "A made-up ceiling."
+    }
+  },
+  "default_ceiling": "approve"
+}

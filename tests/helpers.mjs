@@ -92,6 +92,29 @@ export function scratch(t, { fixture = null, type = 'development', name = '2026-
 }
 
 /**
+ * A scratch copy of the whole plugin tree, for a test that needs a file the
+ * engine reads from its own folder — the autonomy policy at
+ * `skills/workflow-engine/policy/autonomy-policy.json`, which the loader
+ * resolves from the module's location. `policy`, when given, is written there:
+ * an object as JSON, a string as it is (a malformed file is a string). Returns
+ * the copy's `workflow.mjs`, for `run`; removed when the test ends.
+ */
+export function scratchPlugin(t, { policy } = {}) {
+  // Real-pathed, so a path built from it matches what the copied engine resolves from its own location.
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister-plugin-')));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const plugin = path.join(root, 'maister');
+  fs.cpSync(path.join(ROOT, 'plugins/maister'), plugin, { recursive: true });
+  const engineDir = path.join(plugin, 'skills/workflow-engine');
+  if (policy !== undefined) {
+    const file = path.join(engineDir, 'policy/autonomy-policy.json');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, typeof policy === 'string' ? policy : `${JSON.stringify(policy, null, 2)}\n`);
+  }
+  return path.join(engineDir, 'scripts/workflow.mjs');
+}
+
+/**
  * A second run directory in the same scratch project — a sub-run's child sits
  * beside its parent. `path` is the repository-root-relative task path a parent
  * records for it.

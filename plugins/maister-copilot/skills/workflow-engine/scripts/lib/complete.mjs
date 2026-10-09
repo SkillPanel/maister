@@ -119,6 +119,7 @@ import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
 import { atClose } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
+import { gateAnswer } from './items.mjs';
 import { projectRootOf } from './state.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
@@ -200,19 +201,31 @@ function closeoutRefusal({ outbox, dispatchId }) {
 /**
  * The unfinished-nodes refusal: every owed node by id and recorded status, why
  * a guard could not rule one out when that is the reason, and the recovery —
- * the work that was missed, never a status written over it.
+ * the work that was missed, never a status written over it. A gate the
+ * skip-guard rule asks (`asked`) is owed whatever its guard reads, so the
+ * rule is explained only when such a gate is owed, and the record-skipped
+ * recovery is offered only for the others, and not at all when every owed
+ * node is such a gate.
  */
 function unfinished(state, { owed, drift }) {
-  const named = owed.map(({ id, status, guard }) => (guard
-    ? `${id} (${status}; its guard ${guard} reads a value that was never recorded)`
-    : `${id} (${status})`));
+  const named = owed.map(({ id, status, guard, asked }) => {
+    if (asked) return `${id} (${status}; a gate whose guard reads a value the run records, and more than a confirmation)`;
+    if (guard) return `${id} (${status}; its guard ${guard} reads a value that was never recorded)`;
+    return `${id} (${status})`;
+  });
   const one = owed.length === 1;
   const count = one ? 'a node has' : `${owed.length} nodes have`;
+  const anyAsked = owed.some(({ asked }) => asked);
   const rule = drift
     ? 'The definition this run froze cannot be re-read, or has changed since the freeze, so no guard was evaluated: every pending node whose needs are met counts.'
-    : `A pending node counts unless the graph keeps it off the path the run took — a false guard, or a need that ended failed or stopped which the node's on: does not accept — and nothing keeps ${one ? 'this one' : 'these'} off it.`;
+    : `A pending node counts unless the graph keeps it off the path the run took — a false guard, or a need that ended failed or stopped which the node's on: does not accept — and nothing keeps ${one ? 'this one' : 'these'} off it.`
+      + (anyAsked ? ' A false guard never keeps off a gate whose guard reads a value the run records and that is more than a confirmation: such a gate is asked whatever its guard reads.' : '');
+  const skippable = owed.filter(({ asked }) => !asked);
+  const skipped = skippable.length === 0 ? ''
+    : skippable.length === owed.length ? ', or record skipped for one whose guard is false'
+      : `, or record skipped for one whose guard is false (never for ${owed.filter(({ asked }) => asked).map(({ id }) => id).join(', ')})`;
   return `${state} records task.status completed, but ${count} not finished: ${named.join(', ')}. ${rule} `
-    + `Resume the run and run ${one ? 'it' : 'each of them'}, or record skipped for one whose guard is false; then write the closing patch again and run this verb again. `
+    + `Resume the run and run ${one ? 'it' : 'each of them'}${skipped}; then write the closing patch again and run this verb again. `
     + `A run that cannot finish ${one ? 'it' : 'them'} ends failed, or stopped with every unexecuted node, instead. Never record a node completed that did not run.`;
 }
 
@@ -371,11 +384,16 @@ function requestAnswer(runDir, node) {
   }
 }
 
-/** The last answer an in-session gate recorded on its summary, or null. */
+/**
+ * The last answer an in-session gate recorded on its summary, or null: the
+ * gate's answer — its last decision carrying an option — first, else the last
+ * decision with any answer text.
+ */
 function summaryAnswer(summary) {
   if (!isPlainObject(summary)) return null;
   const decisions = Array.isArray(summary.decisions) ? summary.decisions : [];
-  for (const decision of [...decisions].reverse()) {
+  const answer = gateAnswer(decisions);
+  for (const decision of answer ? [answer, ...[...decisions].reverse()] : [...decisions].reverse()) {
     if (!isPlainObject(decision)) continue;
     for (const key of ['answer', 'option', 'decision']) {
       if (typeof decision[key] === 'string' && decision[key] !== '') return decision[key];

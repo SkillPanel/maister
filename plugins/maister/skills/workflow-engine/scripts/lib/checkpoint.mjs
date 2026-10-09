@@ -104,7 +104,14 @@ const EFFECT_ORDER = { continue: 0, revise: 1, stop: 2 };
 const DETAILS_DESCRIPTION = 'Shows the full brief, risks included, then asks this again. Nothing is recorded.';
 
 /** What each grant an option declares does, in the words a label carries it in. */
-const GRANT_WORDS = { push: 'pushes the branch', 'pr-create': 'opens the pull request' };
+const GRANT_WORDS = {
+  push: 'pushes the branch',
+  'pr-create': 'opens the pull request',
+  tag: 'creates and pushes the release tag',
+  'tracker-write': 'writes to the issue tracker',
+  'browser-remote': 'browses named remote hosts',
+  spend: 'spends budget starting and steering runs',
+};
 
 /** The cut More details' preview ends with. */
 const DETAILS_CUT = 'Choose this to see the rest.';

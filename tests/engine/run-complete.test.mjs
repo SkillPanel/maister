@@ -188,6 +188,8 @@ function assertUnfinished(result, named) {
   assert.match(result.stderr, /^run-nodes-unfinished\b/);
   const listed = /not finished: (.*?)\. /.exec(result.stderr)?.[1] ?? '';
   assert.deepEqual(listed.split(', ').map(item => item.replace(/ \(.*$/, '')), named, result.stderr);
+  // No owed node here is a gate the skip-guard rule asks, so the rule is not explained.
+  assert.doesNotMatch(result.stderr, /asked whatever its guard reads/);
 }
 
 test('completed with every node ended: RUN-COMPLETE', t => {

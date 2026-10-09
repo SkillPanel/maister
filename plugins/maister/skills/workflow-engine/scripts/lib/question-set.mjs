@@ -22,7 +22,7 @@
 
 import { flowLine } from './checkpoint.mjs';
 import { HEADER_MAX } from './display.mjs';
-import { oneLine } from './items.mjs';
+import { oneLine, provenanceOf } from './items.mjs';
 
 /** The keys a question may carry; any other is a typo the operator would never see answered. */
 const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage'];
@@ -253,7 +253,7 @@ export function requestQuestions(request) {
  * An answer block — `{option, answers, answered_by, at, via}`, as the answer
  * file holds it — as one operator decision per question: what was chosen in
  * the operator's words, the question it answered, what was recommended and
- * whether it was taken. The first question falls back to `option` when
+ * whether it was taken, with the block's provenance (`PROVENANCE_KEYS`) on each. The first question falls back to `option` when
  * `answers` does not name it. Returns `{ok: true, decisions}` or
  * `{ok: false, errors}`.
  */
@@ -268,6 +268,8 @@ export function foldAnswer(questions, answer) {
   }
   const who = {};
   for (const key of ['answered_by', 'at', 'via']) if (isText(answer[key])) who[key] = answer[key];
+  // The answer's provenance rides on every decision it becomes; `grants` never does.
+  Object.assign(who, provenanceOf(answer));
   const decisions = questions.map((question, index) => {
     const where = `question "${question.id}"`;
     let given = Object.hasOwn(answers, question.id) ? answers[question.id] : undefined;

@@ -271,14 +271,19 @@ one answer and is not asked a second time:
 |---|---|
 | `push` | pushing the run's own branch |
 | `pr-create` | opening a pull request from it; never merging one |
+| `tag` | creating a release tag and pushing it |
+| `tracker-write` | writing to the issue tracker |
+| `browser-remote` | browsing named hosts beyond this machine |
+| `spend` | starting or steering runs that spend budget |
 
 `grants` is a non-empty list, each name once, on the continue option only — a stop ends the run
 and a revise asks the gate again, so no node after either answer would act on it. The engine
-itself grants no permission and pushes nothing. It shows the grant wherever the gate is shown, in
+itself grants no permission and acts on none. It shows each grant wherever the gate is shown, in
 the option's label and in the checkpoint, and that makes the answer an informed approval. A
-driver that delivers the answer registers the grant for the worker. The node prose after the
-gate does the push and opens the pull request, and asks nothing more. The grants are part of the
-graph's identity, in the closed set's order, so adopting one moves the definition's hash.
+driver that delivers the answer registers the grants for the worker. The node prose after the
+gate does what each grant names, and asks nothing more. The grants are part of the graph's
+identity, in the closed set's order, so adopting one moves the definition's hash; a name is only
+ever appended to the set, so a definition's hash stays where it was. No grant merges.
 
 **A gate may decide an optional step.** When the step after a gate is optional, the gate that
 approves the work before it asks both at once, with one continue per way on, and the step's
@@ -336,6 +341,18 @@ An all-of condition is still a `bool` an earlier node records. A reference to a 
 did not complete — skipped, failed or stopped — reads false. A completed node that never recorded
 the value is a defect the gate brief refuses to paper over. The closing gate of a guarded stretch repeats the stretch's guard,
 because an unguarded gate would fire for a stretch that never ran.
+
+**A guard may skip a gate only when someone chose the value it reads, or when the gate only
+confirms.** An input or a gate's value is a choice an operator made, so a guard on either may
+skip any gate. A value a non-gate node records — a `workflow:` node included, the reference
+negated or not — is the run's own finding, and nobody chose it. A gate guarded by one is skipped
+by its guard only when it is a **pure confirmation**: exactly one continue, with no `sets` and no
+`grants`; a revise or a stop beside it is allowed. Any other such gate decides something — which
+way the run goes, or what the answer grants — and is **asked whatever its guard reads**: the ready
+set takes it as ready once its needs are met, the brief walks to it, and `run-complete` holds it
+owed and never offers to record it skipped. Validation warns `skip-guard-not-pure:<node>`; nothing
+is refused. A write that records such a gate `skipped` lands and warns `skip-guard-skipped:<node>`.
+The fix is a guard on an input or a gate's value, or a gate reduced to a single plain continue.
 
 <!-- vocabulary: ON_VALUES -->
 | `on` | The node runs when |
@@ -660,6 +677,7 @@ Warnings never block, and each one is worth reading:
 | `unresolved-subrun-input:<node>:<name>` | A required child input with no default missing from `with:`, or a `with:` key the child does not declare |
 | `unresolved-subrun-output:<node>:<name>` | A key the calling node declares that the child does not expose, or exposes at another path |
 | `undecidable-value-type:<path>` | A `string` value; prefer `bool`, `id` or an `enum` where the value is a handle |
+| `skip-guard-not-pure:<node>` | A gate guarded by a value a non-gate node records that is more than a pure confirmation, so it is asked whatever its guard reads (§ 7); guard it on an input or a gate's value, or make it a single continue with no `sets` and no `grants` |
 | `icon-hint-unknown-node:<path>:<node>`, `title-unknown-node:<path>:<node>` | Display for a node the graph does not carry |
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |

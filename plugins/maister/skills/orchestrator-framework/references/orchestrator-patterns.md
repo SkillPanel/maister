@@ -254,6 +254,7 @@ orchestrator:
   created: [ISO 8601 timestamp]
   updated: [ISO 8601 timestamp]
   task_path: .maister/tasks/[type]/YYYY-MM-DD-task-name
+  policy_hash: [sha256:…]  # writer-owned, recorded at freeze
 
 # Task metadata
 task:
