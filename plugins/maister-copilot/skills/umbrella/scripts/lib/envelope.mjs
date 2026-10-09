@@ -939,6 +939,14 @@ export function writeEnvelope({ run, envelope: document }) {
 }
 
 /**
+ * The two fields that carry an author's text — the node's `with:` arguments and
+ * the statement — go out as prose: a double quote in them is spelled, not
+ * refused (`canonical.mjs` says why that is safe here and nowhere else). Every
+ * other field is the runtime's own value and keeps the one-line rule.
+ */
+const PROSE = Object.freeze({ prose: true });
+
+/**
  * The document as YAML: one-line flow collections for every nested block, a
  * block map for `permissions`. Written key by key rather than through a generic
  * dumper — the emitter this file uses refuses a value it cannot spell on one
@@ -961,9 +969,9 @@ function emit(document) {
     `target: ${flow(document.target, 'target')}`,
     `provider: ${scalar(document.provider, 'provider')}`,
     `session: ${flow(document.session, 'session')}`,
-    `workflow: ${flow(document.workflow, 'workflow')}`,
+    `workflow: ${flow(document.workflow, 'workflow', PROSE)}`,
     `inputs: ${flow(document.inputs, 'inputs')}`,
-    `statement: ${scalar(document.statement, 'statement')}`,
+    `statement: ${scalar(document.statement, 'statement', PROSE)}`,
     `workspace_root: ${scalar(document.workspace_root, 'workspace_root')}`,
     `autonomy: ${scalar(document.autonomy, 'autonomy')}`,
     'permissions:',

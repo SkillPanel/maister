@@ -387,6 +387,11 @@ the report marked degraded. The other three refuse, because there is no frozen
 line for them and inventing one would freeze a sixth spelling forever. Their
 recovery is to retry once the path is writable, or to fold what they carried
 into the eventual close-out summary: a lost status line is not a lost result.
+Any message may add `needs` — a list of `permission`, `decision` or `input` — to
+say what it is waiting on. A worker holding a push or a pull request for an
+operator's approval sends a followup with `needs: [permission]` beside its prose:
+the prose tells a person what is held, and the field is what lets a reader
+offer the held action.
 
 ---
 
@@ -537,7 +542,7 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. If the dispatch really is being redone, it is a new dispatch. |
 | `dispatch-unwritable` | The dispatch directory could not be written. Fix the path or its permissions, then re-run. |
 | `dispatch-temp-exists` | Another writer holds the temp twin. Wait a minute and re-run; delete nothing. |
-| `value-not-flow-safe` | As above — an envelope value cannot be emitted safely on one line. Simplify it rather than repeating the write. |
+| `value-not-flow-safe` | As above — an envelope value cannot be emitted safely on one line. A double quote in the statement or a node's `with:` arguments is spelled safely and never refused; a line break there, or a quote in any other field, is. Simplify the value the report names rather than repeating the write. |
 
 ### Seed
 

@@ -16,6 +16,9 @@
  * cosmetic defect. So a value that cannot be emitted flow-safely is refused,
  * and the refusal carries `where`, the dotted location, because a state file
  * with forty nodes gives a caller no other way to find the offending value.
+ * The one exception is prose — an author's text in a dispatch envelope, which
+ * only the definition reader reads: there a double quote is spelled in YAML's
+ * single-quoted form rather than refused (see `scalar`).
  *
  * Why the publish path is exclusive and self-healing. The temp names are fixed
  * per writer, so exclusivity has to come from the open rather than a unique
@@ -69,7 +72,7 @@ const FLOW_KEY = /^[A-Za-z0-9._-]+$/;
  * that a caller emitting a lone value need not invent one; every caller inside
  * a document supplies it, and `flow` extends it key by key on the way down.
  */
-export function scalar(value, where = 'the value') {
+export function scalar(value, where = 'the value', { prose = false } = {}) {
   if (value === undefined || value === null) return 'null';
   if (typeof value === 'boolean') return String(value);
   if (typeof value === 'number') {
@@ -78,14 +81,24 @@ export function scalar(value, where = 'the value') {
   }
 
   const text = String(value);
-  if (/["\n\r]/.test(text)) {
+  if (/[\n\r]/.test(text) || (!prose && text.includes('"'))) {
     throw new Refusal('value-not-flow-safe',
       `${where} carries a quote, a newline or a carriage return, which the one-line reader cannot parse`);
   }
+  // Prose is the text an author wrote — a dispatch's statement, a node's
+  // `with:` arguments — in a document only the definition reader reads, which
+  // decodes YAML's single-quoted form, doubled quote included. There a double
+  // quote is ordinary punctuation, and refusing it would refuse at dispatch a
+  // chain `validate` already passed, because the definition the text came from
+  // spelled it legally. So prose takes the single-quoted spelling whenever a
+  // double quote is in it. Prose is also never a pre-spelled flow collection:
+  // `[UI] Rename the button` is a sentence, and passing it through raw would
+  // read back as a list.
+  if (prose && text.includes('"')) return `'${text.replace(/'/g, "''")}'`;
   // A value already spelled as a balanced flow collection is passed through:
   // this is how a `needs` or a `values` read back out of an existing entry
   // keeps its own shape instead of being re-quoted into a scalar.
-  if (isBalancedFlow(text)) return text;
+  if (!prose && isBalancedFlow(text)) return text;
   if (BARE_FLOW.test(text) && !RESERVED.test(text) && !NUMBERISH.test(text)) return text;
   // Once a backslash is in the value the quoting style stops being cosmetic.
   // A double-quoted YAML scalar gives the backslash meaning, so `"C:\Users\x"`
@@ -113,16 +126,16 @@ export function scalar(value, where = 'the value') {
  * write by hand, and it is threaded through every level, so a refusal names
  * `nodes.build.session.dir` rather than "a value somewhere".
  */
-export function flow(value, where) {
-  if (Array.isArray(value)) return `[${value.map(item => flow(item, where)).join(', ')}]`;
+export function flow(value, where, options = {}) {
+  if (Array.isArray(value)) return `[${value.map(item => flow(item, where, options)).join(', ')}]`;
   if (isPlainObject(value)) {
     const parts = Object.entries(value).map(([key, item]) => {
       assertFlowKey(key, where);
-      return `${key}: ${flow(item, `${where}.${key}`)}`;
+      return `${key}: ${flow(item, `${where}.${key}`, options)}`;
     });
     return `{${parts.join(', ')}}`;
   }
-  return scalar(value, where);
+  return scalar(value, where, options);
 }
 
 /**

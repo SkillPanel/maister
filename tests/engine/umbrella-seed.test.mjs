@@ -36,3 +36,28 @@ test('seed: a driven gate request comes from gate-brief --request alone, written
   assert.match(lines[brief + 1], /Then make one call to the gate-request verb/);
   assert.equal(lines.filter(line => /gate-request --state=/.test(line)).length, 1, 'one gate-request call');
 });
+
+test('seed: the worker records its dispatch id in the driver block, beside the kind and the cwd', () => {
+  const prompt = renderSeed(buildSeed(ENVELOPE, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
+  const lines = prompt.split('\n');
+  assert.ok(lines.length <= SEED_LINE_CAP, `the seed is ${lines.length} lines`);
+  const driver = lines.filter(line => line.includes('orchestrator.driver: {'));
+  assert.equal(driver.length, 1, 'one driver instruction');
+  assert.match(driver[0], /\{kind: dispatch, cwd: <[^>]+>, dispatch_id: d-0001\}/);
+});
+
+test('seed: an attended worker holding a push or a pull request reports it with needs: [permission], whether or not a pull request is required', () => {
+  for (const pr_required of [true, false]) {
+    const envelope = { ...ENVELOPE, closeout_contract: { pr_required } };
+    const prompt = renderSeed(buildSeed(envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
+    const lines = prompt.split('\n');
+    assert.ok(lines.length <= SEED_LINE_CAP, `the seed is ${lines.length} lines`);
+    const closeout = lines.slice(lines.indexOf('# closeout'), lines.indexOf('# siblings'));
+    const held = closeout.filter(line => /a push or a pull request is held for approval/.test(line));
+    assert.equal(held.length, 1, `pr_required ${pr_required}`);
+    assert.match(held[0], /followup message .*`needs: \[permission\]` in its body beside that summary/);
+    assert.match(held[0], /`DISPATCH-FOLLOWUP: `.* end the turn/);
+  }
+  const unattended = renderSeed(buildSeed({ ...ENVELOPE, autonomy: 'auto-high' }, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
+  assert.doesNotMatch(unattended, /needs: \[permission\]/, 'no tier but attended holds a command for approval');
+});

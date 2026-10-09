@@ -122,3 +122,33 @@ test('validate: control — the scaffolded convention names the member and passe
   const absent = validate(ws);
   assert.equal(absent.code, 0, JSON.stringify(absent.report.errors));
 });
+
+// A statement is an author's text, and an author may quote a button's label in
+// it. The chain spelled it legally, so `validate` passes it — and the envelope
+// has to publish it, quotes and all, or the operator learns at dispatch that a
+// valid chain cannot run. The seed reads it back unchanged.
+
+test('envelope: a statement carrying quotes that validate passes is published and read back by the seed unchanged', (t) => {
+  const ws = workspace(t);
+  const statement = `[UI] Rename the "Save" button to 'Keep'`;
+  const definition = chain(ws, [
+    'name: chain', 'version: 1', 'nodes:',
+    '  plan:', '    uses: workflow:plan', '    dir: alpha', '    provider: claude', '    needs: []',
+    '    with:', `      statement: '${statement.replace(/'/g, "''")}'`,
+  ].join('\n') + '\n');
+  assert.equal(validate(ws, definition).code, 0);
+  const run = path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain');
+  fs.mkdirSync(run, { recursive: true });
+  freeze({ state: path.join(run, 'orchestrator-state.yml') }, { definition });
+
+  const result = umbrella(['envelope', `--run=${run}`, '--node=plan',
+    `--ledger=${path.join(ws.root, '.maister/umbrella/ledger')}`, `--root=${ws.root}`], {});
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  const published = JSON.parse(result.stdout).path;
+
+  const seeded = umbrella(['seed', `--envelope=${published}`]);
+  assert.equal(seeded.code, 0, seeded.stdout + seeded.stderr);
+  const { descriptor, prompt } = JSON.parse(seeded.stdout);
+  assert.ok(prompt.split('\n').includes(`The work: ${statement}`), prompt);
+  assert.equal(descriptor.dispatch_id, 'd-0001');
+});

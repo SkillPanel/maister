@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DECLARED, ENGINE_DIR, FIXTURES, OPERATOR, SAMPLE, freeze, freezePatch, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { scanState } from '../../plugins/maister/lib/state-scan.mjs';
 
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 const CLOSING_CHILD = path.join(FIXTURES, 'definitions/closing-child.yml');
@@ -975,6 +976,24 @@ test('write-state: under a terminal driver an answer naming nobody is stamped te
   assert.deepEqual([stored.answered_by, stored.via], [OPERATOR, 'terminal']);
 });
 
+test('write-state: a dispatch driver\'s dispatch_id survives the freeze and every later write; a driver without one gains none', t => {
+  for (const driver of [{ kind: 'dispatch', cwd: '/work', dispatch_id: 'd-0001' }, { kind: 'dispatch', cwd: '/work' }]) {
+    const run = scratch(t);
+    freeze(run, { orchestrator: { driver } });
+    assert.deepEqual(readState(run).orchestrator.driver, driver, 'after the freeze');
+    for (const patch of [
+      { nodes: { analysis: { status: 'running' } } },
+      { orchestrator: { options: { html_output: false } } },
+      { node_summaries: { analysis: { decisions: [{ decision: 'Yes', by: 'operator', question_id: 'a', question: 'Proceed?', answer: 'Yes' }] } } },
+    ]) {
+      const result = write(run, patch);
+      assert.equal(result.code, 0, result.stderr);
+      assert.deepEqual(readState(run).orchestrator.driver, driver, JSON.stringify(patch));
+    }
+    assert.equal(scanState(fs.readFileSync(run.state, 'utf8')).driverKind, 'dispatch');
+  }
+});
+
 // ---------------------------------------------------------------------------
 // typed summary items: headline, decisions by source, risks by tag, roles, metrics
 // ---------------------------------------------------------------------------
@@ -1239,4 +1258,12 @@ test('task status: a sub-run records itself in progress at its own first step, a
   write(child, { nodes: { [graph.nodes[0].id]: { status: 'running' } } });
   assert.equal(readState(child).task.status, 'in_progress');
   assert.equal(readState(parent).task.status, 'in_progress');
+});
+
+test('write-state: a double quote in a state value is still refused — prose is spelled only in a dispatch envelope', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = verb(['write-state', `--state=${run.state}`], { orchestrator: { options: { note: 'the "Save" button' } } });
+  assert.equal(result.code, 1);
+  assert.match(result.stdout + result.stderr, /value-not-flow-safe/);
 });
