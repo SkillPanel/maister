@@ -887,13 +887,10 @@ reads them like any node's. A gate's values are the writer's alone: never send `
   gets no `actor` from the engine, and a `run`, `audit` or `default` settlement carries none.
   The five keys are record-only: `prior-context` never prints them.
 - **Triage**, under a policy that classifies the gate (Step 4) and whose hash is the run's
-  recorded `policy_hash`: the answer item gains `triage`, `{version: 1, class, floor?, family?,
-  band?, raised_by?}`, its class one of `decide-alone`, `record`, `consult` and `approve`. A
-  floor or a band only ever raises the class, and `raised_by` says which did. Each classified
-  value the chosen continue `sets` gains its own **settlement item** after the answer,
-  `{decision: "<key>: <value>", by: operator, ref: <key>, node: <gate>, triage, answered_by,
-  via, …}`, carrying the answer's provenance; the gate's answer is still its last decision with
-  an `option`. A `triage` already on an item is kept as written.
+  recorded `policy_hash`: the writer adds `triage` — `{version: 1, class, family, floor?, band?,
+  raised_by?}` — to the answer item, and one settlement item per classified value the chosen
+  continue `sets` right after it; the gate's answer is still its last decision with an `option`.
+  Send the answer only: never compose triage or a settlement item.
 - **The checkpoint.** Under the same policy, `approves` lists each classified value across the
   gate's continues as `{node, ref, class, floor?}`, `[]` otherwise — always under the built-in
   default — and `gate-brief --request` ends with the gate's `triage`. `decisions.operator` gains `actors`,
@@ -1755,13 +1752,9 @@ able to write:
 Anything else is an error rather than a silent no-op. Never work around a refusal with an
 editor tool.
 
-**`orchestrator.policy_hash` is the writer's** (Step 4): never send it. **Two kinds of write
-judge a gate**, and only they write its triage and settlement items (§ Gates): a write whose
-patch records the gate's answer — an operator decision with an `option` under its
-`node_summaries` entry, which `gate-revise` and a closing write that re-sends the answer are too —
-and the empty-patch re-validation of a driven answer, the write that closes the gate's row in
-`gates/index.yml`. Every other write leaves both as they are; nothing extra is kept in state to
-tell them apart. Two warnings print as plain `warning:` lines on stderr, and neither is ever a
+**`orchestrator.policy_hash` is the writer's** (Step 4): never send it. The writer judges a gate's
+triage itself, on the write that records its answer and on the re-validation of a driven answer
+(§ Gates). Three warnings print as plain `warning:` lines on stderr, and none is ever a
 refusal — the write lands and the exit code does not move:
 - **`policy-hash-mismatch:<gate>`** — the policy loaded now would classify the gate, but its hash
   is not the run's `policy_hash`, or the run recorded none. Nothing is classified; relay it.
@@ -1769,6 +1762,8 @@ refusal — the write lands and the exit code does not move:
 - **`skip-guard-skipped:<gate>`** — the write recorded `skipped` on a gate the skip-guard rule
   asks whatever its guard reads (grammar § 7). The status was written as sent, and nothing
   checks it later: ask the gate and record its answer.
+- **`provenance-unusable:<node>:<key>`** — an answer's provenance value holds a map key the state
+  file cannot carry, so it was left off the decision; relay it, naming the request file it gives.
 
 ### One write per moment
 

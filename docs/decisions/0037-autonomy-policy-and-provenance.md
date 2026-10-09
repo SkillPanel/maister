@@ -22,7 +22,8 @@ built-in hash moves.
   `triage`; a gate gains settlement items; the checkpoint fills `approves` (ADR-0030) and counts
   operator answers by actor kind.
 - Validation gains `skip-guard-not-pure:<node>`; the state writer gains `skip-guard-skipped:<node>`,
-  `policy-hash-mismatch:<node>` and `policy-refused:<path>:<reason>`. All four are warnings.
+  `policy-hash-mismatch:<node>`, `policy-refused:<path>:<reason>` and
+  `provenance-unusable:<node>:<key>`. All five are warnings.
 
 ### Context
 A driver that answers gates for an operator, and an operator reviewing a run afterwards, both
@@ -46,7 +47,7 @@ arrays in order, no whitespace, unknown keys included. It is the hash of the pol
 refused file records the default's. The freeze records it as `orchestrator.policy_hash`. A patch
 value is ignored with a note, and no later write moves it.
 
-**Triage.** `{version: 1, class, floor?, family?, band?, raised_by?}`, the class one of
+**Triage.** `{version: 1, class, family, floor?, band?, raised_by?}`, `family` always written, the class one of
 `decide-alone` < `record` < `consult` < `approve`. A row's family gives the starting class. A
 floor or a band only raises it, and `raised_by` says which. Triage is written only under a policy
 that classifies the gate and whose hash equals the run's, and only on a write that judges the
@@ -61,7 +62,10 @@ answers, question-set folds, `gate-revise`, and a driven answer's request file. 
 copies the answer file's `answer` block into the request whole, less `grants`. A terminal answer
 gains `actor: {kind: person, id: <answered_by>}`; the engine gives a driven answer none. The keys
 are record-only and never reach a delegate's prior context. The checkpoint counts operator answers
-by actor kind, `unknown` for one with none.
+by actor kind, `unknown` for one with none. Held provenance follows a re-sent answer only when it
+is the same answer, and a request file's block only when it holds the gate's answer. A value whose
+map keys the state file cannot carry is left off the decision with a `provenance-unusable` warning,
+never a refusal, and `grants` sent on any decision is dropped.
 
 **The skip-guard rule.** A gate whose guard reads a value a non-gate node records is skipped by
 its guard only when it is a pure confirmation: one continue, with no `sets` and no `grants`.
