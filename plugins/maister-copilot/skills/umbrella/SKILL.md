@@ -396,7 +396,9 @@ Any message may add `needs` â€” a list of `permission`, `decision` or `input` â€
 say what it is waiting on. A worker holding a push or a pull request for an
 operator's approval sends a followup with `needs: [permission]` beside its prose:
 the prose tells a person what is held, and the field is what lets a reader
-offer the held action.
+offer the held action. A worker whose tier forbids the push and has no operator
+to relay it sends the same followup when it ends with commits unpushed, then
+closes out in that turn with `prs` empty.
 
 ---
 

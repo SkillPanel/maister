@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { ROOT } from '../helpers.mjs';
 import { buildSeed, renderSeed, SEED_LINE_CAP } from '../../plugins/maister/skills/umbrella/scripts/lib/seed.mjs';
+import { PERMISSIONS } from '../../plugins/maister/skills/umbrella/scripts/lib/envelope.mjs';
 
 // A dispatched worker suspends at a gate on a request it did not compose: the
 // seed names gate-brief --request as the request's only source, its output
@@ -60,4 +61,53 @@ test('seed: an attended worker holding a push or a pull request reports it with 
   }
   const unattended = renderSeed(buildSeed({ ...ENVELOPE, autonomy: 'auto-high' }, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
   assert.doesNotMatch(unattended, /needs: \[permission\]/, 'no tier but attended holds a command for approval');
+});
+
+// The close-out section per tier and per `pr_required`, rendered from the
+// envelope's own permissions as each tier's preset gives them. A worker left
+// with publication undone reports the held command in a structured followup at
+// every tier that cannot publish on its own; how it ends the turn depends on
+// whether an operator answers inside the dispatch.
+
+function closeoutOf(autonomy, pr_required) {
+  const envelope = {
+    ...ENVELOPE, autonomy, permissions: PERMISSIONS[autonomy],
+    ...(pr_required === undefined ? {} : { closeout_contract: { pr_required } }),
+  };
+  const lines = renderSeed(buildSeed(envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') })).split('\n');
+  assert.ok(lines.length <= SEED_LINE_CAP, `${autonomy} ${pr_required}: the seed is ${lines.length} lines`);
+  return lines.slice(lines.indexOf('# closeout'), lines.indexOf('# siblings'));
+}
+
+const unpublished = closeout => closeout.filter(line => /commits on your branch that are not pushed/.test(line));
+
+test('seed: an attended worker ends the turn on the held-command followup, pull request required or not', () => {
+  for (const pr_required of [true, false]) {
+    const closeout = closeoutOf('attended', pr_required);
+    assert.equal(closeout.filter(line => /a push or a pull request is held for approval/.test(line)).length, 1);
+    assert.deepEqual(unpublished(closeout), [], 'an attended worker is relayed, not told to close out');
+  }
+});
+
+test('seed: a worker whose tier forbids the push reports it with needs: [permission], then closes out in the same turn', () => {
+  for (const autonomy of ['auto-medium', 'auto-low']) {
+    const closeout = closeoutOf(autonomy, false);
+    assert.ok(closeout.some(line => /No pull request is required - your tier denies opening one/.test(line)), autonomy);
+    const line = unpublished(closeout);
+    assert.equal(line.length, 1, autonomy);
+    assert.match(line[0], /`git push` of your branch, and `gh pr create` when a pull request is owed/);
+    assert.match(line[0], /followup message .*`needs: \[permission\]` in its body beside that summary/);
+    assert.match(line[0], /publish the closeout in the same turn, `prs` empty/);
+    assert.ok(closeout.every(text => !/held for approval/.test(text)), `${autonomy} has no operator relay`);
+  }
+});
+
+test('seed: the top tier publishes on its own, so it is never told to hold a command', () => {
+  const required = closeoutOf('auto-high', true);
+  assert.ok(required.some(line => /A pull request is required before close-out; open it/.test(line)));
+  const declined = closeoutOf('auto-high', false);
+  assert.ok(declined.some(line => /Do not open one anyway/.test(line)));
+  for (const closeout of [required, declined]) {
+    assert.ok(closeout.every(line => !/needs: \[permission\]/.test(line)), closeout.join('\n'));
+  }
 });
