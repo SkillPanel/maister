@@ -1218,18 +1218,22 @@ re-validation through the writer.
    `GATE-INVALID: <reason>`, write nothing, stay suspended.
 3. `gate_pending` already `null` → print `GATE-ALREADY-ANSWERED`, write nothing. A gate is
    answered once.
-4. Otherwise record, **in this order**: the `answer:` block in `gates/<node>.request.yml`,
-   then `node_summaries.<node>` and the node's `status: completed`, then
+4. Otherwise record, **in this order**: the `answer:` block in `gates/<node>.request.yml` —
+   the answer file's `answer` block copied whole, **less `grants`**, which never lands in a
+   request's answer — then `node_summaries.<node>` and the node's `status: completed`, then
    **`gate_pending: null` last**. The order matters because the marker is what keeps the run
    pending: clearing it first would end the suspension before the decision was recorded.
 5. The instant the marker is null the gate is no longer pending, so the very next action is
    `write-state --state=<state>` with the empty patch, `{}`, as the patch file's body (§ The
    invocation contract) — the marker is already null, so the file may be written. It is
    not a no-op: the writer reads the file the editor tools just wrote, self-checks it through
-   the shared state reader, and re-publishes it. The file changes by one line
-   (`orchestrator.updated`) — two when the chosen continue sets gate values, which the writer
-   records on the gate's entry from the answer the editor tools wrote — and that is the expected
-   result. The same write regenerates
+   the shared state reader, and re-publishes it. The expected change is
+   `orchestrator.updated`; the gate's values, when the chosen continue sets any, recorded on
+   its entry from the answer the editor tools wrote; the provenance keys (`actor`,
+   `on_behalf_of`, `policy`, `evidence`, `override_of`) copied from the request's answer block
+   onto the gate's answer item where it lacks them; and, under a policy that classifies the
+   gate, that item's `triage` and one settlement item per classified value. None of that is
+   drift. The same write regenerates
    `gates/index.yml`, closing the answered gate's row. This is what keeps the editor-
    tool exception honest — model-authored state is accepted only after the writer has read
    it back and agreed.
@@ -1249,15 +1253,15 @@ its work:
    `answer.option`, which is what the `GATE-ANSWER` line carries. A question with no answer, an
    id the question does not offer, a list for a single choice, or own words where they are not
    taken → `GATE-INVALID: <reason>`, nothing written, still suspended.
-2. **Record, in this order:** the answer block, whole, in `gates/<node>.request.yml`; then the
-   node's `status` back to **`running`** — never `completed`; then `gate_pending: null` last.
-   Then the empty-patch re-validation, as in step 5.
+2. **Record, in this order:** the answer block, whole **less `grants`**, in
+   `gates/<node>.request.yml`; then the node's `status` back to **`running`** — never
+   `completed`; then `gate_pending: null` last. Then the empty-patch re-validation, as in step 5.
 3. **Then record the answers through the writer**: send
    `{"node_summaries": {"<node>": {"answer": <the answer block, whole>}}}`, the block copied
    from the answer file as it stands. The writer reads the questions from the node's request
    file and records one `by: operator` decision per question — the question, the answer in the
    option's words, the recommended answer and whether it was taken, who answered, when and
-   through what. Compose none of it. Then continue the node from what it wrote to disk before
+   through what, and the block's provenance keys — never its `grants`. Compose none of it. Then continue the node from what it wrote to disk before
    it asked.
 
 A refusal at step 3 is `state-question-answer-invalid` (*When a write is refused*).

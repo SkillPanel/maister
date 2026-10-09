@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
+import { FIXTURES, OPERATOR, freeze, readState, scratch, verb, write } from '../helpers.mjs';
 import { gateAnswer } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
+import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
 // A gate's answer is the last decision carrying an option, and every reader of
 // that answer goes through one helper: an item recorded after the answer — a
@@ -60,4 +61,179 @@ test('the shared reader: the last decision with an option is the answer, whateve
   });
   const closed = verb(['run-complete', `--state=${stopped.state}`]);
   assert.equal(closed.stdout, 'run stopped: approval - stop-here\nRUN-COMPLETE\n');
+});
+
+// ---------------------------------------------------------------------------
+// provenance: who answered, on whose behalf, under what, and on what evidence
+// ---------------------------------------------------------------------------
+
+/** The keys an answer's provenance is carried in; `grants` is never one of them. */
+const PROVENANCE = ['actor', 'on_behalf_of', 'policy', 'evidence', 'override_of'];
+const PERSON = { kind: 'person', id: OPERATOR };
+const COCKPIT = { kind: 'cockpit', cwd: '/work', features: ['question-sets'] };
+
+const read = file => JSON.parse(JSON.stringify(parse(fs.readFileSync(file, 'utf8'))));
+const pick = (item, keys) => Object.fromEntries(keys.filter(key => Object.hasOwn(item, key)).map(key => [key, item[key]]));
+
+/** No decision anywhere in the run's state carries `grants`. */
+function noGrants(run) {
+  for (const [id, summary] of Object.entries(readState(run).node_summaries ?? {})) {
+    for (const item of summary?.decisions ?? []) {
+      assert.equal(Object.hasOwn(Object(item), 'grants'), false, `${id}: ${JSON.stringify(item)}`);
+    }
+  }
+}
+
+test('a terminal gate answer gains a person actor; one carrying its own name and no via gains none', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'publish-draft' }] } },
+  });
+  const [stamped] = readState(run).node_summaries['review-approval'].decisions;
+  assert.deepEqual([stamped.answered_by, stamped.via, stamped.actor], [OPERATOR, 'terminal', PERSON]);
+
+  const named = scratch(t);
+  freeze(named, { definition: REVISE });
+  write(named, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'publish-draft', answered_by: '@marek' }] } },
+  });
+  const [kept] = readState(named).node_summaries['review-approval'].decisions;
+  assert.equal(kept.answered_by, '@marek');
+  assert.equal(Object.hasOwn(kept, 'via'), false);
+  assert.equal(Object.hasOwn(kept, 'actor'), false, 'no via, so no actor');
+});
+
+test('a terminal in-node answer gains the same actor; a run decision and an actor already carried are left alone', t => {
+  const run = scratch(t);
+  freeze(run);
+  const own = { kind: 'agent', id: 'helper' };
+  write(run, {
+    node_summaries: {
+      analysis: {
+        decisions: [
+          { decision: 'Yes', by: 'operator', question_id: 'a', question: 'Proceed?', answer: 'Yes' },
+          { decision: 'No', by: 'operator', question_id: 'b', question: 'Widen it?', answer: 'No', actor: own },
+          { decision: 'Kept', by: 'run' },
+          { decision: 'Taken', by: 'default', question_id: 'c' },
+        ],
+      },
+    },
+  });
+  const stored = readState(run).node_summaries.analysis.decisions;
+  assert.deepEqual(stored[0].actor, PERSON);
+  assert.deepEqual(stored[1].actor, own);
+  assert.deepEqual(stored[2], { decision: 'Kept', by: 'run' });
+  assert.deepEqual(stored[3], { decision: 'Taken', by: 'default', question_id: 'c' });
+});
+
+test('gate-revise copies provenance from its patch file, else from the folded answer, and stamps the terminal actor', t => {
+  const terminal = scratch(t);
+  freeze(terminal, { definition: REVISE });
+  write(terminal, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } } });
+  write(terminal, { nodes: { figures: { status: 'skipped' }, 'side-note': { status: 'completed' }, review: { status: 'completed' } } });
+  const sent = verb(['gate-revise', `--state=${terminal.state}`, '--node=review-approval', '--option=send-back'],
+    { note: 'Tighten the intro', on_behalf_of: 'lee', evidence: ['review.md'], grants: ['push'] });
+  assert.equal(sent.code, 0, sent.stderr);
+  const [revised] = readState(terminal).node_summaries['review-approval'].decisions;
+  assert.deepEqual(pick(revised, [...PROVENANCE, 'grants']), { actor: PERSON, on_behalf_of: 'lee', evidence: ['review.md'] });
+
+  const driven = scratch(t);
+  freeze(driven, { definition: REVISE, orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  write(driven, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } } });
+  write(driven, { nodes: { figures: { status: 'skipped' }, 'side-note': { status: 'completed' }, review: { status: 'completed' } } });
+  const held = { policy: { name: 'sample-policy' }, override_of: 'publish-draft', on_behalf_of: 'lee' };
+  write(driven, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'send-back', answered_by: 'dana', at: '2026-01-05T10:00:00Z', via: 'cockpit', ...held }] } },
+  });
+  const folded = verb(['gate-revise', `--state=${driven.state}`, '--node=review-approval', '--option=send-back'],
+    { note: 'Tighten the intro', on_behalf_of: 'kim' });
+  assert.equal(folded.code, 0, folded.stderr);
+  const [carried] = readState(driven).node_summaries['review-approval'].decisions;
+  assert.deepEqual(pick(carried, PROVENANCE), { ...held, on_behalf_of: 'kim' }, 'the patch file wins key by key; no actor for a driven answer');
+});
+
+test('a question-set fold copies the five provenance keys and never grants', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: COCKPIT } });
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  const answerFile = path.join(FIXTURES, 'gates/question-set.provenance.answer.yml');
+  const { answer } = read(answerFile);
+  assert.deepEqual(answer.grants, ['push'], 'the answer file the driver wrote carries grants');
+  const { grants: _grants, ...copied } = answer;
+  // The request file holds the answer block whole, less grants, as the driver copies it.
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  const request = fs.readFileSync(path.join(FIXTURES, 'gates/question-set.request.yml'), 'utf8')
+    .replace(/^answer: null\n$/m, fs.readFileSync(answerFile, 'utf8').replace(/^ {2}grants: .*\n/m, ''));
+  fs.writeFileSync(path.join(run.dir, 'gates/analysis.request.yml'), request);
+  assert.deepEqual(read(path.join(run.dir, 'gates/analysis.request.yml')).answer, copied);
+
+  write(run, { node_summaries: { analysis: { answer } } });
+  const decisions = readState(run).node_summaries.analysis.decisions;
+  assert.equal(decisions.length, 3);
+  for (const item of decisions) assert.deepEqual(pick(item, [...PROVENANCE, 'grants']), pick(answer, PROVENANCE));
+  noGrants(run);
+});
+
+test('a driven gate answer gains the request file\'s provenance; grants reach neither the request nor a decision', t => {
+  const run = scratch(t, { fixture: 'gate' });
+  freeze(run, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  write(run, {
+    orchestrator: { gate_pending: { node: 'approval', request: 'gates/approval.request.yml', since: '2026-01-05T09:00:00Z' } },
+    nodes: { approval: { status: 'suspended' } },
+  });
+  const { answer } = read(path.join(FIXTURES, 'gates/approval.provenance.answer.yml'));
+  const request = read(path.join(FIXTURES, 'gates/approval.provenance.yml'));
+  const { grants: _grants, ...copied } = answer;
+  assert.deepEqual(request.answer, copied, 'the request holds the answer file\'s block whole, less grants');
+
+  fs.copyFileSync(path.join(FIXTURES, 'gates/approval.provenance.yml'), path.join(run.dir, 'gates/approval.request.yml'));
+  write(run, {
+    orchestrator: { gate_pending: null },
+    nodes: { approval: { status: 'completed' } },
+    node_summaries: { approval: { decisions: [{ option: 'continue', answered_by: 'dana', at: '2026-01-05T09:05:00Z', via: 'cockpit' }] } },
+  });
+  write(run, {});
+  const [item] = readState(run).node_summaries.approval.decisions;
+  assert.deepEqual(pick(item, [...PROVENANCE, 'grants']), pick(answer, ['on_behalf_of', 'policy', 'evidence', 'override_of']),
+    'copied from the request file; the engine adds no actor to a driven answer');
+  noGrants(run);
+});
+
+test('a re-sent in-node answer, sent without its attempt, keeps the held answer\'s provenance', t => {
+  const run = scratch(t);
+  freeze(run);
+  const asked = { decision: 'Yes', by: 'operator', question_id: 'scope', question: 'Proceed?', answer: 'Yes', answered_by: 'dana', via: 'cockpit' };
+  const provenance = { actor: { kind: 'agent', id: 'helper' }, on_behalf_of: 'dana', policy: { name: 'sample-policy' }, evidence: ['notes.md'], override_of: 'No' };
+  write(run, {
+    node_summaries: { analysis: { decisions: [{ ...asked, answer: 'No', decision: 'No', attempt: 1 }, { ...asked, attempt: 2, ...provenance }] } },
+  });
+  write(run, { node_summaries: { analysis: { decisions: [asked] } } });
+  const stored = readState(run).node_summaries.analysis.decisions;
+  assert.deepEqual(stored.map(item => [item.answer, item.attempt]), [['No', 1], ['Yes', 2]]);
+  assert.deepEqual(pick(stored[1], PROVENANCE), provenance);
+  assert.deepEqual(pick(stored[0], PROVENANCE), {}, 'the earlier attempt keeps only what it carried');
+});
+
+test('prior-context hides the five provenance keys, as it hides when and how an answer arrived', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, {
+    node_summaries: {
+      analysis: {
+        summary: 'Scoped the change.',
+        decisions: [{ decision: 'Yes', by: 'operator', question_id: 'a', question: 'Proceed?', answer: 'Yes', answered_by: 'dana', via: 'cockpit',
+          actor: { kind: 'agent', id: 'helper' }, on_behalf_of: 'lee', policy: { name: 'sample-policy' }, evidence: ['notes.md'], override_of: 'No' }],
+      },
+    },
+  });
+  const result = verb(['prior-context', `--state=${run.state}`]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Proceed\?/);
+  for (const key of [...PROVENANCE, 'via']) assert.doesNotMatch(result.stdout, new RegExp(`\\b${key}\\b`), key);
+  assert.doesNotMatch(result.stdout, /helper|sample-policy|notes\.md/);
 });

@@ -39,7 +39,7 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
 import { reviseStretch } from './graph.mjs';
-import { gateAnswer } from './items.mjs';
+import { PROVENANCE_KEYS, gateAnswer, withPersonActor, withProvenance } from './items.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
 
 /**
@@ -66,7 +66,8 @@ const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
  * revise option `option`. `input` is the patch file's document: `{note,
  * answered_by?, at?, via?}` — `at` the answer's stamp when a driver carried one,
  * the writer's own clock otherwise; `via` how the answer reached the run, when
- * the caller knows it.
+ * the caller knows it — and any provenance the answer carried
+ * (`PROVENANCE_KEYS`), recorded on the decision.
  */
 export function gateRevise({ state, node, option, input }) {
   let doc;
@@ -151,7 +152,12 @@ export function gateRevise({ state, node, option, input }) {
   const sent = typeof answer.via === 'string' && answer.via.trim() !== '' ? answer.via.trim()
     : (folded && typeof latest.via === 'string' ? latest.via : null);
   const via = sent ?? (carried === null ? answerVia(doc) : null);
-  const decision = {
+  // Provenance: each key the patch file carries, else the folded answer's;
+  // `grants` is never copied. An answer given at this terminal is then
+  // credited to the person who gave it, as the writer credits every one.
+  const provenance = withProvenance(Object.fromEntries(PROVENANCE_KEYS
+    .filter(key => answer[key] !== undefined && answer[key] !== null).map(key => [key, answer[key]])), folded ? latest : null);
+  const decision = withPersonActor({
     option,
     answered_by: carried ?? operatorName(path.dirname(state)),
     ...(via === null ? {} : { via }),
@@ -159,7 +165,8 @@ export function gateRevise({ state, node, option, input }) {
     attempt,
     reruns,
     note,
-  };
+    ...provenance,
+  });
   const summary = summaryOf(doc, node);
   delete summary.status;
   // The revise decision takes the folded answer's place; anything recorded

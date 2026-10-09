@@ -156,6 +156,42 @@ export function decisionOf(item, labelFor = null) {
 }
 
 /**
+ * The keys an answer's provenance is carried in, copied from an answer onto
+ * the decision it becomes: who acted (`actor`), for whom (`on_behalf_of`),
+ * under which rule (`policy`), on what (`evidence`) and which recommendation
+ * it set aside (`override_of`). `grants` is never among them: what an answer
+ * authorises belongs to the option, and is never copied onto a decision.
+ */
+export const PROVENANCE_KEYS = ['actor', 'on_behalf_of', 'policy', 'evidence', 'override_of'];
+
+/**
+ * `item` with each provenance key `source` carries and `item` lacks. A key
+ * holding null or nothing counts as absent on either side.
+ */
+export function withProvenance(item, source) {
+  if (!isMap(item) || !isMap(source)) return item;
+  const missing = PROVENANCE_KEYS.filter(key => !hasValue(item, key) && hasValue(source, key));
+  return missing.length ? { ...item, ...Object.fromEntries(missing.map(key => [key, source[key]])) } : item;
+}
+
+/**
+ * An operator answer given at this terminal credited to the person who gave
+ * it: `actor: {kind: person, id: <answered_by>}` added when its `via` is
+ * `terminal` and it carries no `actor`. An answer with no `via`, or one a
+ * driver carried, is left as it is: the engine knows who sat at the terminal,
+ * and nothing about who acted elsewhere.
+ */
+export function withPersonActor(item) {
+  if (!isMap(item) || item.via !== 'terminal' || hasValue(item, 'actor')) return item;
+  const id = typeof item.answered_by === 'string' ? item.answered_by.trim() : '';
+  return id === '' ? item : { ...item, actor: { kind: 'person', id } };
+}
+
+function hasValue(map, key) {
+  return Object.hasOwn(map, key) && map[key] !== null && map[key] !== undefined;
+}
+
+/**
  * A gate's answer among its decisions: the last item carrying a string
  * `option`, or null when none does. A gate's decisions may hold more than its
  * answer — a note the run recorded after it, an earlier attempt's revise — so

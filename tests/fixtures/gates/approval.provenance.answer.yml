@@ -1,0 +1,10 @@
+answer:
+  option: continue
+  answered_by: dana
+  at: "2026-01-05T09:05:00Z"
+  via: cockpit
+  on_behalf_of: lee
+  policy: {name: sample-policy, rule: review-first}
+  evidence: [analysis/report.md]
+  override_of: stop-here
+  grants: [push]

@@ -1,0 +1,15 @@
+answer:
+  option: all
+  answers:
+    tag-filter: all
+    tag-case: folded
+    csv-extras: [timestamp, emoji]
+  answered_by: dana
+  at: "2026-01-05T09:12:00Z"
+  via: cockpit
+  actor: {kind: agent, id: helper}
+  on_behalf_of: dana
+  policy: {name: sample-policy, rule: ask-first}
+  evidence: [analysis/report.md]
+  override_of: any
+  grants: [push]

@@ -85,7 +85,7 @@ import * as dashboard from './dashboard.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, oneLine } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, oneLine, withPersonActor, withProvenance } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -1099,6 +1099,7 @@ function apply(doc, patch, changed, now, runDir, ignored, undeclared, regress = 
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
+  if (runDir !== null) copyDrivenProvenance(doc, runDir, changed);
   stampGateValues(doc, patch, changed);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
@@ -2357,7 +2358,8 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         entry.decisions = [...earlierRevisions(doc, key, entry.decisions), ...entry.decisions];
       } else {
         via ??= answerVia(parseState(doc.text()));
-        entry.decisions = keepAttempts(heldOf(key)?.decisions, stampAnswers(entry.decisions, runDir, via));
+        const prior = heldOf(key)?.decisions;
+        entry.decisions = stampAnswers(keepProvenance(prior, keepAttempts(prior, entry.decisions)), runDir, via);
         entry.decisions = [...earlierAnswers(heldOf(key)?.decisions, entry.decisions), ...entry.decisions];
       }
     }
@@ -2570,15 +2572,17 @@ const FLAT_ANSWER = ['answer', 'answered_by', 'at', 'via'];
 /**
  * A gate summary with a flat answer — `answer: <option id>` and who answered
  * beside it — moved into its `decisions` as `{option, answered_by, at, via}`,
- * the one shape a gate answer has. The flat form carried no `decision` and no
+ * the one shape a gate answer has, with any provenance written beside it
+ * (`PROVENANCE_KEYS`) moved along. The flat form carried no `decision` and no
  * `by`, so every reader that reads a gate's decisions found the gate
  * unanswered. An `answer` that is not an option id is left as it is.
  */
 function foldFlatAnswer(entry) {
   if (typeof entry.answer !== 'string' || entry.answer.trim() === '') return entry;
+  const moved = [...FLAT_ANSWER, ...PROVENANCE_KEYS];
   const answer = { option: entry.answer.trim() };
-  for (const field of FLAT_ANSWER.slice(1)) if (Object.hasOwn(entry, field)) answer[field] = entry[field];
-  const rest = Object.fromEntries(Object.entries(entry).filter(([field]) => !FLAT_ANSWER.includes(field)));
+  for (const field of moved.slice(1)) if (Object.hasOwn(entry, field)) answer[field] = entry[field];
+  const rest = Object.fromEntries(Object.entries(entry).filter(([field]) => !moved.includes(field)));
   const decisions = Array.isArray(entry.decisions) ? entry.decisions : [];
   const sent = decisions.some(item => isPlainObject(item) && item.option === answer.option && !Object.hasOwn(item, 'attempt'));
   return { ...rest, decisions: sent ? decisions : [...decisions, answer] };
@@ -2641,14 +2645,17 @@ const PLACEHOLDER_NAMES = new Set(['', 'user', 'operator', 'you']);
  * placeholder, gets the operator's name (`operatorName`) and, when it says no
  * `via`, the way the run is driven (`answerVia`), since only an answer given in
  * session arrives without one. A name the answer carries — from a driver's
- * answer line — is kept, and so is a `via` it carries.
+ * answer line — is kept, and so is a `via` it carries. An answer whose `via`
+ * reads `terminal` once stamped is then credited to that person as its
+ * `actor` (`withPersonActor`); one with no `via`, or a driver's, gains none,
+ * and a decision the run, an audit or a default settled is never touched.
  */
 function stampAnswers(decisions, runDir, via) {
   return decisions.map(item => {
     if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
     const name = typeof item.answered_by === 'string' ? item.answered_by.trim().toLowerCase() : '';
-    if (!PLACEHOLDER_NAMES.has(name)) return item;
-    return { ...item, answered_by: operatorName(runDir), ...(Object.hasOwn(item, 'via') ? {} : { via }) };
+    if (!PLACEHOLDER_NAMES.has(name)) return withPersonActor(item);
+    return withPersonActor({ ...item, answered_by: operatorName(runDir), ...(Object.hasOwn(item, 'via') ? {} : { via }) });
   });
 }
 
@@ -2745,6 +2752,25 @@ function keepAttempts(prior, decisions) {
     const held = prior.find(other => isPlainObject(other) && other.question_id === item.question_id
       && attemptNumber(other) !== null && !isEarlierAnswer(other, prior));
     return held ? { ...item, attempt: attemptNumber(held) } : item;
+  });
+}
+
+/**
+ * `decisions` with each answer sent again given the provenance the held answer
+ * to the same question carries and it lacks (`PROVENANCE_KEYS`). A closing
+ * write re-sends the current answers as the node remembers them, which is
+ * without what a driver attached when they were given; without this the
+ * re-sent answer replaced the held one and its provenance went with it. The
+ * held answer is matched as `keepAttempts` matches it — the same
+ * `question_id`, still current — and in the attempt `keepAttempts` filled in.
+ */
+function keepProvenance(prior, decisions) {
+  if (!Array.isArray(prior)) return decisions;
+  return decisions.map(item => {
+    if (!isPlainObject(item) || typeof item.question_id !== 'string' || decisionOf(item)?.by !== 'operator') return item;
+    const held = prior.find(other => isPlainObject(other) && other.question_id === item.question_id
+      && !isEarlierAnswer(other, prior) && (attemptNumber(other) ?? 1) === (attemptNumber(item) ?? 1));
+    return held ? withProvenance(item, held) : item;
   });
 }
 
@@ -2934,6 +2960,47 @@ function stampGateValues(doc, patch, changed) {
     if (values === undefined || sameValue(values, entry.values)) continue;
     doc.setNode(id, nodeLine(id, { ...raw[id], values }));
     if (!changed.includes(`workflow.nodes.${id}`)) changed.push(`workflow.nodes.${id}`);
+  }
+}
+
+/**
+ * A driven gate answer's provenance, copied by the writer. A driver's answer
+ * reaches the run as the `answer` block of `gates/<gate>.request.yml`, and the
+ * decision recorded beside it names the option and who answered — the rest of
+ * the block (`PROVENANCE_KEYS`) stayed in the request file. So on every write,
+ * for each completed gate whose request file holds an answer naming the same
+ * option as the gate's answer (`gateAnswer`), each key that answer lacks is
+ * copied from the block. Nothing else is: `grants` never reaches a decision.
+ * A gate with nothing to copy is not rewritten, and a request file that cannot
+ * be read copies nothing.
+ */
+function copyDrivenProvenance(doc, runDir, changed) {
+  let typed;
+  try {
+    typed = parseState(doc.text());
+  } catch (err) {
+    throw new Refusal('state-unreadable', `the existing state file cannot be read back: ${err.message}`);
+  }
+  const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (!isPlainObject(entry) || entry.kind !== 'gate' || entry.status !== 'completed') continue;
+    if (!Object.hasOwn(summaries, id) || !isPlainObject(summaries[id]) || !Array.isArray(summaries[id].decisions)) continue;
+    const decisions = summaries[id].decisions;
+    const answer = gateAnswer(decisions);
+    if (answer === null) continue;
+    let given;
+    try {
+      given = parseState(fs.readFileSync(path.join(runDir, 'gates', `${id}${REQUEST_SUFFIX}`), 'utf8')).answer;
+    } catch {
+      continue;
+    }
+    if (!isPlainObject(given) || given.option !== answer.option) continue;
+    const copied = withProvenance(answer, given);
+    if (copied === answer) continue;
+    const summary = { ...summaries[id], decisions: decisions.map(item => (item === answer ? copied : item)) };
+    doc.set(['node_summaries', id], block(id, summary, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
   }
 }
 

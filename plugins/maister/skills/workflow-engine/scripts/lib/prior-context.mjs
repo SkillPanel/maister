@@ -45,7 +45,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { isContextBlock } from './state.mjs';
 // A revise the run is in the middle of is found the way `resume-check` finds it.
 import { openRevision } from './revise.mjs';
-import { riskOf, riskText } from './items.mjs';
+import { PROVENANCE_KEYS, riskOf, riskText } from './items.mjs';
 
 /**
  * The two fields the artifact summary contract is written against. They lead
@@ -219,9 +219,11 @@ function section(field, items, always) {
 
 /**
  * The bookkeeping a typed decision carries — when and through which surface it
- * was answered, the reserved triage block — which says nothing a delegate acts on.
+ * was answered, the reserved triage block, and the answer's provenance (who
+ * acted, for whom, under which rule, on what evidence, what it overrode) —
+ * which says nothing a delegate acts on.
  */
-const RECORD_ONLY = new Set(['at', 'via', 'triage']);
+const RECORD_ONLY = new Set(['at', 'via', 'triage', ...PROVENANCE_KEYS]);
 
 /**
  * One item of a contract list. A typed risk reads `<tag>: <risk> → <change>`,

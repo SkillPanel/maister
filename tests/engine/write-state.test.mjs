@@ -834,6 +834,11 @@ function answered(id, answer, asRecommended = true) {
   return { decision: answer, by: 'operator', answered_by: 'marek', via: 'terminal', question_id: id, question: `Which ${id}?`, answer, as_recommended: asRecommended };
 }
 
+/** A decision as the writer stores it: an operator answer given at the terminal credited to its person as `actor`. */
+function credited(item) {
+  return item?.by === 'operator' && item.via === 'terminal' && !item.actor ? { ...item, actor: { kind: 'person', id: item.answered_by } } : item;
+}
+
 test('write-state: a later write retagging one risk keeps the summary, the artifacts and every answer', t => {
   const run = scratch(t);
   freeze(run);
@@ -871,12 +876,12 @@ test('write-state: a write of a node\'s decisions keeps the answers it leaves ou
   // The node runs again: it records what it settled this time and asks one question again.
   const again = [{ decision: 'Patch the lexer instead', by: 'run' }, answered('csv', 'LF')];
   write(run, { node_summaries: { analysis: { summary: 'Second pass.', decisions: again } } });
-  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [answered('scope', 'Tags only'), ...again],
+  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [answered('scope', 'Tags only'), ...again].map(credited),
     'the unasked answer is kept ahead of the new list; the re-asked one is replaced; the run\'s own decision is replaced');
 
   // Sending the whole list again duplicates nothing.
   write(run, { node_summaries: { analysis: { decisions: readState(run).node_summaries.analysis.decisions } } });
-  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [answered('scope', 'Tags only'), ...again]);
+  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [answered('scope', 'Tags only'), ...again].map(credited));
 });
 
 test('write-state: answers sharing one question_id are different answers when their questions differ', t => {
@@ -890,7 +895,7 @@ test('write-state: answers sharing one question_id are different answers when th
   // The node runs again and asks one of the four again.
   const again = [onPage('Which line endings', 'LF')];
   write(run, { node_summaries: { analysis: { summary: 'Second pass.', decisions: again } } });
-  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [first[0], first[1], first[3], ...again],
+  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [first[0], first[1], first[3], ...again].map(credited),
     'the three not asked again are kept; the re-asked one is replaced by its new answer');
 });
 
@@ -903,7 +908,7 @@ test('write-state: an exact re-ask replaces its answer, with or without a questi
 
   const again = [answered('csv', 'LF'), bare('Which scope?', 'Tags and notes')];
   write(run, { node_summaries: { analysis: { summary: 'Second pass.', decisions: again } } });
-  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [first[2], ...again],
+  assert.deepEqual(readState(run).node_summaries.analysis.decisions, [first[2], ...again].map(credited),
     'the same id and question replaces; the same question text replaces an answer that has no id, whatever was answered');
 });
 
@@ -918,6 +923,7 @@ test('write-state: a gate answer written flat on the summary is folded into its 
   const summary = readState(run).node_summaries['review-approval'];
   assert.deepEqual(summary.decisions, [{
     option: 'publish-draft', answered_by: OPERATOR, via: 'terminal', at: '2026-01-05T10:00:00Z', decision: 'Publish', by: 'operator',
+    actor: { kind: 'person', id: OPERATOR },
   }]);
   for (const field of ['answer', 'answered_by', 'at']) assert.equal(Object.hasOwn(summary, field), false, `no flat ${field} is left`);
 });
@@ -1036,7 +1042,7 @@ test('write-state: a summary takes a headline, typed decisions and risks, artifa
   assert.equal(result.code, 0, result.stderr);
   const stored = readState(run).node_summaries.analysis;
   assert.equal(stored.headline, summary.headline);
-  assert.deepEqual(stored.decisions, summary.decisions, 'every item kept as sent, strings included');
+  assert.deepEqual(stored.decisions, summary.decisions.map(credited), 'every item kept as sent, strings included; a terminal answer gains its actor');
   assert.deepEqual(stored.fixes_applied, summary.fixes_applied, 'a fix kept as sent, whichever of its two it names');
   assert.deepEqual(stored.risks, summary.risks);
   assert.deepEqual(stored.metrics, summary.metrics);
