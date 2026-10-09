@@ -293,12 +293,16 @@ Interactive workflow for designing features and products before building them. T
 
 When run without arguments, the plugin extracts the design brief from your conversation.
 
-**Flags**: `--research=PATH`, `--no-visual`, `--simple`
+**Flags**: `--research=PATH`, `--no-visual`, `--simple`, `--full`
 
 `--simple` runs the short design: no characteristics or context checkpoint, no personas, no
 brainstorm of alternatives or direction checkpoint, and no prototypes unless the description asks
 for screens. The specification states the approach itself, and you approve the problem and the
 specification before the brief and its delivery scope.
+
+`--full` runs the full design whatever the description suggests: the design is treated as
+complex, so personas are drafted and every phase goes to its deepest. Without it the depth
+follows what the run detects, and a short description of a modest change gets no personas.
 
 ### How it runs
 
@@ -323,7 +327,7 @@ the recommendations, and sending the run back names the ones you want instead.
 | 1 | Intake: gather context & detect characteristics | Always | Confirm the characteristics |
 | 2 | Context synthesis (codebase analysis or mini-research) | Always (scope adapts) | Approve the context |
 | 3 | Problem space exploration (interactive, iterative) | Always (depth adapts) | — |
-| 4 | User & persona exploration | Greenfield or complex designs | Approve the problem and personas |
+| 4 | User & persona exploration | Greenfield or complex designs, or `--full` | Approve the problem and personas |
 | 5 | Design alternatives generation (agent-driven, unbiased) | Always | — |
 | 6 | Converge on design direction (interactive) | Always | Approve the direction |
 | 7 | Feature specification, section-by-section (interactive) | Always (depth adapts) | — |

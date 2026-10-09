@@ -462,6 +462,10 @@ test('inputs: the depth and the embedded flag are optional bools that default to
   assert.deepEqual({ ...doc.inputs.simple }, { type: 'bool', required: false, default: false });
   assert.deepEqual({ ...doc.inputs.embedded }, { type: 'bool', required: false, default: false });
   assert.equal(doc.nodes.completion.when, '!${inputs.embedded}');
+  // The full depth guards nothing itself: the intake reads it and records the design complex.
+  assert.deepEqual({ ...doc.inputs.full }, { type: 'bool', required: false, default: false });
+  assert.equal(doc.nodes.intake.with.full, '${inputs.full}');
+  for (const [id, node] of Object.entries(doc.nodes)) assert.doesNotMatch(node.when ?? '', /inputs\.full/, id);
   for (const id of DEPTH_SKIPS) assert.equal(doc.nodes[id].when, '!${inputs.simple}', id);
 });
 
@@ -490,6 +494,16 @@ test('outputs: a parent runs product design embedded and at the simple depth, bi
   const result = chainBinding(t,
     { brief: 'outputs/product-brief.md', delivery_scope: 'outputs/delivery-scope.yml' },
     { embedded: 'true', simple: 'true' });
+  const report = JSON.parse(result.stdout);
+  assert.equal(result.code, 0);
+  assert.deepEqual(report.errors, []);
+  assert.deepEqual(report.warnings, []);
+});
+
+test('outputs: a parent asks product design for the full design, binding the brief and the scope with no warning', t => {
+  const result = chainBinding(t,
+    { brief: 'outputs/product-brief.md', delivery_scope: 'outputs/delivery-scope.yml' },
+    { embedded: 'true', full: 'true' });
   const report = JSON.parse(result.stdout);
   assert.equal(result.code, 0);
   assert.deepEqual(report.errors, []);

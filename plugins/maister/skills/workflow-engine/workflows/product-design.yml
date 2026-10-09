@@ -17,7 +17,9 @@
 # states the approach itself. The depth is a bool because an input is a string,
 # a bool or a path, and only a bool can guard. Under it the intake also turns
 # the personas off and the prototypes off unless the description asks for
-# screens, so those two guards need no second reference.
+# screens, so those two guards need no second reference. The `full` input goes
+# the other way without a guard of its own: the intake records the design
+# complex, which turns the personas on through the guard they already have.
 #
 # `completion` is guarded on `embedded`: it exists only to tell an operator the
 # run is over, and a parent has its own ending. The brief and the delivery
@@ -87,6 +89,11 @@ inputs:
   # context gate, no personas, no brainstorm or direction gate, and no
   # prototypes unless the description asks for screens.
   simple: {type: bool, required: false, default: false}
+  # The full design, whatever the detected complexity: the intake records the
+  # design complex, so the personas are drafted and every stretch goes to its
+  # complex depth. False leaves the depth to the detection. `simple` wins when
+  # both are true, because its guards have already taken the stretches out.
+  full: {type: bool, required: false, default: false}
   # "This run is a sub-run of another run." The engine supplies it at the child
   # freeze; an operator never types it. Its only effect here is the guard on
   # `completion`, which a parent has no use for.
@@ -187,6 +194,7 @@ nodes:
       research: "${inputs.research}"
       no_visual: "${inputs.no_visual}"
       simple: "${inputs.simple}"
+      full: "${inputs.full}"
     outputs:
       artifacts:
         # Written only when the invocation named a research task; the absence
@@ -197,7 +205,8 @@ nodes:
         # the first, UI-focused for the second. A revise at the
         # characteristics gate derives them again. A simple run records the
         # first false, the second true only when the description asks for
-        # screens, and the complexity `simple`.
+        # screens, and the complexity `simple`; a full run records the first
+        # true and the complexity `complex`.
         personas_enabled: bool
         prototyping_enabled: bool
         complexity_level: {enum: [simple, standard, complex]}
