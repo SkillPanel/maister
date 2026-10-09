@@ -139,3 +139,15 @@ test('a revise never counts such a gate as skipped again, while it still judges 
   assert.equal(skippedAgain('design', ['design', 'finish'], guards), true, 'a task node behind a false guard is skipped again');
   assert.equal(skippedAgain('findings-approval', ['findings-approval', 'confirmation'], guards), false);
 });
+
+test('write-state gives no skip-guard warning when the run\'s graph cannot be proven', t => {
+  const { run } = reviewed(t, { approved: true });
+  // A recorded hash the definition no longer resolves to: nothing proves the graph.
+  const text = fs.readFileSync(run.state, 'utf8');
+  const tampered = text.replace(/graph_hash: "?sha256:[0-9a-f]+"?/, `graph_hash: "sha256:${'0'.repeat(64)}"`);
+  assert.notEqual(tampered, text);
+  fs.writeFileSync(run.state, tampered);
+  const result = verb(['write-state', `--state=${run.state}`], { nodes: { 'findings-approval': { status: 'skipped' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stderr, /skip-guard-skipped/);
+});

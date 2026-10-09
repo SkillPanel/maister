@@ -237,3 +237,18 @@ test('prior-context hides the five provenance keys, as it hides when and how an 
   for (const key of [...PROVENANCE, 'via']) assert.doesNotMatch(result.stdout, new RegExp(`\\b${key}\\b`), key);
   assert.doesNotMatch(result.stdout, /helper|sample-policy|notes\.md/);
 });
+
+test('a flat gate answer moves its provenance onto the decision; an actor it carries is kept', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  const actor = { kind: 'agent', id: 'helper' };
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { answer: 'publish-draft', actor, on_behalf_of: 'lee', evidence: ['notes.md'], override_of: 'hold-draft' } },
+  });
+  const summary = readState(run).node_summaries['review-approval'];
+  const [item] = summary.decisions;
+  assert.equal(item.option, 'publish-draft');
+  assert.deepEqual(pick(item, PROVENANCE), { actor, on_behalf_of: 'lee', evidence: ['notes.md'], override_of: 'hold-draft' });
+  for (const key of PROVENANCE) assert.equal(Object.hasOwn(summary, key), false, `no flat ${key} is left`);
+});

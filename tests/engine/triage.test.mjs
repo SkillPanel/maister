@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE, FIXTURES, OPERATOR, freezePatch, readState, run as runScript, scratch, scratchPlugin, verb } from '../helpers.mjs';
+import { ENGINE, FIXTURES, OPERATOR, freezePatch, readState, run as runScript, scratch, scratchPlugin, sibling, verb } from '../helpers.mjs';
 import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
@@ -279,4 +279,68 @@ test('with a settlement item present, the gate\'s values, gate-revise and run-co
   const decisions = decisionsOf(driven);
   assert.deepEqual(decisions.map(item => [item.option ?? item.decision, Number(item.attempt ?? 0)]), [['revise-specification', 1]]);
   assert.deepEqual(decisions[0].triage, GATE_TRIAGE);
+});
+
+test('a refused policy file warns on the gate request, which carries no triage and no mismatch', t => {
+  const engine = scratchPlugin(t, { policy: { version: 2 } });
+  const file = path.join(path.dirname(path.dirname(engine)), 'policy/autonomy-policy.json');
+  const run = atGate(t, { engine, driver: COCKPIT });
+  const result = ok(engine, ['gate-brief', `--state=${run.state}`, `--node=${GATE}`, '--request']);
+  assert.equal(Object.hasOwn(JSON.parse(result.stdout), 'triage'), false);
+  assert.equal(result.stderr, `warning: policy-refused:${file}:version\n`);
+});
+
+test('a gate answer written flat on the summary judges the gate: triage, settlement and provenance', t => {
+  const engine = scratchPlugin(t, { policy: POLICY });
+  const run = atGate(t, { engine });
+  ok(engine, ['write-state', `--state=${run.state}`], {
+    nodes: { [GATE]: { status: 'completed' } },
+    node_summaries: { [GATE]: { answer: 'continue-to-audit', on_behalf_of: 'lee' } },
+  });
+  const [answered, settled, ...rest] = decisionsOf(run);
+  assert.deepEqual(rest, []);
+  assert.equal(answered.option, 'continue-to-audit');
+  assert.deepEqual(answered.triage, GATE_TRIAGE);
+  assert.equal(answered.on_behalf_of, 'lee');
+  assert.equal(settled.decision, 'audit_enabled: true');
+  assert.deepEqual(settled.triage, VALUE_TRIAGE);
+  assert.equal(settled.on_behalf_of, 'lee');
+});
+
+test('an answer and the closing write that re-sends it leave one answer and one settlement, both judged', t => {
+  const engine = scratchPlugin(t, { policy: POLICY });
+  const run = atGate(t, { engine });
+  const sent = { option: 'continue-to-audit', on_behalf_of: 'lee' };
+  // The answer first, then the closing write re-sending it with the status, then once more.
+  for (const nodes of [{}, { [GATE]: { status: 'completed' } }, { [GATE]: { status: 'completed' } }]) {
+    ok(engine, ['write-state', `--state=${run.state}`], { nodes, node_summaries: { [GATE]: { decisions: [sent] } } });
+    const decisions = decisionsOf(run);
+    assert.deepEqual(decisions.map(item => item.option ?? item.decision), ['continue-to-audit', 'audit_enabled: true']);
+    assert.deepEqual(decisions[0].triage, GATE_TRIAGE);
+    assert.deepEqual(decisions[1].triage, VALUE_TRIAGE);
+    assert.equal(decisions[1].on_behalf_of, 'lee');
+  }
+});
+
+test('a sub-run is judged under its own workflow name against its own recorded hash', t => {
+  const engine = scratchPlugin(t, { policy: POLICY });
+  const parent = scratch(t);
+  ok(engine, ['write-state', `--state=${parent.state}`], freezePatch().patch);
+  const child = sibling(parent, { type: 'development', name: '2026-01-05-child' });
+  ok(engine, ['write-state', `--state=${child.state}`], freezePatch({
+    definition: OPTIONAL,
+    orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'analysis' } },
+  }).patch);
+  const recorded = readState(child).orchestrator.policy_hash;
+  assert.equal(recorded, readState(parent).orchestrator.policy_hash);
+  assert.notEqual(recorded, 'sha256:2430f1a2ad2982d0067885488a4c89e21ad1d7c83b115ba8f1b20acc88dfaea8');
+  ok(engine, ['write-state', `--state=${child.state}`], {
+    nodes: { specification: { status: 'completed' } },
+    node_summaries: { specification: { summary: 'Wrote the specification.' } },
+  });
+  const result = answer(engine, child, 'continue-to-audit');
+  assert.equal(result.stderr, '');
+  const [answered, settled] = decisionsOf(child);
+  assert.deepEqual(answered.triage, GATE_TRIAGE);
+  assert.deepEqual(settled.triage, VALUE_TRIAGE);
 });
