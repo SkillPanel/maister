@@ -430,6 +430,26 @@ test('specification-approval: a long specification never trims the prototypes an
   assert.match(picker.brief, /Next: Product brief and delivery scope/);
 });
 
+test('specification-approval: the prototypes are offered for review beside the specification, by their folder', t => {
+  const run = atDirectionApproval(t, { summary: 'Link-based sharing.' });
+  write(run, { nodes: { 'direction-approval': { status: 'completed' } } });
+  const onDisk = (relative, text) => {
+    fs.mkdirSync(path.dirname(path.join(run.dir, relative)), { recursive: true });
+    fs.writeFileSync(path.join(run.dir, relative), text);
+  };
+  onDisk('analysis/feature-spec.md', '# Feature specification\n');
+  write(run, {
+    nodes: { 'feature-specification': { status: 'completed' } },
+    node_summaries: { 'feature-specification': { summary: 'Five sections.', artifacts: [{ path: 'analysis/feature-spec.md', label: 'Feature spec', role: 'primary' }] } },
+  });
+  // The studio drew its screens and the node registered none of them by name.
+  for (const screen of ['share-dialog', 'guest-calendar']) onDisk(`analysis/mockups/${screen}.html`, '<p>screen</p>\n');
+  write(run, { nodes: { 'visual-prototyping': { status: 'completed' } }, node_summaries: { 'visual-prototyping': { summary: 'Two screens.' } } });
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.review.map(each => [each.path, each.label]),
+    [['analysis/feature-spec.md', 'Feature spec'], ['analysis/mockups/', '2 files']]);
+});
+
 // ---------------------------------------------------------------------------
 // as a sub-run, and at the simple depth
 // ---------------------------------------------------------------------------
