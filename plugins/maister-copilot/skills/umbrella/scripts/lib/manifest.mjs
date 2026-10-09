@@ -169,9 +169,8 @@ const RESERVED_MANIFEST_PATH = 'routing.tiers';
  * A member name that can also be a git branch segment.
  *
  * A member name is a raw directory name and it reaches `branch_convention`,
- * whose output a worker hands to git. `feature/{run_id}-{node}` does not
- * interpolate the member, but `{member}` is one of the four values the
- * convention may name, so a directory called `-tmp` or `a..b` becomes a branch
+ * whose output a worker hands to git. The scaffolded `feature/{run_id}-{member}`
+ * interpolates it, so a directory called `-tmp` or `a..b` becomes a branch
  * name git rejects — three steps away from the manifest that recorded it.
  */
 const BRANCH_SAFE_MEMBER = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -394,7 +393,7 @@ function renderManifest({ umbrellaId, members }) {
   // state. Anything that would be a guess — the tracker, the git host, the
   // people — is emitted null or empty rather than invented, so an operator
   // editing the file is filling a blank in rather than correcting a fiction.
-  lines.push(`branch_convention: ${scalar('feature/{run_id}-{node}', 'branch_convention')}`);
+  lines.push(`branch_convention: ${scalar('feature/{run_id}-{member}', 'branch_convention')}`);
   lines.push('coordination:');
   lines.push('  branch: maister/coordination');
   lines.push(`  worktree: ${scalar(`${FRAMEWORK_DIR}/umbrella/.coordination`, 'coordination.worktree')}`);
@@ -799,6 +798,7 @@ export function validate(root, { definitions = [] } = {}) {
     counted.set(file, report.counts ?? null);
     if (members !== null) {
       checkMemberDirs(definition.doc, file, members, errors);
+      checkMemberWriters(definition.doc, file, errors);
       checkNodeProviders(definition.doc, file, members, errors);
     }
     checkDriverCapable(definition.doc, file, errors);
@@ -1100,6 +1100,7 @@ function checkManifest(doc, file, errors, warnings) {
   }
 
   checkNullableString(doc, 'branch_convention', fail);
+  checkBranchConvention(doc, fail);
   checkNullableString(doc, 'knowledge', fail);
 
   if (Object.hasOwn(doc, 'coordination')) {
@@ -1273,6 +1274,82 @@ function checkMemberDirs(doc, file, members, errors) {
       path: `nodes.${id}.dir`,
       message: `"${node.dir}" is not a member this workspace declares${named}; the members are ${[...members.names].join(', ') || 'none'}`,
     });
+  }
+}
+
+/**
+ * The branch convention names no value that differs between two nodes of one
+ * run dispatching into one member.
+ *
+ * A dispatch works on one branch per run and member, so every later node for
+ * that member continues the earlier one's branch and updates its pull request.
+ * A convention naming `{node}` or `{dispatch_id}` would hand each node a branch
+ * of its own in a worktree the member's nodes share — the two half-finished
+ * pull requests this shape exists to prevent. A manifest scaffolded before the
+ * convention changed still says `{node}`, and this is where it hears about it.
+ */
+function checkBranchConvention(doc, fail) {
+  const convention = doc.branch_convention;
+  if (typeof convention !== 'string') return;
+  const named = ['{node}', '{dispatch_id}'].filter((token) => convention.includes(token));
+  if (named.length === 0) return;
+  fail('branch_convention',
+    `"${convention}" names ${named.join(' and ')}, but every node a run dispatches into one member shares one branch, so the convention may name {run_id} and {member} only — edit the manifest's branch_convention, for example to "feature/{run_id}-{member}"`);
+}
+
+/**
+ * Two nodes dispatching into one member are ordered by `needs`.
+ *
+ * Every node a run dispatches into a member shares that member's worktree and
+ * branch, and one branch cannot take two writers at once. Two such nodes that
+ * `needs` leaves unordered may be ready together, and the second worker would
+ * open a tree the first is still writing. Ordering is the author's to state, so
+ * it is judged here rather than imposed as a wait at dispatch time.
+ *
+ * Ordering is transitive: a node between the two, with or without a `dir:` of
+ * its own, orders them. An interpolated `dir:` is left alone for the reason the
+ * member check leaves it alone; an unknown id in `needs` is the graph
+ * checker's to report.
+ */
+function checkMemberWriters(doc, file, errors) {
+  if (!isMap(doc) || !isMap(doc.nodes)) return;
+  const nodes = doc.nodes;
+  const needsOf = (id) => (isMap(nodes[id]) && Array.isArray(nodes[id].needs) ? nodes[id].needs : []);
+  const before = (id) => {
+    const seen = new Set();
+    const pending = [...needsOf(id)];
+    while (pending.length) {
+      const next = pending.pop();
+      if (seen.has(next) || !Object.hasOwn(nodes, next)) continue;
+      seen.add(next);
+      pending.push(...needsOf(next));
+    }
+    return seen;
+  };
+
+  const byMember = new Map();
+  for (const [id, node] of Object.entries(nodes)) {
+    if (!isMap(node) || typeof node.dir !== 'string' || node.dir === '' || node.dir.includes('${')) continue;
+    if (!byMember.has(node.dir)) byMember.set(node.dir, []);
+    byMember.get(node.dir).push(id);
+  }
+
+  for (const [member, ids] of byMember) {
+    if (ids.length < 2) continue;
+    const sorted = [...ids].sort();
+    const closures = new Map(sorted.map((id) => [id, before(id)]));
+    for (let i = 0; i < sorted.length; i++) {
+      for (let j = i + 1; j < sorted.length; j++) {
+        const [a, b] = [sorted[i], sorted[j]];
+        if (closures.get(a).has(b) || closures.get(b).has(a)) continue;
+        errors.push({
+          file,
+          node: b,
+          path: `nodes.${b}.dir`,
+          message: `the nodes "${a}" and "${b}" both dispatch into the member "${member}", and needs does not order them — they share one worktree and one branch, which cannot take two writers at once; add one to the other's needs, directly or through a node between them`,
+        });
+      }
+    }
   }
 }
 
