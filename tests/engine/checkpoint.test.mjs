@@ -7,7 +7,9 @@ import { pathToFileURL } from 'node:url';
 
 import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
-import { panelOf as panelOfCheckpoint, unmarked } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+import {
+  choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, richPicker, unmarked,
+} from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
 // every surface — the two in-session pickers, the driven request, a cockpit
@@ -187,7 +189,8 @@ test('checkpoint: its fields, in the contract\'s order', t => {
   ], 'the primary document first, though it was registered second');
   assert.ok(checkpoint.progress.checkpoint >= 1 && checkpoint.progress.checkpoint <= checkpoint.progress.checkpoints_max);
   assert.deepEqual(checkpoint.grants, {});
-  assert.deepEqual(checkpoint.approves, []);
+  assert.deepEqual(checkpoint.approves, [], 'the specification gate approves nothing beyond going on');
+  assert.deepEqual(Object.keys(checkpoint.decisions.operator), ['count', 'actors', 'not_recommended']);
   assert.deepEqual(checkpoint.fixes, [], 'nothing fixed at the specification');
   assert.equal(checkpoint.truncated, false);
   assert.match(checkpoint.run.dir, /2026-01-05-sample$/);
@@ -202,9 +205,10 @@ test('checkpoint: decisions grouped by who settled them, the user\'s own counted
   ]);
   assert.ok(checkpoint.decisions.run.every(each => each.node === 'specification'));
   assert.equal(checkpoint.decisions.operator.count, 9);
+  assert.deepEqual(checkpoint.decisions.operator.actors, { unknown: 9 }, 'answers recorded without provenance');
   assert.deepEqual(checkpoint.decisions.operator.not_recommended, [{
     decision: 'CSV line endings, strict \\r\\n', question: 'Which line endings should toCsv write?', answer: 'Strict \\r\\n',
-    recommended: 'Platform default (\\n)', answered_by: 'marek', node: 'specification',
+    recommended: 'Platform default (\\n)', answered_by: 'marek', actor_kind: 'unknown', node: 'specification',
   }]);
   assert.equal(checkpoint.risks.open.length, 2);
   assert.equal(checkpoint.risks.tradeoff.length, 2);
@@ -268,6 +272,58 @@ test('checkpoint: a stop risk, typed or written the old way, recommends stopping
     const plain = pickerOf(run, 'specification-approval', 'plain');
     assert.equal(plain.options[0].label, 'Stop here — the spec contradicts itself on null (Recommended)');
   }
+});
+
+/** Operator answers carrying the provenance an answer path writes, or none, or a kind that is not a string. */
+function withActors() {
+  const answer = (n, actor, extra = {}) => ({
+    decision: `Answer ${n}`, by: 'operator', answered_by: 'marek', question_id: `q-${n}`,
+    question: `Question ${n}?`, answer: `Answer ${n}`, recommended: `Answer ${n}`, as_recommended: true,
+    ...(actor === undefined ? {} : { actor }), ...extra,
+  });
+  return {
+    decisions: [
+      { decision: 'Tags stay inside the store, one shared check for every entry point', by: 'run' },
+      answer(1, { kind: 'person', id: 'marek' }),
+      answer(2, { kind: 'person', id: 'marek' }),
+      answer(3, { kind: 'delegate', id: 'cockpit' }),
+      answer(4),
+      answer(5, { kind: 42 }),
+      answer(6, { kind: 'agent', id: 'reviewer' }, { recommended: 'Something else', as_recommended: false }),
+    ],
+  };
+}
+
+test('checkpoint: operator answers counted by actor kind, right after the count, a missing or odd kind as unknown', t => {
+  const { operator } = checkpointOf(atSpecGate(t, withActors()), 'specification-approval').decisions;
+  assert.deepEqual(Object.keys(operator), ['count', 'actors', 'not_recommended']);
+  assert.equal(operator.count, 6);
+  assert.deepEqual(operator.actors, { person: 2, delegate: 1, unknown: 2, agent: 1 });
+});
+
+test('checkpoint: a stretch with no operator answers carries no actors', t => {
+  const run = atSpecGate(t, { decisions: [{ decision: 'Tags stay inside the store, one shared check for every entry point', by: 'run' }] });
+  const { operator } = checkpointOf(run, 'specification-approval').decisions;
+  assert.deepEqual(operator, { count: 0, not_recommended: [] });
+});
+
+test('checkpoint: each answer against the recommendation names its actor kind, not the actor', t => {
+  const { operator } = checkpointOf(atSpecGate(t, withActors()), 'specification-approval').decisions;
+  assert.deepEqual(operator.not_recommended, [{
+    decision: 'Answer 6', question: 'Question 6?', answer: 'Answer 6', recommended: 'Something else',
+    answered_by: 'marek', actor_kind: 'agent', node: 'specification',
+  }]);
+  assert.ok(operator.not_recommended.every(each => !('actor' in each)));
+});
+
+test('checkpoint: the text a gate shows is the same with the actor grouping as without it', t => {
+  const checkpoint = checkpointOf(atSpecGate(t, withActors()), 'specification-approval');
+  const before = structuredClone(checkpoint);
+  delete before.decisions.operator.actors;
+  for (const each of before.decisions.operator.not_recommended) delete each.actor_kind;
+  assert.notDeepEqual(before, checkpoint);
+  const texts = cp => JSON.stringify([choicesLine(cp), moreDetails(cp), panelOfCheckpoint(cp), richPicker(cp), plainPicker(cp)]);
+  assert.equal(texts(checkpoint), texts(before));
 });
 
 test('checkpoint: no headline falls back to the summary\'s first sentence', t => {

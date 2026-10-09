@@ -848,7 +848,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   // Fixed, decided and open: the fixes in the order they were made, the rest
   // grouped by who settled them and by what they are.
   const fixes = [];
-  const decisions = { run: [], audit: [], default: [], operator: { count: 0, not_recommended: [] } };
+  const decisions = { run: [], audit: [], default: [], operator: { count: 0, actors: {}, not_recommended: [] } };
   const risks = { open: [], tradeoff: [], followup: [], stop: [], resolved: [] };
   const seen = new Set();
   const once = (kind, text) => {
@@ -868,7 +868,10 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       const decision = decisionOf(item);
       if (!decision || !once('decision', decision.decision)) continue;
       if (decision.by === 'operator') {
+        // Who answered, by kind: the provenance an answer carries, `unknown` without one.
+        const actorKind = typeof decision.actor?.kind === 'string' ? decision.actor.kind : 'unknown';
         decisions.operator.count++;
+        decisions.operator.actors[actorKind] = (decisions.operator.actors[actorKind] ?? 0) + 1;
         if (decision.as_recommended === false) {
           decisions.operator.not_recommended.push(compact({
             decision: decision.decision,
@@ -876,6 +879,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
             answer: decision.answer,
             recommended: decision.recommended,
             answered_by: decision.answered_by,
+            actor_kind: actorKind,
             node: entry.id,
           }));
         } else if (decision.as_recommended !== true) asRecommended = false;
@@ -894,6 +898,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       risks[risk.tag].push(compact({ risk: risk.risk, change: risk.change ?? undefined, node: entry.id }));
     }
   }
+  if (!decisions.operator.count) delete decisions.operator.actors;
   // Unknown is not "as recommended": a choice recorded without saying so is counted plainly.
   if (!asRecommended && !decisions.operator.not_recommended.length) decisions.operator.all_recommended = false;
 
