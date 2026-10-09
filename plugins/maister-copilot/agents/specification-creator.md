@@ -59,6 +59,7 @@ The Task prompt MUST include:
 - `scope_expanded`: true/false
 - `phase_summaries`: Prior phase summaries (codebase analysis, gap analysis, clarifications)
 - `research_context`: Research findings path (if research-informed development)
+- `architecture_context`: High-level design path, `analysis/architecture-context/` (if the run was handed an architecture)
 
 ---
 
@@ -78,6 +79,7 @@ The Task prompt MUST include:
    - `analysis/research-context/` — research findings (if exists)
    - `analysis/research-context/high-level-design.md` — architecture design (if exists, use as primary architectural input)
    - `analysis/research-context/decision-log.md` — architecture decisions (if exists, reference rather than re-decide)
+   - `analysis/architecture-context/high-level-design.md` and `decision-log.md` beside it — an architecture the run was handed (if exists). The interfaces, contracts and decisions it names are **constraints on this repository's part**: specify the contracts this repository provides or consumes as it states them, and never redo or re-decide them. Where the codebase or the requirements cannot follow it, list the conflict in the spec as an open risk with what would change either way — never resolve it silently
 4. **Check for visual assets** (single source — `analysis/design-context/`):
    - If `analysis/design-context/INDEX.md` exists: read it to enumerate screens/components, then read each mockup file (HTML, .png, .jpg, .jpeg, .gif, .svg, .pdf, .ascii.md) for design requirements
    - If `analysis/design-context/brief.md` exists (handed off from a product-design task): read it for product intent (Layer 0 + Layer 3 mockup references)

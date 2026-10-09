@@ -264,7 +264,7 @@ Workflows add domain-specific fields in their context block, at the **top level*
 
 | Domain | Context Field | Example Fields |
 |--------|---------------|----------------|
-| Development | `task_context` | risk_level, architecture_decision, task_characteristics (`ui_heavy` nests here), research_reference |
+| Development | `task_context` | risk_level, architecture_decision, task_characteristics (`ui_heavy` nests here), research_reference, architecture_reference |
 | Performance | `performance_context` | bottlenecks_identified, user_data_available, bottleneck_priorities |
 | Migration | `migration_context` | migration_type, migration_strategy, breaking_changes, rollback_plan_created |
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |

@@ -119,6 +119,7 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 | `--user-docs` / `--no-user-docs` | Generate or skip user documentation without being asked (asked if omitted) |
 | `--research=PATH` | Start development informed by a completed research task |
 | `--design=PATH` | Start development from a completed product-design task: its brief and mockups become the design context |
+| `--architecture=PATH` | Build within a high-level design — a design document, or a research task that wrote one: its interfaces, contracts and decisions constrain the specification and the plan |
 | `--sequential` | Run task groups one at a time instead of in parallel waves |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
