@@ -246,7 +246,17 @@ that was read and does not state the rule from one this installation holds no
 file for, because in the second case nothing was read and the recovery includes
 installing whatever ships the skill. A node with no `dir:` is not judged this
 way: an unresolved `skill:` there is the graph checker's warning and nothing
-more. Errors exit `1`; warnings alone
+more.
+
+Two more checks follow from one branch per run and member. Two nodes that
+dispatch into one member must be ordered by `needs`, directly or through a node
+between them, because the tree and branch they share cannot take two writers at
+once; the fix is to add one to the other's `needs`. And the manifest's
+`branch_convention` may name `{run_id}` and `{member}` but not `{node}` or
+`{dispatch_id}`, which would hand each node a branch of its own; the fix is to
+edit the convention. A manifest scaffolded before the convention changed still
+says `feature/{run_id}-{node}` and is named by this check — edit it to
+`feature/{run_id}-{member}`. Errors exit `1`; warnings alone
 exit `0`, so a workspace can carry advisory findings without blocking. Reserved
 keys are surface-scoped: the workspace checker warns only on the manifest's own
 reserved key, and the workflow keys are the graph checker's to warn about. Both
@@ -284,6 +294,14 @@ workspace root is required rather than derived, because the manifest is
 consulted unconditionally — for the provider, for the autonomy tier, and to
 reject a member the manifest does not declare — and walking up from the run
 directory would only guess at which workspace owns it.
+
+A dispatch works in `.worktrees/<run_id>-<member>` inside the member, on the
+branch the manifest's `branch_convention` renders — `feature/{run_id}-{member}`
+as scaffolded. Both are keyed by the run and the member, not the node, so every
+node a run dispatches into one member continues in the same tree and on the same
+branch, and a later node updates the pull request an earlier one opened rather
+than opening a second. `defaults.worktree: false` works in the member checkout
+itself instead.
 
 Provider and autonomy each resolve down a short chain and refuse at the end of
 it rather than acquiring a default nobody chose. A node's own value wins, then

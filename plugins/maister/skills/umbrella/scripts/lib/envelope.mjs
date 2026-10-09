@@ -255,7 +255,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const runId = runIdOf({ state, run });
 
   const inputs = inputsOf(defined);
-  const worktree = worktreeOf({ manifest, runId, node });
+  const worktree = worktreeOf({ manifest, runId, node, member });
   const session = mapOf(overrides.session);
   const statement = statementOf({ defined, overrides });
   const permissions = permissionsOf(autonomy);
@@ -658,10 +658,14 @@ function inputsOf(defined) {
 }
 
 /**
- * The worktree the dispatch works in, named after the run and the node, so two
- * runs' dispatches of one node never share a checkout. Naming it after the node
- * alone was the older shape and it collided: a second run of the same chain
- * into the same member landed in the first run's tree.
+ * The worktree the dispatch works in, named after the run and the member, so
+ * two runs never share a checkout and every node one run dispatches into a
+ * member continues in the same one — on the same branch, so a later node
+ * updates the pull request an earlier one opened rather than opening a second.
+ * Naming it after the node was the older shape: a chain that planned and then
+ * changed one repository ended as two half-finished pull requests. Sharing the
+ * tree is safe only because `validate` refuses two nodes for one member that
+ * `needs` does not order, so the tree never has two writers at once.
  * `defaults.worktree: false` opts a workspace out and the dispatch then works
  * in the member checkout itself.
  *
@@ -670,13 +674,13 @@ function inputsOf(defined) {
  * directory basename and is null only for a path that cannot be staged — so a
  * direct call is the only way to provoke the code.
  */
-export function worktreeOf({ manifest, runId, node }) {
+export function worktreeOf({ manifest, runId, node, member }) {
   if (mapOf(manifest?.defaults).worktree === false) return null;
   if (typeof runId !== 'string' || runId === '') {
     throw new Refusal('dispatch-run-unresolved',
       `the node "${node}" would be dispatched into a worktree, but no run id resolves, so the worktree cannot be named after its run: point --run at the run directory whose basename is the run id, or record the run's task path in its state, or set defaults.worktree: false in the manifest to work in the member checkout itself. Nothing was written.`);
   }
-  return `.worktrees/${runId}-${node}`;
+  return `.worktrees/${runId}-${member}`;
 }
 
 /**

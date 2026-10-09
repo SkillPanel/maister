@@ -1,6 +1,6 @@
 # ADR-0018 — Dispatch worktrees are named for the run and the node
 
-**Status**: Accepted · **Date**: 2026-09-08 · **Sources**: `plugins/maister/skills/umbrella/scripts/lib/envelope.mjs` (`worktreeOf`, `branchOf`); `plugins/maister/skills/umbrella/SKILL.md` § refusals
+**Status**: Accepted; amended by ADR-0036 (the worktree is keyed by the member, not the node) · **Date**: 2026-09-08 · **Sources**: `plugins/maister/skills/umbrella/scripts/lib/envelope.mjs` (`worktreeOf`, `branchOf`); `plugins/maister/skills/umbrella/SKILL.md` § refusals
 
 ## TL;DR
 A dispatch into a member works in `.worktrees/<run_id>-<node>`, not in `.worktrees/<node>`. The node alone was ambiguous across runs: a second run of the same chain into the same member landed in the first run's checkout. Because the run id is now load-bearing in the path, a dispatch that would mint a worktree without a resolvable run id is refused by name rather than falling back to a shape that collides again. Neither this nor the sibling relaxation of reference resolution changes a frozen shape.

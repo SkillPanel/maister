@@ -395,6 +395,15 @@ a driver-aware skill, install whatever ships the skill it names, or drop the `di
 in the coordinating repository. On a node with no `dir:`, an unresolved `skill:` or `agent:` target
 still only warns — the strictness is what dispatch itself requires, not a general tightening.
 
+**One branch per run and member.** A dispatch works in a worktree and on a branch named for the
+run and the member, so every node a run dispatches into one member continues the same branch and
+the same pull request. Two such nodes must therefore be ordered by `needs`, directly or through a
+node between them; two that are not are an error at the later node's `dir` path, and the fix is
+to add one to the other's `needs`. The manifest's `branch_convention` may name `{run_id}` and
+`{member}` but not `{node}` or `{dispatch_id}`. A manifest scaffolded by an earlier version still
+says `feature/{run_id}-{node}`: `validate` names it, and the fix is to edit it to
+`feature/{run_id}-{member}`.
+
 **Targets are looked for in the workspace first.** A `skill:` or `agent:` name is resolved against
 the workspace's own `.claude/` and `.github/` trees, then your own under `~/.claude/` and
 `~/.copilot/`, then the plugin, then every installed plugin; `skill:<plugin>:<name>` names one
