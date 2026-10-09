@@ -188,7 +188,7 @@ test('an added gate named to sort last still holds the node it is placed before'
   ]);
   const { code, report } = run('resolve', DEVELOPMENT, [overlay]);
   assert.equal(code, 0, JSON.stringify(report.errors));
-  assert.deepEqual(needsOf(report, 'implementation'), ['planning-approval', 'planning-approval-publish', 'zz-architecture-signoff']);
+  assert.deepEqual(needsOf(report, 'implementation'), ['planning-approval-publish', 'zz-architecture-signoff']);
   assert.ok(positionOf(report, 'zz-architecture-signoff') < positionOf(report, 'implementation'));
 });
 

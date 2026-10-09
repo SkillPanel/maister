@@ -110,6 +110,9 @@ test('development: without the publish input the run asks the plain plan gate, w
   assert.deepEqual(checkpoint.grants, {});
   const picker = gateForm(run, 'planning-approval', '--json', '--picker=rich');
   assert.ok(picker.options.every(option => !/pushes the branch/.test(option.label)), JSON.stringify(picker.options));
+  const continuing = checkpoint.options.find(option => option.id === 'continue-to-implementation');
+  assert.equal(continuing.consequence, 'Runs implementation next.');
+  assert.doesNotMatch(JSON.stringify(checkpoint), /Waits on/);
 });
 
 test('development: with publish on the run skips the plain plan gate and asks the publishing one', () => {
@@ -140,17 +143,24 @@ test('development: the publishing plan gate sends the run back to the plan with 
   const run = atPlanGate(t, 'planning-approval-publish', { publish: true });
   const result = revise(run, 'planning-approval-publish', 'revise-plan', 'Split the store change into its own group');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^revised: planning-approval-publish reruns=planning revision=1\/10 reset=planning,planning-approval-publish$/m);
+  assert.match(result.stdout, /^revised: planning-approval-publish reruns=planning revision=1\/10 reset=planning,planning-approval,planning-approval-publish$/m);
 });
 
-test('development: the implementation needs both plan gates, so a stop at either ends the run', () => {
+test('development: the two plan gates stand in line, so a stop at either ends the run', () => {
   const graph = resolved('development');
-  assert.deepEqual(graph.nodes.find(node => node.id === 'implementation').needs, ['planning-approval', 'planning-approval-publish']);
-  for (const [asked, skipped] of [['planning-approval', 'planning-approval-publish'], ['planning-approval-publish', 'planning-approval']]) {
-    const recorded = { [asked]: { status: 'stopped' }, [skipped]: { status: 'skipped' } };
-    const walked = walk({ graph, recorded, gate: 'planning', inputs: { publish: asked === 'planning-approval-publish' } });
-    // The walker simulates `planning` completed; the stopped gate is never
-    // pending, so nothing after it becomes ready.
+  const needs = id => graph.nodes.find(node => node.id === id).needs;
+  assert.deepEqual(needs('planning-approval'), ['planning']);
+  assert.deepEqual(needs('planning-approval-publish'), ['planning-approval']);
+  assert.deepEqual(needs('implementation'), ['planning-approval-publish']);
+  const runs = [
+    { publish: false, recorded: { 'planning-approval': { status: 'stopped' } } },
+    { publish: true, recorded: { 'planning-approval': { status: 'skipped' }, 'planning-approval-publish': { status: 'stopped' } } },
+  ];
+  for (const { publish, recorded } of runs) {
+    const asked = publish ? 'planning-approval-publish' : 'planning-approval';
+    const walked = walk({ graph, recorded, gate: 'planning', inputs: { publish } });
+    // The walker simulates `planning` completed; nothing after a stopped
+    // gate becomes ready.
     assert.equal(walked.next, null, `${asked} stopped`);
   }
 });

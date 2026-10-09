@@ -40,7 +40,8 @@
 # grants the push of the run's branch and the pull request from it, which
 # `finalization` acts on once there is something to publish. Both guards read
 # an input, a choice made when the run started, so the gate not chosen is
-# skipped and `implementation` needs both.
+# skipped. The two stand in line, the publishing one after the plain one, so
+# the chain stays linear and the walk from either gate passes the other.
 #
 # The failing test written first has no approval of its own once it passes: the
 # red-to-green evidence rides in the passing-test node's headline, which the
@@ -384,7 +385,7 @@ nodes:
 
   planning-approval-publish:
     type: gate
-    needs: [planning]
+    needs: [planning-approval]
     when: "${inputs.publish}"
     ask: "Implementation plan complete. Continue to implementation, then push the branch and open a pull request?"
     options:
@@ -394,7 +395,7 @@ nodes:
 
   implementation:
     uses: skill:implementation-plan-executor
-    needs: [planning-approval, planning-approval-publish]
+    needs: [planning-approval-publish]
     with:
       plan: "${planning.artifacts.plan}"
       spec: "${specification.artifacts.spec}"

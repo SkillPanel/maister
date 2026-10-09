@@ -27,9 +27,11 @@ and mentioned the push only in prose. A reader acting on structured needs saw no
 **Two forms of one gate.** `planning-approval` keeps its id and options and is guarded
 `!${inputs.publish}`. `planning-approval-publish` asks the same approval, is guarded
 `${inputs.publish}`, and has the same three options, with `grants: [push, pr-create]` on the
-continue. `implementation` needs both. A skipped gate satisfies a need and a stopped one does
-not, so either gate's stop still ends the run. Both guards read an input, a choice made when the
-run started, so the unasked form is skipped.
+continue. The two stand in line: the publishing gate needs the plain one and `implementation`
+needs the publishing one, so the chain stays linear and a gate's brief walks past the other form
+to the implementation. A skipped gate satisfies a need and a stopped one does not, so either
+gate's stop still ends the run. Both guards read an input, a choice made when the run started,
+so the unasked form is skipped.
 
 **Publication at the end.** Right after the plan the branch has no commits, so the grant is used
 by `finalization`. It commits the run's change on its own branch, never pushes the default

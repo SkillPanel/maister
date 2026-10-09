@@ -1,6 +1,6 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: development
-%% graph_hash: sha256:6aa074833ba17c6362a258d415017ee443e8397efdc25ab88a750c413d21ed47
+%% graph_hash: sha256:07283f38099328aa45b9031c81e9320e199f2cc2bd14d6dc97d8e76bdb56d47c
 
 flowchart TD
   n_intake["Intake<br/>intake<br/>direct:intake"]
@@ -42,8 +42,7 @@ flowchart TD
   n_spec_audit --> n_spec_audit_approval
   n_spec_audit_approval --> n_planning
   n_planning --> n_planning_approval
-  n_planning --> n_planning_approval_publish
-  n_planning_approval --> n_implementation
+  n_planning_approval --> n_planning_approval_publish
   n_planning_approval_publish --> n_implementation
   n_implementation --> n_implementation_approval
   n_implementation_approval --> n_tdd_green
