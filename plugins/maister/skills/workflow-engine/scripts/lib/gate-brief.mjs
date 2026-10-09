@@ -437,7 +437,7 @@ function reviewLine(doc, runDir, ids, byId) {
   // whole path again would spend the brief's budget on what the reader
   // already has in front of them.
   const companion = (file, html) => (path.dirname(html) === path.dirname(file) ? path.basename(html) : shown(html));
-  return `Review: ${files.map(({ file, html }) => (html ? `${shown(file)} (HTML: ${companion(file, html)})` : shown(file))).join(', ')}`;
+  return `Review: ${files.map(({ file, html, folder }) => (html ? `${shown(file)} (HTML: ${companion(file, html)})` : `${shown(file)}${folder ? '/' : ''}`)).join(', ')}`;
 }
 
 /**
@@ -447,6 +447,11 @@ function reviewLine(doc, runDir, ids, byId) {
  * none is read off the declared outputs of the definition, files only — a
  * directory is no document to review. An artifact registered as evidence or a
  * log is no document to review either.
+ *
+ * When there are more files than the cap, a node's files inside one of its
+ * declared output folders are named once, by that folder, with `folder: true`:
+ * a step that drew four screens beside a specification otherwise lost two of
+ * them to the cap, and every one of them is what the operator is asked about.
  */
 function reviewFiles(doc, runDir, ids, byId) {
   const isFile = file => {
@@ -458,13 +463,14 @@ function reviewFiles(doc, runDir, ids, byId) {
   };
   const sources = artifactSources(doc);
   const files = [];
-  const add = (relative, html, label = null, role = null) => {
+  const add = (id, relative, html, label = null, role = null) => {
     if (typeof relative !== 'string' || relative === '' || relative.includes('${')) return;
     if (role === 'evidence' || role === 'log') return;
     const file = path.resolve(runDir, relative);
     if (!isFile(file) || files.some(each => each.file === file)) return;
     const sibling = typeof html === 'string' && html !== '' ? path.resolve(runDir, html) : file.replace(/\.md$/, '.html');
     files.push({
+      id,
       file,
       html: sibling !== file && isFile(sibling) ? sibling : null,
       label: typeof label === 'string' && label !== '' ? label : null,
@@ -474,19 +480,72 @@ function reviewFiles(doc, runDir, ids, byId) {
   for (const id of ids) {
     const registered = sources.flatMap(source => source(id));
     if (registered.length) {
-      for (const artifact of registered) add(artifact.path, artifact.html, artifact.label, artifact.role);
+      for (const artifact of registered) add(id, artifact.path, artifact.html, artifact.label, artifact.role);
       continue;
     }
     const declared = byId.get(id)?.outputs?.artifacts;
-    if (isPlainObject(declared)) for (const relative of Object.values(declared)) add(relative, null);
+    if (isPlainObject(declared)) for (const relative of Object.values(declared)) add(id, relative, null);
   }
+  const listed = files.length > REVIEW_MAX ? foldFolders(files, runDir, byId) : files;
   // When the cap bites, the deliverable wins: registration order put a brief
   // and a plan ahead of the report they led to.
   const rank = file => REVIEW_RANK[file.role] ?? REVIEW_RANK.other;
-  return files.map((file, index) => ({ file, index }))
+  return listed.map((file, index) => ({ file, index }))
     .sort((a, b) => rank(a.file) - rank(b.file) || a.index - b.index)
     .slice(0, REVIEW_MAX)
-    .map(({ file }) => file);
+    .map(({ file: { id: _id, ...file } }) => file);
+}
+
+/**
+ * `files` with each node's files inside one of its declared output folders
+ * replaced by one entry for that folder, where the folder holds two or more of
+ * them. The entry takes the place of the first file it replaces, the best role
+ * among them and a label counting them. A file outside every declared folder,
+ * or alone in one, stays as it is.
+ */
+function foldFolders(files, runDir, byId) {
+  const isDirectory = folder => {
+    try {
+      return fs.statSync(folder).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+  const foldersOf = id => {
+    const declared = byId.get(id)?.outputs?.artifacts;
+    if (!isPlainObject(declared)) return [];
+    return Object.values(declared)
+      .filter(relative => typeof relative === 'string' && relative !== '' && !relative.includes('${'))
+      .map(relative => path.resolve(runDir, relative))
+      .filter(isDirectory)
+      // The deepest first, so a file is folded into the nearest folder that holds it.
+      .sort((a, b) => b.length - a.length);
+  };
+  const folderOf = file => foldersOf(file.id).find(folder => file.file.startsWith(`${folder}${path.sep}`)) ?? null;
+  const groups = new Map();
+  for (const file of files) {
+    const folder = folderOf(file);
+    if (folder === null) continue;
+    const key = `${file.id}\0${folder}`;
+    if (!groups.has(key)) groups.set(key, { folder, members: [] });
+    groups.get(key).members.push(file);
+  }
+  const rank = role => REVIEW_RANK[role] ?? REVIEW_RANK.other;
+  const out = [];
+  const placed = new Set();
+  for (const file of files) {
+    const folder = folderOf(file);
+    const group = folder === null ? null : groups.get(`${file.id}\0${folder}`);
+    if (!group || group.members.length < 2) {
+      out.push(file);
+      continue;
+    }
+    if (placed.has(group)) continue;
+    placed.add(group);
+    const role = group.members.map(each => each.role).sort((a, b) => rank(a) - rank(b))[0];
+    out.push({ id: file.id, file: group.folder, html: null, label: `${group.members.length} files`, role, folder: true });
+  }
+  return out;
 }
 
 /** The order the `Review:` line names files in: the document a phase produced, then its companions. */
@@ -771,7 +830,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
 
   const reviewed = reviewFiles(doc, runDir, ids, byId);
   const relative = file => path.relative(runDir, file).split(path.sep).join('/');
-  const review = reviewed.map(each => ({ path: relative(each.file), label: each.label, html: each.html ? relative(each.html) : null, role: each.role }));
+  const review = reviewed.map(each => ({ path: `${relative(each.file)}${each.folder ? '/' : ''}`, label: each.label, html: each.html ? relative(each.html) : null, role: each.role }));
 
   // Fixed, decided and open: the fixes in the order they were made, the rest
   // grouped by who settled them and by what they are.

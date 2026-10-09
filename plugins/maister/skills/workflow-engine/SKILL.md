@@ -993,7 +993,9 @@ node's own, and neither does a skipped node: without one, the brief is refused
     its values walks each one on its own answer: each continue's preview names where it leads,
     and the `plain` profile's glance gives each its own *Next* line, named by its label;
   - *Review*: up to three files, named by their paths inside the task folder, the main
-    documents (`role: primary`) first;
+    documents (`role: primary`) first. When there are more, a step's files inside one of its
+    declared output folders are named once, by that folder with a closing `/`, so a stretch
+    that drew several screens never loses one to the limit;
   - *Open risks*: up to three `stop` and `open` risks, a stop first, each without its change;
   - *Fixed by the run: N*: how many fixes the run applied, with up to three listed, each its
     finding and its change;
