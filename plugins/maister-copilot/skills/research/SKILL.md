@@ -32,6 +32,9 @@ before the next call, check that you did (engine Step 4).
   with no question takes it from the conversation.
   Any other flag, apart from the two resume flags below, is not an input of this workflow: name
   it as not taken, in one line, and continue without it — never drop one in silence.
+  `embedded` and `findings_only` are inputs too, but a calling run supplies them and no flag
+  sets them: at the checkpoint after the research, finishing with the research already gives
+  an operator the findings alone.
 - **A resume target** is checked by the engine before anything runs. A task directory started on
   the 2.x plugin has no frozen graph and is refused with a message that says where to finish it;
   relay that message and stop, writing nothing.

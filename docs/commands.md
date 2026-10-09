@@ -189,7 +189,9 @@ Research output can feed into development: `/maister:development --research=.mai
 
 A research run can also be started by another run rather than by this command — a chain names the
 workflow from one of its nodes, supplies the question, and waits for the report and conclusions the
-research definition declares. Such a run is named after the run that started it,
+research definition declares. A chain that wants the findings alone says so, and the checkpoint
+after the research then offers continue, revise or stop, with no brainstorming or design. Such a
+run is named after the run that started it,
 `.maister/tasks/research/<parent's date>-<parent's name>-<node>/`, and is otherwise an ordinary
 research run: same phases, same gates, listed and resumed the same way. The run that started it is
 not yet re-driven automatically when the research ends — under the cockpit the parent waits until it

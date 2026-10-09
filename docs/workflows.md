@@ -238,7 +238,9 @@ than from you, the run gets a task directory of its own named after the run that
 the node waits until it ends. What the calling run may read back is what the research definition
 declares — its report and its conclusions — and nothing else. A research run started this way
 skips the step that exists only to tell an operator the run is over; everything before it is the
-same phases, checkpoints included. Nothing about it needs setting up on your side, and a research
+same phases, checkpoints included. A calling run can also ask for the findings only: the
+checkpoint after the research then offers *Continue*, *Revise the research* and *Stop here*, and
+brainstorming and the design are never offered. Nothing about it needs setting up on your side, and a research
 run you start yourself is unaffected.
 
 ### How it runs

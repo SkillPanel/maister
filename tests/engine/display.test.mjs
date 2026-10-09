@@ -205,7 +205,10 @@ test('no built-in continue label names a destination a guard can skip', () => {
   // skipped. A label "Continue" alone is completed from the walk instead. A
   // continue that sets the gate values the guard after it reads decides the
   // destination itself, so its label may name where it leads — but only when
-  // every guarded node after the gate reads this gate's values.
+  // every guarded node after the gate reads this gate's values. A node guarded
+  // by the negation of the gate's own guard never runs where the gate is asked,
+  // so it is no destination of the gate's labels.
+  const negation = when => (when.startsWith('!') ? when.slice(1) : `!${when}`);
   const offenders = [];
   for (const file of BUILTINS) {
     const { doc } = readDefinition(file);
@@ -214,7 +217,8 @@ test('no built-in continue label names a destination a guard can skip', () => {
     for (const [gate, node] of Object.entries(nodes)) {
       if (node.type !== 'gate') continue;
       const after = Object.entries(nodes).filter(([, each]) => (each.needs ?? []).includes(gate));
-      const guarded = after.filter(([, each]) => typeof each.when === 'string').map(([id]) => id);
+      const exclusive = ([, each]) => typeof node.when === 'string' && !node.when.includes('||') && each.when === negation(node.when);
+      const guarded = after.filter(([, each]) => typeof each.when === 'string').filter(entry => !exclusive(entry)).map(([id]) => id);
       for (const [option, effect] of Object.entries(node.options ?? {})) {
         const label = labels[gate]?.[option];
         if ((effect?.effect ?? effect) !== 'continue' || typeof label !== 'string' || !/^Continue to /.test(label)) continue;
