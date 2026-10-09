@@ -1631,7 +1631,11 @@ able to write:
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
   — merge key by key instead, because different nodes write different keys of them at
   different times: a write recording `user_docs_enabled` leaves an `html_output` an earlier
-  node set alone. Send the whole map only when you mean to add to it.
+  node set alone. Send the whole map only when you mean to add to it. `task.status` is the
+  writer's at one moment: the first write that moves a node off `pending` — the run starting
+  to execute — records `in_progress` when the status is absent or `pending`. The freeze runs
+  nothing and records none; a status already set otherwise, or one the same patch sends, is
+  left alone, and the run's ending is the closing patch's to record.
 - `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
   edited in place afterwards. Never send a node's `started` or `completed`, or
   `orchestrator.updated`: the writer stamps all three from its own clock on each status change

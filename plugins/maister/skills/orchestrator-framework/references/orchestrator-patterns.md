@@ -251,7 +251,7 @@ orchestrator:
 task:
   title: [human-readable task title]
   description: [full task description]
-  status: pending | in_progress | completed | failed | blocked
+  status: pending | in_progress | completed | failed | blocked  # in_progress: the state writer, at the first node start
   tags: []
   priority: null  # high | medium | low
 ```
