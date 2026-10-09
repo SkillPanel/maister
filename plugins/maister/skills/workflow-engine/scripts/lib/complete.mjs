@@ -203,8 +203,9 @@ function closeoutRefusal({ outbox, dispatchId }) {
  * a guard could not rule one out when that is the reason, and the recovery —
  * the work that was missed, never a status written over it. A gate the
  * skip-guard rule asks (`asked`) is owed whatever its guard reads, so the
- * record-skipped recovery is offered only for the others, and not at all when
- * every owed node is such a gate.
+ * rule is explained only when such a gate is owed, and the record-skipped
+ * recovery is offered only for the others, and not at all when every owed
+ * node is such a gate.
  */
 function unfinished(state, { owed, drift }) {
   const named = owed.map(({ id, status, guard, asked }) => {
@@ -214,10 +215,11 @@ function unfinished(state, { owed, drift }) {
   });
   const one = owed.length === 1;
   const count = one ? 'a node has' : `${owed.length} nodes have`;
+  const anyAsked = owed.some(({ asked }) => asked);
   const rule = drift
     ? 'The definition this run froze cannot be re-read, or has changed since the freeze, so no guard was evaluated: every pending node whose needs are met counts.'
-    : `A pending node counts unless the graph keeps it off the path the run took — a false guard, or a need that ended failed or stopped which the node's on: does not accept — and nothing keeps ${one ? 'this one' : 'these'} off it. `
-      + 'A false guard never keeps off a gate whose guard reads a value the run records and that is more than a confirmation: such a gate is asked whatever its guard reads.';
+    : `A pending node counts unless the graph keeps it off the path the run took — a false guard, or a need that ended failed or stopped which the node's on: does not accept — and nothing keeps ${one ? 'this one' : 'these'} off it.`
+      + (anyAsked ? ' A false guard never keeps off a gate whose guard reads a value the run records and that is more than a confirmation: such a gate is asked whatever its guard reads.' : '');
   const skippable = owed.filter(({ asked }) => !asked);
   const skipped = skippable.length === 0 ? ''
     : skippable.length === owed.length ? ', or record skipped for one whose guard is false'
