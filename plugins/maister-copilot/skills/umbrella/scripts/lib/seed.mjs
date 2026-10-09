@@ -425,20 +425,25 @@ function closeoutLines({ closeout, autonomy, permissions }) {
   const lines = [];
   if (closeout.pr_required === true && autonomy === RELAYED) {
     lines.push('A pull request is required before close-out. Your tier denies opening one directly, so the command is held for an operator to approve rather than refused outright.');
-    // The line this section was missing, and the one a live worker needed. It
-    // used to say "wait for that approval", which a headless worker cannot do:
-    // its turn ends. Obeying that literally produced a dispatch with no
-    // close-out, no marker and nothing for the daemon to read — so the relay
-    // now ends the turn the way every other unfinished dispatch ends, on a
-    // followup and a frozen marker. Both already exist; only the instruction
-    // connecting them to a fired relay was absent.
-    lines.push('If it is held, do not wait inside this turn - an approval cannot arrive in one. Write a followup message naming the held command and what is left to do, print `DISPATCH-FOLLOWUP: ` followed by that summary as the last line, and end the turn. The close-out, carrying the pull request URL, belongs to a later turn.');
   } else if (closeout.pr_required === true) {
     lines.push('A pull request is required before close-out; open it and put its URL in the closeout message.');
   } else if (closeoutReachable({ autonomy, permissions })) {
     lines.push('No pull request is required - the chain dispatching you declared it, though your tier could open one. Do not open one anyway: say in the closeout what a reviewer has to open and merge.');
   } else {
     lines.push('No pull request is required - your tier can never open one. Say in the closeout what a reviewer has to open and merge.');
+  }
+  if (autonomy === RELAYED) {
+    // The line a live worker needed. It used to say "wait for that approval",
+    // which a headless worker cannot do: its turn ends. Obeying that literally
+    // produced a dispatch with no close-out, no marker and nothing for the
+    // daemon to read — so a held command ends the turn the way every other
+    // unfinished dispatch ends, on a followup and a frozen marker. It renders
+    // for every relayed seed, because a push is held whether or not a pull
+    // request is required, and `# identity` points here either way. The
+    // `needs` field is what a reader acts on: prose alone names the held
+    // command to a person, and offers nothing to a cockpit that would put the
+    // approval in front of one.
+    lines.push('If a push or a pull request is held for approval, do not wait inside this turn - an approval cannot arrive in one. Write a followup message naming the held command and what is left to do, with `needs: [permission]` in its body beside that summary, print `DISPATCH-FOLLOWUP: ` followed by that summary as the last line, and end the turn. The close-out belongs to a later turn, once the operator has answered.');
   }
   lines.push(`Grade the run ${listOf(Array.isArray(closeout.grade) && closeout.grade.length ? closeout.grade.map(oneLine) : ['success', 'partial', 'failed'])}.`);
   lines.push('The closeout message carries the grade, a summary of what changed, and what a reviewer must check.');

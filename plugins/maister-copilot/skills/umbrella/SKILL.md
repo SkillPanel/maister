@@ -387,6 +387,11 @@ the report marked degraded. The other three refuse, because there is no frozen
 line for them and inventing one would freeze a sixth spelling forever. Their
 recovery is to retry once the path is writable, or to fold what they carried
 into the eventual close-out summary: a lost status line is not a lost result.
+Any message may add `needs` — a list of `permission`, `decision` or `input` — to
+say what it is waiting on. A worker holding a push or a pull request for an
+operator's approval sends a followup with `needs: [permission]` beside its prose:
+the prose tells a person what is held, and the field is what lets a reader
+offer the held action.
 
 ---
 
