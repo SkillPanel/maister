@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -173,4 +174,20 @@ test('a question id the node does not declare resolves to the declared id it bel
   assert.equal(ask('storage', ['area-choice', 'other-question']), null);
   // A gate row never answers for a question.
   assert.equal(ask('gate-row', ['gate-row']), null);
+});
+
+test('a __proto__ key is kept in the hash, not dropped', () => {
+  const text = '{"version":1,"__proto__":{"x":1}}';
+  const parsed = JSON.parse(text);
+  const expected = `sha256:${createHash('sha256').update('{"__proto__":{"x":1},"version":1}', 'utf8').digest('hex')}`;
+  assert.equal(policyHash(parsed), expected);
+  assert.notEqual(expected, DEFAULT_HASH);
+  // An unknown root key: the file loads, and its hash still counts the key.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-'));
+  const file = path.join(dir, 'proto.json');
+  fs.writeFileSync(file, text);
+  const loaded = loadPolicy({ path: file });
+  assert.deepEqual(loaded.warnings, []);
+  assert.equal(loaded.source, file);
+  assert.equal(loaded.hash, expected);
 });
