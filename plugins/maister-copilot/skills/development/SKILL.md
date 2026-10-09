@@ -26,7 +26,9 @@ before the next call, check that you did (engine Step 4).
 - **The flags are inputs of the definition**, handed to the engine as such: `--research=PATH` is
   `research`; `--design=PATH` is `design`; `--architecture=PATH` is `architecture`; `--audit` and `--no-audit` are `audit: yes` and `audit: no`; `--e2e` and `--no-e2e`
   are `browser_tests: yes` and `browser_tests: no`; `--user-docs` and `--no-user-docs` are
-  `user_docs: yes` and `user_docs: no`; `--sequential` is `sequential: true`. A flag that was not
+  `user_docs: yes` and `user_docs: no`; `--sequential` is `sequential: true`; `--publish` is
+  `publish: true`, which makes the plan checkpoint the one whose continue also pushes the branch
+  and opens a pull request when the run finishes. A flag that was not
   passed supplies no input, and the step that owns the choice asks it. The audit and the browser
   checks are decided at the gate before them, which is always asked, so `audit` and
   `browser_tests` set which continue that gate recommends rather than skipping a question. There is no task-type

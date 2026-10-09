@@ -1,6 +1,6 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: development
-%% graph_hash: sha256:fa93baf85c4b8faf91a9f3f7e68aecae41ee0804e21fe7ae9410e98913bc5a3a
+%% graph_hash: sha256:6aa074833ba17c6362a258d415017ee443e8397efdc25ab88a750c413d21ed47
 
 flowchart TD
   n_intake["Intake<br/>intake<br/>direct:intake"]
@@ -16,7 +16,8 @@ flowchart TD
   n_spec_audit{"Specification audit<br/>spec-audit<br/>agent:spec-auditor<br/>when: ${specification-approval.values.spec_audit_enabled}"}
   n_spec_audit_approval{{"Approve specification audit<br/>spec-audit-approval<br/>gate<br/>Specification audit complete. Continue to implementation planning?<br/>continue-to-planning: continue, revise-specification: revise → specification, stop-development: stop<br/>when: ${specification-approval.values.spec_audit_enabled}"}}
   n_planning["Implementation planning<br/>planning<br/>agent:implementation-planner"]
-  n_planning_approval{{"Approve implementation plan<br/>planning-approval<br/>gate<br/>Implementation plan complete. Continue to implementation?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-development: stop"}}
+  n_planning_approval{{"Approve implementation plan<br/>planning-approval<br/>gate<br/>Implementation plan complete. Continue to implementation?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-development: stop<br/>when: !${inputs.publish}"}}
+  n_planning_approval_publish{{"Approve implementation plan and publish<br/>planning-approval-publish<br/>gate<br/>Implementation plan complete. Continue to implementation, then push the branch and open a pull request?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-development: stop<br/>when: ${inputs.publish}"}}
   n_implementation["Implementation<br/>implementation<br/>skill:implementation-plan-executor"]
   n_implementation_approval{{"Approve implementation<br/>implementation-approval<br/>gate<br/>Implementation complete. Continue?<br/>continue-past-implementation: continue, stop-development: stop"}}
   n_tdd_green{"Passing test<br/>tdd-green<br/>direct:tdd-green<br/>when: ${gap-analysis.values.has_reproducible_defect}"}
@@ -41,7 +42,9 @@ flowchart TD
   n_spec_audit --> n_spec_audit_approval
   n_spec_audit_approval --> n_planning
   n_planning --> n_planning_approval
+  n_planning --> n_planning_approval_publish
   n_planning_approval --> n_implementation
+  n_planning_approval_publish --> n_implementation
   n_implementation --> n_implementation_approval
   n_implementation_approval --> n_tdd_green
   n_tdd_green --> n_verification_options
@@ -52,5 +55,5 @@ flowchart TD
   n_e2e_approval --> n_user_docs
   n_user_docs --> n_docs_approval
   n_docs_approval --> n_finalization
-  class n_gap_approval,n_tdd_red_approval,n_mockup_approval,n_specification_approval,n_spec_audit_approval,n_planning_approval,n_implementation_approval,n_verification_approval,n_e2e_approval,n_docs_approval gate
-  class n_tdd_red,n_tdd_red_approval,n_ui_mockups,n_mockup_approval,n_spec_audit,n_spec_audit_approval,n_tdd_green,n_e2e_verification,n_e2e_approval,n_user_docs,n_docs_approval conditional
+  class n_gap_approval,n_tdd_red_approval,n_mockup_approval,n_specification_approval,n_spec_audit_approval,n_planning_approval,n_planning_approval_publish,n_implementation_approval,n_verification_approval,n_e2e_approval,n_docs_approval gate
+  class n_tdd_red,n_tdd_red_approval,n_ui_mockups,n_mockup_approval,n_spec_audit,n_spec_audit_approval,n_planning_approval,n_planning_approval_publish,n_tdd_green,n_e2e_verification,n_e2e_approval,n_user_docs,n_docs_approval conditional

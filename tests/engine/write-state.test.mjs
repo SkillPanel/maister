@@ -139,7 +139,7 @@ test('banner: the freeze prints the task, its directory, the dashboard and the f
     'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below.',
     'Maister run started: Development',
     'Task: Fix the parser',
-    'Checkpoints: up to 10 where you decide',
+    'Checkpoints: up to 11 where you decide',
     `Directory: ${run.dir}`,
     `Dashboard: ${pathToFileURL(path.join(run.dir, 'dashboard.html')).href}`,
     'First phase: Intake',
