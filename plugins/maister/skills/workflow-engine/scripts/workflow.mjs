@@ -538,7 +538,7 @@ function reportWrite(result, input) {
   // string: a refused policy file leaves the run on the built-in default, and a
   // gate recorded skipped that the rule asks is written as sent, so each is a
   // warning and never a refusal, and the exit code does not move.
-  for (const code of result.policyWarnings || []) process.stderr.write(`warning: ${code}\n`);
+  for (const code of result.writeWarnings || []) process.stderr.write(`warning: ${code}\n`);
   // A value the node's definition does not declare is written, never refused,
   // because nothing reads one: no guard and no `${…}` reference may name it.
   // Which is also why it is worth a line — a name meant to be declared, or

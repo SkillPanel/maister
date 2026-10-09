@@ -252,3 +252,101 @@ test('a flat gate answer moves its provenance onto the decision; an actor it car
   assert.deepEqual(pick(item, PROVENANCE), { actor, on_behalf_of: 'lee', evidence: ['notes.md'], override_of: 'hold-draft' });
   for (const key of PROVENANCE) assert.equal(Object.hasOwn(summary, key), false, `no flat ${key} is left`);
 });
+
+/** The `gate` fixture run, driven, its approval gate suspended on a request file holding `request`. */
+function drivenAt(t, request) {
+  const run = scratch(t, { fixture: 'gate' });
+  freeze(run, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  write(run, {
+    orchestrator: { gate_pending: { node: 'approval', request: 'gates/approval.request.yml', since: '2026-01-05T09:00:00Z' } },
+    nodes: { approval: { status: 'suspended' } },
+  });
+  fs.writeFileSync(path.join(run.dir, 'gates/approval.request.yml'), request);
+  return run;
+}
+
+/** Record the approval gate's driven answer, as the closing write after the request was answered. */
+function recordDriven(run, decision) {
+  return write(run, {
+    orchestrator: { gate_pending: null },
+    nodes: { approval: { status: 'completed' } },
+    node_summaries: { approval: { decisions: [{ option: 'continue', via: 'cockpit', ...decision }] } },
+  });
+}
+
+const PROVENANCE_REQUEST = fs.readFileSync(path.join(FIXTURES, 'gates/approval.provenance.yml'), 'utf8');
+
+test('a driven answer whose provenance holds an unusable map key is recorded without that key, with a warning naming the request file', t => {
+  const run = drivenAt(t, PROVENANCE_REQUEST.replace(/^ {2}evidence: .*$/m, '  evidence: {"src/a b.md": "the report"}'));
+  const recorded = recordDriven(run, { answered_by: 'dana', at: '2026-01-05T09:05:00Z' });
+  assert.match(recorded.stderr, /^warning: provenance-unusable:approval:evidence — .*gates[\\/]approval\.request\.yml/m);
+  const [item] = readState(run).node_summaries.approval.decisions;
+  assert.deepEqual(pick(item, PROVENANCE), { on_behalf_of: 'lee', policy: { name: 'sample-policy', rule: 'review-first' }, override_of: 'stop-here' });
+  // Every later write lands too: the copy pass skips the key again rather than refusing.
+  const again = write(run, {});
+  assert.match(again.stderr, /provenance-unusable:approval:evidence/);
+});
+
+test('a question-set answer whose provenance holds an unusable map key folds without that key, with a warning', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: COCKPIT } });
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  fs.copyFileSync(path.join(FIXTURES, 'gates/question-set.request.yml'), path.join(run.dir, 'gates/analysis.request.yml'));
+  const { answer } = read(path.join(FIXTURES, 'gates/question-set.provenance.answer.yml'));
+  const result = write(run, { node_summaries: { analysis: { answer: { ...answer, policy: { 'rule name': 'ask-first' } } } } });
+  assert.match(result.stderr, /^warning: provenance-unusable:analysis:policy — .*gates[\\/]analysis\.request\.yml/m);
+  const decisions = readState(run).node_summaries.analysis.decisions;
+  assert.equal(decisions.length, 3);
+  for (const item of decisions) assert.deepEqual(pick(item, PROVENANCE), pick(answer, ['actor', 'on_behalf_of', 'evidence', 'override_of']));
+});
+
+test('a stale request answer — same option, another answerer or time — copies nothing onto the gate\'s answer', t => {
+  const run = drivenAt(t, PROVENANCE_REQUEST);
+  recordDriven(run, { answered_by: 'kim', at: '2026-01-06T10:00:00Z' });
+  write(run, {});
+  const [item] = readState(run).node_summaries.approval.decisions;
+  assert.deepEqual(pick(item, PROVENANCE), {});
+});
+
+test('a changed in-node answer does not inherit the held answer\'s provenance, and a terminal one gains its person actor', t => {
+  const run = scratch(t);
+  freeze(run);
+  const held = { decision: 'Yes', by: 'operator', question_id: 'scope', question: 'Proceed?', answer: 'Yes', answered_by: 'dana', via: 'cockpit',
+    actor: { kind: 'agent', id: 'helper' }, evidence: ['notes.md'], override_of: 'No' };
+  write(run, { node_summaries: { analysis: { decisions: [held] } } });
+  write(run, { node_summaries: { analysis: { decisions: [{ decision: 'No', by: 'operator', question_id: 'scope', question: 'Proceed?', answer: 'No' }] } } });
+  const stored = readState(run).node_summaries.analysis.decisions;
+  const current = stored.at(-1);
+  assert.equal(current.answer, 'No');
+  assert.deepEqual([current.answered_by, current.via], [OPERATOR, 'terminal']);
+  assert.deepEqual(pick(current, PROVENANCE), { actor: PERSON });
+});
+
+test('the writer strips grants from any decision a patch sends', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: {
+      'review-approval': { decisions: [{ option: 'publish-draft', grants: ['push'] }] },
+      draft: { decisions: [{ decision: 'Yes', by: 'operator', question_id: 'a', question: 'Proceed?', answer: 'Yes', grants: ['push'] }, { decision: 'Kept', by: 'run', grants: ['tag'] }] },
+    },
+  });
+  noGrants(run);
+  assert.equal(readState(run).node_summaries['review-approval'].decisions[0].option, 'publish-draft');
+});
+
+test('a flat answer whose decision was already sent merges its provenance onto that decision', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { answer: 'publish-draft', on_behalf_of: 'lee', evidence: ['notes.md'], decisions: [{ option: 'publish-draft', override_of: 'hold-draft' }] } },
+  });
+  const summary = readState(run).node_summaries['review-approval'];
+  assert.equal(summary.decisions.length, 1);
+  assert.deepEqual(pick(summary.decisions[0], PROVENANCE), { actor: PERSON, on_behalf_of: 'lee', evidence: ['notes.md'], override_of: 'hold-draft' });
+  for (const key of PROVENANCE) assert.equal(Object.hasOwn(summary, key), false, `no flat ${key} is left`);
+});
