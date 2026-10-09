@@ -54,7 +54,11 @@ them and asks which to start.
 **Check** a workflow with `/maister:run <name> --check`, adding `--overlay` and `--profile` as for
 a run. It finds and validates the workflow and starts nothing. Each error names the file, the node
 and the field, with a one-line fix where the fix is mechanical. The report then lists the
-warnings, where each skill and agent was found, and the inputs a start would ask for. This is the
+warnings, where each skill and agent was found, and the inputs a start would ask for. Warnings
+never block. One worth knowing: `skip-guard-not-pure` names a gate whose guard reads something
+the run itself found, rather than something you chose, and which decides more than "go on". Such
+a gate is asked whatever its guard reads; guard it on an input or on another gate's answer, or
+make it a single plain continue. This is the
 check to run while writing a definition or an overlay; the
 [workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)
 covers every key it judges.
@@ -380,6 +384,9 @@ overlays, use `/maister:run <name> --check`.
 
 Errors exit `1` and name the file, node and field; warnings alone exit `0`, so a workspace can carry
 advisory findings without being blocked. A freshly scaffolded manifest reports no findings at all.
+The `auto-low` autonomy tier is no longer offered: wherever it is still set — on a member, in
+`defaults`, or in a chain node's `with:` — `validate` warns `auto-low-retired`, keeps the value as
+written and blocks nothing. Move to `attended`, `auto-medium` or `auto-high` when you choose.
 The report lists each definition it judged and marks
 the ones that sit in the generated home as generated; the rules are identical either way.
 

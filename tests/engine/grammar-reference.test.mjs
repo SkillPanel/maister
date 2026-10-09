@@ -139,3 +139,11 @@ test('the reference is linked from the engine skill and from the extending guide
   assert.ok(/\]\(\.\.\/plugins\/maister\/skills\/workflow-engine\/references\/grammar\.md\)/.test(extending),
     'docs/extending.md links the shipped grammar reference');
 });
+
+test('§ 14 lists the skip-guard warning the validator raises', () => {
+  const graph = fs.readFileSync(SOURCES.graph, 'utf8');
+  assert.ok(/`skip-guard-not-pure:\$\{node\}/.test(graph), 'graph.mjs no longer raises skip-guard-not-pure');
+  const checking = REFERENCE_TEXT.slice(REFERENCE_TEXT.indexOf('## 14. Checking a definition'));
+  assert.ok(/^\| `skip-guard-not-pure:<node>` \|/m.test(checking),
+    'grammar.md § 14 has a row for skip-guard-not-pure:<node>');
+});

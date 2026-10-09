@@ -43,7 +43,11 @@ exactly one of which continues the run and at least one of which stops it. Nodes
 dependencies with `needs:`, their guards with `when:`, and the values they hand downstream with
 `outputs:`. A node's `on:` says which endings of its needs let it run: `success`, the default, needs
 every one completed or skipped; `failure` runs only when one of them failed, and is skipped when
-none did; `always` runs once they have all ended, however. The definition's `name` is lower-case letters, digits and dashes, starting with a letter;
+none did; `always` runs once they have all ended, however. A guard that reads a value the run
+itself records may skip a gate only when the gate merely confirms — one continue, setting nothing
+and granting nothing; any other gate it guards is asked whatever the guard reads, and validation
+warns `skip-guard-not-pure`. Guard a gate that decides something on an input or on another gate's
+answer. The definition's `name` is lower-case letters, digits and dashes, starting with a letter;
 `version: 1` is the bare number, never quoted; and each entry under `inputs:` declares its `type` as
 `string`, `bool` or `path`. A declared artifact is a literal path relative to the run's task
 directory: `${…}` references belong in `with:`, `dir:` and `ask:`, and one inside an artifact path,
@@ -167,7 +171,8 @@ findable:
 run's closing marker. A run recorded `completed` is refused while a node it can still reach has
 not run: a node still running, or a pending one whose needs are met and that no false guard
 keeps off the path. The refusal names each one. A node a false guard skips is not owed, and
-neither is one waiting on a need that failed, unless its `on:` says to run anyway. The verb
+neither is one waiting on a need that failed, unless its `on:` says to run anyway. A gate asked
+whatever its guard reads (above) is owed even when its guard is false. The verb
 also prints one `missing-artifact: <node> <path>` line above the marker for each artifact a
 completed node declared that is not on disk. That line is a warning for you to read, never a
 refusal. A node that legitimately completes without one of its artifacts — say, a report written

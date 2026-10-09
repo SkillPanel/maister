@@ -139,7 +139,10 @@ report is for machines; what goes back to the user is plain language:
 - **`validate`, exit `0`** — what was judged (the manifest, and each definition
   by name, saying which of them sit in the generated home — the report marks
   each one `generated` or not) and that it passed; each warning with its file,
-  node and path, and that warnings alone never block. Close by saying where a
+  node and path, and that warnings alone never block. An `auto-low-retired`
+  warning says that tier is no longer offered and the value is kept as written;
+  pass on its choice of `attended`, `auto-medium` or `auto-high`, for when the
+  user chooses to move. Close by saying where a
   run begins: a chain — a definition whose
   nodes dispatch into members — is started by maister cockpit, and a user who
   does not have it yet gets it with `npx maister-cockpit`; a definition that
@@ -231,8 +234,10 @@ development run per member in scope. Its shape and rules are in
 **`validate`** — before a run, and whenever the manifest or a definition
 changes. It is deterministic and involves no model. It parses, checks structure,
 checks ids, checks the graph is acyclic, resolves references, checks gate shape
-and finally warns on reserved keys, collecting findings within each stage rather
-than stopping at the first. It judges each definition as written and applies no
+and finally warns on reserved keys and on the retired `auto-low` tier, collecting
+findings within each stage rather than stopping at the first. The tier warns
+`auto-low-retired` wherever it is set — a member's `autonomy`, `defaults.autonomy`,
+or a chain node's `with.autonomy` — keeps the value as typed and refuses nothing. It judges each definition as written and applies no
 overlay or profile; a workflow checked with its overlays, or in a single project
 with no manifest, is `/maister:run <name> --check`. A node carrying `dir:` is judged
 once more: dispatched work runs unattended, so its `uses:` has to name a

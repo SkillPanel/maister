@@ -342,6 +342,18 @@ did not complete — skipped, failed or stopped — reads false. A completed nod
 the value is a defect the gate brief refuses to paper over. The closing gate of a guarded stretch repeats the stretch's guard,
 because an unguarded gate would fire for a stretch that never ran.
 
+**A guard may skip a gate only when someone chose the value it reads, or when the gate only
+confirms.** An input or a gate's value is a choice an operator made, so a guard on either may
+skip any gate. A value a non-gate node records — a `workflow:` node included, the reference
+negated or not — is the run's own finding, and nobody chose it. A gate guarded by one is skipped
+by its guard only when it is a **pure confirmation**: exactly one continue, with no `sets` and no
+`grants`; a revise or a stop beside it is allowed. Any other such gate decides something — which
+way the run goes, or what the answer grants — and is **asked whatever its guard reads**: the ready
+set takes it as ready once its needs are met, the brief walks to it, and `run-complete` holds it
+owed and never offers to record it skipped. Validation warns `skip-guard-not-pure:<node>`; nothing
+is refused. A write that records such a gate `skipped` lands and warns `skip-guard-skipped:<node>`.
+The fix is a guard on an input or a gate's value, or a gate reduced to a single plain continue.
+
 <!-- vocabulary: ON_VALUES -->
 | `on` | The node runs when |
 |---|---|
@@ -665,6 +677,7 @@ Warnings never block, and each one is worth reading:
 | `unresolved-subrun-input:<node>:<name>` | A required child input with no default missing from `with:`, or a `with:` key the child does not declare |
 | `unresolved-subrun-output:<node>:<name>` | A key the calling node declares that the child does not expose, or exposes at another path |
 | `undecidable-value-type:<path>` | A `string` value; prefer `bool`, `id` or an `enum` where the value is a handle |
+| `skip-guard-not-pure:<node>` | A gate guarded by a value a non-gate node records that is more than a pure confirmation, so it is asked whatever its guard reads (§ 7); guard it on an input or a gate's value, or make it a single continue with no `sets` and no `grants` |
 | `icon-hint-unknown-node:<path>:<node>`, `title-unknown-node:<path>:<node>` | Display for a node the graph does not carry |
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |
