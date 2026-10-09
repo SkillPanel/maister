@@ -85,7 +85,7 @@ import * as dashboard from './dashboard.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, resolve as resolveGraph } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, attemptNumber, decisionOf, fixOf, isEarlierAnswer, oneLine } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, oneLine } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -2948,13 +2948,11 @@ function gateValues(entry, option) {
   return isPlainObject(set) ? { ...set } : undefined;
 }
 
-/** The option a gate's last recorded decision names, or null. */
+/** The option a gate's answer — its last decision carrying one — names, or null. */
 function latestOption(typed, id) {
   const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
-  const decisions = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) && Array.isArray(summaries[id].decisions)
-    ? summaries[id].decisions : [];
-  const latest = decisions.length ? decisions[decisions.length - 1] : null;
-  return isPlainObject(latest) && typeof latest.option === 'string' ? latest.option : null;
+  const decisions = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].decisions : null;
+  return gateAnswer(decisions)?.option ?? null;
 }
 
 /** A node status in the summary vocabulary, or undefined when it has none. */

@@ -119,6 +119,7 @@ import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
 import { atClose } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
+import { gateAnswer } from './items.mjs';
 import { projectRootOf } from './state.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
@@ -371,11 +372,16 @@ function requestAnswer(runDir, node) {
   }
 }
 
-/** The last answer an in-session gate recorded on its summary, or null. */
+/**
+ * The last answer an in-session gate recorded on its summary, or null: the
+ * gate's answer — its last decision carrying an option — first, else the last
+ * decision with any answer text.
+ */
 function summaryAnswer(summary) {
   if (!isPlainObject(summary)) return null;
   const decisions = Array.isArray(summary.decisions) ? summary.decisions : [];
-  for (const decision of [...decisions].reverse()) {
+  const answer = gateAnswer(decisions);
+  for (const decision of answer ? [answer, ...[...decisions].reverse()] : [...decisions].reverse()) {
     if (!isPlainObject(decision)) continue;
     for (const key of ['answer', 'option', 'decision']) {
       if (typeof decision[key] === 'string' && decision[key] !== '') return decision[key];

@@ -156,6 +156,22 @@ export function decisionOf(item, labelFor = null) {
 }
 
 /**
+ * A gate's answer among its decisions: the last item carrying a string
+ * `option`, or null when none does. A gate's decisions may hold more than its
+ * answer — a note the run recorded after it, an earlier attempt's revise — so
+ * the last item is not the answer, and every reader of a gate's answer asks
+ * here rather than taking the tail of the list.
+ */
+export function gateAnswer(decisions) {
+  if (!Array.isArray(decisions)) return null;
+  for (let index = decisions.length - 1; index >= 0; index -= 1) {
+    const item = decisions[index];
+    if (isMap(item) && typeof item.option === 'string') return item;
+  }
+  return null;
+}
+
+/**
  * Whether a decision is an earlier attempt's answer to a question the node
  * asked again: it carries its own `attempt`, and `list` — the node's decisions
  * — holds an answer to the same `question_id` from a later one. Such an answer
