@@ -179,6 +179,25 @@ const BRANCH_SAFE_MEMBER = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const AUTONOMY = ['attended', 'auto-low', 'auto-medium', 'auto-high'];
 const PROVIDERS = ['claude', 'copilot'];
 
+/**
+ * `auto-low` is still a valid tier — the enum and its refusal texts keep it —
+ * but no writer chooses it any more. `validate` warns wherever a workspace
+ * still names it (a member, the defaults, a chain node's `with.autonomy`) and
+ * leaves the value as typed: the warning is the whole of the change, so a
+ * workspace that validated before still validates, with the same exit code.
+ */
+const RETIRED_TIER = 'auto-low';
+
+function retiredTier(file, node, dotted) {
+  return {
+    code: 'auto-low-retired',
+    file,
+    node,
+    path: dotted,
+    message: `${dotted} is ${RETIRED_TIER}, a tier that is no longer offered; the value is kept as written. Pick attended, auto-medium or auto-high instead when you choose to move.`,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // member discovery
 // ---------------------------------------------------------------------------
@@ -802,6 +821,7 @@ export function validate(root, { definitions = [] } = {}) {
       checkNodeProviders(definition.doc, file, members, errors);
     }
     checkDriverCapable(definition.doc, file, errors);
+    checkRetiredTier(definition.doc, file, warnings);
   }
 
   // Each definition is reported as generated or not, by where it sits: the
@@ -1094,6 +1114,8 @@ function checkManifest(doc, file, errors, warnings) {
       }
       if (Object.hasOwn(entry, 'autonomy') && !AUTONOMY.includes(entry.autonomy)) {
         fail(`${at}.autonomy`, `autonomy is one of ${AUTONOMY.join(', ')}`);
+      } else if (entry.autonomy === RETIRED_TIER) {
+        warnings.push(retiredTier(file, null, `${at}.autonomy`));
       }
       members.names.add(name);
     }
@@ -1163,6 +1185,8 @@ function checkManifest(doc, file, errors, warnings) {
     else {
       if (Object.hasOwn(doc.defaults, 'autonomy') && !AUTONOMY.includes(doc.defaults.autonomy)) {
         fail('defaults.autonomy', `autonomy is one of ${AUTONOMY.join(', ')}`);
+      } else if (doc.defaults.autonomy === RETIRED_TIER) {
+        warnings.push(retiredTier(file, null, 'defaults.autonomy'));
       }
       if (Object.hasOwn(doc.defaults, 'worktree') && typeof doc.defaults.worktree !== 'boolean') {
         fail('defaults.worktree', 'worktree is true or false');
@@ -1441,6 +1465,20 @@ function checkDriverCapable(doc, file, errors) {
         ? `"${node.uses}" cannot be dispatched into a member: this installation holds no such skill — not the workspace, not the plugin, not any installed plugin — so nothing was read and whether it honours a driver is unknown here. A dispatched target has to be readable where the dispatch is built, because the same lookup decides it there. Install whatever ships that skill, point this node at a workflow: target or at an orchestrator skill this installation carries, or drop its dir: and run it in the coordinating repository.`
         : `"${node.uses}" cannot be dispatched into a member: a dispatched worker runs unattended, so it has to record the driver it was started under, write each gate out as a request file and print a marker instead of asking. Only a workflow: target, which the engine runs, or an orchestrator skill that declares driver_aware: true in its frontmatter, or whose SKILL.md states that driver-qualified gate rule, does that. Point this node at one of those, or drop its dir: and run it in the coordinating repository.`,
     });
+  }
+}
+
+/**
+ * Every chain node whose `with.autonomy` names the retired tier, warned at that
+ * node. Only the retired value is looked at: whether a node's tier is in the
+ * enum at all stays the envelope's question, asked where the tier is resolved.
+ */
+function checkRetiredTier(doc, file, warnings) {
+  if (!isMap(doc) || !isMap(doc.nodes)) return;
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    if (!isMap(node) || !isMap(node.with)) continue;
+    if (node.with.autonomy !== RETIRED_TIER) continue;
+    warnings.push(retiredTier(file, id, `nodes.${id}.with.autonomy`));
   }
 }
 

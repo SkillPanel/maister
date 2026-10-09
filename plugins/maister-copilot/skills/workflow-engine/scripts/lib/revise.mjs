@@ -39,6 +39,7 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
 import { reviseStretch } from './graph.mjs';
+import { PROVENANCE_KEYS, gateAnswer, withPersonActor, withProvenance } from './items.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
 
 /**
@@ -65,7 +66,8 @@ const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
  * revise option `option`. `input` is the patch file's document: `{note,
  * answered_by?, at?, via?}` — `at` the answer's stamp when a driver carried one,
  * the writer's own clock otherwise; `via` how the answer reached the run, when
- * the caller knows it.
+ * the caller knows it — and any provenance the answer carried
+ * (`PROVENANCE_KEYS`), recorded on the decision.
  */
 export function gateRevise({ state, node, option, input }) {
   let doc;
@@ -107,10 +109,11 @@ export function gateRevise({ state, node, option, input }) {
   }
 
   const decisions = decisionsOf(doc, node);
-  const latest = decisions.length ? decisions[decisions.length - 1] : null;
+  const latest = gateAnswer(decisions);
   // The driven fold records the answer as any answer is recorded — the gate
   // completed, the option on its summary — before the shell is open again; this
-  // is the write that follows it. Recognised by the option with no attempt yet.
+  // is the write that follows it. Recognised by the gate's answer naming the
+  // option with no attempt yet.
   const folded = gate.status === 'completed' && isPlainObject(latest) && latest.option === option
     && !Object.hasOwn(latest, 'attempt');
   const why = notCurrent(doc, recorded, entry, node, gate, folded);
@@ -149,7 +152,12 @@ export function gateRevise({ state, node, option, input }) {
   const sent = typeof answer.via === 'string' && answer.via.trim() !== '' ? answer.via.trim()
     : (folded && typeof latest.via === 'string' ? latest.via : null);
   const via = sent ?? (carried === null ? answerVia(doc) : null);
-  const decision = {
+  // Provenance: each key the patch file carries, else the folded answer's;
+  // `grants` is never copied. An answer given at this terminal is then
+  // credited to the person who gave it, as the writer credits every one.
+  const provenance = withProvenance(Object.fromEntries(PROVENANCE_KEYS
+    .filter(key => answer[key] !== undefined && answer[key] !== null).map(key => [key, answer[key]])), folded ? latest : null);
+  const decision = withPersonActor({
     option,
     answered_by: carried ?? operatorName(path.dirname(state)),
     ...(via === null ? {} : { via }),
@@ -157,10 +165,13 @@ export function gateRevise({ state, node, option, input }) {
     attempt,
     reruns,
     note,
-  };
+    ...provenance,
+  });
   const summary = summaryOf(doc, node);
   delete summary.status;
-  summary.decisions = [...(folded ? decisions.slice(0, -1) : decisions), decision];
+  // The revise decision takes the folded answer's place; anything recorded
+  // after that answer stays.
+  summary.decisions = [...(folded ? decisions.filter(item => item !== latest) : decisions), decision];
 
   const patch = {
     nodes: Object.fromEntries(stretch.map(id => [id, { status: 'pending' }])),
@@ -229,8 +240,8 @@ function refuse(code, message) {
 }
 
 /**
- * The revise a run is in the middle of, or null: the gate whose last decision
- * is one of its revise options, nothing answered at it since. `applied` says
+ * The revise a run is in the middle of, or null: the gate whose answer — its
+ * last decision carrying an option — is one of its revise options, nothing answered at it since. `applied` says
  * whether the reset has happened — false only between a driven fold and the
  * `gate-revise` that follows it, the one moment the run must not walk on.
  * With several (a revise further on reset an earlier gate that had been
@@ -242,8 +253,7 @@ export function openRevision(doc) {
   const open = [];
   for (const [gate, entry] of Object.entries(recorded)) {
     if (!isPlainObject(entry) || entry.kind !== 'gate' || !isPlainObject(entry.reruns)) continue;
-    const decisions = decisionsOf(doc, gate);
-    const latest = decisions.length ? decisions[decisions.length - 1] : null;
+    const latest = gateAnswer(decisionsOf(doc, gate));
     if (!isPlainObject(latest) || !Object.hasOwn(entry.reruns, latest.option)) continue;
     const applied = Object.hasOwn(latest, 'attempt');
     if (!applied && entry.status !== 'completed') continue;

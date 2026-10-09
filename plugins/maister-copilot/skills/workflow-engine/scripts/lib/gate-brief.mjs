@@ -87,7 +87,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, grantOrder, guardOperands, resolve, reviseStretch } from './graph.mjs';
+import { MORE_DETAILS_ID, grantOrder, guardOperands, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
@@ -96,6 +96,7 @@ import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
+import { loadPolicy, triageFor } from './policy.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -298,10 +299,15 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   };
 
   const gateId = id => isGate(recorded, byId, id);
+  // The autonomy policy, read once and only when a form needs it: what it
+  // classes is written only when it is the policy the run recorded at freeze.
+  let reading = null;
+  const policyOf = () => (reading ??= policyReading(doc, workflow.name, node, options));
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
     doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId,
+    approves: policyOf().matches ? policyOf().approves : [],
   }));
   // Every form carries the panel an editor extension draws above the question,
   // whichever form was asked for: a gate may be asked from any of them. The
@@ -341,7 +347,14 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
         `--reask=${reask} is not a revise option this gate offers (${revises.length ? revises.join(', ') : 'it offers none'}); `
         + 'correct the --reask argument to the revise the operator chose — no state write fixes this', warnings);
     }
-    return { ok: true, request: requestOf(checkpoint, onelineText().trimEnd(), asked), panel, errors: [], warnings };
+    const request = requestOf(checkpoint, onelineText().trimEnd(), asked);
+    const policy = policyOf();
+    for (const message of policy.warnings) warnings.push({ code: 'policy-refused', message });
+    if (policy.matches && policy.triage !== null) request.triage = policy.triage;
+    else if (!policy.matches && (policy.triage !== null || policy.approves.length > 0)) {
+      warnings.push({ code: 'policy-hash-mismatch', message: `policy-hash-mismatch:${node}` });
+    }
+    return { ok: true, request, panel, errors: [], warnings };
   }
   const shaped = picker === 'plain' ? plainPicker(checkpoint) : richPicker(checkpoint);
   // The plain profile's header titles a form property, which has no length
@@ -647,11 +660,15 @@ function earlierElsewhere(doc, recorded, gate, reruns, titles) {
  * stretch — nothing the re-run changes — and the guard reads false now. A guard on a node inside the stretch is
  * judged again once that node records its values, so its node may run and is
  * named. Without `guards` — the definition drifted — no guard is read and every
- * node is named.
+ * node is named. A gate the skip-guard rule asks (`skipGuardAsks`) is never
+ * skipped again: it is asked whatever its guard reads.
+ *
+ * Exported for the skip-guard rule's own test, which judges it directly.
  */
-function skippedAgain(id, stretch, guards) {
+export function skippedAgain(id, stretch, guards) {
   const when = guards?.byId.get(id)?.when;
   if (typeof when !== 'string') return false;
+  if (skipGuardAsks(guards.byId.get(id), kindIn(guards.byId))) return false;
   for (const operand of guardOperands(when)) {
     const match = WHEN.exec(operand);
     if (!match || (match[2] !== 'inputs' && stretch.includes(match[2]))) return false;
@@ -798,7 +815,7 @@ const KEEPS_MAX = 3;
  * counted rather than listed. A fix is kept apart from the decisions: the run
  * changed it without asking, and settled nothing by it.
  */
-function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId }) {
+function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, approves = [] }) {
   const title = id => titleOf(titles, id);
   const order = Object.keys(recorded);
   const sources = summarySources(doc);
@@ -835,7 +852,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   // Fixed, decided and open: the fixes in the order they were made, the rest
   // grouped by who settled them and by what they are.
   const fixes = [];
-  const decisions = { run: [], audit: [], default: [], operator: { count: 0, not_recommended: [] } };
+  const decisions = { run: [], audit: [], default: [], operator: { count: 0, actors: {}, not_recommended: [] } };
   const risks = { open: [], tradeoff: [], followup: [], stop: [], resolved: [] };
   const seen = new Set();
   const once = (kind, text) => {
@@ -855,7 +872,10 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       const decision = decisionOf(item);
       if (!decision || !once('decision', decision.decision)) continue;
       if (decision.by === 'operator') {
+        // Who answered, by kind: the provenance an answer carries, `unknown` without one.
+        const actorKind = typeof decision.actor?.kind === 'string' ? decision.actor.kind : 'unknown';
         decisions.operator.count++;
+        decisions.operator.actors[actorKind] = (decisions.operator.actors[actorKind] ?? 0) + 1;
         if (decision.as_recommended === false) {
           decisions.operator.not_recommended.push(compact({
             decision: decision.decision,
@@ -863,6 +883,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
             answer: decision.answer,
             recommended: decision.recommended,
             answered_by: decision.answered_by,
+            actor_kind: actorKind,
             node: entry.id,
           }));
         } else if (decision.as_recommended !== true) asRecommended = false;
@@ -881,6 +902,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       risks[risk.tag].push(compact({ risk: risk.risk, change: risk.change ?? undefined, node: entry.id }));
     }
   }
+  if (!decisions.operator.count) delete decisions.operator.actors;
   // Unknown is not "as recommended": a choice recorded without saying so is counted plainly.
   if (!asRecommended && !decisions.operator.not_recommended.length) decisions.operator.all_recommended = false;
 
@@ -959,10 +981,35 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     recommended: { option: recommended, reason },
     options: listed,
     grants: grantsOf(options),
-    approves: [],
+    approves,
     run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
     truncated,
   };
+}
+
+/**
+ * What the autonomy policy says of this gate: its `triage` (null when the
+ * policy does not class it), the `approves` entries — one `{node, ref, class,
+ * floor?}` per value key a continue sets that the policy classes, in the
+ * options' order, each key once — whether the policy is the one the run
+ * recorded at its freeze (`matches`), and the loader's own warnings. A run
+ * that recorded no hash never matches.
+ */
+function policyReading(doc, workflowName, node, options) {
+  const { policy, hash, warnings } = loadPolicy();
+  const recorded = isPlainObject(doc.orchestrator) ? doc.orchestrator.policy_hash : undefined;
+  const ask = { policy, workflow: workflowName, id: node };
+  const approves = [];
+  const seen = new Set();
+  for (const [, option] of continuesOf(options)) {
+    for (const key of Object.keys(setsOf(option) ?? {})) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const triage = triageFor({ ...ask, kind: 'value', key });
+      if (triage !== null) approves.push({ node, ref: key, class: triage.class, ...(triage.floor ? { floor: triage.floor } : {}) });
+    }
+  }
+  return { triage: triageFor({ ...ask, kind: 'gate' }), approves, matches: typeof recorded === 'string' && recorded === hash, warnings };
 }
 
 /**
@@ -1349,7 +1396,8 @@ function list(value) {
  * settled is taken. An `on: failure` node none of whose needs ended badly is
  * simulated as skipped and the loop goes on; otherwise, without a `when` it is
  * next, and with one a true guard makes it next and a false one simulates a
- * skip and the loop goes on.
+ * skip and the loop goes on. A gate the skip-guard rule asks (`skipGuardAsks`)
+ * is next whatever its guard reads.
  */
 export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, sets = null }) {
   const nodes = graph?.nodes ?? [];
@@ -1377,6 +1425,7 @@ export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, 
       continue;
     }
     if (typeof ready.when !== 'string') return { ok: true, next: ready.id, skipped };
+    if (skipGuardAsks(ready, kindIn(byId))) return { ok: true, next: ready.id, skipped };
 
     const guard = evaluate(ready.when, { byId, recorded, status, inputs, defaults });
     if (!guard.ok) return guard;
@@ -1402,6 +1451,14 @@ function blockers(nodes, downstream, status) {
     }
   }
   return nodes.map(entry => entry.id).filter(id => waiting.has(id));
+}
+
+/**
+ * A node's kind for the skip-guard rule, read off the resolved graph: `gate`
+ * for a gate, `task` for any other node it holds, null for one it does not.
+ */
+function kindIn(byId) {
+  return id => (byId.has(id) ? (byId.get(id)?.type === 'gate' ? 'gate' : 'task') : null);
 }
 
 /** Every node whose transitive needs closure contains `gate`. */
@@ -1572,7 +1629,9 @@ const ENDED = new Set([...ENDED_OK, ...ENDED_BADLY]);
  * simulated `completed`, so the nodes behind it are judged too rather than
  * passed as blocked. What the loop never reaches waits on a need that ended
  * `failed` or `stopped` and that its `on` does not accept: it can never run, so
- * it is not owed.
+ * it is not owed. A gate the skip-guard rule asks (`skipGuardAsks`) is owed
+ * whatever its guard reads, and marked `asked: true`, so the refusal never
+ * offers it the record-skipped recovery.
  *
  * The edges are the freeze's. `on` and `when` are the re-resolved definition's,
  * and only when it hashes to the freeze: under drift nothing the re-read says is
@@ -1592,8 +1651,8 @@ export function atClose({ doc, runDir }) {
   const recordedStatus = id => entryOf(recorded, id).status ?? 'pending';
   const status = new Map(ids.map(id => [id, recordedStatus(id)]));
   const owed = new Map();
-  const owe = (id, guard = null) => {
-    owed.set(id, { id, status: recordedStatus(id), guard });
+  const owe = (id, guard = null, asked = false) => {
+    owed.set(id, { id, status: recordedStatus(id), guard, ...(asked ? { asked } : {}) });
     status.set(id, 'completed');
   };
 
@@ -1619,6 +1678,10 @@ export function atClose({ doc, runDir }) {
     const when = byId.get(next)?.when;
     if (typeof when !== 'string') {
       owe(next);
+      continue;
+    }
+    if (skipGuardAsks(byId.get(next), kindIn(byId))) {
+      owe(next, null, true);
       continue;
     }
     const guard = evaluate(when, { byId, recorded, status, inputs: inputsOf(doc), defaults: current.defaults });

@@ -215,6 +215,7 @@ report says so.
 | `overlay-ignored:` | fold the overlay's changes into the eject, or delete one of the two |
 | `unresolved-subrun-input:` | pass the child's required input in `with:`, or remove the key the child does not declare |
 | `undecidable-value-type:` | declare the value `bool`, `id` or an `enum` when it is a handle rather than prose |
+| `skip-guard-not-pure:` | guard the gate on an input or on a gate's value, or make it a single continue with no `sets` and no `grants`; until then it is asked whatever its guard reads |
 | `workflow-undescribed:` | open the companion with a `# Title` line and a paragraph saying what the workflow is for, or add a one-line `description:` |
 | `reserved-key:` | remove the key; it does nothing yet |
 

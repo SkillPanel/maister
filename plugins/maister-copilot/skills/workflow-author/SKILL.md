@@ -189,6 +189,10 @@ from **nodes** every time. Never disable a node and add it back under the same i
      disk. The engine does neither on its own.
    - **Dangling leaves** — the validator warns for these itself, for a definition's own node
      and for one an overlay adds; they are in the report above. Add nothing.
+   - **Gates asked whatever their guard reads** — the validator warns `skip-guard-not-pure` for
+     a gate guarded by a value a non-gate node records that is more than a pure confirmation;
+     it is in the report above. Add nothing, but say what it means: the run asks that gate even
+     when its guard is false.
    - **Overlay or eject** — when an error is a refusal only an eject lifts (a key that may not be
      tuned, a disabled id added back, a guard or a target changed), say so and point to
      *Overlay or eject*.
@@ -236,6 +240,9 @@ Run `locate`, then `validate` — with errors, stop and point to `check` — the
   defect", "skipped when this run is a child of another", "runs when either gate chose the
   design" — and every `on:` other than `success`
   ("runs only if a need failed", "runs however its needs ended").
+- **A gate the skip-guard rule asks** — one guarded by a value a non-gate node records that is
+  more than a single plain continue — is drawn with its guard and "asked whatever its guard
+  reads", never as skippable.
 - **Dangling leaves:** a node nothing waits for that is not where the run ends. Name each, say
   where the frozen order puts it (ties are broken by id), and say what it means — no gate waits
   for it, and the run can close past it. For a definition's own node the fix is a later node's
