@@ -218,8 +218,9 @@ constraints), define success criteria and write the brief.
 question quotes the operator's question and says in a line what makes it
 unclear; its options are two or three sharpened readings of it, generated from
 the question, the project documentation and the codebase — the closest to what
-was asked first, marked `(Recommended)` with why it reads closest — and the
-operator's own wording goes through Other. Each reading is a question the
+was asked first, marked `(Recommended)` with why it reads closest, and never a
+reading that drops part of what was asked (engine § *In-node questions*) — and
+the operator's own wording goes through Other. Each reading is a question the
 research could answer as it stands, so the answer is folded in without a second
 round.
 

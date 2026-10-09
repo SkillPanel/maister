@@ -557,7 +557,11 @@ Executed inline and interactive. Read the interaction-patterns reference first,
 `${CLAUDE_PLUGIN_ROOT}/skills/product-design/references/interaction-patterns.md`
 — the exploration and convergence modes, the refinement loop and how its options
 are designed. Read `analysis/design-context.md` in full, not only its summary,
-so every question can be specific to this project.
+so every question can be specific to this project. Then read what the run left
+uncertain: the `open` risks in `prior-context` — the characteristics and context
+checkpoints raised them — and the open questions of any imported research under
+`context/research-context/`. A criterion one of them says may be read two ways
+is answered the way that keeps it whole (engine § *In-node questions*).
 
 1. **Explore.** Announce exploration mode in a line, then ask context-aware
    questions **in pages of up to four** — two or three for a simple design, four
@@ -568,7 +572,9 @@ so every question can be specific to this project.
    design context, the description or an earlier page ("The sync conflicts come
    up in three support threads, all from teams sharing one calendar") — and two
    or three answers generated from it, the one the context best supports first,
-   marked `(Recommended)` with why. The operator's own words go through Other.
+   marked `(Recommended)` with why. The recommended answer keeps every criterion
+   the description states — its "done when" lines included; an answer that
+   narrows one names what it drops and is never the recommendation. The operator's own words go through Other.
    Fold each page's answers in before the next, so the next page builds on them
    and a misreading is corrected before it compounds.
 
@@ -653,7 +659,8 @@ and `problem-approval` still fires for the problem statement.
    the feature — in pages of up to four independent questions, as the problem
    exploration does: each question carries its own synthesis line from the
    design context and the problem statement, and two or three generated
-   answers, the best-supported first and marked `(Recommended)` with why.
+   answers, the best-supported first and marked `(Recommended)` with why — never
+   one that narrows a criterion the description states.
 
    **With question sets** (`persona-questions`): the first page is asked through
    the cockpit, in this node's one request (*In-node questions*); a question
@@ -844,8 +851,10 @@ line, then walk the alternatives one decision area at a time.
 > **SELF-CHECK before each question**: does the question itself name THIS area,
 > why it matters and every alternative, and does each option's description carry
 > its pro and con — the recommended one's its reason? If the question holds only
-> the area's name, STOP and write it out. And, in a terminal run, does this
-> call ask exactly one area?
+> the area's name, STOP and write it out. Does the recommended alternative keep
+> every criterion the description states? If it narrows one, recommend the
+> strongest alternative that does not, and say why. And, in a terminal run, does
+> this call ask exactly one area?
 
 **With question sets** (`convergence-decisions`): asked through the cockpit —
 every decision area in this node's one request, one question per area (*In-node
@@ -986,7 +995,9 @@ contracts, ready to implement from.
 
 **For each section:**
 
-1. Draft it at the depth above.
+1. Draft it at the depth above. A section never quietly drops a criterion the
+   description states; one it leaves to another section names that section, and
+   one the direction left out is an `open` risk, never an approved omission.
 2. Ask *"Approve the <section> section?"*, the question saying in a line what
    the section settles. Options: *"Approve (Recommended)"*, its description
    saying the section is implementation-ready and why; *"Add more detail"*,
