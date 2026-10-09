@@ -1,1 +1,1 @@
-{ "version": 1, "families": { "example-family": { "class": "decide" } }, "table": [{ "workflow": "sample", "kind": "gate", "id": "", "families": ["example-family"] }] }
+{"version": 1, "floor": {"floor-a": {"description": ""}}}

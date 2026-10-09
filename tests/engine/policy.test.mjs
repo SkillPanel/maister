@@ -22,10 +22,10 @@ test('the built-in default hashes to its pinned value', () => {
 });
 
 test('the hash ignores key order at every depth and keeps array order', () => {
-  const one = { version: 1, families: { b: { class: 'decide', floor: ['floor-a', 'floor-b'] }, a: { class: 'advice' } } };
-  const two = { families: { a: { class: 'advice' }, b: { floor: ['floor-a', 'floor-b'], class: 'decide' } }, version: 1 };
+  const one = { version: 1, families: { b: { class: 'decide-alone', floor: ['floor-a', 'floor-b'] }, a: { class: 'record' } } };
+  const two = { families: { a: { class: 'record' }, b: { floor: ['floor-a', 'floor-b'], class: 'decide-alone' } }, version: 1 };
   assert.equal(policyHash(one), policyHash(two));
-  const reordered = { version: 1, families: { a: { class: 'advice' }, b: { class: 'decide', floor: ['floor-b', 'floor-a'] } } };
+  const reordered = { version: 1, families: { a: { class: 'record' }, b: { class: 'decide-alone', floor: ['floor-b', 'floor-a'] } } };
   assert.notEqual(policyHash(one), policyHash(reordered));
   assert.match(policyHash(one), /^sha256:[0-9a-f]{64}$/);
 });
@@ -46,8 +46,12 @@ test('a valid policy loads with no warnings, unknown keys ignored and floor ids 
   assert.equal(loaded.source, file);
   assert.deepEqual(loaded.policy, valid());
   assert.notEqual(loaded.hash, DEFAULT_HASH);
-  // Floor ids are taken as written: any non-empty string.
-  const odd = { version: 1, floor: ['any opaque id', 'x'], families: { 'example-family': { class: 'decide', floor: ['any opaque id'] } } };
+  // Floor ids are taken as written: any non-empty string, checked against no list.
+  const odd = {
+    version: 1,
+    floor: { 'any opaque id': { description: 'Opaque.' }, x: { description: 'Opaque.' } },
+    families: { 'example-family': { class: 'decide-alone', floor: ['any opaque id', 'not in the floor map'], description: 'Opaque ids.' } },
+  };
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'policy-'));
   const oddFile = path.join(dir, 'odd.json');
   fs.writeFileSync(oddFile, JSON.stringify(odd));
@@ -61,9 +65,13 @@ test('a refused file falls back to the default, warns with its reason and record
     'root-not-object.json': 'wrong-type at (root)',
     'missing-key.json': 'missing-key at families.example-family.class',
     'wrong-type.json': 'wrong-type at table',
-    'too-short.json': 'too-short at table.0.id',
+    'too-short.json': 'too-short at floor.floor-a.description',
     'not-in-enum.json': 'not-in-enum at families.example-family.class',
     'bad-pattern.json': 'bad-pattern at table.0.workflow',
+    'row-id.json': 'bad-pattern at table.0.id',
+    'band-name.json': 'not-in-enum at bands.certain',
+    'settles-approve.json': 'not-in-enum at ceilings.approve.settles',
+    'delegates-type.json': 'wrong-type at ceilings.advice.delegates',
     'duplicate.json': 'duplicate at table.0.families.1',
     'too-few.json': 'too-few at table.0.families',
     'values-on-question.json': 'values-on-question at table.0.values',
@@ -101,33 +109,35 @@ test('triage only raises: floor, band once, unbounded by max, proposed family, u
   const at = extra => triageFor({ policy, workflow: 'sample', kind: 'gate', id: 'gate-row', ...extra });
 
   // The family's class is the start; nothing raised, nothing else written.
-  assert.deepEqual(at({}), { version: 1, class: 'decide', family: 'example-family' });
+  assert.deepEqual(at({}), { version: 1, class: 'decide-alone', family: 'example-family' });
 
   // A floor id from the family gives approve, raised by the floor.
   assert.deepEqual(triageFor({ policy, workflow: 'sample', kind: 'gate', id: 'floored-gate' }),
     { version: 1, class: 'approve', floor: ['floor-a'], family: 'guarded-family', raised_by: 'floor' });
 
-  // A found floor id gives approve too, and `max: advice` does not bound it.
+  // A found floor id gives approve too, and `max: record` does not bound it.
   assert.deepEqual(at({ floorIds: ['floor-z'] }),
     { version: 1, class: 'approve', floor: ['floor-z'], family: 'example-family', raised_by: 'floor' });
 
-  // A band's without_evidence is applied once: clear → leaning, not on to unsure.
+  // A band's without_evidence is applied once: clear → leaning, not on to toss-up.
   assert.deepEqual(at({ band: 'clear' }),
-    { version: 1, class: 'advice', family: 'example-family', band: 'leaning', raised_by: 'band' });
-  // With evidence the band is read as given.
+    { version: 1, class: 'consult', family: 'example-family', band: 'leaning', raised_by: 'band' });
+  // With evidence the band is read as given; a band with no at_least raises nothing.
   assert.deepEqual(at({ band: 'clear', evidence: ['a test run'] }),
-    { version: 1, class: 'decide', family: 'example-family', band: 'clear' });
+    { version: 1, class: 'decide-alone', family: 'example-family', band: 'clear' });
   // A band above the family's max still raises.
-  assert.deepEqual(at({ band: 'unsure' }),
-    { version: 1, class: 'approve', family: 'example-family', band: 'unsure', raised_by: 'band' });
+  assert.deepEqual(at({ band: 'toss-up' }),
+    { version: 1, class: 'approve', family: 'example-family', band: 'toss-up', raised_by: 'band' });
+  // The floor sets approve first, so a band reaching approve too leaves raised_by at floor.
+  assert.equal(at({ band: 'toss-up', floorIds: ['floor-a'] }).raised_by, 'floor');
 
   // A proposed family counts only when the row lists it.
   assert.deepEqual(at({ family: 'careful-family' }), { version: 1, class: 'approve', family: 'careful-family' });
-  assert.deepEqual(at({ family: 'guarded-family' }), { version: 1, class: 'decide', family: 'example-family' });
+  assert.deepEqual(at({ family: 'guarded-family' }), { version: 1, class: 'decide-alone', family: 'example-family' });
 
   // No row: unknown_family when set, unclassified when not.
   assert.deepEqual(triageFor({ policy, workflow: 'sample', kind: 'gate', id: 'no-row' }),
-    { version: 1, class: 'advice', family: 'fallback-family' });
+    { version: 1, class: 'consult', family: 'fallback-family' });
   const { unknown_family, ...bare } = policy;
   assert.ok(unknown_family);
   assert.equal(triageFor({ policy: bare, workflow: 'sample', kind: 'gate', id: 'no-row' }), null);
@@ -137,7 +147,7 @@ test('triage only raises: floor, band once, unbounded by max, proposed family, u
   assert.deepEqual(triageFor({ policy, workflow: 'sample', kind: 'value', id: 'gate-row', key: 'enabled' }),
     { version: 1, class: 'approve', floor: ['floor-a'], family: 'guarded-family', raised_by: 'floor' });
   assert.deepEqual(triageFor({ policy, workflow: 'sample', kind: 'value', id: 'gate-row', key: 'other_key' }),
-    { version: 1, class: 'advice', family: 'fallback-family' });
+    { version: 1, class: 'consult', family: 'fallback-family' });
   assert.equal(triageFor({ policy: bare, workflow: 'sample', kind: 'value', id: 'gate-row', key: 'other_key' }), null);
 
   // The built-in default classifies nothing.
@@ -153,7 +163,7 @@ test('a question id the node does not declare resolves to the declared id it bel
   const policy = valid();
   const { unknown_family, ...bare } = policy;
   const ask = (id, declaredIds) => triageFor({ policy: bare, workflow: 'sample', kind: 'question', id, declaredIds });
-  const expected = { version: 1, class: 'decide', family: 'example-family' };
+  const expected = { version: 1, class: 'decide-alone', family: 'example-family' };
   assert.deepEqual(ask('area-choice', ['area-choice', 'other-question']), expected);
   // A per-area slug of a declared id.
   assert.deepEqual(ask('area-choice-storage', ['other-question', 'area-choice']), expected);

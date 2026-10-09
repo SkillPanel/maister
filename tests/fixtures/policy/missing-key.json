@@ -1,1 +1,1 @@
-{ "version": 1, "families": { "example-family": { "max": "advice" } } }
+{"version": 1, "families": {"example-family": {"description": "No class."}}}

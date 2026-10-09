@@ -21,25 +21,30 @@
  * warning returned as data. The hash is always the hash of the policy applied,
  * so a refused file records the default's hash.
  *
- * The file's shape (version 1). Every key but `version` is optional, and a key
- * this module does not know is ignored at every level:
+ * The autonomy policy file's shape (version 1). Every key but `version` is
+ * optional, and a key this module does not know is ignored at every level —
+ * though it still counts in the hash:
  *
- *     version         the integer 1
- *     floor           unique non-empty strings: floor ids, opaque
- *     families        {<name>: {class, floor?, max?}}
- *     table           [{workflow, kind: gate|question, id, families, values?}]
- *     bands           {<name>: {at_least, without_evidence?}}
- *     unknown_family  a family name, read for an item with no row
- *     ceilings        {<name>: {…}}
- *     default_ceiling a ceiling name
+ *     version          the integer 1
+ *     floor            {<floor id>: {description}}
+ *     families         {<name>: {class, max?, floor?, description}}
+ *     unknown_family   a family name, read for an item with no row
+ *     table            [{workflow, id, kind: gate|question, families, values?}]
+ *     bands            {<band>: {description, at_least?, without_evidence?}}
+ *     ceilings         {<ask level>: {settles, delegates, description?}}
+ *     default_ceiling  an ask level
  *
- * A class is `decide`, `advice` or `approve`, in rising order. A row's
- * `families` lists at least one family, the first being its own; `values` maps
- * a gate value key to a family and sits only on a gate row. Names, a row's
- * `workflow` and `without_evidence` match `^[a-z][a-z0-9-]*$`; value keys
- * match `^[a-z_]+$`. Beyond the shape, every family a row, `values` or
- * `unknown_family` names must exist, (workflow, id) must be unique across the
- * table, and `default_ceiling` must name a ceiling.
+ * Floor ids are opaque non-empty strings, never checked against a list. A
+ * family's `floor` is a unique list of them, and its `max` (absent: its own
+ * class) is read and checked but bounds nothing yet. A row's `families` lists
+ * at least one family, each once, the first being its default reading;
+ * `values` maps a gate value key to a family and sits only on a gate row.
+ * Family names and a row's `workflow` match `^[a-z][a-z0-9-]*$`, a row's `id`
+ * matches the engine's node id pattern, and value keys match `^[a-z_]+$`. A
+ * ceiling settles anything below `approve` and says whether it delegates.
+ * Beyond the shape, every family a row, `values` or `unknown_family` names
+ * must exist, (workflow, id) must be unique across the table, and
+ * `default_ceiling` must name a ceiling.
  *
  * Pure apart from the one file read in `loadPolicy`: no stdio, and warnings are
  * returned, never printed.
@@ -61,8 +66,17 @@ export const POLICY_LOCATION = path.resolve(path.dirname(fileURLToPath(import.me
 /** What `source` reads when no file was applied. */
 export const BUILT_IN = 'built-in';
 
-/** The classes, lowest first: a raise moves an item rightwards, never back. */
-export const CLASSES = ['decide', 'advice', 'approve'];
+/** The triage classes, lowest first: a raise moves an item rightwards, never back. */
+export const CLASSES = ['decide-alone', 'record', 'consult', 'approve'];
+
+/** The bands an item can carry. */
+export const BANDS = ['clear', 'leaning', 'toss-up'];
+
+/** The ask levels: the keys of `ceilings` and the values of `default_ceiling`. */
+export const ASK_LEVELS = ['approve', 'advice', 'decide'];
+
+/** The classes a ceiling may settle without a person: all but the top one. */
+const SETTLES = CLASSES.slice(0, -1);
 
 /** The class any floor id sets. */
 const FLOOR_CLASS = 'approve';
@@ -97,6 +111,7 @@ export const REFUSAL = {
 };
 
 const NAME = /^[a-z][a-z0-9-]*$/;
+const ROW_ID = /^[a-z][a-z0-9-]{1,40}$/;
 const VALUE_KEY = /^[a-z_]+$/;
 
 /** A file is absent, not unreadable, when the path or a folder on it does not exist. */
@@ -173,45 +188,66 @@ function judge(doc) {
 }
 
 function checkShape(doc) {
-  if (has(doc, 'floor')) idList(doc.floor, 'floor');
-  if (has(doc, 'families')) {
-    names(doc.families, 'families', NAME, (family, at) => {
-      map(family, at);
-      required(family, 'class', at);
-      oneOf(family.class, CLASSES, `${at}.class`);
-      if (has(family, 'floor')) idList(family.floor, `${at}.floor`);
-      if (has(family, 'max')) oneOf(family.max, CLASSES, `${at}.max`);
+  if (has(doc, 'floor')) {
+    names(doc.floor, 'floor', text, (entry, at) => {
+      map(entry, at);
+      required(entry, 'description', at);
+      text(entry.description, `${at}.description`);
     });
   }
-  if (has(doc, 'table')) {
-    if (!Array.isArray(doc.table)) throw new Fault(REFUSAL.wrongType, 'table');
-    doc.table.forEach((row, index) => checkRow(row, `table.${index}`));
-  }
-  if (has(doc, 'bands')) {
-    names(doc.bands, 'bands', NAME, (band, at) => {
-      map(band, at);
-      required(band, 'at_least', at);
-      oneOf(band.at_least, CLASSES, `${at}.at_least`);
-      if (has(band, 'without_evidence')) matches(band.without_evidence, NAME, `${at}.without_evidence`);
+  if (has(doc, 'families')) {
+    names(doc.families, 'families', pattern(NAME), (family, at) => {
+      map(family, at);
+      required(family, 'class', at);
+      required(family, 'description', at);
+      oneOf(family.class, CLASSES, `${at}.class`);
+      if (has(family, 'max')) oneOf(family.max, CLASSES, `${at}.max`);
+      if (has(family, 'floor')) {
+        list(family.floor, `${at}.floor`);
+        unique(family.floor, `${at}.floor`, text);
+      }
+      text(family.description, `${at}.description`);
     });
   }
   if (has(doc, 'unknown_family')) matches(doc.unknown_family, NAME, 'unknown_family');
-  if (has(doc, 'ceilings')) names(doc.ceilings, 'ceilings', NAME, map);
-  if (has(doc, 'default_ceiling')) matches(doc.default_ceiling, NAME, 'default_ceiling');
+  if (has(doc, 'table')) {
+    list(doc.table, 'table');
+    doc.table.forEach((row, index) => checkRow(row, `table.${index}`));
+  }
+  if (has(doc, 'bands')) {
+    names(doc.bands, 'bands', among(BANDS), (band, at) => {
+      map(band, at);
+      required(band, 'description', at);
+      string(band.description, `${at}.description`);
+      if (has(band, 'at_least')) oneOf(band.at_least, CLASSES, `${at}.at_least`);
+      if (has(band, 'without_evidence')) oneOf(band.without_evidence, BANDS, `${at}.without_evidence`);
+    });
+  }
+  if (has(doc, 'ceilings')) {
+    names(doc.ceilings, 'ceilings', among(ASK_LEVELS), (ceiling, at) => {
+      map(ceiling, at);
+      required(ceiling, 'settles', at);
+      required(ceiling, 'delegates', at);
+      oneOf(ceiling.settles, SETTLES, `${at}.settles`);
+      if (typeof ceiling.delegates !== 'boolean') throw new Fault(REFUSAL.wrongType, `${at}.delegates`);
+      if (has(ceiling, 'description')) string(ceiling.description, `${at}.description`);
+    });
+  }
+  if (has(doc, 'default_ceiling')) oneOf(doc.default_ceiling, ASK_LEVELS, 'default_ceiling');
 }
 
 function checkRow(row, at) {
   map(row, at);
-  for (const key of ['workflow', 'kind', 'id', 'families']) required(row, key, at);
+  for (const key of ['workflow', 'id', 'kind', 'families']) required(row, key, at);
   matches(row.workflow, NAME, `${at}.workflow`);
+  matches(row.id, ROW_ID, `${at}.id`);
   oneOf(row.kind, ROW_KINDS, `${at}.kind`);
-  text(row.id, `${at}.id`);
-  if (!Array.isArray(row.families)) throw new Fault(REFUSAL.wrongType, `${at}.families`);
+  list(row.families, `${at}.families`);
   if (row.families.length < 1) throw new Fault(REFUSAL.tooFew, `${at}.families`);
   unique(row.families, `${at}.families`, (name, where) => matches(name, NAME, where));
   if (has(row, 'values')) {
     if (row.kind !== 'gate') throw new Fault(REFUSAL.valuesOnQuestion, `${at}.values`);
-    names(row.values, `${at}.values`, VALUE_KEY, (family, where) => matches(family, NAME, where));
+    names(row.values, `${at}.values`, pattern(VALUE_KEY), (family, where) => matches(family, NAME, where));
   }
 }
 
@@ -251,41 +287,53 @@ function map(value, at) {
   if (!isMap(value)) throw new Fault(REFUSAL.wrongType, at);
 }
 
-function text(value, at) {
+function string(value, at) {
   if (typeof value !== 'string') throw new Fault(REFUSAL.wrongType, at);
+}
+
+function text(value, at) {
+  string(value, at);
   if (value.length < 1) throw new Fault(REFUSAL.tooShort, at);
 }
 
-function matches(value, pattern, at) {
+function matches(value, shape, at) {
   text(value, at);
-  if (!pattern.test(value)) throw new Fault(REFUSAL.badPattern, at);
+  if (!shape.test(value)) throw new Fault(REFUSAL.badPattern, at);
 }
 
 function oneOf(value, allowed, at) {
-  if (typeof value !== 'string') throw new Fault(REFUSAL.wrongType, at);
+  string(value, at);
   if (!allowed.includes(value)) throw new Fault(REFUSAL.notInEnum, at);
 }
 
-/** A list of opaque non-empty ids, each once. */
-function idList(value, at) {
+function list(value, at) {
   if (!Array.isArray(value)) throw new Fault(REFUSAL.wrongType, at);
-  unique(value, at, (id, where) => text(id, where));
 }
 
-function unique(list, at, each) {
+function unique(items, at, each) {
   const seen = new Set();
-  list.forEach((item, index) => {
+  items.forEach((item, index) => {
     each(item, `${at}.${index}`);
     if (seen.has(item)) throw new Fault(REFUSAL.duplicate, `${at}.${index}`);
     seen.add(item);
   });
 }
 
-/** A map whose keys match `pattern`, each entry judged by `entry`. */
-function names(value, at, pattern, entry) {
+/** A key judge: the key matches `shape`. */
+function pattern(shape) {
+  return (key, at) => matches(key, shape, at);
+}
+
+/** A key judge: the key is one of `allowed`. */
+function among(allowed) {
+  return (key, at) => oneOf(key, allowed, at);
+}
+
+/** A map whose keys pass `judgeKey`, each entry judged by `entry`. */
+function names(value, at, judgeKey, entry) {
   map(value, at);
   for (const [key, item] of Object.entries(value)) {
-    if (!pattern.test(key)) throw new Fault(REFUSAL.badPattern, `${at}.${key}`);
+    judgeKey(key, `${at}.${key}`);
     entry(item, `${at}.${key}`);
   }
 }
