@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "note": "A made-up policy for the loader and triage tests. Unknown keys like this one are ignored.",
+  "floor": ["floor-a", "floor-b"],
+  "families": {
+    "example-family": { "class": "decide", "max": "advice" },
+    "guarded-family": { "class": "advice", "floor": ["floor-a"] },
+    "careful-family": { "class": "approve", "extra": { "nested": true } },
+    "fallback-family": { "class": "advice" }
+  },
+  "table": [
+    {
+      "workflow": "sample",
+      "kind": "gate",
+      "id": "gate-row",
+      "families": ["example-family", "careful-family"],
+      "values": { "enabled": "guarded-family" },
+      "comment": "ignored"
+    },
+    { "workflow": "sample", "kind": "gate", "id": "floored-gate", "families": ["guarded-family"] },
+    { "workflow": "sample", "kind": "question", "id": "area-choice", "families": ["example-family"] }
+  ],
+  "bands": {
+    "clear": { "at_least": "decide", "without_evidence": "leaning" },
+    "leaning": { "at_least": "advice", "without_evidence": "unsure" },
+    "unsure": { "at_least": "approve" }
+  },
+  "unknown_family": "fallback-family",
+  "ceilings": { "strict": {}, "loose": {} },
+  "default_ceiling": "strict"
+}

@@ -1,0 +1,1 @@
+{ "version": 1, "families": { "example-family": { "class": "decide" } }, "table": [{ "workflow": "Sample_Flow", "kind": "gate", "id": "gate-row", "families": ["example-family"] }] }

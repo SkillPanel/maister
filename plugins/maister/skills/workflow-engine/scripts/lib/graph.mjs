@@ -2910,7 +2910,7 @@ export function grantOrder(grants) {
 }
 
 /** Free-form values keep their content and lose their authoring key order. */
-function canonicalValue(value) {
+export function canonicalValue(value) {
   if (Array.isArray(value)) return value.map(canonicalValue);
   if (!isMap(value)) return value;
   const sorted = Object.create(null);
