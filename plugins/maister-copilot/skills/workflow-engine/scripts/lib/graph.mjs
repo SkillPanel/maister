@@ -516,7 +516,7 @@ function warnOwnLeaves(graph, warnings) {
  * skips is rarely what its author meant, so it warns and says the two fixes.
  */
 function warnSkipGuards(graph, warnings) {
-  const kindOf = (id) => (graph.nodes.has(id) ? graph.nodes.get(id)?.type ?? 'task' : null);
+  const kindOf = nodeKindIn(graph.nodes);
   for (const id of topological(graph.nodes)) {
     if (skipGuardAsks(graph.nodes.get(id), kindOf)) warnings.push(WARN.skipGuardNotPure(id));
   }
@@ -2383,6 +2383,16 @@ export function skipGuardAsks(node, kindOf) {
     return typeof kind === 'string' && kind !== 'gate';
   });
   return readsRecorded && !pureConfirmation(node);
+}
+
+/**
+ * A node's kind for the skip-guard rule, read off a map of resolved nodes by
+ * id: `gate` for a gate, `task` for any other node it holds, null for one it
+ * does not. The `kindOf` every caller of `skipGuardAsks` that holds a resolved
+ * graph passes.
+ */
+export function nodeKindIn(byId) {
+  return (id) => (byId.has(id) ? (byId.get(id)?.type === 'gate' ? 'gate' : 'task') : null);
 }
 
 /** One continue, setting no value and granting nothing; any revise or stop beside it. */
