@@ -1,10 +1,11 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: research
-%% graph_hash: sha256:9a2ca298f6d66f9f1fde58f34475ee571ac10a622717b1cbe82cf5ef0a30168a
+%% graph_hash: sha256:8b9f964401011ff6823332a8ad4fb01b2172b6e697f30e91431bf992ce608655
 
 flowchart TD
   n_research_foundation["Research foundation<br/>research-foundation<br/>direct:research-foundation"]
-  n_foundation_approval{{"Approve research foundation<br/>foundation-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-brainstorming: continue, continue-to-design: continue, finish-with-research: continue, revise-research: revise → research-foundation"}}
+  n_foundation_approval{{"Approve research foundation<br/>foundation-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-brainstorming: continue, continue-to-design: continue, finish-with-research: continue, revise-research: revise → research-foundation<br/>when: !${inputs.findings_only}"}}
+  n_findings_approval{{"Approve research findings<br/>findings-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-completion: continue, revise-research: revise → research-foundation, stop-research: stop<br/>when: ${inputs.findings_only}"}}
   n_solution_generation{"Solution brainstorming<br/>solution-generation<br/>agent:solution-brainstormer<br/>when: ${foundation-approval.values.brainstorming_enabled}"}
   n_solution_convergence{"Solution convergence<br/>solution-convergence<br/>direct:solution-convergence<br/>when: ${foundation-approval.values.brainstorming_enabled}"}
   n_convergence_approval{{"Approve brainstorming<br/>convergence-approval<br/>gate<br/>Brainstorming complete. Continue?<br/>continue-to-design: continue, finish-without-design: continue, revise-convergence: revise → solution-convergence, stop-research: stop<br/>when: ${foundation-approval.values.brainstorming_enabled}"}}
@@ -12,11 +13,12 @@ flowchart TD
   n_design_approval{{"Approve design<br/>design-approval<br/>gate<br/>High-level design complete. Continue?<br/>continue-to-completion: continue, revise-design: revise → high-level-design, stop-research: stop<br/>when: ${foundation-approval.values.design_enabled} || ${convergence-approval.values.design_enabled}"}}
   n_completion{"Final summary<br/>completion<br/>direct:completion<br/>when: !${inputs.embedded}"}
   n_research_foundation --> n_foundation_approval
-  n_foundation_approval --> n_solution_generation
+  n_foundation_approval --> n_findings_approval
+  n_findings_approval --> n_solution_generation
   n_solution_generation --> n_solution_convergence
   n_solution_convergence --> n_convergence_approval
   n_convergence_approval --> n_high_level_design
   n_high_level_design --> n_design_approval
   n_design_approval --> n_completion
-  class n_foundation_approval,n_convergence_approval,n_design_approval gate
-  class n_solution_generation,n_solution_convergence,n_convergence_approval,n_high_level_design,n_design_approval,n_completion conditional
+  class n_foundation_approval,n_findings_approval,n_convergence_approval,n_design_approval gate
+  class n_foundation_approval,n_findings_approval,n_solution_generation,n_solution_convergence,n_convergence_approval,n_high_level_design,n_design_approval,n_completion conditional

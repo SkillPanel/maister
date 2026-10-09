@@ -10,7 +10,8 @@ operator questions asked *inside* a node, the self-checks that decide whether a
 node succeeded, or how many times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `research.yml` alone cannot see
-that the run asks up to six further questions beyond its three gates, and the
+that the run asks up to six further questions beyond the three gates it can
+reach, and the
 generated diagram does not show them either. In run order: the research question
 when none was given, a clarification when the question is unclear, a retry when
 the brainstormer fails twice, one question per decision area in the convergence,
@@ -25,6 +26,8 @@ answer to `convergence-approval`. Each gate offers one continue per way on, and
 the continue chosen sets the values the stretches' guards read (engine § Gates).
 The node each gate closes writes which continue it recommends and why, as
 `recommends` on its closing summary; its section below says how it chooses.
+A run for its findings only, `findings_only`, offers neither stretch: the
+findings gate takes the foundation gate's place and the run ends after it.
 Anyone reasoning about how interactive this workflow is must read this file,
 not the graph.
 
@@ -109,9 +112,10 @@ derivable from the node id. Each node writes the hint named here:
 | `high-level-design` | `spec` |
 | `completion` | `done` |
 
-The three gates are not in that table on purpose:
+The four gates are not in that table on purpose:
 **each gate node renders the icon of the phase it gates** — `foundation-approval`
-`analysis`, `convergence-approval` `plan`, `design-approval` `spec`. A gate inherits rather
+and `findings-approval` `analysis`, `convergence-approval` `plan`,
+`design-approval` `spec`. A gate inherits rather
 than owns its icon, so a gate that picked its own would break the visual pairing
 between a stretch and the approval that closes it.
 
@@ -141,6 +145,15 @@ to nodes a guard may skip; an entry whose node was skipped is simply absent,
 and the parent records it under its node's `absent` when it adopts this run's
 outcome (engine § *Recording an outcome*), so the absence is not reported as
 missing.
+
+**A parent that wants the findings and nothing after them** sets
+`findings_only` in the node that starts this run. The foundation gate is then
+skipped and the findings gate is asked in its place — continue, revise or stop,
+with no way on to brainstorming or the design — so the child's gate cannot
+offer a stretch the parent has no use for, and the two flags are not read. The
+input defaults to false, and a run started by command never sets it: an
+operator who wants the findings alone finishes with the research at the
+foundation gate.
 
 **Nothing is copied and nothing is handed back in prose.** A parent addresses
 this run's artifacts through the child's own `task_path`, so a copy in the
@@ -305,6 +318,11 @@ one-line reason. It reads the two flags as `brainstorm_flag` and `design_flag`:
 
 The gate is still asked: a flag sets the recommendation, never the answer.
 
+**For the findings only, recommend nothing.** When the run is for its findings
+only, the foundation gate is skipped and the findings gate has one continue, so
+there is no way on to choose between: write no `recommends`, and read neither
+flag.
+
 The synthesizer returns pattern analysis and cross-references, the report that
 answers the question, a confidence level per finding and the documented gaps.
 Record the overall confidence — it is a declared value output of this node and
@@ -382,7 +400,8 @@ the entry.
 
 Ask it from `gate-brief --json` as engine § Gates says.
 
-A gate, unguarded, and the one that decides which way the run goes on. Its
+A gate, guarded off when the run is for its findings only, and otherwise the
+one that decides which way the run goes on. Its
 three continues are `continue-to-brainstorming`, which sets
 `brainstorming_enabled` true and `design_enabled` false so the brainstorm runs
 next and its gate decides the design; `continue-to-design`, which sets them the
@@ -406,6 +425,24 @@ and `orchestrator.options.design_enabled`, for every reader of the run's state
 that looks there for which optional stretches were chosen. `options` merges key
 by key, so the write leaves `html_output` and the recorded inputs alone. The
 gate's own values are what the guards read.
+
+---
+
+## `findings-approval`
+
+Ask it from `gate-brief --json` as engine § Gates says.
+
+A gate, asked only when the run is for its findings only, in the place of
+`foundation-approval`, which is then skipped. It closes `research-foundation`
+through the skipped gate, so its brief is the foundation's brief, the report
+offered for review first. Its one continue, `continue-to-completion`, sets
+nothing: the skipped foundation gate reads false, so the brainstorm and design
+stretches are skipped and the final summary runs next — or, in an embedded run,
+the run simply ends. Beside it its revise, which sends the run back to
+`research-foundation` with the operator's note exactly as the foundation gate's
+does, and its stop, which ends the run without the final summary and, for a
+parent, as a stopped sub-run rather than a completed one. It records no run
+options.
 
 ---
 

@@ -172,3 +172,60 @@ test('research routes: the foundation node cannot recommend a continue of the br
   assert.equal(result.code, 1);
   assert.match(result.stderr, /^state-summary-item-invalid: node_summaries\.research-foundation\.recommends/);
 });
+
+// A run for its findings only asks the findings gate in the foundation gate's
+// place: one continue to the end, its revise and its stop, and no way on to
+// brainstorming or the design. The foundation gate is skipped, as the engine
+// skips a node whose guard is false.
+
+const FINDINGS_OPTIONS = ['continue-to-completion', 'revise-research', 'stop-research'];
+
+/** A findings-only run waiting at the findings gate, the foundation gate skipped. */
+function atFindings(t, inputs = {}) {
+  const run = atFoundation(t, { inputs: { findings_only: true, ...inputs } });
+  write(run, { nodes: { 'foundation-approval': { status: 'skipped' } } });
+  return run;
+}
+
+test('research routes: findings only — the findings gate offers one continue, its revise and its stop', t => {
+  const run = atFindings(t);
+  const checkpoint = checkpointOf(run, 'findings-approval');
+  assert.deepEqual(checkpoint.options.map(option => option.id).sort(), [...FINDINGS_OPTIONS].sort());
+  assert.equal(checkpoint.options.some(option => /brainstorm|design/.test(option.id)), false);
+  assert.deepEqual(pickerOf(run, 'findings-approval').options.map(option => [option.id, option.label]), [
+    ['continue-to-completion', 'Continue to final summary (Recommended)'],
+    ['revise-research', 'Revise the research'],
+    ['stop-research', 'Stop here'],
+    ['more-details', 'More details'],
+  ]);
+});
+
+test('research routes: findings only — the skipped foundation gate reads false and every stretch after it is skipped', t => {
+  const run = atFindings(t);
+  assert.deepEqual(readState(run).workflow.nodes['foundation-approval'].values, { brainstorming_enabled: false, design_enabled: false });
+  assert.deepEqual(routes(run, 'findings-approval'), {
+    'continue-to-completion': ['completion', 'solution-generation', 'solution-convergence', 'high-level-design'],
+  });
+});
+
+test('research routes: findings only, embedded — the findings gate\'s continue ends the run', t => {
+  const run = atFindings(t, { embedded: true });
+  const checkpoint = checkpointOf(run, 'findings-approval');
+  const go = checkpoint.options.find(option => option.id === 'continue-to-completion');
+  assert.equal((go.next ?? checkpoint.next).end, true);
+});
+
+test('research routes: findings only — a revise at the findings gate re-runs the research foundation', t => {
+  const run = atFindings(t);
+  const result = verb(['gate-revise', `--state=${run.state}`, '--node=findings-approval', '--option=revise-research'], { note: 'Add the second vendor' });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^revised: findings-approval reruns=research-foundation revision=1\/10 reset=research-foundation,foundation-approval,findings-approval$/m);
+});
+
+test('research routes: without findings only, the findings gate is skipped behind the foundation gate', t => {
+  const run = atFoundation(t);
+  answer(run, 'foundation-approval', 'finish-with-research');
+  write(run, { nodes: { 'findings-approval': { status: 'skipped' } } });
+  assert.equal(readState(run).workflow.nodes['findings-approval'].status, 'skipped');
+  assert.deepEqual(routes(atFoundation(t), 'foundation-approval')['continue-to-brainstorming'], ['solution-generation']);
+});

@@ -1,6 +1,6 @@
 # The research workflow, as a graph.
 #
-# Five nodes named for what they do and three named for what they approve, in
+# Five nodes named for what they do and four named for what they approve, in
 # one linear chain. The branching a reader might expect — brainstorming on or
 # off, design on or off — is carried entirely by the per-node `when` guards
 # plus the rule that a node whose guard is false is skipped and still satisfies
@@ -26,6 +26,20 @@
 # The foundation gate carries no stop. Its four options are the most its
 # question holds, and finishing with the research is its way out, the final
 # summary still written.
+#
+# A run for its findings only asks a different gate after the foundation. A
+# parent that wants the research and nothing after it sets `findings_only`, and
+# the findings gate takes the foundation gate's place: one continue to the end,
+# its revise and a stop, with no way on to brainstorming or the design. Gates
+# are static, so the two are both in the graph under opposite guards and every
+# run asks exactly one of them. They stand in line, the findings gate after the
+# foundation gate, so the chain stays linear: whichever gate is skipped
+# satisfies the other, a stop at the findings gate leaves nothing after it
+# ready, and the research foundation stays the node the foundation gate closes,
+# the one whose recommendation it reads. A gate behind a skipped gate closes
+# what that gate would have, so the findings gate's brief is the foundation's.
+# The skipped foundation gate reads false, so every stretch after the findings
+# gate is skipped and the final summary runs, or an embedded run simply ends.
 #
 # The one way back is a revise option, and every gate carries one. The gates
 # that close the research foundation and the high-level design send the run back
@@ -58,6 +72,10 @@ inputs:
   # freeze; an operator never types it. Its only effect here is the guard on
   # `completion`, which a parent has no use for.
   embedded: {type: bool, required: false, default: false}
+  # "Run for the findings only." Set by a parent that wants the research and
+  # nothing after it: the findings gate replaces the foundation gate, and
+  # brainstorming and the design are never offered.
+  findings_only: {type: bool, required: false, default: false}
 
 # What a parent may read. Every entry names an output some node already
 # declares, so a key that stops resolving fails validation rather than a run.
@@ -89,6 +107,7 @@ display:
   icons:
     research-foundation:      analysis
     foundation-approval:      analysis
+    findings-approval:        analysis
     solution-generation:      spec
     solution-convergence:     plan
     convergence-approval:     plan
@@ -98,6 +117,7 @@ display:
   titles:
     research-foundation:      "Research foundation"
     foundation-approval:      "Approve research foundation"
+    findings-approval:        "Approve research findings"
     solution-generation:      "Solution brainstorming"
     solution-convergence:     "Solution convergence"
     convergence-approval:     "Approve brainstorming"
@@ -112,6 +132,12 @@ display:
       continue-to-design: "Continue to the design, skip brainstorming"
       finish-with-research: "Finish with the research"
       revise-research: "Revise the research"
+    # The final summary is skipped in an embedded run, which then finishes:
+    # the label names no destination and the gate brief names the one that runs.
+    findings-approval:
+      continue-to-completion: "Continue"
+      revise-research: "Revise the research"
+      stop-research: "Stop here"
     convergence-approval:
       continue-to-design: "Continue to the design"
       finish-without-design: "Finish without a design"
@@ -125,6 +151,7 @@ display:
       stop-research: "Stop here"
   headers:
     foundation-approval:   "Research"
+    findings-approval:     "Research"
     convergence-approval:  "Solutions"
     design-approval:       "Design"
 
@@ -158,6 +185,7 @@ nodes:
   foundation-approval:
     type: gate
     needs: [research-foundation]
+    when: "!${inputs.findings_only}"
     ask: "Research complete. Continue?"
     options:
       continue-to-brainstorming: {effect: continue, sets: {brainstorming_enabled: true, design_enabled: false}}
@@ -165,9 +193,19 @@ nodes:
       finish-with-research: {effect: continue, sets: {brainstorming_enabled: false, design_enabled: false}}
       revise-research: {effect: revise, reruns: research-foundation}
 
+  findings-approval:
+    type: gate
+    needs: [foundation-approval]
+    when: "${inputs.findings_only}"
+    ask: "Research complete. Continue?"
+    options:
+      continue-to-completion: continue
+      revise-research: {effect: revise, reruns: research-foundation}
+      stop-research: stop
+
   solution-generation:
     uses: agent:solution-brainstormer
-    needs: [foundation-approval]
+    needs: [findings-approval]
     when: "${foundation-approval.values.brainstorming_enabled}"
     with:
       synthesis: "${research-foundation.artifacts.synthesis}"

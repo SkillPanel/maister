@@ -79,3 +79,12 @@ all-of condition is still a `bool` an earlier node records. The guard is hashed 
   research definition validates there. Both re-pin the research hash. The gate request carries no
   new field.
 - The in-node question ids `brainstorm-opt-in` and `design-opt-in` no longer occur.
+
+### Follow-up: a run for its findings only
+A parent cannot narrow a child's gate, and the foundation gate always offers both stretches. The
+`findings_only` input adds a second gate, `findings-approval`, in line after `foundation-approval`
+under the opposite guard: one continue, `continue-to-completion`, beside `revise-research` and
+`stop-research`. Gates are static, so two gates under opposite guards is the shape, and the
+findings gate stands after the foundation gate rather than beside it so the chain stays linear and
+`research-foundation` stays the node the foundation gate closes. No grammar changed. The research
+hash moves again, and the Pro Edition re-pins it.
