@@ -129,7 +129,7 @@ Evaluate all alternatives across 5 perspectives:
 
 ### Phase 5: Convergence Recommendation
 
-1. **Select recommended approach** based on:
+1. **Select recommended approach** — only among the alternatives that meet every requirement and acceptance criterion the task states; one that narrows a criterion says which in its "why not" and is never recommended, however much smaller it is. Then choose based on:
    - Constraints stated in the research brief or project docs
    - Best overall trade-off balance across 5 perspectives
    - Research evidence strength

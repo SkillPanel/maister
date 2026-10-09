@@ -115,7 +115,7 @@ Options are not just UI -- they shape the conversation. Well-designed options an
 Structure: topical choices + escape hatches
 
 **Pattern**:
-- 2-3 topical answers generated from the synthesis line, the best-supported first and marked "(Recommended)" with why
+- 2-3 topical answers generated from the synthesis line, the best-supported first and marked "(Recommended)" with why — best-supported among the answers that keep every criterion the task states
 - "Not sure yet" (does not block progress), or More details where the question's context is long (the workflow engine's rule for it)
 - The user's own words are the question tool's free-text answer, not an option slot
 
@@ -148,6 +148,8 @@ Structure: approve + aspect-specific changes + structural options + escape hatch
 ### Universal Rules
 
 **Always leave an open-ended escape hatch**: the question tool's free-text answer covers cases where none of the structured options match the user's intent, so it costs no option slot; say in the question that the user can type their own answer when it matters. Without it, users feel trapped in a multiple-choice quiz.
+
+**Never recommend a narrower task**: the recommended answer keeps every acceptance criterion and requirement the description states, and where an earlier checkpoint flagged a criterion as open to two readings, it is the reading that keeps the criterion whole. A narrower option may be offered, naming what it gives up, but is never marked recommended. The workflow engine's *In-node questions* states the rule.
 
 **Never present all decision areas in a single batch**: One area at a time with full context. Batch decisions produce shallow answers because users optimize for completion speed rather than quality.
 

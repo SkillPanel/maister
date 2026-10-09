@@ -943,7 +943,8 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     `{label, value, unit?, of?}`.
   - **`recommends`** — on a node closed by a gate with several continues, the one this node
     recommends and why: `{option: <continue option id>, reason: "<one line>"}`, such as the
-    audit continue when the run was started asking for an audit. The brief marks that option
+    audit continue when the run was started asking for an audit. A recommended continue keeps
+    every stated criterion, as an in-node recommendation does (*In-node questions*). The brief marks that option
     recommended and shows the reason on it. Without it the continue that turns the most steps on
     is recommended, and a `stop` risk still recommends stopping on a gate that offers a stop. The writer refuses an option
     that is not a continue of a gate waiting on this node, or a missing or multi-line reason,
@@ -1483,6 +1484,17 @@ interface — is not asked: say the answer in one line where the question would 
 ("Browser verification: off — this change has no user interface") and record it as the node
 records an answered one.
 
+**A recommendation never drops or narrows what was asked for.** The task states what done means
+— its description, its acceptance criteria or "done when" lines, the research question — and the
+recommended option keeps every one of them. An option that narrows one may still be offered, its
+description naming the criterion it gives up, but it is never the recommendation, however much
+smaller or closer to the existing code it is. Before recommending, read what earlier steps left
+uncertain: the `open` risks in `prior-context` and the open questions of any research the run
+imported. Where one of them says a criterion may be read two ways, recommend the reading that
+keeps every criterion whole, and say so in the question ("Recommended because it keeps 'lists
+shared notes', which the context checkpoint flagged as uncertain"). The person may still choose
+the narrower reading; the run never makes it the default.
+
 **Independent items go in pages; decision areas go one at a time.**
 A picker call holds up to four questions, one tab each. Items that stand on their own — the fix
 loop's per-issue decisions, confirmations of the run's own assumptions — are asked four to a
@@ -1944,8 +1956,9 @@ The reader is a first-time user who sees only the terminal.
 - **Say "you".** Never "the operator" or "a person".
 - **Credit each decision to whoever made it** — you, the audit, the step that settled it, or a
   default the run took. Its `by` records that; never write the source into the decision text. Never "as you chose" for something the spec decided.
-- **Every recommendation gives its reason**, in the option's description. "(Recommended)" appears
-  once per question, on the option, never in the question text.
+- **Every recommendation gives its reason**, in the option's description, and keeps every
+  criterion the task states (*In-node questions*). "(Recommended)" appears once per question, on
+  the option, never in the question text.
 - **"Needs your decision"**, not "needs a hand".
 - **Paths are anchored.** Name a run file by its path from the project root
   (`.maister/tasks/<type>/<run>/analysis/gap-analysis.md`), never relative to a directory the
