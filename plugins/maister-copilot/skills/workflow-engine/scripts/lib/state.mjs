@@ -3555,8 +3555,10 @@ function blockSafe(value) {
  * On such a write, and only when the autonomy policy loaded now is the one
  * the run recorded at its freeze (`orchestrator.policy_hash`), the answer item
  * gains the gate's `triage` unless it carries one — a triage already there is
- * carried as written — and each value the chosen option `sets` that the
- * policy classes is recorded as one settlement item right after the answer:
+ * carried as written — and each value the chosen option `sets` is recorded as
+ * one settlement item right after the answer, classed as the policy classes
+ * the value or, when it classes the value not, as it classes the gate (a value
+ * neither reaches is not recorded):
  * `{decision: "<key>: <value>", by: operator, ref, node, triage}` with the
  * answer's `answered_by`, `via` and provenance. Settlement items an earlier
  * answer left are replaced, never repeated. Under a policy that classes
@@ -3591,8 +3593,10 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
     const gateTriage = triageFor({ ...ask, kind: 'gate' });
     const sets = isPlainObject(nodes[id].sets) && Object.hasOwn(nodes[id].sets, answer.option) && isPlainObject(nodes[id].sets[answer.option])
       ? nodes[id].sets[answer.option] : {};
+    // Each value is its own item: classed as the policy classes it, else as
+    // the gate is, so a classed gate never folds its values into its answer.
     const values = Object.entries(sets)
-      .map(([key, value]) => ({ key, value, triage: triageFor({ ...ask, kind: 'value', key }) }))
+      .map(([key, value]) => ({ key, value, triage: triageFor({ ...ask, kind: 'value', key }) ?? gateTriage }))
       .filter(each => each.triage !== null);
     if (recordedHash !== loaded.hash) {
       const code = `policy-hash-mismatch:${id}`;
