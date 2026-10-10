@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, ROOT, freezePatch, readDashboard, readState, run as runScript, scratch, sharedPlugin, umbrella, verb } from '../helpers.mjs';
+import { FIXTURES, ROOT, freezePatch, readDashboard, readState, run as runScript, scratch, sharedPlugin, sibling, umbrella, verb } from '../helpers.mjs';
 import { atClose, heldApprovalBefore, skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 import { checkpointOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display-files.mjs';
 import { provenGraph } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
@@ -377,6 +377,40 @@ test('cockpit with question sets: the request carries only what the writer left 
     assert.match(nothing.stderr, /^gate-brief-nothing-to-ask: the writer settled every question scoping sent it, so nothing is left to ask\. Nothing was written and nothing is asked\. /m);
     assert.equal(nothing.stdout, '');
   }
+});
+
+/**
+ * A child run of a parent frozen under `parentDriver` (ceiling advice), the
+ * child frozen with a bare cockpit driver and no ceiling of its own, `scoping`
+ * running: the sub-run a cockpit-started run creates for itself.
+ */
+function startedChild(t, engine, parentDriver) {
+  const parent = started(t, engine, { driver: parentDriver });
+  const child = sibling(parent, { type: 'research', name: '2026-01-05-child' });
+  const orchestrator = { driver: BARE_COCKPIT, parent: { run: parent.path, node: 'scoping' } };
+  ok(engine, child, freezePatch({ definition: DEFINITION, orchestrator }).patch);
+  ok(engine, child, { nodes: { scoping: { status: 'running' } } });
+  return child;
+}
+
+test('a sub-run of a cockpit with question sets asks its consult questions, never defaults them', t => {
+  const child = startedChild(t, QUESTIONS.engine, COCKPIT);
+  const set = { questions: [question('quick-choice'), question('asked-choice')] };
+  const written = send(QUESTIONS.engine, child, { node_summaries: { scoping: { question_set: set } } });
+  assert.equal(written.code, 0, written.stderr);
+  assert.equal(askLine(written.stdout), 'ask: asked-choice');
+  assert.deepEqual(summaryOf(child).asking, ['asked-choice']);
+  assert.equal(byId(summaryOf(child).decisions ?? [], 'asked-choice'), undefined, 'nothing is defaulted');
+
+  const result = brief(QUESTIONS.engine, child, set);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).questions.map(each => each.id), ['asked-choice']);
+
+  // Control: a parent without the feature gives a child that cannot ask.
+  const bare = startedChild(t, QUESTIONS.engine, BARE_COCKPIT);
+  const defaulted = classing(QUESTIONS.engine, bare, ['asked-choice']);
+  assert.equal(askLine(defaulted.stdout), 'ask: none');
+  assert.equal(byId(summaryOf(bare).decisions, 'asked-choice').triage.advice, 'not_obtained');
 });
 
 // ---------------------------------------------------------------------------

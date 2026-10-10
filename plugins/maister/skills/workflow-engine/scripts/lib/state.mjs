@@ -102,7 +102,7 @@ import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
-import { canAsk } from './driver.mjs';
+import { canAsk, driverFeatures } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -380,8 +380,10 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  * Everything else under `orchestrator:` replaces, and deliberately:
  *
  *   driver          A closed contract shape, written whole by the engine at
- *                   init and rewritten whole by the daemon. Merged, a write
- *                   demoting a run to `{kind: terminal}` would leave the
+ *                   init and rewritten whole by the daemon; a child run's
+ *                   freeze takes its `features` from the parent's
+ *                   (`seedFeatures`). Merged, a write demoting a run to
+ *                   `{kind: terminal}` would leave the
  *                   cockpit's `cwd` and `session` standing beside it — a
  *                   combination the state contract does not describe and no
  *                   writer meant.
@@ -474,7 +476,8 @@ const WORKFLOW_CONTEXT = {
  * the autonomy policy it read (`policy-refused:…`), a gate it recorded skipped
  * that the skip-guard rule asks (`skip-guard-skipped:…`), provenance it
  * could not copy (`provenance-unusable:…`), or a child run's parent whose
- * autonomy ceiling it could not read (`autonomy-ceiling-parent-unread:<run>`)
+ * autonomy ceiling or driver features it could not read
+ * (`autonomy-ceiling-parent-unread:<run>`, `driver-features-parent-unread:<run>`)
  * — each printed as its own `warning:` line.
  *
  * `notes` carries the reason for each writer-owned value the patch sent and
@@ -1132,10 +1135,17 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   const freezing = Boolean(patch.workflow) && !doc.has('workflow');
   let loaded = null;
   const policyNow = () => (loaded ??= loadPolicy());
-  // Before `applyScalars`, which would otherwise write the value as sent.
-  orchestrator = freezing
-    ? seedCeiling(orchestrator, runDir, policyNow, writeWarnings)
-    : clampCeiling(doc, orchestrator, policyNow, notes);
+  // A child's parent state, read at most once per freeze and only by a rule
+  // that needs it; null when it cannot be read.
+  let parentRead;
+  const parentNow = () => (parentRead ??= { orchestrator: readParentOrchestrator(orchestrator.parent, runDir) }).orchestrator;
+  // Before `applyScalars`, which would otherwise write the values as sent.
+  if (freezing) {
+    orchestrator = seedCeiling(orchestrator, policyNow, parentNow, writeWarnings);
+    orchestrator = seedFeatures(orchestrator, parentNow, writeWarnings);
+  } else {
+    orchestrator = clampCeiling(doc, orchestrator, policyNow, notes);
+  }
 
   // Before the patch's own `orchestrator` keys, so the seeded sequences open
   // the block and a freeze's `parent` still follows every key the patch sends.
@@ -2463,6 +2473,22 @@ function ceilingIn(options) {
 }
 
 /**
+ * The parent's `orchestrator:` block, for a child run's freeze: read from the
+ * state file `parent.run` names, relative to the project root, or null when
+ * that file cannot be read or parsed. The link is judged before the path is
+ * built from it, exactly as `applyScalars` would.
+ */
+function readParentOrchestrator(parent, runDir) {
+  assertParent(parent);
+  try {
+    const file = path.join(projectRootOf(runDir), parent.run, 'orchestrator-state.yml');
+    return parseState(fs.readFileSync(file, 'utf8')).orchestrator ?? {};
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The autonomy ceiling at the freeze: `options.ceiling` as the patch sends it,
  * except in a child run. A child's freeze — the patch carries `parent` — reads
  * the parent's state and records the narrower of the parent's effective
@@ -2473,19 +2499,15 @@ function ceilingIn(options) {
  * `options.ceiling` — never under the built-in default with none sent.
  * Returns the orchestrator patch to apply.
  */
-function seedCeiling(orchestrator, runDir, policyNow, writeWarnings) {
+function seedCeiling(orchestrator, policyNow, parentNow, writeWarnings) {
   if (!isPlainObject(orchestrator) || !Object.hasOwn(orchestrator, 'parent')) return orchestrator;
-  const parent = orchestrator.parent;
-  // Judged before the path is built from it, exactly as `applyScalars` would.
-  assertParent(parent);
+  // Judged before anything else is read, exactly as `applyScalars` would.
+  assertParent(orchestrator.parent);
   const defined = policyNow().policy;
   if (ceilingIn(orchestrator.options) === null && !isPlainObject(defined?.ceilings) && typeof defined?.default_ceiling !== 'string') return orchestrator;
-  let recorded;
-  try {
-    const file = path.join(projectRootOf(runDir), parent.run, 'orchestrator-state.yml');
-    recorded = parseState(fs.readFileSync(file, 'utf8')).orchestrator;
-  } catch {
-    writeWarnings.push(`autonomy-ceiling-parent-unread:${parent.run}`);
+  const recorded = parentNow();
+  if (recorded === null) {
+    writeWarnings.push(`autonomy-ceiling-parent-unread:${orchestrator.parent.run}`);
     return orchestrator;
   }
   const { policy, hash } = policyNow();
@@ -2493,6 +2515,31 @@ function seedCeiling(orchestrator, runDir, policyNow, writeWarnings) {
   if (inherited === null) return orchestrator;
   const options = isPlainObject(orchestrator.options) ? orchestrator.options : {};
   return { ...orchestrator, options: { ...options, ceiling: narrowerLevel(inherited, ceilingIn(options)) } };
+}
+
+/**
+ * The driver's features at a child run's freeze. A driver that is not the
+ * terminal carries what its parent's carries: the child records the parent's
+ * `driver.features`, narrowed to those the patch sends when it sends a list,
+ * so a child never gains a feature its parent lacks. Without this a child
+ * frozen under a cockpit that shows question sets would read as one that
+ * cannot, and default every question its nodes ask. An empty result leaves no
+ * `features` key; an unreadable parent vouches for none and warns
+ * `driver-features-parent-unread`. A terminal child, or a patch sending no
+ * driver, is left as sent and never reads the parent. Returns the
+ * orchestrator patch to apply.
+ */
+function seedFeatures(orchestrator, parentNow, writeWarnings) {
+  if (!isPlainObject(orchestrator) || !Object.hasOwn(orchestrator, 'parent')) return orchestrator;
+  const driver = orchestrator.driver;
+  if (!isPlainObject(driver) || typeof driver.kind !== 'string' || driver.kind === 'terminal') return orchestrator;
+  const recorded = parentNow();
+  if (recorded === null) writeWarnings.push(`driver-features-parent-unread:${orchestrator.parent.run}`);
+  const inherited = recorded === null ? [] : driverFeatures({ orchestrator: recorded });
+  const sent = Array.isArray(driver.features) ? driverFeatures({ orchestrator }) : null;
+  const features = sent === null ? inherited : inherited.filter(each => sent.includes(each));
+  const { features: _sent, ...rest } = driver;
+  return { ...orchestrator, driver: features.length ? { ...rest, features } : rest };
 }
 
 /**

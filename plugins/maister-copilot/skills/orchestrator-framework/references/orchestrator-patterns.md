@@ -252,7 +252,7 @@ orchestrator:
     cwd: [absolute path]                 # Required beside cockpit or dispatch
     dispatch_id: [id]                    # Optional; a dispatched run records its dispatch, so runs sharing one checkout are told apart
     session: {id: [session id]}          # A cockpit's, set when it adopts the run; the engine never writes one
-    features: []                         # What the driver carries, e.g. question-sets (§ 2.2); the engine only reads it
+    features: []                         # What the driver carries, e.g. question-sets (§ 2.2); a sub-run's freeze copies its parent's, else the engine only reads it
 
   # Timestamps
   created: [ISO 8601 timestamp]

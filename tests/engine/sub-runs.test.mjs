@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DECLARED, ENGINE_DIR, freeze, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, freeze, freezePatch, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 
 const RESEARCH = path.join(ENGINE_DIR, 'workflows/research.yml');
 
@@ -55,6 +55,68 @@ test('the child freezes with its parent link, its inputs and its own context blo
   assert.match(state.orchestrator.created, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/, 'a child freeze stamps created although its patch carried none');
   write(child, { context: { research_type: 'technical' } });
   assert.equal(readState(child).research_context.research_type, 'technical');
+});
+
+const SHOWS_SETS = { kind: 'cockpit', cwd: '/work', features: ['question-sets'] };
+const BARE_COCKPIT = { kind: 'cockpit', cwd: '/work' };
+
+/**
+ * A child of `parent` frozen with `driver` through the shipped writer, linked to
+ * `link` (the parent's own directory unless given); the write is not asserted.
+ */
+function childFreeze(parent, driver, { name = '2026-01-05-child', link = parent.path } = {}) {
+  const child = sibling(parent, { type: 'research', name });
+  const { patch } = freezePatch({
+    definition: RESEARCH,
+    task: { title: 'Open questions' },
+    inputs: { question: 'What is open?', embedded: true },
+    orchestrator: { driver, parent: { run: link, node: 'research' } },
+  });
+  return { child, result: verb(['write-state', `--state=${child.state}`], patch) };
+}
+
+function drivenParent(t, driver) {
+  const parent = scratch(t);
+  freeze(parent, { orchestrator: driver ? { driver } : {} });
+  return parent;
+}
+
+test('features: a cockpit child copies its parent\'s driver features at the freeze', t => {
+  const parent = drivenParent(t, SHOWS_SETS);
+  const { child, result } = childFreeze(parent, BARE_COCKPIT);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.deepEqual(readState(child).orchestrator.driver, SHOWS_SETS);
+});
+
+test('features: a child never gains a feature its parent lacks', t => {
+  const parent = drivenParent(t, SHOWS_SETS);
+  const { child: narrowed } = childFreeze(parent, { ...BARE_COCKPIT, features: ['question-sets', 'other'] });
+  assert.deepEqual(readState(narrowed).orchestrator.driver.features, ['question-sets']);
+
+  const bare = drivenParent(t, BARE_COCKPIT);
+  const { child: claimed } = childFreeze(bare, SHOWS_SETS);
+  assert.deepEqual(readState(claimed).orchestrator.driver, BARE_COCKPIT, 'no features key is left');
+});
+
+test('features: a parent with none gives a child with none, and a terminal child is left as sent', t => {
+  const bare = drivenParent(t, BARE_COCKPIT);
+  const { child, result } = childFreeze(bare, BARE_COCKPIT);
+  assert.equal(result.stderr, '');
+  assert.deepEqual(readState(child).orchestrator.driver, BARE_COCKPIT);
+
+  const terminal = drivenParent(t, null);
+  const { child: plain, result: plainResult } = childFreeze(terminal, { kind: 'terminal' });
+  assert.equal(plainResult.stderr, '');
+  assert.deepEqual(readState(plain).orchestrator.driver, { kind: 'terminal' });
+});
+
+test('features: an unreadable parent vouches for none and warns', t => {
+  const root = scratch(t);
+  const { child, result } = childFreeze(root, SHOWS_SETS, { name: '2026-01-05-orphan', link: '.maister/tasks/development/2026-01-05-missing' });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stderr, /^warning: driver-features-parent-unread:\.maister\/tasks\/development\/2026-01-05-missing\n$/);
+  assert.deepEqual(readState(child).orchestrator.driver, BARE_COCKPIT);
 });
 
 test('waiting: the node is not finished, and the dashboard reads it as in progress', t => {

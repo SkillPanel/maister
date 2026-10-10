@@ -62,6 +62,10 @@ a run an operator would believe was suspended.
 W1, W2 and W3 are identical but for one field: W2's `orchestrator.driver` is
 `{kind: cockpit, cwd: <project root>}` (or `{kind: dispatch, cwd: …}`) and carries **no
 `session`**. The daemon assigns a session when it adopts the run; the engine never writes one.
+Nor does W2 send `features`: the writer copies the parent's driver features into the child at the
+freeze, as it copies the autonomy ceiling, so a child of a cockpit that shows question sets asks
+its in-node questions too, and never gains a feature its parent lacks (the engine skill,
+*Sub-runs*).
 
 Then, and only then:
 
@@ -218,7 +222,7 @@ orchestrator:
   completed_phases: []
   failed_phases: []
   options: {inputs: {question: "How should the adapter be scoped?", ticket: ALPHA-42, embedded: true}}
-  driver: {kind: cockpit, cwd: /Users/alex/code/acme-workspace}
+  driver: {kind: cockpit, cwd: /Users/alex/code/acme-workspace, features: [question-sets]}
   gate_pending: null
   created: "2026-09-21T14:03:11Z"
   task_path: .maister/tasks/probe/2026-09-21-alpha-42-intake-probe
