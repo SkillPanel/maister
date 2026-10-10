@@ -6,3 +6,4 @@
 *.mmd  text eol=lf
 *.jsonl text eol=lf
 *.log  text eol=lf
+tests/fixtures/decision-areas/**/*.md text eol=lf
