@@ -94,7 +94,7 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { classSet, classesQuestions, declaredQuestionIds, isClassedItem, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, classSet, classesQuestions, declaredQuestionIds, isApproval, isClassedItem, outstandingHeld } from './question-triage.mjs';
 import { canAsk } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -1174,6 +1174,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   judgeGates(doc, typedNow, judged, changed, writeWarnings);
+  approveHeld(doc, judged, graphOf, changed);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -2588,7 +2589,9 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         display ??= runDir === null ? displayOf() : displayOfRun(parseState(doc.text()), runDir);
         via ??= answerVia(parseState(doc.text()));
         entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display), runDir, via);
-        entry.decisions = [...earlierRevisions(doc, key, entry.decisions), ...entry.decisions];
+        // An approval carrying its attempt is kept once, as an approval, not as an earlier revision.
+        const revisions = earlierRevisions(doc, key, entry.decisions).filter(item => !isApproval(item));
+        entry.decisions = [...revisions, ...entry.decisions, ...keptApprovals(heldOf(key)?.decisions, entry.decisions)];
       } else {
         via ??= answerVia(parseState(doc.text()));
         const prior = heldOf(key)?.decisions;
@@ -3565,6 +3568,85 @@ function closingRows(runDir) {
     return [];
   }
   return pending.filter(id => !open.has(id));
+}
+
+/**
+ * The approvals a continue records: on a write that judges a gate
+ * (`judgedGates`) — a frozen gate, or the reserved `HELD_APPROVAL` checkpoint —
+ * whose answer names an option with effect `continue`, one approval item per
+ * held choice no approval yet matches (`outstandingHeld`), placed right after
+ * the answer, its settlement items and any approval an earlier answer left
+ * (`approvalOf`), so the approvals read in the order they were given. A revise or a stop
+ * approves nothing, and a choice already approved is never approved twice, so
+ * a closing write re-sending the answer adds nothing. The items are history: a
+ * later write of the gate's summary keeps them (`keptApprovals`) and a revise
+ * reset never touches a gate's summary.
+ */
+function approveHeld(doc, judgedIds, graphOf, changed) {
+  if (judgedIds.size === 0) return;
+  const frozen = isPlainObject(typedOf(doc).workflow?.nodes) ? typedOf(doc).workflow.nodes : {};
+  const isGate = id => id === HELD_APPROVAL || (Object.hasOwn(frozen, id) && isPlainObject(frozen[id]) && frozen[id].kind === 'gate');
+  for (const id of [...Object.keys(frozen), HELD_APPROVAL].filter(each => judgedIds.has(each) && isGate(each))) {
+    const typed = typedOf(doc);
+    const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+    const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : null;
+    const decisions = Array.isArray(summary?.decisions) ? summary.decisions : null;
+    const answer = gateAnswer(decisions);
+    if (answer === null || optionEffectOf(id, answer.option, frozen, graphOf) !== 'continue') continue;
+    const waiting = outstandingHeld(typed);
+    if (waiting.length === 0) continue;
+    let at = decisions.indexOf(answer) + 1;
+    while (at < decisions.length && (isSettlement(decisions[at], id) || isApproval(decisions[at]))) at += 1;
+    const next = [...decisions.slice(0, at), ...waiting.map(each => approvalOf(each, answer)), ...decisions.slice(at)];
+    doc.set(['node_summaries', id], block(id, { ...summary, decisions: next }, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+  }
+}
+
+/**
+ * The effect of a gate's `option`: `continue` for the reserved checkpoint's
+ * own continue; for a frozen gate, the effect its definition gives the option,
+ * read from the proven frozen graph — or, when that cannot be proven, a
+ * continue only when the frozen block records the values it sets. Null when
+ * unknown.
+ */
+function optionEffectOf(id, option, frozen, graphOf) {
+  if (id === HELD_APPROVAL) return option === 'continue' ? 'continue' : null;
+  const options = resolvedNode(graphOf(), id)?.options;
+  if (isPlainObject(options) && Object.hasOwn(options, option)) {
+    const value = options[option];
+    return isPlainObject(value) ? value.effect ?? null : value;
+  }
+  const sets = frozen[id]?.sets;
+  return isPlainObject(sets) && Object.hasOwn(sets, option) ? 'continue' : null;
+}
+
+/**
+ * One approval item: the held item `node` records for `question_id`, approved
+ * by `answer` and credited as it is, the way a settlement item is
+ * (`settlementOf`). Its triage is the held item's without `held`, and it
+ * carries the held item's `attempt` when that has one.
+ */
+function approvalOf({ node, question_id: questionId, item: held }, answer) {
+  const { held: _held, ...triage } = isPlainObject(held.triage) ? held.triage : {};
+  const item = { decision: `${questionId}: ${held.decision}`, by: 'operator', node, question_id: questionId, triage };
+  if (attemptNumber(held) !== null) item.attempt = held.attempt;
+  if (answer.answered_by !== undefined) item.answered_by = answer.answered_by;
+  if (answer.via !== undefined) item.via = answer.via;
+  return { ...item, ...provenanceOf(answer) };
+}
+
+/**
+ * The approval items a gate's summary already holds that a write of its
+ * `decisions` leaves out: history, never removed, kept after what the write
+ * sent. One counts as sent when the write carries an approval for the same
+ * node, question and attempt.
+ */
+function keptApprovals(prior, decisions) {
+  if (!Array.isArray(prior)) return [];
+  const keyOf = item => JSON.stringify([item.node, item.question_id, attemptNumber(item) ?? 1]);
+  const sent = new Set(decisions.filter(isApproval).map(keyOf));
+  return prior.filter(item => isApproval(item) && !sent.has(keyOf(item)));
 }
 
 /** One settlement item: a classified value the answer's option sets, credited as the answer is. */

@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { FIXTURES, ROOT, freezePatch, readState, run as runScript, scratch, sharedPlugin, verb } from '../helpers.mjs';
 import { skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
+import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
+import { approvalsOf, outstandingHeld } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 
 // The classing write: a running node sends its question set to `write-state`
 // before asking, and the writer — only the writer — settles, defaults or holds
@@ -551,4 +553,176 @@ test('held: a forced gate whose work was skipped is briefed "Skipped." with the 
 
   const bare = gateBriefOf(reach(false), 'notes-approval', '--checkpoint');
   refused(bare, 'gate-brief-no-summary');
+});
+
+// ---------------------------------------------------------------------------
+// 10. approvals: a continue at a checkpoint approves each held choice
+// ---------------------------------------------------------------------------
+
+const ANSWER_KEYS = ['answered_by', 'via', 'actor', 'on_behalf_of'];
+const keyed = list => list.map(each => [each.node, each.question_id, each.attempt]);
+const decisionsAt = (run, node) => readState(run).node_summaries?.[node]?.decisions ?? [];
+
+/** The approval item a continue owes `held` (a held item on `node`), credited as `answer` is. */
+function approvalFor(node, held, answer) {
+  const { held: _held, ...triage } = held.triage;
+  const item = { decision: `${held.question_id}: ${held.decision}`, by: 'operator', node, question_id: held.question_id, triage };
+  if (held.attempt !== undefined) item.attempt = held.attempt;
+  for (const key of ANSWER_KEYS) if (answer[key] !== undefined) item[key] = answer[key];
+  return item;
+}
+
+/** A gate answered in a write of its own, as a terminal session records it. */
+function answerGate(run, gate, option, extra = {}) {
+  return ok(QUESTIONS.engine, run, {
+    nodes: { [gate]: { status: 'completed' } },
+    node_summaries: { [gate]: { decisions: [{ option, ...extra }] } },
+  });
+}
+
+/**
+ * A driven answer to `gate` as the cockpit leaves it: a request answered on
+ * disk, a pending index row, and the answer the model folded into the state by
+ * hand. The next write's index sync closes the row.
+ */
+function drivenAnswer(run, gate, option) {
+  const gates = path.join(run.dir, 'gates');
+  fs.mkdirSync(gates, { recursive: true });
+  const request = path.join(gates, `${gate}.request.yml`);
+  const head = ['version: 1', `node: ${gate}`, 'kind: approval', 'question: "Continue?"', 'multiple: false', 'asked_at: "2026-01-05T09:00:00Z"'].join('\n');
+  fs.writeFileSync(request, `${head}\nanswer: null\n`);
+  refreshIndex(run.dir);
+  ok(QUESTIONS.engine, run, {
+    orchestrator: { gate_pending: { node: gate, request: `gates/${gate}.request.yml`, since: '2026-01-05T09:00:00Z' } },
+    nodes: { [gate]: { status: 'suspended' } },
+  });
+  fs.writeFileSync(request, `${head}\nanswer:\n  option: ${option}\n  answered_by: dana\n  at: "2026-01-05T09:05:00Z"\n  via: cockpit\n  on_behalf_of: lee\n`);
+  const text = fs.readFileSync(run.state, 'utf8')
+    .replace(/^ {2}gate_pending: .*$/m, '  gate_pending: null')
+    .replace(new RegExp(`^( {4}${gate}: \\{kind: gate, status: )suspended`, 'm'), '$1completed');
+  assert.match(text, /^node_summaries:\n(?: {2}.*\n|\s*\n)*$/m, 'node_summaries is the last block');
+  fs.writeFileSync(run.state, `${text}  ${gate}:\n    decisions:\n      - {option: ${option}, answered_by: dana, at: "2026-01-05T09:05:00Z", via: cockpit}\n    status: completed\n`);
+}
+
+test('approvals: a continue at a forced gate records one approval per held choice, right after the answer', t => {
+  const run = heldRun(t);
+  const held = byId(summaryOf(run).decisions, 'signed-choice');
+  assert.equal(held.triage.held, true);
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['scoping', 'signed-choice', 1]]);
+
+  answerGate(run, 'review-approval', 'continue-past-review', { on_behalf_of: 'lee' });
+  const [answer, approval, ...rest] = decisionsAt(run, 'review-approval');
+  assert.deepEqual(rest, []);
+  assert.equal(answer.option, 'continue-past-review');
+  assert.equal(answer.on_behalf_of, 'lee');
+  assert.deepEqual(approval, approvalFor('scoping', held, answer));
+  assert.deepEqual(Object.keys(approval).slice(0, 5), ['decision', 'by', 'node', 'question_id', 'triage']);
+  assert.equal(approval.decision, 'signed-choice: signed-choice A');
+  assert.equal(Object.hasOwn(approval.triage, 'held'), false);
+
+  // The held item stays held, as history; nothing is outstanding.
+  assert.deepEqual(byId(summaryOf(run).decisions, 'signed-choice'), held);
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  assert.deepEqual(keyed(approvalsOf(readState(run))), [['scoping', 'signed-choice', 1]]);
+
+  // A closing write re-sending the answer leaves one approval, never two.
+  answerGate(run, 'review-approval', 'continue-past-review', { on_behalf_of: 'lee' });
+  assert.equal(decisionsAt(run, 'review-approval').length, 2);
+});
+
+test('approvals: the driven fold that closes the gate\'s index row approves the same way, once', t => {
+  const run = heldRun(t);
+  const held = byId(summaryOf(run).decisions, 'signed-choice');
+  drivenAnswer(run, 'review-approval', 'continue-past-review');
+  const result = ok(QUESTIONS.engine, run, {});
+  assert.match(result.stdout, /^gates\/index\.yml$/m);
+  const [answer, approval, ...rest] = decisionsAt(run, 'review-approval');
+  assert.deepEqual(rest, []);
+  assert.equal(answer.on_behalf_of, 'lee', 'the request file\'s provenance is copied first');
+  assert.deepEqual(approval, approvalFor('scoping', held, answer));
+  assert.equal(approval.answered_by, 'dana');
+  assert.equal(approval.via, 'cockpit');
+  assert.equal(approval.on_behalf_of, 'lee');
+
+  // A later empty write judges nothing and adds nothing.
+  const again = ok(QUESTIONS.engine, run, {});
+  assert.doesNotMatch(again.stdout, /node_summaries/);
+  assert.equal(decisionsAt(run, 'review-approval').length, 2);
+});
+
+/** The review loop under dispatch with a choice held in `side-note`, which a send-back leaves alone. */
+function heldBeside(t) {
+  const run = started(t, QUESTIONS.engine, { definition: REVISE, node: 'draft', driver: DISPATCH });
+  ok(QUESTIONS.engine, run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } }, figures: { status: 'skipped' }, 'side-note': { status: 'running' } },
+    node_summaries: { draft: { summary: 'Drafted.' } },
+  });
+  const asked = { ...labelled('margin-choice'), triage: { version: 1, class: 'approve', family: 'area-family' } };
+  assert.equal(classing(QUESTIONS.engine, run, [], { node: 'side-note', questions: [asked] }).code, 0);
+  ok(QUESTIONS.engine, run, {
+    nodes: { 'side-note': { status: 'completed' }, review: { status: 'completed' } },
+    node_summaries: { review: { summary: 'Reviewed.' } },
+  });
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['side-note', 'margin-choice', 1]]);
+  return run;
+}
+
+test('approvals: a stop or a revise approves nothing', t => {
+  const stopped = heldBeside(t);
+  answerGate(stopped, 'review-approval', 'abandon');
+  assert.deepEqual(decisionsAt(stopped, 'review-approval').map(item => item.option ?? item.decision), ['abandon']);
+  assert.deepEqual(approvalsOf(readState(stopped)), []);
+  assert.equal(outstandingHeld(readState(stopped)).length, 1);
+
+  const revised = heldBeside(t);
+  const sent = runScript(QUESTIONS.engine, ['gate-revise', `--state=${revised.state}`, '--node=review-approval', '--option=send-back'], { note: 'Tighten the intro' });
+  assert.equal(sent.code, 0, sent.stderr);
+  assert.deepEqual(approvalsOf(readState(revised)), []);
+  assert.deepEqual(keyed(outstandingHeld(readState(revised))), [['side-note', 'margin-choice', 1]]);
+
+  // The continue approves it.
+  const continued = heldBeside(t);
+  answerGate(continued, 'review-approval', 'publish-draft');
+  assert.deepEqual(keyed(approvalsOf(readState(continued))), [['side-note', 'margin-choice', 1]]);
+  assert.deepEqual(outstandingHeld(readState(continued)), []);
+});
+
+test('approvals: matched by attempt; a choice held again in a later attempt waits, and later writes keep every approval', t => {
+  const run = started(t, QUESTIONS.engine, { definition: REVISE, node: 'draft', driver: DISPATCH });
+  const asked = { ...labelled('layout-choice'), triage: { version: 1, class: 'approve', family: 'area-family' } };
+  const reachReview = () => {
+    assert.equal(classing(QUESTIONS.engine, run, [], { node: 'draft', questions: [asked] }).code, 0);
+    ok(QUESTIONS.engine, run, {
+      nodes: { draft: { status: 'completed', values: { needs_figures: false } }, figures: { status: 'skipped' }, 'side-note': { status: 'completed' }, review: { status: 'completed' } },
+      node_summaries: { draft: { summary: 'Drafted.' }, review: { summary: 'Reviewed.' } },
+    });
+  };
+  reachReview();
+  answerGate(run, 'review-approval', 'publish-draft');
+  assert.deepEqual(keyed(approvalsOf(readState(run))), [['draft', 'layout-choice', 1]]);
+  const first = decisionsAt(run, 'review-approval').filter(item => item.node === 'draft');
+
+  // Send the draft back from the last gate: the draft runs again and holds the choice in attempt 2.
+  ok(QUESTIONS.engine, run, { nodes: { publish: { status: 'completed' } }, node_summaries: { publish: { summary: 'Published.' } } });
+  const sent = runScript(QUESTIONS.engine, ['gate-revise', `--state=${run.state}`, '--node=final-approval', '--option=redo-draft'], { note: 'Redo it' });
+  assert.equal(sent.code, 0, sent.stderr);
+  ok(QUESTIONS.engine, run, { nodes: { draft: { status: 'running' } } });
+  reachReview();
+  const again = byId(summaryOf(run, 'draft').decisions, 'layout-choice');
+  assert.equal(again.attempt, 2);
+  assert.equal(again.triage.held, true);
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['draft', 'layout-choice', 2]], 'an approval for attempt 1 does not approve attempt 2');
+  for (const item of first) assert.ok(decisionsAt(run, 'review-approval').some(each => JSON.stringify(each) === JSON.stringify(item)), 'the first approval stays');
+
+  // The gate asked again approves attempt 2; the attempt 1 approval stays beside it.
+  answerGate(run, 'review-approval', 'publish-draft');
+  assert.deepEqual(keyed(approvalsOf(readState(run))), [['draft', 'layout-choice', 1], ['draft', 'layout-choice', 2]]);
+  const second = decisionsAt(run, 'review-approval').find(item => item.node === 'draft' && item.attempt === 2);
+  assert.deepEqual(second, approvalFor('draft', again, decisionsAt(run, 'review-approval').findLast(item => typeof item.option === 'string')));
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+
+  // A write that re-sends the gate's summary without its approvals keeps them all.
+  ok(QUESTIONS.engine, run, { node_summaries: { 'review-approval': { summary: 'Approved.', decisions: [{ option: 'publish-draft' }] } } });
+  assert.deepEqual(keyed(approvalsOf(readState(run))), [['draft', 'layout-choice', 1], ['draft', 'layout-choice', 2]]);
+  assert.equal(byId(summaryOf(run, 'draft').decisions, 'layout-choice').triage.held, true);
 });
