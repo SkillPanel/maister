@@ -1923,8 +1923,11 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     if (id === HELD_APPROVAL) {
       assertHeldApprovalEntry(patchEntry);
       const before = Object.hasOwn(existing, id) ? existing[id] ?? {} : {};
-      if (!(regress !== null && regress.has(id))) assertForward(id, patchEntry, before);
-      const merged = stamp(id, { kind: 'gate', status: patchEntry.status }, before, now, ignored);
+      // A `held-approval` revise resets it with its stretch: back to pending,
+      // its clocks gone, as the checkpoint not yet asked.
+      const resetting = regress !== null && regress.has(id);
+      if (!resetting) assertForward(id, patchEntry, before);
+      const merged = resetting ? { kind: 'gate', status: 'pending' } : stamp(id, { kind: 'gate', status: patchEntry.status }, before, now, ignored);
       doc.setNode(id, serializeNode(id, merged, patchEntry, now));
       changed.push(`workflow.nodes.${id}`);
       continue;

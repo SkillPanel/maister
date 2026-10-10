@@ -25,7 +25,9 @@
  *   gate-revise    --state, --node, --option, --patch-file (or the note as
  *                  JSON on stdin)                             changed paths
  *                  (the stretch from the option's rerun node to the gate reset
- *                  in one write, with the operator's note on the gate)
+ *                  in one write, with the operator's note on the gate; at
+ *                  `--node=held-approval`, the owning node and everything
+ *                  downstream of it, closing node included)
  *   prior-context  --state                                    the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt — read-only over a run

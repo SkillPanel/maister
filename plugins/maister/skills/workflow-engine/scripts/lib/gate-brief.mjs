@@ -1779,8 +1779,12 @@ function blockers(nodes, downstream, status) {
   return nodes.map(entry => entry.id).filter(id => waiting.has(id));
 }
 
-/** Every node whose transitive needs closure contains `gate`. */
-function downstreamOf(nodes, gate) {
+/**
+ * Every node whose transitive needs closure contains `gate`. `nodes` is a list
+ * of `{id, needs}`. Also the stretch a `held-approval` revise resets, with the
+ * owning node itself (`gate-revise`).
+ */
+export function downstreamOf(nodes, gate) {
   const found = new Set();
   let grew = true;
   while (grew) {

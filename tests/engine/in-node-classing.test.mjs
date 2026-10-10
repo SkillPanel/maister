@@ -582,28 +582,42 @@ function answerGate(run, gate, option, extra = {}) {
   });
 }
 
+/** The request a driver writes for `gate`, unanswered, as its first line set. */
+function requestHead(gate) {
+  return ['version: 1', `node: ${gate}`, 'kind: approval', 'question: "Continue?"', 'multiple: false', 'asked_at: "2026-01-05T09:00:00Z"'].join('\n');
+}
+
+/** A driver suspending on `gate`: its request on disk, a pending index row, the pending marker and the gate suspended. */
+function suspendAt(run, gate) {
+  const gates = path.join(run.dir, 'gates');
+  fs.mkdirSync(gates, { recursive: true });
+  fs.writeFileSync(path.join(gates, `${gate}.request.yml`), `${requestHead(gate)}\nanswer: null\n`);
+  refreshIndex(run.dir);
+  ok(QUESTIONS.engine, run, {
+    orchestrator: { gate_pending: { node: gate, request: `gates/${gate}.request.yml`, since: '2026-01-05T09:00:00Z' } },
+    nodes: { [gate]: { status: 'suspended' } },
+  });
+}
+
+/** The answer to a suspended `gate` arriving on disk, and the model folding it into the state by hand. */
+function foldAt(run, gate, option) {
+  fs.writeFileSync(path.join(run.dir, 'gates', `${gate}.request.yml`),
+    `${requestHead(gate)}\nanswer:\n  option: ${option}\n  answered_by: dana\n  at: "2026-01-05T09:05:00Z"\n  via: cockpit\n  on_behalf_of: lee\n`);
+  const text = fs.readFileSync(run.state, 'utf8')
+    .replace(/^ {2}gate_pending: .*$/m, '  gate_pending: null')
+    .replace(new RegExp(`^( {4}${gate}: \\{kind: gate, status: )suspended`, 'm'), '$1completed');
+  assert.match(text, /^node_summaries:\n(?: {2}.*\n|\s*\n)*$/m, 'node_summaries is the last block');
+  fs.writeFileSync(run.state, `${text}  ${gate}:\n    decisions:\n      - {option: ${option}, answered_by: dana, at: "2026-01-05T09:05:00Z", via: cockpit}\n    status: completed\n`);
+}
+
 /**
  * A driven answer to `gate` as the cockpit leaves it: a request answered on
  * disk, a pending index row, and the answer the model folded into the state by
  * hand. The next write's index sync closes the row.
  */
 function drivenAnswer(run, gate, option) {
-  const gates = path.join(run.dir, 'gates');
-  fs.mkdirSync(gates, { recursive: true });
-  const request = path.join(gates, `${gate}.request.yml`);
-  const head = ['version: 1', `node: ${gate}`, 'kind: approval', 'question: "Continue?"', 'multiple: false', 'asked_at: "2026-01-05T09:00:00Z"'].join('\n');
-  fs.writeFileSync(request, `${head}\nanswer: null\n`);
-  refreshIndex(run.dir);
-  ok(QUESTIONS.engine, run, {
-    orchestrator: { gate_pending: { node: gate, request: `gates/${gate}.request.yml`, since: '2026-01-05T09:00:00Z' } },
-    nodes: { [gate]: { status: 'suspended' } },
-  });
-  fs.writeFileSync(request, `${head}\nanswer:\n  option: ${option}\n  answered_by: dana\n  at: "2026-01-05T09:05:00Z"\n  via: cockpit\n  on_behalf_of: lee\n`);
-  const text = fs.readFileSync(run.state, 'utf8')
-    .replace(/^ {2}gate_pending: .*$/m, '  gate_pending: null')
-    .replace(new RegExp(`^( {4}${gate}: \\{kind: gate, status: )suspended`, 'm'), '$1completed');
-  assert.match(text, /^node_summaries:\n(?: {2}.*\n|\s*\n)*$/m, 'node_summaries is the last block');
-  fs.writeFileSync(run.state, `${text}  ${gate}:\n    decisions:\n      - {option: ${option}, answered_by: dana, at: "2026-01-05T09:05:00Z", via: cockpit}\n    status: completed\n`);
+  suspendAt(run, gate);
+  foldAt(run, gate, option);
 }
 
 test('approvals: a continue at a forced gate records one approval per held choice, right after the answer', t => {
@@ -1015,4 +1029,152 @@ test('held-approval: the fallback\'s closing patch ends RUN-FAILED: run-held-una
   const shaped = JSON.parse(picker.stdout);
   assert.equal(shaped.question, 'Approve the choices held for you, and finish the run?');
   assert.deepEqual(shaped.options.map(each => each.id), ['continue', 'revise-choosing', 'stop', 'more-details']);
+});
+
+// ---------------------------------------------------------------------------
+// 12. held-approval: its revise, the open revision it leaves, and a driven resume
+// ---------------------------------------------------------------------------
+
+/** `gate-revise` at held-approval through the scratch engine, the note on stdin. */
+function heldRevise(run, option, note = 'Tidy only what the run touched') {
+  return runScript(QUESTIONS.engine, ['gate-revise', `--state=${run.state}`, `--node=${HELD_APPROVAL_ID}`, `--option=${option}`], { note });
+}
+
+function heldRevised(run, option, note) {
+  const result = heldRevise(run, option, note);
+  assert.equal(result.code, 0, result.stderr);
+  return result;
+}
+
+/** A held-approval refusal that left the state file byte for byte as it was. */
+function heldRefused(run, option, code) {
+  const before = fs.readFileSync(run.state, 'utf8');
+  const result = refused(heldRevise(run, option), code);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, `${code} wrote nothing`);
+  return result;
+}
+
+const statusesOf = run => Object.fromEntries(Object.entries(readState(run).workflow.nodes).map(([id, entry]) => [id, entry.status]));
+
+function priorContextOf(run) {
+  const result = runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]);
+  assert.equal(result.code, 0, result.stderr);
+  return result.stdout;
+}
+
+const resumeCheckOf = run => JSON.parse(runScript(QUESTIONS.engine, ['resume-check', `--state=${run.state}`]).stdout);
+
+test('held-approval revise: resets the owning node and everything whose needs reach it, closing node included, in one write', t => {
+  const run = heldClosing(t, { owners: ['tidy'] });
+  closeRun(run);
+  ok(QUESTIONS.engine, run, { nodes: { [HELD_APPROVAL_ID]: { status: 'completed' } } });
+  assert.equal(readState(run).task.status, 'completed');
+
+  const result = heldRevised(run, 'revise-tidy');
+  assert.match(result.stdout, /^revised: held-approval reruns=tidy revision=1\/10 reset=tidy,closing$/m);
+  const state = readState(run);
+  assert.deepEqual(statusesOf(run), {
+    outline: 'completed', 'outline-approval': 'completed', choosing: 'completed', audit: 'skipped',
+    tidy: 'pending', closing: 'pending', [HELD_APPROVAL_ID]: 'pending',
+  });
+  assert.equal(state.workflow.nodes.tidy.attempt, 2);
+  assert.equal(state.workflow.nodes.closing.attempt, 2);
+  assert.deepEqual(state.workflow.nodes[HELD_APPROVAL_ID], { kind: 'gate', status: 'pending' }, 'its clocks are gone with the reset');
+  assert.equal(state.task.status, 'in_progress', 'a run already recorded completed goes back to in progress');
+  const [decision, ...rest] = decisionsAt(run, HELD_APPROVAL_ID);
+  assert.deepEqual(rest, []);
+  assert.equal(decision.option, 'revise-tidy');
+  assert.equal(decision.reruns, 'tidy');
+  assert.equal(decision.attempt, 1);
+  assert.equal(decision.note, 'Tidy only what the run touched');
+  assert.equal(decision.via, 'dispatch');
+  // The reset cleared the writer-classed choice it re-runs, so nothing is held now.
+  assert.deepEqual(outstandingHeld(state), []);
+});
+
+test('held-approval revise: the revision count is its revise items plus one, refused revise-budget-exhausted past the safety limit', t => {
+  const run = heldClosing(t, { owners: ['tidy'] });
+  const history = Array.from({ length: 9 }, (_, index) => ({ option: 'revise-tidy', note: `Try again ${index + 1}`, attempt: index + 1 }));
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { decisions: history } } });
+  const tenth = heldClosing(t, { owners: ['tidy'] });
+  ok(QUESTIONS.engine, tenth, { node_summaries: { [HELD_APPROVAL_ID]: { decisions: history } } });
+  assert.match(heldRevised(tenth, 'revise-tidy').stdout, /revision=10\/10/);
+  assert.equal(decisionsAt(tenth, HELD_APPROVAL_ID).at(-1).attempt, 10);
+
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { decisions: [{ option: 'revise-tidy', note: 'Try again 10', attempt: 10 }] } } });
+  const result = heldRefused(run, 'revise-tidy', 'revise-budget-exhausted');
+  assert.match(result.stderr, /held-approval has been revised 10 times/);
+});
+
+test('held-approval revise: refused revise-gate-not-current while it is not the question, and revise-option-unknown for a node holding nothing', t => {
+  const early = heldClosing(t, { owners: ['choosing'], upTo: 'tidy' });
+  const result = heldRefused(early, 'revise-choosing', 'revise-gate-not-current');
+  assert.match(result.stderr, /\bclosing\b/);
+
+  const pending = heldClosing(t, { owners: ['tidy'] });
+  suspendAt(pending, 'outline-approval');
+  assert.match(heldRefused(pending, 'revise-tidy', 'revise-gate-not-current').stderr, /outline-approval/);
+
+  const answered = heldClosing(t, { owners: ['tidy'] });
+  ok(QUESTIONS.engine, answered, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  heldRefused(answered, 'revise-tidy', 'revise-option-unknown');
+
+  const run = heldClosing(t, { owners: ['tidy'] });
+  const unknown = heldRefused(run, 'revise-choosing', 'revise-option-unknown');
+  assert.match(unknown.stderr, /revise-tidy/);
+  heldRefused(run, 'continue', 'revise-option-unknown');
+});
+
+test('held-approval revise: a stretch holding a sub-run is refused revise-stretch-has-subrun', t => {
+  const run = heldClosing(t, { owners: ['choosing'] });
+  const result = heldRefused(run, 'revise-choosing', 'revise-stretch-has-subrun');
+  assert.match(result.stderr, /\baudit\b/);
+});
+
+test('held-approval revise: a folded driven revise is open and unapplied until gate-revise stamps it; prior-context then prints the note', t => {
+  const run = heldClosing(t, { owners: ['tidy'] });
+  drivenAnswer(run, HELD_APPROVAL_ID, 'revise-tidy');
+  assert.deepEqual(resumeCheckOf(run).revision, { gate: HELD_APPROVAL_ID, option: 'revise-tidy', reruns: 'tidy', revision: 1, applied: false });
+  assert.doesNotMatch(priorContextOf(run), /Revision requested/, 'no note before the reset');
+
+  heldRevised(run, 'revise-tidy', 'Keep the generated files');
+  const [decision, ...rest] = decisionsAt(run, HELD_APPROVAL_ID);
+  assert.deepEqual(rest, [], 'the revise decision takes the folded answer\'s place');
+  assert.equal(decision.answered_by, 'dana');
+  assert.equal(decision.at, '2026-01-05T09:05:00Z');
+  assert.deepEqual(resumeCheckOf(run).revision, { gate: HELD_APPROVAL_ID, option: 'revise-tidy', reruns: 'tidy', revision: 1, applied: true });
+  const text = priorContextOf(run);
+  assert.match(text, /^## Revision requested — held-approval$/m);
+  assert.match(text, /re-run `tidy` \(revision 1 at that checkpoint\)/);
+  assert.match(text, /^Note: Keep the generated files$/m);
+});
+
+test('held-approval: a driven run suspends on it, resumes at the close-out after a continue, and runs gate-revise after a revise', t => {
+  const run = heldClosing(t, { owners: ['tidy'] });
+  suspendAt(run, HELD_APPROVAL_ID);
+  let state = readState(run);
+  assert.equal(state.workflow.nodes[HELD_APPROVAL_ID].status, 'suspended');
+  assert.equal(state.orchestrator.gate_pending.node, HELD_APPROVAL_ID);
+  assert.equal(state.workflow.nodes.closing.status, 'running', 'the closing node stays running across the suspend');
+
+  foldAt(run, HELD_APPROVAL_ID, 'continue');
+  ok(QUESTIONS.engine, run, {});
+  assert.deepEqual(outstandingHeld(readState(run)), [], 'the continue approved the held choice');
+  assert.equal(resumeCheckOf(run).revision, undefined);
+  const flags = publishCloseout(run);
+  closeRun(run);
+  const done = completeRun(run, ...flags);
+  assert.equal(done.code, 0, done.stderr);
+  assert.match(done.stdout, /(?:^|\n)RUN-COMPLETE\n$/);
+
+  const sent = heldClosing(t, { owners: ['tidy'] });
+  drivenAnswer(sent, HELD_APPROVAL_ID, 'revise-tidy');
+  assert.equal(resumeCheckOf(sent).revision.applied, false);
+  heldRevised(sent, 'revise-tidy');
+  state = readState(sent);
+  assert.equal(state.orchestrator.gate_pending ?? null, null);
+  assert.equal(state.workflow.nodes.tidy.status, 'pending');
+  assert.equal(state.workflow.nodes.closing.status, 'pending');
+  assert.equal(state.workflow.nodes[HELD_APPROVAL_ID].status, 'pending');
+  assert.equal(resumeCheckOf(sent).revision.applied, true);
 });
