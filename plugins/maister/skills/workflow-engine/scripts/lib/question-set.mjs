@@ -25,7 +25,7 @@ import { HEADER_MAX } from './display.mjs';
 import { oneLine, provenanceOf } from './items.mjs';
 
 /** The keys a question may carry; any other is a typo the operator would never see answered. */
-const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage'];
+const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'details'];
 
 /** The keys an option may carry. */
 const OPTION_KEYS = ['id', 'label', 'description', 'recommended'];
@@ -84,7 +84,7 @@ export function checkSet(input) {
     else if (ids.has(question.id)) errors.push(`${where}: the id is used twice; each question needs its own`);
     else ids.add(question.id);
     if (!isText(question.question)) errors.push(`${where}: "question" must be the question's text`);
-    for (const key of ['header', 'why']) {
+    for (const key of ['header', 'why', 'details']) {
       if (Object.hasOwn(question, key) && !isText(question[key])) errors.push(`${where}: "${key}" must be text`);
     }
     for (const key of ['multi_select', 'allow_other']) {
@@ -118,6 +118,7 @@ export function checkSet(input) {
       options,
       ...(fallback !== undefined ? { default: fallback } : {}),
       ...(Object.hasOwn(question, 'triage') ? { triage: question.triage } : {}),
+      ...(isText(question.details) ? { details: question.details } : {}),
     };
   });
   if (errors.length) return { ok: false, errors };
@@ -161,7 +162,7 @@ function sentenceOf(id) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function clipHeader(text) {
+export function clipHeader(text) {
   const chars = [...text];
   return chars.length <= HEADER_MAX ? text : `${chars.slice(0, HEADER_MAX - 1).join('').trimEnd()}…`;
 }
