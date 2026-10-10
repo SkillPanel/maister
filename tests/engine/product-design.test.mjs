@@ -137,6 +137,12 @@ test('recorded run: an unsanctioned research context reads as the one missing ar
   assert.equal(result.stdout, 'missing-artifact: intake context/research-context\nRUN-COMPLETE\n');
 });
 
+test('recorded run: the decision-areas file the brainstorm declares is found, so no missing-artifact names it', t => {
+  const result = complete(replayRecorded(t));
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /^missing-artifact: .*decision-areas\.json/m);
+});
+
 test('recorded run: the skipped personas owe nothing, and the closing check does not look for them', t => {
   const run = replayRecorded(t);
   assert.equal(fs.existsSync(path.join(run.dir, 'analysis/personas.md')), false);
@@ -475,6 +481,17 @@ test('inputs: the shipped definition validates with no warning', () => {
   assert.equal(result.code, 0);
   assert.deepEqual(report.errors, []);
   assert.deepEqual(report.warnings, []);
+});
+
+test('decision areas: the idea generation declares the areas file and the convergence is handed it', () => {
+  const result = verb(['resolve', `--definition=${PRODUCT_DESIGN}`]);
+  assert.equal(result.code, 0, result.stderr);
+  const nodes = Object.fromEntries(JSON.parse(result.stdout).nodes.map(node => [node.id, node]));
+  const generation = nodes['idea-generation'];
+  assert.equal(generation.with.areas_output_path, 'analysis/decision-areas.json');
+  assert.equal(generation.outputs.artifacts.decision_areas, 'analysis/decision-areas.json');
+  assert.equal(nodes['idea-convergence'].with.decision_areas, '${idea-generation.artifacts.decision_areas}');
+  assert.equal(nodes['idea-convergence'].when, generation.when);
 });
 
 // A node may read a guarded node only when it carries the very same guard, so
