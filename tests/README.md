@@ -17,6 +17,8 @@ scaffolds with `init`. Only the dashboard normalizers
   the `run-complete` checks judge. `recovery.yml` holds an `on: failure` node on the happy path.
   `declared-outputs.yml` is a workflow of its own name whose nodes declare typed values, a file and
   a directory artifact, a three-option gate and the artifacts of a sub-run.
+  `finding-review.yml` has a `review` node whose prose declares `review-findings`, read by
+  `finding-decisions.test.mjs`, and a gate whose two continues each set two values.
 - `fixtures/custom-workflow/` — a workflow no built-in is named after, as a user authors it into their
   project's `.maister/workflows/`: `release-audit.yml` (a fan-out, a guard, a gate of its own, a sub-run,
   a file and a directory artifact, an `on: failure` node), its child `audit-child.yml`, and

@@ -57,6 +57,13 @@
  *                  markdown, or the driven question set written to the patch
  *                  file; a file it cannot use is a warning and nothing to
  *                  paste — reads the run, writes no state
+ *   finding-brief  --state, --node (the reviewing node asking), --findings-file,
+ *                  optional --patch-file                     the reviewer's
+ *                  findings as the node's question set, one question per
+ *                  finding with an accept-the-risk choice added: the set as
+ *                  JSON on stdout, or written to the patch file; a findings
+ *                  list it cannot use is a warning and nothing to paste —
+ *                  reads the run, writes no state
  *   resume-check   --state                                    JSON on stdout
  *                  (the frozen workflow's name, overlays and profile, or the
  *                  refusal for a directory the engine does not resume, a 2.x
@@ -158,6 +165,11 @@ const VERBS = {
   // only some areas. `--json` and `--picker` as in `gate-brief`; `--patch-file`
   // is the one place the set is written, so a driver hands it on unchanged.
   'area-brief': { module: 'area-brief.mjs', flags: ['state', 'node', 'area', 'json', 'picker', 'patch-file'] },
+  // A reviewer's findings, one question each, rendered from the list it wrote,
+  // so a reviewing node pastes its questions instead of composing them.
+  // `--findings-file` because the list is the reviewer's own artifact, named
+  // by the node that dispatched it; `--patch-file` as in `area-brief`.
+  'finding-brief': { module: 'finding-brief.mjs', flags: ['state', 'node', 'findings-file', 'patch-file'] },
   // Read-only as well, and asked first by every resume: whether the directory
   // holds a run this engine froze, and what it froze. One flag for the reason
   // the other state verbs take one.
@@ -853,6 +865,35 @@ async function runAreaBrief(flags) {
 }
 
 /**
+ * Print a reviewer's findings as the reviewing node's question set.
+ *
+ * Reported like `area-brief`'s set form: a refusal is exit 1 with an empty
+ * stdout and the code first on stderr; a findings list the verb cannot use is
+ * a `warning:` line on stderr and exit 0 with nothing to paste. Otherwise the
+ * set is printed as JSON, or, with `--patch-file`, written there and the
+ * file's path printed. Writes no state and no panel.
+ */
+async function runFindingBrief(flags) {
+  if (!flags.state) throw new UsageError('finding-brief needs --state');
+  if (!flags.node) throw new UsageError('finding-brief needs --node');
+  if (typeof flags['findings-file'] !== 'string' || flags['findings-file'] === '') {
+    throw new UsageError('finding-brief needs --findings-file: the reviewer\'s findings list, inside the run directory');
+  }
+  // The set is the verb's own write, so nothing need be there yet.
+  const patchFile = flags['patch-file'] !== undefined ? patchFileOf(flags, { absentOk: true }) : null;
+  const module = await loadModule(VERBS['finding-brief'].module);
+  const render = entryOf(module, 'findingBrief', VERBS['finding-brief'].module);
+  const result = render({ state: flags.state, node: flags.node, findingsFile: flags['findings-file'], patchFile });
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+  if (!result.ok) return EXIT.REJECTED;
+  if (result.fallback) return EXIT.OK;
+  if (patchFile !== null) process.stdout.write(`${result.file}\n`);
+  else process.stdout.write(`${JSON.stringify(result.set, null, 2)}\n`);
+  return EXIT.OK;
+}
+
+/**
  * Write the brief's panel to the run's `display/next.json`, for an editor
  * extension to draw above the question. Display only: whatever goes wrong is
  * one stderr line and the brief stands as printed. It stays out of the
@@ -920,6 +961,7 @@ const RUNNERS = {
   'prior-context': runPriorContext,
   'gate-brief': runGateBrief,
   'area-brief': runAreaBrief,
+  'finding-brief': runFindingBrief,
   'resume-check': runResumeCheck,
   'sync-plan': runSyncPlan,
 };
