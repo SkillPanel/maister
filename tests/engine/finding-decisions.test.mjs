@@ -137,6 +137,7 @@ test('finding-brief: one question per finding, most severe first, the reviewer\'
 
   const crash = byId(set, 'review-findings-empty-upload');
   assert.deepEqual(crash.options.map(option => option.id), ['option-1', 'accept-risk']);
+  assert.equal(crash.header, 'Empty upload');
   assert.equal(crash.question, 'Server crashes on an empty upload — how should it be settled?');
   assert.equal(crash.why, 'Critical: src/upload.ts:42 reads body.length of undefined');
   assert.deepEqual(crash.options[0], {

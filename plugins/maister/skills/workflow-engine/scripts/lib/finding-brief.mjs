@@ -28,7 +28,9 @@
  *
  * Each finding is one question, ordered by severity and otherwise as listed:
  * id `<node>-findings-<finding id>` — the prose's declared id plus the
- * finding's — the title as its header, the evidence as its why, the
+ * finding's — its id in words as its header (`empty-upload` reads "Empty
+ * upload"), since a chip holds a name and not a sentence, the title in its
+ * question, the evidence as its why, the
  * reviewer's options as `option-1..n`, then `accept-risk`. The recommended
  * option carries `recommended: true` and the reason at the end of its
  * description; with no recommendation nothing is recommended and the set names
@@ -240,7 +242,7 @@ function questionOf(finding, declared) {
     : option));
   return {
     id: `${declared}-${finding.id}`,
-    header: clipHeader(title),
+    header: headerOf(finding.id),
     question: `${title} — how should it be settled?`,
     why: `${severity}: ${evidence}`,
     multi_select: false,
@@ -308,4 +310,10 @@ function fallback(warning) {
 
 function refuse(code, message) {
   return { ok: false, errors: [{ code, message: `${code}: ${message}` }], warnings: [] };
+}
+
+/** A finding's chip: its kebab-case id as words, sentence case, clipped to a header's length. */
+function headerOf(id) {
+  const words = id.split('-').join(' ');
+  return clipHeader(words.charAt(0).toUpperCase() + words.slice(1));
 }
