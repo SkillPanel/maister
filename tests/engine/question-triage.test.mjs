@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { FIXTURES } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES } from '../helpers.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, questionOutcome, triageFor } from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
 import { canAsk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/driver.mjs';
 import { REVISION_CEILING } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
@@ -16,6 +16,7 @@ import {
   classesQuestions,
   declaredQuestionIds,
   heldApprovalOptions,
+  inNodeQuestions,
   outstandingHeld,
   raiseTriage,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
@@ -245,6 +246,16 @@ test('declaredQuestionIds reads one node\'s ids from the companion, and none wit
     assert.deepEqual(declaredQuestionIds(null, 'shape'), []);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('inNodeQuestions reads a CRLF companion as it reads the LF one', () => {
+  const workflows = path.join(ENGINE_DIR, 'workflows');
+  for (const name of fs.readdirSync(workflows).filter(file => file.endsWith('.md'))) {
+    const lf = fs.readFileSync(path.join(workflows, name), 'utf8').replace(/\r\n?/g, '\n');
+    const found = inNodeQuestions(lf);
+    if (name.startsWith('development')) assert.ok(found.length > 0, `${name}: the parser found no question`);
+    assert.deepEqual(inNodeQuestions(lf.replace(/\n/g, '\r\n')), found, name);
   }
 });
 

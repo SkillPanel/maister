@@ -92,8 +92,9 @@ const SUMMARY = { status: 'completed', summary: 'Done.', decisions: [], risks: [
 // In-node questions, parsed from the node prose by the engine's own parser
 // ---------------------------------------------------------------------------
 
+/** A built-in's node prose, in LF: a Windows checkout gives markdown CRLF. */
 function proseOf(name) {
-  return fs.readFileSync(path.join(WORKFLOWS_DIR, `${name}.md`), 'utf8');
+  return fs.readFileSync(path.join(WORKFLOWS_DIR, `${name}.md`), 'utf8').replace(/\r\n?/g, '\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -376,9 +377,9 @@ test('every built-in asks the same questions, carried the same way, under each d
 // The prose the classing write adds, read from the shipped files
 // ---------------------------------------------------------------------------
 
-/** The engine's SKILL.md. */
+/** The engine's SKILL.md, in LF: a Windows checkout gives markdown CRLF. */
 function skillText() {
-  return fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8');
+  return fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').replace(/\r\n?/g, '\n');
 }
 
 /** The text of the section headed exactly `heading`, up to the next heading of its level or above. */
