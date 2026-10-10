@@ -86,7 +86,7 @@ const SOURCE_WORD = { audit: 'audit', default: 'default' };
 const SOURCE_HEADING = { run: 'the run', audit: 'the audit' };
 
 /** Where the recommended option says so, in its label. */
-const RECOMMENDED_MARK = ' (Recommended)';
+export const RECOMMENDED_MARK = ' (Recommended)';
 
 /** The id of the request for the full brief, which is never an answer. */
 export const MORE_DETAILS_ID = 'more-details';
@@ -117,7 +117,7 @@ const GRANT_WORDS = {
 };
 
 /** The cut More details' preview ends with. */
-const DETAILS_CUT = 'Choose this to see the rest.';
+export const DETAILS_CUT = 'Choose this to see the rest.';
 
 /**
  * The rows a panel drawn above the question may fill, and how a line is
@@ -174,7 +174,7 @@ function andList(names) {
 }
 
 /** `text` cut at a word to at most `max` characters, an ellipsis marking the cut. */
-function clip(text, max) {
+export function clip(text, max) {
   if (text.length <= max) return text;
   let cut = text.slice(0, Math.max(0, max - 1));
   if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
@@ -588,9 +588,12 @@ export function moreDetails(checkpoint) {
   return blocks.join('\n\n');
 }
 
-/** The full brief cut to the preview budget, the cut saying how to see the rest. */
-function detailsPreview(checkpoint) {
-  const text = moreDetails(checkpoint);
+/**
+ * A full write-up as the More details preview: whole within the preview
+ * budget, else cut to it and closed by the line saying how to see the rest.
+ * A gate's brief and a decision area's write-up are cut the same way.
+ */
+export function detailsPreview(text) {
   if (text.length <= PREVIEW_BUDGET) return text;
   const room = PREVIEW_BUDGET - DETAILS_CUT.length - 3;
   return `${clip(text, room)}\n\n${DETAILS_CUT}`;
@@ -803,7 +806,7 @@ export function richPicker(checkpoint) {
       preview: clip(lines.join('\n'), PREVIEW_BUDGET),
     };
   });
-  return withDetails('rich', checkpoint.ask, options, { preview: detailsPreview(checkpoint) });
+  return withDetails('rich', checkpoint.ask, options, { preview: detailsPreview(moreDetails(checkpoint)) });
 }
 
 /**

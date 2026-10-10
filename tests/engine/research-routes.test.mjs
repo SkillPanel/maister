@@ -229,3 +229,14 @@ test('research routes: without findings only, the findings gate is skipped behin
   assert.equal(readState(run).workflow.nodes['findings-approval'].status, 'skipped');
   assert.deepEqual(routes(atFoundation(t), 'foundation-approval')['continue-to-brainstorming'], ['solution-generation']);
 });
+
+test('research decision areas: the brainstorm declares the areas file and the convergence is handed it', () => {
+  const result = verb(['resolve', `--definition=${RESEARCH}`]);
+  assert.equal(result.code, 0, result.stderr);
+  const nodes = Object.fromEntries(JSON.parse(result.stdout).nodes.map(node => [node.id, node]));
+  const generation = nodes['solution-generation'];
+  assert.equal(generation.with.areas_output_path, 'outputs/decision-areas.json');
+  assert.equal(generation.outputs.artifacts.decision_areas, 'outputs/decision-areas.json');
+  assert.equal(nodes['solution-convergence'].with.decision_areas, '${solution-generation.artifacts.decision_areas}');
+  assert.equal(nodes['solution-convergence'].when, generation.when);
+});

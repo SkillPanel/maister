@@ -1452,7 +1452,7 @@ function earlierFiles(doc, runDir, ids) {
  * sources, so the brief and the dashboard call a node the same thing — and the
  * option labels and headers the picker shows.
  */
-function reread(doc, workflow, runDir) {
+export function reread(doc, workflow, runDir) {
   const drifted = (graph = null, defaults = {}, display = displayOf()) => ({ graph, defaults, display, digest: digest(graph?.graph_hash), drift: true });
   const file = definitionPathOf(doc, runDir);
   if (file === null) return drifted();

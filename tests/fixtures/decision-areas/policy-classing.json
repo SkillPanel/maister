@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "note": "A made-up policy that classes the research convergence's decision areas.",
+  "families": {
+    "direction": {
+      "class": "consult",
+      "description": "A direction the operator is consulted on."
+    }
+  },
+  "table": [
+    {
+      "workflow": "research",
+      "id": "convergence-decisions",
+      "kind": "question",
+      "families": [
+        "direction"
+      ]
+    }
+  ]
+}

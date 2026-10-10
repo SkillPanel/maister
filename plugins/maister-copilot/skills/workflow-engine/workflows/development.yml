@@ -53,7 +53,7 @@
 #
 # The node prose lives beside this file in `development.md`, one section per
 # node id. Every `direct:` node is executed from its section there, and the
-# nine operator questions asked inside nodes, in eight asks, appear only in
+# ten operator questions asked inside nodes, in eight asks, appear only in
 # that prose — a reader of this file alone cannot see them, and neither can the
 # generated diagram. The per-node recovery budgets live there too, never here: a
 # budget written into `with:` would read like a grammar feature while being

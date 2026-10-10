@@ -215,6 +215,7 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Test suite results (from test runner)
    - Standards compliance (from completeness checker)
    - Documentation completeness (from completeness checker)
+   - Story coverage, when the spec lists user stories: each story covered, partial or missing, with its evidence (from completeness checker)
    - Optional review results (if performed)
    - **Visual fidelity** (when `verification/visual-fidelity.md` exists — written by e2e-test-verifier in the development workflow's `e2e-verification` node): surface its summary table prominently. Include count of ✓/⚠/✗ comparisons and list every ✗ (substantive drift) with screen ID and one-line description. Cross-reference `implementation/visual-coverage.md` if present. This section is REPORT-ONLY — never gates overall verdict (per design decision: report-only, surfaced prominently).
    - Overall assessment with breakdown table

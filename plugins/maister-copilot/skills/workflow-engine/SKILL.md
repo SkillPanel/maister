@@ -361,7 +361,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, twelve verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, thirteen verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -399,7 +399,8 @@ Never send the document through a heredoc, `echo`, a pipe or `< file`: an agent
 host's shell-safety check refuses a JSON heredoc outright — braces beside quotes —
 and allow-listing the script does not lift it, while a file needs no quoting in any
 shell, PowerShell included. And the file is written by the file tool, never by the
-shell.
+shell. The one exception is `area-brief --patch-file`, which writes a decision-area question
+set there itself; it is the engine's own write, so no edit rule is involved.
 
 This is not style: a permission rule or hook can recognise this plugin's own call only
 in this exact form — the command by its text, the patch file by its name inside a run —
@@ -421,6 +422,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state`, optional `--background` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt; `--background` frames them as background for a document written for end users, to stay consistent with rather than reproduce — reads the run, writes nothing |
 | `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=plain` — the profile the asking tool takes — `--checkpoint`, `--request` or `--oneline`; or `--node` (a running node) with `--checkpoint` or `--request` and `--patch-file` — the node's question set as JSON in the patch file | Every form reads the run and writes no state: its one write is the run's `display/next.json`, the panel an editor extension draws above the question (§ Gates). With no form, the brief as text: the summary of each node the gate closes, at most three fixes the run applied, three decisions and three risks by their lead sentences, the `Next:` line — one per continue, named by its label and in the options' order, when the gate's continues set its values — and the `Review:` line, within 1,600 characters. `--checkpoint` prints the **checkpoint**, the one structured object every other form projects from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed, fixes, decisions, risks, recommended, options, grants, approves, run, truncated}`. `fixes` lists what the closing nodes fixed without asking, each `{finding, change, node}`, apart from the decisions; `held`, after `fixes` and present only when a choice waits, lists every choice held for approval across the run, each `{node, question_id, question, decision, class, floor?, rationale?}`, and every form shows it first; `decisions` is grouped by who settled them (`run`, `audit`, `default`, and `operator` as `{count, actors, not_recommended}` — `actors` the answers counted by actor kind, present only when `count` is above zero, and each `not_recommended` entry carrying its `actor_kind`), `risks` by tag, and each option carries its `consequence` — a continue that sets gate values also `sets` and its own `next`, walked on its answer (the top-level `next` is the recommended continue's), and the recommended continue the `reason` a closing node's `recommends` gave, a revise also `reruns`, `revision` and `suggestions`, a stop also `keeps` and `not_run`; `grants` maps each option that declares grants to their names, `{}` when none does, `approves` lists the classified values the gate's continues set, `[]` when the policy classes none, and both pickers and `--oneline` say them in words. `--json` returns the in-session picker projected from it: `{ok, picker, question, header, options[{id, label, description, recommended, preview}], details, more_details, errors, warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The `rich` profile's question is the one-line ask — the finished work, never the destination — its header the short chip, and every option has a `preview`; the `plain` profile's question is the glance followed by the ask, its header the title of the step the gate closes, and its options are titles that carry their consequence; its text keeps the code of inline code but drops the backticks, which a labels-only tool prints as typed (`more_details` keeps them, written out as markdown). Both profiles end with the More details option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.` (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`, `reruns`, `revision`, `suggestions[{label, description, note, recommended}]` — none of them recommended — and `note_question`, the note question built for the profile: `{header, question, multi_select, options}`, its `options` empty when there are fewer than two suggestions, its question then asking for the note typed. `--request` prints the whole driven gate request as JSON: `{node, kind, question, context: {summary, artifacts, checkpoint}, options, multi_select}`, ending with `triage` when the applied policy classes the gate and its hash is the run's `policy_hash` (§ Gates), each revise suggestion as `{label, note, recommended}`; with `--reask=<revise option>` its question opens with a sentence saying that option needs a note, every option still offered — the request a driven revise that came without its note is asked again with (§ Revising at a gate), never beside `--patch-file`. With a question set (*In-node questions*), `--checkpoint` prints `{version, kind: question, node, header, ask, headline, progress, questions, run, truncated}` and `--request` a `kind: question` request whose question and options repeat the first question's, with every question under `questions` and the checkpoint under `context.checkpoint`; every question a request carries is one line with no `"`, a line break folded to a space and a double quote turned single, the checkpoint keeping the text as written; the file is read and kept, for the request to be written over it. `--oneline` is that request's one-line summary: every risk prefixed by its tag, then every fix under `Fixed by the run:`, then every decision by who settled it, the `Next:` line with every skipped node — one `Next (<option id>):` line per continue, in the options' order, when the gate's continues set its values — one `revise: <id> reruns=<node> revision=<n>/10` section per revise option still offered, `Recommended: <option id>` and `Run: <dir> · Dashboard: <path>`, all within the same budget. `--node=held-approval` briefs the run's closing checkpoint, in every form (*The ready set*). When the asking node recorded `asking` (*When the policy classes a question*), a question set's `--checkpoint` and `--request` carry only those questions |
+| `area-brief` | `--state`, `--node` (the convergence node that is asking), and one form: `--area=<id>` with `--json` and `--picker=plain` — the profile the asking tool takes, `rich` by default — or `--area=<id>` alone, or `--patch-file=<run>/.state-patch.json` with `--area` repeated or omitted | One decision area of the brainstorm, rendered from the file its brainstorm wrote (*Decision areas from the brainstorm*). `--json` prints the picker in the field shape of `gate-brief --json` — `{ok, picker, question, header, options, details, more_details, question_id, errors, warnings}`, the answer recorded under `question_id`, `convergence-decisions-<area id>`; `--area` alone prints the area's full write-up as markdown, the text More details shows; `--patch-file` writes every area, or the named ones, as a driven question set to the patch file and prints its path. A file it cannot use is one `warning: decision-areas-…` line on stderr, exit `0` and nothing to paste — `{ok: true, fallback: true}` under `--json` — and the node composes the area itself. Reads the run; writes no state and no `display/next.json` |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
@@ -1556,7 +1558,9 @@ with the same options, in the same turn:
    to open — then the gate again. Where the More details option previews it, the gate is asked
    again at once instead (*Terminal mode*).
 2. **At a decision area**: every alternative, each with a two-to-three-sentence description,
-   its pros and its cons; then the recommendation and why; then the same area again.
+   its pros and its cons; then the recommendation and why; then the same area again. An area
+   asked from `area-brief` has this text already: its `more_details`, printed as given
+   (*Decision areas from the brainstorm*).
 3. **At any other question**: the full context of each item — an issue's file, line, what is
    wrong and what each option changes; an assumption and what it rests on; a draft or section
    in full; a failure's cause and what each way on would do — then the same question again.
@@ -1592,11 +1596,29 @@ keeps every criterion whole, and say so in the question ("Recommended because it
 shared notes', which the context checkpoint flagged as uncertain"). The person may still choose
 the narrower reading; the run never makes it the default.
 
+**One topic is one drafted story.** Requirement gathering never splits one behaviour into single
+facts asked one by one — who may do it, where they start, what changes, who sees the result —
+because each answer then lands alone and the behaviour ends up scattered across them. The
+questions that belong to one topic are drafted into one user story, or journey, and asked as one
+question: the actor, the entry point, the action, the resulting state change — what is stored
+and what is audited — and what is visible afterwards, each part filled with the reading the
+run's evidence best supports, a default the person can correct. Its options are answers: accept
+the story, the recommendation, its reason naming what the defaults rest on; accept it with the
+corrections the run lists — its weakest defaults, each changed to the next-best reading and named
+in the description; and a concrete alternative story where one exists. More details is last
+while a slot is free, and the person's own story goes through Other. Each story is one decision,
+asked under its own id — the node's declared story id, then the topic as a short slug — and
+never folded into an accept-all. A question stays on its own only when its answer changes no
+story: which existing component to reuse, whether visual assets exist.
+A story's question lists its parts, a line each, then each correction the corrections option
+applies, a line each.
+
 **Independent items go in pages; decision areas go one at a time.**
 A picker call holds up to four questions, one tab each. Items that stand on their own — the fix
-loop's per-issue decisions, confirmations of the run's own assumptions — are asked four to a
-page, further pages following in the same turn. A later page opens by saying, in one line, how
-many questions are left ("Two more scope questions"), so the user knows the end is near.
+loop's per-issue decisions, confirmations of the run's own assumptions, drafted stories that do
+not depend on one another — are asked four to a page, further pages following in the same
+turn. A later page opens by saying, in one line, how many questions are left ("Two more scope
+questions"), so the user knows the end is near.
 The question tool takes a message and a form: a page is one call whose form has a property per
 question, each titled by its header, with its question — its own context included — as the
 property's description and its options as the choices, each option's id as the value and its
@@ -1625,8 +1647,64 @@ shows no descriptions; the full description, pros and cons are
 in its preview where the tool shows previews; and More details is offered while a slot is free.
 An area with more alternatives than the options hold offers the recommended one and its
 strongest rivals, names the rest in the question, and the user reaches them by typing.
+When the brainstorm wrote its decision areas file, `area-brief` renders all of this for each
+area, and the node asks what it prints (*Decision areas from the brainstorm*).
 In a decision area, the message's last line before the ask is the recommendation:
 "Recommended: <alternative> — <reason>."
+
+### Decision areas from the brainstorm
+
+A convergence node asks its decision areas from `area-brief`, which finds the file the brainstorm wrote through the node's `with: decision_areas` and renders each area from it. The file's shape, its check and the few labels the verb adds are in `references/decision-areas.md`; every other word the user reads comes from the file, so the terminal and a cockpit show the same text. The area ids, and the order they are asked in, are the file's.
+
+**In session, one area per call**, in the file's order, each from its picker:
+
+```
+node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<run>/orchestrator-state.yml --node=<the convergence node> --area=<area id> --json --picker=plain
+```
+
+Pass `question`, `header` and `options` to the question tool as given, and record the answer
+under the printed `question_id`, `convergence-decisions-<area id>`. On More details, print
+`more_details` as given — the area's full write-up, which `--area=<id>` without `--json` also
+prints — then ask the same area again from the same picker; nothing is recorded.
+The plain profile offers every alternative as a label; the question carries each alternative's
+line and ends with the recommendation and its reason.
+
+**Under a driver with question sets**, every area goes in the node's one request. Run the verb
+with `--patch-file=<run>/.state-patch.json` in place of `--area` and `--json` — after a revise,
+`--area` repeated names the areas the note reopens — and it writes the question set to the patch
+file and prints its path: one question per area, each with its write-up as `details` and, when
+the run's policy classes the area, its `triage`. Then run `gate-brief --request
+--patch-file=<run>/.state-patch.json` for the node, read the patch file once with the file
+tool, write the printed request over it byte for byte, every question's `details` included,
+and suspend with `gate-request` (*When a question suspends*). A `policy-hash-mismatch` warning
+means no area carries `triage`; the request still goes.
+
+**When the file cannot be used**, the verb prints one warning on stderr, exits `0` and gives
+nothing to ask from — under `--json`, `{ok: true, fallback: true}`; with `--patch-file`, no
+file:
+
+| Warning | The file |
+|---|---|
+| `decision-areas-missing:<path>` | was not written; `:not-declared` when the node names none, `:producer-not-completed` when its brainstorm did not complete |
+| `decision-areas-unreadable:<path>:<code>` | exists but cannot be read |
+| `decision-areas-invalid:<path>:<fault>` | failed the check, its first fault as `<reason> at <path>` |
+| `decision-areas-stale:<path>:<source>[:<detail>]` | no longer matches the markdown it was written from; `:source-unreadable` when that markdown cannot be read, `:source-not-declared` when it is not the markdown the brainstorm declares |
+| `decision-areas-unwritable:<patch path>:<code>` | was read, but the question set could not be written to the patch file; nothing was written. `EEXIST` means another write holds the patch file's temp, or a crash left one; it is reclaimed after a minute, so running the set form again after a minute is fine. `EACCES` or `EPERM` means the run directory refuses writes, so neither the composed set nor the request can be written either: stop and report the run directory as unwritable rather than composing into it |
+
+Each means the same: compose every area from the brainstorm's markdown, exactly as the node
+prose describes, with the same detail and the question ids it names, and say in the node summary
+which warning made it do so. Apart from the `decision-areas-unwritable` cases above, the warning
+holds for every area of the run, so do not run the verb again for the next one, and never edit
+the file to make it pass — it is the brainstorm's.
+
+Its refusals name no state write and leave nothing written:
+
+| Refusal | Response |
+|---|---|
+| `area-brief-state-unreadable` | `--state` cannot be read or parsed as a state document. Nothing was written. Point `--state` at the run's `orchestrator-state.yml` — the run directory this node belongs to — and run the verb again. |
+| `area-brief-unknown-node` | `--node` names no node of the run, or names a gate, which is asked from its own brief. Nothing was written. Name the convergence node that is asking its decision areas and run the verb again; no state write fixes this. |
+| `area-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
+| `area-brief-unknown-area` | An `--area` id is not in the file; it is judged only once the file passed its checks. Nothing was written. Take the area ids, in order, from the file named in the node's `with:` — the message lists them — and run the verb again. |
 
 ### When a question suspends
 
@@ -1647,9 +1725,11 @@ taking their defaults. Four rules hold:
 - **Each question carries its own context**, by the floor above: `question` the question itself,
   `why` what makes it matter, each option's `description` what choosing it does or costs, and
   `recommended` on the recommended option, its reason in its description. `header` is a short
-  sentence-case title. The multi-choice flag and `allow_other` (the operator's own words, on
+  sentence-case title. `details`, optional, is the question's full write-up as markdown, shown
+  on demand beside it; `area-brief` writes it for each decision area. The multi-choice flag and `allow_other` (the operator's own words, on
   unless said) are per question. `default` is what a non-answer would take, the recommendation when
-  absent. `triage` is reserved and passed through unread.
+  absent. `triage` is carried as written; for a decision area the engine writes it when a
+  matching policy classes the area.
 
 How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch file, runs
 `gate-brief --request --patch-file=<the patch file>` for itself, and suspends exactly as a gate
@@ -1678,6 +1758,7 @@ one. The families and what each takes:
 | An opt-in | the recommended option |
 | A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is recorded as an `open` risk in the node's summary, which the next gate's More details shows |
 | A set offered as bundles | the recommended bundle |
+| A drafted story | the story as drafted, kept in the requirements as drafted rather than confirmed |
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
 | A decision page of the automatic fix loop | nothing is asked; each issue stays open as an `open` risk for the gate |
 | The automatic fix loop's stopping point | "Continue as is" — the open issues become `open` risks for the gate |

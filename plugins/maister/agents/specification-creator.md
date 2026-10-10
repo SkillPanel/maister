@@ -64,7 +64,7 @@ The Task prompt MUST include:
 
 ### Phase 1: Read Context
 
-1. **Read `analysis/requirements.md`** — gathered user requirements, Q&A, scope boundaries
+1. **Read `analysis/requirements.md`** — gathered user requirements, Q&A, scope boundaries, and its User stories section when it has one: each story by its id, as the run settled it
 2. **Read project context** from `project_context_paths`:
    - `.maister/docs/INDEX.md` — project documentation and standards index
    - **ALL** project docs from paths provided — this includes predefined docs (vision.md, roadmap.md, tech-stack.md, architecture.md) AND any user-added project documentation. Do NOT skip files you don't recognize — users add custom project docs that are equally important.
@@ -126,10 +126,11 @@ Create `implementation/spec.md` using this template:
 [1-2 sentences — core objective]
 
 ## User Stories
-[As a [user], I want to [action] so that [benefit]]
+[When requirements.md has User stories: every one, by its id and whole — actor, entry point, action, resulting state change (stored and audited), what is visible afterwards — a drafted one marked drafted, never shortened or reworded]
+[Otherwise: As a [user], I want to [action] so that [benefit]]
 
 ## Core Requirements
-[User-facing capabilities to implement — numbered list]
+[User-facing capabilities to implement — numbered list, each naming the story it serves by id where one does]
 
 ## Visual Design
 [If `analysis/design-context/` exists: reference each screen/component from INDEX.md by stable ID, list mockup paths, summarize key UI elements per screen, note fidelity level, layout guidelines. State: "Mockups in `analysis/design-context/` are binding inputs — implementation-planner will attach `Visual References` to UI task groups."]
@@ -183,7 +184,7 @@ After writing spec.md, write `implementation/spec.html` — the user-facing comp
 
 ### Phase 4: Coverage
 
-Before returning, make sure every answer in requirements.md is reflected in the spec, and — when `analysis/design-context/` exists — every screen/component in its INDEX.md is referenced by ID with the binding-inputs sentence. Fix gaps in spec.md directly.
+Before returning, make sure every answer in requirements.md is reflected in the spec, every story in its User stories section is in User Stories under its id and served by at least one core requirement, and — when `analysis/design-context/` exists — every screen/component in its INDEX.md is referenced by ID with the binding-inputs sentence. Fix gaps in spec.md directly.
 
 ---
 
@@ -304,6 +305,7 @@ fixes:
 Your specification is successful when:
 
 - All requirements from requirements.md are addressed in the spec
+- Every user story from requirements.md is kept under its id and served by a core requirement
 - Reusable code is identified and documented with file paths
 - New code has explicit justification (why reuse isn't possible)
 - Specification is complete enough for implementation-planner to create steps
