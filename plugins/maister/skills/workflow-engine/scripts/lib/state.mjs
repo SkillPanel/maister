@@ -2471,6 +2471,9 @@ function ceilingIn(options) {
  * the parent's state and records the narrower of the parent's effective
  * autonomy ceiling and its own, or the parent's when it sends none. An
  * unreadable parent copies nothing and warns `autonomy-ceiling-parent-unread`.
+ * The parent is read only when a ceiling can matter: the policy loaded now
+ * defines `ceilings` or a `default_ceiling`, or the patch sends
+ * `options.ceiling` — never under the built-in default with none sent.
  * Returns the orchestrator patch to apply.
  */
 function seedCeiling(orchestrator, runDir, policyNow, writeWarnings) {
@@ -2478,6 +2481,8 @@ function seedCeiling(orchestrator, runDir, policyNow, writeWarnings) {
   const parent = orchestrator.parent;
   // Judged before the path is built from it, exactly as `applyScalars` would.
   assertParent(parent);
+  const defined = policyNow().policy;
+  if (ceilingIn(orchestrator.options) === null && !isPlainObject(defined?.ceilings) && typeof defined?.default_ceiling !== 'string') return orchestrator;
   let recorded;
   try {
     const file = path.join(projectRootOf(runDir), parent.run, 'orchestrator-state.yml');

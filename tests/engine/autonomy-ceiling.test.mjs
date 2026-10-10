@@ -139,6 +139,19 @@ test('a child run\'s freeze copies its parent\'s effective autonomy ceiling, cla
   assert.equal(ceilingOf(clamped), 'approve');
 });
 
+test('under the built-in default a child freeze sending no ceiling never reads its parent, so nothing warns', t => {
+  const root = scratch(t);
+  const child = sibling(root, { type: 'research', name: '2026-01-05-orphan' });
+  const result = frozen(null, child, { parent: { run: '.maister/tasks/development/2026-01-05-missing', node: 'research' } });
+  assert.equal(result.stderr, '');
+  assert.equal(ceilingOf(child), undefined);
+
+  // Sending a ceiling still reads it, and warns when it cannot.
+  const sending = sibling(root, { type: 'research', name: '2026-01-05-sending' });
+  const sent = frozen(null, sending, { parent: { run: '.maister/tasks/development/2026-01-05-missing', node: 'research' }, options: { ceiling: 'advice' } });
+  assert.match(sent.stderr, /^warning: autonomy-ceiling-parent-unread:/m);
+});
+
 test('an unreadable parent copies nothing and warns', t => {
   const root = scratch(t);
   const child = sibling(root, { type: 'research', name: '2026-01-05-orphan' });
