@@ -131,6 +131,20 @@ test('request: each question it carries is one line with no double quote, the ch
   assert.equal(request.context.checkpoint.questions[0].question, set.questions[0].question);
 });
 
+test('request: a question\'s details reach the checkpoint item only, as written', t => {
+  const run = running(t);
+  const set = questionSet();
+  const details = '**Access model**\nHow do guests reach the calendar?\n\nPros:\n- `signed-link` needs no account';
+  set.questions[0].details = details;
+  const result = brief(run, set);
+  assert.equal(result.code, 0, result.stderr);
+  const request = JSON.parse(result.stdout);
+  assert.equal(request.context.checkpoint.questions[0].details, details, 'multi-line text kept byte for byte');
+  assert.equal(Object.hasOwn(request.context.checkpoint.questions[1], 'details'), false, 'absent where the set gave none');
+  for (const question of request.questions) assert.equal(Object.hasOwn(question, 'details'), false, 'never on the top-level questions');
+  assert.doesNotMatch(request.context.summary, /Access model/, 'never folded into the summary');
+});
+
 test('request: a gate request carries the multi-choice flag under its contract name', t => {
   const run = scratch(t, { fixture: 'gate' });
   freeze(run);
@@ -158,6 +172,8 @@ test('provoked: gate-brief-questions-invalid names the question and the field', 
     [{ questions: [{ ...base[0], default: 'none' }] }, /"default" must name one option/],
     [{ questions: [{ ...base[1], options: [{ ...base[1].options[0], id: 'other' }, base[1].options[1]] }] },
       /the id "other" is reserved for an answer in the operator's own words/],
+    [{ questions: [{ ...base[0], details: 42 }] }, /question "tag-filter": "details" must be text/],
+    [{ questions: [{ ...base[0], details: ['a', 'b'] }] }, /question "tag-filter": "details" must be text/],
   ];
   for (const [set, reason] of cases) assert.match(refused(brief(run, set), 'gate-brief-questions-invalid').stderr, reason);
 });

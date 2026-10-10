@@ -1,0 +1,42 @@
+{
+  "ok": true,
+  "picker": "rich",
+  "question": "Storage: Where do shared calendars live?\nWhy it matters: It fixes what a later migration costs.\nHosted calendar API — Pro: Sharing built in · Con: A vendor holds the data\nSame database — Pro: No new service · Con: Couples the schemas\nOwn service — Pro: Scales alone · Con: One more deploy\nDocument store — Pro: One read per calendar · Con: A second database\nAlso considered — type one to choose it: Document store.",
+  "header": "Storage",
+  "options": [
+    {
+      "id": "same-db",
+      "label": "Same database (Recommended)",
+      "description": "Reuses the `calendars` schema with no new service",
+      "recommended": true,
+      "preview": "**Same database**\n\nAdd a `calendar_shares` table beside `calendars`. Shares join the existing schema.\n\n**Pros**\n- No new service\n- One backup\n\n**Cons**\n- Couples the schemas\n\n**Why recommended**: Reuses the `calendars` schema with no new service"
+    },
+    {
+      "id": "hosted-api",
+      "label": "Hosted calendar API",
+      "description": "Pro: Sharing built in · Con: A vendor holds the data",
+      "recommended": false,
+      "preview": "**Hosted calendar API**\n\nKeep shares in a hosted calendar service. Its sharing model becomes ours.\n\n**Pros**\n- Sharing comes built in\n- No storage to run\n\n**Cons**\n- A vendor holds the data"
+    },
+    {
+      "id": "own-service",
+      "label": "Own service",
+      "description": "Pro: Scales alone · Con: One more deploy",
+      "recommended": false,
+      "preview": "**Own service**\n\nRun sharing as its own service with its own store.\n\n**Pros**\n- Scales alone\n\n**Cons**\n- One more deploy\n- Cross-service reads"
+    },
+    {
+      "id": "more-details",
+      "label": "More details",
+      "description": "Shows every alternative in full, then asks this again. Nothing is recorded.",
+      "recommended": false,
+      "details": true,
+      "preview": "**Storage**\nWhere do shared calendars live?\nWhy it matters: It fixes what a later migration costs.\n\n**Hosted calendar API**\nKeep shares in a hosted calendar service. Its sharing model becomes ours.\n\nPros:\n- Sharing comes built in\n- No storage to run\n\nCons:\n- A vendor holds the data\n\n**Same database** (Recommended)\nAdd a `calendar_shares` table beside `calendars`. Shares join the existing schema.\n\nPros:\n- No new service\n- One backup\n\nCons:\n- Couples the schemas\n\n**Own service**\nRun sharing as its own service with its own store.\n\nPros:\n- Scales alone\n\nCons:\n- One more deploy\n- Cross-service reads\n\n**Document store**\nKeep each calendar and its shares in one document.\n\nPros:\n- One read per calendar\n\nCons:\n- A second database to run\n\nRecommended: Same database — Reuses the `calendars` schema with no new service"
+    }
+  ],
+  "details": "option",
+  "more_details": "**Storage**\nWhere do shared calendars live?\nWhy it matters: It fixes what a later migration costs.\n\n**Hosted calendar API**\nKeep shares in a hosted calendar service. Its sharing model becomes ours.\n\nPros:\n- Sharing comes built in\n- No storage to run\n\nCons:\n- A vendor holds the data\n\n**Same database** (Recommended)\nAdd a `calendar_shares` table beside `calendars`. Shares join the existing schema.\n\nPros:\n- No new service\n- One backup\n\nCons:\n- Couples the schemas\n\n**Own service**\nRun sharing as its own service with its own store.\n\nPros:\n- Scales alone\n\nCons:\n- One more deploy\n- Cross-service reads\n\n**Document store**\nKeep each calendar and its shares in one document.\n\nPros:\n- One read per calendar\n\nCons:\n- A second database to run\n\nRecommended: Same database — Reuses the `calendars` schema with no new service",
+  "question_id": "convergence-decisions-storage",
+  "errors": [],
+  "warnings": []
+}

@@ -780,7 +780,20 @@ Also hand it:
 - the instruction to read the design context, the problem statement and the
   personas in full, and to write to `analysis/alternatives.md` exactly and
   nowhere else, with alternatives and trade-offs grouped by decision area and a
-  recommendation for each area.
+  recommendation for each area;
+- `areas_output_path`, which is exact: the decision areas file goes to
+  `analysis/decision-areas.json` and nowhere else; and the absolute path of
+  `${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/references/decision-areas.md`,
+  the file's shape, to read before it writes the file — it cannot expand the
+  variable itself.
+
+A return without `analysis/decision-areas.json` — `areas_path: null`, the reason
+in the agent's warnings — is not a failure, because the convergence then asks
+from the markdown: record `absent: {decision_areas: "<the reason>"}` on the
+completing summary, and do not re-drive the node for it. Otherwise register the
+file on the summary's artifacts with `role: evidence`, beside the markdown, and
+take the summary's count of decision areas from it when it reads as the
+reference describes.
 
 If the agent returns without `analysis/alternatives.md`, or with one that holds
 no alternatives, re-invoke it with corrected context. If the second attempt
@@ -835,10 +848,17 @@ line, then walk the alternatives one decision area at a time.
 > its full detail. EVERY area's question, options and previews carry the SAME
 > level of detail.
 
-1. **Read `analysis/alternatives.md`.**
+1. **Read `analysis/alternatives.md`**, and take the decision area ids and their
+   order from the file `with: decision_areas` names.
 2. **For each decision area, sequentially** — do not pre-ask a later one — ask
    **one question for this area**, carrying the whole area itself (engine
-   § *In-node questions*):
+   § *In-node questions*). Ask it from `area-brief --json`, as engine
+   § *Decision areas from the brainstorm* says, pasted as given, and record the
+   answer under the `question_id` it prints; on More details, print its
+   `more_details` and ask the same area again. Only when the verb prints a
+   `decision-areas-*` warning, compose the area yourself from the alternatives,
+   every area alike, recording its answer as
+   `convergence-decisions-<the area's name as a slug>`:
    - **the question** names the area, why the decision matters in a sentence or
      two, and each alternative in a line;
    - **the options** are its alternatives, the recommended one first and marked
@@ -895,7 +915,12 @@ chosen direction exactly as a terminal run does: `decision_areas` with
 `chosen_approach` set, `selected_approach`, and `analysis/design-decisions.md`
 rewritten as chosen, not proposed. Any two chosen alternatives that conflict are
 recorded as an `open` risk whose `change` names the switch that resolves it, for
-`direction-approval`.
+`direction-approval`. From the file, the set is the engine's: run
+`area-brief --patch-file`, then `gate-brief --request --patch-file`, then read
+the patch file once and write the request over it, as engine § *Decision areas
+from the brainstorm* says — a re-ask after a revise names the reopened areas
+with `--area`. On a `decision-areas-*` warning, write the set from the composed
+areas instead.
 
 **Without question sets** (`convergence-decisions`): **not
 defaulted — the decision is left for `direction-approval`.** Choosing a
@@ -904,7 +929,8 @@ operator's behalf, because everything after it is built on it. So this node does
 every part of the convergence except the choice:
 
 - every area is still worked in full — alternatives, pros and cons, the
-  recommendation and its strongest rival — and written into
+  recommendation and its strongest rival, the first alternative after the
+  recommended one in rank order — and written into
   `analysis/design-decisions.md` as a **decision sheet**, which opens by saying
   the direction is proposed, not chosen, and that continuing at the direction
   gate adopts every recommendation in it;
@@ -952,8 +978,9 @@ decision areas.
 
 **Phase summary key**: `idea_convergence`, with `selected_approach`,
 `trade_offs_accepted`, `decision_areas` — each element `area`,
-`alternatives_count`, `recommended` and `chosen_approach` — and `node:
-idea-convergence`.
+`alternatives_count`, `recommended` and `chosen_approach`, the first two taken
+from the decision areas file, its `area` and the length of its `alternatives`,
+when the areas came from it — and `node: idea-convergence`.
 
 ---
 

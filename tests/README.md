@@ -37,6 +37,8 @@ scaffolds with `init`. Only the dashboard normalizers
   `product-design.test.mjs` replays onto the shipped `product-design.yml` beside partial runs it
   walks to each of that workflow's gates. Its `outputs/delivery-scope.yml` is kept whole: it is the
   single-repository scope, read beside `fixtures/delivery-scope/workspace.yml`, a workspace's.
+  Its `analysis/decision-areas.json` is a 0-byte placeholder like its siblings: the brainstorm
+  declares it, so the replay needs it present to end on `RUN-COMPLETE`, and nothing reads its bytes.
 - `fixtures/gates/` — answered request documents a test copies over the pending one. `question-set.request.yml`
   is a `kind: question` request as `gate-brief --request` builds it from a three-question set (a
   single choice, one with nothing recommended, a multi-select), with the fields the request writer
@@ -44,6 +46,19 @@ scaffolds with `init`. Only the dashboard normalizers
   id, a list, and an answer in the operator's own words, whose first question answered that way
   sends `option: other`. `in-step-questions.test.mjs` asserts the
   request against the verb's output and folds both answers, so a cockpit can render from them.
+- `fixtures/decision-areas/` — decision areas as the solution brainstormer writes them, read by
+  `area-brief.test.mjs`. `valid.json` is stamped with the SHA-256 of `source.md` beside it, and holds
+  an area with more than three alternatives, one with no recommendation, and areas that depend on
+  earlier ones. The test refuses a file for each of the sixteen reasons from a table of one-line
+  changes to a parsed copy of `valid.json`; only `not-json.json` is committed as bytes, since no
+  parsed copy can fail to parse. `policy-classing.json` is not a decision-areas file: it is an
+  autonomy policy that classes research's `convergence-decisions`, for the set form's triage
+  tests. `golden/` pins what
+  `area-brief` renders from `valid.json`: the picker in the `rich` profile (`picker.rich.json`, and
+  `picker.rich.open.json` for the area left open), the labels-only picker (`picker.plain.json`), the
+  full write-up (`write-up.md`) and the question set a cockpit is sent (`set.json`), each with the
+  scratch path masked. `SNAPSHOT_AREAS=1 node --test tests/engine/area-brief.test.mjs` rewrites the
+  goldens after a reviewed change to what an area question says.
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.
@@ -53,8 +68,9 @@ freezing at test time, so editing a built-in does not stale a fixture.
 `make smoke` runs `node tests/shell-smoke.mjs --shell=bash`. Where the suite spawns `node` with an
 argv array, the smoke hands every engine call to a shell as one command line in the invocation
 contract's form, from a plugin copy and a project whose paths both hold a space: `locate`,
-`validate`, `resolve`, the freeze, two node writes, `gate-brief --json`, the dashboard projection and
-`resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
+`validate`, `resolve`, the freeze, two node writes, `area-brief` at a node that declares no
+decision areas (its fallback warning, exit 0 and nothing on stdout), `gate-brief --json`, the
+dashboard projection and `resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
 input. `--shell` takes `bash`, `zsh`, `pwsh`, `powershell` or `cmd`; cmd.exe lines quote with `"`,
 every other shell's with `'`. CI runs it under bash on Ubuntu, and under pwsh, Windows PowerShell,
 cmd.exe and Git Bash on Windows, where the paths are written with `\`.

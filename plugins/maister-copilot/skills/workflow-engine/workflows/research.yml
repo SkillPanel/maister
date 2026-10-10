@@ -211,12 +211,14 @@ nodes:
       synthesis: "${research-foundation.artifacts.synthesis}"
       research_report: "${research-foundation.artifacts.report}"
       output_path: outputs/solution-exploration.md
+      areas_output_path: outputs/decision-areas.json
       research_type: "${inputs.research_type}"
       research_question: "${inputs.question}"
       confidence_level: "${research-foundation.values.confidence_level}"
     outputs:
       artifacts:
         exploration: outputs/solution-exploration.md
+        decision_areas: outputs/decision-areas.json
 
   solution-convergence:
     uses: direct:solution-convergence
@@ -224,6 +226,7 @@ nodes:
     when: "${foundation-approval.values.brainstorming_enabled}"
     with:
       exploration: "${solution-generation.artifacts.exploration}"
+      decision_areas: "${solution-generation.artifacts.decision_areas}"
       # Read when this node writes its closing summary, to say which continue
       # of `convergence-approval` it recommends.
       design_flag: "${inputs.design}"

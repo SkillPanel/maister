@@ -63,6 +63,14 @@ workspace with work in flight.
   alternative, its pros and cons and the recommendation, and is never accepted wholesale. A
   question the run can already answer from its own analysis is not asked: it says the answer in
   one line instead. Where the context is long, **More details** writes it out and asks again.
+- **Design decisions asked from the brainstorm itself.** In research and product design, every
+  decision area's question and its full write-up — each alternative with its pros and cons, and
+  the recommendation — now come from the record the brainstorm keeps beside its document, word
+  for word, so the terminal and a cockpit show the same text. In a cockpit, each area carries its
+  full write-up, so you can decide it without opening the exploration document. A brainstorm
+  without that record, or whose document changed after it was written, still asks as before, and
+  says so; a research or product-design run already in progress when you upgrade sees a notice at
+  its later checkpoints that its workflow changed, and asks its areas as before.
 - **A record of who decided.** Every decision a run records says who settled it: the analysis,
   an audit, a default taken because nobody could be asked, or you. Your answers are kept in the
   task's state, with whether you took the recommendation, and the dashboard shows each decision

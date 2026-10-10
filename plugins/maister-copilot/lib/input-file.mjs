@@ -1,7 +1,9 @@
 /**
  * The input file: a structured document a caller writes with its own file
  * tool, at one fixed name in one fixed place, and names with a flag instead of
- * sending it on stdin.
+ * sending it on stdin. The one exception is `area-brief --patch-file`, which
+ * writes the question set there itself; it is the engine's own write, so no
+ * edit rule is involved.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20. Shared by the workflow
  * engine's `--patch-file` and the umbrella runtime's `--input-file`, so it sits
@@ -33,8 +35,12 @@ import path from 'node:path';
  * message ("the patch file"), `beside` says where it belongs ("beside the state
  * file it patches"), and `Usage` is the caller's usage error, so each entry
  * point reports in its own words and with its own exit code.
+ *
+ * `absentOk` is for a verb that writes the file itself: the place must still be
+ * the one place, and anything already there must still be a regular file, but
+ * nothing need be there yet.
  */
-export function anchoredFile({ given, expected, noun, beside, Usage }) {
+export function anchoredFile({ given, expected, noun, beside, Usage, absentOk = false }) {
   if (given.split(/[\\/]/).includes('..')) {
     throw new Usage(`${noun} may not name a parent directory (".."): write it to ${expected}`);
   }
@@ -45,6 +51,7 @@ export function anchoredFile({ given, expected, noun, beside, Usage }) {
   try {
     stat = fs.lstatSync(expected);
   } catch (err) {
+    if (absentOk && err.code === 'ENOENT') return expected;
     throw new Usage(`${noun} ${expected} could not be read: ${err.message}`);
   }
   if (stat.isSymbolicLink()) throw new Usage(`${noun} ${expected} is a symbolic link; write the file itself there`);

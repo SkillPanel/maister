@@ -477,6 +477,17 @@ test('inputs: the shipped definition validates with no warning', () => {
   assert.deepEqual(report.warnings, []);
 });
 
+test('decision areas: the idea generation declares the areas file and the convergence is handed it', () => {
+  const result = verb(['resolve', `--definition=${PRODUCT_DESIGN}`]);
+  assert.equal(result.code, 0, result.stderr);
+  const nodes = Object.fromEntries(JSON.parse(result.stdout).nodes.map(node => [node.id, node]));
+  const generation = nodes['idea-generation'];
+  assert.equal(generation.with.areas_output_path, 'analysis/decision-areas.json');
+  assert.equal(generation.outputs.artifacts.decision_areas, 'analysis/decision-areas.json');
+  assert.equal(nodes['idea-convergence'].with.decision_areas, '${idea-generation.artifacts.decision_areas}');
+  assert.equal(nodes['idea-convergence'].when, generation.when);
+});
+
 // A node may read a guarded node only when it carries the very same guard, so
 // the two always run or are skipped together.
 test('guards: no node that may still run interpolates anything from a node a guard may skip', () => {
