@@ -205,25 +205,30 @@ function closeoutRefusal({ outbox, dispatchId }) {
  * skip-guard rule asks (`asked`) is owed whatever its guard reads, so the
  * rule is explained only when such a gate is owed, and the record-skipped
  * recovery is offered only for the others, and not at all when every owed
- * node is such a gate.
+ * node is such a gate. A gate owed because choices are held for approval
+ * (`held`) is named as asked for them, and is never offered that recovery
+ * either.
  */
 function unfinished(state, { owed, drift }) {
-  const named = owed.map(({ id, status, guard, asked }) => {
+  const named = owed.map(({ id, status, guard, asked, held }) => {
     if (asked) return `${id} (${status}; a gate whose guard reads a value the run records, and more than a confirmation)`;
+    if (held) return `${id} (${status}; asked because held choices wait for approval)`;
     if (guard) return `${id} (${status}; its guard ${guard} reads a value that was never recorded)`;
     return `${id} (${status})`;
   });
   const one = owed.length === 1;
   const count = one ? 'a node has' : `${owed.length} nodes have`;
   const anyAsked = owed.some(({ asked }) => asked);
+  const anyHeld = owed.some(({ held }) => held);
   const rule = drift
     ? 'The definition this run froze cannot be re-read, or has changed since the freeze, so no guard was evaluated: every pending node whose needs are met counts.'
     : `A pending node counts unless the graph keeps it off the path the run took — a false guard, or a need that ended failed or stopped which the node's on: does not accept — and nothing keeps ${one ? 'this one' : 'these'} off it.`
-      + (anyAsked ? ' A false guard never keeps off a gate whose guard reads a value the run records and that is more than a confirmation: such a gate is asked whatever its guard reads.' : '');
-  const skippable = owed.filter(({ asked }) => !asked);
+      + (anyAsked ? ' A false guard never keeps off a gate whose guard reads a value the run records and that is more than a confirmation: such a gate is asked whatever its guard reads.' : '')
+      + (anyHeld ? ' While choices are held for approval, a false guard never keeps off a gate whose guard reads a value a step records: the next such gate is asked, and its continue approves them.' : '');
+  const skippable = owed.filter(({ asked, held }) => !asked && !held);
   const skipped = skippable.length === 0 ? ''
     : skippable.length === owed.length ? ', or record skipped for one whose guard is false'
-      : `, or record skipped for one whose guard is false (never for ${owed.filter(({ asked }) => asked).map(({ id }) => id).join(', ')})`;
+      : `, or record skipped for one whose guard is false (never for ${owed.filter(({ asked, held }) => asked || held).map(({ id }) => id).join(', ')})`;
   return `${state} records task.status completed, but ${count} not finished: ${named.join(', ')}. ${rule} `
     + `Resume the run and run ${one ? 'it' : 'each of them'}${skipped}; then write the closing patch again and run this verb again. `
     + `A run that cannot finish ${one ? 'it' : 'them'} ends failed, or stopped with every unexecuted node, instead. Never record a node completed that did not run.`;

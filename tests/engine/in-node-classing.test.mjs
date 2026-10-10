@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { FIXTURES, ROOT, freezePatch, readState, run as runScript, scratch, sharedPlugin, verb } from '../helpers.mjs';
+import { skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 
 // The classing write: a running node sends its question set to `write-state`
 // before asking, and the writer — only the writer — settles, defaults or holds
@@ -385,4 +386,169 @@ test('the built-in default: nothing is classed or recorded, and ask: lists every
   assert.deepEqual(JSON.parse(request.stdout).questions.map(each => each.id), ['quick-choice', 'signed-choice']);
   assert.doesNotMatch(request.stdout.replaceAll(ROOT, '<repo>'), words);
   assert.doesNotMatch(stateText(driven), words);
+});
+
+// ---------------------------------------------------------------------------
+// 9. held choices on the brief, and the checkpoints they force
+// ---------------------------------------------------------------------------
+
+/** A question whose options carry the id in their labels, so no two questions' choices read alike. */
+function labelled(id) {
+  const each = question(id);
+  each.options = each.options.map(option => ({ ...option, label: `${id} ${option.id.toUpperCase()}` }));
+  return each;
+}
+
+/**
+ * A dispatched run whose scoping settles quick-choice, defaults asked-choice
+ * unadvised and holds signed-choice, then closes with `values`.
+ */
+function heldRun(t, { values = { wants_review: true, wants_notes: false }, hold = true, risks } = {}) {
+  const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
+  const ids = ['quick-choice', 'asked-choice', ...(hold ? ['signed-choice'] : [])];
+  const written = classing(QUESTIONS.engine, run, [], {
+    questions: ids.map(labelled),
+    ...(hold ? { reasons: { 'signed-choice': { rationale: 'The release notes want A.' } } } : {}),
+  });
+  assert.equal(written.code, 0, written.stderr);
+  ok(QUESTIONS.engine, run, {
+    nodes: { scoping: { status: 'completed', values } },
+    node_summaries: { scoping: { summary: 'Scoped the work.', ...(risks ? { risks } : {}) } },
+  });
+  return run;
+}
+
+function gateBriefOf(run, node, ...flags) {
+  return runScript(QUESTIONS.engine, ['gate-brief', `--state=${run.state}`, `--node=${node}`, ...flags]);
+}
+
+const HELD_ENTRY = {
+  node: 'scoping', question_id: 'signed-choice', question: 'Which signed-choice?', decision: 'signed-choice A',
+  class: 'approve', rationale: 'The release notes want A.',
+};
+
+test('held: the next gate\'s checkpoint lists held choices after the fixes, classes the settlements, and counts no held choice as a default', t => {
+  const run = heldRun(t);
+  const result = gateBriefOf(run, 'review-approval', '--checkpoint');
+  assert.equal(result.code, 0, result.stderr);
+  const checkpoint = JSON.parse(result.stdout);
+  const keys = Object.keys(checkpoint);
+  assert.equal(keys.indexOf('held'), keys.indexOf('fixes') + 1, keys.join(', '));
+  assert.equal(keys.indexOf('decisions'), keys.indexOf('held') + 1);
+  assert.deepEqual(checkpoint.held, [HELD_ENTRY]);
+  assert.deepEqual(checkpoint.decisions.run, [
+    { decision: 'quick-choice A', rationale: 'A is the safe pick.', class: 'decide-alone', question_id: 'quick-choice', node: 'scoping' },
+  ]);
+  assert.deepEqual(checkpoint.decisions.default, [{ decision: 'asked-choice A', class: 'consult', question_id: 'asked-choice', node: 'scoping' }]);
+
+  // Nothing held: no `held` key at all.
+  const none = JSON.parse(gateBriefOf(heldRun(t, { hold: false }), 'review-approval', '--checkpoint').stdout);
+  assert.equal(Object.hasOwn(none, 'held'), false);
+});
+
+test('held: the plain and one-line briefs put the held choices first', t => {
+  const run = heldRun(t, { risks: ['open: the layout may change'] });
+  const plain = gateBriefOf(run, 'review-approval');
+  assert.equal(plain.code, 0, plain.stderr);
+  const lines = plain.stdout.split('\n');
+  assert.equal(lines[0], 'Scoped the work.');
+  assert.equal(lines[1], 'Held for your approval:');
+  assert.equal(lines[2], '- Which signed-choice?: signed-choice A (approve)');
+  assert.ok(lines.indexOf('Decisions:') > 2 && lines.indexOf('Risks:') > lines.indexOf('Decisions:'), plain.stdout);
+  assert.ok(lines.includes('- quick-choice A (decide-alone)'), plain.stdout);
+  assert.doesNotMatch(plain.stdout, /^- signed-choice A/m, 'a held choice is not listed again among the decisions');
+
+  const oneline = gateBriefOf(run, 'review-approval', '--oneline');
+  assert.equal(oneline.code, 0, oneline.stderr);
+  assert.match(oneline.stdout, /^Scoped the work\. · Held: approve: signed-choice → signed-choice A · Risks: open: the layout may change · Decisions: run \(decide-alone\): quick-choice A — A is the safe pick\.; default \(consult\): asked-choice A · /);
+});
+
+test('held: run-complete owes a gate a task guard skipped while a choice is held, and offers no record-skipped recovery', t => {
+  const run = heldRun(t, { values: { wants_review: false, wants_notes: false } });
+  ok(QUESTIONS.engine, run, {
+    task: { status: 'completed' },
+    nodes: {
+      'depth-approval': { status: 'skipped' },
+      drafting: { status: 'completed' },
+      notes: { status: 'skipped' },
+      'notes-approval': { status: 'skipped' },
+      finish: { status: 'completed' },
+    },
+  });
+  const result = runScript(QUESTIONS.engine, ['run-complete', `--state=${run.state}`]);
+  assert.equal(result.code, 1, result.stderr);
+  assert.equal(result.stdout, 'RUN-FAILED: run-nodes-unfinished\n');
+  assert.match(result.stderr, /not finished: review-approval \(pending; asked because held choices wait for approval\)\./);
+  assert.doesNotMatch(result.stderr, /record skipped/);
+  assert.doesNotMatch(result.stderr, /depth-approval/, 'a gate guarded by an input is never forced');
+});
+
+test('held: a revise names a task-guarded gate when the node holding the choice is outside the stretch', () => {
+  const { graph } = freezePatch({ definition: DEFINITION });
+  const recorded = {
+    scoping: { kind: 'task', status: 'completed', values: { wants_review: false, wants_notes: false } },
+    'review-approval': { kind: 'gate', status: 'skipped' },
+    'depth-approval': { kind: 'gate', status: 'skipped' },
+    drafting: { kind: 'task', status: 'completed' },
+  };
+  const guards = held => ({
+    byId: new Map(graph.nodes.map(entry => [entry.id, entry])),
+    recorded,
+    status: new Map(Object.entries(recorded).map(([id, entry]) => [id, entry.status])),
+    inputs: {},
+    defaults: {},
+    held,
+  });
+  const stretch = ['review-approval', 'depth-approval', 'drafting'];
+  assert.equal(skippedAgain('review-approval', stretch, guards(false)), true, 'nothing held: its false guard skips it again');
+  assert.equal(skippedAgain('review-approval', stretch, guards(true)), false, 'a held choice outside the stretch asks it');
+  assert.equal(skippedAgain('depth-approval', stretch, guards(true)), true, 'a gate guarded by an input is never forced');
+});
+
+test('held: recording a task-guarded gate skipped while a choice is held warns held-gate-skipped and writes as sent', t => {
+  const run = heldRun(t, { values: { wants_review: false, wants_notes: false } });
+  const skipped = ok(QUESTIONS.engine, run, { nodes: { 'review-approval': { status: 'skipped' } } });
+  assert.match(skipped.stderr, /^warning: held-gate-skipped:review-approval — .+/m);
+  assert.equal(readState(run).workflow.nodes['review-approval'].status, 'skipped');
+
+  const input = ok(QUESTIONS.engine, run, { nodes: { 'depth-approval': { status: 'skipped' } } });
+  assert.doesNotMatch(input.stderr, /held-gate-skipped/);
+
+  const free = heldRun(t, { values: { wants_review: false, wants_notes: false }, hold: false });
+  const quiet = ok(QUESTIONS.engine, free, { nodes: { 'review-approval': { status: 'skipped' } } });
+  assert.doesNotMatch(quiet.stderr, /held-gate-skipped/);
+});
+
+test('held: a forced gate whose work was skipped is briefed "Skipped." with the held list; without one it still wants a summary', t => {
+  const reach = (hold) => {
+    const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
+    ok(QUESTIONS.engine, run, {
+      nodes: {
+        scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } },
+        'review-approval': { status: 'skipped' },
+        'depth-approval': { status: 'skipped' },
+        drafting: { status: 'running' },
+      },
+    });
+    // An approve triage the question carries holds it under a dispatch driver.
+    const asked = { ...labelled('signed-choice'), ...(hold ? { triage: { version: 1, class: 'approve', family: 'area-family' } } : {}) };
+    assert.equal(classing(QUESTIONS.engine, run, [], { node: 'drafting', questions: [asked] }).code, 0);
+    ok(QUESTIONS.engine, run, {
+      nodes: { drafting: { status: 'completed' }, notes: { status: 'skipped' } },
+    });
+    return run;
+  };
+
+  const run = reach(true);
+  const result = gateBriefOf(run, 'notes-approval', '--checkpoint');
+  assert.equal(result.code, 0, result.stderr);
+  const checkpoint = JSON.parse(result.stdout);
+  assert.equal(checkpoint.headline, 'Skipped.');
+  assert.deepEqual(checkpoint.held.map(each => [each.node, each.question_id]), [['drafting', 'signed-choice']]);
+  const plain = gateBriefOf(run, 'notes-approval');
+  assert.equal(plain.code, 0, plain.stderr);
+  assert.match(plain.stdout, /^Skipped\.\nHeld for your approval:\n- Which signed-choice\?: signed-choice A \(approve\)\n/);
+
+  const bare = gateBriefOf(reach(false), 'notes-approval', '--checkpoint');
+  refused(bare, 'gate-brief-no-summary');
 });

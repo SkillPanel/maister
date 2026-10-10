@@ -89,12 +89,12 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { classSet, classesQuestions, declaredQuestionIds, isClassedItem } from './question-triage.mjs';
+import { classSet, classesQuestions, declaredQuestionIds, isClassedItem, outstandingHeld } from './question-triage.mjs';
 import { canAsk } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -1148,7 +1148,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   }
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
   if (regress !== null) clearClassed(doc, regress, changed);
-  if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings);
+  if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
   if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
   if (patch.context || patch.phase_summaries) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
@@ -2057,19 +2057,33 @@ function frozenGraphOf(doc, runDir) {
  * skipped status later — the run's close accepts a gate recorded skipped.
  * Judged against the graph the frozen block proves; a run whose graph cannot
  * be proven gets no warning, since nothing reliable says what its gates are.
+ *
+ * `held-gate-skipped:<gate>` for any other gate this write records `skipped`
+ * whose guard reads a task's value (`guardReadsTask`) while a choice is held
+ * for approval (`holding()`): such a choice asks the next checkpoint that
+ * runs. A warning too, and the write lands as sent.
  */
-function warnSkippedAsked(nodes, graphOf, writeWarnings) {
+function warnSkippedAsked(nodes, graphOf, writeWarnings, holding = () => false) {
   const skipped = Object.entries(nodes).filter(([, entry]) => isPlainObject(entry) && entry.status === 'skipped');
   if (!skipped.length) return;
   const graph = graphOf();
   if (!graph) return;
   const byId = new Map(graph.nodes.map(node => [node.id, node]));
   const kindOf = nodeKindIn(byId);
+  let held = null;
   for (const [id] of skipped) {
     const code = `skip-guard-skipped:${id}`;
-    if (!skipGuardAsks(byId.get(id), kindOf) || writeWarnings.some(each => each.startsWith(`${code} `))) continue;
-    writeWarnings.push(`${code} — its guard reads a value the run itself records and it is more than a confirmation, `
-      + 'so it is asked whatever its guard reads; the skipped status was written, and nothing checks it later: ask the gate and record its answer');
+    if (skipGuardAsks(byId.get(id), kindOf)) {
+      if (writeWarnings.some(each => each.startsWith(`${code} `))) continue;
+      writeWarnings.push(`${code} — its guard reads a value the run itself records and it is more than a confirmation, `
+        + 'so it is asked whatever its guard reads; the skipped status was written, and nothing checks it later: ask the gate and record its answer');
+      continue;
+    }
+    if (!guardReadsTask(byId.get(id), kindOf) || !(held ??= holding())) continue;
+    const heldCode = `held-gate-skipped:${id}`;
+    if (writeWarnings.some(each => each.startsWith(`${heldCode} `))) continue;
+    writeWarnings.push(`${heldCode} — choices held for approval are waiting, so this gate is asked whatever its guard reads and its continue approves them; `
+      + 'the skipped status was written as sent: ask the gate and record its answer');
   }
 }
 

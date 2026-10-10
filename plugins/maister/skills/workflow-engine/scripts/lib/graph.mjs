@@ -2374,15 +2374,30 @@ function gateValueKeys(node) {
  * and the state writer all judge one rule.
  */
 export function skipGuardAsks(node, kindOf) {
+  return guardReadsTask(node, kindOf) && !pureConfirmation(node);
+}
+
+/**
+ * Whether `node` is a gate whose `when` has an operand reading a value a
+ * non-gate node records — `${<node>.values.<key>}`, negated or not, a
+ * `workflow:` node included. A guard on an input or on another gate's value
+ * reads a choice someone made; one on a task's value reads what the run
+ * itself recorded. `kindOf` is as `skipGuardAsks` takes it.
+ *
+ * The skip-guard rule asks such a gate when it is more than a pure
+ * confirmation, and a held choice waiting for approval asks it whatever it is:
+ * a checkpoint is passed over only when its guard reads an input or another
+ * checkpoint's value.
+ */
+export function guardReadsTask(node, kindOf) {
   if (node?.type !== 'gate' || typeof node.when !== 'string') return false;
-  const readsRecorded = guardOperands(node.when).some((operand) => {
+  return guardOperands(node.when).some((operand) => {
     if (!WHEN_REF.test(operand)) return false;
     const [owner, values] = operand.replace(/^!/, '').slice(2, -1).split('.');
     if (owner === 'inputs' || values !== 'values') return false;
     const kind = kindOf(owner);
     return typeof kind === 'string' && kind !== 'gate';
   });
-  return readsRecorded && !pureConfirmation(node);
 }
 
 /**

@@ -77,6 +77,15 @@
  * refusal and this module's is a degradation, and one shared helper would have to
  * carry both meanings.
  *
+ * Held choices. A choice the writer held for a person's approval
+ * (`outstandingHeld`) is listed on every form right after the summary, ahead
+ * of the risks and the decisions, and is the last thing the budget trims — to
+ * one item and a count, never to none; a settlement the writer classed shows
+ * its class. A gate asked while choices are held approves them with its
+ * continue, so it is briefed even when every node it closes was skipped:
+ * its *Done* line is then "Skipped.". Under the default nothing is held or
+ * classed, and every form is byte-identical to one without these rules.
+ *
  * Every form also returns `panel`, the glance an editor extension draws above
  * the question (`panelOf`, with links `panelFor` adds; a question set's from
  * `questionPanelOf`), which `workflow.mjs` writes to the run's
@@ -91,7 +100,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, grantOrder, guardOperands, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { REVISION_CEILING } from './revise.mjs';
@@ -101,6 +110,7 @@ import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as ent
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
+import { isClassedItem, outstandingHeld } from './question-triage.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -224,10 +234,15 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const graph = current.graph;
   const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
 
+  // The choices held for a person's approval, in frozen order: every form
+  // lists them first, and this gate approves them with its continue.
+  const held = heldOf(doc);
   const { direct: candidates, stretch } = closingCandidates(recorded, byId, node);
   let closing;
   if (candidates.length) {
-    closing = closingStretch(doc, recorded, candidates, stretch, current.display.titles);
+    // A gate asked while choices are held is briefed even when every node it
+    // closes was skipped: the held choices are what it asks about.
+    closing = closingStretch(doc, recorded, candidates, stretch, current.display.titles, held.length > 0);
     if (!closing) {
       return refuse('gate-brief-no-summary',
         `no node this gate closes has recorded a summary (looked at: ${candidates.join(', ')}); `
@@ -287,6 +302,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     status: new Map(Object.keys(recorded).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
     inputs: inputsOf(doc),
     defaults: current.defaults,
+    heldBy: [...new Set(held.map(each => each.node))],
   };
   const revisions = revisionsOf(doc, recorded, byId, node, options, titles, guards);
 
@@ -299,7 +315,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     const offered = revisions.spent ? [] : revisions.options.map(each => `revise: ${each.id} reruns=${each.reruns} revision=${revisions.revision}/${REVISION_CEILING}`);
     const granting = Object.entries(grantsOf(options)).map(([id, names]) => `${id} ${grantsText(names)}`);
     const tail = [...next, ...offered, ...granting, `Recommended: ${recommended}`, runLine(doc, runDir)];
-    return fit(closing, DRIVEN, tail, pointerOf(doc, runDir));
+    return fit(closing, DRIVEN, tail, pointerOf(doc, runDir), held);
   };
 
   const gateId = id => isGate(recorded, byId, id);
@@ -310,7 +326,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
-    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId,
+    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held,
     approves: policyOf().matches ? policyOf().approves : [],
   }));
   // Every form carries the panel an editor extension draws above the question,
@@ -334,7 +350,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     const spent = revisions.spent && revisions.options.length ? CEILING_REACHED : '';
     next[next.length - 1] = `${next.at(-1)}${spent}`;
     const review = reviewLine(doc, runDir, ids, byId);
-    const text = fit(closing, READABLE, [...next, ...(review ? [review] : [])], placeOf(doc, runDir));
+    const text = fit(closing, READABLE, [...next, ...(review ? [review] : [])], placeOf(doc, runDir), held);
     return { ok: true, text, panel, errors: [], warnings };
   }
 
@@ -674,7 +690,9 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
   const sources = summarySources(doc);
   const revise = Object.entries(targets).map(([id, reruns]) => {
     const stretch = reviseStretch({ ids, needsOf: each => needsOf(recorded, byId, each), reruns, gate });
-    const work = stretch.filter(each => !isGate(recorded, byId, each) && !skippedAgain(each, stretch, guards));
+    // A held choice survives the revise only when its node is outside the stretch.
+    const judged = guards && { ...guards, held: (guards.heldBy ?? []).some(owner => !stretch.includes(owner)) };
+    const work = stretch.filter(each => !isGate(recorded, byId, each) && !skippedAgain(each, stretch, judged));
     const names = andList(work.map(each => titleOf(titles, each)));
     const earlier = earlierElsewhere(doc, recorded, gate, reruns, titles);
     return {
@@ -731,7 +749,10 @@ function earlierElsewhere(doc, recorded, gate, reruns, titles) {
  * judged again once that node records its values, so its node may run and is
  * named. Without `guards` — the definition drifted — no guard is read and every
  * node is named. A gate the skip-guard rule asks (`skipGuardAsks`) is never
- * skipped again: it is asked whatever its guard reads.
+ * skipped again: it is asked whatever its guard reads. Nor is a gate whose
+ * guard reads a task's value (`guardReadsTask`) while `guards.held` says a
+ * choice held for approval outlives the revise — its node is outside the
+ * stretch — since such a choice asks the next checkpoint that runs.
  *
  * Exported for the skip-guard rule's own test, which judges it directly.
  */
@@ -739,6 +760,7 @@ export function skippedAgain(id, stretch, guards) {
   const when = guards?.byId.get(id)?.when;
   if (typeof when !== 'string') return false;
   if (skipGuardAsks(guards.byId.get(id), nodeKindIn(guards.byId))) return false;
+  if (guards.held && guardReadsTask(guards.byId.get(id), nodeKindIn(guards.byId))) return false;
   for (const operand of guardOperands(when)) {
     const match = WHEN.exec(operand);
     if (!match || (match[2] !== 'inputs' && stretch.includes(match[2]))) return false;
@@ -885,14 +907,15 @@ const KEEPS_MAX = 3;
  * counted rather than listed. A fix is kept apart from the decisions: the run
  * changed it without asking, and settled nothing by it.
  */
-function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, approves = [] }) {
+function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [] }) {
   const title = id => titleOf(titles, id);
   const order = Object.keys(recorded);
   const sources = summarySources(doc);
   let truncated = false;
 
-  // What finished: the closing node's own *Done* sentence, or its summary's first.
-  const lead = closing.entries.find(entry => !entry.skipped) ?? closing.entries[0];
+  // What finished: the closing node's own *Done* sentence, or its summary's
+  // first — "Skipped." when every node the gate closes was skipped.
+  const lead = closing.entries.find(entry => entry.id === closing.id) ?? closing.entries[0];
   const own = typeof lead.headline === 'string' && lead.headline.trim() !== '';
   const headline = entryHeadline({ headline: lead.headline, summary: lead.summary });
   if (!own && headline.endsWith('…')) truncated = true;
@@ -939,6 +962,8 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       fixes.push(compact({ finding: fix.finding, change: fix.change, node: entry.id }));
     }
     for (const item of entry.decisions) {
+      // A held choice is listed under `held`, never counted as a default.
+      if (isHeldItem(item)) continue;
       const decision = decisionOf(item);
       if (!decision || !once('decision', decision.decision)) continue;
       if (decision.by === 'operator') {
@@ -962,6 +987,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       decisions[decision.by].push(compact({
         decision: decision.decision,
         rationale: typeof decision.rationale === 'string' && decision.rationale.trim() !== '' ? decision.rationale.trim() : undefined,
+        class: classOf(decision) ?? undefined,
         question_id: decision.question_id,
         node: entry.id,
       }));
@@ -1046,6 +1072,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     review,
     closed: closing.entries.map(entry => ({ node: entry.id, title: title(entry.id), headline: entry.skipped ? null : entryHeadline(entry) || null, summary: entry.summary })),
     fixes,
+    ...(held.length ? { held } : {}),
     decisions,
     risks,
     recommended: { option: recommended, reason },
@@ -1055,6 +1082,34 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
     truncated,
   };
+}
+
+/**
+ * The run's outstanding held choices (`outstandingHeld`), in frozen order, as
+ * the checkpoint lists them: `{node, question_id, question, decision, class,
+ * floor?, rationale?}`. Empty under the default, where nothing is held.
+ */
+function heldOf(doc) {
+  return outstandingHeld(doc).map(({ node, question_id: questionId, item }) => compact({
+    node,
+    question_id: questionId,
+    question: typeof item.question === 'string' && item.question.trim() !== '' ? item.question.trim() : undefined,
+    decision: decisionOf(item)?.decision ?? '',
+    class: classOf(item) ?? undefined,
+    floor: Array.isArray(item.triage.floor) && item.triage.floor.length ? item.triage.floor.map(String) : undefined,
+    rationale: typeof item.rationale === 'string' && item.rationale.trim() !== '' ? item.rationale.trim() : undefined,
+  }));
+}
+
+/** Whether a recorded decision is a choice the writer held for approval. */
+function isHeldItem(item) {
+  return isClassedItem(item) && item.triage.held === true;
+}
+
+/** The class a decision the writer classed carries, or null for any other. */
+function classOf(item) {
+  return isPlainObject(item) && isPlainObject(item.triage) && typeof item.triage.class === 'string' && item.triage.class !== ''
+    ? item.triage.class : null;
 }
 
 /**
@@ -1317,16 +1372,18 @@ function closingCandidates(recorded, byId, gate) {
  * fixes, decisions and risks are pooled in the same order, so a `recommend stop:`
  * from any of them decides the recommendation. An item two of them recorded is
  * pooled once, where it first appears, so a repeat never takes a line or a
- * count of its own.
+ * count of its own. With `skippedLeads` — a gate asked while choices are held
+ * — a stretch whose direct nodes were all skipped is led by the first of them,
+ * and its *Done* line reads `Skipped.`.
  */
-function closingStretch(doc, recorded, direct, stretch, titles) {
+function closingStretch(doc, recorded, direct, stretch, titles, skippedLeads = false) {
   const sources = summarySources(doc);
   const order = Object.keys(recorded);
   const sorted = ids => [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
   const skipped = id => (entryOf(recorded, id).status === 'skipped'
     ? { id, summary: SKIPPED, fixes: [], decisions: [], risks: [], skipped: true } : null);
   const closing = sorted(direct).map(id => summaryOf(sources, id) ?? skipped(id)).filter(Boolean);
-  const lead = closing.find(entry => !entry.skipped);
+  const lead = closing.find(entry => !entry.skipped) ?? (skippedLeads ? closing[0] : undefined);
   if (!lead) return null;
   const entries = [...closing, ...sorted(stretch).map(id => summaryOf(sources, id)).filter(Boolean)];
   if (entries.length === 1) return closingOf(lead);
@@ -1496,6 +1553,9 @@ export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, 
     }
     if (typeof ready.when !== 'string') return { ok: true, next: ready.id, skipped };
     if (skipGuardAsks(ready, nodeKindIn(byId))) return { ok: true, next: ready.id, skipped };
+    // No held-choice rule here: the gate being briefed approves every
+    // outstanding held choice with its continue, so the next gate never
+    // carries one and its guard decides as it always has.
 
     const guard = evaluate(ready.when, { byId, recorded, status, inputs, defaults });
     if (!guard.ok) return guard;
@@ -1693,7 +1753,10 @@ const ENDED = new Set([...ENDED_OK, ...ENDED_BADLY]);
  * `failed` or `stopped` and that its `on` does not accept: it can never run, so
  * it is not owed. A gate the skip-guard rule asks (`skipGuardAsks`) is owed
  * whatever its guard reads, and marked `asked: true`, so the refusal never
- * offers it the record-skipped recovery.
+ * offers it the record-skipped recovery. So is a gate whose guard reads a
+ * task's value (`guardReadsTask`) while a choice is held for approval
+ * (`outstandingHeld`), marked `held: true`: such a choice asks the next
+ * checkpoint that runs.
  *
  * The edges are the freeze's. `on` and `when` are the re-resolved definition's,
  * and only when it hashes to the freeze: under drift nothing the re-read says is
@@ -1713,10 +1776,11 @@ export function atClose({ doc, runDir }) {
   const recordedStatus = id => entryOf(recorded, id).status ?? 'pending';
   const status = new Map(ids.map(id => [id, recordedStatus(id)]));
   const owed = new Map();
-  const owe = (id, guard = null, asked = false) => {
-    owed.set(id, { id, status: recordedStatus(id), guard, ...(asked ? { asked } : {}) });
+  const owe = (id, guard = null, { asked = false, held = false } = {}) => {
+    owed.set(id, { id, status: recordedStatus(id), guard, ...(asked ? { asked } : {}), ...(held ? { held } : {}) });
     status.set(id, 'completed');
   };
+  const holding = outstandingHeld(doc).length > 0;
 
   for (const id of ids) {
     if (status.get(id) !== 'pending' && !ENDED.has(status.get(id))) owe(id);
@@ -1743,7 +1807,11 @@ export function atClose({ doc, runDir }) {
       continue;
     }
     if (skipGuardAsks(byId.get(next), nodeKindIn(byId))) {
-      owe(next, null, true);
+      owe(next, null, { asked: true });
+      continue;
+    }
+    if (holding && guardReadsTask(byId.get(next), nodeKindIn(byId))) {
+      owe(next, null, { held: true });
       continue;
     }
     const guard = evaluate(when, { byId, recorded, status, inputs: inputsOf(doc), defaults: current.defaults });
@@ -1934,8 +2002,11 @@ const DRIVEN = {
   // trade-off already accepted, without the item's own wording saying so.
   decision: item => {
     const decision = decisionOf(item);
-    return decision ? `${decision.by}: ${decisionText(decision)}` : '';
+    if (!decision) return '';
+    const kind = classOf(decision);
+    return `${decision.by}${kind ? ` (${kind})` : ''}: ${decisionText(decision)}`;
   },
+  held: entry => `${entry.class ? `${entry.class}: ` : ''}${entry.question_id} → ${entry.decision}`,
   risk: item => {
     const risk = riskOf(item);
     return risk ? `${risk.tag}: ${riskText(risk)}` : '';
@@ -1951,7 +2022,12 @@ const DRIVEN = {
   render: renderOneline,
 };
 const READABLE = {
-  decision: headlineOf,
+  decision: item => {
+    const text = headlineOf(item);
+    const kind = text === '' ? null : classOf(decisionOf(item));
+    return kind ? `${text} (${kind})` : text;
+  },
+  held: entry => `${entry.question ? `${entry.question}: ` : ''}${entry.decision}${entry.class ? ` (${entry.class})` : ''}`,
   risk: headlineOf,
   fix: item => {
     const fix = fixOf(item);
@@ -1976,12 +2052,18 @@ const READABLE = {
  * summary gives up the rest; and last the pointers the drops left go too. `tail` is never touched, so a tail longer
  * than the budget on its own is the one brief that exceeds it. Whatever the
  * summary gives up, `drawSummary` spreads over its sections.
+ *
+ * `held` — the choices held for approval — comes right after the summary and
+ * is the last list trimmed: once the decisions, the fixes and the risks are
+ * gone, it drops from the end down to one item, and its pointer stays. A held
+ * choice is never listed again among the decisions.
  */
-function fit(closing, form, tail, where) {
+function fit(closing, form, tail, where, held = []) {
   const sections = closing.sections.map(({ title, text }) => ({ title, text: text.trim() }));
   const summary = drawSummary(sections, Infinity);
   const fixes = (closing.fixes ?? []).map(form.fix).filter(text => text !== '');
-  const decisions = closing.decisions.map(form.decision).filter(text => text !== '');
+  const decisions = closing.decisions.filter(item => !isHeldItem(item)).map(form.decision).filter(text => text !== '');
+  const holds = held.map(form.held).filter(text => text !== '');
   const rendered = raw => raw.map(form.risk).filter(text => text !== '');
   let risks = rendered(closing.risks);
   // A risk that decides the recommendation has to stay in view: it moves first,
@@ -1993,18 +2075,20 @@ function fit(closing, form, tail, where) {
   const view = {
     summary: summary.length,
     item: Infinity,
+    held: holds.length,
     fixes: Math.min(fixes.length, form.cap),
     decisions: Math.min(decisions.length, form.cap),
     risks: Math.min(risks.length, form.cap),
     pointers: true,
   };
-  const list = (values, count) => {
+  const list = (values, count, always = false) => {
     const kept = values.slice(0, count).map(text => form.cut(text, view.item, where));
     const rest = values.length - count;
-    return { kept, rest: rest > 0 && view.pointers ? form.pointer(rest, where) : null };
+    return { kept, rest: rest > 0 && (view.pointers || always) ? form.pointer(rest, where) : null };
   };
   const draw = () => form.render({
     summary: drawSummary(sections, view.summary, form.cut, where),
+    held: list(holds, view.held, true),
     fixes: list(fixes, view.fixes),
     decisions: list(decisions, view.decisions),
     risks: list(risks, view.risks),
@@ -2027,6 +2111,7 @@ function fit(closing, form, tail, where) {
     () => view.decisions > 0 && view.decisions--,
     () => view.fixes > 0 && view.fixes--,
     () => view.risks > 0 && view.risks--,
+    () => view.held > 1 && view.held--,
   ];
   for (const drop of drops) {
     while (text.length > BUDGET && drop()) text = draw();
@@ -2079,16 +2164,17 @@ function shares(lengths, room) {
 }
 
 /**
- * The plain form: the summary, then what the run fixed, the decisions and the
+ * The plain form: the summary, then the choices held for approval, what the run fixed, the decisions and the
  * risks — a heading carrying any pointer to the rest, and one item to a line
  * under it — then `Next:`.
  */
-function renderPlain({ summary, fixes, decisions, risks, tail }) {
+function renderPlain({ summary, held, fixes, decisions, risks, tail }) {
   const out = [summary];
   const list = (label, { kept, rest }) => {
     if (!kept.length && !rest) return;
     out.push(`${label}${rest ? ` ${rest}` : ''}${kept.length ? ':' : ''}`, ...kept.map(text => `- ${text}`));
   };
+  list('Held for your approval', held);
   list('Fixed by the run', fixes);
   list('Decisions', decisions);
   list('Risks', risks);
@@ -2098,14 +2184,15 @@ function renderPlain({ summary, fixes, decisions, risks, tail }) {
 
 /**
  * The driven form: one line a gate request's `context.summary` can carry. The
- * risks come ahead of the fixes and the decisions, as at the glance: they are
+ * held choices lead, then the risks come ahead of the fixes and the decisions, as at the glance: they are
  * what a reader weighs before answering. The request writer refuses a newline
  * or a double quote in a flow scalar, so every line break folds to a space and
  * every `"` becomes `'`.
  */
-function renderOneline({ summary, fixes, decisions, risks, tail }) {
+function renderOneline({ summary, held, fixes, decisions, risks, tail }) {
   const all = ({ kept, rest }) => (rest ? [...kept, rest] : kept);
   const sections = [summary];
+  if (all(held).length) sections.push(`Held: ${all(held).join('; ')}`);
   if (all(risks).length) sections.push(`Risks: ${all(risks).join('; ')}`);
   if (all(fixes).length) sections.push(`Fixed by the run: ${all(fixes).join('; ')}`);
   if (all(decisions).length) sections.push(`Decisions: ${all(decisions).join('; ')}`);

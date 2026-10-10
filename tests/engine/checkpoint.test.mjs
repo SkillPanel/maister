@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, freezePatch, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import {
   FOCUS_BUDGET, FOCUS_LINES, choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, requestOf, richPicker, unmarked,
@@ -1243,4 +1243,74 @@ test('held: many held choices are cut to one and a count, never to none; no held
   assert.ok(!moreDetails(bare).includes('Held'));
   assert.ok(!JSON.stringify(panelOfCheckpoint(bare)).includes('Held'));
   assert.ok(plainPicker(bare).question.includes('- Keep the retry limit — verification'));
+});
+
+// The plain brief's budget, with held choices: the written state, through the
+// gate-brief verb. The policy fixture classes the in-node fixture's questions;
+// a question carrying an approve triage is held under a dispatch driver.
+const HELD_POLICY = sharedPlugin({ policy: JSON.parse(fs.readFileSync(path.join(FIXTURES, 'policy/questions.json'), 'utf8')) });
+
+test('held: the plain brief trims decisions, fixes and risks first, then the held list down to one and a count, never to none', t => {
+  const engine = HELD_POLICY.engine;
+  const send = patch => {
+    const result = runScript(engine, ['write-state', `--state=${run.state}`], patch);
+    assert.equal(result.code, 0, result.stderr);
+  };
+  const run = scratch(t);
+  send(freezePatch({
+    definition: path.join(FIXTURES, 'definitions/in-node-questions.yml'),
+    orchestrator: { options: { ceiling: 'advice' }, driver: { kind: 'dispatch', cwd: '/work' } },
+  }).patch);
+  send({ nodes: { scoping: { status: 'running' } } });
+  const words = (word, n) => Array.from({ length: n }, (_, index) => `${word}${index}`).join(' ');
+  const approve = { version: 1, class: 'approve', family: 'area-family' };
+  const questions = Array.from({ length: 12 }, (_, index) => ({
+    id: `held-${index + 1}`,
+    question: `Which held-${index + 1}?`,
+    options: [{ id: 'a', label: `held-${index + 1} ${words('choice', 14)}`, recommended: true }, { id: 'b', label: 'Other' }],
+    triage: approve,
+  }));
+  send({ node_summaries: { scoping: { question_set: { questions } } } });
+  send({
+    nodes: { scoping: { status: 'completed', values: { wants_review: true, wants_notes: false } } },
+    node_summaries: {
+      scoping: {
+        summary: words('summary', 60),
+        decisions: Array.from({ length: 5 }, (_, index) => ({ decision: `decision ${index} ${words('why', 12)}`, by: 'run' })),
+        fixes_applied: Array.from({ length: 4 }, (_, index) => ({ finding: `finding ${index} ${words('f', 10)}`, change: 'changed' })),
+        risks: Array.from({ length: 5 }, (_, index) => `open: risk ${index} ${words('r', 12)}`),
+      },
+    },
+  });
+  const result = runScript(engine, ['gate-brief', `--state=${run.state}`, '--node=review-approval']);
+  assert.equal(result.code, 0, result.stderr);
+  const lines = result.stdout.split('\n');
+  const heading = lines.findIndex(line => line.startsWith('Held for your approval'));
+  assert.equal(heading, 1, 'the held list comes right after the summary');
+  let kept = 0;
+  while (lines[heading + 1 + kept]?.startsWith('- ')) kept++;
+  assert.ok(kept >= 1 && kept < 12, result.stdout);
+  assert.match(lines[heading], new RegExp(`^Held for your approval \\(\\+${12 - kept} more in [^)]+\\):$`), result.stdout);
+  assert.match(lines[heading + 1], /^- Which held-1\?: held-1 choice0 /);
+  assert.equal(lines.filter(line => line.startsWith('- ')).length, kept, 'every decision, fix and risk went before any held choice');
+  assert.ok(lines.indexOf('Decisions:') === -1 && lines.indexOf('Risks:') === -1, result.stdout);
+
+  // A Review line that leaves room for almost nothing: the held list still
+  // keeps one choice and the count of the rest.
+  const deep = Array.from({ length: 3 }, (_, index) => `${String(index).repeat(150)}/${'d'.repeat(150)}/${'e'.repeat(150)}`);
+  const artifacts = deep.map((dir, index) => {
+    const relative = `outputs/${dir}/file-${index}.md`;
+    fs.mkdirSync(path.dirname(path.join(run.dir, relative)), { recursive: true });
+    fs.writeFileSync(path.join(run.dir, relative), '# written\n');
+    return { path: relative };
+  });
+  send({ node_summaries: { scoping: { artifacts } } });
+  const tight = runScript(engine, ['gate-brief', `--state=${run.state}`, '--node=review-approval']);
+  assert.equal(tight.code, 0, tight.stderr);
+  const tightLines = tight.stdout.split('\n');
+  const at = tightLines.findIndex(line => line.startsWith('Held for your approval'));
+  assert.match(tightLines[at], /^Held for your approval \(\+11 more in [^)]+\):$/, tight.stdout);
+  assert.match(tightLines[at + 1], /^- Which held-1\?: /);
+  assert.equal(tightLines.filter(line => line.startsWith('- ')).length, 1, tight.stdout);
+  assert.ok(tight.stdout.length > 1600, 'the brief is over its budget, so only the floor of one kept the held choice');
 });
