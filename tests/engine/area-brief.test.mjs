@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, maskRoot, scratch, verb, write } from '../helpers.mjs';
 import {
   FIXED_LABELS, areaDetails, areaEntry, areaPicker, loadAreas,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/decision-areas.mjs';
@@ -16,6 +16,13 @@ import { PREVIEW_BUDGET } from '../../plugins/maister/skills/workflow-engine/scr
 // fresh file is one whose `source.sha256` still matches the markdown's bytes;
 // and every rendered string is either the file's own text or one of the fixed
 // labels the shape reference lists. Every area here is made up.
+//
+// The verb, `area-brief`, is pinned through the entry point the way a node
+// runs it: its four refusals (exit 1, the code first on stderr), its usage
+// errors (exit 2), the fallback warnings that end it at exit 0 with nothing to
+// paste, where it finds the file in each built-in that declares one, and the
+// goldens of its picker and write-up forms. `SNAPSHOT_AREAS=1` rewrites the
+// goldens: `SNAPSHOT_AREAS=1 node --test tests/engine/area-brief.test.mjs`.
 
 const AREAS = path.join(FIXTURES, 'decision-areas');
 const REFERENCE = path.join(ENGINE_DIR, 'references/decision-areas.md');
@@ -284,4 +291,256 @@ test('area-brief: every fixed label the module adds is listed in the shape refer
       }
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// the verb: a run at its convergence node
+// ---------------------------------------------------------------------------
+
+const GOLDEN = path.join(AREAS, 'golden');
+
+/** The two built-ins whose convergence asks decision areas, and where each declares the file. */
+const WORKFLOWS = {
+  research: {
+    definition: path.join(ENGINE_DIR, 'workflows/research.yml'),
+    inputs: { question: 'Where do shared calendars live?' },
+    producer: 'solution-generation',
+    node: 'solution-convergence',
+    declared: 'outputs/decision-areas.json',
+  },
+  'product-design': {
+    definition: path.join(ENGINE_DIR, 'workflows/product-design.yml'),
+    inputs: { task_description: 'Share a calendar with guests.' },
+    producer: 'idea-generation',
+    node: 'idea-convergence',
+    declared: 'analysis/decision-areas.json',
+  },
+};
+
+/**
+ * A run of `workflow` frozen and walked to its convergence node: the producer
+ * `producer`, the convergence node `asking`, and — unless `file` is false —
+ * the valid fixture at the declared path with its markdown at the task root.
+ */
+function atConvergence(t, { workflow = 'research', producer = 'completed', asking = 'running', file = true } = {}) {
+  const spec = WORKFLOWS[workflow];
+  const run = scratch(t, { type: workflow, name: `2026-10-10-${workflow}-areas` });
+  freeze(run, { definition: spec.definition, inputs: spec.inputs });
+  write(run, { nodes: { [spec.producer]: { status: producer }, [spec.node]: { status: asking } } });
+  if (file) {
+    fs.mkdirSync(path.join(run.dir, path.dirname(spec.declared)), { recursive: true });
+    fs.copyFileSync(fixture('valid.json'), path.join(run.dir, spec.declared));
+    fs.copyFileSync(fixture('source.md'), path.join(run.dir, 'source.md'));
+  }
+  return { ...run, ...spec };
+}
+
+/** `area-brief` against `run`, at its convergence node unless `node` names another. */
+function brief(run, flags, { node = run.node } = {}) {
+  return verb(['area-brief', `--state=${run.state}`, `--node=${node}`, ...flags]);
+}
+
+/** The run directory's files, each with its bytes: what a read-only verb must leave as it was. */
+function snapshotOf(dir) {
+  const files = {};
+  for (const entry of fs.readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (entry.isFile()) {
+      const file = path.join(entry.parentPath ?? entry.path, entry.name);
+      files[path.relative(dir, file)] = fs.readFileSync(file, 'utf8');
+    }
+  }
+  return files;
+}
+
+// ---------------------------------------------------------------------------
+// the refusal register: every code raised, documented and provoked
+// ---------------------------------------------------------------------------
+
+const REFUSALS = [
+  'area-brief-state-unreadable',
+  'area-brief-unknown-node',
+  'area-brief-not-running',
+  'area-brief-unknown-area',
+];
+
+test('area-brief: the refusal list is exactly the codes the verb raises, each with a recovery row in the engine skill', () => {
+  const source = fs.readFileSync(path.join(ENGINE_DIR, 'scripts/lib/area-brief.mjs'), 'utf8');
+  const raised = new Set([...source.matchAll(/refuse\('(area-brief-[a-z-]+)'/g)].map(match => match[1]));
+  assert.deepEqual([...raised].sort(), [...REFUSALS].sort());
+  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8');
+  for (const code of REFUSALS) {
+    assert.ok(source.split('*/')[0].includes(code), `the module header lists ${code}`);
+    const row = skill.split('\n').find(line => line.startsWith('|') && line.includes(`\`${code}\``));
+    assert.ok(row, `no refusal row names ${code}`);
+    assert.ok(row.length > 160, `the row for ${code} is too short to tell an operator what to do`);
+  }
+});
+
+test('provoked: each refusal exits 1 with its code first on stderr and nothing to paste', t => {
+  const cases = [
+    { code: 'area-brief-state-unreadable', setup: run => fs.unlinkSync(run.state) },
+    { code: 'area-brief-unknown-node', node: 'nowhere' },
+    { code: 'area-brief-unknown-node', node: 'convergence-approval' },
+    { code: 'area-brief-not-running', asking: 'pending' },
+    { code: 'area-brief-not-running', asking: 'completed' },
+    { code: 'area-brief-unknown-area', area: 'nowhere' },
+  ];
+  for (const { code, setup, node, asking = 'running', area = 'storage' } of cases) {
+    const run = atConvergence(t, { asking });
+    setup?.(run);
+    const label = `${code} (${node ?? asking})`;
+    const plain = brief(run, [`--area=${area}`], { node });
+    assert.equal(plain.code, 1, label);
+    assert.equal(plain.stdout, '', label);
+    assert.ok(plain.stderr.startsWith(`${code}: `), `${label}: ${plain.stderr}`);
+    const json = brief(run, [`--area=${area}`, '--json'], { node });
+    assert.equal(json.code, 1, label);
+    const reported = JSON.parse(json.stdout);
+    assert.equal(reported.ok, false, label);
+    assert.equal(reported.errors[0].code, code, label);
+    assert.ok(json.stderr.startsWith(`${code}: `), label);
+  }
+  // Area ids are judged only once the file passed: an unknown id against a
+  // missing file is the fallback, never the refusal.
+  const missing = atConvergence(t, { file: false });
+  const fallback = brief(missing, ['--area=nowhere']);
+  assert.equal(fallback.code, 0, fallback.stderr);
+  assert.match(fallback.stderr, /^warning: decision-areas-missing:outputs\/decision-areas\.json$/m);
+  // The refusal names the file's ids, in order, for the recovery.
+  const run = atConvergence(t);
+  assert.match(brief(run, ['--area=nowhere']).stderr, /storage, access, sharing-screen/);
+});
+
+test('usage: each wrong flag combination exits 2 with usage: on stderr', t => {
+  const run = atConvergence(t);
+  const patch = path.join(run.dir, '.state-patch.json');
+  const elsewhere = path.join(run.root, '.state-patch.json');
+  const cases = {
+    'no --state': ['area-brief', `--node=${run.node}`, '--area=storage'],
+    'no --node': ['area-brief', `--state=${run.state}`, '--area=storage'],
+    '--picker without --json': ['--area=storage', '--picker=rich'],
+    'an unknown --picker': ['--area=storage', '--json', '--picker=fancy'],
+    '--json with --patch-file': ['--json', `--patch-file=${patch}`],
+    'the picker form without --area': ['--json'],
+    'the picker form with two --area': ['--json', '--area=storage', '--area=access'],
+    'the write-up form without --area': [],
+    'the write-up form with two --area': ['--area=storage', '--area=access'],
+    'a patch file elsewhere': [`--patch-file=${elsewhere}`],
+    'a patch file by another name': [`--patch-file=${path.join(run.dir, 'areas.json')}`],
+    'a patch file through ..': [`--patch-file=${run.dir}${path.sep}outputs${path.sep}..${path.sep}.state-patch.json`],
+  };
+  for (const [label, flags] of Object.entries(cases)) {
+    const result = flags[0] === 'area-brief' ? verb(flags) : brief(run, flags);
+    assert.equal(result.code, 2, `${label}: ${result.stderr}`);
+    assert.match(result.stderr, /^usage: /, label);
+    assert.equal(result.stdout, '', label);
+  }
+  // Something already at the patch file's place must be a regular file.
+  fs.mkdirSync(patch);
+  assert.equal(brief(run, [`--patch-file=${patch}`]).code, 2, 'a directory');
+  fs.rmdirSync(patch);
+  fs.symlinkSync(path.join(run.dir, 'source.md'), patch);
+  const linked = brief(run, [`--patch-file=${patch}`]);
+  assert.equal(linked.code, 2, 'a link');
+  assert.match(linked.stderr, /^usage: .*symbolic link/);
+});
+
+// ---------------------------------------------------------------------------
+// the fallback: a warning, exit 0, nothing to paste
+// ---------------------------------------------------------------------------
+
+test('area-brief: a missing, invalid, stale or undeclared file warns once and the node composes the area itself', t => {
+  const cases = [
+    { warning: 'decision-areas-missing:outputs/decision-areas.json', options: { file: false } },
+    {
+      warning: 'decision-areas-invalid:outputs/decision-areas.json:not-json at (root)',
+      setup: run => fs.writeFileSync(path.join(run.dir, run.declared), '{'),
+    },
+    {
+      warning: 'decision-areas-stale:outputs/decision-areas.json:source.md',
+      setup: run => fs.appendFileSync(path.join(run.dir, 'source.md'), '\nEdited after the stamp.\n'),
+    },
+    { warning: 'decision-areas-missing:outputs/decision-areas.json:producer-not-completed', options: { producer: 'running' } },
+    // A node whose `with:` names no decision areas is not one that asks them.
+    {
+      warning: 'decision-areas-missing:not-declared',
+      setup: run => write(run, { nodes: { 'research-foundation': { status: 'running' } } }),
+      node: 'research-foundation',
+    },
+  ];
+  for (const { warning, options = {}, setup, node } of cases) {
+    const run = atConvergence(t, options);
+    setup?.(run);
+    const before = snapshotOf(run.dir);
+    const json = brief(run, ['--area=storage', '--json'], { node });
+    assert.equal(json.code, 0, `${warning}: ${json.stderr}`);
+    assert.deepEqual(JSON.parse(json.stdout), { ok: true, fallback: true, errors: [], warnings: [warning] });
+    assert.equal(json.stderr, `warning: ${warning}\n`);
+    const writeUp = brief(run, ['--area=storage'], { node });
+    assert.equal(writeUp.code, 0, warning);
+    assert.equal(writeUp.stdout, '', warning);
+    assert.equal(writeUp.stderr, `warning: ${warning}\n`);
+    const set = brief(run, [`--patch-file=${path.join(run.dir, '.state-patch.json')}`], { node });
+    assert.equal(set.code, 0, `${warning}: ${set.stderr}`);
+    assert.equal(set.stdout, '', warning);
+    assert.deepEqual(snapshotOf(run.dir), before, `${warning}: nothing was written`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// location: each built-in's declared path, through the convergence node's with:
+// ---------------------------------------------------------------------------
+
+test('area-brief: research and product design each find the file their brainstorm declares, and write nothing', t => {
+  for (const workflow of Object.keys(WORKFLOWS)) {
+    const run = atConvergence(t, { workflow });
+    const before = snapshotOf(run.dir);
+    const result = brief(run, ['--area=access', '--json', '--picker=rich']);
+    assert.equal(result.code, 0, `${workflow}: ${result.stderr}`);
+    assert.equal(result.stderr, '', workflow);
+    const picker = JSON.parse(result.stdout);
+    assert.equal(picker.ok, true, workflow);
+    assert.equal(picker.question_id, 'convergence-decisions-access', workflow);
+    assert.deepEqual(snapshotOf(run.dir), before, `${workflow}: no state, no display/next.json`);
+    assert.ok(!Object.hasOwn(before, path.join('display', 'next.json')), `${workflow}: no panel`);
+    // Only the declared path is read: the same file anywhere else is not found.
+    fs.renameSync(path.join(run.dir, run.declared), path.join(run.dir, 'decision-areas.json'));
+    const moved = brief(run, ['--area=access']);
+    assert.equal(moved.stderr, `warning: decision-areas-missing:${run.declared}\n`, workflow);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// the goldens: the picker in both profiles, an open area, the write-up
+// ---------------------------------------------------------------------------
+
+test('area-brief: the picker and write-up forms print the goldens, the write-up byte-identical to more_details', t => {
+  const run = atConvergence(t);
+  const goldens = {
+    'picker.rich.json': ['--area=storage', '--json'],
+    'picker.plain.json': ['--area=storage', '--json', '--picker=plain'],
+    'picker.rich.open.json': ['--area=access', '--json', '--picker=rich'],
+    'write-up.md': ['--area=sharing-screen'],
+  };
+  for (const [name, flags] of Object.entries(goldens)) {
+    const result = brief(run, flags);
+    assert.equal(result.code, 0, `${name}: ${result.stderr}`);
+    assert.equal(result.stderr, '', name);
+    const printed = maskRoot(result.stdout, run.root);
+    const file = path.join(GOLDEN, name);
+    if (process.env.SNAPSHOT_AREAS === '1') {
+      fs.mkdirSync(GOLDEN, { recursive: true });
+      fs.writeFileSync(file, printed);
+    }
+    assert.equal(printed, fs.readFileSync(file, 'utf8'), `${name} moved; regenerate with SNAPSHOT_AREAS=1 and review it`);
+  }
+  const rich = JSON.parse(fs.readFileSync(path.join(GOLDEN, 'picker.rich.json'), 'utf8'));
+  assert.equal(rich.picker, 'rich', 'the profile defaults to rich under --json');
+  assert.match(rich.question, /\nAlso considered — type one to choose it: Document store\.$/);
+  const plain = JSON.parse(fs.readFileSync(path.join(GOLDEN, 'picker.plain.json'), 'utf8'));
+  assert.equal(plain.options.length, 5, 'the plain profile is not capped');
+  const open = JSON.parse(fs.readFileSync(path.join(GOLDEN, 'picker.rich.open.json'), 'utf8'));
+  assert.ok(open.options.every(option => option.recommended === false));
+  const screen = JSON.parse(brief(run, ['--area=sharing-screen', '--json']).stdout);
+  assert.equal(fs.readFileSync(path.join(GOLDEN, 'write-up.md'), 'utf8'), `${screen.more_details}\n`);
 });
