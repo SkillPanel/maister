@@ -51,31 +51,42 @@ function scratchTask() {
 // the shape check
 // ---------------------------------------------------------------------------
 
+/**
+ * One fault per reason of the closed set: each a single change to a parsed
+ * copy of `valid.json`, beside the `<reason> at <path>` it must be refused
+ * with. `not-json` is the one fault that needs bytes, so it is a fixture.
+ */
+const FAULTS = [
+  ['wrong-type at areas.0.alternatives.1.pros', doc => { doc.areas[0].alternatives[1].pros = 'No new service'; }],
+  ['version at version', doc => { doc.version = 2; }],
+  ['missing-key at areas.1.recommendation', doc => { delete doc.areas[1].recommendation; }],
+  ['unknown-key at areas.1.alternatives.0.summary', doc => { doc.areas[1].alternatives[0].summary = 'A signed link.'; }],
+  ['empty at areas.0.alternatives.0.cons', doc => { doc.areas[0].alternatives[0].cons = []; }],
+  ['not-one-line at areas.2.question', doc => { doc.areas[2].question = 'Where does an owner\nshare a calendar from?'; }],
+  ['bad-id at areas.1.id', doc => { doc.areas[1].id = 'Access'; }],
+  ['duplicate at areas.2.depends_on.1', doc => { doc.areas[2].depends_on[1] = 'storage'; }],
+  ['too-few at areas.1.alternatives', doc => { doc.areas[1].alternatives.length = 1; }],
+  ['reserved-id at areas.2.alternatives.2.id', doc => { doc.areas[2].alternatives[2].id = 'more-details'; }],
+  ['unknown-alternative at areas.0.recommendation.alternative', doc => { doc.areas[0].recommendation.alternative = 'same-database'; }],
+  ['unknown-area at areas.2.depends_on.1', doc => { doc.areas[2].depends_on[1] = 'calendar'; }],
+  ['depends-order at areas.0.depends_on.0', doc => { doc.areas[0].depends_on = ['access']; }],
+  ['bad-path at source.path', doc => { doc.source.path = '../outputs/solution-exploration.md'; }],
+  ['bad-digest at source.sha256', doc => { doc.source.sha256 = doc.source.sha256.toUpperCase(); }],
+];
+
 test('area-brief: the valid file passes and every invalid file gives its one located fault', () => {
   assert.equal(areas().length, 3);
-  const cases = {
-    'not-json.json': 'not-json at (root)',
-    'wrong-type.json': 'wrong-type at areas.0.alternatives.1.pros',
-    'version.json': 'version at version',
-    'missing-key.json': 'missing-key at areas.1.recommendation',
-    'unknown-key.json': 'unknown-key at areas.1.alternatives.0.summary',
-    'empty.json': 'empty at areas.0.alternatives.0.cons',
-    'not-one-line.json': 'not-one-line at areas.2.question',
-    'bad-id.json': 'bad-id at areas.1.id',
-    'duplicate.json': 'duplicate at areas.2.depends_on.1',
-    'too-few.json': 'too-few at areas.1.alternatives',
-    'reserved-id.json': 'reserved-id at areas.2.alternatives.2.id',
-    'unknown-alternative.json': 'unknown-alternative at areas.0.recommendation.alternative',
-    'unknown-area.json': 'unknown-area at areas.2.depends_on.1',
-    'depends-order.json': 'depends-order at areas.0.depends_on.0',
-    'bad-path.json': 'bad-path at source.path',
-    'bad-digest.json': 'bad-digest at source.sha256',
-  };
-  const reasons = new Set(Object.values(cases).map(fault => fault.split(' at ')[0]));
-  assert.equal(reasons.size, 16, 'one fixture per reason of the closed set');
-  for (const [name, fault] of Object.entries(cases)) {
-    const loaded = loadAreas({ file: fixture(name), taskDir: AREAS });
-    assert.deepEqual(loaded, { warning: `decision-areas-invalid:${name}:${fault}` }, name);
+  const reasons = new Set(['not-json', ...FAULTS.map(([fault]) => fault.split(' at ')[0])]);
+  assert.equal(reasons.size, 16, 'one fault per reason of the closed set');
+  assert.deepEqual(loadAreas({ file: fixture('not-json.json'), taskDir: AREAS }),
+    { warning: 'decision-areas-invalid:not-json.json:not-json at (root)' });
+  const dir = scratchTask();
+  const file = path.join(dir, 'decision-areas.json');
+  for (const [fault, mutate] of FAULTS) {
+    const doc = JSON.parse(fs.readFileSync(fixture('valid.json'), 'utf8'));
+    mutate(doc);
+    fs.writeFileSync(file, JSON.stringify(doc, null, 2));
+    assert.deepEqual(loadAreas({ file, taskDir: dir }), { warning: `decision-areas-invalid:decision-areas.json:${fault}` }, fault);
   }
 });
 

@@ -47,8 +47,11 @@ scaffolds with `init`. Only the dashboard normalizers
 - `fixtures/decision-areas/` — decision areas as the solution brainstormer writes them, read by
   `area-brief.test.mjs`. `valid.json` is stamped with the SHA-256 of `source.md` beside it, and holds
   an area with more than three alternatives, one with no recommendation, and areas that depend on
-  earlier ones. Every other `<reason>.json` is refused for that one reason, the file named after it
-  (`not-json.json`, `unknown-key.json`, `depends-order.json`, …), sixteen in all. `golden/` pins what
+  earlier ones. The test refuses a file for each of the sixteen reasons from a table of one-line
+  changes to a parsed copy of `valid.json`; only `not-json.json` is committed as bytes, since no
+  parsed copy can fail to parse. `policy-classing.json` is not a decision-areas file: it is an
+  autonomy policy that classes research's `convergence-decisions`, for the set form's triage
+  tests. `golden/` pins what
   `area-brief` renders from `valid.json`: the picker in the `rich` profile (`picker.rich.json`, and
   `picker.rich.open.json` for the area left open), the labels-only picker (`picker.plain.json`), the
   full write-up (`write-up.md`) and the question set a cockpit is sent (`set.json`), each with the
