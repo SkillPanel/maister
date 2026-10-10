@@ -85,7 +85,12 @@ export const SEED_LINE_CAP = 60;
 // close-out contract, which is what `# closeout` renders from, so leaving it in
 // this set produced a second, useless line - `closeout_contract = 1 keys` -
 // telling a worker to bind a value no definition declares.
-const CONTROL_ARGS = new Set(['autonomy', 'statement', 'task', 'closeout_contract']);
+// `ceiling` is the autonomy ceiling, read into the envelope's own `ceiling`
+// and stated in `# task` by a line of its own.
+const CONTROL_ARGS = new Set(['autonomy', 'statement', 'task', 'closeout_contract', 'ceiling']);
+
+/** The autonomy ceiling levels, narrowest first; a value outside them renders as the first. */
+const CEILING_LEVELS = ['approve', 'advice', 'decide'];
 
 /** The input role a triage's research report carries into a dispatch. */
 const RESEARCH_ROLE = 'research';
@@ -317,6 +322,12 @@ function taskLines({ document, workflow, pluginRoot }) {
   lines.push('Write what it prints, unchanged, with your file tool to `.state-patch.json` beside that state file - never composed or edited by you, never through a heredoc or a pipe. Then make one call to the gate-request verb:');
   lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml> --patch-file=<the .state-patch.json beside it>`);
   lines.push('It writes the request file, the gate index and the pending marker together; there is no second write and the run is already suspended once it returns. Then print `GATE-PENDING: ` followed by that gate\'s own node id as the last line of the turn, and stop. Never ask a question in session.');
+  // The autonomy ceiling is recorded at the worker's own freeze, so its run
+  // starts no wider than the dispatch allows; the engine keeps it from widening.
+  if (document.ceiling !== undefined && document.ceiling !== null) {
+    const level = CEILING_LEVELS.includes(document.ceiling) ? document.ceiling : CEILING_LEVELS[0];
+    lines.push(`Record \`orchestrator.options.ceiling: ${level}\` in your freeze patch, beside the driver: it is the autonomy ceiling your dispatch carries; the run may lower it later, never raise it.`);
+  }
   // Carrier sentence (kept byte-identical for the lockstep-by-eye property with
   // the other gate carriers, but never rendered): 'ask at every gate; **pro
   // edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or
@@ -552,6 +563,8 @@ function assertEnvelope(envelope) {
   if (document.statement !== undefined && document.statement !== null && typeof document.statement !== 'string') {
     missing.push('statement must be a string when it is present');
   }
+  // `ceiling` is optional and never refused: a value outside the three levels
+  // renders as the narrowest, which is what the engine reads it as anyway.
 
   if (missing.length) {
     throw new Refusal('seed-envelope-invalid',
