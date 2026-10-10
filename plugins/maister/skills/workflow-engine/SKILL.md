@@ -956,11 +956,13 @@ reads them like any node's. A gate's values are the writer's alone: never send `
   The five keys are record-only: `prior-context` never prints them.
 - **Triage**, under a policy that classifies the gate (Step 4) and whose hash is the run's
   recorded `policy_hash`: the writer adds `triage` — `{version: 1, class, family, floor?, band?,
-  raised_by?}` — to the answer item, and one settlement item per classified value the chosen
-  continue `sets` right after it; the gate's answer is still its last decision with an `option`.
+  raised_by?}` — to the answer item, and right after it one settlement item per value the chosen
+  continue `sets`, each classed as the policy classes the value or, failing that, as it classes
+  the gate — a continue never folds its values into its one answer; the gate's answer is still
+  its last decision with an `option`.
   Send the answer only: never compose triage or a settlement item.
-- **The checkpoint.** Under the same policy, `approves` lists each classified value across the
-  gate's continues as `{node, ref, class, floor?}`, `[]` otherwise — always under the built-in
+- **The checkpoint.** Under the same policy, `approves` lists each value across the gate's
+  continues with the class it will be recorded with, as `{node, ref, class, floor?}`, `[]` otherwise — always under the built-in
   default — and `gate-brief --request` ends with the gate's `triage`. `decisions.operator` gains `actors`,
   the answers counted by actor kind (`unknown` for one with none), whenever it counts any, and
   each `not_recommended` entry its `actor_kind`.
@@ -1363,7 +1365,7 @@ re-validation through the writer.
    its entry from the answer the editor tools wrote; the provenance keys (`actor`,
    `on_behalf_of`, `policy`, `evidence`, `override_of`) copied from the request's answer block
    onto the gate's answer item where it lacks them; and, under a policy that classifies the
-   gate, that item's `triage` and one settlement item per classified value. None of that is
+   gate, that item's `triage` and one settlement item per value the continue sets. None of that is
    drift. The same write regenerates
    `gates/index.yml`, closing the answered gate's row. This is what keeps the editor-
    tool exception honest — model-authored state is accepted only after the writer has read
