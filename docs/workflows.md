@@ -389,7 +389,12 @@ A recommended answer gives its reason. Questions that stand on their own — ass
 confirm, issues to decide — come as pages of up to four, and a later page says how many are left.
 A design decision comes one area at a time, each with every alternative, its pros and cons and
 the recommendation, because a later area can depend on an earlier answer; it is never offered as
-accept-all. A question the run can already answer from its own analysis is not asked: it says the
+accept-all. Questions about one behaviour — who may deactivate a user, where the action is, what
+is stored and audited, who sees the user afterwards — come as one drafted story instead, its
+defaults filled in: accept it, accept it with the corrections the run lists, take the alternative
+story it offers where there is one, or write your own. Each story is one answer, kept as a
+requirement that the specification carries under the story's id and that the completeness check
+confirms was built. A question the run can already answer from its own analysis is not asked: it says the
 answer in one line instead ("User guide: on — asked for when the run started").
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
