@@ -973,3 +973,46 @@ test('held-approval: its answer is folded, held to its options, stamped and judg
   ok(QUESTIONS.engine, stopped, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'stop' } } });
   assert.equal(outstandingHeld(readState(stopped)).length, 1);
 });
+
+test('held-approval: run-complete refuses run-held-unapproved after the unfinished nodes and before the close-out', t => {
+  // Unfinished nodes are judged first.
+  const early = heldClosing(t, { upTo: 'tidy' });
+  ok(QUESTIONS.engine, early, { task: { status: 'completed' } });
+  assert.equal(completeRun(early).stdout, 'RUN-FAILED: run-nodes-unfinished\n');
+
+  const run = heldClosing(t, { owners: ['choosing', 'tidy'] });
+  closeRun(run);
+  const bare = completeRun(run);
+  assert.equal(bare.code, 1);
+  assert.equal(bare.stdout, 'RUN-FAILED: run-held-unapproved\n', 'judged before the close-out check');
+  assert.match(bare.stderr, /choosing: Which choosing-choice\? → choosing-choice A/);
+  assert.match(bare.stderr, /tidy: Which tidy-choice\? → tidy-choice A/);
+  const flags = publishCloseout(run);
+  assert.equal(completeRun(run, ...flags).stdout, 'RUN-FAILED: run-held-unapproved\n', 'a close-out published too early never completes the run');
+
+  // A continue approves them, and the published close-out completes the run.
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  assert.match(completeRun(run, ...flags).stdout, /(?:^|\n)RUN-COMPLETE\n$/);
+
+  // A stopped run is not judged.
+  const halted = heldClosing(t);
+  ok(QUESTIONS.engine, halted, { task: { status: 'stopped' }, nodes: { closing: { status: 'stopped' } } });
+  assert.doesNotMatch(completeRun(halted, ...publishCloseout(halted)).stdout, /run-held-unapproved/);
+});
+
+test('held-approval: the fallback\'s closing patch ends RUN-FAILED: run-held-unapproved; a terminal run resumed after a dispatch hold is briefed in session', t => {
+  const run = heldClosing(t);
+  const flags = publishCloseout(run, 'failed');
+  closeRun(run);
+  const result = completeRun(run, ...flags);
+  assert.equal(result.stdout, 'RUN-FAILED: run-held-unapproved\n');
+  assert.doesNotMatch(result.stdout, /failed-node|node \S+ failed/);
+
+  const resumed = heldClosing(t);
+  ok(QUESTIONS.engine, resumed, { orchestrator: { driver: { kind: 'terminal' } } });
+  const picker = heldBrief(resumed, '--json', '--picker=rich');
+  assert.equal(picker.code, 0, picker.stderr);
+  const shaped = JSON.parse(picker.stdout);
+  assert.equal(shaped.question, 'Approve the choices held for you, and finish the run?');
+  assert.deepEqual(shaped.options.map(each => each.id), ['continue', 'revise-choosing', 'stop', 'more-details']);
+});

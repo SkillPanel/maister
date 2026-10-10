@@ -81,6 +81,16 @@
  * before the close-out check, so a run with both defects finishes its work
  * before it publishes the close-out that says it is over.
  *
+ * WHAT A COMPLETED RUN MAY NOT LEAVE UNAPPROVED. A choice the state writer
+ * held for a person's approval is not the run's to take: `held-approval`, the
+ * checkpoint raised before the close, asks for it. A run that recorded
+ * `completed` with a held choice no approval matches is refused
+ * `run-held-unapproved`, naming each one by node, question and choice. It is
+ * judged after `run-nodes-unfinished` and before the close-out check, so a
+ * close-out published too early never ends such a run `RUN-COMPLETE`, and a
+ * dispatched run whose driver could not ask the checkpoint ends on this marker
+ * whether or not its outbox holds a close-out. Only `completed` is judged.
+ *
  * WHAT IS MISSING FROM DISK. Every ending the verb judges also reconciles what
  * the run declared against what is there: one `missing-artifact: <node> <path>`
  * line, above the marker and above a stop's notice, for each artifact a
@@ -106,7 +116,8 @@
  * nothing is checked and a warning says so rather than guessing.
  *
  * The codes this module raises: `state-missing`, `state-unreadable`,
- * `run-not-ended`, `run-nodes-unfinished` and `closeout-unpublished`. The
+ * `run-not-ended`, `run-nodes-unfinished`, `run-held-unapproved` and
+ * `closeout-unpublished`. The
  * failed ending's `run-failed` rides beside its marker and is not a refusal.
  */
 
@@ -120,6 +131,7 @@ import { gateCard } from './dashboard.mjs';
 import { atClose } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
 import { gateAnswer } from './items.mjs';
+import { HELD_APPROVAL, outstandingHeld } from './question-triage.mjs';
 import { projectRootOf } from './state.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
@@ -156,6 +168,10 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
     const close = atClose({ doc, runDir });
     if (status === 'completed' && close.owed.length) {
       throw new Refusal('run-nodes-unfinished', unfinished(state, close));
+    }
+    if (status === 'completed') {
+      const waiting = outstandingHeld(doc);
+      if (waiting.length) throw new Refusal('run-held-unapproved', unapproved(state, waiting));
     }
 
     if (scanState(raw).driverKind === 'dispatch') {
@@ -232,6 +248,21 @@ function unfinished(state, { owed, drift }) {
   return `${state} records task.status completed, but ${count} not finished: ${named.join(', ')}. ${rule} `
     + `Resume the run and run ${one ? 'it' : 'each of them'}${skipped}; then write the closing patch again and run this verb again. `
     + `A run that cannot finish ${one ? 'it' : 'them'} ends failed, or stopped with every unexecuted node, instead. Never record a node completed that did not run.`;
+}
+
+/**
+ * The held-choices refusal: each choice still waiting, as `<node>: <question> →
+ * <choice>`, and the recovery — ask the checkpoint that approves them, or,
+ * where the driver could not ask it, echo the marker as the run's ending.
+ */
+function unapproved(state, waiting) {
+  const named = waiting.map(({ node, question_id: questionId, item }) => {
+    const question = typeof item.question === 'string' && item.question.trim() !== '' ? item.question.trim() : questionId;
+    return `${node}: ${question} → ${typeof item.decision === 'string' ? item.decision : ''}`;
+  });
+  return `${state} records task.status completed, but ${waiting.length === 1 ? 'a choice the run held for approval has' : `${waiting.length} choices the run held for approval have`} no approval: ${named.join('; ')}. `
+    + `Ask ${HELD_APPROVAL} (gate-brief --node=${HELD_APPROVAL}) and record its answer, then run this verb again; a continue approves them. `
+    + `Under a driver whose request writer refused that checkpoint, this marker is the run's ending: echo it.`;
 }
 
 /** A run that cannot show its close-out, with the recovery in the message. */
