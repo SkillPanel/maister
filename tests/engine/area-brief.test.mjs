@@ -336,7 +336,7 @@ test('area-brief: every fixed label the module adds is listed in the shape refer
       for (const text of shown) {
         let rest = text;
         for (const piece of pieces) rest = rest.split(piece).join('');
-        assert.match(rest, /^[\s*\-:.,…]*$/, `${area.id} ${profile}: ${JSON.stringify(rest)} is the module's own wording`);
+        assert.match(rest, /^[\s*\-.,…]*$/, `${area.id} ${profile}: ${JSON.stringify(rest)} is the module's own wording`);
       }
     }
   }
@@ -356,6 +356,7 @@ const WORKFLOWS = {
     producer: 'solution-generation',
     node: 'solution-convergence',
     declared: 'outputs/decision-areas.json',
+    markdown: 'outputs/solution-exploration.md',
   },
   'product-design': {
     definition: path.join(ENGINE_DIR, 'workflows/product-design.yml'),
@@ -363,24 +364,34 @@ const WORKFLOWS = {
     producer: 'idea-generation',
     node: 'idea-convergence',
     declared: 'analysis/decision-areas.json',
+    markdown: 'analysis/alternatives.md',
   },
 };
 
 /**
+ * The valid fixture's areas at `run`'s declared path, stamped from the
+ * markdown the brainstorm declares beside them: `source.md`'s bytes, copied
+ * to that path, which the file's `source.path` names.
+ */
+function placeAreas(run, spec) {
+  const doc = JSON.parse(fs.readFileSync(fixture('valid.json'), 'utf8'));
+  doc.source.path = spec.markdown;
+  for (const relative of [spec.declared, spec.markdown]) fs.mkdirSync(path.join(run.dir, path.dirname(relative)), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, spec.declared), `${JSON.stringify(doc, null, 2)}\n`);
+  fs.copyFileSync(fixture('source.md'), path.join(run.dir, spec.markdown));
+}
+
+/**
  * A run of `workflow` frozen and walked to its convergence node: the producer
  * `producer`, the convergence node `asking`, and — unless `file` is false —
- * the valid fixture at the declared path with its markdown at the task root.
+ * the valid fixture's areas at the declared path, stamped from the declared markdown.
  */
 function atConvergence(t, { workflow = 'research', producer = 'completed', asking = 'running', file = true } = {}) {
   const spec = WORKFLOWS[workflow];
   const run = scratch(t, { type: workflow, name: `2026-10-10-${workflow}-areas` });
   freeze(run, { definition: spec.definition, inputs: spec.inputs });
   write(run, { nodes: { [spec.producer]: { status: producer }, [spec.node]: { status: asking } } });
-  if (file) {
-    fs.mkdirSync(path.join(run.dir, path.dirname(spec.declared)), { recursive: true });
-    fs.copyFileSync(fixture('valid.json'), path.join(run.dir, spec.declared));
-    fs.copyFileSync(fixture('source.md'), path.join(run.dir, 'source.md'));
-  }
+  if (file) placeAreas(run, spec);
   return { ...run, ...spec };
 }
 
@@ -488,7 +499,7 @@ test('usage: each wrong flag combination exits 2 with usage: on stderr', t => {
   fs.mkdirSync(patch);
   assert.equal(brief(run, [`--patch-file=${patch}`]).code, 2, 'a directory');
   fs.rmdirSync(patch);
-  fs.symlinkSync(path.join(run.dir, 'source.md'), patch);
+  fs.symlinkSync(path.join(run.dir, run.markdown), patch);
   const linked = brief(run, [`--patch-file=${patch}`]);
   assert.equal(linked.code, 2, 'a link');
   assert.match(linked.stderr, /^usage: .*symbolic link/);
@@ -506,8 +517,20 @@ test('area-brief: a missing, invalid, stale or undeclared file warns once and th
       setup: run => fs.writeFileSync(path.join(run.dir, run.declared), '{'),
     },
     {
-      warning: 'decision-areas-stale:outputs/decision-areas.json:source.md',
-      setup: run => fs.appendFileSync(path.join(run.dir, 'source.md'), '\nEdited after the stamp.\n'),
+      warning: 'decision-areas-stale:outputs/decision-areas.json:outputs/solution-exploration.md',
+      setup: run => fs.appendFileSync(path.join(run.dir, run.markdown), '\nEdited after the stamp.\n'),
+    },
+    // Fresh against the markdown it names, but that is not the one the
+    // brainstorm declares: read as stale, never briefed.
+    {
+      warning: 'decision-areas-stale:outputs/decision-areas.json:source.md:source-not-declared',
+      setup: run => {
+        const file = path.join(run.dir, run.declared);
+        const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+        doc.source.path = 'source.md';
+        fs.writeFileSync(file, JSON.stringify(doc));
+        fs.copyFileSync(fixture('source.md'), path.join(run.dir, 'source.md'));
+      },
     },
     { warning: 'decision-areas-missing:outputs/decision-areas.json:producer-not-completed', options: { producer: 'running' } },
     // A node whose `with:` names no decision areas is not one that asks them.
@@ -634,9 +657,7 @@ function drivenRun(t, { engine = ENGINE, frozenBy = engine } = {}) {
   const { patch } = freezePatch({ definition: spec.definition, inputs: spec.inputs, orchestrator: { driver: DRIVER } });
   passed(frozenBy, ['write-state', `--state=${run.state}`], patch);
   passed(engine, ['write-state', `--state=${run.state}`], { nodes: { [spec.producer]: { status: 'completed' }, [spec.node]: { status: 'running' } } });
-  fs.mkdirSync(path.join(run.dir, path.dirname(spec.declared)), { recursive: true });
-  fs.copyFileSync(fixture('valid.json'), path.join(run.dir, spec.declared));
-  fs.copyFileSync(fixture('source.md'), path.join(run.dir, 'source.md'));
+  placeAreas(run, spec);
   return { ...run, ...spec, engine, patch: path.join(run.dir, '.state-patch.json') };
 }
 
@@ -749,15 +770,56 @@ test('area-brief --patch-file on a fallback writes no patch file and prints noth
   assert.equal(fs.existsSync(run.patch), false);
 });
 
-test('area-brief --patch-file whose write fails leaves no temp file and the place untouched', t => {
+test('area-brief --patch-file whose write fails warns unwritable, writes nothing and leaves the place untouched', t => {
   const run = drivenRun(t);
   // A non-empty directory where the patch file goes: the entry point refuses
   // it as usage, so the module is called directly to reach the rename.
   const patch = path.join(run.dir, '.state-patch.json');
   fs.mkdirSync(patch);
   fs.writeFileSync(path.join(patch, 'keep'), 'kept');
-  assert.throws(() => areaBrief({ state: run.state, node: run.node, form: 'set', patchFile: patch }));
+  const result = areaBrief({ state: run.state, node: run.node, form: 'set', patchFile: patch });
+  assert.equal(result.ok, true);
+  assert.equal(result.fallback, true);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /^decision-areas-unwritable:\.state-patch\.json:E[A-Z]+$/);
+  assert.equal(Object.hasOwn(result, 'file'), false, 'nothing to print');
   assert.deepEqual(fs.readdirSync(run.dir).filter(name => name.endsWith('.tmp')), [], 'no temp file left behind');
   assert.deepEqual(fs.readdirSync(patch), ['keep']);
   assert.equal(fs.readFileSync(path.join(patch, 'keep'), 'utf8'), 'kept');
+});
+
+test('area-brief --patch-file meeting a live writer\'s temp warns unwritable through the verb, exit 0, and leaves that temp alone', t => {
+  const run = drivenRun(t);
+  const tmp = `${run.patch}.tmp`;
+  fs.writeFileSync(tmp, 'another writer');
+  const result = setOf(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.equal(result.stderr, 'warning: decision-areas-unwritable:.state-patch.json:EEXIST\n');
+  assert.equal(fs.readFileSync(tmp, 'utf8'), 'another writer');
+  assert.equal(fs.existsSync(run.patch), false);
+});
+
+test('area-brief --patch-file never writes through a link planted at its temp path', t => {
+  const run = drivenRun(t);
+  const target = path.join(run.root, 'elsewhere.txt');
+  fs.writeFileSync(target, 'untouched');
+  const tmp = `${run.patch}.tmp`;
+  fs.symlinkSync(target, tmp);
+  // A link as young as a live writer's temp is left where it is.
+  const held = setOf(run);
+  assert.equal(held.code, 0, held.stderr);
+  assert.equal(held.stderr, 'warning: decision-areas-unwritable:.state-patch.json:EEXIST\n');
+  assert.equal(fs.readFileSync(target, 'utf8'), 'untouched');
+  assert.equal(fs.existsSync(run.patch), false);
+  // One old enough to be a leftover is removed, never opened: the link goes, its target stays.
+  const old = new Date(Date.now() - 10 * 60_000);
+  fs.utimesSync(target, old, old);
+  const reclaimed = setOf(run);
+  assert.equal(reclaimed.code, 0, reclaimed.stderr);
+  assert.equal(reclaimed.stderr, '');
+  assert.equal(fs.readFileSync(target, 'utf8'), 'untouched');
+  assert.equal(written(run).questions.length, 3);
+  assert.equal(fs.existsSync(tmp), false);
 });

@@ -30,18 +30,18 @@
  *     decision-areas-missing      the file is not there
  *     decision-areas-unreadable   it exists but cannot be read (detail: the error code)
  *     decision-areas-invalid      not JSON, or the shape fails (detail: the fault)
- *     decision-areas-stale        the markdown's SHA-256 differs from the stamp
- *                                 (detail: the source path, plus `:source-unreadable`)
+ *     decision-areas-stale        the markdown's SHA-256 differs from the stamp, or
+ *                                 the file names a markdown its producer does not
+ *                                 declare (detail: the source path, plus
+ *                                 `:source-unreadable` or `:source-not-declared`)
  *
  * Each is a warning for the caller to relay, never a refusal: the node composes
  * the areas from the markdown instead.
  *
- * The fixed labels (`FIXED_LABELS`) are the only words this module adds: `Why
- * it matters:`, `Depends on:`, `Pro:`, `Con:`, `Recommended:`,
- * `(Recommended)`, `More details` and its description, `Also considered — type
- * one to choose it:`, `**Pros**`, `**Cons**`, `**Why recommended**:`, `Pros:`,
- * `Cons:`, `Choose this to see the rest.`, and the ` — ` and ` · ` separators.
- * Each area is asked and recorded as `convergence-decisions-<area id>`.
+ * The fixed labels and separators are the only words this module adds; they
+ * are listed once, in `FIXED_LABELS` below, and documented under *What the
+ * verb adds* in the reference, which a test holds the list against. Each area
+ * is asked and recorded as `convergence-decisions-<area id>`.
  *
  * Pure apart from the reads in `loadAreas`: no stdio, no writes, and warnings
  * are returned, never printed. `node:` builtins and engine libs only, Node >= 20.
@@ -51,14 +51,14 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DETAILS_CUT, MORE_DETAILS_ID, PREVIEW_BUDGET, RECOMMENDED_MARK, clip, unmarked } from './checkpoint.mjs';
+import { DETAILS_CUT, MORE_DETAILS_ID, PREVIEW_BUDGET, RECOMMENDED_MARK, clip, detailsPreview, unmarked } from './checkpoint.mjs';
 import { clipHeader } from './question-set.mjs';
 
 /** The id every area's answer is recorded under, before the area's own id. */
 export const QUESTION_PREFIX = 'convergence-decisions-';
 
 /** Why a file was refused: the reason before ` at <path>`. A closed set. */
-export const FAULT = {
+const FAULT = {
   notJson: 'not-json',
   wrongType: 'wrong-type',
   version: 'version',
@@ -77,12 +77,13 @@ export const FAULT = {
   badDigest: 'bad-digest',
 };
 
-/** The warning codes `loadAreas` returns. */
+/** The warning codes `loadAreas` returns, and the set form's own `unwritable`. */
 export const WARNING = {
   missing: 'decision-areas-missing',
   unreadable: 'decision-areas-unreadable',
   invalid: 'decision-areas-invalid',
   stale: 'decision-areas-stale',
+  unwritable: 'decision-areas-unwritable',
 };
 
 const WHY_LABEL = 'Why it matters:';
@@ -90,6 +91,7 @@ const DEPENDS_LABEL = 'Depends on:';
 const PRO_LABEL = 'Pro:';
 const CON_LABEL = 'Con:';
 const RECOMMENDED_LABEL = 'Recommended:';
+const AREA_SEPARATOR = ': ';
 const DASH = ' — ';
 const DOT = ' · ';
 const MORE_DETAILS_LABEL = 'More details';
@@ -109,7 +111,7 @@ const CONS_LABEL = 'Cons:';
 export const FIXED_LABELS = [
   WHY_LABEL, DEPENDS_LABEL, PRO_LABEL, CON_LABEL, RECOMMENDED_LABEL, RECOMMENDED_MARK.trim(),
   MORE_DETAILS_LABEL, MORE_DETAILS_DESCRIPTION, ALSO_CONSIDERED, PREVIEW_PROS, PREVIEW_CONS,
-  WHY_RECOMMENDED, PROS_LABEL, CONS_LABEL, DETAILS_CUT, DASH, DOT,
+  WHY_RECOMMENDED, PROS_LABEL, CONS_LABEL, DETAILS_CUT, AREA_SEPARATOR, DASH, DOT,
 ];
 
 /** The most alternatives the `rich` profile offers; the rest are named in the question. */
@@ -132,11 +134,13 @@ const RECOMMENDATION_KEYS = { required: ['alternative', 'reason'], optional: [] 
 
 /**
  * Read the decision areas at `file` (absolute) for the run in `taskDir`: one
- * read, the shape check, then the hash of `source.path`'s bytes against the
- * stamp. Returns `{areas}` for a fresh, valid file, else `{warning}` — never
- * both, so no area is ever taken from a file that failed.
+ * read, the shape check, then — when `sources` lists the markdown paths the
+ * producer declares — `source.path` must be one of them, and last the hash of
+ * `source.path`'s bytes against the stamp. Returns `{areas}` for a fresh,
+ * valid file, else `{warning}` — never both, so no area is ever taken from a
+ * file that failed.
  */
-export function loadAreas({ file, taskDir }) {
+export function loadAreas({ file, taskDir, sources = null }) {
   const where = relativeTo(taskDir, file);
   let text;
   try {
@@ -148,6 +152,9 @@ export function loadAreas({ file, taskDir }) {
   const judged = judgeAreas(text);
   if (judged.fault) return { warning: `${WARNING.invalid}:${where}:${judged.fault}` };
   const { source, areas } = judged.doc;
+  if (sources !== null && !sources.includes(source.path)) {
+    return { warning: `${WARNING.stale}:${where}:${source.path}:source-not-declared` };
+  }
   let bytes;
   try {
     bytes = fs.readFileSync(path.join(taskDir, ...source.path.split('/')));
@@ -180,7 +187,7 @@ class Fault extends Error {
  * Judge the file's text whole. Returns `{doc}` when it holds the version 1
  * shape, else `{fault}`: the first fault, `<reason> at <dotted.path>`.
  */
-export function judgeAreas(text) {
+function judgeAreas(text) {
   let doc;
   try {
     doc = JSON.parse(text);
@@ -368,7 +375,7 @@ function proCon(alternative) {
 
 /** The question every form opens with: the ask, why it matters, what it depends on, each alternative. */
 function questionLines(area, areas) {
-  const lines = [`${area.area}: ${area.question}`, `${WHY_LABEL} ${area.why}`];
+  const lines = [`${area.area}${AREA_SEPARATOR}${area.question}`, `${WHY_LABEL} ${area.why}`];
   const depends = dependsLine(area, areas);
   if (depends) lines.push(depends);
   for (const alternative of area.alternatives) lines.push(`${alternative.title}${DASH}${proCon(alternative)}`);
@@ -385,13 +392,6 @@ function preview(alternative, reason) {
   ];
   if (reason !== null) blocks.push(`${WHY_RECOMMENDED} ${reason}`);
   return clip(blocks.join('\n\n'), PREVIEW_BUDGET);
-}
-
-/** The write-up cut to the preview budget, the cut saying how to see the rest — as a gate's is. */
-function detailsPreview(details) {
-  if (details.length <= PREVIEW_BUDGET) return details;
-  const room = PREVIEW_BUDGET - DETAILS_CUT.length - 3;
-  return `${clip(details, room)}\n\n${DETAILS_CUT}`;
 }
 
 /**
@@ -494,7 +494,7 @@ export function areaEntry(area, areas) {
   return {
     id: `${QUESTION_PREFIX}${area.id}`,
     header: clipHeader(area.area),
-    question: `${area.area}: ${area.question}`,
+    question: `${area.area}${AREA_SEPARATOR}${area.question}`,
     why: depends ? `${area.why} ${depends}` : area.why,
     options: ordered(area).map(alternative => (alternative === recommended
       ? { id: alternative.id, label: alternative.title, description: area.recommendation.reason, recommended: true }

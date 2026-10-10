@@ -34,7 +34,9 @@
  * exactly `${<producer>.artifacts.decision_areas}`, the producer one of the
  * node's needs and `completed` in state; the path is the producer's declared
  * artifact under the run directory. Nothing is interpolated, so a producer
- * that was skipped is never read.
+ * that was skipped is never read. The file's `source.path` must be one of the
+ * producer's other declared artifacts — its markdown — or the file reads as
+ * stale with the detail `source-not-declared`.
  *
  * Checks run in one order: the state, the node, the file, then the area ids.
  * A file that cannot be used is a fallback, never a refusal: one warning,
@@ -43,6 +45,9 @@
  * nothing on stdout otherwise — so the node composes the area itself. Every
  * miss before a path is known reads `decision-areas-missing:not-declared`; a
  * producer not completed reads `decision-areas-missing:<path>:producer-not-completed`.
+ * The set form adds one more: a patch file it cannot write warns
+ * `decision-areas-unwritable:<task-relative patch path>:<error code>` and
+ * leaves no temp behind, with the same exit 0 and nothing on stdout.
  *
  * The refusals, none of them fixed by a state write; each says nothing was
  * written. The invocation is wrong: `area-brief-unknown-node` (no node of the
@@ -60,6 +65,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { Refusal, openTemp } from '../../../../lib/canonical.mjs';
 import { parse, isPlainObject } from './state-read.mjs';
 import { reread } from './gate-brief.mjs';
 import { QUESTION_PREFIX, WARNING, areaDetails, areaEntry, areaPicker, loadAreas } from './decision-areas.mjs';
@@ -70,6 +76,13 @@ const REFERENCE = /^\$\{([a-z][a-z0-9-]*)\.artifacts\.decision_areas\}$/;
 
 /** The question id both convergence nodes declare; each area's own id is it plus `-<area id>`. */
 const DECLARED_ID = QUESTION_PREFIX.replace(/-$/, '');
+
+/**
+ * The names `openTemp` refuses under. Only `tempExists` is ever raised — a
+ * live writer's temp — and it is reported as the warning's `EEXIST`, never
+ * as a refusal of this verb.
+ */
+const TEMP_CODES = { unwritable: 'decision-areas-unwritable', tempExists: 'decision-areas-unwritable' };
 
 /** Every miss before a path is known. */
 const NOT_DECLARED = `${WARNING.missing}:not-declared`;
@@ -105,7 +118,7 @@ export function areaBrief({ state, node, areas: ids = [], form, picker = 'rich',
   const runDir = path.dirname(path.resolve(state));
   const located = locate(doc, workflow, recorded, node, runDir);
   if (located.warning) return fallback(located.warning);
-  const loaded = loadAreas({ file: located.file, taskDir: runDir });
+  const loaded = loadAreas({ file: located.file, taskDir: runDir, sources: located.sources });
   if (loaded.warning) return fallback(loaded.warning);
 
   const all = loaded.areas;
@@ -124,8 +137,9 @@ export function areaBrief({ state, node, areas: ids = [], form, picker = 'rich',
 }
 
 /**
- * Where the asking node's decision areas are: `{file, relative}`, or
- * `{warning}` for the fallback. Read off the re-resolved definition, since the
+ * Where the asking node's decision areas are: `{file, relative, sources}` —
+ * `sources` the producer's other declared artifacts, the markdown the file
+ * must be stamped from — or `{warning}` for the fallback. Read off the re-resolved definition, since the
  * frozen state carries no `with:` and no declared artifacts.
  */
 function locate(doc, workflow, recorded, node, runDir) {
@@ -137,23 +151,34 @@ function locate(doc, workflow, recorded, node, runDir) {
   if (!match) return { warning: NOT_DECLARED };
   const producer = match[1];
   if (!Array.isArray(asking.needs) || !asking.needs.includes(producer)) return { warning: NOT_DECLARED };
-  const declared = byId.get(producer)?.outputs?.artifacts?.decision_areas;
+  const artifacts = byId.get(producer)?.outputs?.artifacts;
+  const declared = artifacts?.decision_areas;
   if (typeof declared !== 'string' || declared === '' || path.isAbsolute(declared) || declared.split(/[\\/]/).includes('..')) {
     return { warning: NOT_DECLARED };
   }
   const relative = declared.split(/[\\/]/).join('/');
   const status = isPlainObject(recorded[producer]) ? recorded[producer].status : undefined;
   if (status !== 'completed') return { warning: `${WARNING.missing}:${relative}:producer-not-completed` };
-  return { file: path.join(runDir, ...relative.split('/')), relative };
+  const sources = Object.entries(artifacts)
+    .filter(([key, value]) => key !== 'decision_areas' && typeof value === 'string')
+    .map(([, value]) => value.split(/[\\/]/).join('/'));
+  return { file: path.join(runDir, ...relative.split('/')), relative, sources };
 }
 
 /**
  * The driven set: every area — or only the `--area` ones, in file order — as
  * the asking node's question set, `{questions: [...]}`, written whole to the
- * patch file (temp file, then rename) so `gate-brief --request --patch-file`
- * builds the one request. No `ask`, `headline` or `default`: the request
- * generates them, the default from each recommendation. Whatever the file held
- * is replaced. Returns the file for the entry point to print.
+ * patch file so `gate-brief --request --patch-file` builds the one request.
+ * No `ask`, `headline` or `default`: the request generates them, the
+ * default from each recommendation. Whatever the file held is replaced.
+ * Returns the file for the entry point to print.
+ *
+ * The write is the engine's publish path: the temp opened exclusively — so a
+ * link planted at its name is never followed, and a live writer's temp is
+ * never touched, while one older than a minute is reclaimed — then fsynced
+ * and renamed over the patch file. A write that fails removes only the temp
+ * it created and is a fallback, `decision-areas-unwritable`, never a throw:
+ * the node composes the areas as it does when the file cannot be used.
  */
 function driven({ doc, workflow, node, all, ids, runDir, patchFile }) {
   const chosen = ids.length ? all.filter(area => ids.includes(area.id)) : all;
@@ -161,12 +186,28 @@ function driven({ doc, workflow, node, all, ids, runDir, patchFile }) {
   const warnings = classify(doc, workflow, node, questions);
   const file = patchFile ?? path.join(runDir, '.state-patch.json');
   const tmp = `${file}.tmp`;
+  let fd = null;
+  let opened = false;
   try {
-    fs.writeFileSync(tmp, `${JSON.stringify({ questions }, null, 2)}\n`, 'utf8');
+    fd = openTemp({ tmp, codes: TEMP_CODES });
+    opened = true;
+    fs.writeFileSync(fd, `${JSON.stringify({ questions }, null, 2)}\n`, 'utf8');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
     fs.renameSync(tmp, file);
   } catch (err) {
-    fs.rmSync(tmp, { force: true });
-    throw err;
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // The descriptor is abandoned either way.
+      }
+    }
+    if (opened) fs.rmSync(tmp, { force: true });
+    const code = err instanceof Refusal ? 'EEXIST' : (err?.code ?? 'error');
+    const where = path.relative(runDir, file).split(path.sep).join('/');
+    return fallback(`${WARNING.unwritable}:${where}:${code}`);
   }
   return { ok: true, file, errors: [], warnings };
 }
