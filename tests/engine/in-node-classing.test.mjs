@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, ROOT, freezePatch, readState, run as runScript, scratch, sharedPlugin, verb } from '../helpers.mjs';
-import { skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
+import { FIXTURES, ROOT, freezePatch, readState, run as runScript, scratch, sharedPlugin, umbrella, verb } from '../helpers.mjs';
+import { atClose, skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
+import { checkpointOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display-files.mjs';
+import { provenGraph } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
 import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
 import { approvalsOf, outstandingHeld } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 
@@ -725,4 +727,249 @@ test('approvals: matched by attempt; a choice held again in a later attempt wait
   ok(QUESTIONS.engine, run, { node_summaries: { 'review-approval': { summary: 'Approved.', decisions: [{ option: 'publish-draft' }] } } });
   assert.deepEqual(keyed(approvalsOf(readState(run))), [['draft', 'layout-choice', 1], ['draft', 'layout-choice', 2]]);
   assert.equal(byId(summaryOf(run, 'draft').decisions, 'layout-choice').triage.held, true);
+});
+
+// ---------------------------------------------------------------------------
+// 11. held-approval: the checkpoint a run raises before it closes with choices held
+// ---------------------------------------------------------------------------
+
+const HELD_CLOSING = path.join(FIXTURES, 'definitions/held-closing.yml');
+const APPROVE_TRIAGE = { version: 1, class: 'approve', family: 'area-family' };
+const HELD_APPROVAL_ID = 'held-approval';
+
+/** Hold one choice in the running `node`: a question carrying an approve triage, which nobody can be asked under dispatch. */
+function holdIn(run, node) {
+  const written = classing(QUESTIONS.engine, run, [], { node, questions: [{ ...labelled(`${node}-choice`), triage: APPROVE_TRIAGE }] });
+  assert.equal(written.code, 0, written.stderr);
+  assert.equal(askLine(written.stdout), 'ask: none');
+}
+
+/**
+ * `held-closing` driven by `driver`, past its one frozen gate and up to `upTo`
+ * running (`tidy` or `closing`), with a choice held in each of `owners`.
+ * `choosing` records no audit, so the sub-run is skipped.
+ */
+function heldClosing(t, { owners = ['choosing'], driver = DISPATCH, upTo = 'closing' } = {}) {
+  const run = started(t, QUESTIONS.engine, { definition: HELD_CLOSING, node: 'outline', driver });
+  ok(QUESTIONS.engine, run, { nodes: { outline: { status: 'completed' } }, node_summaries: { outline: { summary: 'Outlined the work.' } } });
+  answerGate(run, 'outline-approval', 'continue-past-outline');
+  ok(QUESTIONS.engine, run, { nodes: { choosing: { status: 'running' } } });
+  if (owners.includes('choosing')) holdIn(run, 'choosing');
+  ok(QUESTIONS.engine, run, {
+    nodes: { choosing: { status: 'completed', values: { wants_audit: false } }, audit: { status: 'skipped' }, tidy: { status: 'running' } },
+    node_summaries: { choosing: { summary: 'Chose to finish without an audit.' } },
+  });
+  if (owners.includes('tidy')) holdIn(run, 'tidy');
+  if (upTo === 'tidy') return run;
+  ok(QUESTIONS.engine, run, {
+    nodes: { tidy: { status: 'completed' }, closing: { status: 'running' } },
+    node_summaries: { tidy: { summary: 'Tidied what the run touched.' } },
+  });
+  if (owners.includes('closing')) holdIn(run, 'closing');
+  return run;
+}
+
+function heldBrief(run, ...flags) {
+  return gateBriefOf(run, HELD_APPROVAL_ID, ...flags);
+}
+
+/** run-complete through the scratch engine, with any extra flags. */
+function completeRun(run, ...flags) {
+  return runScript(QUESTIONS.engine, ['run-complete', `--state=${run.state}`, ...flags]);
+}
+
+/** Publish a close-out for dispatch d-1 in the run's scratch outbox; returns the run-complete flags that find it. */
+function publishCloseout(run, grade = 'success') {
+  const outbox = path.join(run.root, 'outbox');
+  const published = umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade, summary: 'closed' });
+  assert.equal(published.code, 0, published.stderr);
+  return [`--outbox=${outbox}`, '--dispatch-id=d-1'];
+}
+
+/** The closing patch: the closing node completed and the run with it. */
+function closeRun(run) {
+  ok(QUESTIONS.engine, run, {
+    task: { status: 'completed' },
+    nodes: { closing: { status: 'completed' } },
+    node_summaries: { closing: { summary: 'Wrote the summary.' } },
+  });
+}
+
+test('held-approval: with nothing held it is refused gate-brief-nothing-held, in every form', t => {
+  const run = heldClosing(t, { owners: [] });
+  for (const flags of [[], ['--oneline'], ['--checkpoint'], ['--request'], ['--json']]) {
+    const result = heldBrief(run, ...flags);
+    assert.equal(result.code, 1, `${flags.join(' ')}: ${result.stdout}`);
+    assert.match(result.stderr, /^gate-brief-nothing-held: Nothing is held for approval\. Nothing was written\./m);
+  }
+});
+
+test('held-approval: refused gate-brief-not-askable while another node is owed; askable while only the running closing node is', t => {
+  const early = heldClosing(t, { upTo: 'tidy' });
+  const refusedEarly = heldBrief(early);
+  refused(refusedEarly, 'gate-brief-not-askable');
+  assert.match(refusedEarly.stderr, /\btidy\b/);
+  assert.match(refusedEarly.stderr, /\bclosing\b/);
+
+  const ready = heldClosing(t);
+  const asked = heldBrief(ready);
+  assert.equal(asked.code, 0, asked.stderr);
+});
+
+test('held-approval: every form carries the held list, the stretch, the end of the run and its own progress; the rich picker names the revises it cannot list', t => {
+  const run = heldClosing(t, { owners: ['choosing', 'tidy', 'closing'] });
+  const result = heldBrief(run, '--checkpoint');
+  assert.equal(result.code, 0, result.stderr);
+  const checkpoint = JSON.parse(result.stdout);
+  assert.equal(checkpoint.kind, 'gate');
+  assert.equal(checkpoint.node, HELD_APPROVAL_ID);
+  assert.equal(checkpoint.header, 'Held for approval');
+  assert.equal(checkpoint.ask, 'Approve the choices held for you, and finish the run?');
+  assert.deepEqual(checkpoint.held.map(each => [each.node, each.question_id, each.decision]), [
+    ['choosing', 'choosing-choice', 'choosing-choice A'],
+    ['tidy', 'tidy-choice', 'tidy-choice A'],
+    ['closing', 'closing-choice', 'closing-choice A'],
+  ]);
+  assert.deepEqual(checkpoint.closed.map(each => each.node), ['choosing', 'audit', 'tidy']);
+  assert.equal(checkpoint.next.node, null);
+  assert.equal(checkpoint.next.end, true);
+  assert.deepEqual(checkpoint.progress, { checkpoint: 2, checkpoints_max: 2, node: 6, nodes_total: 6 });
+  assert.deepEqual(checkpoint.grants, {});
+  assert.deepEqual(checkpoint.approves, []);
+  assert.deepEqual(checkpoint.options.map(each => [each.id, each.effect]), [
+    ['continue', 'continue'], ['revise-choosing', 'revise'], ['revise-tidy', 'revise'], ['revise-closing', 'revise'], ['stop', 'stop'],
+  ]);
+  assert.equal(checkpoint.recommended.option, 'continue');
+  assert.equal(checkpoint.options[0].label, 'Approve and finish');
+  assert.deepEqual(checkpoint.options[1].reruns.map(each => each.node), ['choosing', 'audit', 'tidy', 'closing'], 'a revise re-runs its node and everything whose needs reach it');
+  assert.deepEqual(checkpoint.options[2].reruns.map(each => each.node), ['tidy', 'closing']);
+
+  // Its progress is the same with its own status entry recorded.
+  ok(QUESTIONS.engine, run, { nodes: { [HELD_APPROVAL_ID]: { status: 'pending' } } });
+  assert.deepEqual(JSON.parse(heldBrief(run, '--checkpoint').stdout).progress, checkpoint.progress);
+
+  const plain = heldBrief(run);
+  assert.equal(plain.code, 0, plain.stderr);
+  const lines = plain.stdout.split('\n');
+  assert.ok(lines.indexOf('Held for your approval:') > 0, plain.stdout);
+  assert.ok(lines.includes('- Which choosing-choice?: choosing-choice A (approve)'), plain.stdout);
+  assert.match(plain.stdout, /^Next: end of run$/m);
+
+  const oneline = heldBrief(run, '--oneline');
+  assert.equal(oneline.code, 0, oneline.stderr);
+  assert.match(oneline.stdout, / · Held: approve: choosing-choice → choosing-choice A; approve: tidy-choice → tidy-choice A; approve: closing-choice → closing-choice A · /);
+  assert.match(oneline.stdout, / · Next: end of run · .*Recommended: continue · Run: /);
+
+  const request = JSON.parse(heldBrief(run, '--request').stdout);
+  assert.equal(request.node, HELD_APPROVAL_ID);
+  assert.equal(request.question, 'Approve the choices held for you, and finish the run?');
+  assert.deepEqual(request.options.map(each => each.id), ['continue', 'revise-choosing', 'revise-tidy', 'revise-closing', 'stop']);
+  assert.equal(request.context.checkpoint.held.length, 3);
+
+  const rich = JSON.parse(heldBrief(run, '--json', '--picker=rich').stdout);
+  assert.deepEqual(rich.options.map(each => each.id), ['continue', 'revise-tidy', 'revise-closing', 'stop'], 'continue, the revises nearest the end, and stop');
+  assert.match(rich.question, /revise-choosing/);
+  assert.ok([...rich.header].length <= 12, rich.header);
+
+  const plainPicker = JSON.parse(heldBrief(run, '--json', '--picker=plain').stdout);
+  assert.deepEqual(plainPicker.options.map(each => each.id), ['continue', 'revise-choosing', 'revise-tidy', 'revise-closing', 'stop', 'more-details']);
+});
+
+test('held-approval: past the safety limit it offers only continue and stop, and a revise answer is refused', t => {
+  const run = heldClosing(t);
+  const history = Array.from({ length: 10 }, (_, index) => ({ option: 'revise-choosing', note: `Try again ${index + 1}`, attempt: index + 1 }));
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { decisions: history } } });
+  const checkpoint = JSON.parse(heldBrief(run, '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.options.map(each => each.id), ['continue', 'stop']);
+  assert.match(heldBrief(run).stdout, /^Next: end of run \(no revises are left at this checkpoint\)$/m);
+  assert.doesNotMatch(heldBrief(run, '--oneline').stdout, /revise:/);
+  const answer = send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'revise-choosing' } } });
+  refused(answer, 'state-gate-option-unknown');
+  assert.match(answer.stderr, /it offers continue, stop/);
+});
+
+test('held-approval: the writer records its status alone, and every reader of the frozen graph reads past it', t => {
+  const run = heldClosing(t);
+  for (const status of ['pending', 'suspended', 'completed']) {
+    ok(QUESTIONS.engine, run, { nodes: { [HELD_APPROVAL_ID]: { status } } });
+    const entry = readState(run).workflow.nodes[HELD_APPROVAL_ID];
+    assert.equal(entry.kind, 'gate');
+    assert.equal(entry.status, status);
+  }
+  assert.match(fs.readFileSync(run.state, 'utf8'), /^ {4}closing: .*\n {4}held-approval: \{kind: gate, status: completed, completed: "[^"]+"\}$/m, 'recorded after the frozen nodes, stamped like a gate');
+
+  for (const patch of [{ status: 'running' }, { status: 'pending', values: { x: true } }, { kind: 'task' }]) {
+    const result = send(QUESTIONS.engine, run, { nodes: { [HELD_APPROVAL_ID]: patch } });
+    refused(result, 'state-patch-invalid');
+    assert.match(result.stderr, /pending, suspended or completed/);
+  }
+  refused(send(QUESTIONS.engine, run, { nodes: { 'held-approvals': { status: 'pending' } } }), 'state-node-unknown');
+
+  // A run carrying the entry reads the same as one without it.
+  const bare = heldClosing(t);
+  const marked = heldClosing(t);
+  ok(QUESTIONS.engine, marked, { nodes: { [HELD_APPROVAL_ID]: { status: 'pending' } } });
+  const owedOf = each => atClose({ doc: readState(each), runDir: each.dir }).owed;
+  assert.deepEqual(owedOf(marked), owedOf(bare));
+  assert.deepEqual(checkpointOf(readState(marked), {}), checkpointOf(readState(bare), {}));
+  assert.ok(provenGraph(readState(marked).workflow, marked.dir).graph, 'the graph still proves');
+  const progressOf = each => JSON.parse(gateBriefOf(each, 'outline-approval', '--checkpoint').stdout).progress;
+  assert.deepEqual(progressOf(marked), progressOf(bare));
+  // A re-sent freeze that lacks the entry drops nothing.
+  const fresh = scratch(t);
+  const { patch: frozen } = freezePatch({ definition: HELD_CLOSING, orchestrator: { options: { ceiling: 'advice' }, driver: DISPATCH } });
+  ok(QUESTIONS.engine, fresh, frozen);
+  ok(QUESTIONS.engine, fresh, { nodes: { [HELD_APPROVAL_ID]: { status: 'pending' } } });
+  ok(QUESTIONS.engine, fresh, { workflow: frozen.workflow });
+  for (const each of [bare, marked]) closeRun(each);
+  assert.deepEqual(completeRun(marked).stdout, completeRun(bare).stdout);
+
+  // A question set's progress, under a cockpit that carries sets.
+  const asking = [];
+  for (const entry of [false, true]) {
+    const each = started(t, QUESTIONS.engine, { definition: HELD_CLOSING, node: 'outline', driver: COCKPIT });
+    if (entry) ok(QUESTIONS.engine, each, { nodes: { [HELD_APPROVAL_ID]: { status: 'pending' } } });
+    const result = brief(QUESTIONS.engine, each, { questions: [question('asked-choice')] }, '--checkpoint', 'outline');
+    assert.equal(result.code, 0, result.stderr);
+    asking.push(JSON.parse(result.stdout).progress);
+  }
+  assert.deepEqual(asking[1], asking[0]);
+});
+
+test('held-approval: its answer is folded, held to its options, stamped and judged — in session with no node entry, driven with one', t => {
+  const run = heldClosing(t);
+  const held = byId(summaryOf(run, 'choosing').decisions, 'choosing-choice');
+  refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'revise-outline' } } }), 'state-gate-option-unknown');
+  refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'more-details' } } }), 'state-gate-option-unknown');
+
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue', on_behalf_of: 'lee' } } });
+  assert.equal(Object.hasOwn(readState(run).workflow.nodes, HELD_APPROVAL_ID), false, 'an answer in session needs no node entry');
+  const [answer, approval, ...rest] = decisionsAt(run, HELD_APPROVAL_ID);
+  assert.deepEqual(rest, []);
+  assert.equal(answer.option, 'continue');
+  assert.equal(answer.decision, 'Approve and finish');
+  assert.equal(answer.by, 'operator');
+  assert.equal(typeof answer.answered_by, 'string');
+  assert.equal(answer.via, 'dispatch');
+  assert.equal(answer.on_behalf_of, 'lee');
+  assert.deepEqual(approval, approvalFor('choosing', held, answer));
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  refused(heldBrief(run), 'gate-brief-nothing-held');
+
+  // Driven: suspended through the status exception, answered on disk, judged by the write that closes its index row.
+  const driven = heldClosing(t);
+  drivenAnswer(driven, HELD_APPROVAL_ID, 'continue');
+  ok(QUESTIONS.engine, driven, {});
+  assert.equal(readState(driven).workflow.nodes[HELD_APPROVAL_ID].status, 'completed');
+  const [given, approved, ...more] = decisionsAt(driven, HELD_APPROVAL_ID);
+  assert.deepEqual(more, []);
+  assert.equal(given.option, 'continue');
+  assert.equal(approved.answered_by, 'dana');
+  assert.equal(approved.on_behalf_of, 'lee');
+  assert.deepEqual(outstandingHeld(readState(driven)), []);
+
+  // A stop approves nothing.
+  const stopped = heldClosing(t);
+  ok(QUESTIONS.engine, stopped, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'stop' } } });
+  assert.equal(outstandingHeld(readState(stopped)).length, 1);
 });

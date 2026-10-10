@@ -44,7 +44,9 @@
  *                  the revise answered without one; --oneline the
  *                  one-line fallback a request's summary carries — reads
  *                  the run, and writes only its display/next.json, the panel
- *                  an editor extension draws above the question
+ *                  an editor extension draws above the question. --node
+ *                  names a frozen gate, or held-approval: the checkpoint a
+ *                  run raises before it closes while choices are held
  *   resume-check   --state                                    JSON on stdout
  *                  (the frozen workflow's name, overlays and profile, or the
  *                  refusal for a directory the engine does not resume, a 2.x

@@ -55,6 +55,12 @@
  * named exactly `orchestrator-state.yml.tmp` because a fixed name is what a
  * permission rule or hook can match (ADR-0012).
  *
+ * One entry outside the frozen graph is accepted under `workflow.nodes`: the
+ * status of the reserved closing checkpoint `held-approval` — `pending`,
+ * `suspended` or `completed`, and nothing else — so a driver can suspend on
+ * it. Every other unknown node id is still refused `state-node-unknown`, and
+ * the readers of the frozen graph read past the entry by name.
+ *
  * Nothing about the write's own record is refused when it can be dropped:
  * what went wrong comes back as data for `workflow.mjs` to print — a
  * `writeWarnings` code such as `policy-refused:…` or
@@ -94,7 +100,12 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, classSet, classesQuestions, declaredQuestionIds, isApproval, isClassedItem, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, classSet, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalOptions, isApproval, isClassedItem, outstandingHeld } from './question-triage.mjs';
+// The revision safety limit `HELD_APPROVAL`'s options are derived under. Read
+// only inside the functions that hold an answer to those options, so the
+// import cycle with `revise.mjs`, which writes through this module, is inert.
+import { REVISION_CEILING } from './revise.mjs';
+import { lowered } from './checkpoint.mjs';
 import { canAsk } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -1838,7 +1849,9 @@ function frozenDifferences(doc, workflow) {
   const differences = [];
   const scalars = Object.keys(workflow).filter(key => key !== 'nodes' && !sameValue(workflow[key], held[key]));
   if (scalars.length) differences.push(`changes ${scalars.join(', ')}`);
-  const dropped = Object.keys(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
+  // The reserved closing checkpoint's status entry is the writer's, never the
+  // freeze's: a re-sent freeze that lacks it drops nothing.
+  const dropped = Object.keys(recorded).filter(id => id !== HELD_APPROVAL && !Object.hasOwn(workflow.nodes, id));
   if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
   const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
   if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
@@ -1905,6 +1918,17 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     if (!isPlainObject(patchEntry)) {
       throw new Refusal('state-patch-invalid', `the patch for node ${id} must be an object`);
     }
+    // The one exception: the reserved closing checkpoint, never a node of the
+    // frozen graph, keeps its status here so a driver can suspend on it.
+    if (id === HELD_APPROVAL) {
+      assertHeldApprovalEntry(patchEntry);
+      const before = Object.hasOwn(existing, id) ? existing[id] ?? {} : {};
+      if (!(regress !== null && regress.has(id))) assertForward(id, patchEntry, before);
+      const merged = stamp(id, { kind: 'gate', status: patchEntry.status }, before, now, ignored);
+      doc.setNode(id, serializeNode(id, merged, patchEntry, now));
+      changed.push(`workflow.nodes.${id}`);
+      continue;
+    }
     // The frozen node map is the run's graph, so a node it does not carry is
     // one no reader will lay out correctly: it was written, joined the
     // dashboard's phases and satisfied nothing, because no node needs it.
@@ -1942,6 +1966,24 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     doc.setNode(id, serializeNode(id, merged, supplied, now));
     changed.push(`workflow.nodes.${id}`);
   }
+}
+
+/** The statuses the reserved closing checkpoint may be recorded with: a gate's. */
+const HELD_APPROVAL_STATUSES = ['pending', 'suspended', 'completed'];
+
+/**
+ * The reserved closing checkpoint's entry, held to the one thing a write may
+ * record of it: its `status`, one of a gate's. It is recorded as
+ * `{kind: gate, status}` after the frozen nodes, stamped as any gate is, and
+ * every reader of the frozen graph reads past it by name.
+ */
+function assertHeldApprovalEntry(entry) {
+  const others = Object.keys(entry).filter(key => key !== 'status');
+  if (others.length === 0 && HELD_APPROVAL_STATUSES.includes(entry.status)) return;
+  throw new Refusal('state-patch-invalid',
+    `${HELD_APPROVAL} is the run's closing checkpoint, not a node of its frozen graph, and a write records only its status, `
+    + `which is pending, suspended or completed${others.length ? ` (this write also sends ${others.join(', ')})` : ` (this write sends ${JSON.stringify(entry.status ?? null)})`}. `
+    + 'Nothing was written. Send {"nodes":{"held-approval":{"status":"<one of them>"}}} and nothing else for it');
 }
 
 /**
@@ -2552,7 +2594,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     let entry = { ...value };
     if (kind === 'node' && classing !== null) {
       recorded ??= recordedNodes(doc);
-      const isGate = Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate';
+      const isGate = isGateSummary(recorded, key);
       if (Object.hasOwn(entry, 'asking')) {
         delete entry.asking;
         classing.notes.push(`ignored the supplied node_summaries.${key}.asking; the writer records it from the question set it classed, so no patch sets it`);
@@ -2569,7 +2611,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     }
     if (kind === 'node' && Object.hasOwn(entry, 'answer')) {
       recorded ??= recordedNodes(doc);
-      if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') entry = foldFlatAnswer(entry);
+      if (isGateSummary(recorded, key)) entry = foldFlatAnswer(entry);
       else if (isPlainObject(entry.answer)) {
         entry = foldQuestionAnswer(entry, key, runDir, heldOf(key), attemptOf(Object.hasOwn(recorded, key) ? recorded[key] : null), writeWarnings);
       }
@@ -2580,12 +2622,19 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       const gate = resolvedNode(graphOf(), key);
       if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate);
     }
+    // The reserved closing checkpoint offers what the brief derives from the
+    // state, so its answer is held to that, definition or none. A revise the
+    // reset has applied carries its attempt and is history, not an answer now.
+    if (kind === 'node' && key === HELD_APPROVAL && Array.isArray(entry.decisions)) {
+      const answers = entry.decisions.filter(item => !(isPlainObject(item) && Object.hasOwn(item, 'attempt')));
+      assertOptions(key, answers, heldApprovalGate(typedNow()));
+    }
     if (kind === 'node' && Object.hasOwn(entry, 'absent')) assertAbsent(key, entry.absent, graphOf === null ? null : graphOf());
     if (kind === 'node' && Object.hasOwn(entry, 'recommends')) assertRecommends(key, entry.recommends, graphOf === null ? null : graphOf());
     assertItems(kind === 'node' ? `node_summaries.${key}` : `${contextKey}.phase_summaries.${key}`, entry);
     if (kind === 'node' && Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);
-      if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') {
+      if (isGateSummary(recorded, key)) {
         display ??= runDir === null ? displayOf() : displayOfRun(parseState(doc.text()), runDir);
         via ??= answerVia(parseState(doc.text()));
         entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display), runDir, via);
@@ -2630,6 +2679,24 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     doc.set(at, block(key, entry, kind === 'node' ? 2 : 4));
     changed.push(at.join('.'));
   }
+}
+
+/**
+ * Whether `key`'s summary records a gate's answer: a node the run froze as a
+ * gate, or the reserved closing checkpoint, which needs no node entry.
+ */
+function isGateSummary(recorded, key) {
+  return key === HELD_APPROVAL || (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate');
+}
+
+/**
+ * The reserved closing checkpoint as `assertOptions` reads a gate: its options
+ * as the brief derives them from `doc` (`heldApprovalOptions`), revises left
+ * out once the safety limit is spent.
+ */
+function heldApprovalGate(doc) {
+  const { options } = heldApprovalOptions(doc, { ceiling: REVISION_CEILING });
+  return { options: Object.fromEntries(options.map(option => [option.id, option.effect])) };
 }
 
 /**
@@ -2762,11 +2829,15 @@ function assertRecommends(id, recommends, graph) {
  */
 function foldAnswers(decisions, gate, display) {
   const labels = isPlainObject(display?.option_labels) ? display.option_labels : {};
+  // The reserved closing checkpoint's options are the engine's, labelled as its brief labels them.
+  const labelFor = option => (gate === HELD_APPROVAL
+    ? heldApprovalLabel(option, id => lowered(titleOf(display?.titles, id)))
+    : labelOf(labels, gate, option));
   return decisions.map(decision => {
     if (!isPlainObject(decision) || typeof decision.option !== 'string') return decision;
     return {
       ...decision,
-      ...(Object.hasOwn(decision, 'decision') ? {} : { decision: labelOf(labels, gate, decision.option) }),
+      ...(Object.hasOwn(decision, 'decision') ? {} : { decision: labelFor(decision.option) }),
       ...(Object.hasOwn(decision, 'by') ? {} : { by: 'operator' }),
     };
   });
@@ -3485,7 +3556,8 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
   const typed = typedNow();
   const workflow = isPlainObject(typed.workflow) ? typed.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
-  const isGateNode = id => Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) && nodes[id].kind === 'gate';
+  // The reserved closing checkpoint sets no values and carries no gate triage of its own.
+  const isGateNode = id => id !== HELD_APPROVAL && Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) && nodes[id].kind === 'gate';
   const judged = new Set([...judgedIds].filter(isGateNode));
   if (judged.size === 0) return;
 

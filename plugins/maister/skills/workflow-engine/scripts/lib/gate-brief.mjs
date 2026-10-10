@@ -36,7 +36,10 @@
  * or a set lacking an id the classing write left to ask) and
  * `gate-brief-nothing-to-ask` (the classing write settled every question, so
  * the node carries on and asks nothing). When the node's summary records the
- * classing write's `asking`, the request carries those questions only.
+ * classing write's `asking`, the request carries those questions only. The
+ * run's closing checkpoint `held-approval` has one of its own,
+ * `gate-brief-nothing-held` (no choice waits for approval, so the run closes
+ * as usual), and reuses `gate-brief-not-askable` while another node is owed.
  *
  * Three forms, one reading. The plain form is what a user reads in session:
  * the summary, at most three fixes the run applied, three decisions and three
@@ -86,6 +89,12 @@
  * its *Done* line is then "Skipped.". Under the default nothing is held or
  * classed, and every form is byte-identical to one without these rules.
  *
+ * The closing checkpoint. `held-approval` (`HELD_APPROVAL`) is raised before
+ * a run closes while choices are held, and is never a node of the frozen
+ * graph: every reader here that enumerates the node map — `atClose`, `walk`,
+ * the progress counts — reads past its status entry by name, and its brief
+ * (`heldApprovalBrief`) derives its options from the state, not a definition.
+ *
  * Every form also returns `panel`, the glance an editor extension draws above
  * the question (`panelOf`, with links `panelFor` adds; a question set's from
  * `questionPanelOf`), which `workflow.mjs` writes to the run's
@@ -110,7 +119,7 @@ import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as ent
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
-import { isClassedItem, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isClassedItem, outstandingHeld } from './question-triage.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -211,6 +220,13 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
 
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  if (node === HELD_APPROVAL) {
+    if (questions !== undefined) {
+      return refuse('gate-brief-not-askable',
+        `--node=${node} is the run's closing checkpoint, and a checkpoint is asked from its own brief: run the verb again without --patch-file. Nothing was written`);
+    }
+    return heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask });
+  }
   if (!Object.hasOwn(recorded, node)) {
     return refuse('gate-brief-unknown-node',
       `--node=${node} names no node of this run (workflow.nodes has no "${node}"); correct the --node argument — no state write fixes this`);
@@ -443,7 +459,7 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   }
   const runDir = path.dirname(path.resolve(state));
   const { display } = reread(doc, workflow, runDir);
-  const order = Object.keys(recorded);
+  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
   const title = titleOf(display.titles, node);
   const checkpoint = questionCheckpoint({
     set,
@@ -465,6 +481,182 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   }
   if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings: [] };
   return { ok: true, request: questionRequest(checkpoint), panel, errors: [], warnings: [] };
+}
+
+/** The reserved closing checkpoint's header, as every surface but the rich picker's chip shows it. */
+const HELD_HEADER = 'Held for approval';
+
+/** Its header on the rich picker, whose chip takes `HEADER_MAX` characters. */
+const HELD_CHIP = 'Held choices';
+
+/** Its one question. */
+const HELD_ASK = 'Approve the choices held for you, and finish the run?';
+
+/** What its options do, where the shared wording would say less. */
+const HELD_CONTINUE = 'Records your approval of each held choice, then finishes the run.';
+const HELD_STOP = 'Ends the run here; the held choices stay unapproved.';
+
+/** The revises the rich picker lists beside continue and stop: its four slots, less those two. */
+const HELD_RICH_REVISES = 2;
+
+/** Its *Done* line when no node since the last checkpoint carries a summary. */
+const NOTHING_SINCE = 'Nothing recorded since the last checkpoint.';
+
+/**
+ * The brief for `HELD_APPROVAL`, the checkpoint a run raises before it closes
+ * while choices are held for a person's approval. It is never a node of the
+ * frozen graph, so nothing here reads a definition's gate: the options are the
+ * engine's own (`heldApprovalOptions`) — approve and finish, a revise for each
+ * node that holds a choice, stop — and the stretch is every node recorded
+ * since the last checkpoint answered.
+ *
+ * Askable only when the run owes nothing else — or owes only a running node no
+ * frozen node needs, the closing node while it runs (`heldApprovalBlockers`).
+ * Two refusals: `gate-brief-nothing-held`, when no choice waits, and
+ * `gate-brief-not-askable`, naming what is still owed.
+ *
+ * Every form a gate's brief has, from the same checkpoint: its progress is the
+ * frozen gates' count plus one, it leads to the end of the run, and it grants
+ * and approves nothing by policy. The rich picker has four slots, so with more
+ * than two nodes holding choices it lists continue, the revises nearest the
+ * end and stop, and its question names the rest.
+ */
+function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask }) {
+  const held = heldOf(doc);
+  if (!held.length) {
+    return refuse('gate-brief-nothing-held',
+      'Nothing is held for approval. Nothing was written. Publish the close-out when the run is dispatched, '
+      + 'write the closing patch and run run-complete');
+  }
+  const runDir = path.dirname(path.resolve(state));
+  const blockers = heldApprovalBlockers(doc, atClose({ doc, runDir }).owed);
+  if (blockers.length) {
+    return refuse('gate-brief-not-askable',
+      `--node=${HELD_APPROVAL} is asked once nothing but the running closing node is left, and ${andList(blockers)} `
+      + `${blockers.length === 1 ? 'is' : 'are'} still owed. Nothing was written. Finish ${blockers.length === 1 ? 'it' : 'them'} first, `
+      + 'then ask it from the closing node, before its close-out');
+  }
+
+  const current = reread(doc, workflow, runDir);
+  const warnings = [];
+  if (current.drift) {
+    warnings.push({
+      code: 'gate-brief-graph-drift',
+      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown`,
+    });
+  }
+  const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
+  const { titles } = current.display;
+  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const gateId = id => isGate(recorded, byId, id);
+
+  // The stretch: every node recorded since the last checkpoint answered.
+  const answered = order.filter(id => gateId(id) && entryOf(recorded, id).status === 'completed').at(-1);
+  const since = answered === undefined ? order : order.slice(order.indexOf(answered) + 1);
+  const ids = since.filter(id => !gateId(id) && (entryOf(recorded, id).status ?? 'pending') !== 'pending');
+  const closing = (ids.length ? closingStretch(doc, recorded, ids, [], titles, true) : null) ?? {
+    id: HELD_APPROVAL,
+    entries: [{ id: HELD_APPROVAL, summary: NOTHING_SINCE, headline: null, fixes: [], decisions: [], risks: [], skipped: true }],
+    sections: [{ title: null, text: NOTHING_SINCE }],
+    fixes: [],
+    decisions: [],
+    risks: [],
+  };
+
+  // The options, and what each revise re-runs: its node and every frozen node
+  // whose needs reach it, in frozen order.
+  const derived = heldApprovalOptions(doc, { ceiling: REVISION_CEILING });
+  const labels = Object.fromEntries(derived.options.map(option => [option.id, heldApprovalLabel(option.id, id => lowered(titleOf(titles, id)))]));
+  const options = Object.fromEntries(derived.options.map(option => [option.id, option.effect === 'revise' ? { effect: 'revise', reruns: option.reruns } : { effect: option.effect }]));
+  const edges = order.map(id => ({ id, needs: needsOf(recorded, byId, id) }));
+  const sources = summarySources(doc);
+  const revisions = {
+    revision: derived.revision,
+    spent: derived.spent,
+    options: derived.options.filter(option => option.effect === 'revise').map(option => {
+      const reach = downstreamOf(edges, option.reruns);
+      const work = order.filter(id => (id === option.reruns || reach.has(id)) && !gateId(id));
+      return {
+        id: option.id,
+        reruns: option.reruns,
+        work,
+        history: revisedSoFar(derived.revision),
+        description: `Re-run ${andList(work.map(id => titleOf(titles, id)))} with your note, then ask again.${revisedSoFar(derived.revision)}`,
+        suggestions: suggestionsFor(sources, [...work].reverse()),
+      };
+    }),
+  };
+
+  const walked = { ok: true, next: null, skipped: [], waiting: [] };
+  const display = { ...current.display, option_labels: { ...current.display.option_labels, [HELD_APPROVAL]: labels } };
+  const built = buildCheckpoint({
+    doc, runDir, node: HELD_APPROVAL, recorded, byId, titles, display, closing, ids, gateNode: { ask: HELD_ASK }, options, walked,
+    recommended: 'continue', revisions, gateId, held, approves: [],
+  });
+  const gates = order.filter(gateId).length + 1;
+  const checkpoint = {
+    ...built,
+    header: HELD_HEADER,
+    progress: { ...built.progress, checkpoint: gates, checkpoints_max: gates },
+    recommended: { option: 'continue', reason: `${held.length} ${held.length === 1 ? 'choice waits' : 'choices wait'} for your approval` },
+    options: built.options.map(option => {
+      if (option.effect === 'continue') return { ...option, consequence: HELD_CONTINUE };
+      if (option.effect === 'stop') return { ...option, consequence: HELD_STOP, not_run: { next: null, remaining: 0 } };
+      return option;
+    }),
+    grants: {},
+  };
+
+  let panel = null;
+  try {
+    panel = panelFor(HELD_APPROVAL, checkpoint, runDir);
+  } catch {
+    panel = null;
+  }
+  const next = nextLine(walked, titles);
+  if (form === 'oneline') {
+    const offered = revisions.spent ? [] : revisions.options.map(each => `revise: ${each.id} reruns=${each.reruns} revision=${revisions.revision}/${REVISION_CEILING}`);
+    const tail = [next, ...offered, 'Recommended: continue', runLine(doc, runDir)];
+    return { ok: true, text: fit(closing, DRIVEN, tail, pointerOf(doc, runDir), held), panel, errors: [], warnings };
+  }
+  if (form === 'plain') {
+    const review = reviewLine(doc, runDir, ids, byId);
+    const tail = [`${readableNext(walked, titles, gateId)}${derived.spent ? CEILING_REACHED : ''}`, ...(review ? [review] : [])];
+    return { ok: true, text: fit(closing, READABLE, tail, placeOf(doc, runDir), held), panel, errors: [], warnings };
+  }
+  if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings };
+  if (form === 'request') {
+    const asked = reask === null || reask === undefined ? null
+      : checkpoint.options.find(option => option.id === reask && option.effect === 'revise') ?? null;
+    if (reask !== null && reask !== undefined && asked === null) {
+      const revises = checkpoint.options.filter(option => option.effect === 'revise').map(option => option.id);
+      return refuse('gate-brief-reask-not-revise',
+        `--reask=${reask} is not a revise option this checkpoint offers (${revises.length ? revises.join(', ') : 'it offers none'}); `
+        + 'correct the --reask argument to the revise the operator chose — no state write fixes this', warnings);
+    }
+    const oneline = fit(closing, DRIVEN, [next, 'Recommended: continue', runLine(doc, runDir)], pointerOf(doc, runDir), held);
+    return { ok: true, request: requestOf(checkpoint, oneline.trimEnd(), asked), panel, errors: [], warnings };
+  }
+  let shaped;
+  if (picker === 'plain') shaped = plainPicker(checkpoint);
+  else {
+    // Four slots: continue, the revises nearest the end, stop; the question names the rest.
+    const revises = checkpoint.options.filter(option => option.effect === 'revise');
+    const listed = revises.slice(-HELD_RICH_REVISES);
+    const rest = revises.slice(0, Math.max(0, revises.length - HELD_RICH_REVISES));
+    shaped = richPicker({ ...checkpoint, options: checkpoint.options.filter(option => option.effect !== 'revise' || listed.includes(option)) });
+    if (rest.length) {
+      shaped.question = `${shaped.question} Also offered, not listed: ${rest.map(option => `${option.label} (${option.id})`).join(', ')}; name one to choose it.`;
+    }
+  }
+  return {
+    ok: true,
+    picker: { picker, ...shaped, header: picker === 'plain' ? HELD_HEADER : HELD_CHIP },
+    more_details: moreDetails(checkpoint),
+    panel,
+    errors: [],
+    warnings,
+  };
 }
 
 /** How many files the `Review:` line names before it stops. */
@@ -909,7 +1101,10 @@ const KEEPS_MAX = 3;
  */
 function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [] }) {
   const title = id => titleOf(titles, id);
-  const order = Object.keys(recorded);
+  // The frozen nodes alone: the reserved closing checkpoint's status entry is
+  // never counted, and it stands after them all.
+  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const at = order.includes(node) ? order.indexOf(node) : order.length;
   const sources = summarySources(doc);
   let truncated = false;
 
@@ -1004,9 +1199,9 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
 
   // The options, with what choosing each one does.
   const labels = display.option_labels;
-  const later = order.slice(order.indexOf(node) + 1).filter(id => !gateId(id)
+  const later = order.slice(at + 1).filter(id => !gateId(id)
     && (entryOf(recorded, id).status ?? 'pending') === 'pending' && !(walked?.skipped ?? []).includes(id));
-  const keeps = [...review.map(each => each.path), ...earlierFiles(doc, runDir, order.slice(0, order.indexOf(node)).filter(id => !ids.includes(id)))]
+  const keeps = [...review.map(each => each.path), ...earlierFiles(doc, runDir, order.slice(0, at).filter(id => !ids.includes(id)))]
     .filter((file, index, all) => all.indexOf(file) === index)
     .slice(0, Math.max(review.length, KEEPS_MAX));
   const revise = new Map(revisions.options.map(each => [each.id, each]));
@@ -1067,7 +1262,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     header: headerOf(display, node, closing.id),
     ask: askOf(gateNode?.ask, title(closing.id)),
     headline: headline || null,
-    progress: { checkpoint: gates.indexOf(node) + 1, checkpoints_max: gates.length, node: order.indexOf(node) + 1, nodes_total: order.length },
+    progress: { checkpoint: gates.indexOf(node) + 1, checkpoints_max: gates.length, node: Math.min(at + 1, order.length), nodes_total: order.length },
     next,
     review,
     closed: closing.entries.map(entry => ({ node: entry.id, title: title(entry.id), headline: entry.skipped ? null : entryHeadline(entry) || null, summary: entry.summary })),
@@ -1527,7 +1722,8 @@ function list(value) {
  * is next whatever its guard reads.
  */
 export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, sets = null }) {
-  const nodes = graph?.nodes ?? [];
+  // The reserved closing checkpoint is never a node of the graph walked.
+  const nodes = (graph?.nodes ?? []).filter(entry => entry.id !== HELD_APPROVAL);
   const byId = new Map(nodes.map(entry => [entry.id, entry]));
   const downstream = downstreamOf(nodes, gate);
   // The answer simulated: a continue option that sets the gate's values walks
@@ -1767,7 +1963,8 @@ const ENDED = new Set([...ENDED_OK, ...ENDED_BADLY]);
 export function atClose({ doc, runDir }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
-  const ids = Object.keys(recorded);
+  // The reserved closing checkpoint is judged by its own rules, never here.
+  const ids = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
   if (!ids.length) return { owed: [], graph: null, drift: false };
 
   const current = reread(doc, workflow, runDir);

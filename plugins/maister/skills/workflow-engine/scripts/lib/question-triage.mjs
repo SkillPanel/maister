@@ -32,6 +32,13 @@
  *   approval yet, and every approval, in frozen node order.
  * - `heldApprovalOptions(doc, {ceiling})` — the options `HELD_APPROVAL`
  *   offers, revises left out once the safety limit is spent.
+ * - `heldApprovalLabel(option, title)` — the words one of those options is
+ *   shown and recorded by.
+ * - `heldApprovalBlockers(doc, owed)`, `heldApprovalCurrent(doc, owed)`,
+ *   `heldApprovalFolded(doc)` — when `HELD_APPROVAL` is askable, when it is
+ *   the run's current checkpoint, and when a driven answer to it has been
+ *   folded into the state. `owed` is what the run still owes at its close
+ *   (`atClose` in `gate-brief.mjs`), passed in so this module stays pure.
  *
  * Pure apart from the one companion read in `declaredQuestionIds`: no stdio,
  * no writes, and nothing raised — faults are returned as data.
@@ -345,4 +352,58 @@ export function heldApprovalOptions(doc, { ceiling } = {}) {
       { id: 'stop', effect: 'stop' },
     ],
   };
+}
+
+/** The words `HELD_APPROVAL`'s continue and stop are shown and recorded by. */
+const HELD_LABELS = { continue: 'Approve and finish', stop: 'Stop' };
+
+/**
+ * The label of one of `HELD_APPROVAL`'s options: "Approve and finish", "Stop",
+ * or "Revise <step>" for a `revise-<node>`, the step named by `title(node)`.
+ * Any other option reads as its id.
+ */
+export function heldApprovalLabel(option, title = id => id) {
+  if (Object.hasOwn(HELD_LABELS, option)) return HELD_LABELS[option];
+  if (typeof option === 'string' && option.startsWith(REVISE_PREFIX)) return `Revise ${title(option.slice(REVISE_PREFIX.length))}`;
+  return String(option);
+}
+
+/**
+ * The owed nodes that keep `HELD_APPROVAL` from being asked, by id in the order
+ * given: every entry of `owed` but a `running` node no frozen node needs — the
+ * closing node, while it runs. Empty when it is askable.
+ */
+export function heldApprovalBlockers(doc, owed) {
+  const nodes = isMap(doc?.workflow?.nodes) ? doc.workflow.nodes : {};
+  const needed = new Set(Object.entries(nodes)
+    .filter(([id, entry]) => id !== HELD_APPROVAL && isMap(entry) && Array.isArray(entry.needs))
+    .flatMap(([, entry]) => entry.needs.map(String)));
+  return (Array.isArray(owed) ? owed : [])
+    .filter(each => !(each.status === 'running' && !needed.has(each.id)))
+    .map(each => each.id);
+}
+
+/**
+ * Whether `HELD_APPROVAL` is the run's current checkpoint: no other gate is
+ * pending on a driver (`gate_pending` null, or naming it), it is askable
+ * (`heldApprovalBlockers`), and held items are outstanding — so no continue
+ * has approved them since they were recorded.
+ */
+export function heldApprovalCurrent(doc, owed) {
+  const pending = doc?.orchestrator?.gate_pending;
+  const free = pending === null || pending === undefined || (isMap(pending) && pending.node === HELD_APPROVAL);
+  return free && heldApprovalBlockers(doc, owed).length === 0 && outstandingHeld(doc).length > 0;
+}
+
+/**
+ * Whether a driven answer to `HELD_APPROVAL` has been folded into the state:
+ * the latest decision under `node_summaries.held-approval` names an option and
+ * carries no `attempt` — a revise the reset has applied carries one. Read off
+ * the summary, never a node status.
+ */
+export function heldApprovalFolded(doc) {
+  const own = doc?.node_summaries?.[HELD_APPROVAL];
+  const answers = isMap(own) && Array.isArray(own.decisions) ? own.decisions.filter(item => isMap(item) && typeof item.option === 'string') : [];
+  const latest = answers.at(-1);
+  return latest !== undefined && !Object.hasOwn(latest, 'attempt');
 }
