@@ -1447,8 +1447,9 @@ function classOf(item) {
 /**
  * What the autonomy policy says of this gate: its `triage` (null when the
  * policy does not class it), the `approves` entries — one `{node, ref, class,
- * floor?}` per value key a continue sets that the policy classes, in the
- * options' order, each key once — whether the policy is the one the run
+ * floor?}` per value key a continue sets, classed as the policy classes the
+ * value or else as it classes the gate, in the options' order, each key once
+ * — whether the policy is the one the run
  * recorded at its freeze (`matches`), and the loader's own warnings. A run
  * that recorded no hash never matches.
  */
@@ -1456,17 +1457,19 @@ function policyReading(doc, workflowName, node, options) {
   const { policy, hash, warnings } = loadPolicy();
   const recorded = isPlainObject(doc.orchestrator) ? doc.orchestrator.policy_hash : undefined;
   const ask = { policy, workflow: workflowName, id: node };
+  const gate = triageFor({ ...ask, kind: 'gate' });
   const approves = [];
   const seen = new Set();
   for (const [, option] of continuesOf(options)) {
     for (const key of Object.keys(setsOf(option) ?? {})) {
       if (seen.has(key)) continue;
       seen.add(key);
-      const triage = triageFor({ ...ask, kind: 'value', key });
+      // A value the policy classes not is recorded with the gate's class (the writer's `judgeGates`).
+      const triage = triageFor({ ...ask, kind: 'value', key }) ?? gate;
       if (triage !== null) approves.push({ node, ref: key, class: triage.class, ...(triage.floor ? { floor: triage.floor } : {}) });
     }
   }
-  return { triage: triageFor({ ...ask, kind: 'gate' }), approves, matches: typeof recorded === 'string' && recorded === hash, warnings };
+  return { triage: gate, approves, matches: typeof recorded === 'string' && recorded === hash, warnings };
 }
 
 /**

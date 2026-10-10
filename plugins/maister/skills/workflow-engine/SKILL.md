@@ -399,8 +399,9 @@ Never send the document through a heredoc, `echo`, a pipe or `< file`: an agent
 host's shell-safety check refuses a JSON heredoc outright — braces beside quotes —
 and allow-listing the script does not lift it, while a file needs no quoting in any
 shell, PowerShell included. And the file is written by the file tool, never by the
-shell. The one exception is `area-brief --patch-file`, which writes a decision-area question
-set there itself; it is the engine's own write, so no edit rule is involved.
+shell. The exceptions are `area-brief --patch-file` and `finding-brief --patch-file`, which
+write a question set there themselves; each is the engine's own write, so no edit rule is
+involved.
 
 This is not style: a permission rule or hook can recognise this plugin's own call only
 in this exact form — the command by its text, the patch file by its name inside a run —
@@ -423,6 +424,7 @@ One verb, one call. When a step needs two verbs, that is two calls.
 | `prior-context` | `--state`, optional `--background` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt; `--background` frames them as background for a document written for end users, to stay consistent with rather than reproduce — reads the run, writes nothing |
 | `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=rich` — the profile the asking tool takes — `--checkpoint`, `--request` or `--oneline`; or `--node` (a running node) with `--checkpoint` or `--request` and `--patch-file` — the node's question set as JSON in the patch file | Every form reads the run and writes no state: its one write is the run's `display/next.json`, the panel an editor extension draws above the question (§ Gates). With no form, the brief as text: the summary of each node the gate closes, at most three fixes the run applied, three decisions and three risks by their lead sentences, the `Next:` line — one per continue, named by its label and in the options' order, when the gate's continues set its values — and the `Review:` line, within 1,600 characters. `--checkpoint` prints the **checkpoint**, the one structured object every other form projects from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed, fixes, decisions, risks, recommended, options, grants, approves, run, truncated}`. `fixes` lists what the closing nodes fixed without asking, each `{finding, change, node}`, apart from the decisions; `held`, after `fixes` and present only when a choice waits, lists every choice held for approval across the run, each `{node, step, question_id, question, decision, class, floor?, rationale?, no_choice?}` — `step` the title of the step that holds it, `no_choice` on one with no choice taken — and every form shows it first, naming that step, and every continue's consequence and label say it approves them — and that one with no choice stays held for a revise, which the checkpoint recommends when one of its revises re-runs that step; `decisions` is grouped by who settled them (`run`, `audit`, `default`, and `operator` as `{count, actors, not_recommended}` — `actors` the answers counted by actor kind, present only when `count` is above zero, and each `not_recommended` entry carrying its `actor_kind`), `risks` by tag, and each option carries its `consequence` — a continue that sets gate values also `sets` and its own `next`, walked on its answer (the top-level `next` is the recommended continue's), and the recommended continue the `reason` a closing node's `recommends` gave, a revise also `reruns`, `revision` and `suggestions`, a stop also `keeps` and `not_run`; `grants` maps each option that declares grants to their names, `{}` when none does, `approves` lists the classified values the gate's continues set, `[]` when the policy classes none, and both pickers and `--oneline` say them in words. `--json` returns the in-session picker projected from it: `{ok, picker, question, header, options[{id, label, description, recommended, preview}], details, more_details, errors, warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The `rich` profile's question is the one-line ask — the finished work, never the destination — its header the short chip, and every option has a `preview`; the `plain` profile's question is the glance followed by the ask, its header the title of the step the gate closes, and its options are titles that carry their consequence; its text keeps the code of inline code but drops the backticks, which a labels-only tool prints as typed (`more_details` keeps them, written out as markdown). Both profiles end with the More details option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.` (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`, `reruns`, `revision`, `suggestions[{label, description, note, recommended}]` — none of them recommended — and `note_question`, the note question built for the profile: `{header, question, multi_select, options}`, its `options` empty when there are fewer than two suggestions, its question then asking for the note typed. `--request` prints the whole driven gate request as JSON: `{node, kind, question, context: {summary, artifacts, checkpoint}, options, multi_select}`, ending with `triage` when the applied policy classes the gate and its hash is the run's `policy_hash` (§ Gates), each revise suggestion as `{label, note, recommended}`; with `--reask=<revise option>` its question opens with a sentence saying that option needs a note, every option still offered — the request a driven revise that came without its note is asked again with (§ Revising at a gate), never beside `--patch-file`. With a question set (*In-node questions*), `--checkpoint` prints `{version, kind: question, node, header, ask, headline, progress, questions, run, truncated}` and `--request` a `kind: question` request whose question and options repeat the first question's, with every question under `questions` and the checkpoint under `context.checkpoint`; every question a request carries is one line with no `"`, a line break folded to a space and a double quote turned single, the checkpoint keeping the text as written; the file is read and kept, for the request to be written over it. `--oneline` is that request's one-line summary: every risk prefixed by its tag, then every fix under `Fixed by the run:`, then every decision by who settled it, the `Next:` line with every skipped node — one `Next (<option id>):` line per continue, in the options' order, when the gate's continues set its values — one `revise: <id> reruns=<node> revision=<n>/10` section per revise option still offered, `Recommended: <option id>` and `Run: <dir> · Dashboard: <path>`, all within the same budget. `--node=held-approval` briefs the run's closing checkpoint, in every form (*The ready set*). When the asking node recorded `asking` (*When the policy classes a question*), a question set's `--checkpoint` and `--request` carry only those questions |
 | `area-brief` | `--state`, `--node` (the convergence node that is asking), and one form: `--area=<id>` with `--json` and `--picker=rich` — the profile the asking tool takes, `rich` by default — or `--area=<id>` alone, or `--patch-file=<run>/.state-patch.json` with `--area` repeated or omitted | One decision area of the brainstorm, rendered from the file its brainstorm wrote (*Decision areas from the brainstorm*). `--json` prints the picker in the field shape of `gate-brief --json` — `{ok, picker, question, header, options, details, more_details, question_id, errors, warnings}`, the answer recorded under `question_id`, `convergence-decisions-<area id>`; `--area` alone prints the area's full write-up as markdown, the text More details shows; `--patch-file` writes every area, or the named ones, as a driven question set to the patch file and prints its path. A file it cannot use is one `warning: decision-areas-…` line on stderr, exit `0` and nothing to paste — `{ok: true, fallback: true}` under `--json` — and the node composes the area itself. Reads the run; writes no state and no `display/next.json` |
+| `finding-brief` | `--state`, `--node` (the reviewing node that is asking), `--findings-file=<file in the run>`, and optionally `--patch-file=<run>/.state-patch.json` | The node's findings that need a decision as one question set, `{questions}`, one question per finding (*Findings that need a decision*): printed as JSON, or with `--patch-file` written to the patch file and its path printed. The node's prose must declare `<node>-findings`. A file it cannot use is one `warning: finding-list-…` line on stderr, exit `0` and nothing to paste, and the node composes the questions itself. Never classes; reads the run and writes no state |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
@@ -956,11 +958,13 @@ reads them like any node's. A gate's values are the writer's alone: never send `
   The five keys are record-only: `prior-context` never prints them.
 - **Triage**, under a policy that classifies the gate (Step 4) and whose hash is the run's
   recorded `policy_hash`: the writer adds `triage` — `{version: 1, class, family, floor?, band?,
-  raised_by?}` — to the answer item, and one settlement item per classified value the chosen
-  continue `sets` right after it; the gate's answer is still its last decision with an `option`.
+  raised_by?}` — to the answer item, and right after it one settlement item per value the chosen
+  continue `sets`, each classed as the policy classes the value or, failing that, as it classes
+  the gate — a continue never folds its values into its one answer; the gate's answer is still
+  its last decision with an `option`.
   Send the answer only: never compose triage or a settlement item.
-- **The checkpoint.** Under the same policy, `approves` lists each classified value across the
-  gate's continues as `{node, ref, class, floor?}`, `[]` otherwise — always under the built-in
+- **The checkpoint.** Under the same policy, `approves` lists each value across the gate's
+  continues with the class it will be recorded with, as `{node, ref, class, floor?}`, `[]` otherwise — always under the built-in
   default — and `gate-brief --request` ends with the gate's `triage`. `decisions.operator` gains `actors`,
   the answers counted by actor kind (`unknown` for one with none), whenever it counts any, and
   each `not_recommended` entry its `actor_kind`.
@@ -1363,7 +1367,7 @@ re-validation through the writer.
    its entry from the answer the editor tools wrote; the provenance keys (`actor`,
    `on_behalf_of`, `policy`, `evidence`, `override_of`) copied from the request's answer block
    onto the gate's answer item where it lacks them; and, under a policy that classifies the
-   gate, that item's `triage` and one settlement item per classified value. None of that is
+   gate, that item's `triage` and one settlement item per value the continue sets. None of that is
    drift. The same write regenerates
    `gates/index.yml`, closing the answered gate's row. This is what keeps the editor-
    tool exception honest — model-authored state is accepted only after the writer has read
@@ -1773,6 +1777,50 @@ Its refusals name no state write and leave nothing written:
 | `area-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
 | `area-brief-unknown-area` | An `--area` id is not in the file; it is judged only once the file passed its checks. Nothing was written. Take the area ids, in order, from the file named in the node's `with:` — the message lists them — and run the verb again. |
 
+### Findings that need a decision
+
+A review step — the specification audit, the verification fix loop — asks each finding that
+needs a person as its own question, after the fixes it makes without asking. The node writes the
+findings to a JSON file in the run (its reviewer returns them in this shape) and builds the set
+with `finding-brief`:
+
+```
+{"findings": [{"id": "empty-upload", "severity": "critical",
+  "title": "Server crashes on an empty upload",
+  "evidence": "src/upload.ts:42 reads body.length of undefined",
+  "options": [{"label": "Guard the empty body", "description": "Return 400 before reading it"}],
+  "recommended": 0, "reason": "One guard closes the crash"}]}
+```
+
+`id` is kebab-case and unique; `severity` one of critical, high, medium, low, warning, info;
+`options` one to three, the reviewer's proposed change first, then the alternatives it names;
+`recommended` an option's index, `"accept"`, or null; `reason` required with a recommendation.
+Unknown keys are refused. Each finding becomes the question `<node>-findings-<id>`, most severe
+first: its id in words as the header, the title in the question, the severity and evidence as its
+`why`, the full write-up as `details`, the reviewer's options and then **"Accept the risk and list
+it"**, the recommended one carrying its reason. The node's prose declares `<node>-findings`, so a
+policy classes every finding through that one id.
+
+From there the set is any other in-node set: the classing write when the run classes questions,
+then the asking — paged in session, one request under a cockpit with question sets — and the fold,
+one decision per finding. What each answer does is the node's: a chosen change is applied, an
+accepted risk is a `tradeoff` risk, a finding nobody could be asked about stays an `open` risk
+unless the policy settled, defaulted or held it, and a held choice goes on provisionally until a
+continue approves it.
+
+A file the verb cannot use is a fallback, never a refusal — compose the same questions from the
+reviewer's findings and say which warning made you: `finding-list-missing:<path>` (no file, or
+`:outside-run`), `finding-list-invalid:<path>:<where>` (not JSON, or the first field that breaks the
+shape), `finding-list-unwritable:<patch path>:<code>` (the set could not be written; `EEXIST` clears
+after a minute). Its refusals leave nothing written:
+
+| Refusal | Response |
+|---|---|
+| `finding-brief-state-unreadable` | `--state` cannot be read or parsed as a state document. Nothing was written. Point `--state` at the run's `orchestrator-state.yml` and run the verb again. |
+| `finding-brief-unknown-node` | `--node` names no node of the run, or names a gate. Nothing was written. Name the reviewing node that is asking its findings and run the verb again; no state write fixes this. |
+| `finding-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
+| `finding-brief-undeclared` | The node's prose declares no `<node>-findings` question id, so no policy could class its findings. Nothing was written. Ask the findings as the node's prose says without the verb, or add the declaration to a workflow you own, then run it again. |
+
 ### When a question suspends
 
 Under a driver that carries question sets, a node asks what it would have asked in session —
@@ -1827,7 +1875,7 @@ one. The families and what each takes:
 | A set offered as bundles | the recommended bundle |
 | A drafted story | the story as drafted, kept in the requirements as drafted rather than confirmed |
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
-| A decision page of the automatic fix loop | nothing is asked; each issue stays open as an `open` risk for the gate |
+| A finding that needs a decision (a review step's finding questions) | nothing is asked; each finding stays open as an `open` risk for the gate, unless the policy classes it |
 | The automatic fix loop's stopping point | "Continue as is" — the open issues become `open` risks for the gate |
 | An exhausted recovery budget | the node is recorded `failed`, per *Recording an outcome* |
 

@@ -295,6 +295,13 @@ issues:
     fixable: true | false
     risky: true | false          # only meaningful when fixable
     suggestion: "[How to fix, if obvious]"
+    # Only when fixable is false or risky is true — the caller asks it as one question:
+    name: "empty-upload"         # kebab-case, a few words naming the issue
+    title: "[the issue in one plain sentence]"
+    evidence: "[file:line and what is wrong]"
+    options: [{label: "[short choice]", description: "[what it changes]"}]  # 1-3, proposed fix first
+    recommended: 0 | "accept" | null   # an option's index, accepting the risk, or no view
+    reason: "[why, one line; required unless recommended is null]"
 
 issue_counts:
   critical: 0
@@ -306,6 +313,7 @@ issue_counts:
 - `true`: Lint errors, formatting issues, missing imports, obvious typos, simple config fixes
 - `false`: Architecture decisions, design trade-offs, test logic errors, unclear requirements
 - For a `false`, say in `suggestion` why it needs the user's decision — the decision, design change or missing sign-off a person has to supply. The caller's fix loop quotes it beside the item.
+- For an issue a person decides (`fixable: false`, or `risky: true`), also give its choices: each option a change someone could pick, your proposed fix first, never "decide later" — the caller adds accepting the risk itself. The caller asks one question per such issue from these fields.
 - Grade fixability the same way at every severity: the fix loop offers fixable info items too.
 - **`risky`** grades a fixable issue's fix: `true` when it reaches beyond the item into behaviour the change did not set out to alter — it departs from the specification, changes what callers see, or touches anything beyond the code (staging files in git, publishing). The caller's fix loop applies every fixable, non-risky issue without asking and asks the user about the risky ones, so grade it honestly: a fix wrongly graded safe is a change nobody chose.
 

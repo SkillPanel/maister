@@ -410,31 +410,35 @@ needs them. The workflow engine's `verification` node prose (development and per
    `risks` as `{risk: <item and the fix, if wanted>, tag: followup}`, so the end of the run lists
    it. When such items arrive beside real decisions, the page carries at most one "Leave all N
    for later (Recommended)" choice for them, never one tab each.
-5. **One decision per issue, in pages.**
-   A page is one picker call of up to four questions, one tab per issue,
-   most severe first, each tab offering generated ways to tackle it — never a
-   bare Other — with the recommended one first and its reason in its description. Issues with
-   one root cause (the same missing guard in three places) are one decision. Each tab's own
-   question carries its issue's file and line and what is wrong, and each option's description
-   what it would change — never "the issue above" — and the page's first question names the
-   report's path from the project root, never "the verification report" alone. A tab whose
-   issue needs more than its question holds offers More details (workflow engine § *In-node
-   questions*). Further pages follow in the same turn.
+5. **One question per issue, built by the engine.** Once the automatic fixes and re-checks are
+   done, every issue still needing a person — a decision, a risky fix, a fixable one still open
+   after the budget, one that keeps coming back — is written as a findings list and turned into
+   one question set by the workflow engine's `finding-brief` (engine § *Findings that need a
+   decision*): one question per issue, most severe first, each with the verifier's proposed fix
+   and the alternatives it names, "Accept the risk and list it", the recommended choice with its
+   reason, and the issue's evidence in the question. Issues with one root cause (the same
+   missing guard in three places) are one finding. In session the set is paged as engine §
+   *In-node questions* says, the first question naming the report's path from the project root.
 6. **Triage first when more than about eight issues need a decision**: one question showing the
    counts by severity and offering "Go through them, most severe first", "Only the critical ones
    now — the rest become open risks for the checkpoint", and "Continue as is".
-7. **The question at the stopping point** — budget spent, or no progress — names what is
+7. **What each answer does.** A chosen fix is applied, logged and re-checked like any fix; an
+   accepted risk becomes a `tradeoff` risk; an issue nobody could be asked about stays an `open`
+   risk, unless the run's autonomy policy classes it — then it is settled, defaulted or held as
+   the engine's classing write says, and a held choice goes on provisionally until the next
+   checkpoint approves it.
+8. **The question at the stopping point** — budget spent, or no progress — names what is
    left in the question (counts by severity, the worst item in a few words) and offers "One
    more round", "Continue as is" and "Stop", one of them recommended with its reason in its
    description: "Continue as is" when only warnings remain, "One more round" when the last
    round made progress, "Stop" when a critical issue is left.
-8. **What the gate is handed.** Issues still needing a decision become `open` risks, with the
-   fix as their `change`; items left for later stay `followup` risks; a spent budget with
-   critical issues still open is a `stop` risk, which makes Stop the gate's recommended answer.
-9. **Under a driver** with question sets, the issues needing a decision go out as one
-   question set, one question per issue, when that is the first thing the phase asks in its
-   attempt; otherwise, and under any other driver, nothing is asked: the decisions stay open as `open` risks,
-   and the stopping point takes "Continue as is".
+9. **What the gate is handed.** Issues still needing a decision become `open` risks, with the
+   fix as their `change`; items left for later stay `followup` risks; accepted ones `tradeoff`
+   risks; a spent budget with critical issues still open is a `stop` risk, which makes Stop the
+   gate's recommended answer.
+10. **Under a driver** with question sets, the finding set is the phase's one request in its
+   attempt, so the stopping point after it takes "Continue as is". Under any other driver
+   nothing is asked: the findings stay `open` risks, or take what the policy's class gives them.
 
 Issue numbers stay stable across cycles: an issue keeps the `id` it was first given, and a new
 one takes the next unused number. Never announce a fix before it is made; once made, name
@@ -478,14 +482,18 @@ requirements or an earlier answer already implies — or *needs decision*, and n
    re-audit. The re-audit rewrites the report; its new fixable findings are not fixed again.
 3. **No progress stops it**: a fixed finding coming back, or a fix the creator could not apply,
    stays open.
-4. **Nothing is asked in the node**, in a terminal run or under a driver: the gate after it is
-   the operator's moment. Record each fix in the node summary's `fixes_applied` as
-   `{finding, change}` (and the re-audits in `reaudit_count`), never as a decision, so the gate
-   lists it as fixed by the run.
-5. **What the gate is handed**: only the findings still open — needing a decision, not applied,
-   or found by the re-audit — as `open` risks with their `change`, the critical ones first; a
-   finding about something outside the change as a `followup`. The gate's revise suggestions
-   come from those alone, never from a fix already made.
+4. **Record the fixes**: each in the node summary's `fixes_applied` as `{finding, change}` (and
+   the re-audits in `reaudit_count`), never as a decision, so the gate lists it as fixed by the
+   run.
+5. **Ask each finding that needs a decision on its own**, as the fix loop's step 5 does: the
+   auditor's decision findings become one question set through `finding-brief`. The chosen
+   changes go to the specification creator in one more amend pass, with no re-audit; an accepted
+   risk becomes a `tradeoff` risk; a finding nobody could be asked about stays open unless the
+   policy classes it.
+6. **What the gate is handed**: only the findings still open — undecided, not applied, or found
+   by the re-audit — as `open` risks with their `change`, the critical ones first; a finding
+   about something outside the change as a `followup`. The gate's revise suggestions come from
+   those alone, never from a fix already made.
 
 ---
 

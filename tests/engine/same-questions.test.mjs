@@ -58,9 +58,9 @@ const DRIVERS = {
 
 /** The in-node question ids each node-prose file names, counted by hand. */
 const IN_NODE_COUNTS = {
-  development: 10,
-  migration: 3,
-  performance: 5,
+  development: 12,
+  migration: 4,
+  performance: 7,
   'product-design': 12,
   research: 6,
 };

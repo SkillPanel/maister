@@ -171,6 +171,31 @@ test('the checkpoint\'s approves lists each classified key once, in option order
   assert.deepEqual(unclassed.approves, []);
 });
 
+test('a value the policy classes not is recorded as its own item with the gate\'s class, and the checkpoint approves it so', t => {
+  // The same policy with the gate's row naming no values: the gate is classed, its value is not.
+  const { values: _values, ...row } = POLICY.table[0];
+  const engine = scratchPlugin(t, { policy: { ...POLICY, table: [row] } });
+  const run = atGate(t, { engine });
+  const checkpoint = JSON.parse(ok(engine, ['gate-brief', `--state=${run.state}`, `--node=${GATE}`, '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.approves, [{ node: GATE, ref: 'audit_enabled', class: 'record' }]);
+
+  answer(engine, run, 'continue-to-audit');
+  const [answered, settled, ...rest] = decisionsOf(run);
+  assert.deepEqual(rest, []);
+  assert.deepEqual(answered.triage, GATE_TRIAGE);
+  assert.equal(settled.decision, 'audit_enabled: true');
+  assert.equal(settled.ref, 'audit_enabled');
+  assert.deepEqual(settled.triage, GATE_TRIAGE);
+
+  // Under the default policy the continue is its answer alone.
+  const defaulted = atGate(t, { engine: ENGINE });
+  verb(['write-state', `--state=${defaulted.state}`], {
+    nodes: { [GATE]: { status: 'completed' } },
+    node_summaries: { [GATE]: { decisions: [{ option: 'continue-to-audit' }] } },
+  });
+  assert.deepEqual(decisionsOf(defaulted).map(item => item.option ?? item.decision), ['continue-to-audit']);
+});
+
 test('a driven answer\'s re-validation — the empty patch that closes its index row — writes the triage and the settlements', t => {
   const engine = scratchPlugin(t, { policy: POLICY });
   const run = atGate(t, { engine, driver: COCKPIT });
