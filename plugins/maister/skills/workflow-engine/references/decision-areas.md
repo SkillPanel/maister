@@ -100,14 +100,28 @@ is refused whole: no area is ever rendered from it. The reasons are a closed set
 | `bad-path` | `source.path` is absolute, holds `..`, or is not `/`-separated |
 | `bad-digest` | `source.sha256` is not 64 lowercase hex digits |
 
-A file that passes is then checked for freshness: the SHA-256 of `source.path`'s bytes must equal
-`source.sha256`. A markdown edited after the stamp makes the file stale, and a stale file is
-never briefed — its areas may no longer say what the document says.
+A file that passes is then checked for freshness. `source.path` must be the markdown the
+brainstorm node declares beside the file — another of that node's declared artifacts, research's
+`outputs/solution-exploration.md` or product design's `analysis/alternatives.md` — and the
+SHA-256 of its bytes must equal `source.sha256`. A file stamped from any other markdown, or a
+markdown edited after the stamp, makes the file stale, and a stale file is never briefed — its
+areas may no longer say what the document says.
 
 **An unknown version.** A later shape raises `version`. A reader refuses a version it does not
 know as `version at version` rather than guessing at its keys; the convergence node then composes
 the areas from the markdown, as it does for a file that is missing, invalid or stale. None of
 these stops the run: each is a warning, and the node carries on without the file.
+
+**The warnings.** Each is one line, `<code>:<task-relative path>[:<detail>]`, and each means the
+node composes every area from the markdown:
+
+| Warning | When |
+|---|---|
+| `decision-areas-missing:<path>` | The file is not there; `:not-declared` in place of a path when the node names no file, `:producer-not-completed` after the path when its brainstorm did not complete |
+| `decision-areas-unreadable:<path>:<code>` | The file exists but cannot be read; the detail is the error code |
+| `decision-areas-invalid:<path>:<fault>` | The file fails the check; the detail is its first fault |
+| `decision-areas-stale:<path>:<source>` | The markdown's bytes no longer match the stamp; `:source-unreadable` when the markdown cannot be read, `:source-not-declared` when `source.path` is not the markdown the brainstorm declares |
+| `decision-areas-unwritable:<patch path>:<code>` | The driven question set could not be written to the patch file; nothing was written and no temp is left |
 
 ## What the verb adds
 
@@ -115,7 +129,7 @@ These labels and separators are the only text the verb adds. Everything else com
 
 **The question** (every form):
 
-- the first line `<area>: <question>`;
+- the first line: the area name, the separator `: `, then the question;
 - `Why it matters:` followed by `why`;
 - `Depends on:` followed by the names of the areas in `depends_on`, ending with a stop — only
   when the area depends on another;
@@ -128,7 +142,8 @@ These labels and separators are the only text the verb adds. Everything else com
 - In the `rich` profile its description is the recommendation's reason; every other alternative's
   description is `Pro: <key_pro> · Con: <key_con>`. At most three alternatives are offered, the
   recommended one and then the rank order. When more exist, the question ends with
-  `Also considered — type one to choose it:` and the titles left out, comma-separated.
+  `Also considered — type one to choose it:` and the titles left out, comma-separated and ending
+  with a stop.
 - In the plain profile every alternative is offered, labels only, and the question ends with
   `Recommended:` followed by `<title> — <reason>`, closed by a stop only when the reason has none.
 - The last option is `More details`, with the description

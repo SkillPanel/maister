@@ -19,13 +19,13 @@ Accepted. Both definitions that declare the file move their hash once: research 
 `sha256:8b9f964401011ff6823332a8ad4fb01b2172b6e697f30e91431bf992ce608655` to
 `sha256:e2bdfcbcb2cddbaf0d0c972c07ed51cddddf8abe33fc171092c038e925e688a5`, and product design from
 `sha256:2c0683f8cf73a16a4d62d6d5d0085e4ad1f252672ba4212cd808a9d936d4de36` to
-`sha256:08bd2d76e6c1472b130e22ca7a2a8f5d10fb46fd2d380522edb9f5af669c9e00`. Both values hold
-with the user-story change merged in: that change adds a declared question id to product design's
-prose but leaves its graph, so product design's hash is the same with or without it. The verb adds four
-refusal codes, `area-brief-state-unreadable`, `area-brief-unknown-node`, `area-brief-not-running`
-and `area-brief-unknown-area`, and four warning codes, `decision-areas-missing`,
-`decision-areas-unreadable`, `decision-areas-invalid` and `decision-areas-stale`; a missing file
-carries the detail `not-declared` or `producer-not-completed` when no path could be followed.
+`sha256:08bd2d76e6c1472b130e22ca7a2a8f5d10fb46fd2d380522edb9f5af669c9e00`; this change alone moves
+both. The verb adds four refusal codes, `area-brief-state-unreadable`, `area-brief-unknown-node`,
+`area-brief-not-running` and `area-brief-unknown-area`, and five warning codes,
+`decision-areas-missing`, `decision-areas-unreadable`, `decision-areas-invalid`,
+`decision-areas-stale` and `decision-areas-unwritable`; a missing file carries the detail
+`not-declared` or `producer-not-completed` when no path could be followed, a stale one
+`source-unreadable` or `source-not-declared`, and an unwritable patch file the error code.
 
 ### Context
 A design decision is asked one area at a time, each with every alternative, its pros and cons and
@@ -67,9 +67,12 @@ The verb chooses nothing: it selects, orders by the recorded rank, clips preview
 drops backticks for the labels-only picker, and adds only the labels the reference lists. Golden
 files pin every form.
 
-**Fresh or not used.** The markdown's SHA-256 is compared with the stamp on every read. A missing,
+**Fresh or not used.** The file's `source.path` must be the markdown the brainstorm node declares
+beside it, and that markdown's SHA-256 is compared with the stamp on every read. A missing,
 unreadable, invalid or stale file prints one `warning: <code>:<path>[:<detail>]` line and exits 0;
-the `--json` form reports `fallback: true`, and the set form writes nothing. The node then composes
+the `--json` form reports `fallback: true`, and the set form writes nothing. The set form writes
+its patch file through the engine's exclusive temp, fsynced before the rename; a write that fails
+is the same kind of fallback, `decision-areas-unwritable`, with no temp left behind. The node then composes
 the area from the markdown as it did before, so a run frozen against the old hash, whose
 brainstorm wrote no file, still converges.
 

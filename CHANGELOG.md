@@ -69,7 +69,8 @@ workspace with work in flight.
   for word, so the terminal and a cockpit show the same text. In a cockpit, each area carries its
   full write-up, so you can decide it without opening the exploration document. A brainstorm
   without that record, or whose document changed after it was written, still asks as before, and
-  says so.
+  says so; a research or product-design run already in progress when you upgrade sees a notice at
+  its later checkpoints that its workflow changed, and asks its areas as before.
 - **A record of who decided.** Every decision a run records says who settled it: the analysis,
   an audit, a default taken because nobody could be asked, or you. Your answers are kept in the
   task's state, with whether you took the recommendation, and the dashboard shows each decision

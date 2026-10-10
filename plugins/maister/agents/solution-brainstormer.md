@@ -176,6 +176,7 @@ Only after the markdown is final:
    - `version` is the bare number `1`
    - one entry per decision area, in the markdown's order, each with a slug id, its name, its question, why it matters, any dependencies on earlier areas, its alternatives in rank order (at least two), and its recommendation — the alternative's id and a one-line reason, or `null` for an area left open
    - each alternative carries a slug id unique in its area (never `other` or `more-details`), its title, description, pros, cons, key pro and key con, as the markdown states them; names, questions, titles, key pros, key cons and reasons are one line each
+   - "Best when", evidence links and anything else the reference does not list stay in the markdown only: the file carries exactly the keys the reference names, and one extra key makes the whole file unusable
 3. **Plain text only** — every string is plain text. Inline code in backticks is fine; no bold and no list markers, because the engine adds its own emphasis and lists when it renders an area.
 4. **Check it against the markdown** — the same areas, the same alternatives in the same order, the same recommendations. A difference here means one of the two is wrong; fix it before returning.
 5. **Rewrite on revision** — whenever the markdown is revised in place (by you, or when a caller re-delegates a revision), rewrite the file with the new hash. A file whose hash no longer matches its markdown is stale and is never asked from.
