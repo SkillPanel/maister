@@ -12,10 +12,10 @@ whether a node succeeded, or how many times the engine may re-drive one. Those
 live here.
 
 **State the consequence plainly**: a reader of `product-design.yml` alone cannot
-see that the run asks ten further kinds of question beyond its five gates — and
-the mockup studio runs a refinement loop of its own inside the prototyping node.
-In run order: the additional context, the problem questions in pages, the
-problem statement's approval, the persona questions in pages, the persona
+see that the run asks eleven further kinds of question beyond its five gates —
+and the mockup studio runs a refinement loop of its own inside the prototyping
+node. In run order: the additional context, the problem questions and the
+drafted stories in pages, the problem statement's approval, the persona questions in pages, the persona
 cards' approval, a retry when the brainstormer fails twice, one question per
 decision area in the convergence, each specification section's approval, the
 depth enrichments for a complex design, and the brief's approval. The design
@@ -45,11 +45,17 @@ the cockpit; without them it is left open for the direction gate to decide,
 because a direction nobody chose would be built into
 every document after it (`idea-convergence` says how).
 
+**When the run's policy classes in-node questions** — the freeze recorded
+`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
+before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
+settled, defaulted or held under the run's autonomy ceiling and are already on the node's
+summary. The engine skill states the rule once; no section below changes for it.
+
 **Every question carries what it asks about** (engine § *In-node questions*).
-This workflow presents drafts and asks about them — the problem statement, the
-persona cards, each decision area, each specification section, the enrichments,
-the brief — and the question, its options and their previews are the only text
-sure to reach the screen. So each such question names in its own text what the
+This workflow presents drafts and asks about them — each story, the problem
+statement, the persona cards, each decision area, each specification section,
+the enrichments, the brief — and the question, its options and their previews
+are the only text sure to reach the screen. So each such question names in its own text what the
 draft settles, and each option says what it changes. More details is its last
 option while a slot is free, and typed as "details" when four options fill the
 slots: the draft written out in full, then the same question again. Every ask
@@ -589,6 +595,31 @@ is answered the way that keeps it whole (engine § *In-node questions*).
    problem statement built without the operator's answers is one, and saying so
    is the difference between a gate an operator reads carefully and one they
    wave through.
+
+   **Questions about one behaviour are one story.** Once the description or an
+   earlier answer names a behaviour the feature must support — removing a
+   member, sharing a calendar — the questions about it are not asked one by
+   one: they are drafted into one story and asked as one question, id
+   `user-story-<topic>`, in the same pages (engine § *In-node questions*, *One
+   topic is one drafted story*). Keep each story at the level of the journey —
+   who acts, the situation they start from, what they do, what changes and is
+   kept or recorded, what they and others see afterwards — and name a screen or
+   a control only where the design context already does: the layout is the
+   specification's and the prototypes' to decide. The questions that stay on
+   their own are those whose answer changes no story: the problem's framing, a
+   constraint, a success measure. Each story goes into
+   `analysis/problem-statement.md` under **User stories**, by its id, with how
+   it was settled.
+
+   **With question sets** (`user-story`): each story that stands on its own is
+   its own question in the first page's request, beside the problem questions,
+   its draft, corrections and alternative written to
+   `analysis/problem-statement.md` before the node suspends. A story that waits
+   on another's answer is not asked, and is marked drafted.
+
+   **Without question sets** (`user-story`): each story is taken as
+   drafted, recorded `by: default` under its own id, and marked drafted in the
+   problem statement, as the rest of that draft is marked a proposal.
 2. **Converge.** Announce the switch, then present the complete draft: the
    problem statement, the key constraints and the success criteria.
 3. **Refine** — ask *"Use this problem statement?"*, the question giving the
@@ -621,8 +652,9 @@ is answered the way that keeps it whole (engine § *In-node questions*).
    continue — no round is taken and the count stays at zero.
    `problem-approval` is the operator's route back.
 4. **Write `analysis/problem-statement.md`**: the approved problem statement,
-   constraints, success criteria and the key assumptions behind them — the full
-   exploration, which the brief later condenses.
+   constraints, success criteria, the user stories as settled, and the key
+   assumptions behind them — the full exploration, which the brief later
+   condenses.
 
 **Gate brief content.** Into this node's closing summary: a `headline` giving
 the problem in one sentence. In `summary`, the problem statement in a sentence or two, and the
@@ -631,7 +663,8 @@ the exploration settled, each `{decision, by: run}`, beside the operator's
 answers as recorded above, or `{decision, by: default, question_id}` for each
 defaulted question; an earlier answer is never restated as the exploration's. In
 `risks`, the assumptions the statement rests on, each
-`{risk, tag: open, change}` with what would change if it is wrong; a need left
+`{risk, tag: open, change}` with what would change if it is wrong — a story
+taken as drafted is one, its `change` the correction listed for it; a need left
 out of scope on purpose is `tag: tradeoff`.
 
 **When re-run after a revise.** `problem-approval` sent the run back, and
@@ -753,7 +786,20 @@ Also hand it:
 - the instruction to read the design context, the problem statement and the
   personas in full, and to write to `analysis/alternatives.md` exactly and
   nowhere else, with alternatives and trade-offs grouped by decision area and a
-  recommendation for each area.
+  recommendation for each area;
+- `areas_output_path`, which is exact: the decision areas file goes to
+  `analysis/decision-areas.json` and nowhere else; and the absolute path of
+  `${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/references/decision-areas.md`,
+  the file's shape, to read before it writes the file — it cannot expand the
+  variable itself.
+
+A return without `analysis/decision-areas.json` — `areas_path: null`, the reason
+in the agent's warnings — is not a failure, because the convergence then asks
+from the markdown: record `absent: {decision_areas: "<the reason>"}` on the
+completing summary, and do not re-drive the node for it. Otherwise register the
+file on the summary's artifacts with `role: evidence`, beside the markdown, and
+take the summary's count of decision areas from it when it reads as the
+reference describes.
 
 If the agent returns without `analysis/alternatives.md`, or with one that holds
 no alternatives, re-invoke it with corrected context. If the second attempt
@@ -808,10 +854,17 @@ line, then walk the alternatives one decision area at a time.
 > its full detail. EVERY area's question, options and previews carry the SAME
 > level of detail.
 
-1. **Read `analysis/alternatives.md`.**
+1. **Read `analysis/alternatives.md`**, and take the decision area ids and their
+   order from the file `with: decision_areas` names.
 2. **For each decision area, sequentially** — do not pre-ask a later one — ask
    **one question for this area**, carrying the whole area itself (engine
-   § *In-node questions*):
+   § *In-node questions*). Ask it from `area-brief --json`, as engine
+   § *Decision areas from the brainstorm* says, pasted as given, and record the
+   answer under the `question_id` it prints; on More details, print its
+   `more_details` and ask the same area again. Only when the verb prints a
+   `decision-areas-*` warning, compose the area yourself from the alternatives,
+   every area alike, recording its answer as
+   `convergence-decisions-<the area's name as a slug>`:
    - **the question** names the area, why the decision matters in a sentence or
      two, and each alternative in a line;
    - **the options** are its alternatives, the recommended one first and marked
@@ -868,7 +921,12 @@ chosen direction exactly as a terminal run does: `decision_areas` with
 `chosen_approach` set, `selected_approach`, and `analysis/design-decisions.md`
 rewritten as chosen, not proposed. Any two chosen alternatives that conflict are
 recorded as an `open` risk whose `change` names the switch that resolves it, for
-`direction-approval`.
+`direction-approval`. From the file, the set is the engine's: run
+`area-brief --patch-file`, then `gate-brief --request --patch-file`, then read
+the patch file once and write the request over it, as engine § *Decision areas
+from the brainstorm* says — a re-ask after a revise names the reopened areas
+with `--area`. On a `decision-areas-*` warning, write the set from the composed
+areas instead.
 
 **Without question sets** (`convergence-decisions`): **not
 defaulted — the decision is left for `direction-approval`.** Choosing a
@@ -877,7 +935,8 @@ operator's behalf, because everything after it is built on it. So this node does
 every part of the convergence except the choice:
 
 - every area is still worked in full — alternatives, pros and cons, the
-  recommendation and its strongest rival — and written into
+  recommendation and its strongest rival, the first alternative after the
+  recommended one in rank order — and written into
   `analysis/design-decisions.md` as a **decision sheet**, which opens by saying
   the direction is proposed, not chosen, and that continuing at the direction
   gate adopts every recommendation in it;
@@ -925,8 +984,9 @@ decision areas.
 
 **Phase summary key**: `idea_convergence`, with `selected_approach`,
 `trade_offs_accepted`, `decision_areas` — each element `area`,
-`alternatives_count`, `recommended` and `chosen_approach` — and `node:
-idea-convergence`.
+`alternatives_count`, `recommended` and `chosen_approach`, the first two taken
+from the decision areas file, its `area` and the length of its `alternatives`,
+when the areas came from it — and `node: idea-convergence`.
 
 ---
 
@@ -977,6 +1037,14 @@ in a line each with why. Its choices go in `decisions` as `{decision, by: run}`,
 and `specification-approval` is where the operator approves them; a choice the
 run made on thin evidence goes in `risks` as `open`, with the other way as its
 `change`.
+
+**Keep the stories.** When `analysis/problem-statement.md` holds user stories,
+write them first into `analysis/feature-spec.md` under **User stories**, each by
+its id and whole, as the problem exploration settled them — they are not asked
+again. Each section then names the stories it serves. A story the chosen
+direction changes is restated as changed, the change named, and is an `open`
+risk for `specification-approval`; a story no section serves is an `open` risk
+too, never a silent drop.
 
 **Scale the sections to the complexity**: three or four sections of about 20 to
 50 lines each for a simple design — what to build; five or six of about 50 to
@@ -1187,7 +1255,9 @@ run's own close is `completion`'s.
    for handoff that points at the detailed documents rather than repeating them:
    - **Core brief**, always: the problem statement, the target users, the feature
      overview, the constraints, the success criteria and the acceptance criteria,
-     condensed from the problem statement and the specification;
+     condensed from the problem statement and the specification; and the user
+     stories from the specification, each by its id and whole — they are the
+     requirements a development run carries, so they are never condensed;
    - **Persona cards**, when the state records `persona-exploration` completed;
    - **Design decisions**, a summary per decision area, pointing at the decision
      record and the alternatives, when the state records `idea-convergence`
@@ -1298,6 +1368,14 @@ did not print. The same rule holds for a run a gate's stop option ended, which
 never reaches this node. An embedded run, whose guard skips this node, ends as a
 sub-run does: in session with no wrap-up, since its parent's ending carries it,
 and under a driver on the verb's marker.
+
+**No close-out while a choice is held.** When the freeze recorded
+`orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
+closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
+`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
+revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
+refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
+ends on `run-held-unapproved`.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

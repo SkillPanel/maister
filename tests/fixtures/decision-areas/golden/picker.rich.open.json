@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "picker": "rich",
+  "question": "Access model: How do guests reach a shared calendar?\nWhy it matters: Decides whether guests need an account.\nDepends on: Storage.\nSigned link — Pro: No account needed · Con: Hard to revoke per person\nGuest account — Pro: Revocable per person · Con: Sign-up friction",
+  "header": "Access model",
+  "options": [
+    {
+      "id": "signed-link",
+      "label": "Signed link",
+      "description": "Pro: No account needed · Con: Hard to revoke per person",
+      "recommended": false,
+      "preview": "**Signed link**\n\nShare a link signed for one calendar.\n\n**Pros**\n- No account needed\n\n**Cons**\n- Hard to revoke per person"
+    },
+    {
+      "id": "guest-account",
+      "label": "Guest account",
+      "description": "Pro: Revocable per person · Con: Sign-up friction",
+      "recommended": false,
+      "preview": "**Guest account**\n\nInvite guests to a light account.\n\n**Pros**\n- Revocable per person\n\n**Cons**\n- Sign-up friction"
+    },
+    {
+      "id": "more-details",
+      "label": "More details",
+      "description": "Shows every alternative in full, then asks this again. Nothing is recorded.",
+      "recommended": false,
+      "details": true,
+      "preview": "**Access model**\nHow do guests reach a shared calendar?\nWhy it matters: Decides whether guests need an account.\nDepends on: Storage.\n\n**Signed link**\nShare a link signed for one calendar.\n\nPros:\n- No account needed\n\nCons:\n- Hard to revoke per person\n\n**Guest account**\nInvite guests to a light account.\n\nPros:\n- Revocable per person\n\nCons:\n- Sign-up friction"
+    }
+  ],
+  "details": "option",
+  "more_details": "**Access model**\nHow do guests reach a shared calendar?\nWhy it matters: Decides whether guests need an account.\nDepends on: Storage.\n\n**Signed link**\nShare a link signed for one calendar.\n\nPros:\n- No account needed\n\nCons:\n- Hard to revoke per person\n\n**Guest account**\nInvite guests to a light account.\n\nPros:\n- Revocable per person\n\nCons:\n- Sign-up friction",
+  "question_id": "convergence-decisions-access",
+  "errors": [],
+  "warnings": []
+}

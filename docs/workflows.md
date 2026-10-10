@@ -316,8 +316,9 @@ It is the most interactive of the workflows. Its exploration questions and refin
 the work rather than overhead around it, so the phases ask a good deal between the gates. Driven
 from a cockpit that can show a set of questions, each phase sends you its questions as one card —
 the design direction too, every decision area at once, each with its alternatives, their pros and
-cons and a recommendation. A run that cannot ask takes each question's stated default instead,
-and the documents it writes say they were drafted without review. Choosing a design direction is
+cons and a recommendation, and each carrying its full write-up, so an area can be decided without
+opening the alternatives document. A run that cannot ask takes each question's stated default
+instead, and the documents it writes say they were drafted without review. Choosing a design direction is
 the one exception: such a run never picks one itself. It lays the alternatives out with a
 recommendation for each decision, and the direction pause is where you choose — continuing adopts
 the recommendations, and sending the run back names the ones you want instead.
@@ -389,7 +390,14 @@ A recommended answer gives its reason. Questions that stand on their own — ass
 confirm, issues to decide — come as pages of up to four, and a later page says how many are left.
 A design decision comes one area at a time, each with every alternative, its pros and cons and
 the recommendation, because a later area can depend on an earlier answer; it is never offered as
-accept-all. A question the run can already answer from its own analysis is not asked: it says the
+accept-all. In research and product design the areas are asked from the record the brainstorm keeps
+beside its document, word for word, and a cockpit shows each area with its full write-up — the same
+text **More details** writes out in the terminal. Questions about one behaviour — who may deactivate a user, where the action is, what
+is stored and audited, who sees the user afterwards — come as one drafted story instead, its
+defaults filled in: accept it, accept it with the corrections the run lists, take the alternative
+story it offers where there is one, or write your own. Each story is one answer, kept as a
+requirement that the specification carries under the story's id and that the completeness check
+confirms was built. A question the run can already answer from its own analysis is not asked: it says the
 answer in one line instead ("User guide: on — asked for when the run started").
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
@@ -421,6 +429,17 @@ asking, then checks again on its own, up to two times. Only then does it ask: on
 issue that needs your decision, and whether to take another round, continue as is or stop. The
 gate after it lists every fix made without asking. A run with nobody in the session continues as
 is, and the issues it could not fix stay open for that gate.
+
+**When the run's policy classes questions.** None does by default. Where an autonomy policy
+classes the questions a phase asks, the run settles the routine ones within its
+autonomy ceiling and shows them to you at the next checkpoint. A run nobody can ask — a dispatched
+one — takes a default for the rest, and holds any choice that needs your approval. Held choices
+come first at the next checkpoint, and continuing approves them; a choice it could not make
+because nothing was recommended is held with no choice yet, and the checkpoint asks you to send
+that phase back with your choice in the note: continuing never decides it. When no
+checkpoint follows one,
+the run asks one more, *Held for approval*, before it finishes: approve and finish, send a phase
+back, or stop. The dashboard marks each held choice approved once you have.
 
 ---
 
@@ -530,8 +549,8 @@ What sits beside them depends on the workflow:
 | Workflow | Subdirectories |
 |----------|----------------|
 | **development** | `analysis/` (codebase analysis, gap analysis, `research-context/`, `design-context/`), `implementation/` (spec, plan, work log), `verification/`, `documentation/` |
-| **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log) |
-| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, feature spec, `mockups/`), `outputs/` (product brief, delivery scope) |
+| **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log, `decision-areas.json`) |
+| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, `decision-areas.json`, feature spec, `mockups/`), `outputs/` (product brief, delivery scope) |
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
 

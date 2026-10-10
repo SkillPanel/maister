@@ -282,6 +282,7 @@ nodes:
     when: "!${inputs.simple}"
     with:
       output_path: analysis/alternatives.md
+      areas_output_path: analysis/decision-areas.json
       task_description: "${inputs.task_description}"
       design_context: "${context-synthesis.artifacts.design_context}"
       problem_statement: "${problem-exploration.artifacts.problem_statement}"
@@ -289,6 +290,7 @@ nodes:
     outputs:
       artifacts:
         alternatives: analysis/alternatives.md
+        decision_areas: analysis/decision-areas.json
 
   idea-convergence:
     uses: direct:idea-convergence
@@ -296,6 +298,7 @@ nodes:
     when: "!${inputs.simple}"
     with:
       alternatives: "${idea-generation.artifacts.alternatives}"
+      decision_areas: "${idea-generation.artifacts.decision_areas}"
       problem_statement: "${problem-exploration.artifacts.problem_statement}"
     outputs:
       artifacts:

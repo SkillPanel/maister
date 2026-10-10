@@ -13,7 +13,8 @@ node succeeded, or how many times the engine may re-drive one. Those live here.
 **State the consequence plainly**: a reader of `migration.yml` alone cannot see
 that the run asks three further questions beyond its six gates — in run
 order, the clarification page, the specification's assumptions page and the
-issue-resolution fix loop, whose data-integrity halt is its own question — and
+issue-resolution fix loop, with a question per issue and a data-integrity
+halt of its own — and
 the generated diagram does not show them either. Anyone reasoning about how
 interactive this workflow is must read this file, not the graph.
 
@@ -28,6 +29,12 @@ the engine skill, which states them once; this file only says what each
 question takes.
 One of the three is the exception the rule reserves: a data integrity issue is
 never defaulted past, and the node fails instead.
+
+**When the run's policy classes in-node questions** — the freeze recorded
+`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
+before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
+settled, defaulted or held under the run's autonomy ceiling and are already on the node's
+summary. The engine skill states the rule once; no section below changes for it.
 
 **Recovery budgets are prose here on purpose.** They must never be written into
 `with:`, which is an unconstrained free-form object — an attempts key sitting
@@ -706,16 +713,23 @@ step by step):
 - **Left for later without asking**: an item whose recommendation is to leave
   it — a pre-existing info item that predates the migration — is a `followup`
   risk, never a question.
-- **Asked only when** an issue needs the user's
-  decision, a fix is risky, the two re-checks are spent with fixable issues still
-  open, or there is no progress (the same issues return, or new ones keep
-  appearing). Decisions go one per issue, paged as engine § *In-node questions* says, most severe
-  first, each with generated ways to tackle it, the recommended one first with
-  its reason, its tab stating the issue's file, line and what is wrong and each
-  option what it changes; more than about eight first get the triage question.
-  A change the user asks for here is applied, logged and re-checked like any
+- **Asked only when** an issue needs the user's decision, a fix is risky, the
+  two re-checks are spent with fixable issues still open, or there is no
+  progress (the same issues return, or new ones keep appearing) — and only once
+  the automatic fixes and re-checks are done. **Each such issue is its own
+  question** (engine § *Findings that need a decision*): write the verifier's
+  decision fields for those issues to `verification/issue-resolution-findings.json`,
+  each issue's `id` the verifier's `name` (issues with one root cause are one
+  finding), and build the set with `finding-brief` for this node. Send it
+  through the classing write when the run classes questions, then ask what is
+  left to ask, paged as engine § *In-node questions* says, the first question
+  naming the report's path; more than about eight first get the triage
+  question. A change the user picks is applied, logged and re-checked like any
   fix — the gate after this node offers no revise, so this is where such a
-  change is taken. Each answered question is a `by: operator` decision.
+  change is taken; an accepted risk becomes a `tradeoff` risk; a held choice
+  goes on provisionally, and `resolution-approval` approves it. A file
+  `finding-brief` cannot use is a fallback: compose the same questions
+  yourself.
 - **The stopping question** names what is left — the counts by severity and the
   worst item in a few words. **With a critical issue left**, it offers **"Stop
   here (Recommended): roll back with the plan's rollback steps"**, then "One
@@ -728,7 +742,7 @@ step by step):
   issue an `open` risk for the gate.
 
 **Data integrity is never fixed without the user, and never by default.** A data
-integrity issue is neither fixable nor a decision page item: it halts the loop
+integrity issue is neither fixable nor a finding question: it halts the loop
 before anything else is asked. Under a terminal driver, ask one question whose
 text names the issue — the table, the check that failed and by how much — and
 offers **"Stop and roll back (Recommended)"**, its description saying the run
@@ -745,10 +759,19 @@ to ask: **record this node `failed`**, and the run ends
 verification left it, rather than to an automated repair already applied to their
 data.
 
+**With question sets** (`issue-resolution-findings`): asked through the cockpit
+as this node's one request in its attempt, with the verification report and
+every fix so far written first; after the data-integrity question in the same
+attempt, the default below is taken.
+
+**Without question sets** (`issue-resolution-findings`): nothing is asked. An
+issue the policy does not class stays open as an `open` risk; a classed one
+takes the outcome the classing write gives it.
+
 **With question sets** (`verification-fix-loop`): asked through the cockpit only
 when it is the first thing this node asks in its attempt, with the verification
 report and every fix so far written first; after an earlier request in the same
-attempt, the default below is taken (*In-node questions*).
+attempt — the finding questions — the default below is taken (*In-node questions*).
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
@@ -776,7 +799,8 @@ were fixed and how many remain by severity in `summary`; each fix made without
 asking — the issue and the change in a few words each — in `fixes_applied`, so
 the checkpoint shows exactly what changed without the user choosing it, never
 also as a decision; each answered question
-as a `by: operator` decision; no earlier answer restated; each issue still needing a decision as an `open`
+as a `by: operator` decision, as the writer folds it; each risk the user
+accepted on a finding question as a `tradeoff` risk; no earlier answer restated; each issue still needing a decision as an `open`
 risk with the fix as its `change`; each item left for later as a `followup`
 risk; a data risk the user accepted as a `tradeoff` risk; and the `stop` risk
 when the user chose to stop and roll back. The `resolution-approval` brief is
@@ -890,6 +914,14 @@ driver tooling reads it, and the order is reversed: the executive summary and
 every next step are printed as ordinary text **before** the `run-complete` call;
 after it, print nothing but the lines the verb printed, copied exactly, its
 marker last. Never type a marker the verb did not print.
+
+**No close-out while a choice is held.** When the freeze recorded
+`orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
+closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
+`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
+revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
+refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
+ends on `run-held-unapproved`.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

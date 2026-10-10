@@ -58,6 +58,7 @@ import { pathToFileURL } from 'node:url';
 import * as canonical from '../../../../lib/canonical.mjs';
 import { isPlainObject } from './state-read.mjs';
 import { humanize, titleOf } from './display.mjs';
+import { frozenIds } from './question-triage.mjs';
 
 /** The directory beside the state file that holds a run's display files. */
 export const DISPLAY_DIR = 'display';
@@ -137,11 +138,13 @@ function currentPhase(doc) {
 /**
  * The checkpoint the run reaches next: the first frozen gate neither completed
  * nor skipped, `index` its place among all the frozen gates and `total` their
- * count — the numbering a gate's brief uses. Null once no gate is left.
+ * count — the numbering a gate's brief uses. Null once no gate is left. The
+ * reserved closing checkpoint's status entry is no frozen gate: it is never
+ * counted, and never the next checkpoint.
  */
 export function checkpointOf(doc, titles) {
   const nodes = nodesOf(doc);
-  const gates = Object.keys(nodes).filter(id => nodes[id].kind === 'gate');
+  const gates = frozenIds(nodes).filter(id => nodes[id].kind === 'gate');
   const at = gates.findIndex(id => !SETTLED.has(nodes[id].status));
   if (at === -1) return null;
   return { index: at + 1, total: gates.length, title: titleOf(titles, gates[at]) };

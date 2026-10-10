@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "note": "A made-up policy that classes the finding-review fixture: its finding questions, its approval gate and one of the two values that gate's continues set. It names no unknown family, so a value it leaves out is classed as the gate is. Every family, id and description is invented.",
+  "floor": {
+    "floor-a": {
+      "description": "A made-up floor id."
+    }
+  },
+  "families": {
+    "finding-family": {
+      "class": "approve",
+      "description": "A finding's settlement needs a person's approval."
+    },
+    "review-gate-family": {
+      "class": "record",
+      "description": "A review checkpoint recorded as it was answered."
+    },
+    "deep-check-family": {
+      "class": "consult",
+      "description": "Whether to run the deep check is worth a second opinion."
+    }
+  },
+  "table": [
+    {
+      "workflow": "finding-review",
+      "id": "review-findings",
+      "kind": "question",
+      "families": [
+        "finding-family"
+      ]
+    },
+    {
+      "workflow": "finding-review",
+      "id": "review-approval",
+      "kind": "gate",
+      "families": [
+        "review-gate-family"
+      ],
+      "values": {
+        "deep_check": "deep-check-family"
+      }
+    }
+  ],
+  "bands": {
+    "clear": {
+      "description": "No raise of its own."
+    },
+    "toss-up": {
+      "description": "At least approve.",
+      "at_least": "approve"
+    }
+  },
+  "ceilings": {
+    "approve": {
+      "settles": "decide-alone",
+      "delegates": false,
+      "description": "Settles only what needs nobody."
+    },
+    "advice": {
+      "settles": "record",
+      "delegates": false,
+      "description": "Settles and records."
+    },
+    "decide": {
+      "settles": "consult",
+      "delegates": true,
+      "description": "Names consult, which the run never settles."
+    }
+  }
+}

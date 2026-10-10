@@ -90,6 +90,7 @@ import { fileURLToPath } from 'node:url';
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
 import { bareWorkflowName, locateTarget, resolve as resolveGraph, TARGET_REF } from '../../../workflow-engine/scripts/lib/graph.mjs';
+import { effectiveCeiling, loadPolicy, narrowerLevel } from '../../../workflow-engine/scripts/lib/policy.mjs';
 
 /** The format version every umbrella document this module writes declares. */
 const VERSION = 1;
@@ -252,6 +253,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
 
   const provider = resolveProvider({ node, member, defined, recorded, entry, manifest });
   const autonomy = resolveAutonomy({ node, member, defined, entry, manifest });
+  const ceiling = resolveCeiling({ state, defined, entry, manifest });
   const runId = runIdOf({ state, run });
 
   const inputs = inputsOf(defined);
@@ -287,6 +289,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
     statement,
     workspace_root: rootOf(root),
     autonomy,
+    ...(ceiling === null ? {} : { ceiling }),
     permissions,
     outbox: `.maister/umbrella/outbox/${dispatchId}/`,
     branch: overrides.branch ?? branchOf({ manifest, runId, node, member, dispatchId }),
@@ -642,6 +645,28 @@ function resolveAutonomy({ node, member, defined, entry, manifest }) {
 }
 
 /**
+ * The autonomy ceiling the dispatch carries, or null for none.
+ *
+ * The chain is `with.ceiling` → `members.<member>.ceiling` →
+ * `defaults.ceiling` → the dispatching run's own ceiling, first value found.
+ * Whatever it finds is clamped to the dispatching run's ceiling — its recorded
+ * `orchestrator.options.ceiling`, else the engine policy's `default_ceiling`
+ * when the run's `policy_hash` is that policy's — so a worker never carries
+ * more autonomy than the run that dispatched it. A dispatching run with no
+ * ceiling dispatches none: `narrowerLevel` reads an absent side as no bound,
+ * which here would let a node grant what its run never had. A value outside
+ * the three levels reads as `approve`, the narrowest, and refuses nothing.
+ */
+function resolveCeiling({ state, defined, entry, manifest }) {
+  const { policy, hash } = loadPolicy();
+  const dispatcher = effectiveCeiling({ orchestrator: state.orchestrator, policy, policyHash: hash });
+  if (dispatcher === null) return null;
+  const chain = [mapOf(defined.with).ceiling, entry.ceiling, mapOf(manifest?.defaults).ceiling];
+  const named = chain.find((candidate) => candidate !== undefined && candidate !== null);
+  return narrowerLevel(named ?? dispatcher, dispatcher);
+}
+
+/**
  * The read-only file references seeded into the worker, taken from the resolved
  * node's `with` map — the only place in the grammar where a node names a file
  * it wants to be handed. The `with` key becomes the input's role, which is what
@@ -974,6 +999,7 @@ function emit(document) {
     `statement: ${scalar(document.statement, 'statement', PROSE)}`,
     `workspace_root: ${scalar(document.workspace_root, 'workspace_root')}`,
     `autonomy: ${scalar(document.autonomy, 'autonomy')}`,
+    ...(document.ceiling == null ? [] : [`ceiling: ${scalar(document.ceiling, 'ceiling')}`]),
     'permissions:',
     `  allow: ${flow(document.permissions.allow, 'permissions.allow')}`,
     `  deny: ${flow(document.permissions.deny, 'permissions.deny')}`,

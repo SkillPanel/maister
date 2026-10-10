@@ -11,9 +11,10 @@ summary for the gate brief, the self-checks that decide whether a node succeeded
 times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `performance.yml` alone cannot
-see that the run asks four further questions beyond its six gates — in run
+see that the run asks five further questions beyond its six gates — in run
 order, the clarification page with its profiling-data tab, the specification's
-requirements page, the choice of checks and the verification fix loop — and the
+requirements page, the audit findings that need a decision, the choice of
+checks, and the verification fix loop with a question per issue — and the
 generated diagram does not show them either. Anyone reasoning about how
 interactive this workflow is must read this file, not the graph.
 
@@ -26,6 +27,12 @@ own section states under **Without question sets** and the node records that
 it did. The rule, the recording shape and what is never defaulted past belong to
 the engine skill, which states them once; this file only says what each
 question takes.
+
+**When the run's policy classes in-node questions** — the freeze recorded
+`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
+before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
+settled, defaulted or held under the run's autonomy ceiling and are already on the node's
+summary. The engine skill states the rule once; no section below changes for it.
 
 **Recovery budgets are prose here on purpose.** They must never be written into
 `with:`, which is an unconstrained free-form object — an attempts key sitting
@@ -529,9 +536,28 @@ findings are not fixed again, and a fixed finding that comes back stays open.
 Record each applied fix in this node's summary's `fixes_applied` as
 `{finding, change}` and the re-audits as `reaudit_count`.
 
-This node asks the operator nothing — no question about findings, no revise
-round, in a terminal run or under a driver; the following gate is the
-operator's moment.
+**Each finding that needs a decision is its own question**, only when the
+audit (after its fix pass and re-audit) leaves one (`orchestrator-patterns.md`
+§ 6, step 5; engine § *Findings that need a decision*). Write the auditor's
+decision findings, as its structured result gives them, to
+`verification/spec-audit-findings.json`, each finding's `id` the auditor's
+`name`, and build the set with `finding-brief` for this node. Send it through
+the classing write when the run classes questions, then ask what is left to
+ask: one question per finding, most severe first, each with the auditor's
+change and alternatives, "Accept the risk and list it", the recommended choice
+with its reason, and the finding's evidence. Hand every chosen change to the
+specification creator in one more amend pass — no re-audit — and record each
+answer as the writer folds it; an accepted risk becomes a `tradeoff` risk. A
+held choice goes on provisionally, and the gate after this node approves it. A
+file `finding-brief` cannot use is a fallback: compose the same questions
+yourself.
+
+**With question sets** (`spec-audit-findings`): asked through the cockpit as
+this node's one request, with the audit report and every fix written first.
+
+**Without question sets** (`spec-audit-findings`): nothing is asked. A finding
+the policy does not class stays open as an `open` risk; a classed one takes the
+outcome the classing write gives it.
 
 A failing verdict does not end the run on its own. It is what the operator reads
 at the gate, and the gate's stop option is the route out.
@@ -543,9 +569,11 @@ planning, in one sentence; the overall verdict, the issue counts by severity
 and how many were fixed in `summary`; the fixes already in `fixes_applied`,
 which the gate shows as fixed by the run, never repeated in `decisions`; each
 finding the audit settled as a `by: audit` decision, never an earlier answer
-restated; each finding still open — needing a decision, not applied, or found
-by the re-audit — as an `open` risk whose `change` is the fix the audit
-proposes, the critical ones first. A finding the run fixed is never a risk: the revise suggestions are
+restated, and the answers to the finding questions already there as their
+own; each finding still open — undecided, not applied, or found by the
+re-audit — as an `open` risk whose `change` is the fix the audit proposes, the
+critical ones first; each finding the operator accepted as a `tradeoff`. A
+finding the run fixed or the operator settled is never an open risk: the revise suggestions are
 drawn from the open ones alone. The `spec-audit-approval` brief is rendered
 from it.
 
@@ -767,16 +795,23 @@ step by step):
 - **Left for later without asking**: an item whose recommendation is to leave
   it — a pre-existing info item that predates the change — is a `followup`
   risk, never a question.
-- **Asked only when** an issue needs the user's
-  decision, a fix is risky, the two re-checks are spent with fixable issues still
-  open, or there is no progress (the same issues return, or new ones keep
-  appearing). Decisions go one per issue, paged as engine § *In-node questions* says, most severe
-  first, each with generated ways to tackle it, the recommended one first with
-  its reason, its tab stating the issue's file, line and what is wrong and each
-  option what it changes; more than about eight first get the triage question.
-  A change the user asks for here is applied, logged and re-checked like any
+- **Asked only when** an issue needs the user's decision, a fix is
+  risky, the two re-checks are spent with fixable issues still open, or there is
+  no progress (the same issues return, or new ones keep appearing) — and only
+  once the automatic fixes and re-checks are done. **Each such issue is its own
+  question** (engine § *Findings that need a decision*): write the verifier's
+  decision fields for those issues to `verification/verification-findings.json`,
+  each issue's `id` the verifier's `name` (issues with one root cause are one
+  finding), and build the set with `finding-brief` for this node. Send it
+  through the classing write when the run classes questions, then ask what is
+  left to ask, paged as engine § *In-node questions* says, the first question
+  naming the report's path; more than about eight first get the triage
+  question. A change the user picks is applied, logged and re-checked like any
   fix — the gate after this node offers no revise, so this is where such a
-  change is taken. Each answered question is a `by: operator` decision.
+  change is taken; an accepted risk becomes a `tradeoff` risk; a held choice
+  goes on provisionally, and `verification-approval` approves it. A file
+  `finding-brief` cannot use is a fallback: compose the same questions
+  yourself.
 - **The stopping question** names what is left — the counts by severity and the
   worst item in a few words — and offers "One more round", "Continue as is" and
   "Stop", one of them recommended with its reason in its description: "Continue
@@ -785,10 +820,18 @@ step by step):
   undecided issue an `open` risk for the gate; "Stop" writes a `stop` risk, so
   the gate recommends stopping.
 
+**With question sets** (`verification-findings`): asked through the cockpit as
+this node's one request in its attempt, with the verification report and every
+fix so far written first.
+
+**Without question sets** (`verification-findings`): nothing is asked. An issue
+the policy does not class stays open as an `open` risk; a classed one takes the
+outcome the classing write gives it.
+
 **With question sets** (`verification-fix-loop`): asked through the cockpit only
 when it is the first thing this node asks in its attempt, with the verification
 report and every fix so far written first; after an earlier request in the same
-attempt, the default below is taken (*In-node questions*).
+attempt — the finding questions — the default below is taken (*In-node questions*).
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
@@ -873,6 +916,14 @@ driver tooling reads it, and the order is reversed: the executive summary and
 every next step are printed as ordinary text **before** the `run-complete` call;
 after it, print nothing but the lines the verb printed, copied exactly, its
 marker last. Never type a marker the verb did not print.
+
+**No close-out while a choice is held.** When the freeze recorded
+`orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
+closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
+`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
+revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
+refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
+ends on `run-held-unapproved`.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

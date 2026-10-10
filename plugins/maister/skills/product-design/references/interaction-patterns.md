@@ -23,6 +23,7 @@ Product design is a conversation, not a form. The workflow alternates between ex
 **Principles**:
 - **Avoid anchoring bias**: Do not propose solutions during exploration. Premature solutions close off discovery.
 - **Pages of independent questions**: Up to four questions to a page, each standing on its own; a question whose framing depends on another's answer waits for the next page, which builds on the answers before it. Decision areas are never paged — they belong to convergence.
+- **One behaviour, one story**: Questions about one behaviour the feature must support — who may do it, where they start, what changes, who sees the result — are drafted into one journey-level story and asked as one question, never as separate tabs. A screen or a control appears in it only where the design context already names one, so the story records the journey without anchoring the layout. The workflow engine's *In-node questions* states the rule.
 - **Context-aware questions**: Each question carries its own synthesis line — what the run already understands that bears on it, from the codebase analysis, the user-supplied context or earlier answers — and two or three answers generated from it. Generic questions waste the user's time.
 - **Escape hatches**: Always allow the user to say "Not sure yet" without blocking progress, and to ask for More details — the full context written out, then the same question again.
 

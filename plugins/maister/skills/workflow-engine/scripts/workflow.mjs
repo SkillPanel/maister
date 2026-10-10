@@ -17,13 +17,17 @@
  *                  take; without --name, the project's own workflows)
  *   write-state    --state, --patch-file (or the patch as JSON on stdin)
  *                                                             changed paths
+ *                  (and, for a node's question set, a blank line and the
+ *                  `ask:` line naming the ids still to ask, or `none`)
  *   gate-request   --state, --patch-file (or the request as JSON on stdin)
  *                                                             the files written
  *                  (the request file, the gate index and the pending marker)
  *   gate-revise    --state, --node, --option, --patch-file (or the note as
  *                  JSON on stdin)                             changed paths
  *                  (the stretch from the option's rerun node to the gate reset
- *                  in one write, with the operator's note on the gate)
+ *                  in one write, with the operator's note on the gate; at
+ *                  `--node=held-approval`, the owning node and everything
+ *                  downstream of it, closing node included)
  *   prior-context  --state                                    the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt — read-only over a run
@@ -42,7 +46,24 @@
  *                  the revise answered without one; --oneline the
  *                  one-line fallback a request's summary carries — reads
  *                  the run, and writes only its display/next.json, the panel
- *                  an editor extension draws above the question
+ *                  an editor extension draws above the question. --node
+ *                  names a frozen gate, or held-approval: the checkpoint a
+ *                  run raises before it closes while choices are held
+ *   area-brief     --state, --node (the convergence node asking), and one of
+ *                  --area --json [--picker=rich|plain], --area alone, or
+ *                  --patch-file with --area repeated or omitted
+ *                                                             one decision
+ *                  area of the brainstorm: the picker as JSON, the write-up as
+ *                  markdown, or the driven question set written to the patch
+ *                  file; a file it cannot use is a warning and nothing to
+ *                  paste — reads the run, writes no state
+ *   finding-brief  --state, --node (the reviewing node asking), --findings-file,
+ *                  optional --patch-file                     the reviewer's
+ *                  findings as the node's question set, one question per
+ *                  finding with an accept-the-risk choice added: the set as
+ *                  JSON on stdout, or written to the patch file; a findings
+ *                  list it cannot use is a warning and nothing to paste —
+ *                  reads the run, writes no state
  *   resume-check   --state                                    JSON on stdout
  *                  (the frozen workflow's name, overlays and profile, or the
  *                  refusal for a directory the engine does not resume, a 2.x
@@ -137,6 +158,18 @@ const VERBS = {
   // itself, from the one place a patch is read, so the request a driver
   // suspends on is built by the same verb a gate's is.
   'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline', 'json', 'picker', 'checkpoint', 'request', 'reask', 'patch-file'] },
+  // One decision area of a brainstorm, rendered from the file it wrote, so a
+  // convergence node pastes its questions instead of composing them. `--node`
+  // for `gate-brief`'s reason, and because the file is found through that
+  // node's `with:`; `--area` repeatable for the driven set, which may carry
+  // only some areas. `--json` and `--picker` as in `gate-brief`; `--patch-file`
+  // is the one place the set is written, so a driver hands it on unchanged.
+  'area-brief': { module: 'area-brief.mjs', flags: ['state', 'node', 'area', 'json', 'picker', 'patch-file'] },
+  // A reviewer's findings, one question each, rendered from the list it wrote,
+  // so a reviewing node pastes its questions instead of composing them.
+  // `--findings-file` because the list is the reviewer's own artifact, named
+  // by the node that dispatched it; `--patch-file` as in `area-brief`.
+  'finding-brief': { module: 'finding-brief.mjs', flags: ['state', 'node', 'findings-file', 'patch-file'] },
   // Read-only as well, and asked first by every resume: whether the directory
   // holds a run this engine froze, and what it froze. One flag for the reason
   // the other state verbs take one.
@@ -151,7 +184,7 @@ const VERBS = {
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 /** The flags that may be given more than once; every other flag is single-valued. */
-const REPEATABLE = new Set(['overlay']);
+const REPEATABLE = new Set(['overlay', 'area']);
 
 /**
  * The picker profiles `gate-brief --json` renders: `rich` for a tool that shows
@@ -507,6 +540,12 @@ function reportWrite(result, input) {
   // nobody read it. A caller after the paths skips to the first blank line.
   if (result.banner) process.stdout.write(`${result.banner}\n`);
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
+  // The classing write's remainder, after a blank line as a revise's line is:
+  // the question ids the node still asks, or `none` when the writer settled
+  // every one. Only a write that sent a question set has one.
+  if (result.ok && Array.isArray(result.asking)) {
+    process.stdout.write(`\nask: ${result.asking.length ? result.asking.join(' ') : 'none'}\n`);
+  }
   // A warning is not a refusal and must not read like one: the refusal contract
   // puts the code as the first stderr token, so these lines open with `warning:`
   // and name what did not happen. The dashboard is a projection of a write that
@@ -534,6 +573,9 @@ function reportWrite(result, input) {
     process.stderr.write('note: ignored the supplied orchestrator.policy_hash; the freeze records it from the policy it applied,'
       + ' so no patch sets it\n');
   }
+  // A writer-owned value dropped for a reason of its own: the writer returns
+  // the sentence, and it is printed here as written.
+  for (const note of result.notes || []) process.stderr.write(`note: ${note}\n`);
   // The autonomy policy's own warnings and the skip-guard rule's, each a code
   // string: a refused policy file leaves the run on the built-in default, and a
   // gate recorded skipped that the rule asks is written as sent, so each is a
@@ -629,13 +671,14 @@ function parseDocument(text, where) {
  * on success, deleted from — anywhere else. Why the name is fixed and what is
  * refused: `lib/input-file.mjs`.
  */
-function patchFileOf(flags) {
+function patchFileOf(flags, { absentOk = false } = {}) {
   return anchoredFile({
     given: flags['patch-file'],
     expected: path.join(path.dirname(path.resolve(flags.state)), PATCH_FILE),
     noun: 'the patch file',
     beside: 'beside the state file it patches',
     Usage: UsageError,
+    absentOk,
   });
 }
 
@@ -773,6 +816,84 @@ async function runGateBrief(flags) {
 const GATE_BRIEF_FORMS = ['oneline', 'json', 'checkpoint', 'request'];
 
 /**
+ * Print one decision area for the convergence node asking it.
+ *
+ * Reported like `gate-brief`: under `--json` the whole result on stdout, a
+ * refusal included; otherwise stdout is what a caller pastes and a refusal is
+ * exit 1 with an empty stdout and the code first on stderr. A file the verb
+ * cannot use is a `warning:` line on stderr and exit 0 with nothing to paste —
+ * `{ok: true, fallback: true}` under `--json` — so the node composes the area
+ * itself. Writes no state and no panel.
+ */
+async function runAreaBrief(flags) {
+  if (!flags.state) throw new UsageError('area-brief needs --state');
+  if (!flags.node) throw new UsageError('area-brief needs --node');
+  const areas = flags.area || [];
+  const set = flags['patch-file'] !== undefined;
+  if (set && flags.json === true) {
+    throw new UsageError('area-brief takes --json or --patch-file, not both: --json is the in-session picker, --patch-file the driven question set');
+  }
+  const form = set ? 'set' : flags.json === true ? 'picker' : 'write-up';
+  if (flags.picker !== undefined && form !== 'picker') {
+    throw new UsageError('area-brief takes --picker only with --json: it shapes the in-session picker');
+  }
+  const picker = flags.picker ?? 'rich';
+  if (!PICKERS.includes(picker)) {
+    throw new UsageError(`area-brief --picker takes ${PICKERS.join(' or ')}, not "${picker}"`);
+  }
+  if (form !== 'set' && areas.length !== 1) {
+    throw new UsageError(`area-brief ${form === 'picker' ? '--json' : 'without --json or --patch-file'} takes exactly one --area, not ${areas.length}: `
+      + 'one area is asked, or shown in full, at a time');
+  }
+  // The set is the verb's own write, so nothing need be there yet; what is
+  // there must still be the one patch file, never a link or a directory.
+  const patchFile = set ? patchFileOf(flags, { absentOk: true }) : null;
+  const module = await loadModule(VERBS['area-brief'].module);
+  const render = entryOf(module, 'areaBrief', VERBS['area-brief'].module);
+  const result = render({ state: flags.state, node: flags.node, areas, form, picker, patchFile });
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+  if (form === 'picker') {
+    report(result.ok ? result : { ok: false, errors: result.errors, warnings: result.warnings || [] });
+    return result.ok ? EXIT.OK : EXIT.REJECTED;
+  }
+  if (!result.ok) return EXIT.REJECTED;
+  if (result.fallback) return EXIT.OK;
+  if (form === 'set') process.stdout.write(`${result.file}\n`);
+  else process.stdout.write(`${result.text}\n`);
+  return EXIT.OK;
+}
+
+/**
+ * Print a reviewer's findings as the reviewing node's question set.
+ *
+ * Reported like `area-brief`'s set form: a refusal is exit 1 with an empty
+ * stdout and the code first on stderr; a findings list the verb cannot use is
+ * a `warning:` line on stderr and exit 0 with nothing to paste. Otherwise the
+ * set is printed as JSON, or, with `--patch-file`, written there and the
+ * file's path printed. Writes no state and no panel.
+ */
+async function runFindingBrief(flags) {
+  if (!flags.state) throw new UsageError('finding-brief needs --state');
+  if (!flags.node) throw new UsageError('finding-brief needs --node');
+  if (typeof flags['findings-file'] !== 'string' || flags['findings-file'] === '') {
+    throw new UsageError('finding-brief needs --findings-file: the reviewer\'s findings list, inside the run directory');
+  }
+  // The set is the verb's own write, so nothing need be there yet.
+  const patchFile = flags['patch-file'] !== undefined ? patchFileOf(flags, { absentOk: true }) : null;
+  const module = await loadModule(VERBS['finding-brief'].module);
+  const render = entryOf(module, 'findingBrief', VERBS['finding-brief'].module);
+  const result = render({ state: flags.state, node: flags.node, findingsFile: flags['findings-file'], patchFile });
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+  if (!result.ok) return EXIT.REJECTED;
+  if (result.fallback) return EXIT.OK;
+  if (patchFile !== null) process.stdout.write(`${result.file}\n`);
+  else process.stdout.write(`${JSON.stringify(result.set, null, 2)}\n`);
+  return EXIT.OK;
+}
+
+/**
  * Write the brief's panel to the run's `display/next.json`, for an editor
  * extension to draw above the question. Display only: whatever goes wrong is
  * one stderr line and the brief stands as printed. It stays out of the
@@ -839,6 +960,8 @@ const RUNNERS = {
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
   'gate-brief': runGateBrief,
+  'area-brief': runAreaBrief,
+  'finding-brief': runFindingBrief,
   'resume-check': runResumeCheck,
   'sync-plan': runSyncPlan,
 };

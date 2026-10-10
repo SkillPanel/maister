@@ -1,0 +1,33 @@
+# Two checkpoints ready at once after `choosing`. `plain-approval` comes first
+# in frozen order and offers no revise; `redo-approval` can send `choosing`
+# back. A question held with no choice in `choosing` is settled through the
+# second, so neither brief may point at `held-approval`.
+name: two-checkpoints
+version: 1
+description: "Chooses, then asks two checkpoints side by side, and closes."
+
+nodes:
+  choosing:
+    uses: direct:choosing
+    needs: []
+
+  plain-approval:
+    type: gate
+    needs: [choosing]
+    ask: "Choosing done. Continue?"
+    options:
+      go-on: continue
+      halt: stop
+
+  redo-approval:
+    type: gate
+    needs: [choosing]
+    ask: "Choosing reviewed. Keep it?"
+    options:
+      keep: continue
+      redo-choosing: {effect: revise, reruns: choosing}
+      quit: stop
+
+  closing:
+    uses: direct:closing
+    needs: [plain-approval, redo-approval]

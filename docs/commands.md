@@ -490,6 +490,11 @@ definition the run froze is re-resolved, the graph hash recomputed, and a mismat
 rather than dispatching work the run never planned. Provider and autonomy resolve node →
 member → workspace default, and refuse at the end of that chain instead of acquiring a default
 nobody chose.
+The autonomy ceiling — how much the worker's run may settle without asking — resolves
+`with.ceiling` → `members.<member>.ceiling` → `defaults.ceiling` → the dispatching run's own, and
+is clamped never wider than the dispatcher's: a dispatcher with none dispatches none, and an
+unknown level reads as `approve`. Nothing resolved writes no `ceiling` line, and nothing about it is
+ever refused.
 
 | Flag | Description |
 |------|-------------|

@@ -11,10 +11,10 @@ writes into its closing summary for the gate brief, the self-checks that decide 
 node succeeded, or how many times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `development.yml` alone cannot
-see that the run asks nine further questions beyond its gates, and the
+see that the run asks eleven further questions beyond its gates, and the
 generated diagram does not show them either. Anyone reasoning about how
-interactive this workflow is must read this file, not the graph. The nine
-reach the user as eight asks, in run order:
+interactive this workflow is must read this file, not the graph. The eleven
+reach the user as nine asks, in run order:
 
 1. `intake` — the task description, only when the invocation gave none.
 2. `codebase-analysis` — one page of the clarifications the analysis could not
@@ -22,12 +22,14 @@ reach the user as eight asks, in run order:
 3. `gap-analysis` — the scope decisions.
 4. `specification`, Part A — a page of technical questions, then each open
    architecture choice in its own call.
-5. `specification`, Part B — the assumptions page.
-6. `verification-options` — the checks page: the reviews and the user
+5. `specification`, Part B — the drafted stories, then the assumptions page.
+6. `spec-audit` — one question per audit finding that needs a decision, only
+   when the audit ran and left one.
+7. `verification-options` — the checks page: the reviews and the user
    documentation, one tab each.
-7. `verification` — the fix loop's decision pages and its stopping question,
-   only when something needs the user.
-8. `user-docs` — the guide fixes, only when a suggestion adds or rewrites
+8. `verification` — one question per issue that needs the user, then the fix
+   loop's stopping question, only when something needs the user.
+9. `user-docs` — the guide fixes, only when a suggestion adds or rewrites
    content.
 
 Only the assumptions page and the checks page are asked on every attended run;
@@ -58,6 +60,12 @@ own section states under **Without question sets** and the node records it as a
 `by: default` decision carrying the question's id. The rule and what is never
 defaulted past belong to the engine skill, which states them once; this file
 only says what each question takes.
+
+**When the run's policy classes in-node questions** — the freeze recorded
+`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
+before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
+settled, defaulted or held under the run's autonomy ceiling and are already on the node's
+summary. The engine skill states the rule once; no section below changes for it.
 
 **What a closing node writes for its gate.** Every node a gate needs writes, in
 its closing `node_summaries` entry, a one-sentence `headline` (at most 220
@@ -234,7 +242,7 @@ state file and the context ingests the rest of the run reads from.
 the operator for it. Nothing downstream is meaningful without one, and inventing
 a task description is the documented failure mode. Ask it as free text — "What
 should this run build or fix? One or two sentences." This is the first of the
-eight asks.
+nine asks.
 
 **With question sets** (`task-description`): never reached either — the start
 brief supplies the description.
@@ -365,7 +373,7 @@ structured analysis every later node reads.
 
 After the skill returns, write the analysis summary, the key files and the
 primary language into state. Then ask the clarifications — the second of the
-eight asks — as **one page of at most four tabs**. The count is adaptive: ask
+nine asks — as **one page of at most four tabs**. The count is adaptive: ask
 only what the analysis could not settle, and ask nothing when it settled
 everything. Each tab states, in its own question, what the analysis could not
 settle and why it matters; its options are two or three answers generated from
@@ -442,7 +450,7 @@ to `task_context.risk_level`.
 and it is a closed enum so it stays flow-safe through the flow map.
 
 **The scope decisions.** Parse the decisions the analyzer flagged as critical or
-important. When either list is non-empty, ask them — the third of the eight
+important. When either list is non-empty, ask them — the third of the nine
 asks. Every decision is its own single-select question with its own option set,
 never flattened into one question's option list; critical decisions get a call
 each with full context, important ones may be grouped as up to four separate
@@ -681,9 +689,9 @@ is frozen into the graph hash and cannot carry a value that differs per run.
 ## `specification`
 
 Executed inline in three parts, the last of them delegated. This is the widest
-node in the run: it holds two of the eight asks — the technical questions and
-the assumptions page — writes three artifacts and recommends whether the audit
-runs, which `specification-approval` decides.
+node in the run: it holds two of the nine asks — the technical questions, and
+the drafted stories with the assumptions page — writes three artifacts and
+recommends whether the audit runs, which `specification-approval` decides.
 
 **An architecture constrains every part.** When the intake copied one in — this
 node reads it as `architecture` — the interfaces, contracts and decisions it
@@ -694,7 +702,7 @@ codebase, the requirements or the specification cannot follow the architecture
 is raised as an `open` risk, never resolved silently either way.
 
 **Part A — technical and architecture clarification (inline, conditional).** The
-fourth of the eight asks, in two kinds:
+fourth of the nine asks, in two kinds:
 
 - **Technical questions.** When the task admits several viable approaches, ask
   what the analysis and the scope decisions left open as **one page of at most
@@ -746,28 +754,61 @@ approach is recommended, none is invented: the choice stays open, is written to
 risk in this node's summary, its `change` naming the choice still to make, so it
 reaches an operator at `specification-approval`.
 
-**Part B — requirements gathering (inline).** The fifth of the eight asks: one
-page confirming the specification's assumptions.
+**Part B — requirements gathering (inline).** The fifth of the nine asks: the
+drafted stories, then one page confirming the specification's assumptions.
 
-*The assumptions tab.* Frame the specification questions as confirmable
-assumptions rather than open prompts, with the count adapted to how much the
-invocation already said: a brief description earns six to eight, a standard one
-four to six, a detailed one two or three focused ones. Offer "Accept all N as
-stated (Recommended)" first, its question stating each assumption on a line of
-its own — never "the assumptions above" — and go through them one by one, each
-stated in its own tab, four to a page, only when the user asks to (engine
-§ *In-node questions*). Three are always among them whatever the count: how
-users reach the feature and which personas it serves; which existing components
-and patterns it should reuse; and whether any visual assets exist that have not
-been ingested yet. The visual-assets assumption is the one exception to
-"always": when the gap analysis recorded the task as not UI-heavy and intake
-found no design source, the run already knows the answer — there is no
-interface to draw — so it is not asked, and `analysis/requirements.md` says "no
-visual assets: the change has no user interface" (engine § *In-node questions*,
-asking only what the run does not know). Save the whole round to
-`analysis/requirements.md` — the initial description, the questions and
-answers, the similar features found, the functional requirements, the reuse
-opportunities, the scope boundaries and the technical considerations.
+*The stories.* Group what the specification still has to settle by topic: each
+behaviour a user or a calling system triggers and then observes — deactivating
+a user, exporting a report — is one topic, and its open points are drafted into
+one story by engine § *In-node questions* (*One topic is one drafted story*),
+never asked as separate tabs. Draft each from the analysis, the gap analysis
+and its scope answers, and the design context. A story the design brief
+already carries (`analysis/design-context/brief.md`) was accepted there: it is
+carried as it stands and not asked again. Ask each story as its own question,
+id `user-story-<topic>`, up to four that stand on their own to a page; a story
+whose framing depends on another's answer waits for the next page. A change
+nobody triggers or observes — a refactor, or a defect fix whose behaviour the
+failing test already pins — has no stories, and none is invented. Each story
+goes into `analysis/requirements.md` under **User stories**, by its id, with
+its five parts and how it was settled: accepted, accepted with the listed
+corrections and written as corrected, the alternative, the operator's own
+words, or taken as drafted without an answer and marked drafted, not
+confirmed. That section is the requirement each story records; the
+specification keeps it and the verification checks it, both by that id.
+
+**With question sets** (`user-story`): each story is its own question in the
+same request as the technical questions, its `why` naming what the story
+settles (*In-node questions*). Each draft, its corrections and its alternative
+are in `analysis/requirements.md` before the node suspends, so the answer is
+applied from the file.
+
+**Without question sets** (`user-story`): each story is taken as
+drafted and recorded `by: default` under its own id. `analysis/requirements.md`
+marks it drafted, not confirmed, and the specification carries it that way —
+which is what `specification-approval` puts in front of an operator.
+
+*The assumptions tab.* Only what changes no story is an assumption. Frame the
+specification questions as confirmable assumptions rather than open prompts,
+with the count adapted to how much the invocation already said: a brief
+description earns six to eight, a standard one four to six, a detailed one two
+or three focused ones. Offer "Accept all N as stated (Recommended)" first, its
+question stating each assumption on a line of its own — never "the assumptions
+above" — and go through them one by one, each stated in its own tab, four to a
+page, only when the user asks to (engine § *In-node questions*). Two are always
+among them whatever the count: which existing components and patterns the
+change should reuse, and whether any visual assets exist that have not been
+ingested yet. A third, how users reach the feature and which personas it
+serves, is among them only when the run drafted no story, because a story's
+actor and entry point already say it. The visual-assets assumption is the one
+exception to "always": when the gap analysis recorded the task as not UI-heavy
+and intake found no design source, the run already knows the answer — there is
+no interface to draw — so it is not asked, and `analysis/requirements.md` says
+"no visual assets: the change has no user interface" (engine § *In-node
+questions*, asking only what the run does not know). Save the whole round to
+`analysis/requirements.md` — the initial description, the user stories, the
+questions and answers, the similar features found, the functional
+requirements, the reuse opportunities, the scope boundaries and the technical
+considerations.
 
 **With question sets** (`specification-requirements`): asked through the
 cockpit, in the same request as the technical questions (*In-node questions*);
@@ -795,8 +836,10 @@ conflict the creator finds is listed in the specification as an open risk
 rather than resolved.
 
 If the agent returns without `implementation/spec.md`, or with one that leaves a
-requirement gathered in Part B uncovered, re-invoke it with the missing context
-rather than writing the specification yourself.
+requirement gathered in Part B uncovered — a story in `analysis/requirements.md`
+missing from the specification's User Stories under its id among them —
+re-invoke it with the missing context rather than writing the specification
+yourself.
 
 **Recommend the audit, never ask it.** Whether the audit runs is the answer to
 `specification-approval`, whose two continues set the value the audit stretch's
@@ -831,9 +874,11 @@ or any other earlier answer, are never restated as the specification's. In
 `risks`, each assumption the specification makes as an `open` risk whose `change`
 says what would change if it is wrong ("CSV cells are never quoted", change:
 "quote cells that hold a comma") — never a bare "Assumption: …", because a revise
-offers that change; each consequence the specification accepts on purpose, such
-as a breaking change it ships, as a `tradeoff`; each related problem it leaves
-out of scope as a `followup`; each conflict with the architecture input as an
+offers that change; a story taken as drafted without an answer is one such
+assumption, its `change` the correction Part B listed for it; each consequence
+the specification accepts on purpose, such as a breaking change it ships, as a
+`tradeoff`; each related problem it leaves out of scope as a `followup`; each
+conflict with the architecture input as an
 `open` risk whose `change` says what would follow either way — the specification
 changed to fit the architecture, or the architecture revisited upstream. In
 `recommends`, the continue of
@@ -925,9 +970,28 @@ this follows step by step):
   `{finding, change}` — the finding and the change in a few words each — and the
   re-audits as `reaudit_count` (0 or 1).
 
-This node asks the operator nothing — no question about findings, no revise
-round, in a terminal run or under a driver; the following gate is the
-operator's moment.
+**Each finding that needs a decision is its own question** — the sixth of the
+nine asks, only when the audit (after its fix pass and re-audit) leaves one
+(`orchestrator-patterns.md` § 6, step 5; engine § *Findings that need a
+decision*). Write the auditor's decision findings, as its structured result
+gives them, to `verification/spec-audit-findings.json`, each finding's `id`
+the auditor's `name`, and build the set with `finding-brief` for this node.
+Send it through the classing write when the run classes questions, then ask
+what is left to ask: one question per finding, most severe first, each with the
+auditor's change and alternatives, "Accept the risk and list it", the
+recommended choice with its reason, and the finding's evidence. Hand every
+chosen change to the specification creator in one more amend pass — no
+re-audit — and record each answer as the writer folds it; an accepted risk
+becomes a `tradeoff` risk. A held choice goes on provisionally, and the gate
+after this node approves it. A file `finding-brief` cannot use is a fallback:
+compose the same questions yourself.
+
+**With question sets** (`spec-audit-findings`): asked through the cockpit as
+this node's one request, with the audit report and every fix written first.
+
+**Without question sets** (`spec-audit-findings`): nothing is asked. A finding
+the policy does not class stays open as an `open` risk; a classed one takes the
+outcome the classing write gives it.
 
 A failing verdict does not end the run on its own. It is what the operator reads
 at the gate, and the gate's stop option is the route out.
@@ -942,12 +1006,14 @@ the report still lists the findings the run fixed. The fixes are already in
 `fixes_applied`, which the gate shows as fixed by the run: never repeat one in
 `decisions`. In `decisions`, only what the audit itself settled one way — a
 point the spec left open that the audit resolved against the codebase — as
-`by: audit`, never an earlier answer restated; a check that merely confirmed
+`by: audit`, never an earlier answer restated; the answers to the finding
+questions are already there as their own; a check that merely confirmed
 the spec is a finding, and goes in the summary. In `risks`, only the
-findings still open — needing a decision, not applied, or found by the re-audit
-— each as an `open` risk whose `change` is what a revise of the specification
-would do about it, the critical ones first; a finding about something outside
-this change as a `followup`. A finding the run fixed is never a risk: the
+findings still open — undecided, not applied, or found by the re-audit — each
+as an `open` risk whose `change` is what a revise of the specification would do
+about it, the critical ones first; each finding the operator accepted as a
+`tradeoff`; a finding about something outside this change as a `followup`. A
+finding the run fixed or the operator settled is never an open risk: the
 revise suggestions are drawn from the open ones alone.
 
 **Recovery budget**: none — an audit that returns is an audit, whatever its
@@ -1151,7 +1217,7 @@ user guide is written. Its declared boolean output is what the user-docs guards
 read. Whether the browser checks run is not asked here: `verification-approval`
 decides it, once the verification report is in front of the operator.
 
-**The checks page — the sixth of the eight asks.** One page of up to two tabs,
+**The checks page — the seventh of the nine asks.** One page of up to two tabs,
 asked together because each answer stands on its own. A gate cannot express it:
 the reviews are a set of checks rather than a route, and the user guide comes
 after a stretch that may be skipped, so no one gate always precedes it.
@@ -1265,16 +1331,23 @@ step by step):
   Each raises `verification_context.reverify_count` by one. **Two re-checks run
   without asking.** Say each as "re-check 1 of 2"; never announce a fix before it
   is made.
-- **Asked — the seventh of the eight asks — only when** an issue needs the
-  user's decision, a fix is risky, the two re-checks are spent with fixable
-  issues still open, or there is no progress (the same issues return, or new
-  ones keep appearing). Decisions go one per issue, paged as engine § *In-node
-  questions* says, most severe first, each with generated ways to tackle it —
-  the recommended one first with its reason — its tab stating the issue's file,
-  line and what is wrong and each option what it changes; more than about eight
-  first get the triage question. A change the user asks for here is applied,
-  logged and re-checked like any fix — the gate after this node offers no
-  revise, so this is where such a change is taken.
+- **Asked — the eighth of the nine asks — only when** an issue needs the user's decision, a fix is
+  risky, the two re-checks are spent with fixable issues still open, or there is
+  no progress (the same issues return, or new ones keep appearing) — and only
+  once the automatic fixes and re-checks are done. **Each such issue is its own
+  question** (engine § *Findings that need a decision*): write the verifier's
+  decision fields for those issues to `verification/verification-findings.json`,
+  each issue's `id` the verifier's `name` (issues with one root cause are one
+  finding), and build the set with `finding-brief` for this node. Send it
+  through the classing write when the run classes questions, then ask what is
+  left to ask, paged as engine § *In-node questions* says, the first question
+  naming the report's path; more than about eight first get the triage
+  question. A change the user picks is applied, logged and re-checked like any
+  fix — the gate after this node offers no revise, so this is where such a
+  change is taken; an accepted risk becomes a `tradeoff` risk; a held choice
+  goes on provisionally, and `verification-approval` approves it. A file
+  `finding-brief` cannot use is a fallback: compose the same questions
+  yourself.
 - **The stopping question** says what was fixed, what is left by severity and
   how many re-checks ran, and offers three ways on, one of them recommended
   with its reason in its description: **"Continue as is"** when only warnings
@@ -1284,10 +1357,18 @@ step by step):
   ("a critical issue is still open, and shipping past it is not safe"). More
   details is the fourth option.
 
+**With question sets** (`verification-findings`): asked through the cockpit as
+this node's one request in its attempt, with the verification report and every
+fix so far written first.
+
+**Without question sets** (`verification-findings`): nothing is asked. An issue
+the policy does not class stays open as an `open` risk; a classed one takes the
+outcome the classing write gives it.
+
 **With question sets** (`verification-fix-loop`): asked through the cockpit only
 when it is the first thing this node asks in its attempt, with the verification
 report and every fix so far written first; after an earlier request in the same
-attempt, the default below is taken (*In-node questions*).
+attempt — the finding questions — the default below is taken (*In-node questions*).
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
@@ -1317,7 +1398,7 @@ severity. In `fixes_applied`, every fix made without asking — the issue and th
 change in a few words each — so the checkpoint shows exactly what changed
 without the user choosing it; a fix is never also a decision. In `decisions`,
 each review finding the verifier itself settled as `by: audit`; the user's
-answers on the decision pages are already there as their own, and no earlier
+answers to the finding questions are already there as their own, and no earlier
 answer is restated here. In `risks`, each issue still needing a decision as an `open` risk with the
 `change` that would settle it, the critical ones first; each issue the user left
 for later as a `followup`; each warning kept on purpose as a `tradeoff`. When
@@ -1463,7 +1544,7 @@ must stay consistent with, never a section of it. The plain form's "binding"
 framing once made a guide end with an appendix quoting every decision and risk
 of the run.
 
-**Take the fixes the generator names — the eighth of the eight asks, and asked
+**Take the fixes the generator names — the ninth of the nine asks, and asked
 only sometimes.** The generator may report content it suggests removing or
 changing — an extra helper beyond the change, a section aimed at maintainers
 rather than users. When every suggestion only removes content that is not for
@@ -1563,6 +1644,14 @@ driver tooling reads it, and the order is reversed: the executive summary and
 every next step are printed as ordinary text **before** the `run-complete` call;
 after it, print nothing but the lines the verb printed, copied exactly, its
 marker last. Never type a marker the verb did not print.
+
+**No close-out while a choice is held.** When the freeze recorded
+`orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
+closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
+`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
+revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
+refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
+ends on `run-held-unapproved`.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

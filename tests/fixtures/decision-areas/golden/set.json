@@ -1,0 +1,78 @@
+{
+  "questions": [
+    {
+      "id": "convergence-decisions-storage",
+      "header": "Storage",
+      "question": "Storage: Where do shared calendars live?",
+      "why": "It fixes what a later migration costs.",
+      "options": [
+        {
+          "id": "same-db",
+          "label": "Same database",
+          "description": "Reuses the `calendars` schema with no new service",
+          "recommended": true
+        },
+        {
+          "id": "hosted-api",
+          "label": "Hosted calendar API",
+          "description": "Pro: Sharing built in · Con: A vendor holds the data"
+        },
+        {
+          "id": "own-service",
+          "label": "Own service",
+          "description": "Pro: Scales alone · Con: One more deploy"
+        },
+        {
+          "id": "document-store",
+          "label": "Document store",
+          "description": "Pro: One read per calendar · Con: A second database"
+        }
+      ],
+      "details": "**Storage**\nWhere do shared calendars live?\nWhy it matters: It fixes what a later migration costs.\n\n**Hosted calendar API**\nKeep shares in a hosted calendar service. Its sharing model becomes ours.\n\nPros:\n- Sharing comes built in\n- No storage to run\n\nCons:\n- A vendor holds the data\n\n**Same database** (Recommended)\nAdd a `calendar_shares` table beside `calendars`. Shares join the existing schema.\n\nPros:\n- No new service\n- One backup\n\nCons:\n- Couples the schemas\n\n**Own service**\nRun sharing as its own service with its own store.\n\nPros:\n- Scales alone\n\nCons:\n- One more deploy\n- Cross-service reads\n\n**Document store**\nKeep each calendar and its shares in one document.\n\nPros:\n- One read per calendar\n\nCons:\n- A second database to run\n\nRecommended: Same database — Reuses the `calendars` schema with no new service"
+    },
+    {
+      "id": "convergence-decisions-access",
+      "header": "Access model",
+      "question": "Access model: How do guests reach a shared calendar?",
+      "why": "Decides whether guests need an account. Depends on: Storage.",
+      "options": [
+        {
+          "id": "signed-link",
+          "label": "Signed link",
+          "description": "Pro: No account needed · Con: Hard to revoke per person"
+        },
+        {
+          "id": "guest-account",
+          "label": "Guest account",
+          "description": "Pro: Revocable per person · Con: Sign-up friction"
+        }
+      ],
+      "details": "**Access model**\nHow do guests reach a shared calendar?\nWhy it matters: Decides whether guests need an account.\nDepends on: Storage.\n\n**Signed link**\nShare a link signed for one calendar.\n\nPros:\n- No account needed\n\nCons:\n- Hard to revoke per person\n\n**Guest account**\nInvite guests to a light account.\n\nPros:\n- Revocable per person\n\nCons:\n- Sign-up friction"
+    },
+    {
+      "id": "convergence-decisions-sharing-screen",
+      "header": "Sharing scr…",
+      "question": "Sharing screen: Where does an owner share a calendar from?",
+      "why": "It sets how many steps sharing takes. Depends on: Storage, Access model.",
+      "options": [
+        {
+          "id": "inline-toggle",
+          "label": "Inline toggle",
+          "description": "One click from the calendar itself.",
+          "recommended": true
+        },
+        {
+          "id": "dialog",
+          "label": "Share dialog",
+          "description": "Pro: Room for every option · Con: Two clicks"
+        },
+        {
+          "id": "settings-page",
+          "label": "Settings page",
+          "description": "Pro: Nothing new on screen · Con: Hard to find"
+        }
+      ],
+      "details": "**Sharing screen**\nWhere does an owner share a calendar from?\nWhy it matters: It sets how many steps sharing takes.\nDepends on: Storage, Access model.\n\n**Inline toggle** (Recommended)\nA share toggle on the calendar header.\n\nPros:\n- One click\n\nCons:\n- Little room for options\n\n**Share dialog**\nA dialog listing who can see the calendar.\n\nPros:\n- Room for every option\n\nCons:\n- Two clicks\n\n**Settings page**\nSharing lives with the calendar's settings.\n\nPros:\n- Nothing new on the main screen\n\nCons:\n- Hard to find\n\nRecommended: Inline toggle — One click from the calendar itself."
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ENGINE as ENGINE_SCRIPT, freeze, freezePatch, maskRoot, run as runScript, scratch, sibling, verb } from '../helpers.mjs';
+import { anchoredFile } from '../../plugins/maister/lib/input-file.mjs';
 
 const PATCH_FILE = '.state-patch.json';
 
@@ -159,4 +160,29 @@ test('patch file: gate-request reads the same file under the same rule', t => {
   put(run, { node: 'approval', kind: 'approve', question: 'Proceed?', options: [] });
   const result = verb(['gate-request', `--state=${run.state}`, `--patch-file=${patchFile(run)}`], 'not json');
   assert.equal(fs.existsSync(patchFile(run)), result.code !== 0, result.stderr);
+});
+
+test('input file: absentOk lets a file the verb writes itself not exist yet, and refuses all else as before', t => {
+  const run = scratch(t);
+  class Usage extends Error {}
+  const target = patchFile(run);
+  const anchored = (given, options = {}) => anchoredFile({ given, expected: target, noun: 'the patch file', beside: 'beside the state file', Usage, ...options });
+
+  assert.throws(() => anchored(target), /could not be read/, 'off by default: an absent file is refused');
+  assert.equal(anchored(target, { absentOk: true }), target, 'on: an absent file is the place to write');
+
+  fs.mkdirSync(target);
+  assert.throws(() => anchored(target, { absentOk: true }), /is not a regular file/, 'a directory is refused');
+  fs.rmdirSync(target);
+
+  fs.writeFileSync(path.join(run.root, 'elsewhere.json'), '{}');
+  fs.symlinkSync(path.join(run.root, 'elsewhere.json'), target);
+  assert.throws(() => anchored(target, { absentOk: true }), /symbolic link/, 'a link is refused');
+  fs.unlinkSync(target);
+
+  assert.throws(() => anchored(`${run.dir}/../${path.basename(run.dir)}/${PATCH_FILE}`, { absentOk: true }), /parent directory/);
+  assert.throws(() => anchored(path.join(run.root, PATCH_FILE), { absentOk: true }), /must be /);
+
+  fs.writeFileSync(target, '{}');
+  assert.equal(anchored(target, { absentOk: true }), target, 'an existing regular file still passes');
 });

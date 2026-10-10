@@ -313,6 +313,11 @@ it rather than acquiring a default nobody chose. A node's own value wins, then
 the member's, then the workspace default; an autonomy value outside the frozen
 tier vocabulary is refused rather than written, because the envelope would be
 invalid the moment it landed.
+The envelope may also carry the run's autonomy ceiling, `ceiling`: `with.ceiling`,
+then `members.<member>.ceiling`, then `defaults.ceiling`, then the dispatching run's
+own, clamped never wider than the dispatcher's — a dispatcher with none dispatches
+none, an unknown value reads as `approve`, and nothing is refused; the seed tells the
+worker to record it at its freeze.
 
 The close-out contract is derived from the autonomy tier — a pull request is
 required wherever the tier can reach one, counting `attended`'s approval relay —

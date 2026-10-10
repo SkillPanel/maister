@@ -1,0 +1,61 @@
+# The held-approval closing definition. `outline-approval` is the one frozen
+# gate, so everything after it belongs to the closing stretch. `choosing` and
+# `tidy` each ask a question set and have only non-gate nodes after them;
+# `closing` is the closing node. `audit` is an optional sub-run downstream of
+# `choosing` only: a revise from `choosing` holds it, one from `tidy` does not.
+name: held-closing
+version: 1
+description: "Outlines the work, chooses how to finish it, tidies up and closes."
+
+nodes:
+  outline:
+    uses: direct:outline
+    needs: []
+    outputs:
+      artifacts:
+        outline: analysis/outline.md
+
+  outline-approval:
+    type: gate
+    needs: [outline]
+    ask: "Outline written. Continue?"
+    options:
+      continue-past-outline: continue
+      stop-at-outline: stop
+
+  choosing:
+    uses: direct:choosing
+    needs: [outline-approval]
+    outputs:
+      values:
+        wants_audit: bool
+
+  audit:
+    uses: workflow:closing-child
+    needs: [choosing]
+    when: "${choosing.values.wants_audit}"
+    with:
+      subject: "the outline"
+    outputs:
+      artifacts:
+        findings: analysis/findings.md
+
+  tidy:
+    uses: direct:tidy
+    needs: [choosing]
+
+  closing:
+    uses: direct:closing
+    needs: [audit, tidy]
+    outputs:
+      artifacts:
+        summary: outputs/summary.md
+
+display:
+  titles:
+    outline: Outline
+    outline-approval: Outline approval
+    choosing: Choosing
+    audit: Audit
+    tidy: Tidy
+    closing: Closing

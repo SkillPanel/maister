@@ -1,0 +1,39 @@
+# The finding-review definition. `review` runs a review whose findings it asks
+# as one question set, its declared id `review-findings`. `review-approval`
+# follows it: each continue sets two values, so a held finding can be listed
+# beside choices that each record something.
+name: finding-review
+version: 1
+description: "Reviews the work, asks how each finding is settled, then wraps up."
+
+nodes:
+  review:
+    uses: direct:review
+    needs: []
+    outputs:
+      artifacts:
+        findings: verification/findings.json
+
+  review-approval:
+    type: gate
+    needs: [review]
+    ask: "Review complete. Continue?"
+    options:
+      continue-with-checks: {effect: continue, sets: {deep_check: true, notify_team: true}}
+      continue-quietly: {effect: continue, sets: {deep_check: false, notify_team: false}}
+      stop-at-review: stop
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [review-approval]
+
+display:
+  titles:
+    review: Review
+    review-approval: Review approval
+    wrap-up: Wrap-up
+  option_labels:
+    review-approval:
+      continue-with-checks: "Continue with the deep check and notify the team"
+      continue-quietly: "Continue without the deep check"
+      stop-at-review: "Stop here"

@@ -46,6 +46,7 @@
 
 import { ICON_HINTS, labelOf as optionLabelOf, titleOf } from './display.mjs';
 import * as items from './items.mjs';
+import { approvalKey, approvalsOf, frozenIds } from './question-triage.mjs';
 
 // ---------------------------------------------------------------------------
 // the frozen vocabularies
@@ -276,7 +277,9 @@ function characteristicsOf(state) {
 }
 
 /**
- * One card per node, in the key order `workflow.nodes` carries.
+ * One card per node of the frozen graph, in the key order `workflow.nodes`
+ * carries; the reserved closing checkpoint's status entry is no node, and
+ * draws no card (`frozenIds`).
  *
  * That order is the frozen topological order `resolve` produced at freeze time.
  * It is never sorted and never re-derived: a second ordering rule beside the
@@ -287,8 +290,9 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   const summaries = summarySources(state);
   const nodeSummaries = isPlainObject(state.node_summaries) ? state.node_summaries : {};
+  const approvers = approversOf(state);
 
-  return Object.keys(nodes).map(id => {
+  return frozenIds(nodes).map(id => {
     const node = isPlainObject(nodes[id]) ? nodes[id] : {};
     const summary = pick(summaries, id);
     const status = Object.hasOwn(STATUS_MIRROR, node.status) ? STATUS_MIRROR[node.status] : STATUS_FALLBACK;
@@ -324,7 +328,7 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
     // `earlier`, so the viewer shows it as history and does not count it.
     const decisions = list(summary.decisions);
     phase.decisions = decisions.map(entry => {
-      const decision = decisionOf(entry, option => optionLabelOf(labels, id, option));
+      const decision = withApproval(decisionOf(entry, option => optionLabelOf(labels, id, option)), id, approvers);
       return decision && items.isEarlierAnswer(entry, decisions) ? { ...decision, earlier: true } : decision;
     }).filter((d) => d !== null);
     phase.risks = list(summary.risks).map(items.riskOf).filter((r) => r !== null);
@@ -479,6 +483,35 @@ function labelOf(options, value) {
  */
 export function artifactOf(entry) {
   return items.artifactOf(entry);
+}
+
+/**
+ * Who approved each held choice the run's approvals match, keyed by owning
+ * node, question id and attempt (1 when absent) — the matching a checkpoint
+ * applies (`approvalKey`) — to `{by}`: the approval's `answered_by`, else
+ * `operator`. The first approval recorded for a key names the approver.
+ */
+function approversOf(state) {
+  const approvers = new Map();
+  for (const { node, item } of approvalsOf(state)) {
+    const key = approvalKey(node, item);
+    if (approvers.has(key)) continue;
+    const by = typeof item.answered_by === 'string' && item.answered_by.trim() !== '' ? item.answered_by.trim() : 'operator';
+    approvers.set(key, { by });
+  }
+  return approvers;
+}
+
+/**
+ * A projected decision marked `approved: {by}` when it is a held
+ * choice of node `id` that an approval matches; any other decision, `null`
+ * included, passes unchanged. The `triage.held` mark stays, as history.
+ */
+function withApproval(decision, id, approvers) {
+  if (!isPlainObject(decision) || !isPlainObject(decision.triage) || decision.triage.held !== true) return decision;
+  if (typeof decision.question_id !== 'string' || decision.question_id === '') return decision;
+  const key = approvalKey(id, decision);
+  return approvers.has(key) ? { ...decision, approved: { ...approvers.get(key) } } : decision;
 }
 
 /**

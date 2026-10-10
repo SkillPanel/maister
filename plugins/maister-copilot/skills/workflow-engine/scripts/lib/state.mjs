@@ -54,6 +54,18 @@
  * One whole-file write per invocation, temp-then-rename, and the temp file is
  * named exactly `orchestrator-state.yml.tmp` because a fixed name is what a
  * permission rule or hook can match (ADR-0012).
+ *
+ * One entry outside the frozen graph is accepted under `workflow.nodes`: the
+ * status of the reserved closing checkpoint `held-approval` — `pending`,
+ * `suspended` or `completed`, and nothing else — so a driver can suspend on
+ * it. Every other unknown node id is still refused `state-node-unknown`, and
+ * the readers of the frozen graph read past the entry by name.
+ *
+ * Nothing about the write's own record is refused when it can be dropped:
+ * what went wrong comes back as data for `workflow.mjs` to print — a
+ * `writeWarnings` code such as `policy-refused:…` or
+ * `autonomy-ceiling-parent-unread:<run>`, and a `notes` sentence for a
+ * writer-owned value the patch sent, or an autonomy ceiling it would widen.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -83,11 +95,14 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
-import { foldAnswer, requestQuestions } from './question-set.mjs';
-import { loadPolicy, triageFor } from './policy.mjs';
+import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
+import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, outstandingHeld } from './question-triage.mjs';
+import { lowered } from './checkpoint.mjs';
+import { canAsk } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -440,7 +455,7 @@ const WORKFLOW_CONTEXT = {
 /**
  * Apply `patch` to the state file at `state`.
  *
- * Returns `{ok, changed, errors, warnings, ignored, undeclared, writeWarnings}`. On a refusal `changed` is empty and
+ * Returns `{ok, changed, errors, warnings, ignored, undeclared, writeWarnings, notes, asking?}`. On a refusal `changed` is empty and
  * the file on disk is byte-for-byte what it was: every check that can refuse runs
  * before the rename, and the rename is the only thing that publishes a write.
  *
@@ -457,9 +472,21 @@ const WORKFLOW_CONTEXT = {
  * `writeWarnings` is kept apart from `warnings`: those name a file this write
  * did not publish, while these are code strings about the write's own record —
  * the autonomy policy it read (`policy-refused:…`), a gate it recorded skipped
- * that the skip-guard rule asks (`skip-guard-skipped:…`), or provenance it
- * could not copy (`provenance-unusable:…`) — each printed as its own
- * `warning:` line.
+ * that the skip-guard rule asks (`skip-guard-skipped:…`), provenance it
+ * could not copy (`provenance-unusable:…`), or a child run's parent whose
+ * autonomy ceiling it could not read (`autonomy-ceiling-parent-unread:<run>`)
+ * — each printed as its own `warning:` line.
+ *
+ * `notes` carries the reason for each writer-owned value the patch sent and
+ * the write dropped rather than refused — `orchestrator.classes_questions`, a
+ * node summary's `asking`, an `orchestrator.options.ceiling` that would widen
+ * or remove the run's autonomy ceiling, and in a run whose policy classes
+ * questions a decision that would replace a writer-classed one or a triage
+ * sent on a decision — one sentence each, printed as a `note:` line.
+ *
+ * `asking`, present only when the patch sent a node's `question_set` (the
+ * classing write, `classQuestions`), lists the question ids still to ask, in
+ * set order; `workflow.mjs` prints them on an `ask:` line.
  *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
@@ -478,6 +505,7 @@ export function writeState({ state, patch, regress = null }) {
   const ignored = [];
   const undeclared = [];
   const writeWarnings = [];
+  const notes = [];
   try {
     checkPatch(patch);
     const doc = readDoc(state);
@@ -490,7 +518,9 @@ export function writeState({ state, patch, regress = null }) {
     // write that starts a run, and a later write re-sending `workflow:` into a
     // file that already carries one is not that write.
     const hadWorkflow = doc.has('workflow');
-    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), { changed, ignored, undeclared, writeWarnings }, regress)) allowed.add(key);
+    // `asking`: the ids a classing write left to ask, null when the write sent no question set.
+    const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null };
+    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -517,8 +547,9 @@ export function writeState({ state, patch, regress = null }) {
     // After the viewer, so the status file's dashboard link sees the page the
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
-    const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings };
+    const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
     if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
+    if (out.asking !== null) result.asking = out.asking;
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -1069,7 +1100,7 @@ function fallbackExecutor(doc) {
  * freshness cannot be reasoned about.
  */
 function apply(doc, patch, now, runDir, out, regress = null) {
-  const { changed, ignored, undeclared, writeWarnings } = out;
+  const { changed, ignored, undeclared, writeWarnings, notes } = out;
   const intended = new Set(['orchestrator']);
   // The run's frozen graph, proven, for the checks that need the definition;
   // resolved at most once per write, and only if one of them asks.
@@ -1090,13 +1121,28 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     orchestrator = rest;
     ignored.push('orchestrator.policy_hash');
   }
+  // `classes_questions` is the freeze's own record too, dropped the same way.
+  if (isPlainObject(orchestrator) && Object.hasOwn(orchestrator, 'classes_questions')) {
+    const { classes_questions: _supplied, ...rest } = orchestrator;
+    orchestrator = rest;
+    notes.push(FACT_NOTE);
+  }
+
+  // The policy, loaded at most once per write and only by a rule that reads it.
+  const freezing = Boolean(patch.workflow) && !doc.has('workflow');
+  let loaded = null;
+  const policyNow = () => (loaded ??= loadPolicy());
+  // Before `applyScalars`, which would otherwise write the value as sent.
+  orchestrator = freezing
+    ? seedCeiling(orchestrator, runDir, policyNow, writeWarnings)
+    : clampCeiling(doc, orchestrator, policyNow, notes);
 
   // Before the patch's own `orchestrator` keys, so the seeded sequences open
   // the block and a freeze's `parent` still follows every key the patch sends.
   if (patch.workflow) {
     seedSequences(doc, orchestrator, changed);
     seedCreated(doc, orchestrator, now, changed);
-    if (!doc.has('workflow')) seedPolicyHash(doc, changed, writeWarnings);
+    if (freezing) seedPolicyHash(doc, patch.workflow, policyNow(), changed, writeWarnings);
   }
   if (orchestrator) applyScalars(doc, 'orchestrator', orchestrator, changed);
   if (patch.task) {
@@ -1107,8 +1153,13 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored);
     intended.add('workflow');
   }
+  // Each gate answer the patch sends, as the run held it before this write:
+  // what tells a newly recorded continue from one re-sent (`approveHeld`).
+  const answering = answeringIds(patch);
+  const answeredBefore = priorAnswers(doc, answering);
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
-  if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings);
+  if (regress !== null) clearClassed(doc, regress, changed);
+  if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
   if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
   if (patch.context || patch.phase_summaries) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
@@ -1121,7 +1172,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     if (patch.phase_summaries) applySummaries(doc, block, patch.phase_summaries, patch.nodes, 'phase', changed);
   }
   if (patch.node_summaries) {
-    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed, runDir, graphOf, writeWarnings);
+    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed, runDir, graphOf, writeWarnings, { notes, policyNow, out });
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
@@ -1130,10 +1181,11 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   let typed = null;
   const typedNow = () => (typed ??= typedOf(doc));
   // The gates this write judges, read once for the two passes that care.
-  const judged = judgedGates(patch, typedNow, runDir);
+  const { judged, fresh } = judgedGates(answering, typedNow, runDir, answeredBefore);
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   judgeGates(doc, typedNow, judged, changed, writeWarnings);
+  approveHeld(doc, fresh, graphOf, changed);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -1797,7 +1849,9 @@ function frozenDifferences(doc, workflow) {
   const differences = [];
   const scalars = Object.keys(workflow).filter(key => key !== 'nodes' && !sameValue(workflow[key], held[key]));
   if (scalars.length) differences.push(`changes ${scalars.join(', ')}`);
-  const dropped = Object.keys(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
+  // The reserved closing checkpoint's status entry is the writer's, never the
+  // freeze's: a re-sent freeze that lacks it drops nothing.
+  const dropped = frozenIds(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
   if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
   const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
   if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
@@ -1864,6 +1918,20 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     if (!isPlainObject(patchEntry)) {
       throw new Refusal('state-patch-invalid', `the patch for node ${id} must be an object`);
     }
+    // The one exception: the reserved closing checkpoint, never a node of the
+    // frozen graph, keeps its status here so a driver can suspend on it.
+    if (id === HELD_APPROVAL) {
+      assertHeldApprovalEntry(patchEntry);
+      const before = Object.hasOwn(existing, id) ? existing[id] ?? {} : {};
+      // A `held-approval` revise resets it with its stretch: back to pending,
+      // its clocks gone, as the checkpoint not yet asked.
+      const resetting = regress !== null && regress.has(id);
+      if (!resetting) assertForward(id, patchEntry, before);
+      const merged = resetting ? { kind: 'gate', status: 'pending' } : stamp(id, { kind: 'gate', status: patchEntry.status }, before, now, ignored);
+      doc.setNode(id, serializeNode(id, merged, patchEntry, now));
+      changed.push(`workflow.nodes.${id}`);
+      continue;
+    }
     // The frozen node map is the run's graph, so a node it does not carry is
     // one no reader will lay out correctly: it was written, joined the
     // dashboard's phases and satisfied nothing, because no node needs it.
@@ -1901,6 +1969,24 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     doc.setNode(id, serializeNode(id, merged, supplied, now));
     changed.push(`workflow.nodes.${id}`);
   }
+}
+
+/** The statuses the reserved closing checkpoint may be recorded with: a gate's. */
+const HELD_APPROVAL_STATUSES = ['pending', 'suspended', 'completed'];
+
+/**
+ * The reserved closing checkpoint's entry, held to the one thing a write may
+ * record of it: its `status`, one of a gate's. It is recorded as
+ * `{kind: gate, status}` after the frozen nodes, stamped as any gate is, and
+ * every reader of the frozen graph reads past it by name.
+ */
+function assertHeldApprovalEntry(entry) {
+  const others = Object.keys(entry).filter(key => key !== 'status');
+  if (others.length === 0 && HELD_APPROVAL_STATUSES.includes(entry.status)) return;
+  throw new Refusal('state-patch-invalid',
+    `${HELD_APPROVAL} is the run's closing checkpoint, not a node of its frozen graph, and a write records only its status, `
+    + `which is pending, suspended or completed${others.length ? ` (this write also sends ${others.join(', ')})` : ` (this write sends ${JSON.stringify(entry.status ?? null)})`}. `
+    + 'Nothing was written. Send {"nodes":{"held-approval":{"status":"<one of them>"}}} and nothing else for it');
 }
 
 /**
@@ -2017,19 +2103,33 @@ function frozenGraphOf(doc, runDir) {
  * skipped status later — the run's close accepts a gate recorded skipped.
  * Judged against the graph the frozen block proves; a run whose graph cannot
  * be proven gets no warning, since nothing reliable says what its gates are.
+ *
+ * `held-gate-skipped:<gate>` for any other gate this write records `skipped`
+ * whose guard reads a task's value (`guardReadsTask`) while a choice is held
+ * for approval (`holding()`): such a choice asks the next checkpoint that
+ * runs. A warning too, and the write lands as sent.
  */
-function warnSkippedAsked(nodes, graphOf, writeWarnings) {
+function warnSkippedAsked(nodes, graphOf, writeWarnings, holding = () => false) {
   const skipped = Object.entries(nodes).filter(([, entry]) => isPlainObject(entry) && entry.status === 'skipped');
   if (!skipped.length) return;
   const graph = graphOf();
   if (!graph) return;
   const byId = new Map(graph.nodes.map(node => [node.id, node]));
   const kindOf = nodeKindIn(byId);
+  let held = null;
   for (const [id] of skipped) {
     const code = `skip-guard-skipped:${id}`;
-    if (!skipGuardAsks(byId.get(id), kindOf) || writeWarnings.some(each => each.startsWith(`${code} `))) continue;
-    writeWarnings.push(`${code} — its guard reads a value the run itself records and it is more than a confirmation, `
-      + 'so it is asked whatever its guard reads; the skipped status was written, and nothing checks it later: ask the gate and record its answer');
+    if (skipGuardAsks(byId.get(id), kindOf)) {
+      if (writeWarnings.some(each => each.startsWith(`${code} `))) continue;
+      writeWarnings.push(`${code} — its guard reads a value the run itself records and it is more than a confirmation, `
+        + 'so it is asked whatever its guard reads; the skipped status was written, and nothing checks it later: ask the gate and record its answer');
+      continue;
+    }
+    if (!guardReadsTask(byId.get(id), kindOf) || !(held ??= holding())) continue;
+    const heldCode = `held-gate-skipped:${id}`;
+    if (writeWarnings.some(each => each.startsWith(`${heldCode} `))) continue;
+    writeWarnings.push(`${heldCode} — choices held for approval are waiting, so this gate is asked whatever its guard reads and its continue approves them; `
+      + 'the skipped status was written as sent: ask the gate and record its answer');
   }
 }
 
@@ -2339,11 +2439,89 @@ function seedCreated(doc, orchestrator, now, changed) {
  * refused policy file is a warning on this write, never a refusal: the run
  * proceeds under the default and records the default's hash.
  */
-function seedPolicyHash(doc, changed, writeWarnings) {
-  const { hash, warnings } = loadPolicy();
+function seedPolicyHash(doc, workflow, loaded, changed, writeWarnings) {
+  const { policy, hash, warnings } = loaded;
   writeWarnings.push(...warnings);
   doc.set(['orchestrator', 'policy_hash'], [`  policy_hash: ${flow(hash, 'orchestrator.policy_hash')}`]);
   changed.push('orchestrator.policy_hash');
+  // Present only as `true`, so the built-in default — which classes nothing —
+  // freezes exactly the keys it always did.
+  if (classesQuestions(policy, isPlainObject(workflow) ? workflow.name : undefined)) {
+    doc.set(['orchestrator', 'classes_questions'], ['  classes_questions: true']);
+    changed.push('orchestrator.classes_questions');
+  }
+}
+
+/** The notes `apply` returns for a writer-owned value it dropped. */
+const FACT_NOTE = 'ignored the supplied orchestrator.classes_questions; the freeze records it from the policy it applied, so no patch sets it';
+const CEILING_NOTE = 'ignored the supplied orchestrator.options.ceiling; the autonomy ceiling may narrow after the freeze, never widen';
+
+/** A recorded or sent autonomy ceiling: a non-empty string, else null. */
+function ceilingIn(options) {
+  const value = isPlainObject(options) ? options.ceiling : undefined;
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/**
+ * The autonomy ceiling at the freeze: `options.ceiling` as the patch sends it,
+ * except in a child run. A child's freeze — the patch carries `parent` — reads
+ * the parent's state and records the narrower of the parent's effective
+ * autonomy ceiling and its own, or the parent's when it sends none. An
+ * unreadable parent copies nothing and warns `autonomy-ceiling-parent-unread`.
+ * The parent is read only when a ceiling can matter: the policy loaded now
+ * defines `ceilings` or a `default_ceiling`, or the patch sends
+ * `options.ceiling` — never under the built-in default with none sent.
+ * Returns the orchestrator patch to apply.
+ */
+function seedCeiling(orchestrator, runDir, policyNow, writeWarnings) {
+  if (!isPlainObject(orchestrator) || !Object.hasOwn(orchestrator, 'parent')) return orchestrator;
+  const parent = orchestrator.parent;
+  // Judged before the path is built from it, exactly as `applyScalars` would.
+  assertParent(parent);
+  const defined = policyNow().policy;
+  if (ceilingIn(orchestrator.options) === null && !isPlainObject(defined?.ceilings) && typeof defined?.default_ceiling !== 'string') return orchestrator;
+  let recorded;
+  try {
+    const file = path.join(projectRootOf(runDir), parent.run, 'orchestrator-state.yml');
+    recorded = parseState(fs.readFileSync(file, 'utf8')).orchestrator;
+  } catch {
+    writeWarnings.push(`autonomy-ceiling-parent-unread:${parent.run}`);
+    return orchestrator;
+  }
+  const { policy, hash } = policyNow();
+  const inherited = effectiveCeiling({ orchestrator: recorded, policy, policyHash: hash });
+  if (inherited === null) return orchestrator;
+  const options = isPlainObject(orchestrator.options) ? orchestrator.options : {};
+  return { ...orchestrator, options: { ...options, ceiling: narrowerLevel(inherited, ceilingIn(options)) } };
+}
+
+/**
+ * The autonomy ceiling after the freeze. A sent `options.ceiling` is compared
+ * with the run's effective one — the recorded value, else the matching
+ * policy's `default_ceiling`, else none — and kept only when it is narrower or
+ * equal. A wider value, any value when none is in effect, and a removal — a
+ * null, empty or non-string `ceiling`, or, when one is recorded, an `options`
+ * that is not a map and would replace the whole map — are dropped with a note,
+ * never refused, and the rest of the patch applies. Returns the orchestrator
+ * patch to apply.
+ */
+function clampCeiling(doc, orchestrator, policyNow, notes) {
+  if (!isPlainObject(orchestrator) || !Object.hasOwn(orchestrator, 'options')) return orchestrator;
+  const { options, ...rest } = orchestrator;
+  if (!isPlainObject(options)) {
+    if (ceilingIn(typedOf(doc).orchestrator?.options) === null) return orchestrator;
+    notes.push(CEILING_NOTE);
+    return rest;
+  }
+  if (!Object.hasOwn(options, 'ceiling')) return orchestrator;
+  const current = typedOf(doc).orchestrator ?? {};
+  const { policy, hash } = ceilingIn(current.options) === null ? policyNow() : {};
+  const effective = effectiveCeiling({ orchestrator: current, policy, policyHash: hash });
+  const sent = ceilingIn(options);
+  if (sent !== null && effective !== null && narrowerLevel(sent, effective) === narrowerLevel(sent, null)) return orchestrator;
+  notes.push(CEILING_NOTE);
+  const { ceiling: _dropped, ...kept } = options;
+  return Object.keys(kept).length ? { ...rest, options: kept } : rest;
 }
 
 /**
@@ -2395,8 +2573,15 @@ function applyContext(doc, contextKey, context, changed) {
  * every answer the user had given in that node. `status` is the exception: it
  * is the node's outcome, mirrored afresh on every write that does not state
  * one. The user's answers are history on top of that (`earlierAnswers`).
+ *
+ * A task node's `question_set` (with its `reasons`) is the classing write
+ * (`classQuestions`), consumed the way an `answer` is folded. In a run whose
+ * policy classes questions the items the writer classed are writer-owned:
+ * kept across later writes (`writerKept`), never replaced by a sent item, and
+ * a triage sent on a decision is dropped (`sentDecisions`). `asking` is the
+ * writer's too, dropped with a note when a patch sends it.
  */
-function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null, graphOf = null, writeWarnings = []) {
+function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null, graphOf = null, writeWarnings = [], classing = null) {
   if (!isPlainObject(summaries)) throw new Refusal('state-patch-invalid', `the ${kind} summaries must be an object`);
   let recorded = null;
   let run = null;
@@ -2407,12 +2592,36 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     held ??= heldSummaries(doc);
     return Object.hasOwn(held, id) && isPlainObject(held[id]) ? held[id] : null;
   };
+  // The document as the node writes left it, read only by a rule that needs
+  // it: the classing write, and whether the run classes questions at all.
+  let typed = null;
+  const typedNow = () => (typed ??= typedOf(doc));
+  const classes = () => isPlainObject(typedNow().orchestrator) && typedNow().orchestrator.classes_questions === true;
   for (const [key, value] of Object.entries(summaries)) {
     if (!isPlainObject(value)) throw new Refusal('state-patch-invalid', `the summary ${key} must be an object`);
     let entry = { ...value };
+    let dropAsking = false;
+    if (kind === 'node' && classing !== null) {
+      recorded ??= recordedNodes(doc);
+      const isGate = isGateSummary(recorded, key);
+      if (Object.hasOwn(entry, 'asking')) {
+        delete entry.asking;
+        classing.notes.push(`ignored the supplied node_summaries.${key}.asking; the writer records it from the question set it classed, so no patch sets it`);
+      }
+      // On the raw patch, before the answer fold: what the fold produces is never touched.
+      if (!isGate && Array.isArray(entry.decisions) && classes()) {
+        entry.decisions = sentDecisions(entry.decisions, heldOf(key)?.decisions, key, classing.notes);
+      }
+      if (Object.hasOwn(entry, 'question_set') || Object.hasOwn(entry, 'reasons')) {
+        ({ entry, dropAsking } = classQuestions(entry, key, { recorded, typedNow, held: heldOf(key), runDir, writeWarnings, classing }));
+        // A write that sent nothing but a set the run does not class records
+        // nothing, unless a stale `asking` is to go.
+        if (Object.keys(entry).length === 0 && !dropAsking) continue;
+      }
+    }
     if (kind === 'node' && Object.hasOwn(entry, 'answer')) {
       recorded ??= recordedNodes(doc);
-      if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') entry = foldFlatAnswer(entry);
+      if (isGateSummary(recorded, key)) entry = foldFlatAnswer(entry);
       else if (isPlainObject(entry.answer)) {
         entry = foldQuestionAnswer(entry, key, runDir, heldOf(key), attemptOf(Object.hasOwn(recorded, key) ? recorded[key] : null), writeWarnings);
       }
@@ -2423,21 +2632,31 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       const gate = resolvedNode(graphOf(), key);
       if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate);
     }
+    // The reserved closing checkpoint offers what the brief derives from the
+    // state, so its answer is held to that, definition or none. A revise the
+    // reset has applied carries its attempt and is history, not an answer now.
+    if (kind === 'node' && key === HELD_APPROVAL && Array.isArray(entry.decisions)) {
+      const answers = entry.decisions.filter(item => !(isPlainObject(item) && Object.hasOwn(item, 'attempt')));
+      assertOptions(key, answers, heldApprovalGate(typedNow()));
+    }
     if (kind === 'node' && Object.hasOwn(entry, 'absent')) assertAbsent(key, entry.absent, graphOf === null ? null : graphOf());
     if (kind === 'node' && Object.hasOwn(entry, 'recommends')) assertRecommends(key, entry.recommends, graphOf === null ? null : graphOf());
     assertItems(kind === 'node' ? `node_summaries.${key}` : `${contextKey}.phase_summaries.${key}`, entry);
     if (kind === 'node' && Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);
-      if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') {
+      if (isGateSummary(recorded, key)) {
         display ??= runDir === null ? displayOf() : displayOfRun(parseState(doc.text()), runDir);
         via ??= answerVia(parseState(doc.text()));
         entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display), runDir, via);
-        entry.decisions = [...earlierRevisions(doc, key, entry.decisions), ...entry.decisions];
+        // An approval carrying its attempt is kept once, as an approval, not as an earlier revision.
+        const revisions = earlierRevisions(doc, key, entry.decisions).filter(item => !isApproval(item));
+        entry.decisions = [...revisions, ...entry.decisions, ...keptApprovals(heldOf(key)?.decisions, entry.decisions)];
       } else {
         via ??= answerVia(parseState(doc.text()));
         const prior = heldOf(key)?.decisions;
         entry.decisions = stampAnswers(keepProvenance(prior, keepAttempts(prior, entry.decisions)), runDir, via);
-        entry.decisions = [...earlierAnswers(heldOf(key)?.decisions, entry.decisions), ...entry.decisions];
+        const kept = classing !== null && classes() ? writerKept(prior, entry.decisions) : [];
+        entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
     }
     if (kind === 'node') {
@@ -2446,6 +2665,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         const { status: _status, ...kept } = prior;
         entry = { ...kept, ...entry };
       }
+      if (dropAsking) delete entry.asking;
     }
     if (!('status' in entry)) {
       const nodeId = kind === 'node' ? key : entry.node;
@@ -2470,6 +2690,24 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     doc.set(at, block(key, entry, kind === 'node' ? 2 : 4));
     changed.push(at.join('.'));
   }
+}
+
+/**
+ * Whether `key`'s summary records a gate's answer: a node the run froze as a
+ * gate, or the reserved closing checkpoint, which needs no node entry.
+ */
+function isGateSummary(recorded, key) {
+  return key === HELD_APPROVAL || (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate');
+}
+
+/**
+ * The reserved closing checkpoint as `assertOptions` reads a gate: its options
+ * as the brief derives them from `doc` (`heldApprovalOptions`), revises left
+ * out once the safety limit is spent.
+ */
+function heldApprovalGate(doc) {
+  const { options } = heldApprovalOptions(doc);
+  return { options: Object.fromEntries(options.map(option => [option.id, option.effect])) };
 }
 
 /**
@@ -2602,11 +2840,15 @@ function assertRecommends(id, recommends, graph) {
  */
 function foldAnswers(decisions, gate, display) {
   const labels = isPlainObject(display?.option_labels) ? display.option_labels : {};
+  // The reserved closing checkpoint's options are the engine's, labelled as its brief labels them.
+  const labelFor = option => (gate === HELD_APPROVAL
+    ? heldApprovalLabel(option, id => lowered(titleOf(display?.titles, id)))
+    : labelOf(labels, gate, option));
   return decisions.map(decision => {
     if (!isPlainObject(decision) || typeof decision.option !== 'string') return decision;
     return {
       ...decision,
-      ...(Object.hasOwn(decision, 'decision') ? {} : { decision: labelOf(labels, gate, decision.option) }),
+      ...(Object.hasOwn(decision, 'decision') ? {} : { decision: labelFor(decision.option) }),
       ...(Object.hasOwn(decision, 'by') ? {} : { by: 'operator' }),
     };
   });
@@ -2822,6 +3064,159 @@ function earlierAnswers(prior, decisions) {
   };
   const sent = new Set(decisions.map(keyOf).filter(Boolean));
   return prior.filter(item => isPlainObject(item) && decisionOf(item)?.by === 'operator' && !sent.has(keyOf(item)));
+}
+
+/**
+ * The writer-classed items a node already carries that a write of its
+ * `decisions` leaves out, in the order they were recorded (R5 of the classing
+ * rules): in a run whose policy classes questions, only the classing write
+ * records, replaces or — through a revise reset — removes them, so a write
+ * that omits them keeps them. They are placed after the earlier operator
+ * answers and ahead of what the write sent. An item counts as sent when the
+ * write carries a writer-classed item for the same question in the same
+ * attempt: an identical re-send (`sentDecisions` keeps it in place).
+ */
+function writerKept(prior, decisions) {
+  if (!Array.isArray(prior)) return [];
+  const sent = new Set(decisions.filter(isClassedItem).map(classedKey));
+  return prior.filter(item => isClassedItem(item) && !sent.has(classedKey(item)));
+}
+
+/** A writer-classed item's question and attempt (1 when absent): what the classing write replaces by. */
+function classedKey(item) {
+  return `${item.question_id}\u0000${attemptNumber(item) ?? 1}`;
+}
+
+/**
+ * A task node's `decisions` as a patch sent them, in a run whose policy
+ * classes questions, read before any answer fold. In order: an item equal to
+ * a writer-classed item the node carries (`sameValue`, triage included) is
+ * an identical re-send and stays where it is, silently — a closing write
+ * re-sending the whole list prints nothing; a `by: run` or `by: default` item
+ * for a question the writer classed is dropped with a note, since only the
+ * classing write records one; and any other item's `triage` is dropped with a
+ * note, since only the writer records a triage.
+ */
+function sentDecisions(decisions, prior, node, notes) {
+  const writer = Array.isArray(prior) ? prior.filter(isClassedItem) : [];
+  const classed = new Set(writer.map(item => item.question_id));
+  const out = [];
+  for (const item of decisions) {
+    if (!isPlainObject(item) || writer.some(own => own.question_id === item.question_id && sameValue(item, own))) {
+      out.push(item);
+      continue;
+    }
+    if ((item.by === 'run' || item.by === 'default') && classed.has(item.question_id)) {
+      notes.push(`ignored the ${item.by} decision node_summaries.${node} sent for ${item.question_id}; `
+        + 'the writer classed that question, so its own item stays');
+      continue;
+    }
+    if (!Object.hasOwn(item, 'triage')) {
+      out.push(item);
+      continue;
+    }
+    const { triage, ...bare } = item;
+    if (triage !== null && triage !== undefined) {
+      notes.push(`ignored the triage sent on node_summaries.${node}.decisions; in a run whose policy classes questions, `
+        + 'only the writer records a triage, from the question set the node sends it');
+    }
+    out.push(bare);
+  }
+  return out;
+}
+
+/**
+ * The classing write: a running task node's `question_set`, with its optional
+ * `reasons`, consumed — never stored as sent — and turned into what the run
+ * may decide without asking (R3 of the classing rules). Returns the entry to
+ * record in its place.
+ *
+ * Refused `state-patch-invalid`, naming the fault, for a gate or a node that
+ * is not running, a set `checkSet` rejects, and `reasons` naming another id or
+ * carrying another key. A classed question naming no default is never
+ * refused: it is left to ask, or held with no choice taken (`classSet`).
+ *
+ * It classes only when the run recorded `orchestrator.classes_questions` and
+ * the policy loaded now has the hash the freeze recorded. Then each question
+ * is settled (`by: run`), defaulted or held (`by: default`) under the run's
+ * autonomy ceiling and driver (`classSet`), each item replacing any
+ * writer-classed item for the same question in this attempt, and the ids
+ * still to ask are stored as `asking`. Otherwise nothing is recorded, a hash
+ * mismatch warns `policy-hash-mismatch:<node>`, every id is still to ask, and
+ * an `asking` an earlier write stored is removed. Returns `{entry,
+ * dropAsking}`: the entry to record in the set's place, and whether the
+ * node's recorded `asking` goes.
+ * The ids still to ask are added to `classing.out.asking` either way.
+ */
+function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWarnings, classing }) {
+  const { question_set: set, reasons, ...rest } = entry;
+  const refuse = reason => new Refusal('state-patch-invalid',
+    `node_summaries.${node} cannot be classed: ${reason}. Nothing was written. Correct the question set or its reasons and send the write again`);
+  if (set === undefined) throw refuse('"reasons" explain a question set, so they travel with node_summaries.' + `${node}.question_set in one write`);
+  const own = Object.hasOwn(recorded, node) && isPlainObject(recorded[node]) ? recorded[node] : null;
+  if (own === null) throw refuse(`${node} is no node of this run's frozen graph`);
+  if (own.kind === 'gate') throw refuse(`${node} is a gate, and a gate is asked from its own brief`);
+  const status = own.status === undefined || own.status === null ? 'pending' : String(own.status);
+  if (status !== 'running') throw refuse(`${node} is ${JSON.stringify(status)}, and only a running node asks a question inside itself`);
+  const checked = checkSet(set);
+  if (!checked.ok) throw refuse(checked.errors.join('; '));
+
+  const typed = typedNow();
+  const orchestrator = isPlainObject(typed.orchestrator) ? typed.orchestrator : {};
+  const fact = orchestrator.classes_questions === true;
+  const loaded = fact ? classing.policyNow() : null;
+  const matches = fact && orchestrator.policy_hash === loaded.hash;
+  if (fact && !matches && !writeWarnings.includes(`policy-hash-mismatch:${node}`)) writeWarnings.push(`policy-hash-mismatch:${node}`);
+  const workflow = isPlainObject(typed.workflow) ? typed.workflow : {};
+  // Not classed, nothing classes: a carried triage is set aside with the policy,
+  // so the faults below are the reasons' alone and every id is still to ask.
+  const classed = classSet({
+    questions: matches ? checked.set.questions : checked.set.questions.map(({ triage: _carried, ...question }) => question),
+    reasons,
+    policy: matches ? loaded.policy : null,
+    workflow: workflow.name,
+    declaredIds: matches ? declaredQuestionIds(runDir === null ? null : definitionPathOf(typed, runDir), node) : [],
+    settles: matches ? ceilingOf({ options: orchestrator.options, policy: loaded.policy })?.settles ?? null : null,
+    canAsk: canAsk(typed),
+    attempt: attemptOf(own),
+  });
+  if (classed.faults.length) throw refuse(classed.faults.join('; '));
+  classing.out.asking = [...(classing.out.asking ?? []), ...classed.asking];
+  // Nothing classed: an `asking` an earlier classing write stored would filter
+  // the next request by a remainder this set never had, so it goes.
+  if (!matches) return { entry: rest, dropAsking: isPlainObject(held) && Object.hasOwn(held, 'asking') };
+
+  const next = { ...rest, asking: classed.asking };
+  if (classed.items.length || Array.isArray(rest.decisions)) {
+    const fresh = new Set(classed.items.map(classedKey));
+    const base = Array.isArray(rest.decisions) ? rest.decisions : Array.isArray(held?.decisions) ? held.decisions : [];
+    next.decisions = [...base.filter(item => !(isClassedItem(item) && fresh.has(classedKey(item)))), ...classed.items];
+  }
+  return { entry: next, dropAsking: false };
+}
+
+/**
+ * The reset write of a revise, in a run whose policy classes questions: each
+ * reset task node loses its writer-classed items and its `asking`, so its next
+ * attempt classes its questions afresh. Operator answers stay as history, and
+ * a gate's summary — approvals included — is never touched.
+ */
+function clearClassed(doc, regress, changed) {
+  const typed = typedOf(doc);
+  if (!isPlainObject(typed.orchestrator) || typed.orchestrator.classes_questions !== true) return;
+  const nodes = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  for (const id of regress) {
+    if (!Object.hasOwn(summaries, id) || !isPlainObject(summaries[id])) continue;
+    if (Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) && nodes[id].kind === 'gate') continue;
+    const { asking, ...summary } = summaries[id];
+    const decisions = Array.isArray(summary.decisions) ? summary.decisions : null;
+    const kept = decisions === null ? null : decisions.filter(item => !isClassedItem(item));
+    if (asking === undefined && (decisions === null || kept.length === decisions.length)) continue;
+    if (kept !== null) summary.decisions = kept;
+    doc.set(['node_summaries', id], block(id, summary, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+  }
 }
 
 /**
@@ -3160,8 +3555,10 @@ function blockSafe(value) {
  * On such a write, and only when the autonomy policy loaded now is the one
  * the run recorded at its freeze (`orchestrator.policy_hash`), the answer item
  * gains the gate's `triage` unless it carries one — a triage already there is
- * carried as written — and each value the chosen option `sets` that the
- * policy classes is recorded as one settlement item right after the answer:
+ * carried as written — and each value the chosen option `sets` is recorded as
+ * one settlement item right after the answer, classed as the policy classes
+ * the value or, when it classes the value not, as it classes the gate (a value
+ * neither reaches is not recorded):
  * `{decision: "<key>: <value>", by: operator, ref, node, triage}` with the
  * answer's `answered_by`, `via` and provenance. Settlement items an earlier
  * answer left are replaced, never repeated. Under a policy that classes
@@ -3178,7 +3575,8 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
   const typed = typedNow();
   const workflow = isPlainObject(typed.workflow) ? typed.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
-  const isGateNode = id => Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) && nodes[id].kind === 'gate';
+  // The reserved closing checkpoint sets no values and carries no gate triage of its own.
+  const isGateNode = id => id !== HELD_APPROVAL && Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) && nodes[id].kind === 'gate';
   const judged = new Set([...judgedIds].filter(isGateNode));
   if (judged.size === 0) return;
 
@@ -3195,8 +3593,10 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
     const gateTriage = triageFor({ ...ask, kind: 'gate' });
     const sets = isPlainObject(nodes[id].sets) && Object.hasOwn(nodes[id].sets, answer.option) && isPlainObject(nodes[id].sets[answer.option])
       ? nodes[id].sets[answer.option] : {};
+    // Each value is its own item: classed as the policy classes it, else as
+    // the gate is, so a classed gate never folds its values into its answer.
     const values = Object.entries(sets)
-      .map(([key, value]) => ({ key, value, triage: triageFor({ ...ask, kind: 'value', key }) }))
+      .map(([key, value]) => ({ key, value, triage: triageFor({ ...ask, kind: 'value', key }) ?? gateTriage }))
       .filter(each => each.triage !== null);
     if (recordedHash !== loaded.hash) {
       const code = `policy-hash-mismatch:${id}`;
@@ -3220,14 +3620,59 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
  * summaries in the patch that record an answer (`recordsAnswer`), and — on a
  * settled write, the only one whose index sync runs — the gates whose index
  * row it closes (`closingRows`). Not yet narrowed to gate nodes.
+ *
+ * `fresh` is the part of them whose answer this write newly records: every
+ * row it closes — the driven fold — and every summary whose answer the run
+ * did not hold before it (`answeredBefore`, from `priorAnswers`): no answer
+ * then, another option, or a gate whose recorded status was not `completed`,
+ * so asked again. A write re-sending an answer the run already holds is
+ * judged, and records nothing new.
  */
-function judgedGates(patch, typedNow, runDir) {
-  const answering = isPlainObject(patch.node_summaries)
-    ? Object.entries(patch.node_summaries).filter(([, entry]) => recordsAnswer(entry)).map(([id]) => id) : [];
+function judgedGates(answering, typedNow, runDir, answeredBefore = new Map()) {
   let closing = runDir === null ? [] : closingRows(runDir);
-  if (answering.length === 0 && closing.length === 0) return new Set();
+  if (answering.length === 0 && closing.length === 0) return { judged: new Set(), fresh: new Set() };
   if (closing.length > 0 && !settledState(typedNow())) closing = [];
-  return new Set([...answering, ...closing]);
+  const summaries = isPlainObject(typedNow().node_summaries) ? typedNow().node_summaries : {};
+  const newly = answering.filter(id => {
+    const now = gateAnswer(Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].decisions : null);
+    if (now === null) return false;
+    // The closing checkpoint is asked exactly while it is current with held
+    // items outstanding, so an answer to it then is new however many came
+    // before; whether anything still blocks it is the brief's to judge.
+    if (id === HELD_APPROVAL && heldApprovalCurrent(typedNow(), [])) return true;
+    const before = answeredBefore.get(id);
+    if (before === undefined || before.option === null) return true;
+    if (before.status !== undefined && before.status !== 'completed') return true;
+    return before.option !== now.option;
+  });
+  return { judged: new Set([...answering, ...closing]), fresh: new Set([...newly, ...closing]) };
+}
+
+/** The ids of the summaries a patch sends that record an answer (`recordsAnswer`). */
+function answeringIds(patch) {
+  return isPlainObject(patch.node_summaries)
+    ? Object.entries(patch.node_summaries).filter(([, entry]) => recordsAnswer(entry)).map(([id]) => id) : [];
+}
+
+/**
+ * For each of `answering` (`answeringIds`), the gate as the run held it
+ * before this write: `{option, status}` — the option its answer named, null
+ * with none, and its recorded node status, undefined with no node entry. Read
+ * before any part of the patch lands, and only when the patch records an
+ * answer.
+ */
+function priorAnswers(doc, answering) {
+  const before = new Map();
+  if (answering.length === 0 || !doc.has('workflow')) return before;
+  const typed = typedOf(doc);
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  const nodes = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  for (const id of answering) {
+    const answer = gateAnswer(Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].decisions : null);
+    const status = Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) ? nodes[id].status : undefined;
+    before.set(id, { option: answer?.option ?? null, status });
+  }
+  return before;
 }
 
 /** Does a gate's summary in a patch record an answer: an operator decision naming an option, or a flat answer? */
@@ -3261,6 +3706,92 @@ function closingRows(runDir) {
     return [];
   }
   return pending.filter(id => !open.has(id));
+}
+
+/**
+ * The approvals a continue records: on a write that newly records a gate's
+ * answer (`judgedGates`, its `fresh` ids) — a frozen gate, or the reserved
+ * `HELD_APPROVAL` checkpoint — whose answer names an option with effect
+ * `continue`, one approval item per
+ * held choice no approval yet matches (`outstandingHeld`), placed right after
+ * the answer, its settlement items and any approval an earlier answer left
+ * (`approvalOf`), so the approvals read in the order they were given. A revise or a stop
+ * approves nothing, a choice already approved is never approved twice, and a
+ * write re-sending an answer the run already held approves nothing: a choice
+ * held after that answer was given was never shown with it. The items are history: a
+ * later write of the gate's summary keeps them (`keptApprovals`) and a revise
+ * reset never touches a gate's summary.
+ */
+function approveHeld(doc, freshIds, graphOf, changed) {
+  if (freshIds.size === 0) return;
+  // Nothing held with a choice, nothing to approve: checked before the graph
+  // is resolved. A held question with no choice yet (`isOpenHeld`) is never
+  // approved by a continue: a revise of its step supplies the choice.
+  const approvable = typed => outstandingHeld(typed).filter(each => !isOpenHeld(each.item));
+  if (approvable(typedOf(doc)).length === 0) return;
+  const frozen = isPlainObject(typedOf(doc).workflow?.nodes) ? typedOf(doc).workflow.nodes : {};
+  const isGate = id => id === HELD_APPROVAL || (Object.hasOwn(frozen, id) && isPlainObject(frozen[id]) && frozen[id].kind === 'gate');
+  for (const id of [...Object.keys(frozen), HELD_APPROVAL].filter(each => freshIds.has(each) && isGate(each))) {
+    const typed = typedOf(doc);
+    const waiting = approvable(typed);
+    if (waiting.length === 0) continue;
+    const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+    const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : null;
+    const decisions = Array.isArray(summary?.decisions) ? summary.decisions : null;
+    const answer = gateAnswer(decisions);
+    if (answer === null || optionEffectOf(id, answer.option, frozen, graphOf) !== 'continue') continue;
+    let at = decisions.indexOf(answer) + 1;
+    while (at < decisions.length && (isSettlement(decisions[at], id) || isApproval(decisions[at]))) at += 1;
+    const next = [...decisions.slice(0, at), ...waiting.map(each => approvalOf(each, answer)), ...decisions.slice(at)];
+    doc.set(['node_summaries', id], block(id, { ...summary, decisions: next }, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+  }
+}
+
+/**
+ * The effect of a gate's `option`: `continue` for the reserved checkpoint's
+ * own continue; for a frozen gate, the effect its definition gives the option,
+ * read from the proven frozen graph — or, when that cannot be proven, a
+ * continue only when the frozen block records the values it sets. Null when
+ * unknown.
+ */
+function optionEffectOf(id, option, frozen, graphOf) {
+  if (id === HELD_APPROVAL) return option === 'continue' ? 'continue' : null;
+  const options = resolvedNode(graphOf(), id)?.options;
+  if (isPlainObject(options) && Object.hasOwn(options, option)) {
+    const value = options[option];
+    return isPlainObject(value) ? value.effect ?? null : value;
+  }
+  const sets = frozen[id]?.sets;
+  return isPlainObject(sets) && Object.hasOwn(sets, option) ? 'continue' : null;
+}
+
+/**
+ * One approval item: the held item `node` records for `question_id`, approved
+ * by `answer` and credited as it is, the way a settlement item is
+ * (`settlementOf`). Its triage is the held item's without `held`, and it
+ * carries the held item's `attempt` when that has one.
+ */
+function approvalOf({ node, question_id: questionId, item: held }, answer) {
+  const { held: _held, ...triage } = isPlainObject(held.triage) ? held.triage : {};
+  const item = { decision: `${questionId}: ${held.decision}`, by: 'operator', node, question_id: questionId, triage };
+  if (attemptNumber(held) !== null) item.attempt = held.attempt;
+  if (answer.answered_by !== undefined) item.answered_by = answer.answered_by;
+  if (answer.via !== undefined) item.via = answer.via;
+  return { ...item, ...provenanceOf(answer) };
+}
+
+/**
+ * The approval items a gate's summary already holds that a write of its
+ * `decisions` leaves out: history, never removed, kept after what the write
+ * sent. One counts as sent when the write carries an approval for the same
+ * node, question and attempt.
+ */
+function keptApprovals(prior, decisions) {
+  if (!Array.isArray(prior)) return [];
+  const keyOf = item => approvalKey(item.node, item);
+  const sent = new Set(decisions.filter(isApproval).map(keyOf));
+  return prior.filter(item => isApproval(item) && !sent.has(keyOf(item)));
 }
 
 /** One settlement item: a classified value the answer's option sets, credited as the answer is. */

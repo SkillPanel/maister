@@ -47,6 +47,12 @@ it did. The rule, the recording shape and what is never defaulted past belong to
 the engine skill, which states them once; this file only says what each
 question takes.
 
+**When the run's policy classes in-node questions** — the freeze recorded
+`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
+before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
+settled, defaulted or held under the run's autonomy ceiling and are already on the node's
+summary. The engine skill states the rule once; no section below changes for it.
+
 **Retry budgets are prose here on purpose.** They must never be written into
 `with:`, which is an unconstrained free-form object — `max_attempts` sitting
 there would read like a grammar feature while being inert data the engine never
@@ -460,7 +466,20 @@ exploration the convergence step below presents area by area.
 
 Everything node-scoped the delegate needs is in `with:`; the run-scoped five
 supply the rest. `output_path` is exact — the delegate must write to
-`outputs/solution-exploration.md` and nowhere else.
+`outputs/solution-exploration.md` and nowhere else. `areas_output_path` is exact
+too: the decision areas file goes to `outputs/decision-areas.json` and nowhere
+else. Hand the delegate the absolute path of
+`${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/references/decision-areas.md`, the
+file's shape, to read before it writes the file — it cannot expand the variable
+itself.
+
+A return without `outputs/decision-areas.json` — `areas_path: null`, the reason
+in the agent's warnings — is not a failure, because convergence then asks from
+the markdown: record `absent: {decision_areas: "<the reason>"}` on the completing
+summary, and do not re-drive the node for it. Otherwise register the file on the
+summary's artifacts with `role: evidence`, beside the markdown, and take the
+summary's count of decision areas from it when it reads as the reference
+describes.
 
 If the agent returns without `outputs/solution-exploration.md`, or with one that
 holds no alternatives, re-invoke it with corrected context and `output_path` set
@@ -524,10 +543,16 @@ approach, skip those areas and resume at the first unresolved one.
 
 The protocol:
 
-1. Read `outputs/solution-exploration.md`.
+1. Read `outputs/solution-exploration.md`, and take the decision area ids and
+   their order from the file `with: decision_areas` names.
 2. For each decision area **sequentially** — do NOT pre-ask a later area before
    the current one is answered — ask **one question in this call**, carrying the
-   whole area itself (engine § *In-node questions*):
+   whole area itself (engine § *In-node questions*). Ask it from
+   `area-brief --json`, as engine § *Decision areas from the brainstorm* says,
+   pasted as given, and record the answer under the `question_id` it prints; on
+   More details, print its `more_details` and ask the same area again. Only when
+   the verb prints a `decision-areas-*` warning, compose the area yourself from
+   the exploration, every area alike:
    - **the question**: the area's name, why the decision matters in a sentence
      or two, and each alternative in one line — each named in words, never by a
      code the report defines;
@@ -549,7 +574,8 @@ The protocol:
      exists to prevent.
 
    If the user picks an alternative, record the choice as an operator decision
-   (`question_id` the area's name as a short slug) and move on. If the user
+   (`question_id` the one `area-brief` printed, or for a composed area
+   `convergence-decisions-<the area's name as a slug>`) and move on. If the user
    picks **More details** (or types "details", or asks about one alternative),
    write the area out in full as engine § *In-node questions* says — every
    alternative's two-to-three-sentence description, pros and cons and the
@@ -566,7 +592,8 @@ every summary may carry, this node's phase entry carries two keys and no others:
 `decision_areas`, a list whose every element has
 exactly `area` (the decision area's name), `alternatives_count` (how many
 alternatives were presented for it) and `chosen_approach` (the alternative the
-user picked); and `deferred_ideas`, the ideas parked rather than decided.
+user picked), the first two taken from the decision areas file — its `area` and
+the length of its `alternatives` — when the areas came from it; and `deferred_ideas`, the ideas parked rather than decided.
 `decision_areas` is also what the resume check above reads — an element whose
 `chosen_approach` is already set is an area a resumed run must not re-ask, so an
 entry written without that key costs the user the whole area again.
@@ -591,7 +618,12 @@ entry written without that key costs the user the whole area again.
 every area in this node's one request, one question per area with the same
 detail as above; an area whose choice depends on another names that area in its
 question (*In-node questions*). Each answer is recorded as an operator decision
-and as the area's `chosen_approach`.
+and as the area's `chosen_approach`. From the file, the set is the engine's: run
+`area-brief --patch-file`, then `gate-brief --request --patch-file`, then read
+the patch file once and write the request over it, as engine § *Decision areas
+from the brainstorm* says — a re-ask after a revise names the reopened areas
+with `--area`. On a `decision-areas-*` warning, write the set from the composed
+areas instead.
 
 **Without question sets** (`convergence-decisions`): each area
 takes the alternative this node recommends for it, recorded as `{decision, by:
@@ -799,6 +831,14 @@ run is a sub-run of another.
    clear the context or start a new session first —
    `/maister-copilot:development --research=<this task directory, from the project root>`
    to build on the findings.
+
+**No close-out while a choice is held.** When the freeze recorded
+`orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
+closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
+`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
+revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
+refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
+ends on `run-held-unapproved`.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

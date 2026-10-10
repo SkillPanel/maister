@@ -188,7 +188,18 @@ findings:
     severity: "critical" | "high" | "medium" | "low"
     fixable: true | false
     change: "[the concrete change to the spec, or what a person has to decide]"
+    # Only on a finding that needs a decision — the caller asks it as one question:
+    name: "export-scope"        # kebab-case, a few words naming the finding
+    title: "[the finding in one plain sentence]"
+    evidence: "[spec section and file:line, what is wrong]"
+    options:                    # 1-3: your proposed change first, then the alternatives you see
+      - {label: "[short choice]", description: "[what choosing it changes in the spec]"}
+    recommended: 0 | "accept" | null   # an option's index, accepting the risk, or no view
+    reason: "[why the recommended choice, one line; required unless recommended is null]"
 ```
+
+Give a decision real choices: each option a change someone could pick, never "decide later" —
+accepting the risk as it stands is offered by the caller on its own.
 
 ---
 
