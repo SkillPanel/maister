@@ -822,6 +822,7 @@ export function validate(root, { definitions = [] } = {}) {
     }
     checkDriverCapable(definition.doc, file, errors);
     checkRetiredTier(definition.doc, file, warnings);
+    checkPublishWithoutPr(definition.doc, file, warnings);
   }
 
   // Each definition is reported as generated or not, by where it sits: the
@@ -1479,6 +1480,29 @@ function checkRetiredTier(doc, file, warnings) {
     if (!isMap(node) || !isMap(node.with)) continue;
     if (node.with.autonomy !== RETIRED_TIER) continue;
     warnings.push(retiredTier(file, id, `nodes.${id}.with.autonomy`));
+  }
+}
+
+/**
+ * A node that publishes while declaring no pull request is owed. `publish: true`
+ * makes the dispatched run push its branch and open a pull request, and the
+ * envelope resolves the close-out to `true` from it; a declared `false` still
+ * wins, because a chain may know its remote has no host. The pair is legal and
+ * contradictory, so it is a warning that names the field, never a refusal.
+ */
+function checkPublishWithoutPr(doc, file, warnings) {
+  if (!isMap(doc) || !isMap(doc.nodes)) return;
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    if (!isMap(node) || !isMap(node.with) || node.with.publish !== true) continue;
+    if (!isMap(node.with.closeout_contract) || node.with.closeout_contract.pr_required !== false) continue;
+    const dotted = `nodes.${id}.with.closeout_contract.pr_required`;
+    warnings.push({
+      code: 'publish-pr-declined',
+      file,
+      node: id,
+      path: dotted,
+      message: `${dotted} is false while nodes.${id}.with.publish is true: the run will push its branch and open a pull request, and its worker is told none is owed. The declaration wins and the value is kept as written. Remove one of the two so they agree.`,
+    });
   }
 }
 

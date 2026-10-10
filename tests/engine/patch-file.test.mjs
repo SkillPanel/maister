@@ -154,9 +154,9 @@ test('patch file: gate-request reads the same file under the same rule', t => {
   assert.equal(refused.code, 2);
   assert.match(refused.stderr, /^usage: the patch file must be /);
 
-  // Past the rule, the edition decides: the free build carries no gate module
-  // and says so at exit 2, keeping the file; a build that carries it judges the
-  // request. Either way the file is gone only when the request landed.
+  // Past the rule, the edition decides: a build with no gate module refuses
+  // gate-request-unavailable, keeping the file; a build that carries it judges
+  // the request. Either way the file is gone only when the request landed.
   put(run, { node: 'approval', kind: 'approve', question: 'Proceed?', options: [] });
   const result = verb(['gate-request', `--state=${run.state}`, `--patch-file=${patchFile(run)}`], 'not json');
   assert.equal(fs.existsSync(patchFile(run)), result.code !== 0, result.stderr);

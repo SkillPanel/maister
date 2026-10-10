@@ -31,7 +31,7 @@
  * truncating to fit is the worst available answer: the sections at the end are
  * `closeout` and `siblings`, so a silent trim drops precisely the instructions
  * that say how the work is to be reported and that a sibling's repository is
- * off limits. A seed that does not fit is a seed that is wrong, and it is
+ * never to be written. A seed that does not fit is a seed that is wrong, and it is
  * refused (`seed-over-cap`) so whoever wrote the over-long content fixes it.
  *
  * ---------------------------------------------------------------------------
@@ -66,7 +66,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
-import { closeoutReachable } from './envelope.mjs';
+import { closeoutReachable, siblingsProblem } from './envelope.mjs';
 import { bareWorkflowName, TARGET_NAME } from '../../../workflow-engine/scripts/lib/graph.mjs';
 import { ASK_LEVELS } from '../../../workflow-engine/scripts/lib/policy.mjs';
 
@@ -210,7 +210,7 @@ export function buildSeed(envelope, { siblings = null, pluginRoot = defaultPlugi
     task: taskLines({ document, workflow, pluginRoot }),
     outbox: outboxLines(document, pluginRoot),
     closeout: closeoutLines({ closeout, autonomy: document.autonomy, permissions: document.permissions }),
-    siblings: siblingLines(siblings),
+    siblings: siblingLines(siblings, { listed: document.siblings, root: rootOf(document) }),
   };
 
   return {
@@ -474,16 +474,32 @@ function closeoutLines({ closeout, autonomy, permissions }) {
 
 /**
  * That there are others, and how to behave about it. The count is a number and
- * never a list: naming a sibling would name a repository the worker must not
- * touch, which is an invitation rather than a boundary.
+ * never a list.
+ *
+ * The envelope may also list the other dispatches of the same outcome, and
+ * then they are named — member, worktree and branch — as references to read
+ * and never to write. A worker downstream of another member's delivery has to
+ * read what that member delivered, and without the paths it writes against the
+ * design instead. Only the caller that dispatched them knows which dispatches
+ * belong together, so the list is the envelope's and never guessed here; with
+ * none listed the section is exactly what it was.
  */
-function siblingLines(siblings) {
-  return [
+function siblingLines(siblings, { listed = null, root = null } = {}) {
+  const lines = [
     siblings !== null && siblings > 1
       ? `You are one of ${siblings} workers running now. Coordinate only through the outbox.`
       : 'You may be running alongside other workers. Coordinate only through the outbox.',
-    "Never edit a sibling's repository, and never read or write another dispatch's outbox.",
   ];
+  if (!Array.isArray(listed) || listed.length === 0) {
+    lines.push("Never edit a sibling's repository, and never read or write another dispatch's outbox.");
+    return lines;
+  }
+  lines.push('The other dispatches of this outcome, for reading only - never edit, commit or run anything that writes there:');
+  for (const entry of listed) {
+    lines.push(`- ${oneLine(entry.member)}: worktree ${anchor(root, entry.worktree)}, branch ${oneLine(entry.branch)}`);
+  }
+  lines.push("Read them for what they deliver - a contract, an API - when your work depends on it. Never edit a sibling's repository, and never read or write another dispatch's outbox.");
+  return lines;
 }
 
 // ---------------------------------------------------------------------------
@@ -564,6 +580,10 @@ function assertEnvelope(envelope) {
   }
   // `ceiling` is optional and never refused: a value outside the three levels
   // renders as the narrowest, which is what the engine reads it as anyway.
+  if (document.siblings !== undefined && document.siblings !== null) {
+    const problem = siblingsProblem(document.siblings);
+    if (problem !== null) missing.push(`siblings ${problem}`);
+  }
 
   if (missing.length) {
     throw new Refusal('seed-envelope-invalid',

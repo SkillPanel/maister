@@ -218,3 +218,113 @@ test('envelope: an unknown ceiling value reads as approve, with no refusal', (t)
   assert.equal(ceilingEnvelope(t, { withCeiling: 'everything', dispatcher: 'decide' }).envelope.ceiling, 'approve');
   assert.equal(ceilingEnvelope(t, { dispatcher: 'whatever' }).envelope.ceiling, 'approve');
 });
+
+// A node that publishes asks its workflow to push the branch and open a pull
+// request, and the gate approving the plan grants both — so the close-out owes
+// one even at a tier that cannot open one on its own. A declared `false` still
+// wins, and `validate` warns about that pair rather than refusing it.
+
+/** The chain for one `development` node in `alpha` with the given `with:` lines. */
+function publishChain(ws, withLines) {
+  return chain(ws, [
+    'name: chain', 'version: 1', 'nodes:',
+    '  dev:', '    uses: workflow:development', '    dir: alpha', '    provider: claude', '    needs: []',
+    '    with:', '      autonomy: auto-medium', ...withLines.map((line) => `      ${line}`),
+  ].join('\n') + '\n');
+}
+
+/** Freeze the chain and build the envelope for `dev`, with optional overrides on stdin. */
+function dispatch(ws, definition, overrides = {}) {
+  const run = path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain');
+  fs.mkdirSync(run, { recursive: true });
+  freeze({ state: path.join(run, 'orchestrator-state.yml') }, { definition });
+  return umbrella(['envelope', `--run=${run}`, '--node=dev',
+    `--ledger=${path.join(ws.root, '.maister/umbrella/ledger')}`, `--root=${ws.root}`], overrides);
+}
+
+function published(result) {
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test('envelope: a node that publishes owes a pull request, even at a tier that cannot open one alone', (t) => {
+  const ws = workspace(t);
+  const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true'])));
+  assert.equal(envelope.closeout_contract.pr_required, true);
+});
+
+test('envelope: control — the same node without publish derives no pull request from its tier', (t) => {
+  const ws = workspace(t);
+  const { envelope } = published(dispatch(ws, publishChain(ws, [])));
+  assert.equal(envelope.closeout_contract.pr_required, false);
+});
+
+test('envelope: a declared false outranks publish, from the node and from the override', (t) => {
+  const declared = workspace(t);
+  const fromNode = published(dispatch(declared, publishChain(declared, ['publish: true', 'closeout_contract: {pr_required: false}'])));
+  assert.equal(fromNode.envelope.closeout_contract.pr_required, false);
+
+  const overridden = workspace(t);
+  const fromOverride = published(dispatch(overridden, publishChain(overridden, ['publish: true']), { closeout_contract: { pr_required: false } }));
+  assert.equal(fromOverride.envelope.closeout_contract.pr_required, false);
+});
+
+test('validate: publish beside a declared pr_required false is a named warning, not a refusal', (t) => {
+  const ws = workspace(t);
+  const { code, report } = validate(ws, publishChain(ws, ['publish: true', 'closeout_contract: {pr_required: false}']));
+  assert.equal(code, 0, JSON.stringify(report));
+  const warned = report.warnings.filter((entry) => entry.code === 'publish-pr-declined');
+  assert.equal(warned.length, 1, JSON.stringify(report.warnings));
+  assert.equal(warned[0].path, 'nodes.dev.with.closeout_contract.pr_required');
+});
+
+test('validate: control — publish alone, or a declared false alone, warns nothing about the pair', (t) => {
+  const ws = workspace(t);
+  const alone = validate(ws, publishChain(ws, ['publish: true']));
+  const declined = validate(ws, publishChain(ws, ['closeout_contract: {pr_required: false}']));
+  for (const { code, report } of [alone, declined]) {
+    assert.equal(code, 0, JSON.stringify(report));
+    assert.equal(report.warnings.filter((entry) => entry.code === 'publish-pr-declined').length, 0);
+  }
+});
+
+// The other dispatches of an outcome travel in the envelope only when the
+// caller lists them. Listed, each is written and read back into the seed as a
+// read-only reference; absent, the envelope carries no key; malformed, the
+// dispatch is refused and nothing is published.
+
+const SIBLINGS = [{ member: 'beta', branch: 'feature/2026-01-05-chain-beta', worktree: 'repos/beta/.worktrees/2026-01-05-chain-beta' }];
+
+test('envelope: listed siblings are written and named by the seed as read-only references', (t) => {
+  const ws = workspace(t);
+  const report = published(dispatch(ws, publishChain(ws, []), { siblings: SIBLINGS }));
+  assert.deepEqual(report.envelope.siblings, SIBLINGS);
+  assert.match(fs.readFileSync(report.path, 'utf8'), /^siblings: \[\{member: beta, branch: feature\/2026-01-05-chain-beta, worktree: repos\/beta\/\.worktrees\/2026-01-05-chain-beta\}\]$/m);
+
+  const seeded = umbrella(['seed', `--envelope=${report.path}`]);
+  assert.equal(seeded.code, 0, seeded.stdout + seeded.stderr);
+  const lines = JSON.parse(seeded.stdout).prompt.split('\n');
+  const section = lines.slice(lines.indexOf('# siblings'));
+  assert.ok(section.some((line) => /for reading only - never edit, commit or run anything that writes there/.test(line)), section.join('\n'));
+  const anchored = `${report.envelope.workspace_root}/repos/beta/.worktrees/2026-01-05-chain-beta`;
+  assert.ok(section.includes(`- beta: worktree ${anchored}, branch feature/2026-01-05-chain-beta`), section.join('\n'));
+});
+
+test('envelope: control — no siblings listed writes no key, and an empty list is the same', (t) => {
+  for (const overrides of [{}, { siblings: [] }]) {
+    const ws = workspace(t);
+    const report = published(dispatch(ws, publishChain(ws, []), overrides));
+    assert.equal(Object.hasOwn(report.envelope, 'siblings'), false);
+    assert.doesNotMatch(fs.readFileSync(report.path, 'utf8'), /siblings/);
+  }
+});
+
+test('envelope: a malformed siblings list is refused dispatch-siblings-invalid and nothing is published', (t) => {
+  for (const siblings of ['beta', [{ member: 'beta', branch: 'feature/x' }], [{ member: '', branch: 'b', worktree: 'w' }]]) {
+    const ws = workspace(t);
+    const result = dispatch(ws, publishChain(ws, []), { siblings });
+    assert.equal(result.code, 1, result.stdout + result.stderr);
+    assert.equal(JSON.parse(result.stdout).errors[0].code, 'dispatch-siblings-invalid');
+    assert.equal(fs.existsSync(path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain/dispatch/dev.envelope.yml')), false);
+  }
+});

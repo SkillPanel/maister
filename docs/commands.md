@@ -512,7 +512,7 @@ past it — a truncated prompt silently loses the close-out contract at the bott
 | Flag | Description |
 |------|-------------|
 | `--envelope=PATH` | The published envelope to render (required) |
-| `--siblings=N` | How many workers are running in this wave, so the prompt can say the worker has peers. A count, never a list: naming a sibling would name a repository the worker must not touch |
+| `--siblings=N` | How many workers are running in this wave, so the prompt can say the worker has peers. A count; the envelope's own `siblings` list, when present, is what names the other dispatches of the outcome, as read-only references |
 
 **`ledger`** — run one ledger op. The ops are `create-entry`, `claim`, `update-status`,
 `add-constraint`, `add-followup`, `close-out` and the read-only `query`. Each one reads,
