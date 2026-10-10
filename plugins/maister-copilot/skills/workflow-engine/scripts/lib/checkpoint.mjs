@@ -538,9 +538,12 @@ export function moreDetails(checkpoint) {
   return blocks.join('\n\n');
 }
 
-/** The full brief cut to the preview budget, the cut saying how to see the rest. */
-function detailsPreview(checkpoint) {
-  const text = moreDetails(checkpoint);
+/**
+ * A full write-up as the More details preview: whole within the preview
+ * budget, else cut to it and closed by the line saying how to see the rest.
+ * A gate's brief and a decision area's write-up are cut the same way.
+ */
+export function detailsPreview(text) {
   if (text.length <= PREVIEW_BUDGET) return text;
   const room = PREVIEW_BUDGET - DETAILS_CUT.length - 3;
   return `${clip(text, room)}\n\n${DETAILS_CUT}`;
@@ -749,7 +752,7 @@ export function richPicker(checkpoint) {
       preview: clip(lines.join('\n'), PREVIEW_BUDGET),
     };
   });
-  return withDetails('rich', checkpoint.ask, options, { preview: detailsPreview(checkpoint) });
+  return withDetails('rich', checkpoint.ask, options, { preview: detailsPreview(moreDetails(checkpoint)) });
 }
 
 /**

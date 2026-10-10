@@ -1578,9 +1578,9 @@ with `--patch-file=<run>/.state-patch.json` in place of `--area` and `--json` â€
 file and prints its path: one question per area, each with its write-up as `details` and, when
 the run's policy classes the area, its `triage`. Then run `gate-brief --request
 --patch-file=<run>/.state-patch.json` for the node, read the patch file once with the file
-tool, write the printed request over it, and suspend with `gate-request` (*When a question
-suspends*). A `policy-hash-mismatch` warning means no area carries `triage`; the request still
-goes.
+tool, write the printed request over it byte for byte, every question's `details` included,
+and suspend with `gate-request` (*When a question suspends*). A `policy-hash-mismatch` warning
+means no area carries `triage`; the request still goes.
 
 **When the file cannot be used**, the verb prints one warning on stderr, exits `0` and gives
 nothing to ask from â€” under `--json`, `{ok: true, fallback: true}`; with `--patch-file`, no
@@ -1591,7 +1591,8 @@ file:
 | `decision-areas-missing:<path>` | was not written; `:not-declared` when the node names none, `:producer-not-completed` when its brainstorm did not complete |
 | `decision-areas-unreadable:<path>:<code>` | exists but cannot be read |
 | `decision-areas-invalid:<path>:<fault>` | failed the check, its first fault as `<reason> at <path>` |
-| `decision-areas-stale:<path>` | no longer matches the markdown it was written from |
+| `decision-areas-stale:<path>:<source>[:<detail>]` | no longer matches the markdown it was written from; `:source-unreadable` when that markdown cannot be read, `:source-not-declared` when it is not the markdown the brainstorm declares |
+| `decision-areas-unwritable:<patch path>:<code>` | was read, but the question set could not be written to the patch file; nothing was written |
 
 Each means the same: compose every area from the brainstorm's markdown, exactly as the node
 prose describes, with the same detail and the question ids it names, and say in the node summary
