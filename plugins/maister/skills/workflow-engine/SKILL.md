@@ -1556,7 +1556,8 @@ them. They follow the same driver, and only the driver:
 | any other — `dispatch`, or a cockpit without that feature | **never asked**; the node takes the default its own prose names, and records that it did |
 
 `orchestrator.driver.features` is the driver's own list of what it carries, seeded by whatever
-started the run; the engine only reads it. `question-sets` means the driver can show a set of
+started the run — for a sub-run, the freeze copies its parent's (*Sub-runs*); otherwise the
+engine only reads it. `question-sets` means the driver can show a set of
 questions to the operator in one request and write the answers back. An absent list, or one
 without that value, means it cannot. Decide this once, when the run starts, like the gate mode.
 
@@ -2024,6 +2025,12 @@ child-capable — is `references/sub-runs.md`. What the engine must hold in mind
   default when the parent's `policy_hash` matches — and the one the patch sends, or the parent's
   when the patch sends none. A parent whose state cannot be read gives nothing, and the freeze
   warns `autonomy-ceiling-parent-unread:<run>`.
+- **The child copies the driver's features.** A child whose driver is not the terminal records
+  its parent's `orchestrator.driver.features`, narrowed to any the patch sends, so a sub-run of a
+  cockpit that shows question sets asks its in-node questions there too, and never gains a feature
+  its parent lacks. The driver need not send them. A parent whose state cannot be read vouches for
+  none: the child freezes without features and the freeze warns
+  `driver-features-parent-unread:<run>`.
 - **`task_path` and `run_id` are reserved** against a `workflow:` node's declared outputs, because
   the node's values map is replaced whole on patch and a child output of either name would be
   merged over the parent's link to its own child.
@@ -2114,6 +2121,8 @@ refusal — the write lands and the exit code does not move:
 - **`autonomy-ceiling-parent-unread:<run>`** — a child run's freeze could not read its parent's
   state, so it copied no autonomy ceiling from it; the freeze landed with the patch's own, if any.
   Relay it.
+- **`driver-features-parent-unread:<run>`** — a child run's freeze could not read its parent's
+  state, so its driver carries no features: in-node questions take their defaults. Relay it.
 - **`skip-guard-skipped:<gate>`** — the write recorded `skipped` on a gate the skip-guard rule
   asks whatever its guard reads (grammar § 7). The status was written as sent, and nothing
   checks it later: ask the gate and record its answer.
