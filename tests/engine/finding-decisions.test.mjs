@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, scratch, verb, write } from '../helpers.mjs';
+import { FIXTURES, freeze, freezePatch, readState, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
 import { checkSet } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-set.mjs';
 import { ACCEPT_OPTION, findingBrief } from '../../plugins/maister/skills/workflow-engine/scripts/lib/finding-brief.mjs';
+import { outstandingHeld } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 
 // A reviewer's findings as the reviewing node's questions. The reviewer writes
 // its findings as data — each with the fix it proposes, its alternatives and a
@@ -19,9 +20,9 @@ const UNDECLARED = path.join(FIXTURES, 'definitions/in-node-questions.yml');
 const FINDINGS = 'verification/findings.json';
 
 /** A run of `definition` frozen, with `node` running: the reviewing node, ready to ask. */
-function reviewing(t, { definition = DEFINITION, node = 'review', status = 'running' } = {}) {
+function reviewing(t, { definition = DEFINITION, node = 'review', status = 'running', driver = null } = {}) {
   const run = scratch(t);
-  freeze(run, { definition });
+  freeze(run, { definition, orchestrator: driver ? { driver } : {} });
   if (status !== null) write(run, { nodes: { [node]: { status } } });
   return { ...run, node, patch: path.join(run.dir, '.state-patch.json') };
 }
@@ -283,4 +284,182 @@ test('finding-brief: a patch file it cannot write warns unwritable and leaves no
   fellBack(brief(run, { patch: true }), 'finding-list-unwritable:.state-patch.json:EEXIST');
   assert.equal(fs.readFileSync(tmp, 'utf8'), 'another writer');
   assert.equal(fs.existsSync(run.patch), false);
+});
+
+// ---------------------------------------------------------------------------
+// 3. the fold under a cockpit, the class under a policy, and the continue
+// ---------------------------------------------------------------------------
+
+// The findings policy classes `review-findings` as an approval, the gate as a
+// record and `deep_check` as a consult; it names no unknown family, so
+// `notify_team`, which it leaves out, is classed as the gate is.
+const FINDINGS_POLICY = sharedPlugin({ policy: JSON.parse(fs.readFileSync(path.join(FIXTURES, 'policy/findings.json'), 'utf8')) });
+
+const COCKPIT = { kind: 'cockpit', cwd: '/work', features: ['question-sets'] };
+const DISPATCH = { kind: 'dispatch', cwd: '/work' };
+const ACCEPT_LABEL = 'Accept the risk and list it';
+const qid = id => `review-findings-${id}`;
+
+/** The findings list cut to the findings named, in its own order. */
+function only(...ids) {
+  const list = findingsList();
+  return { findings: list.findings.filter(finding => ids.includes(finding.id)) };
+}
+
+/** One `write-state` through `engine`, refused loudly. */
+function sent(engine, run, patch) {
+  const result = runScript(engine, ['write-state', `--state=${run.state}`], patch);
+  assert.equal(result.code, 0, result.stderr);
+  return result;
+}
+
+/** The `ask:` line that ends a classing write's stdout. */
+const askOf = stdout => stdout.trimEnd().split('\n').at(-1);
+
+/** A run of the finding-review fixture frozen through `engine` under `driver`, `review` running. */
+function classedRun(t, engine, driver) {
+  const run = scratch(t);
+  const { patch } = freezePatch({ definition: DEFINITION, orchestrator: { options: { ceiling: 'advice' }, driver } });
+  sent(engine, run, patch);
+  sent(engine, run, { nodes: { review: { status: 'running' } } });
+  return { ...run, node: 'review', patch: path.join(run.dir, '.state-patch.json') };
+}
+
+/** `review`'s set built by `finding-brief`, then sent in the classing write through `engine`. */
+function classedFindings(engine, run, list = findingsList()) {
+  place(run, list);
+  const set = printed(brief(run));
+  return { set, result: sent(engine, run, { node_summaries: { review: { question_set: set } } }) };
+}
+
+const summaryAt = (run, node) => readState(run).node_summaries?.[node] ?? {};
+
+test('cockpit with question sets: the findings are asked in one request, and the fold records one operator decision per finding', t => {
+  const run = reviewing(t, { driver: COCKPIT });
+  assert.equal(readState(run).orchestrator.classes_questions, undefined, 'the default policy classes nothing, so no classing write is sent');
+  place(run, only('slow-listing', 'empty-upload', 'missing-index'));
+  assert.equal(brief(run, { patch: true }).code, 0);
+
+  const built = verb(['gate-brief', `--state=${run.state}`, '--node=review', '--request', `--patch-file=${run.patch}`]);
+  assert.equal(built.code, 0, built.stderr);
+  const request = JSON.parse(built.stdout);
+  assert.equal(request.kind, 'question');
+  assert.deepEqual(request.questions.map(question => question.id), [qid('empty-upload'), qid('missing-index'), qid('slow-listing')]);
+
+  // The driver writes the request and suspends; the answer lands in the request file.
+  const gates = path.join(run.dir, 'gates');
+  fs.mkdirSync(gates, { recursive: true });
+  const requestFile = path.join(gates, 'review.request.yml');
+  const head = ['version: 1', ...Object.entries(request).map(([key, value]) => `${key}: ${JSON.stringify(value)}`), 'asked_at: "2026-01-05T09:00:00Z"'].join('\n');
+  fs.writeFileSync(requestFile, `${head}\nanswer: null\n`);
+  write(run, {
+    orchestrator: { gate_pending: { node: 'review', request: 'gates/review.request.yml', since: '2026-01-05T09:00:00Z' } },
+    nodes: { review: { status: 'suspended' } },
+  });
+  const answer = {
+    option: 'option-1',
+    answers: { [qid('empty-upload')]: 'option-1', [qid('missing-index')]: 'accept-risk', [qid('slow-listing')]: 'option-2' },
+    answered_by: 'dana',
+    at: '2026-01-05T09:12:00Z',
+    via: 'cockpit',
+  };
+  fs.writeFileSync(requestFile, `${head}\nanswer: ${JSON.stringify(answer)}\n`);
+  fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8')
+    .replace(/^( {4}review: \{.*?)status: suspended/m, '$1status: running')
+    .replace(/^( {2}gate_pending: ).*$/m, '$1null'));
+  write(run, {});
+  write(run, { node_summaries: { review: { answer } } });
+
+  const state = readState(run);
+  assert.equal(state.workflow.nodes.review.status, 'running', 'the fold never completes the node');
+  const who = { answered_by: 'dana', at: '2026-01-05T09:12:00Z', via: 'cockpit' };
+  assert.deepEqual(state.node_summaries.review.decisions, [
+    {
+      decision: 'Guard the empty body', by: 'operator', question_id: qid('empty-upload'),
+      question: 'Server crashes on an empty upload — how should it be settled?', answer: 'Guard the empty body',
+      recommended: 'Guard the empty body', as_recommended: true, ...who,
+    },
+    {
+      decision: ACCEPT_LABEL, by: 'operator', question_id: qid('missing-index'),
+      question: 'Lookup by email scans the table — how should it be settled?', answer: ACCEPT_LABEL,
+      recommended: 'Add the index', as_recommended: false, ...who,
+    },
+    {
+      decision: 'Cap at a thousand', by: 'operator', question_id: qid('slow-listing'),
+      question: 'Listing loads every row — how should it be settled?', answer: 'Cap at a thousand',
+      recommended: null, as_recommended: null, ...who,
+    },
+  ]);
+});
+
+test('classed under the findings policy: dispatch holds each finding on its recommendation, one with none held with no choice; a cockpit asks them all', t => {
+  const engine = FINDINGS_POLICY.engine;
+  const run = classedRun(t, engine, DISPATCH);
+  assert.equal(readState(run).orchestrator.classes_questions, true);
+  const { set, result } = classedFindings(engine, run);
+  assert.equal(askOf(result.stdout), 'ask: none');
+
+  const summary = summaryAt(run, 'review');
+  assert.deepEqual(summary.asking, []);
+  const held = { version: 1, class: 'approve', family: 'finding-family', held: true };
+  const questionOf = id => set.questions.find(question => question.id === qid(id)).question;
+  assert.deepEqual(summary.decisions, [
+    { decision: 'Guard the empty body', by: 'default', question_id: qid('empty-upload'), question: questionOf('empty-upload'), triage: held },
+    { decision: 'Add the index', by: 'default', question_id: qid('missing-index'), question: questionOf('missing-index'), triage: held },
+    {
+      decision: 'No choice yet — needs your decision', by: 'default', question_id: qid('slow-listing'), question: questionOf('slow-listing'),
+      no_choice: true, triage: held,
+    },
+    { decision: ACCEPT_LABEL, by: 'default', question_id: qid('log-noise'), question: questionOf('log-noise'), triage: held },
+  ]);
+
+  // Under a cockpit carrying question sets, the same policy leaves every finding to ask.
+  const asked = classedRun(t, engine, COCKPIT);
+  const { result: written } = classedFindings(engine, asked);
+  assert.equal(askOf(written.stdout), `ask: ${['empty-upload', 'missing-index', 'slow-listing', 'log-noise'].map(qid).join(' ')}`);
+  assert.equal(summaryAt(asked, 'review').decisions, undefined);
+});
+
+test('a continue at the gate records its answer, each value it sets with its own class, then one approval per held finding', t => {
+  const engine = FINDINGS_POLICY.engine;
+  const run = classedRun(t, engine, DISPATCH);
+  classedFindings(engine, run, only('empty-upload', 'missing-index', 'log-noise'));
+  const held = summaryAt(run, 'review').decisions;
+  assert.equal(held.length, 3);
+  sent(engine, run, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed the work.' } } });
+
+  sent(engine, run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'continue-with-checks', answered_by: 'dana' }] } },
+  });
+  const [answer, ...rest] = summaryAt(run, 'review-approval').decisions;
+  const gate = { version: 1, class: 'record', family: 'review-gate-family' };
+  assert.equal(answer.option, 'continue-with-checks');
+  assert.deepEqual(answer.triage, gate);
+  const credit = Object.fromEntries(['answered_by', 'via', 'actor', 'on_behalf_of'].filter(key => answer[key] !== undefined).map(key => [key, answer[key]]));
+  assert.equal(credit.answered_by, 'dana');
+  const settlement = (key, triage) => ({ decision: `${key}: true`, by: 'operator', ref: key, node: 'review-approval', triage, ...credit });
+  const approval = item => {
+    const { held: _held, ...triage } = item.triage;
+    return { decision: `${item.question_id}: ${item.decision}`, by: 'operator', node: 'review', question_id: item.question_id, triage, ...credit };
+  };
+  assert.deepEqual(rest, [
+    settlement('deep_check', { version: 1, class: 'consult', family: 'deep-check-family' }),
+    settlement('notify_team', gate),
+    ...held.map(approval),
+  ]);
+  assert.deepEqual(rest.at(-1).decision, `${qid('log-noise')}: ${ACCEPT_LABEL}`);
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+
+  // A finding held with no choice is never approved by a continue: it stays outstanding.
+  const open = classedRun(t, engine, DISPATCH);
+  classedFindings(engine, open, only('empty-upload', 'slow-listing'));
+  sent(engine, open, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed the work.' } } });
+  sent(engine, open, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'continue-quietly', answered_by: 'dana' }] } },
+  });
+  const approved = summaryAt(open, 'review-approval').decisions.filter(item => item.node === 'review').map(item => item.question_id);
+  assert.deepEqual(approved, [qid('empty-upload')]);
+  assert.deepEqual(outstandingHeld(readState(open)).map(item => item.question_id), [qid('slow-listing')]);
 });
