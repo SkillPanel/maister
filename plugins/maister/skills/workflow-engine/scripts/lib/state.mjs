@@ -1157,6 +1157,9 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored);
     intended.add('workflow');
   }
+  // Each gate answer the patch sends, as the run held it before this write:
+  // what tells a newly recorded continue from one re-sent (`approveHeld`).
+  const answeredBefore = priorAnswers(doc, patch);
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
   if (regress !== null) clearClassed(doc, regress, changed);
   if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
@@ -1181,11 +1184,11 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   let typed = null;
   const typedNow = () => (typed ??= typedOf(doc));
   // The gates this write judges, read once for the two passes that care.
-  const judged = judgedGates(patch, typedNow, runDir);
+  const { judged, fresh } = judgedGates(patch, typedNow, runDir, answeredBefore);
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   judgeGates(doc, typedNow, judged, changed, writeWarnings);
-  approveHeld(doc, judged, graphOf, changed);
+  approveHeld(doc, fresh, graphOf, changed);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -3602,14 +3605,53 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
  * summaries in the patch that record an answer (`recordsAnswer`), and — on a
  * settled write, the only one whose index sync runs — the gates whose index
  * row it closes (`closingRows`). Not yet narrowed to gate nodes.
+ *
+ * `fresh` is the part of them whose answer this write newly records: every
+ * row it closes — the driven fold — and every summary whose answer the run
+ * did not hold before it (`answeredBefore`, from `priorAnswers`): no answer
+ * then, another option, or a gate whose recorded status was not `completed`,
+ * so asked again. A write re-sending an answer the run already holds is
+ * judged, and records nothing new.
  */
-function judgedGates(patch, typedNow, runDir) {
+function judgedGates(patch, typedNow, runDir, answeredBefore = new Map()) {
   const answering = isPlainObject(patch.node_summaries)
     ? Object.entries(patch.node_summaries).filter(([, entry]) => recordsAnswer(entry)).map(([id]) => id) : [];
   let closing = runDir === null ? [] : closingRows(runDir);
-  if (answering.length === 0 && closing.length === 0) return new Set();
+  if (answering.length === 0 && closing.length === 0) return { judged: new Set(), fresh: new Set() };
   if (closing.length > 0 && !settledState(typedNow())) closing = [];
-  return new Set([...answering, ...closing]);
+  const summaries = isPlainObject(typedNow().node_summaries) ? typedNow().node_summaries : {};
+  const newly = answering.filter(id => {
+    const now = gateAnswer(Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].decisions : null);
+    if (now === null) return false;
+    const before = answeredBefore.get(id);
+    if (before === undefined || before.option === null) return true;
+    if (before.status !== undefined && before.status !== 'completed') return true;
+    return before.option !== now.option;
+  });
+  return { judged: new Set([...answering, ...closing]), fresh: new Set([...newly, ...closing]) };
+}
+
+/**
+ * For each summary the patch sends that records an answer (`recordsAnswer`),
+ * the gate as the run held it before this write: `{option, status}` — the
+ * option its answer named, null with none, and its recorded node status,
+ * undefined with no node entry. Read before any part of the patch lands, and
+ * only when the patch records an answer.
+ */
+function priorAnswers(doc, patch) {
+  const answering = isPlainObject(patch.node_summaries)
+    ? Object.entries(patch.node_summaries).filter(([, entry]) => recordsAnswer(entry)).map(([id]) => id) : [];
+  const before = new Map();
+  if (answering.length === 0 || !doc.has('workflow')) return before;
+  const typed = typedOf(doc);
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  const nodes = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  for (const id of answering) {
+    const answer = gateAnswer(Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].decisions : null);
+    const status = Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) ? nodes[id].status : undefined;
+    before.set(id, { option: answer?.option ?? null, status });
+  }
+  return before;
 }
 
 /** Does a gate's summary in a patch record an answer: an operator decision naming an option, or a flat answer? */
@@ -3646,30 +3688,34 @@ function closingRows(runDir) {
 }
 
 /**
- * The approvals a continue records: on a write that judges a gate
- * (`judgedGates`) — a frozen gate, or the reserved `HELD_APPROVAL` checkpoint —
- * whose answer names an option with effect `continue`, one approval item per
+ * The approvals a continue records: on a write that newly records a gate's
+ * answer (`judgedGates`, its `fresh` ids) — a frozen gate, or the reserved
+ * `HELD_APPROVAL` checkpoint — whose answer names an option with effect
+ * `continue`, one approval item per
  * held choice no approval yet matches (`outstandingHeld`), placed right after
  * the answer, its settlement items and any approval an earlier answer left
  * (`approvalOf`), so the approvals read in the order they were given. A revise or a stop
- * approves nothing, and a choice already approved is never approved twice, so
- * a closing write re-sending the answer adds nothing. The items are history: a
+ * approves nothing, a choice already approved is never approved twice, and a
+ * write re-sending an answer the run already held approves nothing: a choice
+ * held after that answer was given was never shown with it. The items are history: a
  * later write of the gate's summary keeps them (`keptApprovals`) and a revise
  * reset never touches a gate's summary.
  */
-function approveHeld(doc, judgedIds, graphOf, changed) {
-  if (judgedIds.size === 0) return;
+function approveHeld(doc, freshIds, graphOf, changed) {
+  if (freshIds.size === 0) return;
+  // Nothing held, nothing to approve: checked before the graph is resolved.
+  if (outstandingHeld(typedOf(doc)).length === 0) return;
   const frozen = isPlainObject(typedOf(doc).workflow?.nodes) ? typedOf(doc).workflow.nodes : {};
   const isGate = id => id === HELD_APPROVAL || (Object.hasOwn(frozen, id) && isPlainObject(frozen[id]) && frozen[id].kind === 'gate');
-  for (const id of [...Object.keys(frozen), HELD_APPROVAL].filter(each => judgedIds.has(each) && isGate(each))) {
+  for (const id of [...Object.keys(frozen), HELD_APPROVAL].filter(each => freshIds.has(each) && isGate(each))) {
     const typed = typedOf(doc);
+    const waiting = outstandingHeld(typed);
+    if (waiting.length === 0) continue;
     const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
     const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : null;
     const decisions = Array.isArray(summary?.decisions) ? summary.decisions : null;
     const answer = gateAnswer(decisions);
     if (answer === null || optionEffectOf(id, answer.option, frozen, graphOf) !== 'continue') continue;
-    const waiting = outstandingHeld(typed);
-    if (waiting.length === 0) continue;
     let at = decisions.indexOf(answer) + 1;
     while (at < decisions.length && (isSettlement(decisions[at], id) || isApproval(decisions[at]))) at += 1;
     const next = [...decisions.slice(0, at), ...waiting.map(each => approvalOf(each, answer)), ...decisions.slice(at)];

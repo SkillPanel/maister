@@ -706,6 +706,31 @@ test('approvals: a continue at a forced gate records one approval per held choic
   assert.equal(decisionsAt(run, 'review-approval').length, 2);
 });
 
+test('approvals: re-sending an earlier gate\'s continue after a later hold approves nothing; held-approval and run-complete still owe it', t => {
+  const run = heldRun(t, { hold: false });
+  answerGate(run, 'review-approval', 'continue-past-review', { answered_by: 'tester' });
+  assert.deepEqual(approvalsOf(readState(run)), []);
+  ok(QUESTIONS.engine, run, { nodes: { 'depth-approval': { status: 'skipped' }, drafting: { status: 'running' } } });
+  const asked = { ...labelled('signed-choice'), triage: { version: 1, class: 'approve', family: 'area-family' } };
+  assert.equal(classing(QUESTIONS.engine, run, [], { node: 'drafting', questions: [asked] }).code, 0);
+  ok(QUESTIONS.engine, run, { nodes: { drafting: { status: 'completed' } }, node_summaries: { drafting: { summary: 'Drafted.' } } });
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['drafting', 'signed-choice', 1]]);
+
+  // The earlier gate's answer, re-sent: recorded once already, it approves nothing held since.
+  const before = decisionsAt(run, 'review-approval');
+  ok(QUESTIONS.engine, run, { node_summaries: { 'review-approval': { decisions: [{ option: 'continue-past-review' }] } } });
+  assert.deepEqual(approvalsOf(readState(run)), []);
+  assert.deepEqual(decisionsAt(run, 'review-approval').filter(item => item.node === 'drafting'), []);
+  assert.equal(decisionsAt(run, 'review-approval').length, before.length);
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['drafting', 'signed-choice', 1]]);
+
+  // So the run still owes a checkpoint for it, and run-complete refuses while it is unasked.
+  ok(QUESTIONS.engine, run, { task: { status: 'completed' }, nodes: { notes: { status: 'skipped' }, finish: { status: 'completed' } } });
+  const closing = runScript(QUESTIONS.engine, ['run-complete', `--state=${run.state}`]);
+  assert.equal(closing.stdout, 'RUN-FAILED: run-nodes-unfinished\n', closing.stderr);
+  assert.match(closing.stderr, /notes-approval \(pending; asked because held choices wait for approval\)/);
+});
+
 test('approvals: the driven fold that closes the gate\'s index row approves the same way, once', t => {
   const run = heldRun(t);
   const held = byId(summaryOf(run).decisions, 'signed-choice');
