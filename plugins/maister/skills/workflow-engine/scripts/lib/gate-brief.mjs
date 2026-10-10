@@ -251,7 +251,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
 
   // The choices held for a person's approval, in frozen order: every form
   // lists them first, and this gate approves them with its continue.
-  const held = heldOf(doc);
+  const held = heldOf(doc, current.display.titles);
   const { direct: candidates, stretch } = closingCandidates(recorded, byId, node);
   let closing;
   if (candidates.length) {
@@ -521,8 +521,7 @@ const NOTHING_SINCE = 'Nothing recorded since the last checkpoint.';
  * end and stop, and its question names the rest.
  */
 function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask }) {
-  const held = heldOf(doc);
-  if (!held.length) {
+  if (!outstandingHeld(doc).length) {
     return refuse('gate-brief-nothing-held',
       'Nothing is held for approval. Nothing was written. Publish the close-out when the run is dispatched, '
       + 'write the closing patch and run run-complete');
@@ -537,6 +536,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   }
 
   const current = reread(doc, workflow, runDir);
+  const held = heldOf(doc, current.display.titles);
   const warnings = [];
   if (current.drift) {
     warnings.push({
@@ -1280,12 +1280,15 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
 
 /**
  * The run's outstanding held choices (`outstandingHeld`), in frozen order, as
- * the checkpoint lists them: `{node, question_id, question, decision, class,
- * floor?, rationale?}`. Empty under the default, where nothing is held.
+ * the checkpoint lists them: `{node, step, question_id, question, decision,
+ * class, floor?, rationale?}` — `step` the owning node's title, read from
+ * `titles`, so every surface names the step wherever it ran. Empty under the
+ * default, where nothing is held.
  */
-function heldOf(doc) {
+function heldOf(doc, titles) {
   return outstandingHeld(doc).map(({ node, question_id: questionId, item }) => compact({
     node,
+    step: titleOf(titles, node),
     question_id: questionId,
     question: typeof item.question === 'string' && item.question.trim() !== '' ? item.question.trim() : undefined,
     decision: decisionOf(item)?.decision ?? '',
@@ -2181,7 +2184,7 @@ const DRIVEN = {
     const kind = classOf(decision);
     return `${decision.by}${kind ? ` (${kind})` : ''}: ${decisionText(decision)}`;
   },
-  held: entry => `${entry.class ? `${entry.class}: ` : ''}${entry.question_id} → ${entry.decision}`,
+  held: entry => `${entry.class ? `${entry.class}: ` : ''}${entry.question_id} → ${entry.decision}${entry.step ? ` — ${lowered(entry.step)}` : ''}`,
   risk: item => {
     const risk = riskOf(item);
     return risk ? `${risk.tag}: ${riskText(risk)}` : '';
@@ -2202,7 +2205,7 @@ const READABLE = {
     const kind = text === '' ? null : classOf(decisionOf(item));
     return kind ? `${text} (${kind})` : text;
   },
-  held: entry => `${entry.question ? `${entry.question}: ` : ''}${entry.decision}${entry.class ? ` (${entry.class})` : ''}`,
+  held: entry => `${entry.question ? `${entry.question}: ` : ''}${entry.decision}${entry.class ? ` (${entry.class})` : ''}${entry.step ? ` — ${lowered(entry.step)}` : ''}`,
   risk: headlineOf,
   fix: item => {
     const fix = fixOf(item);

@@ -292,11 +292,13 @@ function leadOf(text) {
 
 /**
  * The choices the run made that wait for the user's approval, each with the
- * step that holds it: `source` is that step's title, as a decision's is.
+ * step that holds it: `source` is that step's title, as a decision's is —
+ * the entry's own `step`, else the title of the closed node it names.
  */
 function heldOf(checkpoint) {
   const titles = new Map((checkpoint.closed ?? []).map(each => [each.node, each.title]));
-  return (checkpoint.held ?? []).map(item => ({ ...item, source: titles.has(item.node) ? lowered(titles.get(item.node)) : null }));
+  const stepOf = item => (typeof item.step === 'string' && item.step !== '' ? item.step : titles.get(item.node) ?? null);
+  return (checkpoint.held ?? []).map(item => ({ ...item, source: stepOf(item) === null ? null : lowered(stepOf(item)) }));
 }
 
 /** One held line at a glance: the question, the choice made, and the step. */
