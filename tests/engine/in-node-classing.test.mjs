@@ -280,6 +280,7 @@ test('cockpit with question sets: the request carries only what the writer left 
   for (const form of ['--request', '--checkpoint']) {
     const nothing = brief(QUESTIONS.engine, settled, { questions: [question('quick-choice'), question('noted-choice')] }, form);
     refused(nothing, 'gate-brief-nothing-to-ask');
+    assert.match(nothing.stderr, /^gate-brief-nothing-to-ask: the writer settled every question scoping sent it, so nothing is left to ask\. Nothing was written and nothing is asked\. /m);
     assert.equal(nothing.stdout, '');
   }
 });
