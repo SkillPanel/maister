@@ -6,6 +6,7 @@ import path from 'node:path';
 import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
 import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 import { walk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
+import { inNodeQuestions } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 
 // What every built-in asks, and how each question reaches a person under each
 // driver, pinned against a snapshot taken from the engine before the autonomy
@@ -88,45 +89,8 @@ function triageKeys(value, at = '') {
 const SUMMARY = { status: 'completed', summary: 'Done.', decisions: [], risks: [] };
 
 // ---------------------------------------------------------------------------
-// In-node questions, parsed from the node prose
+// In-node questions, parsed from the node prose by the engine's own parser
 // ---------------------------------------------------------------------------
-
-/** A node's heading in the prose: `## \`node-id\``. */
-const NODE_HEADING = /^## `([a-z0-9-]+)`\s*$/;
-
-/** A question-set line, its parenthesis optional: `**With question sets** (the studio's \`id\`):`. */
-const QUESTION_LINE = /\*\*(With|Without) question sets\*\*(?:\s*\(([^)]*)\))?/;
-
-/** The backticked id inside a question-set line's parenthesis, any qualifier before it. */
-const QUESTION_ID = /`([a-z0-9-]+)`/;
-
-/**
- * Every `{node, id}` a node-prose file names on its With/Without question-set
- * lines, in file order, each pair counted once. A line with no parenthesis — the
- * file's preamble, or a `With` line whose `Without` partner carries the id —
- * names no question.
- */
-export function inNodeQuestions(text) {
-  const found = [];
-  const seen = new Set();
-  let node = null;
-  for (const line of text.split('\n')) {
-    const heading = NODE_HEADING.exec(line);
-    if (heading) {
-      node = heading[1];
-      continue;
-    }
-    const match = QUESTION_LINE.exec(line);
-    if (!match || match[2] === undefined) continue;
-    const id = QUESTION_ID.exec(match[2])?.[1];
-    if (!id || node === null) continue;
-    const key = `${node}\0${id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    found.push({ node, id });
-  }
-  return found;
-}
 
 function proseOf(name) {
   return fs.readFileSync(path.join(WORKFLOWS_DIR, `${name}.md`), 'utf8');
