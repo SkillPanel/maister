@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "source": {
+    "path": "source.md",
+    "sha256": "376b6a423e523e1a301f5a539b4bb80441da56d4244cd406927e84846ccc6bb4"
+  },
+  "areas": [
+    {
+      "id": "storage",
+      "area": "Storage",
+      "question": "Where do shared calendars live?",
+      "why": "It fixes what a later migration costs.",
+      "depends_on": [],
+      "recommendation": {
+        "alternative": "same-db",
+        "reason": "Reuses the `calendars` schema with no new service"
+      },
+      "alternatives": [
+        {
+          "id": "hosted-api",
+          "title": "Hosted calendar API",
+          "description": "Keep shares in a hosted calendar service. Its sharing model becomes ours.",
+          "pros": [
+            "Sharing comes built in",
+            "No storage to run"
+          ],
+          "cons": [
+            "A vendor holds the data"
+          ],
+          "key_pro": "Sharing built in",
+          "key_con": "A vendor holds the data"
+        },
+        {
+          "id": "same-db",
+          "title": "Same database",
+          "description": "Add a `calendar_shares` table beside `calendars`. Shares join the existing schema.",
+          "pros": "No new service",
+          "cons": [
+            "Couples the schemas"
+          ],
+          "key_pro": "No new service",
+          "key_con": "Couples the schemas"
+        },
+        {
+          "id": "own-service",
+          "title": "Own service",
+          "description": "Run sharing as its own service with its own store.",
+          "pros": [
+            "Scales alone"
+          ],
+          "cons": [
+            "One more deploy",
+            "Cross-service reads"
+          ],
+          "key_pro": "Scales alone",
+          "key_con": "One more deploy"
+        },
+        {
+          "id": "document-store",
+          "title": "Document store",
+          "description": "Keep each calendar and its shares in one document.",
+          "pros": [
+            "One read per calendar"
+          ],
+          "cons": [
+            "A second database to run"
+          ],
+          "key_pro": "One read per calendar",
+          "key_con": "A second database"
+        }
+      ]
+    },
+    {
+      "id": "access",
+      "area": "Access model",
+      "question": "How do guests reach a shared calendar?",
+      "why": "Decides whether guests need an account.",
+      "depends_on": [
+        "storage"
+      ],
+      "recommendation": null,
+      "alternatives": [
+        {
+          "id": "signed-link",
+          "title": "Signed link",
+          "description": "Share a link signed for one calendar.",
+          "pros": [
+            "No account needed"
+          ],
+          "cons": [
+            "Hard to revoke per person"
+          ],
+          "key_pro": "No account needed",
+          "key_con": "Hard to revoke per person"
+        },
+        {
+          "id": "guest-account",
+          "title": "Guest account",
+          "description": "Invite guests to a light account.",
+          "pros": [
+            "Revocable per person"
+          ],
+          "cons": [
+            "Sign-up friction"
+          ],
+          "key_pro": "Revocable per person",
+          "key_con": "Sign-up friction"
+        }
+      ]
+    },
+    {
+      "id": "sharing-screen",
+      "area": "Sharing screen",
+      "question": "Where does an owner share a calendar from?",
+      "why": "It sets how many steps sharing takes.",
+      "depends_on": [
+        "storage",
+        "access"
+      ],
+      "recommendation": {
+        "alternative": "inline-toggle",
+        "reason": "One click from the calendar itself."
+      },
+      "alternatives": [
+        {
+          "id": "inline-toggle",
+          "title": "Inline toggle",
+          "description": "A share toggle on the calendar header.",
+          "pros": [
+            "One click"
+          ],
+          "cons": [
+            "Little room for options"
+          ],
+          "key_pro": "One click",
+          "key_con": "Little room for options"
+        },
+        {
+          "id": "dialog",
+          "title": "Share dialog",
+          "description": "A dialog listing who can see the calendar.",
+          "pros": [
+            "Room for every option"
+          ],
+          "cons": [
+            "Two clicks"
+          ],
+          "key_pro": "Room for every option",
+          "key_con": "Two clicks"
+        },
+        {
+          "id": "settings-page",
+          "title": "Settings page",
+          "description": "Sharing lives with the calendar's settings.",
+          "pros": [
+            "Nothing new on the main screen"
+          ],
+          "cons": [
+            "Hard to find"
+          ],
+          "key_pro": "Nothing new on screen",
+          "key_con": "Hard to find"
+        }
+      ]
+    }
+  ]
+}
