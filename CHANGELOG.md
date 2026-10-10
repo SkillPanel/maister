@@ -71,6 +71,19 @@ workspace with work in flight.
   without that record, or whose document changed after it was written, still asks as before, and
   says so; a research or product-design run already in progress when you upgrade sees a notice at
   its later checkpoints that its workflow changed, and asks its areas as before.
+- **Questions inside a phase classed under an autonomy ceiling.** Inert unless an autonomy policy
+  that classes in-node questions is installed; under the built-in default nothing here changes.
+  With one, a phase sends the questions it would ask to the engine first, which settles the
+  routine ones within the run's autonomy ceiling, takes a default where nobody can be asked, and
+  holds for your approval any choice that needs it. The engine's `write-state` then prints an
+  `ask:` line after the changed paths, naming the questions still to ask (`ask: none` when
+  nothing is). Held choices are listed first at the next checkpoint, with the step that holds
+  each, and continuing there approves them; a question that recommended nothing is held with no
+  choice yet, for you to decide there. When no checkpoint follows, the run asks a closing
+  checkpoint, *Held for approval* (`held-approval`), before it finishes; a run that cannot ask it
+  ends `RUN-FAILED: run-held-unapproved`. The autonomy ceiling is fixed when the run starts: a
+  later change may narrow it, never widen it. A dispatch envelope carries the ceiling to the
+  worker, never wider than the dispatcher's own.
 - **A record of who decided.** Every decision a run records says who settled it: the analysis,
   an audit, a default taken because nobody could be asked, or you. Your answers are kept in the
   task's state, with whether you took the recommendation, and the dashboard shows each decision
@@ -138,6 +151,10 @@ Then run `/reload-plugins`, or start a new session.
 the task directory and one engine command that applies it. Running with edits auto-accepted, as the
 README recommends, covers the write; approve the command with *don't ask again*, or allow it in your
 permission settings, and it stops asking.
+
+*If a driver raises a run's autonomy ceiling after it starts*, expect that write to be dropped
+with a note: the ceiling is fixed when the run starts and may only narrow. Set the ceiling you
+want when the run starts. This matters only where an autonomy policy is installed.
 
 *To stay on 2.x*, install the 2.x maintenance line instead. It receives fixes only — no new
 features — for six months after 3.0.0 is released:
