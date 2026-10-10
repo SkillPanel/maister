@@ -225,6 +225,22 @@ test('a carried triage only raises; on a policy hash mismatch nothing is classed
   assert.equal(Object.hasOwn(summary, 'asking'), false);
 });
 
+test('a hash mismatch removes the asking an earlier classing write stored, so the next request uses the set whole', t => {
+  const run = started(t, QUESTIONS.engine, { driver: COCKPIT });
+  assert.equal(askLine(classing(QUESTIONS.engine, run, ['asked-choice']).stdout), 'ask: asked-choice');
+  assert.deepEqual(summaryOf(run).asking, ['asked-choice']);
+
+  // The policy changed under the run: the second set is classed by nothing and asked whole.
+  const result = classing(OTHER.engine, run, ['other-choice']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(askLine(result.stdout), 'ask: other-choice');
+  assert.match(result.stderr, /^warning: policy-hash-mismatch:scoping$/m);
+  assert.equal(Object.hasOwn(summaryOf(run), 'asking'), false);
+  const request = brief(OTHER.engine, run, { questions: [question('other-choice')] });
+  assert.equal(request.code, 0, request.stderr);
+  assert.deepEqual(JSON.parse(request.stdout).context.checkpoint.questions.map(each => each.id), ['other-choice']);
+});
+
 // A neutral policy for briefed decision areas: both area questions read as a
 // record family, which the advice ceiling settles. The triage an area brief
 // stamps on a question rides in with the set.

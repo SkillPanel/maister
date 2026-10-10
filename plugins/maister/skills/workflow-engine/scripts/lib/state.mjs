@@ -2611,8 +2611,9 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       }
       if (Object.hasOwn(entry, 'question_set') || Object.hasOwn(entry, 'reasons')) {
         entry = classQuestions(entry, key, { recorded, typedNow, held: heldOf(key), runDir, writeWarnings, classing });
-        // A write that sent nothing but a set the run does not class records nothing.
-        if (Object.keys(entry).length === 0) continue;
+        // A write that sent nothing but a set the run does not class records
+        // nothing, unless a stale `asking` is to go.
+        if (Object.keys(entry).length === 0 && !entry[STALE_ASKING]) continue;
       }
     }
     if (kind === 'node' && Object.hasOwn(entry, 'answer')) {
@@ -2661,6 +2662,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         const { status: _status, ...kept } = prior;
         entry = { ...kept, ...entry };
       }
+      if (entry[STALE_ASKING]) delete entry.asking;
     }
     if (!('status' in entry)) {
       const nodeId = kind === 'node' ? key : entry.node;
@@ -3136,9 +3138,16 @@ function sentDecisions(decisions, prior, node, notes) {
  * autonomy ceiling and driver (`classSet`), each item replacing any
  * writer-classed item for the same question in this attempt, and the ids
  * still to ask are stored as `asking`. Otherwise nothing is recorded, a hash
- * mismatch warns `policy-hash-mismatch:<node>`, and every id is still to ask.
+ * mismatch warns `policy-hash-mismatch:<node>`, every id is still to ask, and
+ * an `asking` an earlier write stored is removed (`STALE_ASKING`).
  * The ids still to ask are added to `classing.out.asking` either way.
  */
+/**
+ * Marks a summary entry whose recorded `asking` the write removes: a symbol,
+ * so it is never written and the entry's fields read as they were sent.
+ */
+const STALE_ASKING = Symbol('stale asking');
+
 function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWarnings, classing }) {
   const { question_set: set, reasons, ...rest } = entry;
   const refuse = reason => new Refusal('state-patch-invalid',
@@ -3173,7 +3182,9 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
   });
   if (classed.faults.length) throw refuse(classed.faults.join('; '));
   classing.out.asking = [...(classing.out.asking ?? []), ...classed.asking];
-  if (!matches) return rest;
+  // Nothing classed: an `asking` an earlier classing write stored would filter
+  // the next request by a remainder this set never had, so it goes.
+  if (!matches) return isPlainObject(held) && Object.hasOwn(held, 'asking') ? { ...rest, [STALE_ASKING]: true } : rest;
 
   const next = { ...rest, asking: classed.asking };
   if (classed.items.length || Array.isArray(rest.decisions)) {
