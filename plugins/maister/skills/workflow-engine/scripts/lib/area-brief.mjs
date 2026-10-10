@@ -21,6 +21,13 @@
  *     set        --patch-file=<run>/.state-patch.json, --area repeated or not:
  *                every area as a driven question set, written to the patch file
  *
+ * Only the set form classes an area: each entry carries the `triage` the
+ * policy on disk gives the declared question id `convergence-decisions`, when
+ * the run's recorded policy hash is that policy's own. A policy that changed
+ * since the freeze classes nothing and warns `policy-hash-mismatch:<node>`
+ * once; a refused one relays `policy-refused`. The class never comes from the
+ * file.
+ *
  * The file is found through the asking node's `with: decision_areas` in the
  * frozen definition, re-read and re-resolved as the gate brief does — the
  * re-read graph is used even when the definition drifted. The value must be
@@ -55,10 +62,14 @@ import path from 'node:path';
 
 import { parse, isPlainObject } from './state-read.mjs';
 import { reread } from './gate-brief.mjs';
-import { WARNING, areaDetails, areaPicker, loadAreas } from './decision-areas.mjs';
+import { QUESTION_PREFIX, WARNING, areaDetails, areaEntry, areaPicker, loadAreas } from './decision-areas.mjs';
+import { loadPolicy, triageFor } from './policy.mjs';
 
 /** The one reference a convergence node may name its areas by: the producer's declared artifact, whole. */
 const REFERENCE = /^\$\{([a-z][a-z0-9-]*)\.artifacts\.decision_areas\}$/;
+
+/** The question id both convergence nodes declare; each area's own id is it plus `-<area id>`. */
+const DECLARED_ID = QUESTION_PREFIX.replace(/-$/, '');
 
 /** Every miss before a path is known. */
 const NOT_DECLARED = `${WARNING.missing}:not-declared`;
@@ -106,7 +117,7 @@ export function areaBrief({ state, node, areas: ids = [], form, picker = 'rich',
       + 'Nothing was written. Take the area ids from that file');
   }
 
-  if (form === 'set') return driven({ all, ids, runDir, patchFile });
+  if (form === 'set') return driven({ doc, workflow, node, all, ids, runDir, patchFile });
   const area = all.find(candidate => candidate.id === ids[0]);
   if (form === 'picker') return areaPicker(area, all, picker);
   return { ok: true, text: areaDetails(area, all), errors: [], warnings: [] };
@@ -137,12 +148,49 @@ function locate(doc, workflow, recorded, node, runDir) {
 }
 
 /**
- * The driven set: every area — or only the `--area` ones — as a question set
- * written to the patch file. Not built in this form of the verb: it names
- * itself as such, exits 2, and writes nothing.
+ * The driven set: every area — or only the `--area` ones, in file order — as
+ * the asking node's question set, `{questions: [...]}`, written whole to the
+ * patch file (temp file, then rename) so `gate-brief --request --patch-file`
+ * builds the one request. No `ask`, `headline` or `default`: the request
+ * generates them, the default from each recommendation. Whatever the file held
+ * is replaced. Returns the file for the entry point to print.
  */
-function driven() {
-  throw new Error('area-brief --patch-file, the driven question set, is not built in this version of the engine; nothing was written');
+function driven({ doc, workflow, node, all, ids, runDir, patchFile }) {
+  const chosen = ids.length ? all.filter(area => ids.includes(area.id)) : all;
+  const questions = chosen.map(area => areaEntry(area, all));
+  const warnings = classify(doc, workflow, node, questions);
+  const file = patchFile ?? path.join(runDir, '.state-patch.json');
+  const tmp = `${file}.tmp`;
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify({ questions }, null, 2)}\n`, 'utf8');
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
+  return { ok: true, file, errors: [], warnings };
+}
+
+/**
+ * Each entry's `triage`, from the policy on disk and never from the file: the
+ * class the policy gives the declared question id, set only when the run's
+ * recorded policy hash is that policy's own and left out when the policy
+ * classes nothing. When the hashes differ and the policy would class an entry,
+ * no entry is classed and one `policy-hash-mismatch:<node>` warning is raised.
+ * A refused policy relays its `policy-refused` warning. Returns the warnings.
+ */
+function classify(doc, workflow, node, questions) {
+  const { policy, hash, warnings } = loadPolicy();
+  const recorded = isPlainObject(doc.orchestrator) ? doc.orchestrator.policy_hash : undefined;
+  const matches = typeof recorded === 'string' && recorded === hash;
+  const classes = questions.map(question => triageFor({
+    policy, workflow: workflow.name, kind: 'question', id: question.id, declaredIds: [DECLARED_ID],
+  }));
+  const raised = [...warnings];
+  if (!classes.some(triage => triage !== null)) return raised;
+  if (!matches) return [...raised, `policy-hash-mismatch:${node}`];
+  for (const [i, triage] of classes.entries()) if (triage !== null) questions[i].triage = triage;
+  return raised;
 }
 
 function fallback(warning) {

@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, maskRoot, scratch, verb, write } from '../helpers.mjs';
+import {
+  ENGINE, ENGINE_DIR, FIXTURES, freeze, freezePatch, maskRoot, run as runScript, scratch, scratchPlugin, verb, write,
+} from '../helpers.mjs';
 import {
   FIXED_LABELS, areaDetails, areaEntry, areaPicker, loadAreas,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/decision-areas.mjs';
@@ -543,4 +545,141 @@ test('area-brief: the picker and write-up forms print the goldens, the write-up 
   assert.ok(open.options.every(option => option.recommended === false));
   const screen = JSON.parse(brief(run, ['--area=sharing-screen', '--json']).stdout);
   assert.equal(fs.readFileSync(path.join(GOLDEN, 'write-up.md'), 'utf8'), `${screen.more_details}\n`);
+});
+
+// ---- driven set
+// ---------------------------------------------------------------------------
+// the set form: every area as the convergence node's question set, written to
+// the run's patch file for `gate-brief --request` to build the one request
+// ---------------------------------------------------------------------------
+
+const CLASSING = JSON.parse(fs.readFileSync(fixture('policy-classing.json'), 'utf8'));
+const DRIVER = { kind: 'cockpit', cwd: '/work', features: ['question-sets'] };
+const AREA_TRIAGE = { version: 1, class: 'consult', family: 'direction' };
+
+/**
+ * A research run under a cockpit that takes question sets, frozen by `frozenBy`
+ * (so the recorded policy hash is that engine's policy's) and walked to its
+ * convergence node, the valid fixture at the declared path. Every later verb
+ * runs through `engine`.
+ */
+function drivenRun(t, { engine = ENGINE, frozenBy = engine } = {}) {
+  const spec = WORKFLOWS.research;
+  const run = scratch(t, { type: 'research', name: '2026-10-10-research-driven' });
+  const { patch } = freezePatch({ definition: spec.definition, inputs: spec.inputs, orchestrator: { driver: DRIVER } });
+  passed(frozenBy, ['write-state', `--state=${run.state}`], patch);
+  passed(engine, ['write-state', `--state=${run.state}`], { nodes: { [spec.producer]: { status: 'completed' }, [spec.node]: { status: 'running' } } });
+  fs.mkdirSync(path.join(run.dir, path.dirname(spec.declared)), { recursive: true });
+  fs.copyFileSync(fixture('valid.json'), path.join(run.dir, spec.declared));
+  fs.copyFileSync(fixture('source.md'), path.join(run.dir, 'source.md'));
+  return { ...run, ...spec, engine, patch: path.join(run.dir, '.state-patch.json') };
+}
+
+function passed(engine, args, stdin) {
+  const result = runScript(engine, args, stdin);
+  if (result.code !== 0) throw new Error(`${args[0]} exited ${result.code}: ${result.stdout}${result.stderr}`);
+  return result;
+}
+
+/** The set form against `run`, through its engine. */
+function setOf(run, flags = []) {
+  return runScript(run.engine, ['area-brief', `--state=${run.state}`, `--node=${run.node}`, `--patch-file=${run.patch}`, ...flags]);
+}
+
+function written(run) {
+  return JSON.parse(fs.readFileSync(run.patch, 'utf8'));
+}
+
+test('area-brief --patch-file writes every area as a question set and prints the file, the set.json golden', t => {
+  const run = drivenRun(t);
+  const result = setOf(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout, `${run.patch}\n`, 'the file prints its own path as one line');
+  const text = maskRoot(fs.readFileSync(run.patch, 'utf8'), run.root);
+  const file = path.join(GOLDEN, 'set.json');
+  if (process.env.SNAPSHOT_AREAS === '1') fs.writeFileSync(file, text);
+  assert.equal(text, fs.readFileSync(file, 'utf8'), 'set.json moved; regenerate with SNAPSHOT_AREAS=1 and review it');
+
+  const set = written(run);
+  assert.deepEqual(Object.keys(set), ['questions'], 'no ask and no headline: the request generates them');
+  const all = areas();
+  assert.deepEqual(set.questions.map(question => question.id), all.map(area => `convergence-decisions-${area.id}`));
+  for (const [i, question] of set.questions.entries()) {
+    assert.deepEqual(question, areaEntry(all[i], all), all[i].id);
+    assert.equal(Object.hasOwn(question, 'default'), false, 'the request fills the default from the recommendation');
+    assert.equal(Object.hasOwn(question, 'triage'), false, 'the built-in default classes nothing');
+    assert.equal(question.options.length, all[i].alternatives.length, 'every alternative, no More details');
+  }
+  const screen = set.questions.find(question => question.id === 'convergence-decisions-sharing-screen');
+  assert.equal(`${screen.details}\n`, fs.readFileSync(path.join(GOLDEN, 'write-up.md'), 'utf8'));
+  assert.match(screen.why, / Depends on: /);
+  assert.equal(screen.options[0].recommended, true);
+});
+
+test('area-brief --patch-file with repeated --area writes only those areas, replacing the earlier file whole', t => {
+  const run = drivenRun(t);
+  fs.writeFileSync(run.patch, JSON.stringify({ ask: 'An earlier set', questions: [{ id: 'stale' }] }));
+  const result = setOf(run, ['--area=sharing-screen', '--area=storage']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(Object.keys(written(run)), ['questions']);
+  assert.deepEqual(written(run).questions.map(question => question.id),
+    ['convergence-decisions-storage', 'convergence-decisions-sharing-screen'], 'in file order');
+  assert.deepEqual(fs.readdirSync(run.dir).filter(name => name.endsWith('.tmp')), [], 'no temp file left behind');
+});
+
+test('area-brief --patch-file feeds gate-brief --request: details and triage on the checkpoint questions only', t => {
+  const run = drivenRun(t, { engine: scratchPlugin(t, { policy: CLASSING }) });
+  const set = setOf(run);
+  assert.equal(set.code, 0, set.stderr);
+  assert.equal(set.stderr, '', 'the hashes match: no warning');
+  const asked = passed(run.engine, ['gate-brief', `--state=${run.state}`, `--node=${run.node}`, '--request', `--patch-file=${run.patch}`]);
+  const request = JSON.parse(asked.stdout);
+  assert.equal(request.kind, 'question');
+  assert.equal(Object.hasOwn(request, 'triage'), false, 'the top-level request carries no triage');
+  const all = areas();
+  const { questions } = request.context.checkpoint;
+  assert.equal(questions.length, all.length);
+  for (const [i, question] of questions.entries()) {
+    assert.equal(question.details, areaDetails(all[i], all), `${all[i].id}: the write-up, byte for byte`);
+    assert.deepEqual(question.triage, AREA_TRIAGE, all[i].id);
+  }
+  assert.deepEqual(questions.map(question => question.default), [all[0].recommendation.alternative, undefined, all[2].recommendation.alternative],
+    'the default is the recommendation, absent for the area left open');
+  for (const question of request.questions) {
+    assert.equal(Object.hasOwn(question, 'details'), false);
+    assert.equal(Object.hasOwn(question, 'triage'), false);
+  }
+
+  // Under the built-in default nothing is classed.
+  const plain = drivenRun(t);
+  setOf(plain);
+  const unclassed = JSON.parse(passed(ENGINE, ['gate-brief', `--state=${plain.state}`, `--node=${plain.node}`, '--request', `--patch-file=${plain.patch}`]).stdout);
+  assert.ok(unclassed.context.checkpoint.questions.every(question => question.details && !Object.hasOwn(question, 'triage')));
+});
+
+test('area-brief --patch-file classes nothing under a policy swapped in after the freeze, and relays a refused one', t => {
+  const swapped = drivenRun(t, { engine: scratchPlugin(t, { policy: CLASSING }), frozenBy: ENGINE });
+  const result = setOf(swapped);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, `warning: policy-hash-mismatch:${swapped.node}\n`, 'one warning, not one per area');
+  assert.ok(written(swapped).questions.every(question => !Object.hasOwn(question, 'triage')));
+
+  const engine = scratchPlugin(t, { policy: { version: 2 } });
+  const refused = drivenRun(t, { engine });
+  const relayed = setOf(refused);
+  assert.equal(relayed.code, 0, relayed.stderr);
+  const file = path.join(path.dirname(path.dirname(engine)), 'policy/autonomy-policy.json');
+  assert.equal(relayed.stderr, `warning: policy-refused:${file}:version\n`);
+  assert.ok(written(refused).questions.every(question => !Object.hasOwn(question, 'triage')));
+});
+
+test('area-brief --patch-file on a fallback writes no patch file and prints nothing', t => {
+  const run = drivenRun(t);
+  fs.rmSync(path.join(run.dir, run.declared));
+  const result = setOf(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, '');
+  assert.equal(result.stderr, `warning: decision-areas-missing:${run.declared}\n`);
+  assert.equal(fs.existsSync(run.patch), false);
 });
