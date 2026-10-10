@@ -468,6 +468,27 @@ test('the built-in default: nothing is classed or recorded, and ask: lists every
   assert.doesNotMatch(stateText(driven), words);
 });
 
+test('the built-in default: a hand-written held item forces no checkpoint, and run-complete passes', t => {
+  const run = started(t, null, { ceiling: null });
+  const held = { decision: 'Option A', by: 'default', question_id: 'signed-choice', triage: { version: 1, class: 'approve', family: 'area-family', held: true } };
+  ok(null, run, {
+    nodes: { scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } } },
+    node_summaries: { scoping: { summary: 'Scoped the work.', decisions: [held] } },
+  });
+  assert.equal(readState(run).orchestrator.classes_questions, undefined);
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  const skipped = ok(null, run, { nodes: { 'review-approval': { status: 'skipped' }, 'depth-approval': { status: 'skipped' } } });
+  assert.doesNotMatch(skipped.stderr, /held-gate-skipped/);
+  ok(null, run, {
+    task: { status: 'completed' },
+    nodes: { drafting: { status: 'completed' }, notes: { status: 'skipped' }, 'notes-approval': { status: 'skipped' }, finish: { status: 'completed' } },
+  });
+  const closing = verb(['run-complete', `--state=${run.state}`]);
+  assert.match(closing.stdout, /^RUN-COMPLETE$/m, closing.stderr);
+  assert.doesNotMatch(closing.stdout, /RUN-FAILED/);
+  refused(verb(['gate-brief', `--state=${run.state}`, '--node=held-approval']), 'gate-brief-nothing-held');
+});
+
 // ---------------------------------------------------------------------------
 // 9. held choices on the brief, and the checkpoints they force
 // ---------------------------------------------------------------------------

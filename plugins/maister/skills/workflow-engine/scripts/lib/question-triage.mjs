@@ -334,9 +334,12 @@ export function approvalsOf(doc) {
  * Every held item no approval matches, in frozen node order:
  * `{node, question_id, attempt, item}`. A held item is approved by an approval
  * item with the same node, question id and attempt (1 when absent), wherever
- * in the run it is recorded.
+ * in the run it is recorded. Only a run whose freeze recorded
+ * `orchestrator.classes_questions: true` holds anything: elsewhere a held
+ * triage was written by hand, never by the writer, and nothing waits on it.
  */
 export function outstandingHeld(doc) {
+  if (doc?.orchestrator?.classes_questions !== true) return [];
   const approved = new Set(approvalsOf(doc).map(each => approvalKey(each.node, each.item)));
   return summariesInOrder(doc).flatMap(([node, decisions]) => decisions
     .filter(item => isHeld(item) && !approved.has(approvalKey(node, item)))

@@ -243,6 +243,7 @@ test('declaredQuestionIds reads one node\'s ids from the companion, and none wit
 function heldRun() {
   const held = (id, extra = {}) => ({ decision: 'B', by: 'default', question_id: id, question: `Pick ${id}?`, triage: { version: 1, class: 'approve', family: 'signed-family', held: true }, ...extra });
   return {
+    orchestrator: { classes_questions: true },
     workflow: { nodes: { shape: { kind: 'task' }, review: { kind: 'gate' }, polish: { kind: 'task' }, [HELD_APPROVAL]: { kind: 'gate', status: 'pending' } } },
     node_summaries: {
       polish: { decisions: [held('finish-choice'), { decision: 'A', by: 'run', question_id: 'quick-choice', triage: { version: 1, class: 'decide-alone' } }] },
@@ -274,6 +275,11 @@ test('outstandingHeld and approvalsOf match on node, question id and attempt, in
   assert.deepEqual(outstandingHeld(doc).map(each => [each.node, each.question_id]), [['polish', 'finish-choice']]);
   assert.deepEqual(outstandingHeld({}), []);
   assert.deepEqual(approvalsOf({}), []);
+
+  // A run whose freeze recorded no classing holds nothing, whatever its items say.
+  const { orchestrator: _fact, ...unclassed } = heldRun();
+  assert.deepEqual(outstandingHeld(unclassed), []);
+  assert.deepEqual(outstandingHeld({ ...heldRun(), orchestrator: { classes_questions: false } }), []);
 });
 
 test('heldApprovalOptions offers continue, a revise per owning node in frozen order, then stop; none past the safety limit', () => {
