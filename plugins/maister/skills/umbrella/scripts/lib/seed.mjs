@@ -68,6 +68,7 @@ import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
 import { closeoutReachable } from './envelope.mjs';
 import { bareWorkflowName, TARGET_NAME } from '../../../workflow-engine/scripts/lib/graph.mjs';
+import { ASK_LEVELS } from '../../../workflow-engine/scripts/lib/policy.mjs';
 
 /** The format version a seed descriptor declares. */
 const VERSION = 1;
@@ -88,9 +89,6 @@ export const SEED_LINE_CAP = 60;
 // `ceiling` is the autonomy ceiling, read into the envelope's own `ceiling`
 // and stated in `# task` by a line of its own.
 const CONTROL_ARGS = new Set(['autonomy', 'statement', 'task', 'closeout_contract', 'ceiling']);
-
-/** The autonomy ceiling levels, narrowest first; a value outside them renders as the first. */
-const CEILING_LEVELS = ['approve', 'advice', 'decide'];
 
 /** The input role a triage's research report carries into a dispatch. */
 const RESEARCH_ROLE = 'research';
@@ -325,7 +323,8 @@ function taskLines({ document, workflow, pluginRoot }) {
   // The autonomy ceiling is recorded at the worker's own freeze, so its run
   // starts no wider than the dispatch allows; the engine keeps it from widening.
   if (document.ceiling !== undefined && document.ceiling !== null) {
-    const level = CEILING_LEVELS.includes(document.ceiling) ? document.ceiling : CEILING_LEVELS[0];
+    // The engine's ask levels, narrowest first; a value outside them renders as the first.
+    const level = ASK_LEVELS.includes(document.ceiling) ? document.ceiling : ASK_LEVELS[0];
     lines.push(`Record \`orchestrator.options.ceiling: ${level}\` in your freeze patch, beside the driver: it is the autonomy ceiling your dispatch carries; the run may lower it later, never raise it.`);
   }
   // Carrier sentence (kept byte-identical for the lockstep-by-eye property with

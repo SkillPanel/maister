@@ -27,13 +27,16 @@
  *   record, the ids still to ask, and the faults that refuse the write.
  * - `raiseTriage(computed, carried)` — the raise-only merge of a triage the
  *   question already carried with the one computed for it.
- * - `isClassedItem(item)`, `isApproval(item)` — the two item shapes this
- *   module owns.
+ * - `isClassedItem(item)`, `isHeld(item)`, `isApproval(item)` — the item
+ *   shapes this module owns.
  * - `approvalKey(node, item)` — the key a held item and its approval share.
  * - `outstandingHeld(doc)`, `approvalsOf(doc)` — the held items with no
  *   approval yet, and every approval, in frozen node order.
- * - `heldApprovalOptions(doc, {ceiling})` — the options `HELD_APPROVAL`
- *   offers, revises left out once the safety limit is spent.
+ * - `REVISION_CEILING`, `REVISE_PREFIX` — the revise safety limit every gate
+ *   shares, and the prefix of a revise option at `HELD_APPROVAL`.
+ * - `heldRevisions(doc)`, `heldApprovalOptions(doc)` — how many revises
+ *   `HELD_APPROVAL` has recorded, and the options it offers, revises left out
+ *   once the safety limit is spent.
  * - `heldApprovalLabel(option, title)` — the words one of those options is
  *   shown and recorded by.
  * - `heldApprovalBlockers(doc, owed)`, `heldApprovalCurrent(doc, owed)`,
@@ -77,7 +80,16 @@ const RECORD_CLASS = 'record';
 const CLASSED_BY = new Set(['run', 'default']);
 
 /** The prefix of a revise option at `HELD_APPROVAL`, followed by the owning node's id. */
-const REVISE_PREFIX = 'revise-';
+export const REVISE_PREFIX = 'revise-';
+
+/**
+ * How many times one gate may send the run back: a safety ceiling against a
+ * runaway loop, not a budget on the user. A revise a person chooses is their
+ * call however often they make it, so the ceiling sits well past any revise
+ * loop a person runs on purpose. The engine's own constant, not a grammar key;
+ * kept in this leaf module so every reader imports it without a cycle.
+ */
+export const REVISION_CEILING = 10;
 
 const isMap = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isLine = value => typeof value === 'string' && value.trim() !== '' && !/[\r\n]/.test(value);
@@ -283,7 +295,7 @@ export function isClassedItem(item) {
 }
 
 /** A held item: a classed item whose triage is `held`. */
-function isHeld(item) {
+export function isHeld(item) {
   return isClassedItem(item) && item.triage.held === true;
 }
 
@@ -347,29 +359,39 @@ export function outstandingHeld(doc) {
 }
 
 /**
- * The options `HELD_APPROVAL` offers: `continue` (recommended), a
- * `revise-<node>` for each node owning an outstanding held item in frozen
- * order, then `stop`. `revision` is the revise items already recorded under
- * `node_summaries.held-approval` plus one; past `ceiling` — the engine's
- * revision safety limit, passed in — the revises are `spent` and only continue
- * and stop are offered. Returns `{revision, spent, options}`, each option
- * `{id, effect, reruns?, recommended?}`.
+ * How many revise answers `node_summaries.held-approval` records: every
+ * decision naming a `revise-<node>` option, a folded one not yet applied
+ * included.
  */
-export function heldApprovalOptions(doc, { ceiling } = {}) {
+export function heldRevisions(doc) {
   const own = doc?.node_summaries?.[HELD_APPROVAL];
   const answers = isMap(own) && Array.isArray(own.decisions) ? own.decisions : [];
-  const revised = answers.filter(item => isMap(item) && typeof item.option === 'string' && item.option.startsWith(REVISE_PREFIX)).length;
-  const revision = revised + 1;
-  const spent = typeof ceiling === 'number' && revision > ceiling;
+  return answers.filter(item => isMap(item) && typeof item.option === 'string' && item.option.startsWith(REVISE_PREFIX)).length;
+}
+
+/**
+ * The options `HELD_APPROVAL` offers: `continue` (recommended), a
+ * `revise-<node>` for each node owning an outstanding held item in frozen
+ * order, then `stop`. `revision` is the revise items already recorded
+ * (`heldRevisions`) plus one; past `REVISION_CEILING` the revises are `spent`
+ * and only continue and stop are offered. Returns `{revision, spent, options,
+ * revises}`, each option `{id, effect, reruns?, recommended?}`; `revises` is
+ * every revise option the held items call for, spent or not.
+ */
+export function heldApprovalOptions(doc) {
+  const revision = heldRevisions(doc) + 1;
+  const spent = revision > REVISION_CEILING;
   const owners = [...new Set(outstandingHeld(doc).map(each => each.node))];
+  const revises = owners.map(node => ({ id: `${REVISE_PREFIX}${node}`, effect: 'revise', reruns: node }));
   return {
     revision,
     spent,
     options: [
       { id: 'continue', effect: 'continue', recommended: true },
-      ...(spent ? [] : owners.map(node => ({ id: `${REVISE_PREFIX}${node}`, effect: 'revise', reruns: node }))),
+      ...(spent ? [] : revises),
       { id: 'stop', effect: 'stop' },
     ],
+    revises,
   };
 }
 

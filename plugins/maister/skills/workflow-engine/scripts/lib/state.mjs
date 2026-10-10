@@ -101,10 +101,6 @@ import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, 
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalOptions, isApproval, isClassedItem, outstandingHeld } from './question-triage.mjs';
-// The revision safety limit `HELD_APPROVAL`'s options are derived under. Read
-// only inside the functions that hold an answer to those options, so the
-// import cycle with `revise.mjs`, which writes through this module, is inert.
-import { REVISION_CEILING } from './revise.mjs';
 import { lowered } from './checkpoint.mjs';
 import { canAsk } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -2708,7 +2704,7 @@ function isGateSummary(recorded, key) {
  * out once the safety limit is spent.
  */
 function heldApprovalGate(doc) {
-  const { options } = heldApprovalOptions(doc, { ceiling: REVISION_CEILING });
+  const { options } = heldApprovalOptions(doc);
   return { options: Object.fromEntries(options.map(option => [option.id, option.effect])) };
 }
 

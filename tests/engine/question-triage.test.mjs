@@ -7,7 +7,7 @@ import path from 'node:path';
 import { FIXTURES } from '../helpers.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, questionOutcome, triageFor } from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
 import { canAsk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/driver.mjs';
-import { REVISION_CEILING } from '../../plugins/maister/skills/workflow-engine/scripts/lib/revise.mjs';
+import { REVISION_CEILING } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 import {
   HELD_APPROVAL,
   approvalsOf,
@@ -284,7 +284,7 @@ test('outstandingHeld and approvalsOf match on node, question id and attempt, in
 
 test('heldApprovalOptions offers continue, a revise per owning node in frozen order, then stop; none past the safety limit', () => {
   const doc = heldRun();
-  const offered = heldApprovalOptions(doc, { ceiling: REVISION_CEILING });
+  const offered = heldApprovalOptions(doc);
   assert.deepEqual(offered.options.map(each => [each.id, each.effect, each.reruns ?? null]), [
     ['continue', 'continue', null],
     ['revise-shape', 'revise', 'shape'],
@@ -296,7 +296,7 @@ test('heldApprovalOptions offers continue, a revise per owning node in frozen or
   assert.equal(offered.spent, false);
 
   doc.node_summaries[HELD_APPROVAL] = { decisions: Array.from({ length: REVISION_CEILING }, () => ({ option: 'revise-shape', note: 'again' })) };
-  const spent = heldApprovalOptions(doc, { ceiling: REVISION_CEILING });
+  const spent = heldApprovalOptions(doc);
   assert.equal(spent.revision, REVISION_CEILING + 1);
   assert.equal(spent.spent, true);
   assert.deepEqual(spent.options.map(each => each.id), ['continue', 'stop']);

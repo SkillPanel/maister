@@ -43,19 +43,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
-import { reviseStretch } from './graph.mjs';
-import { atClose, downstreamOf } from './gate-brief.mjs';
-import { HELD_APPROVAL, frozenIds, heldApprovalBlockers, heldApprovalCurrent, outstandingHeld } from './question-triage.mjs';
+import { downstreamOf, reviseStretch } from './graph.mjs';
+import { atClose } from './gate-brief.mjs';
+import {
+  HELD_APPROVAL, REVISE_PREFIX, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalCurrent, heldApprovalFolded, heldApprovalOptions, heldRevisions,
+} from './question-triage.mjs';
 import { gateAnswer, isPlaceholderName, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
 
-/**
- * How many times one gate may send the run back: a safety ceiling against a
- * runaway loop, not a budget on the user. A revise a person chooses is their
- * call however often they make it, so the ceiling sits well past any revise
- * loop a person runs on purpose. The engine's own constant, not a grammar key.
- */
-export const REVISION_CEILING = 10;
+/** The revise safety limit every gate shares, kept in `question-triage.mjs`. */
+export { REVISION_CEILING };
 
 /** Statuses a gate's needs may hold for the gate to be the run's current question. */
 const SETTLED = new Set(['completed', 'skipped']);
@@ -255,9 +252,6 @@ function decisionOf({ doc, state, answer, folded, latest, option, attempt, rerun
   });
 }
 
-/** The prefix of a revise option at `HELD_APPROVAL`; the owning node's id follows it. */
-const HELD_REVISE = 'revise-';
-
 /**
  * The revise at the reserved closing checkpoint `HELD_APPROVAL`, by its own
  * rule rather than a frozen gate's: the checkpoint is no node of the frozen
@@ -286,24 +280,22 @@ function heldApprovalRevise({ state, option, input }) {
   const recorded = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
   const entry = id => (Object.hasOwn(recorded, id) && isPlainObject(recorded[id]) ? recorded[id] : {});
 
-  const owners = [...new Set(outstandingHeld(doc).map(each => each.node))];
-  const offered = owners.map(owner => `${HELD_REVISE}${owner}`);
+  const offered = heldApprovalOptions(doc).revises.map(each => each.id);
   if (!offered.includes(option)) {
     return refuse('revise-option-unknown',
       `${HELD_APPROVAL} has no revise option ${JSON.stringify(option)}; `
       + (offered.length ? `its revise options are ${offered.join(', ')}, one per node holding a choice for approval` : 'it offers no revise option, because no choice is held for approval')
       + '. Nothing was written. A continue or a stop is recorded as an ordinary answer, never through gate-revise');
   }
-  const reruns = option.slice(HELD_REVISE.length);
+  const reruns = option.slice(REVISE_PREFIX.length);
 
   const { answer, note, refusal } = noteOf(input);
   if (refusal) return refusal;
 
   const decisions = decisionsOf(doc, HELD_APPROVAL);
   const latest = gateAnswer(decisions);
-  // The driven fold: the latest answer names this option and carries no
-  // attempt yet. Read off the summary, never a node status.
-  const folded = isPlainObject(latest) && latest.option === option && !Object.hasOwn(latest, 'attempt');
+  // The driven fold of this option: read off the summary, never a node status.
+  const folded = heldApprovalFolded(doc) && latest.option === option;
   const pending = isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.gate_pending) ? doc.orchestrator.gate_pending : null;
   const { owed } = atClose({ doc, runDir: path.dirname(path.resolve(state)) });
   if (!heldApprovalCurrent(doc, owed)) {
@@ -315,9 +307,8 @@ function heldApprovalRevise({ state, option, input }) {
       + 'checkpoint the run is at; ask it once the closing node is the only node left running, and use its revise option there');
   }
 
-  const spent = decisions.filter(item => item !== (folded ? latest : null)
-    && isPlainObject(item) && typeof item.option === 'string' && item.option.startsWith(HELD_REVISE)).length;
-  const revision = spent + 1;
+  // The folded answer is this revise itself, not one already spent.
+  const revision = heldRevisions(doc) - (folded ? 1 : 0) + 1;
   if (revision > REVISION_CEILING) {
     return refuse('revise-budget-exhausted',
       `${HELD_APPROVAL} has been revised ${REVISION_CEILING} times, its safety ceiling: no revises are left at this checkpoint. `
@@ -404,15 +395,14 @@ export function openRevision(doc) {
 function heldRevision(doc) {
   const decisions = decisionsOf(doc, HELD_APPROVAL);
   const latest = gateAnswer(decisions);
-  if (!isPlainObject(latest) || !latest.option.startsWith(HELD_REVISE) || latest.option === HELD_REVISE) return null;
+  if (!isPlainObject(latest) || !latest.option.startsWith(REVISE_PREFIX) || latest.option === REVISE_PREFIX) return null;
   const applied = Object.hasOwn(latest, 'attempt');
-  const spent = decisions
-    .filter(item => item !== latest && isPlainObject(item) && typeof item.option === 'string' && item.option.startsWith(HELD_REVISE)).length;
   return {
     gate: HELD_APPROVAL,
     option: latest.option,
-    reruns: latest.option.slice(HELD_REVISE.length),
-    revision: applied ? attemptOf(latest) : spent + 1,
+    reruns: latest.option.slice(REVISE_PREFIX.length),
+    // Unapplied, the latest answer is itself the one revise counted last.
+    revision: applied ? attemptOf(latest) : heldRevisions(doc),
     applied,
     note: typeof latest.note === 'string' ? latest.note : null,
     at: typeof latest.at === 'string' ? latest.at : '',
