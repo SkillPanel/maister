@@ -29,10 +29,14 @@
  * `gate-brief-not-a-gate` and `gate-brief-reask-not-revise` (the invocation is
  * wrong), `state-unreadable`, and
  * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
- * back on). A question set a node asks inside itself has three more, none
+ * back on). A question set a node asks inside itself has four more, none
  * fixed by a write: `gate-brief-questions-unsupported` (the driver carries no
- * question sets), `gate-brief-not-askable` (a gate, or a node not running) and
- * `gate-brief-questions-invalid` (the set itself, corrected in the patch file).
+ * question sets), `gate-brief-not-askable` (a gate, or a node not running),
+ * `gate-brief-questions-invalid` (the set itself, corrected in the patch file,
+ * or a set lacking an id the classing write left to ask) and
+ * `gate-brief-nothing-to-ask` (the classing write settled every question, so
+ * the node carries on and asks nothing). When the node's summary records the
+ * classing write's `asking`, the request carries those questions only.
  *
  * Three forms, one reading. The plain form is what a user reads in session:
  * the summary, at most three fixes the run applied, three decisions and three
@@ -395,17 +399,38 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
       `--node=${node} is ${JSON.stringify(entry.status ?? 'pending')}, and only a running node asks a question inside itself. Nothing was written. `
       + 'Name the node that is asking; a node that has not started, or has ended, has nothing to ask');
   }
+  // What the classing write left to ask, when the run classes questions: the
+  // request carries those ids and no other, and none at all is nothing to ask.
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  const own = Object.hasOwn(summaries, node) && isPlainObject(summaries[node]) ? summaries[node] : {};
+  const asking = Array.isArray(own.asking) ? own.asking.map(String) : null;
+  if (asking !== null && asking.length === 0) {
+    return refuse('gate-brief-nothing-to-ask',
+      `the writer settled every question ${node} sent it, so nothing is left to ask. Nothing was written and nothing is asked. `
+      + 'Carry on with the node: the settled answers are on its summary');
+  }
   const checked = checkSet(questions);
   if (!checked.ok) {
     return refuse('gate-brief-questions-invalid',
       `the question set cannot be asked: ${checked.errors.join('; ')}. Nothing was written. Correct the question set in the patch file and run the verb again`);
+  }
+  let set = checked.set;
+  if (asking !== null) {
+    const ids = new Set(set.questions.map(question => question.id));
+    const missing = asking.filter(id => !ids.has(id));
+    if (missing.length) {
+      return refuse('gate-brief-questions-invalid',
+        `the writer left ${missing.join(', ')} to ask, and the question set in the patch file carries no question of ${missing.length === 1 ? 'that id' : 'those ids'}. `
+        + 'Nothing was written. Send the same set the classing write classed');
+    }
+    set = { ...set, questions: set.questions.filter(question => asking.includes(question.id)) };
   }
   const runDir = path.dirname(path.resolve(state));
   const { display } = reread(doc, workflow, runDir);
   const order = Object.keys(recorded);
   const title = titleOf(display.titles, node);
   const checkpoint = questionCheckpoint({
-    set: checked.set,
+    set,
     node,
     title,
     header: headerOf(display, node),

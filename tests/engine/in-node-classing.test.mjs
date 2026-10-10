@@ -234,6 +234,43 @@ test('a classing write is refused state-patch-invalid for a gate, a node not run
 });
 
 // ---------------------------------------------------------------------------
+// 5. the cockpit request from the remainder
+// ---------------------------------------------------------------------------
+
+test('cockpit with question sets: the request carries only what the writer left to ask', t => {
+  const carried = { version: 1, class: 'consult', family: 'area-family' };
+  const set = {
+    questions: [question('quick-choice'), question('asked-choice', { triage: carried }), question('signed-choice')],
+  };
+  const run = started(t, QUESTIONS.engine, { driver: COCKPIT });
+  const written = send(QUESTIONS.engine, run, { node_summaries: { scoping: { question_set: set } } });
+  assert.equal(askLine(written.stdout), 'ask: asked-choice signed-choice');
+
+  const result = brief(QUESTIONS.engine, run, set);
+  assert.equal(result.code, 0, result.stderr);
+  const request = JSON.parse(result.stdout);
+  assert.deepEqual(request.questions.map(each => each.id), ['asked-choice', 'signed-choice']);
+  assert.deepEqual(request.context.checkpoint.questions.map(each => each.id), ['asked-choice', 'signed-choice']);
+  assert.deepEqual(request.context.checkpoint.questions[0].triage, carried, 'the checkpoint keeps the set\'s triage');
+  assert.equal(Object.hasOwn(request, 'triage'), false, 'the request\'s top level gains none');
+  for (const each of request.questions) assert.deepEqual(Object.keys(each), ['id', 'question', 'options', 'multi_select']);
+
+  // An id the writer left to ask that the file's set no longer carries.
+  const missing = brief(QUESTIONS.engine, run, { questions: [question('asked-choice')] });
+  refused(missing, 'gate-brief-questions-invalid');
+  assert.match(missing.stderr, /signed-choice/);
+
+  // Every question settled: nothing is to be asked.
+  const settled = started(t, QUESTIONS.engine, { driver: COCKPIT });
+  assert.equal(askLine(classing(QUESTIONS.engine, settled, ['quick-choice', 'noted-choice']).stdout), 'ask: none');
+  for (const form of ['--request', '--checkpoint']) {
+    const nothing = brief(QUESTIONS.engine, settled, { questions: [question('quick-choice'), question('noted-choice')] }, form);
+    refused(nothing, 'gate-brief-nothing-to-ask');
+    assert.equal(nothing.stdout, '');
+  }
+});
+
+// ---------------------------------------------------------------------------
 // 6. survival across later writes
 // ---------------------------------------------------------------------------
 
