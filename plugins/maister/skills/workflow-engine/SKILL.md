@@ -386,7 +386,8 @@ Never send the document through a heredoc, `echo`, a pipe or `< file`: an agent
 host's shell-safety check refuses a JSON heredoc outright — braces beside quotes —
 and allow-listing the script does not lift it, while a file needs no quoting in any
 shell, PowerShell included. And the file is written by the file tool, never by the
-shell.
+shell. The one exception is `area-brief --patch-file`, which writes a decision-area question
+set there itself; it is the engine's own write, so no edit rule is involved.
 
 This is not style: a permission rule or hook can recognise this plugin's own call only
 in this exact form — the command by its text, the patch file by its name inside a run —
@@ -1495,7 +1496,9 @@ with the same options, in the same turn:
    to open — then the gate again. Where the More details option previews it, the gate is asked
    again at once instead (*Terminal mode*).
 2. **At a decision area**: every alternative, each with a two-to-three-sentence description,
-   its pros and its cons; then the recommendation and why; then the same area again.
+   its pros and its cons; then the recommendation and why; then the same area again. An area
+   asked from `area-brief` has this text already: its `more_details`, printed as given
+   (*Decision areas from the brainstorm*).
 3. **At any other question**: the full context of each item — an issue's file, line, what is
    wrong and what each option changes; an assumption and what it rests on; a draft or section
    in full; a failure's cause and what each way on would do — then the same question again.
@@ -1566,6 +1569,8 @@ shows no descriptions; the full description, pros and cons are
 in its preview where the tool shows previews; and More details is offered while a slot is free.
 An area with more alternatives than the options hold offers the recommended one and its
 strongest rivals, names the rest in the question, and the user reaches them by typing.
+When the brainstorm wrote its decision areas file, `area-brief` renders all of this for each
+area, and the node asks what it prints (*Decision areas from the brainstorm*).
 <!-- plain-picker
 In a decision area, the message's last line before the ask is the recommendation:
 "Recommended: <alternative> — <reason>."
@@ -1573,7 +1578,54 @@ In a decision area, the message's last line before the ask is the recommendation
 
 ### Decision areas from the brainstorm
 
-A convergence node asks its decision areas from `area-brief`, which finds the file the brainstorm wrote through the node's `with: decision_areas` and renders each area from it. Its refusals name no state write and leave nothing written:
+A convergence node asks its decision areas from `area-brief`, which finds the file the brainstorm wrote through the node's `with: decision_areas` and renders each area from it. The file's shape, its check and the few labels the verb adds are in `references/decision-areas.md`; every other word the user reads comes from the file, so the terminal and a cockpit show the same text. The area ids, and the order they are asked in, are the file's.
+
+**In session, one area per call**, in the file's order, each from its picker:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<run>/orchestrator-state.yml --node=<the convergence node> --area=<area id> --json --picker=rich
+```
+
+Pass `question`, `header` and `options` to the question tool as given, and record the answer
+under the printed `question_id`, `convergence-decisions-<area id>`. On More details, print
+`more_details` as given — the area's full write-up, which `--area=<id>` without `--json` also
+prints — then ask the same area again from the same picker; nothing is recorded.
+<!-- rich-picker -->
+The `rich` profile offers the recommended alternative and its strongest rivals, each with its
+preview, and names the rest in the question for the user to type.
+<!-- /rich-picker -->
+<!-- plain-picker
+The plain profile offers every alternative as a label; the question carries each alternative's
+line and ends with the recommendation and its reason.
+-->
+
+**Under a driver with question sets**, every area goes in the node's one request. Run the verb
+with `--patch-file=<run>/.state-patch.json` in place of `--area` and `--json` — after a revise,
+`--area` repeated names the areas the note reopens — and it writes the question set to the patch
+file and prints its path: one question per area, each with its write-up as `details` and, when
+the run's policy classes the area, its `triage`. Then run `gate-brief --request
+--patch-file=<run>/.state-patch.json` for the node, read the patch file once with the file
+tool, write the printed request over it, and suspend with `gate-request` (*When a question
+suspends*). A `policy-hash-mismatch` warning means no area carries `triage`; the request still
+goes.
+
+**When the file cannot be used**, the verb prints one warning on stderr, exits `0` and gives
+nothing to ask from — under `--json`, `{ok: true, fallback: true}`; with `--patch-file`, no
+file:
+
+| Warning | The file |
+|---|---|
+| `decision-areas-missing:<path>` | was not written; `:not-declared` when the node names none, `:producer-not-completed` when its brainstorm did not complete |
+| `decision-areas-unreadable:<path>:<code>` | exists but cannot be read |
+| `decision-areas-invalid:<path>:<fault>` | failed the check, its first fault as `<reason> at <path>` |
+| `decision-areas-stale:<path>` | no longer matches the markdown it was written from |
+
+Each means the same: compose every area from the brainstorm's markdown, exactly as the node
+prose describes, with the same detail and the question ids it names, and say in the node summary
+which warning made it do so. The warning holds for every area of the run, so do not run the verb
+again for the next one, and never edit the file to make it pass — it is the brainstorm's.
+
+Its refusals name no state write and leave nothing written:
 
 | Refusal | Response |
 |---|---|
@@ -1601,9 +1653,11 @@ taking their defaults. Four rules hold:
 - **Each question carries its own context**, by the floor above: `question` the question itself,
   `why` what makes it matter, each option's `description` what choosing it does or costs, and
   `recommended` on the recommended option, its reason in its description. `header` is a short
-  sentence-case title. The multi-choice flag and `allow_other` (the operator's own words, on
+  sentence-case title. `details`, optional, is the question's full write-up as markdown, shown
+  on demand beside it; `area-brief` writes it for each decision area. The multi-choice flag and `allow_other` (the operator's own words, on
   unless said) are per question. `default` is what a non-answer would take, the recommendation when
-  absent. `triage` is reserved and passed through unread.
+  absent. `triage` is carried as written; for a decision area the engine writes it when a
+  matching policy classes the area.
 
 How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch file, runs
 `gate-brief --request --patch-file=<the patch file>` for itself, and suspends exactly as a gate
