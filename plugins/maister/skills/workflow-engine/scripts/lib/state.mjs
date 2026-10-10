@@ -100,7 +100,7 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, classSet, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalOptions, isApproval, isClassedItem, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalOptions, isApproval, isClassedItem, outstandingHeld } from './question-triage.mjs';
 // The revision safety limit `HELD_APPROVAL`'s options are derived under. Read
 // only inside the functions that hold an answer to those options, so the
 // import cycle with `revise.mjs`, which writes through this module, is inert.
@@ -1854,7 +1854,7 @@ function frozenDifferences(doc, workflow) {
   if (scalars.length) differences.push(`changes ${scalars.join(', ')}`);
   // The reserved closing checkpoint's status entry is the writer's, never the
   // freeze's: a re-sent freeze that lacks it drops nothing.
-  const dropped = Object.keys(recorded).filter(id => id !== HELD_APPROVAL && !Object.hasOwn(workflow.nodes, id));
+  const dropped = frozenIds(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
   if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
   const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
   if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
@@ -3776,7 +3776,7 @@ function approvalOf({ node, question_id: questionId, item: held }, answer) {
  */
 function keptApprovals(prior, decisions) {
   if (!Array.isArray(prior)) return [];
-  const keyOf = item => JSON.stringify([item.node, item.question_id, attemptNumber(item) ?? 1]);
+  const keyOf = item => approvalKey(item.node, item);
   const sent = new Set(decisions.filter(isApproval).map(keyOf));
   return prior.filter(item => isApproval(item) && !sent.has(keyOf(item)));
 }

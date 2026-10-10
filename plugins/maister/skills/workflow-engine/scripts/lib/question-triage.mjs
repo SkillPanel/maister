@@ -15,6 +15,7 @@
  *
  * - `HELD_APPROVAL` — the reserved checkpoint id a run asks before it finishes
  *   while held items are outstanding. Never a node of the frozen graph.
+ * - `frozenIds(nodes)` — a run's recorded node ids less that reserved one.
  * - `inNodeQuestions(text)` — every `{node, id}` a companion prose file names
  *   on its bold question-set lines.
  * - `declaredQuestionIds(definitionFile, node)` — the ids one node's prose
@@ -52,6 +53,16 @@ import { attemptNumber, oneLine } from './items.mjs';
 
 /** The reserved closing checkpoint's id. */
 export const HELD_APPROVAL = 'held-approval';
+
+/**
+ * The ids of the frozen graph's nodes in `nodes` — a run's `workflow.nodes` —
+ * in their recorded order: every key but the reserved `HELD_APPROVAL` status
+ * entry a driven run may carry. Every reader that walks the frozen graph
+ * walks these.
+ */
+export function frozenIds(nodes) {
+  return isMap(nodes) ? Object.keys(nodes).filter(id => id !== HELD_APPROVAL) : [];
+}
 
 /** The keys a question's `reasons` entry may carry. */
 const REASON_KEYS = ['rationale', 'assumption', 'reversal'];
@@ -293,7 +304,7 @@ export function isApproval(item) {
  */
 function summariesInOrder(doc) {
   const summaries = isMap(doc?.node_summaries) ? doc.node_summaries : {};
-  const frozen = isMap(doc?.workflow?.nodes) ? Object.keys(doc.workflow.nodes).filter(id => id !== HELD_APPROVAL) : [];
+  const frozen = frozenIds(doc?.workflow?.nodes);
   const order = [...frozen, ...Object.keys(summaries).filter(id => !frozen.includes(id))];
   return order
     .filter(id => isMap(summaries[id]) && Array.isArray(summaries[id].decisions))

@@ -1050,6 +1050,10 @@ test('held-approval: the writer records its status alone, and every reader of th
   assert.ok(provenGraph(readState(marked).workflow, marked.dir).graph, 'the graph still proves');
   const progressOf = each => JSON.parse(gateBriefOf(each, 'outline-approval', '--checkpoint').stdout).progress;
   assert.deepEqual(progressOf(marked), progressOf(bare));
+  // The dashboard draws a card per frozen node, never one for the reserved entry.
+  const cardsOf = each => readDashboard(each).phases.map(phase => phase.id);
+  assert.equal(cardsOf(marked).includes(HELD_APPROVAL_ID), false);
+  assert.deepEqual(cardsOf(marked), cardsOf(bare));
   // A re-sent freeze that lacks the entry drops nothing.
   const fresh = scratch(t);
   const { patch: frozen } = freezePatch({ definition: HELD_CLOSING, orchestrator: { options: { ceiling: 'advice' }, driver: DISPATCH } });

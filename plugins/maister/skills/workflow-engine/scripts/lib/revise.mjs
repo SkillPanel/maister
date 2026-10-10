@@ -45,7 +45,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
 import { reviseStretch } from './graph.mjs';
 import { atClose, downstreamOf } from './gate-brief.mjs';
-import { HELD_APPROVAL, heldApprovalBlockers, heldApprovalCurrent, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, frozenIds, heldApprovalBlockers, heldApprovalCurrent, outstandingHeld } from './question-triage.mjs';
 import { gateAnswer, isPlaceholderName, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
 
@@ -324,7 +324,7 @@ function heldApprovalRevise({ state, option, input }) {
       + 'Nothing was written. Ask it again with its continue and stop options only — the brief no longer offers the revise');
   }
 
-  const ids = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const ids = frozenIds(recorded);
   const nodes = ids.map(id => ({ id, needs: Array.isArray(entry(id).needs) ? entry(id).needs.map(String) : [] }));
   const reach = downstreamOf(nodes, reruns);
   const stretch = ids.filter(id => id === reruns || reach.has(id));

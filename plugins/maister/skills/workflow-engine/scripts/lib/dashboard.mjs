@@ -46,7 +46,7 @@
 
 import { ICON_HINTS, labelOf as optionLabelOf, titleOf } from './display.mjs';
 import * as items from './items.mjs';
-import { approvalsOf } from './question-triage.mjs';
+import { approvalKey, approvalsOf, frozenIds } from './question-triage.mjs';
 
 // ---------------------------------------------------------------------------
 // the frozen vocabularies
@@ -277,7 +277,9 @@ function characteristicsOf(state) {
 }
 
 /**
- * One card per node, in the key order `workflow.nodes` carries.
+ * One card per node of the frozen graph, in the key order `workflow.nodes`
+ * carries; the reserved closing checkpoint's status entry is no node, and
+ * draws no card (`frozenIds`).
  *
  * That order is the frozen topological order `resolve` produced at freeze time.
  * It is never sorted and never re-derived: a second ordering rule beside the
@@ -290,7 +292,7 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
   const nodeSummaries = isPlainObject(state.node_summaries) ? state.node_summaries : {};
   const approvers = approversOf(state);
 
-  return Object.keys(nodes).map(id => {
+  return frozenIds(nodes).map(id => {
     const node = isPlainObject(nodes[id]) ? nodes[id] : {};
     const summary = pick(summaries, id);
     const status = Object.hasOwn(STATUS_MIRROR, node.status) ? STATUS_MIRROR[node.status] : STATUS_FALLBACK;
@@ -491,8 +493,8 @@ export function artifactOf(entry) {
  */
 function approversOf(state) {
   const approvers = new Map();
-  for (const { node, question_id: questionId, attempt, item } of approvalsOf(state)) {
-    const key = JSON.stringify([node, questionId, attempt]);
+  for (const { node, item } of approvalsOf(state)) {
+    const key = approvalKey(node, item);
     if (approvers.has(key)) continue;
     const by = typeof item.answered_by === 'string' && item.answered_by.trim() !== '' ? item.answered_by.trim() : 'operator';
     approvers.set(key, by);
@@ -508,7 +510,7 @@ function approversOf(state) {
 function withApproval(decision, id, approvers) {
   if (!isPlainObject(decision) || !isPlainObject(decision.triage) || decision.triage.held !== true) return decision;
   if (typeof decision.question_id !== 'string' || decision.question_id === '') return decision;
-  const key = JSON.stringify([id, decision.question_id, items.attemptNumber(decision) ?? 1]);
+  const key = approvalKey(id, decision);
   return approvers.has(key) ? { ...decision, approved: { by: approvers.get(key) } } : decision;
 }
 

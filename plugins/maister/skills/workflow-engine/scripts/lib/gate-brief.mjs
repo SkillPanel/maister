@@ -119,7 +119,7 @@ import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as ent
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isClassedItem, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, frozenIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isClassedItem, outstandingHeld } from './question-triage.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -459,7 +459,7 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   }
   const runDir = path.dirname(path.resolve(state));
   const { display } = reread(doc, workflow, runDir);
-  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const order = frozenIds(recorded);
   const title = titleOf(display.titles, node);
   const checkpoint = questionCheckpoint({
     set,
@@ -547,7 +547,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   }
   const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
   const { titles } = current.display;
-  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const order = frozenIds(recorded);
   const gateId = id => isGate(recorded, byId, id);
 
   // The stretch: every node recorded since the last checkpoint answered.
@@ -1103,7 +1103,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   const title = id => titleOf(titles, id);
   // The frozen nodes alone: the reserved closing checkpoint's status entry is
   // never counted, and it stands after them all.
-  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const order = frozenIds(recorded);
   const at = order.includes(node) ? order.indexOf(node) : order.length;
   const sources = summarySources(doc);
   let truncated = false;
@@ -1968,7 +1968,7 @@ export function atClose({ doc, runDir }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   // The reserved closing checkpoint is judged by its own rules, never here.
-  const ids = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const ids = frozenIds(recorded);
   if (!ids.length) return { owed: [], graph: null, drift: false };
 
   const current = reread(doc, workflow, runDir);
