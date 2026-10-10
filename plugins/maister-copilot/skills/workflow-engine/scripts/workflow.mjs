@@ -330,6 +330,14 @@ function report(payload) {
  * Load the module a verb delegates to. A missing module is an internal failure
  * with a named cause on stderr — the one thing it must never be is silent.
  */
+/** Whether `lib/<name>` ships in this edition of the plugin. */
+function moduleAvailable(name) {
+  return fs.existsSync(fileURLToPath(new URL(`./lib/${name}`, import.meta.url)));
+}
+
+/** The one message a driven run reads when it cannot suspend at a gate. */
+const GATE_REQUEST_UNAVAILABLE = 'gate-request-unavailable: this edition of the plugin carries no gate module, so a driven run cannot suspend at a gate. Stop with RUN-FAILED: gate-request-unavailable; never ask in session and never take a default answer.';
+
 async function loadModule(name) {
   const specifier = new URL(`./lib/${name}`, import.meta.url);
   // Resolved through `fileURLToPath` rather than `url.pathname`, which on
@@ -612,6 +620,15 @@ function reportWrite(result, input) {
 async function runGateRequest(flags) {
   if (!flags.state) throw new UsageError('gate-request needs --state');
   const input = readInput(flags, 'the request document');
+  // An edition without the gate module cannot suspend a run at all. That is
+  // answered by name rather than as the internal failure a missing import
+  // otherwise is, because a driven run reaching it has one right response and
+  // workers left to infer it chose differently: stop, never ask in session and
+  // never take a default. Nothing is written and the patch file is kept.
+  if (!moduleAvailable(VERBS['gate-request'].module)) {
+    process.stderr.write(`${GATE_REQUEST_UNAVAILABLE}\n`);
+    return EXIT.REJECTED;
+  }
   const module = await loadModule(VERBS['gate-request'].module);
   const write = entryOf(module, 'gateRequest', VERBS['gate-request'].module);
   const result = write({ state: flags.state, request: input.document });

@@ -442,7 +442,9 @@ somewhere nothing will look for it. Send `{node, kind, question, context?, optio
 flag that says whether more than one option may be picked, run_id?}`; the verb supplies
 `version`, `asked_at` and `answer: null` itself and **refuses a caller that sends any of the
 three**, so a caller can neither pre-answer its own gate nor stamp a time it did not measure.
-Its own four refusals are `gate-request-invalid` (fix the document and re-run),
+Its own five refusals are `gate-request-unavailable` (this edition carries no gate module: stop
+with `RUN-FAILED: gate-request-unavailable`, never asking in session and never taking a default
+answer), `gate-request-invalid` (fix the document and re-run),
 `gate-request-exists` (a *different* gate has already been asked at that node — read the file
 rather than re-asking), `gate-unwritable` and `gate-temp-exists` (handled exactly like
 `state-unwritable` and `state-temp-exists` in the table below). Because the marker rides along,
@@ -1266,6 +1268,9 @@ order, and the order is the contract:
    so nothing needs writing after it.
    **There is no second call here, and there must not be**: the run is pending from the moment
    the request file lands, and while the gate is pending the engine's shell calls cannot run.
+   **When `gate-request` answers `gate-request-unavailable`, this edition carries no gate
+   module and the run cannot suspend:** stop with `RUN-FAILED: gate-request-unavailable` —
+   never ask in session and never take a default answer.
 3. `GATE-PENDING: <node>` is printed as the **last** line of the turn.
 4. The turn ends. Nothing polls, nothing waits, no session is left idle.
 
@@ -2186,8 +2191,8 @@ one call, arriving from the other side.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-twenty-six, each with its response below; one more, `edition-collision`, is raised before the
-writer runs. Exit `2` carries no code at all and is the table's last row:
+twenty-six, each with its response below; two more are raised before the writer runs,
+`edition-collision` and `gate-request-unavailable`. Exit `2` carries no code at all and is the table's last row:
 
 | Refusal | Response |
 |---|---|
@@ -2213,6 +2218,7 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-question-answer-invalid` | A node's `answer` block could not be folded into its decisions: the node's request file is missing or carries no question set, a question has no answer, an answer names an option the question does not offer, a list answers a single choice, own words answer a question that does not take them, or `answers` names a question the request does not hold. The message names each. Nothing was written — but the gate was already cleared, so the node is `running` and nothing is pending. Re-read the answer file and send its `answer` block again, whole and unchanged; a block retyped by hand is the usual cause. When the answer file itself holds the fault, record each question it cannot answer as `{decision: <its default>, by: default, question_id}`, with an `open` risk naming the answer that could not be read, and continue the node. Never ask the question again in this attempt. |
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-workflow-without-task`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
+| `gate-request-unavailable` | This edition of the plugin carries no gate module, so a driven run cannot suspend at a gate. Nothing was written and the request in the patch file is kept. Stop with `RUN-FAILED: gate-request-unavailable` — never ask in session and never take a default answer. |
 | exit `2`, `usage: the patch file …` or `usage: the patch in …` | The document never reached the writer: the flag named another file, or the file is missing, empty or not JSON. Nothing was written and the file is kept. Write the document to the run's own `.state-patch.json`, name that path, and run the verb once more; the same message twice is `RUN-FAILED: writer-unavailable`. |
 | exit `2`, any other message | The writer itself did not run — a module it imports is missing, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable` and report the message verbatim. |
 
