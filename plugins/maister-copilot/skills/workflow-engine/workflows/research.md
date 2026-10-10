@@ -47,6 +47,12 @@ it did. The rule, the recording shape and what is never defaulted past belong to
 the engine skill, which states them once; this file only says what each
 question takes.
 
+**When the run's policy classes in-node questions** — the freeze recorded
+`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
+before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
+settled, defaulted or held under the run's autonomy ceiling and are already on the node's
+summary. The engine skill states the rule once; no section below changes for it.
+
 **Retry budgets are prose here on purpose.** They must never be written into
 `with:`, which is an unconstrained free-form object — `max_attempts` sitting
 there would read like a grammar feature while being inert data the engine never
@@ -799,6 +805,14 @@ run is a sub-run of another.
    clear the context or start a new session first —
    `/maister-copilot:development --research=<this task directory, from the project root>`
    to build on the findings.
+
+**No close-out while a choice is held.** When the freeze recorded
+`orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
+closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
+`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
+revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
+refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
+ends on `run-held-unapproved`.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

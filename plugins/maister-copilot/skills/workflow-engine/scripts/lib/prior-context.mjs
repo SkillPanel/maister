@@ -219,11 +219,12 @@ function section(field, items, always) {
 
 /**
  * The bookkeeping a typed decision carries — when and through which surface it
- * was answered, the reserved triage block, and the answer's provenance (who
+ * was answered, the reserved triage block, the assumption and the reversal a
+ * settled record-class choice is kept with, and the answer's provenance (who
  * acted, for whom, under which rule, on what evidence, what it overrode) —
  * which says nothing a delegate acts on.
  */
-const RECORD_ONLY = new Set(['at', 'via', 'triage', ...PROVENANCE_KEYS]);
+const RECORD_ONLY = new Set(['at', 'via', 'triage', 'assumption', 'reversal', ...PROVENANCE_KEYS]);
 
 /**
  * One item of a contract list. A typed risk reads `<tag>: <risk> → <change>`,

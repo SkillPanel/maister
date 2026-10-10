@@ -51,3 +51,15 @@ export function questionSets(doc) {
   const driver = driverOf(doc);
   return QUESTION_SET_KINDS.has(driver?.kind) && driverFeatures(doc).includes(QUESTION_SETS);
 }
+
+/**
+ * Whether a person can be asked an in-node question in this run: the driver is
+ * absent, names no kind or is `terminal` (the question is asked in session), or
+ * is a cockpit that lists `question-sets`. A dispatch worker, a cockpit without
+ * the feature and any unknown kind cannot ask.
+ */
+export function canAsk(doc) {
+  const driver = driverOf(doc);
+  if (driver === null || driver.kind === undefined || driver.kind === null || driver.kind === 'terminal') return true;
+  return questionSets(doc);
+}

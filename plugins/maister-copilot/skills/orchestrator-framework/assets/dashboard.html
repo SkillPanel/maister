@@ -221,6 +221,9 @@
   .src, .tag { display: inline-block; font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 99px; margin-left: 6px; vertical-align: 1px; background: var(--surface-2); color: var(--text-dim); }
   .src.operator { background: var(--accent-soft); color: var(--accent); }
   .src.audit { background: var(--info-soft); color: var(--info); }
+  .src.approved { background: var(--ok-soft); color: var(--ok); }
+  .src.held { background: var(--warn-soft); color: var(--warn); }
+  .src.cls { font-weight: 500; }
   .tag { margin: 0 6px 0 0; text-transform: uppercase; letter-spacing: .03em; }
   .tag.open { background: var(--warn-soft); color: var(--warn); }
   .tag.stop { background: var(--crit-soft); color: var(--crit); }
@@ -340,6 +343,16 @@ function sourceChip(x) {
   if (!x || typeof x !== "object" || !SOURCE_LABEL[x.by]) return "";
   const who = x.by === "operator" && x.answered_by && x.answered_by !== "operator" ? x.answered_by : SOURCE_LABEL[x.by];
   return '<span class="src ' + esc(x.by) + '">' + esc(who) + '</span>';
+}
+/* A choice the run held for approval: "Approved by …" once a checkpoint approved it, else "Held"; then its class. */
+function triageMarks(x) {
+  if (!x || typeof x !== "object") return "";
+  const t = x.triage && typeof x.triage === "object" ? x.triage : {};
+  let html = "";
+  if (x.approved && typeof x.approved === "object") html += '<span class="src approved">Approved by ' + esc(x.approved.by || "operator") + '</span>';
+  else if (t.held === true) html += '<span class="src held">Held</span>';
+  if (typeof t.class === "string" && t.class) html += '<span class="src cls">' + esc(t.class) + '</span>';
+  return html;
 }
 
 function fmtAgo(ts) {
@@ -554,7 +567,7 @@ function renderTimeline(phases) {
         (fixes ? '<div class="ph-section"><div class="sec-label">Fixed by the run</div><ul>' +
           ph.fixes.map(f => '<li>' + fixHtml(f) + '</li>').join("") + '</ul></div>' : "") +
         (decs ? '<div class="ph-section"><div class="sec-label">Key decisions</div><ul>' +
-          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + (x.note ? ' <span class="rationale">— ' + esc(x.note) + '</span>' : '') + sourceChip(x) + earlierNote(x) + '</li>').join("") +
+          ph.decisions.map(x => '<li>' + esc(x.decision || x) + (x.rationale ? ' <span class="rationale">— ' + esc(x.rationale) + '</span>' : '') + (x.note ? ' <span class="rationale">— ' + esc(x.note) + '</span>' : '') + sourceChip(x) + triageMarks(x) + earlierNote(x) + '</li>').join("") +
           '</ul></div>' : "") +
         (risks ? '<div class="ph-section"><div class="sec-label">Open questions / risks</div><ul>' +
           byTag(ph.risks).map(r => '<li' + (r.tag === "resolved" ? ' class="risk-item resolved" style="border:none;padding:0"' : '') + '>' + riskHtml(r) + '</li>').join("") + '</ul></div>' : "") +
@@ -646,7 +659,7 @@ function renderDecisions(phases) {
     total += decs.filter(dx => !dx.earlier).length;
     html += '<div class="grp-label">' + esc(ph.name || ph.id) + '</div>' +
       decs.map(dx => '<div class="dec-item">' + esc(dx.decision || dx) +
-        (dx.rationale ? ' <span class="rationale">— ' + esc(dx.rationale) + '</span>' : "") + sourceChip(dx) + earlierNote(dx) + '</div>').join("");
+        (dx.rationale ? ' <span class="rationale">— ' + esc(dx.rationale) + '</span>' : "") + sourceChip(dx) + triageMarks(dx) + earlierNote(dx) + '</div>').join("");
   }
   const body = total ? html : '<div class="empty">No decisions recorded yet.</div>';
   return '<div class="card"><h2>Decisions</h2><div class="body">' + body + '</div></div>';

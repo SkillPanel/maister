@@ -45,6 +45,12 @@ the cockpit; without them it is left open for the direction gate to decide,
 because a direction nobody chose would be built into
 every document after it (`idea-convergence` says how).
 
+**When the run's policy classes in-node questions** — the freeze recorded
+`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
+before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
+settled, defaulted or held under the run's autonomy ceiling and are already on the node's
+summary. The engine skill states the rule once; no section below changes for it.
+
 **Every question carries what it asks about** (engine § *In-node questions*).
 This workflow presents drafts and asks about them — the problem statement, the
 persona cards, each decision area, each specification section, the enrichments,
@@ -1298,6 +1304,14 @@ did not print. The same rule holds for a run a gate's stop option ended, which
 never reaches this node. An embedded run, whose guard skips this node, ends as a
 sub-run does: in session with no wrap-up, since its parent's ending carries it,
 and under a driver on the verb's marker.
+
+**No close-out while a choice is held.** When the freeze recorded
+`orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
+closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
+`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
+revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
+refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
+ends on `run-held-unapproved`.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out
