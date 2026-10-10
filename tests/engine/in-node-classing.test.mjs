@@ -225,6 +225,56 @@ test('a carried triage only raises; on a policy hash mismatch nothing is classed
   assert.equal(Object.hasOwn(summary, 'asking'), false);
 });
 
+// A neutral policy for briefed decision areas: both area questions read as a
+// record family, which the advice ceiling settles. The triage an area brief
+// stamps on a question rides in with the set.
+const AREAS = sharedPlugin({
+  policy: (() => {
+    const policy = policyOf('questions.json');
+    const row = id => ({ workflow: 'in-node-questions', id, kind: 'question', families: ['area-record-family'] });
+    return {
+      ...policy,
+      families: { ...policy.families, 'area-record-family': { class: 'record', description: 'A made-up area family, settled and recorded.' } },
+      table: [row('convergence-decisions-storage'), row('convergence-decisions-format')],
+    };
+  })(),
+});
+
+test('a briefed decision area keeps its carried triage through the classing write; a lower one is raised', t => {
+  const stamped = { version: 1, class: 'consult', family: 'area-direction' };
+  const area = (id, triage) => ({ ...question(id, { triage }), details: `The full write-up of ${id}.` });
+  const set = {
+    questions: [
+      area('convergence-decisions-storage', stamped),
+      area('convergence-decisions-format', { version: 1, class: 'decide-alone', family: 'area-direction' }),
+    ],
+  };
+
+  // Nobody can be asked: the higher carried class decides and is recorded as carried, never lowered to record.
+  const driven = started(t, AREAS.engine, { driver: DISPATCH });
+  const written = send(AREAS.engine, driven, { node_summaries: { scoping: { question_set: set } } });
+  assert.equal(written.code, 0, written.stderr);
+  assert.equal(askLine(written.stdout), 'ask: none');
+  const decisions = summaryOf(driven).decisions;
+  assert.deepEqual(byId(decisions, 'convergence-decisions-storage'), {
+    decision: 'Option A', by: 'default', question_id: 'convergence-decisions-storage', question: 'Which convergence-decisions-storage?',
+    triage: { ...stamped, advice: 'not_obtained' },
+  });
+  // The lower carried class is raised to the computed one and settled by the run.
+  assert.equal(byId(decisions, 'convergence-decisions-format').by, 'run');
+  assert.deepEqual(byId(decisions, 'convergence-decisions-format').triage, { version: 1, class: 'record', family: 'area-record-family' });
+
+  // Somebody can be asked: the carried area stays to ask, and the request's checkpoint keeps its triage and details.
+  const asked = started(t, AREAS.engine, { driver: COCKPIT });
+  assert.equal(askLine(send(AREAS.engine, asked, { node_summaries: { scoping: { question_set: set } } }).stdout), 'ask: convergence-decisions-storage');
+  const result = brief(AREAS.engine, asked, set);
+  assert.equal(result.code, 0, result.stderr);
+  const [kept] = JSON.parse(result.stdout).context.checkpoint.questions;
+  assert.equal(kept.id, 'convergence-decisions-storage');
+  assert.deepEqual(kept.triage, stamped, 'the stamped triage is never stripped');
+  assert.equal(kept.details, 'The full write-up of convergence-decisions-storage.');
+});
+
 // ---------------------------------------------------------------------------
 // 4. refusals
 // ---------------------------------------------------------------------------
