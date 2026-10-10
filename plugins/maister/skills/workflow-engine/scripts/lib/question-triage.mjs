@@ -28,6 +28,7 @@
  *   question already carried with the one computed for it.
  * - `isClassedItem(item)`, `isApproval(item)` — the two item shapes this
  *   module owns.
+ * - `approvalKey(node, item)` — the key a held item and its approval share.
  * - `outstandingHeld(doc)`, `approvalsOf(doc)` — the held items with no
  *   approval yet, and every approval, in frozen node order.
  * - `heldApprovalOptions(doc, {ceiling})` — the options `HELD_APPROVAL`
@@ -299,8 +300,12 @@ function summariesInOrder(doc) {
     .map(id => [id, summaries[id].decisions]);
 }
 
-/** The key a held item and its approval share: node, question id and attempt (1 when absent). */
-function keyOf(node, item) {
+/**
+ * The key a held item and its approval share: the owning `node`, the item's
+ * question id and its attempt (1 when absent). Every reader that matches an
+ * approval to a held item matches on this.
+ */
+export function approvalKey(node, item) {
   return JSON.stringify([node, item.question_id, attemptNumber(item) ?? 1]);
 }
 
@@ -321,9 +326,9 @@ export function approvalsOf(doc) {
  * in the run it is recorded.
  */
 export function outstandingHeld(doc) {
-  const approved = new Set(approvalsOf(doc).map(each => keyOf(each.node, each.item)));
+  const approved = new Set(approvalsOf(doc).map(each => approvalKey(each.node, each.item)));
   return summariesInOrder(doc).flatMap(([node, decisions]) => decisions
-    .filter(item => isHeld(item) && !approved.has(keyOf(node, item)))
+    .filter(item => isHeld(item) && !approved.has(approvalKey(node, item)))
     .map(item => ({ node, question_id: item.question_id, attempt: attemptNumber(item) ?? 1, item })));
 }
 

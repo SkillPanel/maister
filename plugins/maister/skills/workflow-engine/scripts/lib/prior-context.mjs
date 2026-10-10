@@ -46,6 +46,7 @@ import { isContextBlock } from './state.mjs';
 // A revise the run is in the middle of is found the way `resume-check` finds it.
 import { openRevision } from './revise.mjs';
 import { PROVENANCE_KEYS, riskOf, riskText } from './items.mjs';
+import { approvalKey, outstandingHeld } from './question-triage.mjs';
 
 /**
  * The two fields the artifact summary contract is written against. They lead
@@ -60,6 +61,16 @@ const LEAD = 'summary';
 
 /** Carried in the section heading rather than as a field of its own. */
 const HEADING_FIELDS = new Set(['node', LEAD]);
+
+/**
+ * Summary fields the writer keeps for itself: `asking`, the questions a
+ * classing write left the node to ask. It is bookkeeping that goes stale once
+ * the node asks, never context a delegate acts on, so it is not printed.
+ */
+const WRITER_FIELDS = new Set(['asking']);
+
+/** The note an unapproved held choice is printed with: it is provisional until a person approves it. */
+const HELD_NOTE = '(held — awaiting approval)';
 
 /**
  * Render the prior-phase context of the run whose state file is `state`.
@@ -104,7 +115,9 @@ export function priorContext({ state, background = false }) {
   if (nodes !== undefined && nodes !== null && !isPlainObject(nodes)) {
     return refuse('prior-context-absent', 'node_summaries is not a map, so its entries cannot be rendered');
   }
-  return { ok: true, text: render('node_summaries', 'node', isPlainObject(nodes) ? nodes : {}, background) + revisionOf(doc), errors: [] };
+  // A held choice no approval matches yet is printed as provisional.
+  const held = new Set(outstandingHeld(doc).map(each => approvalKey(each.node, each.item)));
+  return { ok: true, text: render('node_summaries', 'node', isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc), errors: [] };
 }
 
 /**
@@ -146,7 +159,7 @@ function refuse(code, message) {
  * map's path in state and `unit` what one of its entries records — a phase for
  * a context block's `phase_summaries`, a node for `node_summaries`.
  */
-function render(source, unit, summaries, background = false) {
+function render(source, unit, summaries, background = false, held = new Set()) {
   // Every entry the state writer records is a map — it refuses any other shape —
   // so an entry that is not one was written by hand, and is not read.
   const entries = Object.entries(summaries).filter(([, value]) => isPlainObject(value));
@@ -192,9 +205,10 @@ function render(source, unit, summaries, background = false) {
       out.push(`Summary: ${lead}`);
       out.push('');
     }
-    for (const field of CONTRACT_LISTS) out.push(...section(field, listOf(entry[field]), true));
+    const isHeld = item => held.size > 0 && isPlainObject(item) && typeof item.question_id === 'string' && held.has(approvalKey(key, item));
+    for (const field of CONTRACT_LISTS) out.push(...section(field, listOf(entry[field]), true, isHeld));
     for (const [field, value] of Object.entries(entry)) {
-      if (HEADING_FIELDS.has(field) || CONTRACT_LISTS.includes(field)) continue;
+      if (HEADING_FIELDS.has(field) || WRITER_FIELDS.has(field) || CONTRACT_LISTS.includes(field)) continue;
       if (Array.isArray(value)) out.push(...section(field, listOf(value), false));
       else {
         const text = scalarText(value);
@@ -211,10 +225,11 @@ function render(source, unit, summaries, background = false) {
  * they are empty — the state said "none", and a delegate that is told nothing
  * cannot tell that apart from a node that forgot.
  */
-function section(field, items, always) {
+function section(field, items, always, isHeld = () => false) {
   if (!items.length && !always) return [];
   if (!items.length) return [`${label(field)} (0): none recorded.`, ''];
-  return [`${label(field)} (${items.length}):`, ...items.map(item => `- ${listItemText(field, item)}`), ''];
+  const line = item => `- ${listItemText(field, item)}${field === 'decisions' && isHeld(item) ? ` ${HELD_NOTE}` : ''}`;
+  return [`${label(field)} (${items.length}):`, ...items.map(line), ''];
 }
 
 /**

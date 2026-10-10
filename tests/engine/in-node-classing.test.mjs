@@ -633,6 +633,26 @@ test('held: a forced gate whose work was skipped is briefed "Skipped." with the 
   refused(bare, 'gate-brief-no-summary');
 });
 
+test('prior-context: the asking remainder is never printed; an unapproved held choice is marked awaiting approval', t => {
+  const asked = started(t, QUESTIONS.engine);
+  assert.equal(askLine(classing(QUESTIONS.engine, asked, ['quick-choice', 'asked-choice']).stdout), 'ask: asked-choice');
+  const plain = runScript(QUESTIONS.engine, ['prior-context', `--state=${asked.state}`]);
+  assert.equal(plain.code, 0, plain.stderr);
+  assert.match(plain.stdout, /^### scoping$/m);
+  assert.doesNotMatch(plain.stdout, /asking|Asking/);
+  assert.doesNotMatch(plain.stdout, /awaiting approval/);
+
+  const run = heldRun(t);
+  const text = runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]).stdout;
+  assert.match(text, /^- decision: signed-choice A — by: default — question_id: signed-choice — .* \(held — awaiting approval\)$/m);
+  assert.match(text, /^- decision: quick-choice A — by: run — .*[^)]$/m, 'a settled choice carries no note');
+  assert.equal(text.match(/awaiting approval/g).length, 1);
+
+  // Approved by a continue: the note goes.
+  answerGate(run, 'review-approval', 'continue-past-review');
+  assert.doesNotMatch(runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]).stdout, /awaiting approval/);
+});
+
 // ---------------------------------------------------------------------------
 // 10. approvals: a continue at a checkpoint approves each held choice
 // ---------------------------------------------------------------------------
