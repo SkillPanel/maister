@@ -132,6 +132,11 @@
             "transport": "question-set"
           },
           {
+            "id": "spec-audit-findings",
+            "node": "spec-audit",
+            "transport": "question-set"
+          },
+          {
             "id": "standard-verifications",
             "node": "verification-options",
             "transport": "question-set"
@@ -139,6 +144,11 @@
           {
             "id": "user-docs",
             "node": "verification-options",
+            "transport": "question-set"
+          },
+          {
+            "id": "verification-findings",
+            "node": "verification",
             "transport": "question-set"
           },
           {
@@ -284,6 +294,11 @@
             "transport": "default"
           },
           {
+            "id": "spec-audit-findings",
+            "node": "spec-audit",
+            "transport": "default"
+          },
+          {
             "id": "standard-verifications",
             "node": "verification-options",
             "transport": "default"
@@ -291,6 +306,11 @@
           {
             "id": "user-docs",
             "node": "verification-options",
+            "transport": "default"
+          },
+          {
+            "id": "verification-findings",
+            "node": "verification",
             "transport": "default"
           },
           {
@@ -435,6 +455,11 @@
             "transport": "in-session"
           },
           {
+            "id": "spec-audit-findings",
+            "node": "spec-audit",
+            "transport": "in-session"
+          },
+          {
             "id": "standard-verifications",
             "node": "verification-options",
             "transport": "in-session"
@@ -442,6 +467,11 @@
           {
             "id": "user-docs",
             "node": "verification-options",
+            "transport": "in-session"
+          },
+          {
+            "id": "verification-findings",
+            "node": "verification",
             "transport": "in-session"
           },
           {
@@ -570,12 +600,20 @@
         "node": "specification"
       },
       {
+        "id": "spec-audit-findings",
+        "node": "spec-audit"
+      },
+      {
         "id": "standard-verifications",
         "node": "verification-options"
       },
       {
         "id": "user-docs",
         "node": "verification-options"
+      },
+      {
+        "id": "verification-findings",
+        "node": "verification"
       },
       {
         "id": "verification-fix-loop",
@@ -655,6 +693,11 @@
             "transport": "question-set"
           },
           {
+            "id": "issue-resolution-findings",
+            "node": "issue-resolution",
+            "transport": "question-set"
+          },
+          {
             "id": "verification-fix-loop",
             "node": "issue-resolution",
             "transport": "question-set"
@@ -724,6 +767,11 @@
           {
             "id": "specification-requirements",
             "node": "specification",
+            "transport": "default"
+          },
+          {
+            "id": "issue-resolution-findings",
+            "node": "issue-resolution",
             "transport": "default"
           },
           {
@@ -799,6 +847,11 @@
             "transport": "in-session"
           },
           {
+            "id": "issue-resolution-findings",
+            "node": "issue-resolution",
+            "transport": "in-session"
+          },
+          {
             "id": "verification-fix-loop",
             "node": "issue-resolution",
             "transport": "in-session"
@@ -861,6 +914,10 @@
       {
         "id": "specification-requirements",
         "node": "specification"
+      },
+      {
+        "id": "issue-resolution-findings",
+        "node": "issue-resolution"
       },
       {
         "id": "verification-fix-loop",
@@ -942,8 +999,18 @@
             "transport": "question-set"
           },
           {
+            "id": "spec-audit-findings",
+            "node": "spec-audit",
+            "transport": "question-set"
+          },
+          {
             "id": "standard-verifications",
             "node": "verification-options",
+            "transport": "question-set"
+          },
+          {
+            "id": "verification-findings",
+            "node": "verification",
             "transport": "question-set"
           },
           {
@@ -1025,8 +1092,18 @@
             "transport": "default"
           },
           {
+            "id": "spec-audit-findings",
+            "node": "spec-audit",
+            "transport": "default"
+          },
+          {
             "id": "standard-verifications",
             "node": "verification-options",
+            "transport": "default"
+          },
+          {
+            "id": "verification-findings",
+            "node": "verification",
             "transport": "default"
           },
           {
@@ -1108,8 +1185,18 @@
             "transport": "in-session"
           },
           {
+            "id": "spec-audit-findings",
+            "node": "spec-audit",
+            "transport": "in-session"
+          },
+          {
             "id": "standard-verifications",
             "node": "verification-options",
+            "transport": "in-session"
+          },
+          {
+            "id": "verification-findings",
+            "node": "verification",
             "transport": "in-session"
           },
           {
@@ -1182,8 +1269,16 @@
         "node": "specification"
       },
       {
+        "id": "spec-audit-findings",
+        "node": "spec-audit"
+      },
+      {
         "id": "standard-verifications",
         "node": "verification-options"
+      },
+      {
+        "id": "verification-findings",
+        "node": "verification"
       },
       {
         "id": "verification-fix-loop",
