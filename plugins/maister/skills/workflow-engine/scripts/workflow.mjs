@@ -17,13 +17,17 @@
  *                  take; without --name, the project's own workflows)
  *   write-state    --state, --patch-file (or the patch as JSON on stdin)
  *                                                             changed paths
+ *                  (and, for a node's question set, a blank line and the
+ *                  `ask:` line naming the ids still to ask, or `none`)
  *   gate-request   --state, --patch-file (or the request as JSON on stdin)
  *                                                             the files written
  *                  (the request file, the gate index and the pending marker)
  *   gate-revise    --state, --node, --option, --patch-file (or the note as
  *                  JSON on stdin)                             changed paths
  *                  (the stretch from the option's rerun node to the gate reset
- *                  in one write, with the operator's note on the gate)
+ *                  in one write, with the operator's note on the gate; at
+ *                  `--node=held-approval`, the owning node and everything
+ *                  downstream of it, closing node included)
  *   prior-context  --state                                    the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt — read-only over a run
@@ -42,7 +46,9 @@
  *                  the revise answered without one; --oneline the
  *                  one-line fallback a request's summary carries — reads
  *                  the run, and writes only its display/next.json, the panel
- *                  an editor extension draws above the question
+ *                  an editor extension draws above the question. --node
+ *                  names a frozen gate, or held-approval: the checkpoint a
+ *                  run raises before it closes while choices are held
  *   area-brief     --state, --node (the convergence node asking), and one of
  *                  --area --json [--picker=rich|plain], --area alone, or
  *                  --patch-file with --area repeated or omitted
@@ -522,6 +528,12 @@ function reportWrite(result, input) {
   // nobody read it. A caller after the paths skips to the first blank line.
   if (result.banner) process.stdout.write(`${result.banner}\n`);
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
+  // The classing write's remainder, after a blank line as a revise's line is:
+  // the question ids the node still asks, or `none` when the writer settled
+  // every one. Only a write that sent a question set has one.
+  if (result.ok && Array.isArray(result.asking)) {
+    process.stdout.write(`\nask: ${result.asking.length ? result.asking.join(' ') : 'none'}\n`);
+  }
   // A warning is not a refusal and must not read like one: the refusal contract
   // puts the code as the first stderr token, so these lines open with `warning:`
   // and name what did not happen. The dashboard is a projection of a write that
@@ -549,6 +561,9 @@ function reportWrite(result, input) {
     process.stderr.write('note: ignored the supplied orchestrator.policy_hash; the freeze records it from the policy it applied,'
       + ' so no patch sets it\n');
   }
+  // A writer-owned value dropped for a reason of its own: the writer returns
+  // the sentence, and it is printed here as written.
+  for (const note of result.notes || []) process.stderr.write(`note: ${note}\n`);
   // The autonomy policy's own warnings and the skip-guard rule's, each a code
   // string: a refused policy file leaves the run on the built-in default, and a
   // gate recorded skipped that the rule asks is written as sent, so each is a

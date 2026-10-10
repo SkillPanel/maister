@@ -62,6 +62,9 @@ const RISK_CAP = 3;
 /** How many fixes the run applied a glance lists under their count. */
 const FIXED_CAP = 3;
 
+/** The heading over the choices the run made that wait for the user's approval. */
+const HELD_HEADING = 'Held for your approval';
+
 /** The heading over the fixes, which the run applied without asking and decided nothing by. */
 const FIXED_HEADING = 'Fixed by the run';
 
@@ -159,10 +162,35 @@ export function grantsText(names) {
   return words.length ? `also ${andList(words)}` : '';
 }
 
-/** An option's label with what answering it grants after a dash. */
+/**
+ * What a continue does to the choices held for approval (`checkpoint.held`),
+ * as a bare phrase each caller sets in its own sentence: "approves 2 held
+ * choices", and for a held question with no choice yet, that it stays held
+ * until a revise of its step supplies one — or '' when nothing is held.
+ */
+export function approvesHeld(held) {
+  const list = Array.isArray(held) ? held : [];
+  const open = list.filter(entry => entry?.no_choice === true).length;
+  const chosen = list.length - open;
+  const parts = [];
+  if (chosen) parts.push(`approves ${chosen} held ${chosen === 1 ? 'choice' : 'choices'}`);
+  if (open) {
+    parts.push(`leaves ${open} held ${open === 1 ? 'question' : 'questions'} with no choice yet held until a revise of `
+      + `${open === 1 ? 'its step' : 'their steps'} supplies one`);
+  }
+  return parts.join('; ');
+}
+
+/**
+ * An option's label with what answering it grants after a dash, and — on a
+ * continue at a checkpoint holding choices for approval — that it approves
+ * them (`approvesHeld`).
+ */
 function grantedLabel(checkpoint, option) {
   const granted = grantsText(checkpoint.grants?.[option.id]);
-  return granted ? `${option.label} — ${granted}` : option.label;
+  const labelled = granted ? `${option.label} — ${granted}` : option.label;
+  const approving = option.effect === 'continue' ? approvesHeld(checkpoint.held) : '';
+  return approving ? `${labelled} — ${approving}` : labelled;
 }
 
 /** `A`, `A and B`, `A, B and C`. */
@@ -269,10 +297,40 @@ function fixText(fix) {
   return fix.finding ?? fix.change ?? '';
 }
 
-/** One decision line: its text, cut, and where it was settled. */
+/**
+ * One decision line: its text, cut, and where it was settled. A decision that
+ * carries its class names it after the text, then the first sentence of why.
+ */
 function decisionLine(item, max = DECISION_MAX) {
   const suffix = item.source ? ` — ${item.source}` : '';
-  return `- ${clip(item.decision, Math.max(20, max))}${suffix}`;
+  const room = Math.max(20, max);
+  if (!item.class) return `- ${clip(item.decision, room)}${suffix}`;
+  const lead = item.rationale ? `: ${clip(leadOf(item.rationale), room)}` : '';
+  return `- ${clip(item.decision, room)} (${item.class})${lead}${suffix}`;
+}
+
+/** A text's first sentence, or the whole text when it has no sentence end. */
+function leadOf(text) {
+  const end = [...String(text).matchAll(/[.!?](?=\s|$)/g)].find(each => !ABBREVIATION.test(text.slice(0, each.index)));
+  return end ? text.slice(0, end.index + 1) : String(text);
+}
+
+/**
+ * The choices the run made that wait for the user's approval, each with the
+ * step that holds it: `source` is that step's title, as a decision's is —
+ * the entry's own `step`, else the title of the closed node it names.
+ */
+function heldOf(checkpoint) {
+  const titles = new Map((checkpoint.closed ?? []).map(each => [each.node, each.title]));
+  const stepOf = item => (typeof item.step === 'string' && item.step !== '' ? item.step : titles.get(item.node) ?? null);
+  return (checkpoint.held ?? []).map(item => ({ ...item, source: stepOf(item) === null ? null : lowered(stepOf(item)) }));
+}
+
+/** One held line at a glance: the question, the choice made, and the step. */
+function heldLine(item, max) {
+  const room = Math.max(20, max);
+  const asked = item.question ? `${clip(item.question, room)}: ` : '';
+  return `- ${asked}${clip(item.decision, room)}${item.source ? ` — ${item.source}` : ''}`;
 }
 
 /**
@@ -309,11 +367,14 @@ function openRisks(checkpoint) {
  * settled risk are one focus away, in More details. Within `lines` and
  * `budget`, the items are cut while the text runs long, then the decisions
  * dropped from the end down to their count, then the fixes, then the risks
- * down to one, then the *Done* sentence is cut, and last the one risk left
- * gives way to a count; *Next* is never cut.
+ * down to one, then the *Done* sentence is cut, then the one risk left
+ * gives way to a count, and last the choices held for the user's approval —
+ * listed after *Review*, ahead of everything else — down to one and a count;
+ * *Next* is never cut.
  */
-function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false, ways = waysOf(checkpoint) }) {
+function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false, ways = waysOf(checkpoint), approving = false }) {
   const items = decided(checkpoint);
+  const held = heldOf(checkpoint);
   const fixes = checkpoint.fixes ?? [];
   const nexts = ways.length > 1
     ? ways.map(option => `Next (${lowered(option.label)}): ${nextText(option.next)}`)
@@ -321,12 +382,20 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   const risks = openRisks(checkpoint);
   const review = reviewText(checkpoint.review, companion);
   const choices = choicesLine(checkpoint);
-  const view = { fixes: Math.min(fixes.length, FIXED_CAP), shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), item: DECISION_MAX, done: Infinity };
+  const view = { held: held.length, fixes: Math.min(fixes.length, FIXED_CAP), shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), item: DECISION_MAX, done: Infinity };
   const draw = () => {
     const out = [];
     if (checkpoint.headline) out.push(`Done: ${clip(checkpoint.headline, view.done)}`);
     out.push(...nexts);
     if (review) out.push(`Review: ${review}`);
+    if (held.length) {
+      const rest = held.length - view.held;
+      // A continue's own preview says, on the heading, what choosing it does to them.
+      const doing = approving ? approvesHeld(checkpoint.held) : '';
+      const what = doing ? ` — continuing ${doing}` : '';
+      out.push(`${HELD_HEADING}${rest > 0 ? ` (+${rest} more under More details)` : ''}${what}:`);
+      out.push(...held.slice(0, view.held).map(item => heldLine(item, view.item)));
+    }
     if (view.risks > 0) {
       const rest = risks.length - view.risks;
       out.push(`Open risks${rest > 0 ? ` (+${rest} more under More details)` : ''}:`);
@@ -383,6 +452,12 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   }
   if (!fits() && view.risks > 0) {
     view.risks = 0;
+    out = draw();
+  }
+  // The choices waiting for approval give way last, and never to none: the
+  // user continuing approves them, so at least one stays named.
+  while (!fits() && view.held > 1) {
+    view.held--;
     out = draw();
   }
   return out;
@@ -495,7 +570,8 @@ function noteQuestion(option, profile) {
 // ---------------------------------------------------------------------------
 
 /**
- * The full brief, risks included: the *Done* sentence; each closed node's
+ * The full brief, risks included: the *Done* sentence; the choices held for
+ * the user's approval, each with its class and why; each closed node's
  * summary under its title; every fix the run applied; every decision with who
  * settled it; the user's choices; risks grouped as Open (a stop first),
  * Trade-offs accepted and Follow-ups; every file to review with what it
@@ -506,12 +582,16 @@ function noteQuestion(option, profile) {
 export function moreDetails(checkpoint) {
   const blocks = [];
   if (checkpoint.headline) blocks.push(`Done: ${checkpoint.headline}`);
+  const held = heldOf(checkpoint);
+  if (held.length) {
+    blocks.push([`**${HELD_HEADING}**`, ...held.map(item => `- ${item.question ? `${item.question}: ` : ''}${item.decision}${item.class ? ` (${item.class})` : ''}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
+  }
   for (const closed of checkpoint.closed ?? []) blocks.push(`**${closed.title}**\n${closed.summary}`);
   const fixes = checkpoint.fixes ?? [];
   if (fixes.length) blocks.push([`**${FIXED_HEADING}**`, ...fixes.map(fix => `- ${fixText(fix)}`)].join('\n'));
   const items = decided(checkpoint);
   if (items.length) {
-    blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
+    blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.class ? ` (${item.class})` : ''}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
   }
   const choices = choicesLine(checkpoint);
   if (choices) {
@@ -558,7 +638,8 @@ export function detailsPreview(text) {
  * `{question, glance}`. `question` is the rich picker's, the one a session asks
  * with, so the extension knows the question the panel belongs to by comparing
  * it. `glance` is plain one-line text fitted to `PANEL_ROWS` — the checkpoint
- * and what it closes, the *Done* sentence, how much was decided, how much the
+ * and what it closes, the *Done* sentence, how many choices are held for
+ * approval (at the head of the counts, so a cut never drops them), how much was decided, how much the
  * run fixed and how much is open, *Next* and *Review* — each line cut to the
  * rows left for it, so the extension draws it as it stands and counts nothing. It stays visible
  * whichever option is in focus, which the preview beside an option does not.
@@ -569,13 +650,14 @@ export function panelOf(checkpoint) {
   const risks = checkpoint.risks ?? {};
   const open = (risks.stop?.length ?? 0) + (risks.open?.length ?? 0);
   const fixed = (checkpoint.fixes ?? []).length;
+  const held = (checkpoint.held ?? []).length;
   const review = (checkpoint.review ?? []).map(each => each.path).join(', ');
   const wanted = {
     title: `Checkpoint ${progress.checkpoint}/${progress.checkpoints_max} · ${closing}`,
     headline: checkpoint.headline ?? '',
     next: `Next: ${nextText(checkpoint.next)}`,
     review: review ? `Review: ${review}` : '',
-    counts: `Decided: ${decided(checkpoint).length}${fixed ? ` · fixed: ${fixed}` : ''} · open risks: ${open}`,
+    counts: `${held ? `Held: ${held} · ` : ''}Decided: ${decided(checkpoint).length}${fixed ? ` · fixed: ${fixed}` : ''} · open risks: ${open}`,
   };
   const fitted = fittedLines(wanted, PANEL_SHARES);
   return {
@@ -583,7 +665,7 @@ export function panelOf(checkpoint) {
     glance: PANEL_ORDER.filter(key => Object.hasOwn(fitted, key)).map(key => fitted[key]),
     checkpoint: { index: progress.checkpoint, total: progress.checkpoints_max },
     open_risks: open,
-    parts: partsOf(checkpoint, { closing, open, fixed }),
+    parts: partsOf(checkpoint, { closing, open, fixed, held }),
   };
 }
 
@@ -651,12 +733,14 @@ export function questionPanelOf(checkpoint, { title: named, position }) {
  * part as files, `{label, path}` each (the path task-folder relative), with
  * `more` counting the files left out. The counts part carries the decisions as
  * its text, the open risks as words and a number, and `fixed`, how many fixes
- * the run applied, which an extension names only when it is not 0. Fitted as
+ * the run applied, which an extension names only when it is not 0, and
+ * `held`, how many choices wait for approval, present only when some do and
+ * drawn at the head of the line. Fitted as
  * the glance is — a part costs the rows of its label, a space and its text,
  * the review part's files separated by two spaces — so a panel drawn from them
  * holds to `PANEL_ROWS`.
  */
-function partsOf(checkpoint, { closing, open, fixed }) {
+function partsOf(checkpoint, { closing, open, fixed, held }) {
   const progress = checkpoint.progress ?? {};
   const one = text => String(text ?? '').replace(/\s+/g, ' ').trim();
   const wanted = {
@@ -689,8 +773,8 @@ function partsOf(checkpoint, { closing, open, fixed }) {
       continue;
     }
     if (key === 'counts') {
-      fitted.counts = { key, label: part.label, text: part.text, risks: part.risks, open, fixed };
-      left -= rowsOf(`${part.label} ${part.text}${fixed ? ` · ${fixed} fixed` : ''} · ${part.risks}`);
+      fitted.counts = { key, label: part.label, text: part.text, risks: part.risks, open, fixed, ...(held ? { held } : {}) };
+      left -= rowsOf(`${held ? `Held: ${held} · ` : ''}${part.label} ${part.text}${fixed ? ` · ${fixed} fixed` : ''} · ${part.risks}`);
       continue;
     }
     if (!part.text && key !== 'title') continue;
@@ -740,7 +824,7 @@ function answerFields(option, profile) {
 export function richPicker(checkpoint) {
   const options = ordered(checkpoint).map(option => {
     let lines;
-    if (option.effect === 'continue') lines = glance(checkpoint, { companion: 'beside', markdown: true, ways: option.next !== undefined ? [option] : [] });
+    if (option.effect === 'continue') lines = glance(checkpoint, { companion: 'beside', markdown: true, ways: option.next !== undefined ? [option] : [], approving: true });
     else if (option.effect === 'revise') lines = reviseLines(option);
     else lines = stopLines(checkpoint, option);
     return {

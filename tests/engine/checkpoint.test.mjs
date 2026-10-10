@@ -5,10 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, freezePatch, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import {
-  choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, richPicker, unmarked,
+  FOCUS_BUDGET, FOCUS_LINES, approvesHeld, choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, requestOf, richPicker, unmarked,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
@@ -1133,4 +1133,217 @@ test('fixes: one a fix loop logged as a string is shown as the change it names',
   const glance = pickerOf(run, 'verification-approval', 'rich').options[0].preview.split('\n');
   const at = glance.indexOf('Fixed by the run: 1');
   assert.equal(glance[at + 1], '- released the lock', glance.join('\n'));
+});
+
+// ---------------------------------------------------------------------------
+// held choices: listed first on every surface
+// ---------------------------------------------------------------------------
+
+/** A hand-built gate checkpoint, its run settlements classed and `held` choices waiting. */
+function heldCheckpoint({ held = 1, extra = {} } = {}) {
+  return {
+    kind: 'gate',
+    node: 'verification-approval',
+    ask: 'Verification complete. Ready to go on?',
+    header: 'Verify',
+    headline: 'Verification passed with two fixes applied.',
+    progress: { checkpoint: 4, checkpoints_max: 6 },
+    next: { node: 'commit', title: 'Commit', end: false, skipped: [] },
+    review: [{ path: 'verification/report.md', label: 'Report', html: null, role: 'primary' }],
+    closed: [{ node: 'verification', title: 'Verification', summary: 'All checks ran.' }, { node: 'planning', title: 'Planning', summary: 'Planned.' }],
+    fixes: [],
+    held: Array.from({ length: held }, (_, index) => ({
+      node: 'planning', question_id: `wave-${index + 1}`, question: `Which wave order ${index + 1}?`,
+      decision: `Order ${index + 1} first`, class: 'approve', rationale: `Order ${index + 1} unblocks the rest.`,
+    })),
+    decisions: {
+      run: [{ node: 'verification', decision: 'Keep the retry limit', class: 'decide', rationale: 'No load data says otherwise. More later.' }],
+      audit: [], default: [], operator: { count: 0, not_recommended: [] },
+    },
+    risks: { open: [{ risk: 'The timer test is flaky' }] },
+    options: [{ id: 'continue', label: 'Continue', effect: 'continue', recommended: true, consequence: 'Goes on.' }],
+    ...extra,
+  };
+}
+
+test('held: the glance lists held choices after Next and Review, ahead of the risks, in both pickers', () => {
+  const checkpoint = heldCheckpoint({ held: 2 });
+  const rich = richPicker(checkpoint).options[0].preview.split('\n');
+  const plain = plainPicker(checkpoint).question.split('\n');
+  // The continue's own preview says on the heading that choosing it approves them.
+  assert.ok(rich.includes('Held for your approval — continuing approves 2 held choices:'), rich.join('\n'));
+  assert.ok(plain.includes('Held for your approval:'), plain.join('\n'));
+  for (const glance of [rich, plain]) {
+    const at = glance.findIndex(line => line.startsWith('Held for your approval'));
+    assert.ok(at > glance.findIndex(line => line.startsWith('Review: ')), glance.join('\n'));
+    assert.ok(at > glance.findIndex(line => line.startsWith('Next: ')));
+    assert.equal(glance[at + 1], '- Which wave order 1?: Order 1 first — planning');
+    assert.equal(glance[at + 2], '- Which wave order 2?: Order 2 first — planning');
+    assert.ok(at < glance.findIndex(line => line.startsWith('Open risks')), glance.join('\n'));
+  }
+});
+
+test('held: every continue says it approves the held choices — label, description and preview on both pickers, and the request', () => {
+  const checkpoint = heldCheckpoint({ held: 2 });
+  const listed = [
+    { id: 'continue', label: 'Continue', effect: 'continue', recommended: true, consequence: 'Goes on. Approves 2 held choices.' },
+    { id: 'skip-ahead', label: 'Skip ahead', effect: 'continue', recommended: false, consequence: 'Skips ahead. Approves 2 held choices.' },
+    { id: 'stop', label: 'Stop', effect: 'stop', recommended: false, consequence: 'Ends the run here.' },
+  ];
+  const each = { ...checkpoint, options: listed };
+  const rich = richPicker(each).options;
+  assert.deepEqual(rich.slice(0, 3).map(option => option.label), [
+    'Continue — approves 2 held choices (Recommended)', 'Skip ahead — approves 2 held choices', 'Stop',
+  ]);
+  assert.deepEqual(rich.slice(0, 2).map(option => option.description), ['Goes on. Approves 2 held choices.', 'Skips ahead. Approves 2 held choices.']);
+  for (const option of rich.slice(0, 2)) assert.match(option.preview, /^Held for your approval — continuing approves 2 held choices:$/m);
+  assert.doesNotMatch(rich[2].preview, /approves/);
+  assert.deepEqual(plainPicker(each).options.slice(0, 3).map(option => option.label), [
+    'Continue — approves 2 held choices (Recommended)', 'Skip ahead — approves 2 held choices', 'Stop — keeps everything written so far',
+  ]);
+  assert.deepEqual(requestOf(each, 'Verified.').options.map(option => option.description), listed.map(option => option.consequence));
+
+  // A held question no choice was taken for is never approved by a continue: it stays held for a revise.
+  const open = heldCheckpoint({ held: 2 });
+  open.held[1] = { ...open.held[1], decision: 'No choice yet — needs your decision', no_choice: true };
+  assert.equal(approvesHeld(open.held), 'approves 1 held choice; leaves 1 held question with no choice yet held until a revise of its step supplies one');
+  assert.equal(approvesHeld([open.held[1], open.held[1]]), 'leaves 2 held questions with no choice yet held until a revise of their steps supplies one');
+  assert.equal(approvesHeld(checkpoint.held), 'approves 2 held choices');
+  assert.equal(approvesHeld([]), '');
+  assert.match(richPicker(open).options[0].label, /^Continue — approves 1 held choice; leaves 1 held question with no choice yet held until a revise of its step supplies one/);
+});
+
+test('held: More details opens with the held choices right after Done, each with its class and rationale', () => {
+  const blocks = moreDetails(heldCheckpoint()).split('\n\n');
+  assert.equal(blocks[0], 'Done: Verification passed with two fixes applied.');
+  assert.equal(blocks[1], '**Held for your approval**\n- Which wave order 1?: Order 1 first (approve) — Order 1 unblocks the rest. — planning');
+  const without = moreDetails(heldCheckpoint({ extra: { headline: undefined } })).split('\n\n');
+  assert.match(without[0], /^\*\*Held for your approval\*\*/);
+});
+
+test('held: the panel\'s counts line opens with how many are held', () => {
+  const panel = panelOfCheckpoint(heldCheckpoint({ held: 3 }));
+  const counts = panel.glance.find(line => line.startsWith('Held: '));
+  assert.ok(counts && counts.startsWith('Held: 3 · Decided: 1'), panel.glance.join('\n'));
+  assert.equal(panel.parts.find(part => part.key === 'counts').held, 3);
+});
+
+test('held: the request carries the held list on its checkpoint', () => {
+  const checkpoint = heldCheckpoint({ held: 2 });
+  const request = requestOf(checkpoint, 'Verification passed.');
+  assert.deepEqual(request.context.checkpoint.held, checkpoint.held);
+});
+
+test('held: a classed run settlement shows its class beside the decision on every surface', () => {
+  const checkpoint = heldCheckpoint();
+  const glance = plainPicker(checkpoint).question.split('\n');
+  assert.ok(glance.includes('- Keep the retry limit (decide): No load data says otherwise. — verification'), glance.join('\n'));
+  assert.ok(moreDetails(checkpoint).includes('- Keep the retry limit (decide) — No load data says otherwise. More later. — verification'));
+});
+
+test('held: many held choices are cut to one and a count, never to none; no held and no class renders as before', () => {
+  const long = (word, n) => Array.from({ length: n }, (_, index) => `${word}${index}`).join(' ');
+  const checkpoint = heldCheckpoint({
+    held: 12,
+    extra: {
+      headline: long('headline', 30),
+      fixes: Array.from({ length: 6 }, (_, index) => ({ finding: long(`finding${index}-`, 8), change: 'changed' })),
+      risks: { open: Array.from({ length: 8 }, (_, index) => ({ risk: long(`risk${index}-`, 12) })) },
+      decisions: {
+        run: Array.from({ length: 9 }, (_, index) => ({ node: 'verification', decision: long(`decision${index}-`, 10), class: 'decide' })),
+        audit: [], default: [], operator: { count: 4, not_recommended: [] },
+      },
+    },
+  });
+  const glance = richPicker(checkpoint).options[0].preview.split('\n').filter(line => line !== '');
+  assert.ok(glance.length <= FOCUS_LINES && glance.join('\n').length <= FOCUS_BUDGET, glance.join('\n'));
+  assert.ok(glance.includes('Held for your approval (+11 more under More details) — continuing approves 12 held choices:'), glance.join('\n'));
+  assert.ok(glance.some(line => line.startsWith('- Which wave order 1?')), glance.join('\n'));
+  const panel = panelOfCheckpoint(checkpoint);
+  assertFits(panel.glance);
+  assert.ok(panel.glance.some(line => line.startsWith('Held: 12 ·')), panel.glance.join('\n'));
+  assert.ok(partsRows(panel.parts) <= PANEL_ROWS);
+
+  // The same checkpoint with nothing held and nothing classed renders exactly
+  // as one that never had the keys.
+  const bare = heldCheckpoint();
+  delete bare.held;
+  delete bare.decisions.run[0].class;
+  const emptied = { ...bare, held: [] };
+  for (const render of [cp => richPicker(cp), cp => plainPicker(cp), cp => moreDetails(cp), cp => panelOfCheckpoint(cp)]) {
+    assert.deepEqual(render(emptied), render(bare));
+  }
+  assert.ok(!moreDetails(bare).includes('Held'));
+  assert.ok(!JSON.stringify(panelOfCheckpoint(bare)).includes('Held'));
+  assert.ok(plainPicker(bare).question.includes('- Keep the retry limit — verification'));
+});
+
+// The plain brief's budget, with held choices: the written state, through the
+// gate-brief verb. The policy fixture classes the in-node fixture's questions;
+// a question carrying an approve triage is held under a dispatch driver.
+const HELD_POLICY = sharedPlugin({ policy: JSON.parse(fs.readFileSync(path.join(FIXTURES, 'policy/questions.json'), 'utf8')) });
+
+test('held: the plain brief trims decisions, fixes and risks first, then the held list down to one and a count, never to none', t => {
+  const engine = HELD_POLICY.engine;
+  const send = patch => {
+    const result = runScript(engine, ['write-state', `--state=${run.state}`], patch);
+    assert.equal(result.code, 0, result.stderr);
+  };
+  const run = scratch(t);
+  send(freezePatch({
+    definition: path.join(FIXTURES, 'definitions/in-node-questions.yml'),
+    orchestrator: { options: { ceiling: 'advice' }, driver: { kind: 'dispatch', cwd: '/work' } },
+  }).patch);
+  send({ nodes: { scoping: { status: 'running' } } });
+  const words = (word, n) => Array.from({ length: n }, (_, index) => `${word}${index}`).join(' ');
+  const approve = { version: 1, class: 'approve', family: 'area-family' };
+  const questions = Array.from({ length: 12 }, (_, index) => ({
+    id: `held-${index + 1}`,
+    question: `Which held-${index + 1}?`,
+    options: [{ id: 'a', label: `held-${index + 1} ${words('choice', 14)}`, recommended: true }, { id: 'b', label: 'Other' }],
+    triage: approve,
+  }));
+  send({ node_summaries: { scoping: { question_set: { questions } } } });
+  send({
+    nodes: { scoping: { status: 'completed', values: { wants_review: true, wants_notes: false } } },
+    node_summaries: {
+      scoping: {
+        summary: words('summary', 60),
+        decisions: Array.from({ length: 5 }, (_, index) => ({ decision: `decision ${index} ${words('why', 12)}`, by: 'run' })),
+        fixes_applied: Array.from({ length: 4 }, (_, index) => ({ finding: `finding ${index} ${words('f', 10)}`, change: 'changed' })),
+        risks: Array.from({ length: 5 }, (_, index) => `open: risk ${index} ${words('r', 12)}`),
+      },
+    },
+  });
+  const result = runScript(engine, ['gate-brief', `--state=${run.state}`, '--node=review-approval']);
+  assert.equal(result.code, 0, result.stderr);
+  const lines = result.stdout.split('\n');
+  const heading = lines.findIndex(line => line.startsWith('Held for your approval'));
+  assert.equal(heading, 1, 'the held list comes right after the summary');
+  let kept = 0;
+  while (lines[heading + 1 + kept]?.startsWith('- ')) kept++;
+  assert.ok(kept >= 1 && kept < 12, result.stdout);
+  assert.match(lines[heading], new RegExp(`^Held for your approval \\(\\+${12 - kept} more in [^)]+\\):$`), result.stdout);
+  assert.match(lines[heading + 1], /^- Which held-1\?: held-1 choice0 /);
+  assert.equal(lines.filter(line => line.startsWith('- ')).length, kept, 'every decision, fix and risk went before any held choice');
+  assert.ok(lines.indexOf('Decisions:') === -1 && lines.indexOf('Risks:') === -1, result.stdout);
+
+  // A Review line that leaves room for almost nothing: the held list still
+  // keeps one choice and the count of the rest.
+  const deep = Array.from({ length: 3 }, (_, index) => `${String(index).repeat(150)}/${'d'.repeat(150)}/${'e'.repeat(150)}`);
+  const artifacts = deep.map((dir, index) => {
+    const relative = `outputs/${dir}/file-${index}.md`;
+    fs.mkdirSync(path.dirname(path.join(run.dir, relative)), { recursive: true });
+    fs.writeFileSync(path.join(run.dir, relative), '# written\n');
+    return { path: relative };
+  });
+  send({ node_summaries: { scoping: { artifacts } } });
+  const tight = runScript(engine, ['gate-brief', `--state=${run.state}`, '--node=review-approval']);
+  assert.equal(tight.code, 0, tight.stderr);
+  const tightLines = tight.stdout.split('\n');
+  const at = tightLines.findIndex(line => line.startsWith('Held for your approval'));
+  assert.match(tightLines[at], /^Held for your approval \(\+11 more in [^)]+\):$/, tight.stdout);
+  assert.match(tightLines[at + 1], /^- Which held-1\?: /);
+  assert.equal(tightLines.filter(line => line.startsWith('- ')).length, 1, tight.stdout);
+  assert.ok(tight.stdout.length > 1600, 'the brief is over its budget, so only the floor of one kept the held choice');
 });

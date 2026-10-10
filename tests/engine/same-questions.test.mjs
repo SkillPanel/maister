@@ -6,6 +6,7 @@ import path from 'node:path';
 import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
 import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 import { walk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
+import { inNodeQuestions } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 
 // What every built-in asks, and how each question reaches a person under each
 // driver, pinned against a snapshot taken from the engine before the autonomy
@@ -88,45 +89,8 @@ function triageKeys(value, at = '') {
 const SUMMARY = { status: 'completed', summary: 'Done.', decisions: [], risks: [] };
 
 // ---------------------------------------------------------------------------
-// In-node questions, parsed from the node prose
+// In-node questions, parsed from the node prose by the engine's own parser
 // ---------------------------------------------------------------------------
-
-/** A node's heading in the prose: `## \`node-id\``. */
-const NODE_HEADING = /^## `([a-z0-9-]+)`\s*$/;
-
-/** A question-set line, its parenthesis optional: `**With question sets** (the studio's \`id\`):`. */
-const QUESTION_LINE = /\*\*(With|Without) question sets\*\*(?:\s*\(([^)]*)\))?/;
-
-/** The backticked id inside a question-set line's parenthesis, any qualifier before it. */
-const QUESTION_ID = /`([a-z0-9-]+)`/;
-
-/**
- * Every `{node, id}` a node-prose file names on its With/Without question-set
- * lines, in file order, each pair counted once. A line with no parenthesis — the
- * file's preamble, or a `With` line whose `Without` partner carries the id —
- * names no question.
- */
-export function inNodeQuestions(text) {
-  const found = [];
-  const seen = new Set();
-  let node = null;
-  for (const line of text.split('\n')) {
-    const heading = NODE_HEADING.exec(line);
-    if (heading) {
-      node = heading[1];
-      continue;
-    }
-    const match = QUESTION_LINE.exec(line);
-    if (!match || match[2] === undefined) continue;
-    const id = QUESTION_ID.exec(match[2])?.[1];
-    if (!id || node === null) continue;
-    const key = `${node}\0${id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    found.push({ node, id });
-  }
-  return found;
-}
 
 function proseOf(name) {
   return fs.readFileSync(path.join(WORKFLOWS_DIR, `${name}.md`), 'utf8');
@@ -406,4 +370,81 @@ test('every built-in asks the same questions, carried the same way, under each d
     for (const id of reached) assert.ok(Object.hasOwn(gates, id), `${at}: the walk reached ${id}, which has no pinned text`);
   }
   assert.deepEqual(JSON.parse(texts), pinned);
+});
+
+// ---------------------------------------------------------------------------
+// The prose the classing write adds, read from the shipped files
+// ---------------------------------------------------------------------------
+
+/** The engine's SKILL.md. */
+function skillText() {
+  return fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8');
+}
+
+/** The text of the section headed exactly `heading`, up to the next heading of its level or above. */
+function sectionOf(text, heading) {
+  const lines = text.split('\n');
+  const start = lines.findIndex(line => line === heading);
+  assert.ok(start >= 0, `no section headed ${heading}`);
+  const level = heading.match(/^#+/)[0].length;
+  const end = lines.findIndex((line, at) => at > start && /^#+ /.test(line) && line.match(/^#+/)[0].length <= level);
+  return lines.slice(start, end === -1 ? undefined : end).join('\n');
+}
+
+/** The paragraphs of `text` that mention `needle`. */
+function paragraphsNaming(text, needle) {
+  return text.split(/\n\s*\n/).filter(paragraph => paragraph.includes(needle));
+}
+
+/** The publish paragraph every closing node carries under a dispatch driver. */
+const PUBLISH = '**Under a dispatch driver, publish the close-out through the outbox close-out';
+
+/** What the close-out order rule names. */
+const HELD_BRIEF = '`gate-brief --node=held-approval`';
+
+test('every closing node, and the engine\'s dispatched ending, asks held-approval before the close-out publish', () => {
+  for (const name of Object.keys(BUILT_INS)) {
+    const text = proseOf(name);
+    const publish = text.indexOf(PUBLISH);
+    assert.ok(publish >= 0, `${name}.md: no close-out publish paragraph`);
+    const sectionStart = text.lastIndexOf('\n## `', publish);
+    const section = text.slice(sectionStart, text.indexOf('\n## ', publish) === -1 ? undefined : text.indexOf('\n## ', publish));
+    const rule = section.indexOf(HELD_BRIEF);
+    assert.ok(rule >= 0, `${name}.md: the closing node's section never names ${HELD_BRIEF}`);
+    assert.ok(sectionStart + rule < publish, `${name}.md: ${HELD_BRIEF} comes after the close-out publish`);
+  }
+  const ending = sectionOf(skillText(), '### Ending a dispatched run');
+  assert.ok(ending.includes(HELD_BRIEF), `SKILL.md § Ending a dispatched run never names ${HELD_BRIEF}`);
+  assert.ok(ending.includes('`task.status: completed`'), 'the fallback\'s closing patch records task.status completed');
+  assert.ok(ending.includes('`gate-brief-nothing-held`'), 'the ending names the nothing-held refusal');
+});
+
+test('the classing preamble and close-out lines add no question-set marker, so the parser counts stay', () => {
+  for (const [name, count] of Object.entries(IN_NODE_COUNTS)) {
+    const text = proseOf(name);
+    const added = [...paragraphsNaming(text, '`ask:`'), ...paragraphsNaming(text, 'held-approval')];
+    assert.ok(added.length >= 2, `${name}.md: the classing preamble or the close-out order rule is missing`);
+    for (const paragraph of added) {
+      assert.ok(!/\*\*(With|Without) question sets\*\*/.test(paragraph), `${name}.md: a question-set marker in ${paragraph.slice(0, 80)}…`);
+    }
+    assert.equal(inNodeQuestions(text).length, count, `${name}.md: the parser count moved`);
+  }
+});
+
+test('every new refusal and warning has its row in the engine SKILL.md', () => {
+  const skill = skillText();
+  const rows = {
+    'gate-brief-nothing-to-ask': '### Before every gate — the gate brief',
+    'gate-brief-nothing-held': '### Before every gate — the gate brief',
+    'run-held-unapproved': '### When `run-complete` refuses',
+    'held-gate-skipped': '## Writing state',
+    'autonomy-ceiling-parent-unread': '## Writing state',
+  };
+  for (const [code, heading] of Object.entries(rows)) {
+    const section = sectionOf(skill, heading);
+    const row = section.split('\n').find(line => /^\s*(?:- |\| )/.test(line) && line.includes(`\`${code}`));
+    assert.ok(row, `${heading} has no row for ${code}`);
+  }
+  const triage = sectionOf(skill, '## In-node questions');
+  assert.ok(triage.includes('### When the policy classes a question'), 'the classing subsection closes § In-node questions');
 });

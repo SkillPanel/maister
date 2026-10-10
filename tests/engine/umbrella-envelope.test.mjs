@@ -152,3 +152,69 @@ test('envelope: a statement carrying quotes that validate passes is published an
   assert.ok(prompt.split('\n').includes(`The work: ${statement}`), prompt);
   assert.equal(descriptor.dispatch_id, 'd-0001');
 });
+
+// The autonomy ceiling travels in the envelope: `with.ceiling`, then the
+// member's, then the manifest defaults', then the dispatching run's own — and
+// whatever resolves is clamped to the dispatching run's ceiling, never wider.
+// A dispatching run with no ceiling dispatches none.
+
+/**
+ * Build one envelope for the node `plan` in `alpha`. `withCeiling`, `member` and
+ * `defaults` place a ceiling at that level of the chain; `dispatcher` is the
+ * dispatching run's recorded `orchestrator.options.ceiling`.
+ */
+function ceilingEnvelope(t, { withCeiling, member, defaults, dispatcher } = {}) {
+  const ws = workspace(t);
+  const text = fs.readFileSync(ws.manifest, 'utf8');
+  let manifest = text;
+  if (member !== undefined) manifest = manifest.replace('alpha: {path: repos/alpha, kind: repo}', `alpha: {path: repos/alpha, kind: repo, ceiling: ${member}}`);
+  if (defaults !== undefined) manifest = manifest.replace('  autonomy: attended\n', `  autonomy: attended\n  ceiling: ${defaults}\n`);
+  fs.writeFileSync(ws.manifest, manifest);
+  const definition = chain(ws, [
+    'name: chain', 'version: 1', 'nodes:',
+    '  plan:', '    uses: workflow:plan', '    dir: alpha', '    provider: claude', '    needs: []',
+    ...(withCeiling === undefined ? [] : ['    with:', `      ceiling: ${withCeiling}`]),
+  ].join('\n') + '\n');
+  const run = path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain');
+  fs.mkdirSync(run, { recursive: true });
+  const orchestrator = dispatcher === undefined ? {} : { options: { ceiling: dispatcher } };
+  freeze({ state: path.join(run, 'orchestrator-state.yml') }, { definition, orchestrator });
+  const result = umbrella(['envelope', `--run=${run}`, '--node=plan',
+    `--ledger=${path.join(ws.root, '.maister/umbrella/ledger')}`, `--root=${ws.root}`], {});
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  const report = JSON.parse(result.stdout);
+  return { envelope: report.envelope, text: fs.readFileSync(report.path, 'utf8') };
+}
+
+test('envelope: the ceiling resolves with, then member, then defaults, then the dispatching run', (t) => {
+  const all = { withCeiling: 'approve', member: 'advice', defaults: 'decide', dispatcher: 'decide' };
+  assert.equal(ceilingEnvelope(t, all).envelope.ceiling, 'approve');
+  assert.equal(ceilingEnvelope(t, { ...all, withCeiling: undefined }).envelope.ceiling, 'advice');
+  assert.equal(ceilingEnvelope(t, { ...all, withCeiling: undefined, member: undefined, defaults: 'advice' }).envelope.ceiling, 'advice');
+  const fromRun = ceilingEnvelope(t, { dispatcher: 'advice' });
+  assert.equal(fromRun.envelope.ceiling, 'advice');
+  assert.match(fromRun.text, /^autonomy: attended\nceiling: advice\npermissions:$/m, 'the line follows autonomy');
+});
+
+test('envelope: a with.ceiling of decide under an advice dispatcher is clamped to advice', (t) => {
+  assert.equal(ceilingEnvelope(t, { withCeiling: 'decide', dispatcher: 'advice' }).envelope.ceiling, 'advice');
+  assert.equal(ceilingEnvelope(t, { member: 'decide', dispatcher: 'approve' }).envelope.ceiling, 'approve');
+});
+
+test('envelope: a dispatching run with no ceiling dispatches none, even when with.ceiling names one', (t) => {
+  const { envelope, text } = ceilingEnvelope(t, { withCeiling: 'approve', member: 'advice' });
+  assert.equal(Object.hasOwn(envelope, 'ceiling'), false, JSON.stringify(envelope));
+  assert.doesNotMatch(text, /^ceiling:/m);
+});
+
+test('envelope: nothing resolving writes no ceiling line, the envelope unchanged', (t) => {
+  const { envelope, text } = ceilingEnvelope(t);
+  assert.equal(Object.hasOwn(envelope, 'ceiling'), false);
+  assert.doesNotMatch(text, /ceiling/);
+  assert.match(text, /^autonomy: attended\npermissions:$/m);
+});
+
+test('envelope: an unknown ceiling value reads as approve, with no refusal', (t) => {
+  assert.equal(ceilingEnvelope(t, { withCeiling: 'everything', dispatcher: 'decide' }).envelope.ceiling, 'approve');
+  assert.equal(ceilingEnvelope(t, { dispatcher: 'whatever' }).envelope.ceiling, 'approve');
+});

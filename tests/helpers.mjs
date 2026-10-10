@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { after, before } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { parse } from '../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
@@ -100,9 +101,46 @@ export function scratch(t, { fixture = null, type = 'development', name = '2026-
  * the copy's `workflow.mjs`, for `run`; removed when the test ends.
  */
 export function scratchPlugin(t, { policy } = {}) {
+  const { root, engine } = copyPlugin(policy);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  return engine;
+}
+
+/** The scratch copies `sharedPlugin` made in this file, by policy key. */
+const sharedPlugins = new Map();
+
+/**
+ * The scratch plugin of `scratchPlugin`, shared by every test of one file: a
+ * suite that runs many cases against one policy copies the plugin tree once.
+ * Call it at the top level of a test file; the copy is made in a top-level
+ * `before` and removed in a top-level `after`. A second call with the same
+ * policy returns the same handle. The handle's `engine` is the copy's
+ * `workflow.mjs`, for `run`, readable once the file's tests have started.
+ */
+export function sharedPlugin({ policy } = {}) {
+  const key = policy === undefined ? 'none' : typeof policy === 'string' ? `text:${policy}` : `json:${JSON.stringify(policy)}`;
+  if (sharedPlugins.has(key)) return sharedPlugins.get(key);
+  let copy = null;
+  const handle = {
+    get engine() {
+      if (copy === null) throw new Error('sharedPlugin: the copy is made in a top-level before; read engine inside a test');
+      return copy.engine;
+    },
+  };
+  sharedPlugins.set(key, handle);
+  before(() => {
+    copy = copyPlugin(policy);
+  });
+  after(() => {
+    if (copy !== null) fs.rmSync(copy.root, { recursive: true, force: true });
+  });
+  return handle;
+}
+
+/** Copy the plugin tree under a fresh temp root, `policy` written as `scratchPlugin` describes. */
+function copyPlugin(policy) {
   // Real-pathed, so a path built from it matches what the copied engine resolves from its own location.
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister-plugin-')));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const plugin = path.join(root, 'maister');
   fs.cpSync(path.join(ROOT, 'plugins/maister'), plugin, { recursive: true });
   const engineDir = path.join(plugin, 'skills/workflow-engine');
@@ -111,7 +149,7 @@ export function scratchPlugin(t, { policy } = {}) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, typeof policy === 'string' ? policy : `${JSON.stringify(policy, null, 2)}\n`);
   }
-  return path.join(engineDir, 'scripts/workflow.mjs');
+  return { root, engine: path.join(engineDir, 'scripts/workflow.mjs') };
 }
 
 /**

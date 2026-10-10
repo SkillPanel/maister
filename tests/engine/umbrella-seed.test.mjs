@@ -111,3 +111,41 @@ test('seed: the top tier publishes on its own, so it is never told to hold a com
     assert.ok(closeout.every(line => !/needs: \[permission\]/.test(line)), closeout.join('\n'));
   }
 });
+
+// An envelope carrying the autonomy ceiling tells the worker to record it in
+// its freeze patch, beside the driver; the value never renders as an argument,
+// and the seed stays within its cap with the line added.
+
+test('seed: the ceiling line is present with a ceiling, absent without, never an argument, and within the cap', () => {
+  const pluginRoot = path.join(ROOT, 'plugins/maister');
+  const recordLine = /^Record `orchestrator\.options\.ceiling: (\w+)` in your freeze patch, beside the driver: it is the autonomy ceiling your dispatch carries; the run may lower it later, never raise it\.$/;
+
+  const without = renderSeed(buildSeed(ENVELOPE, { pluginRoot })).split('\n');
+  assert.equal(without.filter(line => recordLine.test(line)).length, 0);
+
+  const withCeiling = {
+    ...ENVELOPE, ceiling: 'advice',
+    workflow: { uses: 'workflow:development', with: { ceiling: 'advice', autonomy: 'attended' } },
+  };
+  const lines = renderSeed(buildSeed(withCeiling, { pluginRoot })).split('\n');
+  const found = lines.filter(line => recordLine.test(line));
+  assert.equal(found.length, 1);
+  assert.equal(found[0].match(recordLine)[1], 'advice');
+  const driver = lines.findIndex(line => line.includes('orchestrator.driver: {'));
+  assert.ok(lines.indexOf(found[0]) > driver, 'the line follows the driver line');
+  assert.ok(lines.every(line => !/^\s*ceiling = /.test(line)), 'no ceiling argument line');
+
+  const unknown = renderSeed(buildSeed({ ...ENVELOPE, ceiling: 'everything' }, { pluginRoot })).split('\n');
+  assert.equal(unknown.find(line => recordLine.test(line)).match(recordLine)[1], 'approve');
+
+  // The worst case the other tests pin, with the ceiling line added.
+  for (const autonomy of Object.keys(PERMISSIONS)) {
+    for (const pr_required of [true, false]) {
+      const worst = renderSeed(buildSeed({
+        ...withCeiling, autonomy, permissions: PERMISSIONS[autonomy], closeout_contract: { pr_required },
+        inputs: [{ path: 'research/report.md', role: 'research' }],
+      }, { pluginRoot, siblings: 3 })).split('\n');
+      assert.ok(worst.length <= SEED_LINE_CAP, `${autonomy} ${pr_required}: the seed is ${worst.length} lines`);
+    }
+  }
+});
