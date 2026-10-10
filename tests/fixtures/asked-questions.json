@@ -122,6 +122,11 @@
             "transport": "question-set"
           },
           {
+            "id": "user-story",
+            "node": "specification",
+            "transport": "question-set"
+          },
+          {
             "id": "specification-requirements",
             "node": "specification",
             "transport": "question-set"
@@ -265,6 +270,11 @@
           },
           {
             "id": "technical-questions",
+            "node": "specification",
+            "transport": "default"
+          },
+          {
+            "id": "user-story",
             "node": "specification",
             "transport": "default"
           },
@@ -415,6 +425,11 @@
             "transport": "in-session"
           },
           {
+            "id": "user-story",
+            "node": "specification",
+            "transport": "in-session"
+          },
+          {
             "id": "specification-requirements",
             "node": "specification",
             "transport": "in-session"
@@ -544,6 +559,10 @@
       },
       {
         "id": "technical-questions",
+        "node": "specification"
+      },
+      {
+        "id": "user-story",
         "node": "specification"
       },
       {
@@ -1235,6 +1254,11 @@
             "transport": "question-set"
           },
           {
+            "id": "user-story",
+            "node": "problem-exploration",
+            "transport": "question-set"
+          },
+          {
             "id": "problem-refinement",
             "node": "problem-exploration",
             "transport": "question-set"
@@ -1338,6 +1362,11 @@
           },
           {
             "id": "problem-questions",
+            "node": "problem-exploration",
+            "transport": "default"
+          },
+          {
+            "id": "user-story",
             "node": "problem-exploration",
             "transport": "default"
           },
@@ -1448,6 +1477,11 @@
             "transport": "in-session"
           },
           {
+            "id": "user-story",
+            "node": "problem-exploration",
+            "transport": "in-session"
+          },
+          {
             "id": "problem-refinement",
             "node": "problem-exploration",
             "transport": "in-session"
@@ -1545,6 +1579,10 @@
       },
       {
         "id": "problem-questions",
+        "node": "problem-exploration"
+      },
+      {
+        "id": "user-story",
         "node": "problem-exploration"
       },
       {
