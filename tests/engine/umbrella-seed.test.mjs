@@ -112,6 +112,19 @@ test('seed: the top tier publishes on its own, so it is never told to hold a com
   }
 });
 
+// A node that publishes owes a pull request at a tier that cannot open one
+// alone: the publishing gate's answer grants the push and the pull request. The
+// worker is told one is owed, and how to report it if the grant never came.
+
+test('seed: a pull request owed at a tier that denies it is required, with the held-command report beside it', () => {
+  const closeout = closeoutOf('auto-medium', true);
+  assert.ok(closeout.some(line => /A pull request is required before close-out; open it/.test(line)), closeout.join('\n'));
+  const line = unpublished(closeout);
+  assert.equal(line.length, 1);
+  assert.match(line[0], /unless a gate's answer granted them/);
+  assert.match(line[0], /`gh pr create` when a pull request is owed/);
+});
+
 // An envelope carrying the autonomy ceiling tells the worker to record it in
 // its freeze patch, beside the driver; the value never renders as an argument,
 // and the seed stays within its cap with the line added.

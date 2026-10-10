@@ -527,9 +527,17 @@ function assertNoPermissionsOverride(overrides) {
  * route around the check an override already faces. A declaration that is not a
  * boolean is refused too rather than read as `false` — a close-out silently
  * lowered by a typo is the defect this field exists to remove.
+ *
+ * A node whose `with:` map sets `publish: true` asks the workflow it dispatches
+ * to push its branch and open a pull request, and the gate that approves the
+ * plan grants both — so the pull request is reachable at every tier and wanted,
+ * and an undeclared contract resolves to `true` rather than to what the tier
+ * alone could reach. Only the literal boolean counts. A declared `false` still
+ * wins; `validate` warns about that pair rather than refusing it.
  */
 function closeoutPrOf({ node, defined, autonomy, permissions, overrides }) {
-  const permitted = closeoutReachable({ autonomy, permissions });
+  const publishes = mapOf(defined.with).publish === true;
+  const permitted = publishes || closeoutReachable({ autonomy, permissions });
   const declared = closeoutDeclaration({ node, defined, overrides });
   if (declared === null) return permitted;
   if (declared && !permitted) {

@@ -345,6 +345,11 @@ close-out lowered by a typo is the defect the field exists to remove. An input
 override outranks the node, since a caller dispatching by hand is answering for
 that dispatch.
 
+A node whose `with:` map sets `publish: true` and declares nothing owes a pull
+request at every tier: the run it dispatches pushes its branch and opens one,
+and the gate approving its plan grants both. A declared `false` still wins, and
+`validate` warns `publish-pr-declined` at the declaration, keeping it as written.
+
 **`seed`** — after the envelope, to render the prompt the worker starts from. It
 is a pure function of the envelope, so its output is reproducible and testable.
 The section set and their order are frozen and the prompt is capped; the wording
