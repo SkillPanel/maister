@@ -534,6 +534,9 @@ function reportWrite(result, input) {
     process.stderr.write('note: ignored the supplied orchestrator.policy_hash; the freeze records it from the policy it applied,'
       + ' so no patch sets it\n');
   }
+  // A writer-owned value dropped for a reason of its own: the writer returns
+  // the sentence, and it is printed here as written.
+  for (const note of result.notes || []) process.stderr.write(`note: ${note}\n`);
   // The autonomy policy's own warnings and the skip-guard rule's, each a code
   // string: a refused policy file leaves the run on the built-in default, and a
   // gate recorded skipped that the rule asks is written as sent, so each is a

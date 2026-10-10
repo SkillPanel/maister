@@ -54,6 +54,12 @@
  * One whole-file write per invocation, temp-then-rename, and the temp file is
  * named exactly `orchestrator-state.yml.tmp` because a fixed name is what a
  * permission rule or hook can match (ADR-0012).
+ *
+ * Nothing about the write's own record is refused when it can be dropped:
+ * what went wrong comes back as data for `workflow.mjs` to print — a
+ * `writeWarnings` code such as `policy-refused:…` or
+ * `autonomy-ceiling-parent-unread:<run>`, and a `notes` sentence for a
+ * writer-owned value the patch sent, or an autonomy ceiling it would widen.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -87,7 +93,8 @@ import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, nodeKindI
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { foldAnswer, requestQuestions } from './question-set.mjs';
-import { loadPolicy, triageFor } from './policy.mjs';
+import { effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
+import { classesQuestions } from './question-triage.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -457,9 +464,15 @@ const WORKFLOW_CONTEXT = {
  * `writeWarnings` is kept apart from `warnings`: those name a file this write
  * did not publish, while these are code strings about the write's own record —
  * the autonomy policy it read (`policy-refused:…`), a gate it recorded skipped
- * that the skip-guard rule asks (`skip-guard-skipped:…`), or provenance it
- * could not copy (`provenance-unusable:…`) — each printed as its own
- * `warning:` line.
+ * that the skip-guard rule asks (`skip-guard-skipped:…`), provenance it
+ * could not copy (`provenance-unusable:…`), or a child run's parent whose
+ * autonomy ceiling it could not read (`autonomy-ceiling-parent-unread:<run>`)
+ * — each printed as its own `warning:` line.
+ *
+ * `notes` carries the reason for each writer-owned value the patch sent and
+ * the write dropped rather than refused — `orchestrator.classes_questions`,
+ * and an `orchestrator.options.ceiling` that would widen or remove the run's
+ * autonomy ceiling — one sentence each, printed as a `note:` line.
  *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
@@ -478,6 +491,7 @@ export function writeState({ state, patch, regress = null }) {
   const ignored = [];
   const undeclared = [];
   const writeWarnings = [];
+  const notes = [];
   try {
     checkPatch(patch);
     const doc = readDoc(state);
@@ -490,7 +504,7 @@ export function writeState({ state, patch, regress = null }) {
     // write that starts a run, and a later write re-sending `workflow:` into a
     // file that already carries one is not that write.
     const hadWorkflow = doc.has('workflow');
-    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), { changed, ignored, undeclared, writeWarnings }, regress)) allowed.add(key);
+    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), { changed, ignored, undeclared, writeWarnings, notes }, regress)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -517,7 +531,7 @@ export function writeState({ state, patch, regress = null }) {
     // After the viewer, so the status file's dashboard link sees the page the
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
-    const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings };
+    const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
     if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
     return result;
   } catch (err) {
@@ -1069,7 +1083,7 @@ function fallbackExecutor(doc) {
  * freshness cannot be reasoned about.
  */
 function apply(doc, patch, now, runDir, out, regress = null) {
-  const { changed, ignored, undeclared, writeWarnings } = out;
+  const { changed, ignored, undeclared, writeWarnings, notes } = out;
   const intended = new Set(['orchestrator']);
   // The run's frozen graph, proven, for the checks that need the definition;
   // resolved at most once per write, and only if one of them asks.
@@ -1090,13 +1104,28 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     orchestrator = rest;
     ignored.push('orchestrator.policy_hash');
   }
+  // `classes_questions` is the freeze's own record too, dropped the same way.
+  if (isPlainObject(orchestrator) && Object.hasOwn(orchestrator, 'classes_questions')) {
+    const { classes_questions: _supplied, ...rest } = orchestrator;
+    orchestrator = rest;
+    notes.push(FACT_NOTE);
+  }
+
+  // The policy, loaded at most once per write and only by a rule that reads it.
+  const freezing = Boolean(patch.workflow) && !doc.has('workflow');
+  let loaded = null;
+  const policyNow = () => (loaded ??= loadPolicy());
+  // Before `applyScalars`, which would otherwise write the value as sent.
+  orchestrator = freezing
+    ? seedCeiling(orchestrator, runDir, policyNow, writeWarnings)
+    : clampCeiling(doc, orchestrator, policyNow, notes);
 
   // Before the patch's own `orchestrator` keys, so the seeded sequences open
   // the block and a freeze's `parent` still follows every key the patch sends.
   if (patch.workflow) {
     seedSequences(doc, orchestrator, changed);
     seedCreated(doc, orchestrator, now, changed);
-    if (!doc.has('workflow')) seedPolicyHash(doc, changed, writeWarnings);
+    if (freezing) seedPolicyHash(doc, patch.workflow, policyNow(), changed, writeWarnings);
   }
   if (orchestrator) applyScalars(doc, 'orchestrator', orchestrator, changed);
   if (patch.task) {
@@ -2339,11 +2368,84 @@ function seedCreated(doc, orchestrator, now, changed) {
  * refused policy file is a warning on this write, never a refusal: the run
  * proceeds under the default and records the default's hash.
  */
-function seedPolicyHash(doc, changed, writeWarnings) {
-  const { hash, warnings } = loadPolicy();
+function seedPolicyHash(doc, workflow, loaded, changed, writeWarnings) {
+  const { policy, hash, warnings } = loaded;
   writeWarnings.push(...warnings);
   doc.set(['orchestrator', 'policy_hash'], [`  policy_hash: ${flow(hash, 'orchestrator.policy_hash')}`]);
   changed.push('orchestrator.policy_hash');
+  // Present only as `true`, so the built-in default — which classes nothing —
+  // freezes exactly the keys it always did.
+  if (classesQuestions(policy, isPlainObject(workflow) ? workflow.name : undefined)) {
+    doc.set(['orchestrator', 'classes_questions'], ['  classes_questions: true']);
+    changed.push('orchestrator.classes_questions');
+  }
+}
+
+/** The notes `apply` returns for a writer-owned value it dropped. */
+const FACT_NOTE = 'ignored the supplied orchestrator.classes_questions; the freeze records it from the policy it applied, so no patch sets it';
+const CEILING_NOTE = 'ignored the supplied orchestrator.options.ceiling; the autonomy ceiling may narrow after the freeze, never widen';
+
+/** A recorded or sent autonomy ceiling: a non-empty string, else null. */
+function ceilingIn(options) {
+  const value = isPlainObject(options) ? options.ceiling : undefined;
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/**
+ * The autonomy ceiling at the freeze: `options.ceiling` as the patch sends it,
+ * except in a child run. A child's freeze — the patch carries `parent` — reads
+ * the parent's state and records the narrower of the parent's effective
+ * autonomy ceiling and its own, or the parent's when it sends none. An
+ * unreadable parent copies nothing and warns `autonomy-ceiling-parent-unread`.
+ * Returns the orchestrator patch to apply.
+ */
+function seedCeiling(orchestrator, runDir, policyNow, writeWarnings) {
+  if (!isPlainObject(orchestrator) || !Object.hasOwn(orchestrator, 'parent')) return orchestrator;
+  const parent = orchestrator.parent;
+  // Judged before the path is built from it, exactly as `applyScalars` would.
+  assertParent(parent);
+  let recorded;
+  try {
+    const file = path.join(projectRootOf(runDir), parent.run, 'orchestrator-state.yml');
+    recorded = parseState(fs.readFileSync(file, 'utf8')).orchestrator;
+  } catch {
+    writeWarnings.push(`autonomy-ceiling-parent-unread:${parent.run}`);
+    return orchestrator;
+  }
+  const { policy, hash } = policyNow();
+  const inherited = effectiveCeiling({ orchestrator: recorded, policy, policyHash: hash });
+  if (inherited === null) return orchestrator;
+  const options = isPlainObject(orchestrator.options) ? orchestrator.options : {};
+  return { ...orchestrator, options: { ...options, ceiling: narrowerLevel(inherited, ceilingIn(options)) } };
+}
+
+/**
+ * The autonomy ceiling after the freeze. A sent `options.ceiling` is compared
+ * with the run's effective one — the recorded value, else the matching
+ * policy's `default_ceiling`, else none — and kept only when it is narrower or
+ * equal. A wider value, any value when none is in effect, and a removal — a
+ * null, empty or non-string `ceiling`, or, when one is recorded, an `options`
+ * that is not a map and would replace the whole map — are dropped with a note,
+ * never refused, and the rest of the patch applies. Returns the orchestrator
+ * patch to apply.
+ */
+function clampCeiling(doc, orchestrator, policyNow, notes) {
+  if (!isPlainObject(orchestrator) || !Object.hasOwn(orchestrator, 'options')) return orchestrator;
+  const { options, ...rest } = orchestrator;
+  if (!isPlainObject(options)) {
+    if (ceilingIn(typedOf(doc).orchestrator?.options) === null) return orchestrator;
+    notes.push(CEILING_NOTE);
+    return rest;
+  }
+  if (!Object.hasOwn(options, 'ceiling')) return orchestrator;
+  const current = typedOf(doc).orchestrator ?? {};
+  const { policy, hash } = ceilingIn(current.options) === null ? policyNow() : {};
+  const effective = effectiveCeiling({ orchestrator: current, policy, policyHash: hash });
+  const sent = ceilingIn(options);
+  if (sent !== null && effective !== null && narrowerLevel(sent, effective) === narrowerLevel(sent, null)) return orchestrator;
+  notes.push(CEILING_NOTE);
+  const { ceiling: _dropped, ...kept } = options;
+  return Object.keys(kept).length ? { ...rest, options: kept } : rest;
 }
 
 /**
