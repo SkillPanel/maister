@@ -137,7 +137,8 @@ test('two', () => {
     const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', child], { encoding: 'utf8', env });
     assert.equal(result.status, 0, result.stdout + result.stderr);
 
-    const line = prefix => result.stdout.split('\n').map(each => each.replace(/^#\s*/, ''))
+    // The TAP reporter escapes `\` and `#` in a comment line: a Windows path comes back doubled.
+    const line = prefix => result.stdout.split('\n').map(each => each.replace(/^#\s*/, '').replace(/\\([\\#])/g, '$1'))
       .find(each => each.startsWith(prefix))?.slice(prefix.length);
     const paths = JSON.parse(line('PATHS '));
     assert.equal(paths.first, paths.again, 'the same policy shares one copy');

@@ -29,7 +29,8 @@ const COCKPIT = { kind: 'cockpit', cwd: '/work', features: ['question-sets'] };
 
 /** A node's section of a node-prose file: from its `## \`id\`` heading to the next heading. */
 function sectionOf(workflow, node) {
-  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, `${workflow}.md`), 'utf8');
+  // In LF: a Windows checkout gives markdown CRLF.
+  const text = fs.readFileSync(path.join(WORKFLOWS_DIR, `${workflow}.md`), 'utf8').replace(/\r\n?/g, '\n');
   const start = text.indexOf(`\n## \`${node}\`\n`);
   assert.notEqual(start, -1, `${workflow}.md has a section for ${node}`);
   const end = text.indexOf('\n## ', start + 1);
