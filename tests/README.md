@@ -37,6 +37,8 @@ scaffolds with `init`. Only the dashboard normalizers
   `product-design.test.mjs` replays onto the shipped `product-design.yml` beside partial runs it
   walks to each of that workflow's gates. Its `outputs/delivery-scope.yml` is kept whole: it is the
   single-repository scope, read beside `fixtures/delivery-scope/workspace.yml`, a workspace's.
+  Its `analysis/decision-areas.json` is a 0-byte placeholder like its siblings: the brainstorm
+  declares it, so the replay needs it present to end on `RUN-COMPLETE`, and nothing reads its bytes.
 - `fixtures/gates/` — answered request documents a test copies over the pending one. `question-set.request.yml`
   is a `kind: question` request as `gate-brief --request` builds it from a three-question set (a
   single choice, one with nothing recommended, a multi-select), with the fields the request writer
@@ -66,8 +68,9 @@ freezing at test time, so editing a built-in does not stale a fixture.
 `make smoke` runs `node tests/shell-smoke.mjs --shell=bash`. Where the suite spawns `node` with an
 argv array, the smoke hands every engine call to a shell as one command line in the invocation
 contract's form, from a plugin copy and a project whose paths both hold a space: `locate`,
-`validate`, `resolve`, the freeze, two node writes, `gate-brief --json`, the dashboard projection and
-`resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
+`validate`, `resolve`, the freeze, two node writes, `area-brief` at a node that declares no
+decision areas (its fallback warning, exit 0 and nothing on stdout), `gate-brief --json`, the
+dashboard projection and `resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
 input. `--shell` takes `bash`, `zsh`, `pwsh`, `powershell` or `cmd`; cmd.exe lines quote with `"`,
 every other shell's with `'`. CI runs it under bash on Ubuntu, and under pwsh, Windows PowerShell,
 cmd.exe and Git Bash on Windows, where the paths are written with `\`.

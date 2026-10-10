@@ -137,12 +137,6 @@ test('recorded run: an unsanctioned research context reads as the one missing ar
   assert.equal(result.stdout, 'missing-artifact: intake context/research-context\nRUN-COMPLETE\n');
 });
 
-test('recorded run: the decision-areas file the brainstorm declares is found, so no missing-artifact names it', t => {
-  const result = complete(replayRecorded(t));
-  assert.equal(result.code, 0, result.stderr);
-  assert.doesNotMatch(result.stdout, /^missing-artifact: .*decision-areas\.json/m);
-});
-
 test('recorded run: the skipped personas owe nothing, and the closing check does not look for them', t => {
   const run = replayRecorded(t);
   assert.equal(fs.existsSync(path.join(run.dir, 'analysis/personas.md')), false);

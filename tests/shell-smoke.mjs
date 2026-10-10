@@ -12,7 +12,8 @@
  * lines quote with `"`.
  *
  * The run: `locate`, `validate`, `resolve`, the freeze, two node writes with a
- * patch no shell may touch, `gate-brief --json` at the gate, the dashboard
+ * patch no shell may touch, `area-brief`'s fallback at a node that declares no
+ * decision areas, `gate-brief --json` at the gate, the dashboard
  * projection and `resume-check`. Then the hooks, each started as `hooks.json`
  * starts it: the edition check under `node`, the two session-start reminders
  * and the destructive-command guard under `bash` (Git Bash on Windows).
@@ -163,6 +164,10 @@ try {
   // --- node writes ----------------------------------------------------------
   const running = writeState({ nodes: { analysis: { status: 'running' } } });
   check('a node write lands', running.code === 0 && readState().workflow?.nodes?.analysis?.status === 'running', show(running));
+
+  // --- area-brief -----------------------------------------------------------
+  const areas = call('area-brief', [flag('state', statePath), '--node=analysis', '--area=storage']);
+  check('area-brief at a node with no decision areas warns and prints nothing', areas.code === 0 && areas.stdout === '' && areas.stderr.trim() === 'warning: decision-areas-missing:not-declared', show(areas));
 
   const note = "Two gaps: $HOME, %PATH%, `ticks`, $(date), C:\\Program Files\\x, 'single' and \"double\" quotes";
   const completed = writeState({
