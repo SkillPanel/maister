@@ -83,7 +83,7 @@ const SOURCE_WORD = { audit: 'audit', default: 'default' };
 const SOURCE_HEADING = { run: 'the run', audit: 'the audit' };
 
 /** Where the recommended option says so, in its label. */
-const RECOMMENDED_MARK = ' (Recommended)';
+export const RECOMMENDED_MARK = ' (Recommended)';
 
 /** The id of the request for the full brief, which is never an answer. */
 export const MORE_DETAILS_ID = 'more-details';
@@ -114,7 +114,7 @@ const GRANT_WORDS = {
 };
 
 /** The cut More details' preview ends with. */
-const DETAILS_CUT = 'Choose this to see the rest.';
+export const DETAILS_CUT = 'Choose this to see the rest.';
 
 /**
  * The rows a panel drawn above the question may fill, and how a line is
@@ -171,7 +171,7 @@ function andList(names) {
 }
 
 /** `text` cut at a word to at most `max` characters, an ellipsis marking the cut. */
-function clip(text, max) {
+export function clip(text, max) {
   if (text.length <= max) return text;
   let cut = text.slice(0, Math.max(0, max - 1));
   if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
