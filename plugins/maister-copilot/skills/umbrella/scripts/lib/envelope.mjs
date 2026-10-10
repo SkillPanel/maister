@@ -77,7 +77,7 @@
  * `dispatch-graph-drifted`, `dispatch-autonomy-unresolved`,
  * `dispatch-autonomy-unknown`, `dispatch-workflow-not-driver-capable`,
  * `dispatch-run-unresolved`, `dispatch-permissions-override-unsupported`,
- * `dispatch-closeout-impossible`,
+ * `dispatch-closeout-impossible`, `dispatch-siblings-invalid`,
  * `dispatch-envelope-exists`, `dispatch-unwritable`, `dispatch-temp-exists`,
  * and `value-not-flow-safe` from the shared emitter. Each is documented with
  * its recovery in `SKILL.md`.
@@ -262,6 +262,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const statement = statementOf({ defined, overrides });
   const permissions = permissionsOf(autonomy);
   const prRequired = closeoutPrOf({ node, defined, autonomy, permissions, overrides });
+  const siblings = siblingsOf(overrides);
 
   return {
     version: VERSION,
@@ -298,8 +299,54 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
       pr_required: prRequired,
       grade: [...GRADES],
     },
+    ...(siblings === null ? {} : { siblings }),
   };
 }
+
+/**
+ * The other dispatches of the same outcome, as the caller lists them, or null.
+ *
+ * Only a caller knows which dispatches belong together — the graph does not —
+ * so the list arrives as an override and is never derived here. Each entry is
+ * `{member, branch, worktree}`, the three things a worker needs to find a
+ * sibling's delivered work and read it; the seed names them as read-only
+ * references. An absent or empty list writes no key, so an envelope built
+ * without one is byte-for-byte what it was. A malformed list is refused rather
+ * than trimmed, because a worker sent to a path that is half a path reads the
+ * wrong tree.
+ */
+function siblingsOf(overrides) {
+  const listed = mapOf(overrides).siblings;
+  if (listed === undefined || listed === null) return null;
+  const problem = siblingsProblem(listed);
+  if (problem !== null) {
+    throw new Refusal('dispatch-siblings-invalid',
+      `the dispatch override's siblings ${problem}. Send siblings as a list of {member, branch, worktree}, each a non-empty string, or leave the field out.`);
+  }
+  if (listed.length === 0) return null;
+  return listed.map((entry) => ({ member: entry.member, branch: entry.branch, worktree: entry.worktree }));
+}
+
+/**
+ * What is wrong with a siblings list, or null when nothing is. Shared with the
+ * seed, which may be pointed at any envelope on disk and judges the field the
+ * same way.
+ */
+export function siblingsProblem(listed) {
+  if (!Array.isArray(listed)) return 'is not a list';
+  for (const [index, entry] of listed.entries()) {
+    const fields = mapOf(entry);
+    for (const field of SIBLING_FIELDS) {
+      if (typeof fields[field] !== 'string' || fields[field].trim() === '') {
+        return `entry ${index} has no ${field}`;
+      }
+    }
+  }
+  return null;
+}
+
+/** The fields one sibling entry carries, in the order they are written. */
+const SIBLING_FIELDS = ['member', 'branch', 'worktree'];
 
 /**
  * Whether the workflow a `dir:` node names can honour a driver, and — when it
@@ -1015,6 +1062,7 @@ function emit(document) {
     `branch: ${scalar(document.branch, 'branch')}`,
     `ticket: ${scalar(document.ticket, 'ticket')}`,
     `closeout_contract: ${flow(document.closeout_contract, 'closeout_contract')}`,
+    ...(document.siblings == null ? [] : [`siblings: ${flow(document.siblings, 'siblings')}`]),
   ];
   return `${lines.join('\n')}\n`;
 }

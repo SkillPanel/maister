@@ -162,3 +162,38 @@ test('seed: the ceiling line is present with a ceiling, absent without, never an
     }
   }
 });
+
+// A seed lists the outcome's other dispatches only when its envelope does; with
+// none it renders exactly the section it always did, and a malformed list is
+// refused rather than rendered.
+
+function siblingsOf(envelope) {
+  const lines = renderSeed(buildSeed(envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') })).split('\n');
+  assert.ok(lines.length <= SEED_LINE_CAP);
+  return lines.slice(lines.indexOf('# siblings'));
+}
+
+test('seed: listed siblings are named read-only, anchored to the workspace root', () => {
+  const section = siblingsOf({ ...ENVELOPE, siblings: [
+    { member: 'api', branch: 'feature/run-api', worktree: 'members/api/.worktrees/run-api' },
+    { member: 'web', branch: 'feature/run-web', worktree: '/elsewhere/web' },
+  ] });
+  assert.ok(section.includes('- api: worktree /work/members/api/.worktrees/run-api, branch feature/run-api'), section.join('\n'));
+  assert.ok(section.includes('- web: worktree /elsewhere/web, branch feature/run-web'), 'an absolute path is kept');
+  assert.ok(section.some(line => /for reading only - never edit/.test(line)));
+  assert.ok(section.some(line => /never read or write another dispatch's outbox/.test(line)));
+});
+
+test('seed: control — no siblings listed renders the section unchanged', () => {
+  assert.deepEqual(siblingsOf(ENVELOPE), [
+    '# siblings',
+    'You may be running alongside other workers. Coordinate only through the outbox.',
+    "Never edit a sibling's repository, and never read or write another dispatch's outbox.",
+  ]);
+  assert.deepEqual(siblingsOf({ ...ENVELOPE, siblings: [] }), siblingsOf(ENVELOPE));
+});
+
+test('seed: a malformed siblings list is refused seed-envelope-invalid', () => {
+  assert.throws(() => buildSeed({ ...ENVELOPE, siblings: [{ member: 'api' }] }, { pluginRoot: path.join(ROOT, 'plugins/maister') }),
+    error => error.code === 'seed-envelope-invalid' && /siblings entry 0 has no branch/.test(error.message));
+});

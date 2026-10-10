@@ -355,9 +355,13 @@ is a pure function of the envelope, so its output is reproducible and testable.
 The section set and their order are frozen and the prompt is capped; the wording
 inside each section is free. A descriptor that would render past the cap is
 **refused, never truncated** — a silently shortened prompt is a worker missing
-its close-out contract. `--siblings` names the other dispatches in the same
+its close-out contract. `--siblings` counts the other dispatches in the same
 wave, which is what lets the prompt say how many workers are in flight and that
-they coordinate only through their outboxes.
+they coordinate only through their outboxes. When the envelope lists the other
+dispatches of the same outcome — an optional `siblings` field, a list of
+`{member, branch, worktree}` that only the dispatching caller can fill, sent in
+the `envelope` overrides — the prompt names each one as a reference to read for
+what it delivers and never to write. Without the field, nothing changes.
 
 **`ledger`** — for every state change to a dispatch. Seven ops: create an entry,
 claim it, update its status, add a constraint, add a follow-up, close it out,
@@ -556,6 +560,7 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-run-unresolved` | The node would be dispatched into a per-run worktree, but no run id resolves, and a worktree named after nothing would be shared by every run of the chain. Point `--run` at the run directory whose basename is the run id, or record the run's task path in its state, or set `defaults.worktree: false` to work in the member checkout itself. Nothing was written. |
 | `dispatch-permissions-override-unsupported` | The dispatch carries a `permissions` override. Permissions belong to the autonomy tier and to nothing else: each tier renders one fixed allow and deny list, and a per-dispatch override would hand a worker permissions its tier never granted. The field is refused rather than ignored, because a discarded security override leaves the caller believing it was applied. Drop `permissions` from the override document and dispatch the node at the tier whose permissions you mean. Nothing was written. |
 | `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. Nothing was written. |
+| `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
 | `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. If the dispatch really is being redone, it is a new dispatch. |
 | `dispatch-unwritable` | The dispatch directory could not be written. Fix the path or its permissions, then re-run. |
 | `dispatch-temp-exists` | Another writer holds the temp twin. Wait a minute and re-run; delete nothing. |

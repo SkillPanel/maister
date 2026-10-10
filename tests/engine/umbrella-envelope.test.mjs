@@ -287,3 +287,44 @@ test('validate: control — publish alone, or a declared false alone, warns noth
     assert.equal(report.warnings.filter((entry) => entry.code === 'publish-pr-declined').length, 0);
   }
 });
+
+// The other dispatches of an outcome travel in the envelope only when the
+// caller lists them. Listed, each is written and read back into the seed as a
+// read-only reference; absent, the envelope carries no key; malformed, the
+// dispatch is refused and nothing is published.
+
+const SIBLINGS = [{ member: 'beta', branch: 'feature/2026-01-05-chain-beta', worktree: 'repos/beta/.worktrees/2026-01-05-chain-beta' }];
+
+test('envelope: listed siblings are written and named by the seed as read-only references', (t) => {
+  const ws = workspace(t);
+  const report = published(dispatch(ws, publishChain(ws, []), { siblings: SIBLINGS }));
+  assert.deepEqual(report.envelope.siblings, SIBLINGS);
+  assert.match(fs.readFileSync(report.path, 'utf8'), /^siblings: \[\{member: beta, branch: feature\/2026-01-05-chain-beta, worktree: repos\/beta\/\.worktrees\/2026-01-05-chain-beta\}\]$/m);
+
+  const seeded = umbrella(['seed', `--envelope=${report.path}`]);
+  assert.equal(seeded.code, 0, seeded.stdout + seeded.stderr);
+  const lines = JSON.parse(seeded.stdout).prompt.split('\n');
+  const section = lines.slice(lines.indexOf('# siblings'));
+  assert.ok(section.some((line) => /for reading only - never edit, commit or run anything that writes there/.test(line)), section.join('\n'));
+  const anchored = `${report.envelope.workspace_root}/repos/beta/.worktrees/2026-01-05-chain-beta`;
+  assert.ok(section.includes(`- beta: worktree ${anchored}, branch feature/2026-01-05-chain-beta`), section.join('\n'));
+});
+
+test('envelope: control — no siblings listed writes no key, and an empty list is the same', (t) => {
+  for (const overrides of [{}, { siblings: [] }]) {
+    const ws = workspace(t);
+    const report = published(dispatch(ws, publishChain(ws, []), overrides));
+    assert.equal(Object.hasOwn(report.envelope, 'siblings'), false);
+    assert.doesNotMatch(fs.readFileSync(report.path, 'utf8'), /siblings/);
+  }
+});
+
+test('envelope: a malformed siblings list is refused dispatch-siblings-invalid and nothing is published', (t) => {
+  for (const siblings of ['beta', [{ member: 'beta', branch: 'feature/x' }], [{ member: '', branch: 'b', worktree: 'w' }]]) {
+    const ws = workspace(t);
+    const result = dispatch(ws, publishChain(ws, []), { siblings });
+    assert.equal(result.code, 1, result.stdout + result.stderr);
+    assert.equal(JSON.parse(result.stdout).errors[0].code, 'dispatch-siblings-invalid');
+    assert.equal(fs.existsSync(path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain/dispatch/dev.envelope.yml')), false);
+  }
+});
