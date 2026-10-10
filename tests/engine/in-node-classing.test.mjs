@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, ROOT, freezePatch, readState, run as runScript, scratch, sharedPlugin, umbrella, verb } from '../helpers.mjs';
+import { FIXTURES, ROOT, freezePatch, readDashboard, readState, run as runScript, scratch, sharedPlugin, umbrella, verb } from '../helpers.mjs';
 import { atClose, skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 import { checkpointOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display-files.mjs';
 import { provenGraph } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
@@ -26,6 +26,15 @@ import { approvalsOf, outstandingHeld } from '../../plugins/maister/skills/workf
 const policyOf = name => JSON.parse(fs.readFileSync(path.join(FIXTURES, 'policy', name), 'utf8'));
 const QUESTIONS = sharedPlugin({ policy: policyOf('questions.json') });
 const OTHER = sharedPlugin({ policy: policyOf('questions-default-ceiling.json') });
+
+// The questions policy, with the optional-step gate's classified value added:
+// one continue there sets a value the writer records as a settlement item.
+const SETTLING = (() => {
+  const policy = policyOf('questions.json');
+  const classifying = policyOf('classifying.json');
+  return { ...policy, families: { ...policy.families, ...classifying.families }, table: [...policy.table, ...classifying.table] };
+})();
+const WITH_SETTLEMENTS = sharedPlugin({ policy: SETTLING });
 
 const DEFINITION = path.join(FIXTURES, 'definitions/in-node-questions.yml');
 const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
@@ -1177,4 +1186,88 @@ test('held-approval: a driven run suspends on it, resumes at the close-out after
   assert.equal(state.workflow.nodes.closing.status, 'pending');
   assert.equal(state.workflow.nodes[HELD_APPROVAL_ID].status, 'pending');
   assert.equal(resumeCheckOf(sent).revision.applied, true);
+});
+
+// ---------------------------------------------------------------------------
+// 13. end to end
+// ---------------------------------------------------------------------------
+
+/** The dashboard's decisions on `node`'s phase, as the projection published them. */
+const dashboardDecisions = (run, node) => readDashboard(run).phases.find(phase => phase.id === node).decisions;
+
+test('end to end under dispatch: held, briefed first at the forced gate, approved by a continue, marked approved on the dashboard', t => {
+  // scoping holds signed-choice and sets wants_review false, so review-approval
+  // runs only because a choice is held.
+  const run = heldRun(t, { values: { wants_review: false, wants_notes: false } });
+  const before = byId(dashboardDecisions(run, 'scoping'), 'signed-choice');
+  assert.equal(before.triage.held, true);
+  assert.equal(Object.hasOwn(before, 'approved'), false);
+
+  const brief = gateBriefOf(run, 'review-approval', '--checkpoint');
+  assert.equal(brief.code, 0, brief.stderr);
+  const checkpoint = JSON.parse(brief.stdout);
+  assert.deepEqual(checkpoint.held, [HELD_ENTRY]);
+  const plain = gateBriefOf(run, 'review-approval');
+  assert.equal(plain.stdout.split('\n')[1], 'Held for your approval:');
+
+  drivenAnswer(run, 'review-approval', 'continue-past-review');
+  ok(QUESTIONS.engine, run, {});
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  const after = byId(dashboardDecisions(run, 'scoping'), 'signed-choice');
+  assert.deepEqual(after.approved, { by: 'dana' });
+  assert.equal(after.triage.held, true, 'the held mark stays as history');
+  for (const other of dashboardDecisions(run, 'scoping').filter(each => each.question_id !== 'signed-choice')) {
+    assert.equal(Object.hasOwn(other, 'approved'), false, other.question_id);
+  }
+});
+
+test('one continue records the answer, the settlement of the value it sets, then the approval of the held choice', t => {
+  const engine = WITH_SETTLEMENTS.engine;
+  const run = started(t, engine, { definition: path.join(FIXTURES, 'definitions/optional-step.yml'), node: 'specification', driver: DISPATCH });
+  const asked = { ...labelled('layout-choice'), triage: { version: 1, class: 'approve', family: 'area-family' } };
+  assert.equal(classing(engine, run, [], { node: 'specification', questions: [asked] }).code, 0);
+  ok(engine, run, { nodes: { specification: { status: 'completed' } }, node_summaries: { specification: { summary: 'Wrote it.' } } });
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['specification', 'layout-choice', 1]]);
+
+  ok(engine, run, {
+    nodes: { 'specification-approval': { status: 'completed' } },
+    node_summaries: { 'specification-approval': { decisions: [{ option: 'continue-to-audit', answered_by: 'dana' }] } },
+  });
+  const [answer, settlement, approval, ...rest] = decisionsAt(run, 'specification-approval');
+  assert.deepEqual(rest, []);
+  assert.equal(answer.option, 'continue-to-audit');
+  assert.equal(settlement.ref, 'audit_enabled');
+  assert.equal(settlement.decision, 'audit_enabled: true');
+  assert.equal(approval.question_id, 'layout-choice');
+  assert.equal(approval.node, 'specification');
+  assert.equal(approval.answered_by, 'dana');
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+
+  // A closing write re-sending the answer keeps one of each, in that order.
+  ok(engine, run, {
+    nodes: { 'specification-approval': { status: 'completed' } },
+    node_summaries: { 'specification-approval': { decisions: [{ option: 'continue-to-audit', answered_by: 'dana' }] } },
+  });
+  assert.deepEqual(decisionsAt(run, 'specification-approval').map(item => item.option ?? item.ref ?? item.question_id),
+    ['continue-to-audit', 'audit_enabled', 'layout-choice']);
+});
+
+test('the built-in default: a gate\'s checkpoint and request after a classing write carry no held list, class or triage', t => {
+  const words = /\btriage\b|\basking\b|classes_questions|\bheld\b|\bclass\b|Held/;
+  for (const driver of [COCKPIT, DISPATCH]) {
+    const run = started(t, null, { ceiling: null, driver });
+    assert.equal(classing(null, run, ['quick-choice', 'signed-choice']).code, 0);
+    ok(null, run, {
+      nodes: { scoping: { status: 'completed', values: { wants_review: true, wants_notes: false } } },
+      node_summaries: { scoping: { summary: 'Scoped the work.', decisions: [{ decision: 'quick-choice A', by: 'run', question_id: 'quick-choice' }] } },
+    });
+    for (const form of [['--checkpoint'], ['--request'], [], ['--oneline']]) {
+      const result = verb(['gate-brief', `--state=${run.state}`, '--node=review-approval', ...form]);
+      assert.equal(result.code, 0, result.stderr);
+      assert.doesNotMatch(result.stdout.replaceAll(ROOT, '<repo>'), words, `${driver.kind} ${form.join(' ') || 'plain'}`);
+    }
+    assert.doesNotMatch(fs.readFileSync(run.state, 'utf8').replaceAll(ROOT, '<repo>'), words);
+    // Nothing is ever held, so the closing checkpoint has nothing to ask.
+    refused(verb(['gate-brief', `--state=${run.state}`, '--node=held-approval']), 'gate-brief-nothing-held');
+  }
 });
