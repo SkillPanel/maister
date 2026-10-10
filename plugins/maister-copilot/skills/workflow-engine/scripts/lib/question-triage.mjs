@@ -40,7 +40,8 @@
  *   once the safety limit is spent.
  * - `heldApprovalLabel(option, title)` — the words one of those options is
  *   shown and recorded by.
- * - `heldApprovalBlockers(doc, owed)`, `heldApprovalCurrent(doc, owed)`,
+ * - `openHeld(doc)` — the outstanding held questions no choice was taken for.
+ * - `heldApprovalBlockers(doc, owed)`, `heldApprovalCurrent(doc, owed, before)`,
  *   `heldApprovalFolded(doc)` — when `HELD_APPROVAL` is askable, when it is
  *   the run's current checkpoint, and when a driven answer to it has been
  *   folded into the state. `owed` is what the run still owes at its close
@@ -355,6 +356,8 @@ export function approvalKey(node, item) {
  * node it names, `on` the checkpoint whose summary holds it.
  */
 export function approvalsOf(doc) {
+  // Gated as `outstandingHeld` is: only a classing run holds choices to approve.
+  if (doc?.orchestrator?.classes_questions !== true) return [];
   return summariesInOrder(doc).flatMap(([on, decisions]) => decisions.filter(isApproval)
     .map(item => ({ node: item.node, question_id: item.question_id, attempt: attemptNumber(item) ?? 1, item, on })));
 }
@@ -387,27 +390,37 @@ export function heldRevisions(doc) {
 }
 
 /**
- * The options `HELD_APPROVAL` offers: `continue` (recommended), a
- * `revise-<node>` for each node owning an outstanding held item in frozen
- * order, then `stop`. `revision` is the revise items already recorded
- * (`heldRevisions`) plus one; past `REVISION_CEILING` the revises are `spent`
- * and only continue and stop are offered. Returns `{revision, spent, options,
- * revises}`, each option `{id, effect, reruns?, recommended?}`; `revises` is
- * every revise option the held items call for, spent or not.
+ * The options `HELD_APPROVAL` offers: `continue`, a `revise-<node>` for each
+ * node owning an outstanding held item in frozen order, then `stop`.
+ * `revision` is the revise items already recorded (`heldRevisions`) plus one;
+ * past `REVISION_CEILING` the revises are `spent` and are not offered. While a
+ * held question with no choice yet waits (`isOpenHeld`), continue is not
+ * offered either: a revise of its step, with the choice in the note, settles
+ * it. `recommended` is continue, else the revise of the first step holding
+ * such a question, else stop. Returns `{revision, spent, recommended,
+ * options, revises}`, each option `{id, effect, reruns?, recommended?}`;
+ * `revises` is every revise option the held items call for, spent or not.
  */
 export function heldApprovalOptions(doc) {
   const revision = heldRevisions(doc) + 1;
   const spent = revision > REVISION_CEILING;
-  const owners = [...new Set(outstandingHeld(doc).map(each => each.node))];
+  const waiting = outstandingHeld(doc);
+  const owners = [...new Set(waiting.map(each => each.node))];
   const revises = owners.map(node => ({ id: `${REVISE_PREFIX}${node}`, effect: 'revise', reruns: node }));
+  // A held question with no choice yet is settled by a revise of its step,
+  // the choice in the note: no continue is offered while one waits.
+  const open = waiting.find(each => isOpenHeld(each.item));
+  const offered = [
+    ...(open ? [] : [{ id: 'continue', effect: 'continue' }]),
+    ...(spent ? [] : revises),
+    { id: 'stop', effect: 'stop' },
+  ];
+  const recommended = !open ? 'continue' : spent ? 'stop' : `${REVISE_PREFIX}${open.node}`;
   return {
     revision,
     spent,
-    options: [
-      { id: 'continue', effect: 'continue', recommended: true },
-      ...(spent ? [] : revises),
-      { id: 'stop', effect: 'stop' },
-    ],
+    recommended,
+    options: offered.map(option => (option.id === recommended ? { ...option, recommended: true } : option)),
     revises,
   };
 }
@@ -443,14 +456,22 @@ export function heldApprovalBlockers(doc, owed) {
 
 /**
  * Whether `HELD_APPROVAL` is the run's current checkpoint: no other gate is
- * pending on a driver (`gate_pending` null, or naming it), it is askable
- * (`heldApprovalBlockers`), and held items are outstanding — so no continue
- * has approved them since they were recorded.
+ * pending on a driver (`gate_pending` null, or naming it), it is askable —
+ * nothing blocks it (`heldApprovalBlockers`), or it is raised `before` the
+ * next checkpoint, which cannot revise the step holding a question with no
+ * choice yet (`heldApprovalBefore` in `gate-brief.mjs`) — and held items are
+ * outstanding, so no continue has approved them since they were recorded.
  */
-export function heldApprovalCurrent(doc, owed) {
+export function heldApprovalCurrent(doc, owed, before = null) {
   const pending = doc?.orchestrator?.gate_pending;
   const free = pending === null || pending === undefined || (isMap(pending) && pending.node === HELD_APPROVAL);
-  return free && heldApprovalBlockers(doc, owed).length === 0 && outstandingHeld(doc).length > 0;
+  const askable = before !== null || heldApprovalBlockers(doc, owed).length === 0;
+  return free && askable && outstandingHeld(doc).length > 0;
+}
+
+/** The outstanding held questions no choice was taken for (`isOpenHeld`), as `outstandingHeld` lists them. */
+export function openHeld(doc) {
+  return outstandingHeld(doc).filter(each => isOpenHeld(each.item));
 }
 
 /**

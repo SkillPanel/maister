@@ -118,7 +118,7 @@ import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as ent
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -287,11 +287,45 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const gateNode = byId.get(node);
   const options = gateNode?.type === 'gate' && isPlainObject(gateNode.options) ? gateNode.options : null;
 
+  // A revise names the nodes it will re-run, and only a trusted definition
+  // says which of them a guard will skip again.
+  const { titles } = current.display;
+  const guards = current.drift ? null : {
+    byId,
+    recorded,
+    status: new Map(frozenIds(recorded).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
+    inputs: inputsOf(doc),
+    defaults: current.defaults,
+    heldBy: [...new Set(held.map(each => each.node))],
+  };
+  const revisions = revisionsOf(doc, recorded, byId, node, options, titles, guards);
+
+  // A held question with no choice yet is settled by a revise of its step,
+  // the choice in the note. This gate recommends the revise that re-runs it;
+  // a gate with none that does is preceded by `held-approval`, which has one.
+  const open = held.filter(entry => entry.no_choice === true);
+  let settling = null;
+  if (open.length) {
+    const reach = reviseReach(recorded, byId, node, options);
+    const unreached = open.filter(entry => !reach.has(entry.node));
+    if (unreached.length) {
+      return refuse('gate-brief-not-askable',
+        `--node=${node} cannot be asked yet: ${heldQuestions(unreached)} ${unreached.length === 1 ? 'has' : 'have'} no choice yet, and this checkpoint `
+        + `offers no revise that re-runs ${andList([...new Set(unreached.map(entry => lowered(entry.step ?? entry.node)))])}. Nothing was written. `
+        + `Ask --node=${HELD_APPROVAL} first: its revise re-runs that step with the choice in your note`, warnings);
+    }
+    const revise = revisions.options.find(each => open.some(entry => each.work.includes(entry.node) || each.reruns === entry.node));
+    if (revise) {
+      settling = { option: revise.id, reason: `${heldQuestions(open)} ${open.length === 1 ? 'has' : 'have'} no choice yet: revise with the choice in your note` };
+      revise.suggestions = [...open.map(choiceSuggestion), ...revise.suggestions].slice(0, SUGGESTIONS_MAX);
+    }
+  }
+
   // Each continue walked on its own answer: a continue that sets the gate's
   // values may lead somewhere another does not. `walked` is the preferred
   // continue's walk, the one every single-next reader shows.
   const preferred = preferredContinue(doc, options, closing);
-  const recommended = recommend(options, closing.risks, preferred);
+  const recommended = settling?.option ?? recommend(options, closing.risks, preferred);
   // The recommended continue walked first, as the pickers list it, so every
   // form's per-continue Next lines read in the options' order.
   const continues = continuesOf(options).sort(([a], [b]) => (b === recommended) - (a === recommended));
@@ -306,20 +340,8 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     }
     walked = walks.get(preferred?.option ?? null) ?? walks.values().next().value;
   }
-  const { titles } = current.display;
   // Several continues each name where they lead; one keeps the single line.
   const several = walks.size > 1;
-  // A revise names the nodes it will re-run, and only a trusted definition
-  // says which of them a guard will skip again.
-  const guards = current.drift ? null : {
-    byId,
-    recorded,
-    status: new Map(Object.keys(recorded).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
-    inputs: inputsOf(doc),
-    defaults: current.defaults,
-    heldBy: [...new Set(held.map(each => each.node))],
-  };
-  const revisions = revisionsOf(doc, recorded, byId, node, options, titles, guards);
 
   // The driven form: one flow-safe line, the shape every driver and cockpit
   // has always read, kept as the fallback beside the checkpoint.
@@ -341,7 +363,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
-    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held,
+    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held, settling,
     approves: policyOf().matches ? policyOf().approves : [],
   }));
   // Every form carries the panel an editor extension draws above the question,
@@ -491,8 +513,7 @@ const HELD_CHIP = 'Held choices';
 /** Its one question. */
 const HELD_ASK = 'Approve the choices held for you, and finish the run?';
 
-/** What its options do, where the shared wording would say less. */
-const HELD_CONTINUE = 'Records your approval of each held choice, then finishes the run.';
+/** What its stop does, where the shared wording would say less. */
 const HELD_STOP = 'Ends the run here; the held choices stay unapproved.';
 
 /** The revises the rich picker lists beside continue and stop: its four slots, less those two. */
@@ -510,9 +531,15 @@ const NOTHING_SINCE = 'Nothing recorded since the last checkpoint.';
  * since the last checkpoint answered.
  *
  * Askable only when the run owes nothing else — or owes only a running node no
- * frozen node needs, the closing node while it runs (`heldApprovalBlockers`).
- * Two refusals: `gate-brief-nothing-held`, when no choice waits, and
+ * frozen node needs, the closing node while it runs (`heldApprovalBlockers`)
+ * — or, while a held question with no choice yet waits, before the next
+ * checkpoint when that one cannot revise its step (`heldApprovalBefore`). Two
+ * refusals: `gate-brief-nothing-held`, when no choice waits, and
  * `gate-brief-not-askable`, naming what is still owed.
+ *
+ * While a question with no choice yet waits, continue is not offered: the
+ * revise of its step is recommended, its suggestions opening with the note
+ * that asks for the choice.
  *
  * Every form a gate's brief has, from the same checkpoint: its progress is the
  * frozen gates' count plus one, it leads to the end of the run, and it grants
@@ -527,10 +554,15 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
       + 'write the closing patch and run run-complete');
   }
   const runDir = path.dirname(path.resolve(state));
-  const blockers = heldApprovalBlockers(doc, atClose({ doc, runDir }).owed);
+  const { owed } = atClose({ doc, runDir });
+  // Raised early, before a checkpoint that cannot revise the step holding a
+  // question with no choice yet; otherwise once nothing else is owed.
+  const before = heldApprovalBefore({ doc, runDir, owed });
+  const blockers = before === null ? heldApprovalBlockers(doc, owed) : [];
   if (blockers.length) {
     return refuse('gate-brief-not-askable',
-      `--node=${HELD_APPROVAL} is asked once nothing but the running closing node is left, and ${andList(blockers)} `
+      `--node=${HELD_APPROVAL} is asked once nothing but the running closing node is left — or, while a held question has no choice yet, `
+      + `before a checkpoint that cannot revise its step — and ${andList(blockers)} `
       + `${blockers.length === 1 ? 'is' : 'are'} still owed. Nothing was written. Finish ${blockers.length === 1 ? 'it' : 'them'} first, `
       + 'then ask it from the closing node, before its close-out');
   }
@@ -565,6 +597,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   // The options, and what each revise re-runs: its node and every frozen node
   // whose needs reach it, in frozen order.
   const derived = heldApprovalOptions(doc);
+  const open = held.filter(entry => entry.no_choice === true);
   const labels = Object.fromEntries(derived.options.map(option => [option.id, heldApprovalLabel(option.id, id => lowered(titleOf(titles, id)))]));
   const options = Object.fromEntries(derived.options.map(option => [option.id, option.effect === 'revise' ? { effect: 'revise', reruns: option.reruns } : { effect: option.effect }]));
   const edges = order.map(id => ({ id, needs: needsOf(recorded, byId, id) }));
@@ -575,31 +608,37 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
     options: derived.options.filter(option => option.effect === 'revise').map(option => {
       const reach = downstreamOf(edges, option.reruns);
       const work = order.filter(id => (id === option.reruns || reach.has(id)) && !gateId(id));
+      // A revise of a step holding a question with no choice yet asks for that choice first.
+      const choosing = open.filter(entry => entry.node === option.reruns).map(choiceSuggestion);
       return {
         id: option.id,
         reruns: option.reruns,
         work,
         history: revisedSoFar(derived.revision),
         description: `Re-run ${andList(work.map(id => titleOf(titles, id)))} with your note, then ask again.${revisedSoFar(derived.revision)}`,
-        suggestions: suggestionsFor(sources, [...work].reverse()),
+        suggestions: [...choosing, ...suggestionsFor(sources, [...work].reverse())].slice(0, SUGGESTIONS_MAX),
       };
     }),
   };
 
-  const walked = { ok: true, next: null, skipped: [], waiting: [] };
+  // Raised before a checkpoint, it leads there; at the close, to the end of the run.
+  const walked = { ok: true, next: before, skipped: [], waiting: [] };
   const display = { ...current.display, option_labels: { ...current.display.option_labels, [HELD_APPROVAL]: labels } };
   const built = buildCheckpoint({
     doc, runDir, node: HELD_APPROVAL, recorded, byId, titles, display, closing, ids, gateNode: { ask: HELD_ASK }, options, walked,
-    recommended: 'continue', revisions, gateId, held, approves: [],
+    recommended: derived.recommended, revisions, gateId, held, approves: [],
   });
+  const reason = open.length
+    ? `${heldQuestions(open)} ${open.length === 1 ? 'has' : 'have'} no choice yet: revise ${open.length === 1 ? 'its step' : 'their steps'} with the choice in your note`
+    : `${held.length} ${held.length === 1 ? 'choice waits' : 'choices wait'} for your approval`;
   const gates = order.filter(gateId).length + 1;
   const checkpoint = {
     ...built,
     header: HELD_HEADER,
     progress: { ...built.progress, checkpoint: gates, checkpoints_max: gates },
-    recommended: { option: 'continue', reason: `${held.length} ${held.length === 1 ? 'choice waits' : 'choices wait'} for your approval` },
+    recommended: { option: derived.recommended, reason },
     options: built.options.map(option => {
-      if (option.effect === 'continue') return { ...option, consequence: HELD_CONTINUE };
+      if (option.effect === 'continue') return { ...option, consequence: sentenceOf(`${approvesHeld(held)}, then finishes the run`) };
       if (option.effect === 'stop') return { ...option, consequence: HELD_STOP, not_run: { next: null, remaining: 0 } };
       return option;
     }),
@@ -615,7 +654,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   const next = nextLine(walked, titles);
   if (form === 'oneline') {
     const offered = revisions.spent ? [] : revisions.options.map(each => `revise: ${each.id} reruns=${each.reruns} revision=${revisions.revision}/${REVISION_CEILING}`);
-    const tail = [next, ...offered, 'Recommended: continue', runLine(doc, runDir)];
+    const tail = [next, ...offered, `Recommended: ${derived.recommended}`, runLine(doc, runDir)];
     return { ok: true, text: fit(closing, DRIVEN, tail, pointerOf(doc, runDir), held), panel, errors: [], warnings };
   }
   if (form === 'plain') {
@@ -633,16 +672,20 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
         `--reask=${reask} is not a revise option this checkpoint offers (${revises.length ? revises.join(', ') : 'it offers none'}); `
         + 'correct the --reask argument to the revise the operator chose — no state write fixes this', warnings);
     }
-    const oneline = fit(closing, DRIVEN, [next, 'Recommended: continue', runLine(doc, runDir)], pointerOf(doc, runDir), held);
+    const oneline = fit(closing, DRIVEN, [next, `Recommended: ${derived.recommended}`, runLine(doc, runDir)], pointerOf(doc, runDir), held);
     return { ok: true, request: requestOf(checkpoint, oneline.trimEnd(), asked), panel, errors: [], warnings };
   }
   let shaped;
   if (picker === 'plain') shaped = plainPicker(checkpoint);
   else {
-    // Four slots: continue, the revises nearest the end, stop; the question names the rest.
+    // Four slots: continue when offered, the revises nearest the end, stop; the question names the rest.
     const revises = checkpoint.options.filter(option => option.effect === 'revise');
-    const listed = revises.slice(-HELD_RICH_REVISES);
-    const rest = revises.slice(0, Math.max(0, revises.length - HELD_RICH_REVISES));
+    const room = HELD_RICH_REVISES + (checkpoint.options.some(option => option.effect === 'continue') ? 0 : 1);
+    // The recommended revise is always among them.
+    const chosen = revises.find(option => option.recommended);
+    let listed = revises.slice(-room);
+    if (chosen && !listed.includes(chosen)) listed = [chosen, ...listed.slice(1)];
+    const rest = revises.filter(option => !listed.includes(option));
     shaped = richPicker({ ...checkpoint, options: checkpoint.options.filter(option => option.effect !== 'revise' || listed.includes(option)) });
     if (rest.length) {
       shaped.question = `${shaped.question} Also offered, not listed: ${rest.map(option => `${option.label} (${option.id})`).join(', ')}; name one to choose it.`;
@@ -877,7 +920,7 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
   }
   const attempt = Number(entry.attempt);
   const revision = Number.isInteger(attempt) && attempt > 0 ? attempt : 1;
-  const ids = Object.keys(recorded).length ? Object.keys(recorded) : [...byId.keys()];
+  const ids = frozenIds(recorded).length ? frozenIds(recorded) : [...byId.keys()];
   const sources = summarySources(doc);
   const revise = Object.entries(targets).map(([id, reruns]) => {
     const stretch = reviseStretch({ ids, needsOf: each => needsOf(recorded, byId, each), reruns, gate });
@@ -896,6 +939,68 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
     };
   });
   return { revision, spent: revision > REVISION_CEILING, options: revise };
+}
+
+/**
+ * The nodes a revise this gate still offers would re-run: the union of each
+ * revise option's stretch (`reviseStretch`), its targets read from the frozen
+ * `reruns`, else the definition's options. Empty once the gate's revisions are
+ * spent, and for a gate with no revise.
+ */
+function reviseReach(recorded, byId, gate, options) {
+  const entry = entryOf(recorded, gate);
+  const attempt = Number(entry.attempt);
+  if (Number.isInteger(attempt) && attempt > REVISION_CEILING) return new Set();
+  const targets = isPlainObject(entry.reruns)
+    ? Object.values(entry.reruns).filter(target => typeof target === 'string')
+    : Object.values(isPlainObject(options) ? options : {})
+      .filter(option => isPlainObject(option) && option.effect === 'revise' && typeof option.reruns === 'string').map(option => option.reruns);
+  const ids = frozenIds(recorded).length ? frozenIds(recorded) : [...byId.keys()];
+  return new Set(targets.flatMap(reruns => reviseStretch({ ids, needsOf: each => needsOf(recorded, byId, each), reruns, gate })));
+}
+
+/** Held questions named for a sentence: `"Which A?"`, `"Which A?" and "Which B?"`. */
+function heldQuestions(entries) {
+  return andList(entries.map(entry => `"${entry.question ?? entry.question_id}"`));
+}
+
+/**
+ * The revise suggestion that asks for the choice a held question never got:
+ * its note names the question for the person to complete with their choice,
+ * which the re-run sends as the recommended option.
+ */
+function choiceSuggestion(entry) {
+  const question = entry.question ?? entry.question_id;
+  return {
+    label: clip(`Choose: ${question}`, 60),
+    description: 'Name your choice; the step asks it again with that option recommended',
+    note: sliced(`My choice for "${question}" (${entry.question_id}):`, NOTE_MAX),
+    recommended: false,
+  };
+}
+
+/**
+ * The checkpoint `held-approval` is raised before, or null. While a held
+ * question with no choice yet waits (`openHeld`), the next checkpoint the run
+ * reaches — the first owed gate whose needs have all settled — lists it only
+ * when one of its revises re-runs the step that holds it (`reviseReach`);
+ * otherwise `held-approval`, whose revise always does, is asked there first.
+ * `owed` is `atClose`'s.
+ */
+export function heldApprovalBefore({ doc, runDir, owed = null }) {
+  const open = openHeld(doc);
+  if (!open.length) return null;
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const current = reread(doc, workflow, runDir);
+  const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
+  const status = id => entryOf(recorded, id).status ?? 'pending';
+  const due = (owed ?? atClose({ doc, runDir }).owed).find(each => isGate(recorded, byId, each.id)
+    && readiness(needsOf(recorded, byId, each.id).map(status), byId.get(each.id)?.on) === 'ready');
+  if (!due) return null;
+  const options = byId.get(due.id)?.type === 'gate' && isPlainObject(byId.get(due.id).options) ? byId.get(due.id).options : null;
+  const reach = reviseReach(recorded, byId, due.id, options);
+  return open.every(each => reach.has(each.node)) ? null : due.id;
 }
 
 /**
@@ -921,8 +1026,11 @@ function earlierElsewhere(doc, recorded, gate, reruns, titles) {
   const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
   const where = [];
   let count = 0;
-  for (const id of Object.keys(recorded)) {
-    if (id === gate || entryOf(recorded, id).kind !== 'gate') continue;
+  // The frozen gates, then the reserved closing checkpoint, read from its
+  // summary whether or not a driven run recorded a status entry for it.
+  const gates = [...frozenIds(recorded).filter(id => entryOf(recorded, id).kind === 'gate'), HELD_APPROVAL];
+  for (const id of gates) {
+    if (id === gate) continue;
     const decisions = isPlainObject(summaries[id]) && Array.isArray(summaries[id].decisions) ? summaries[id].decisions : [];
     const here = decisions.filter(decision => isPlainObject(decision) && decision.reruns === reruns && Object.hasOwn(decision, 'attempt')).length;
     if (!here) continue;
@@ -1098,7 +1206,7 @@ const KEEPS_MAX = 3;
  * counted rather than listed. A fix is kept apart from the decisions: the run
  * changed it without asking, and settled nothing by it.
  */
-function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [] }) {
+function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [], settling = null }) {
   const title = id => titleOf(titles, id);
   // The frozen nodes alone: the reserved closing checkpoint's status entry is
   // never counted, and it stands after them all.
@@ -1222,7 +1330,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       const why = base.recommended && preferred?.option === id ? preferred.reason : null;
       if (why) consequence = `${consequence} ${sentenceOf(why)}`;
       // A continue approves every choice held for approval, and says so.
-      if (held.length) consequence = `${consequence} ${approvesHeld(held)}`;
+      if (held.length) consequence = `${consequence} ${sentenceOf(approvesHeld(held))}`;
       return [{ ...base, consequence, ...(why ? { reason: why } : {}), ...(sets ? { sets, next: own } : {}) }];
     }
     if (effect === 'revise') {
@@ -1250,6 +1358,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   const stopping = risks.stop.length > 0 && listed.some(option => option.recommended && option.effect === 'stop');
   let reason = null;
   if (stopping) reason = risks.stop[0].risk;
+  else if (settling && settling.option === recommended) reason = settling.reason;
   else if (preferred?.reason && preferred.option === recommended) reason = preferred.reason;
   else if (risks.open.length) reason = `${risks.open.length} open ${risks.open.length === 1 ? 'item' : 'items'}; revise to settle ${risks.open.length === 1 ? 'it' : 'them'} first`;
   else if (next?.title) reason = `nothing open blocks ${lowered(next.title)}`;

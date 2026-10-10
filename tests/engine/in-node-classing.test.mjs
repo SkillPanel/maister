@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { FIXTURES, ROOT, freezePatch, readDashboard, readState, run as runScript, scratch, sharedPlugin, umbrella, verb } from '../helpers.mjs';
-import { atClose, skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
+import { atClose, heldApprovalBefore, skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 import { checkpointOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display-files.mjs';
 import { provenGraph } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
 import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
@@ -710,6 +710,20 @@ test('prior-context: the asking remainder is never printed; an unapproved held c
   assert.doesNotMatch(runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]).stdout, /awaiting approval/);
 });
 
+test('prior-context: a question held with no choice is marked so, and its no_choice mark is not printed', t => {
+  const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [{ ...unrecommended('signed-choice') }] }).stdout), 'ask: none');
+  const text = runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]).stdout;
+  assert.match(text, /^- decision: No choice yet — needs your decision — by: default — .* \(held — no choice yet\)$/m);
+  assert.doesNotMatch(text, /no_choice/);
+});
+
+/** A question no option of which is recommended, its options labelled by its id. */
+function unrecommended(id) {
+  const each = labelled(id);
+  return { ...each, options: each.options.map(({ recommended: _r, ...option }) => option) };
+}
+
 // ---------------------------------------------------------------------------
 // 10. approvals: a continue at a checkpoint approves each held choice
 // ---------------------------------------------------------------------------
@@ -1171,18 +1185,47 @@ test('held-approval: its answer is folded, held to its options, stamped and judg
   assert.equal(outstandingHeld(readState(stopped)).length, 1);
 });
 
-test('held-approval: a held question with no choice taken is listed there as needing a decision, and its continue records it decided', t => {
+test('held-approval: with a question held with no choice it offers no continue — its step\'s revise, recommended, asks for the choice', t => {
   const run = heldClosing(t, { owners: [] });
-  const open = { ...labelled('closing-choice'), options: labelled('closing-choice').options.map(({ recommended: _r, ...option }) => option), triage: APPROVE_TRIAGE };
+  const open = { ...unrecommended('closing-choice'), triage: APPROVE_TRIAGE };
   assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'closing', questions: [open] }).stdout), 'ask: none');
   const checkpoint = JSON.parse(heldBrief(run, '--checkpoint').stdout);
   assert.deepEqual(checkpoint.held.map(each => [each.node, each.decision, each.no_choice]), [['closing', 'No choice yet — needs your decision', true]]);
+  assert.deepEqual(checkpoint.options.map(each => [each.id, each.recommended]), [['revise-closing', true], ['stop', false]]);
+  assert.deepEqual(checkpoint.recommended, { option: 'revise-closing', reason: '"Which closing-choice?" has no choice yet: revise its step with the choice in your note' });
+  assert.equal(checkpoint.options[0].suggestions[0].note, 'My choice for "Which closing-choice?" (closing-choice):');
   assert.match(heldBrief(run).stdout, /^- Which closing-choice\?: No choice yet — needs your decision \(approve\) — closing$/m);
+  assert.match(heldBrief(run, '--oneline').stdout, / · Recommended: revise-closing · /);
+  const request = JSON.parse(heldBrief(run, '--request').stdout);
+  assert.deepEqual(request.options.map(each => each.id), ['revise-closing', 'stop']);
+  assert.deepEqual(JSON.parse(heldBrief(run, '--json', '--picker=rich').stdout).options.map(each => each.id), ['revise-closing', 'stop', 'more-details']);
+  assert.deepEqual(JSON.parse(heldBrief(run, '--json', '--picker=plain').stdout).options.map(each => each.id), ['revise-closing', 'stop', 'more-details']);
+  // The writer holds the answer to the same options: a continue is refused, and nothing is approved.
+  refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } }), 'state-gate-option-unknown');
+  assert.equal(outstandingHeld(readState(run)).length, 1);
+});
+
+test('held-approval: a second continue, after another choice is held, approves it too', t => {
+  const run = heldClosing(t, { owners: ['closing'] });
   ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
-  const [, approval] = decisionsAt(run, HELD_APPROVAL_ID);
-  assert.equal(approval.decision, 'closing-choice: decided at this checkpoint; no choice was taken before it');
-  assert.equal(approval.no_choice, true);
   assert.deepEqual(outstandingHeld(readState(run)), []);
+  const again = { ...labelled('second-choice'), triage: APPROVE_TRIAGE };
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'closing', questions: [again] }).stdout), 'ask: none');
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['closing', 'second-choice', 1]]);
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  assert.deepEqual(keyed(approvalsOf(readState(run))), [['closing', 'closing-choice', 1], ['closing', 'second-choice', 1]]);
+  closeRun(run);
+  assert.match(completeRun(run, ...publishCloseout(run)).stdout, /RUN-COMPLETE\n$/);
+});
+
+test('held-approval: its continue says what it approves, as its label does', t => {
+  const run = heldClosing(t, { owners: ['choosing', 'closing'] });
+  const go = JSON.parse(heldBrief(run, '--checkpoint').stdout).options.find(option => option.id === 'continue');
+  assert.equal(go.consequence, 'Approves 2 held choices, then finishes the run.');
+  const rich = JSON.parse(heldBrief(run, '--json', '--picker=rich').stdout).options[0];
+  assert.equal(rich.label, 'Approve and finish — approves 2 held choices (Recommended)');
+  assert.equal(rich.description, go.consequence);
 });
 
 test('held-approval: run-complete refuses run-held-unapproved after the unfinished nodes and before the close-out', t => {
@@ -1409,41 +1452,113 @@ test('end to end under dispatch: held, briefed first at the forced gate, approve
   }
 });
 
-test('end to end under dispatch: a held question with no choice taken forces the checkpoint, is shown as needing a decision, and is recorded decided there', t => {
+test('end to end under dispatch: a question held with no choice is settled by a revise carrying the choice, then approved — never by a continue', t => {
+  // The review loop: draft holds the question, and review-approval's send-back re-runs draft.
+  const run = started(t, QUESTIONS.engine, { definition: REVISE, node: 'draft', driver: DISPATCH });
+  const open = { ...unrecommended('layout-choice'), triage: APPROVE_TRIAGE };
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'draft', questions: [open] }).stdout), 'ask: none');
+  ok(QUESTIONS.engine, run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } }, figures: { status: 'skipped' }, 'side-note': { status: 'completed' }, review: { status: 'completed' } },
+    node_summaries: { draft: { summary: 'Drafted.' }, review: { summary: 'Reviewed.' } },
+  });
+  assert.equal(byId(dashboardDecisions(run, 'draft'), 'layout-choice').no_choice, true);
+
+  // The checkpoint whose revise re-runs draft lists it, and recommends that revise with a note asking for the choice.
+  const checkpoint = JSON.parse(gateBriefOf(run, 'review-approval', '--checkpoint').stdout);
+  assert.equal(checkpoint.held[0].no_choice, true);
+  assert.deepEqual(checkpoint.recommended, { option: 'send-back', reason: '"Which layout-choice?" has no choice yet: revise with the choice in your note' });
+  const sendBack = checkpoint.options.find(option => option.id === 'send-back');
+  assert.equal(sendBack.recommended, true);
+  assert.equal(sendBack.suggestions[0].note, 'My choice for "Which layout-choice?" (layout-choice):');
+  const publish = checkpoint.options.find(option => option.id === 'publish-draft');
+  assert.match(publish.consequence, / Leaves 1 held question with no choice yet held until a revise of its step supplies one\.$/);
+
+  // A continue there approves nothing it was not given a choice for.
+  answerGate(run, 'review-approval', 'publish-draft');
+  assert.deepEqual(approvalsOf(readState(run)), []);
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['draft', 'layout-choice', 1]]);
+  assert.equal(Object.hasOwn(byId(dashboardDecisions(run, 'draft'), 'layout-choice'), 'approved'), false);
+
+  // final-approval's redo-draft reaches draft too: it is asked, recommending that revise.
+  ok(QUESTIONS.engine, run, { nodes: { publish: { status: 'completed' } }, node_summaries: { publish: { summary: 'Published.' } } });
+  assert.equal(JSON.parse(gateBriefOf(run, 'final-approval', '--checkpoint').stdout).recommended.option, 'redo-draft');
+  const sent = runScript(QUESTIONS.engine, ['gate-revise', `--state=${run.state}`, '--node=final-approval', '--option=redo-draft'],
+    { note: 'My choice for "Which layout-choice?" (layout-choice): layout-choice B' });
+  assert.equal(sent.code, 0, sent.stderr);
+  assert.deepEqual(outstandingHeld(readState(run)), [], 'the reset cleared the question held with no choice');
+
+  // The re-run reads the note, and sends the question with that choice recommended: held with it, provisionally.
+  ok(QUESTIONS.engine, run, { nodes: { draft: { status: 'running' } } });
+  assert.match(runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]).stdout, /^Note: My choice for "Which layout-choice\?" \(layout-choice\): layout-choice B$/m);
+  const chosen = { ...unrecommended('layout-choice'), triage: APPROVE_TRIAGE };
+  chosen.options = chosen.options.map(option => (option.id === 'b' ? { ...option, recommended: true } : option));
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'draft', questions: [chosen] }).stdout), 'ask: none');
+  const provisional = byId(summaryOf(run, 'draft').decisions, 'layout-choice');
+  assert.equal(provisional.decision, 'layout-choice B');
+  assert.equal(Object.hasOwn(provisional, 'no_choice'), false);
+  assert.equal(provisional.attempt, 2);
+
+  // The next checkpoint approves it with its continue, as any held choice.
+  ok(QUESTIONS.engine, run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } }, figures: { status: 'skipped' }, 'side-note': { status: 'completed' }, review: { status: 'completed' } },
+    node_summaries: { draft: { summary: 'Drafted again.' }, review: { summary: 'Reviewed again.' } },
+  });
+  answerGate(run, 'review-approval', 'publish-draft');
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  assert.deepEqual(byId(dashboardDecisions(run, 'draft'), 'layout-choice').approved, { by: readState(run).node_summaries['review-approval'].decisions.findLast(item => item.option).answered_by });
+  ok(QUESTIONS.engine, run, { nodes: { publish: { status: 'completed' } }, node_summaries: { publish: { summary: 'Published again.' } } });
+  answerGate(run, 'final-approval', 'close');
+  ok(QUESTIONS.engine, run, { task: { status: 'completed' } });
+  refused(gateBriefOf(run, HELD_APPROVAL_ID), 'gate-brief-nothing-held');
+  assert.match(completeRun(run, ...publishCloseout(run)).stdout, /RUN-COMPLETE\n$/);
+});
+
+test('end to end under dispatch: a checkpoint that cannot revise the step is preceded by held-approval, whose revise carries the choice', t => {
+  // review-approval offers continue and stop only, so held-approval is asked before it.
   const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
-  const unrecommended = { ...labelled('signed-choice'), options: labelled('signed-choice').options.map(({ recommended: _r, ...option }) => option) };
-  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [labelled('quick-choice'), unrecommended] }).stdout), 'ask: none');
+  const open = { ...unrecommended('signed-choice') };
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [labelled('quick-choice'), open] }).stdout), 'ask: none');
   ok(QUESTIONS.engine, run, {
     nodes: { scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } } },
     node_summaries: { scoping: { summary: 'Scoped the work.' } },
   });
-  // Forced like any held choice: the run owes the gate its task guard would skip.
-  const owed = atClose({ doc: readState(run), runDir: run.dir }).owed.find(each => each.id === 'review-approval');
-  assert.equal(owed?.held, true);
+  const blocked = gateBriefOf(run, 'review-approval', '--checkpoint');
+  refused(blocked, 'gate-brief-not-askable');
+  assert.match(blocked.stderr, /"Which signed-choice\?" has no choice yet, and this checkpoint offers no revise that re-runs scoping\. Nothing was written\. Ask --node=held-approval first/);
+  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), 'review-approval');
+  // run-complete owes the gate, and says held-approval comes first.
+  ok(QUESTIONS.engine, run, { task: { status: 'completed' } });
+  assert.match(completeRun(run).stderr, /review-approval \(pending; held-approval is asked before it: a held question has no choice yet/);
+  ok(QUESTIONS.engine, run, { task: { status: 'in_progress' } });
 
-  const checkpoint = JSON.parse(gateBriefOf(run, 'review-approval', '--checkpoint').stdout);
-  assert.deepEqual(checkpoint.held, [{
-    node: 'scoping', step: 'Scoping', question_id: 'signed-choice', question: 'Which signed-choice?', decision: 'No choice yet — needs your decision',
-    class: 'approve', no_choice: true,
-  }]);
-  const go = checkpoint.options.find(option => option.id === 'continue-past-review');
-  assert.match(go.consequence, / Records 1 held question with no choice yet as decided here\.$/);
-  assert.doesNotMatch(go.consequence, /Approves/);
-  const request = JSON.parse(gateBriefOf(run, 'review-approval', '--request').stdout);
-  assert.equal(request.options.find(option => option.id === 'continue-past-review').description, go.consequence);
-  assert.match(gateBriefOf(run, 'review-approval').stdout, /^- Which signed-choice\?: No choice yet — needs your decision \(approve\) — scoping$/m);
-  const before = byId(dashboardDecisions(run, 'scoping'), 'signed-choice');
-  assert.equal(before.no_choice, true);
-  assert.equal(Object.hasOwn(before, 'approved'), false);
-
-  drivenAnswer(run, 'review-approval', 'continue-past-review');
-  ok(QUESTIONS.engine, run, {});
+  const checkpoint = JSON.parse(heldBrief(run, '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.options.map(each => each.id), ['revise-scoping', 'stop']);
+  assert.equal(checkpoint.next.node, 'review-approval');
+  assert.deepEqual(checkpoint.held.map(each => [each.question_id, each.no_choice]), [['signed-choice', true]]);
+  const revised = heldRevised(run, 'revise-scoping', 'My choice for "Which signed-choice?" (signed-choice): signed-choice B');
+  assert.match(revised.stdout, /^revised: held-approval reruns=scoping revision=1\/10 reset=scoping,review-approval,depth-approval,drafting,notes,notes-approval,finish$/m);
   assert.deepEqual(outstandingHeld(readState(run)), []);
-  const recorded = decisionsAt(run, 'review-approval').find(item => item.question_id === 'signed-choice');
-  assert.equal(recorded.decision, 'signed-choice: decided at this checkpoint; no choice was taken before it');
-  assert.equal(recorded.no_choice, true);
-  assert.equal(recorded.answered_by, 'dana');
-  assert.deepEqual(byId(dashboardDecisions(run, 'scoping'), 'signed-choice').approved, { by: 'dana', no_choice: true });
+
+  // The re-run holds the choice it was given; review-approval is now asked, and its continue approves it.
+  ok(QUESTIONS.engine, run, { nodes: { scoping: { status: 'running' } } });
+  const chosen = { ...unrecommended('signed-choice') };
+  chosen.options = chosen.options.map(option => (option.id === 'b' ? { ...option, recommended: true } : option));
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [labelled('quick-choice'), chosen] }).stdout), 'ask: none');
+  ok(QUESTIONS.engine, run, {
+    nodes: { scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } } },
+    node_summaries: { scoping: { summary: 'Scoped again.' } },
+  });
+  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), null);
+  const listed = JSON.parse(gateBriefOf(run, 'review-approval', '--checkpoint').stdout);
+  assert.deepEqual(listed.held.map(each => [each.decision, each.no_choice ?? null]), [['signed-choice B', null]]);
+  answerGate(run, 'review-approval', 'continue-past-review');
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  assert.deepEqual(byId(dashboardDecisions(run, 'scoping'), 'signed-choice').approved?.by !== undefined, true);
+  ok(QUESTIONS.engine, run, {
+    task: { status: 'completed' },
+    nodes: { 'depth-approval': { status: 'skipped' }, drafting: { status: 'completed' }, notes: { status: 'skipped' }, 'notes-approval': { status: 'skipped' }, finish: { status: 'completed' } },
+  });
+  assert.match(completeRun(run, ...publishCloseout(run)).stdout, /RUN-COMPLETE\n$/);
 });
 
 test('one continue records the answer, the settlement of the value it sets, then the approval of the held choice', t => {

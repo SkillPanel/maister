@@ -163,9 +163,10 @@ export function grantsText(names) {
 }
 
 /**
- * What a continue does to the choices held for approval (`checkpoint.held`):
- * "Approves 2 held choices.", and for the held questions no choice was taken
- * for, that they are recorded as decided here — or '' when nothing is held.
+ * What a continue does to the choices held for approval (`checkpoint.held`),
+ * as a bare phrase each caller sets in its own sentence: "approves 2 held
+ * choices", and for a held question with no choice yet, that it stays held
+ * until a revise of its step supplies one — or '' when nothing is held.
  */
 export function approvesHeld(held) {
   const list = Array.isArray(held) ? held : [];
@@ -173,8 +174,11 @@ export function approvesHeld(held) {
   const chosen = list.length - open;
   const parts = [];
   if (chosen) parts.push(`approves ${chosen} held ${chosen === 1 ? 'choice' : 'choices'}`);
-  if (open) parts.push(`records ${open} held ${open === 1 ? 'question' : 'questions'} with no choice yet as decided here`);
-  return parts.length ? sentenceOf(parts.join('; ')) : '';
+  if (open) {
+    parts.push(`leaves ${open} held ${open === 1 ? 'question' : 'questions'} with no choice yet held until a revise of `
+      + `${open === 1 ? 'its step' : 'their steps'} supplies one`);
+  }
+  return parts.join('; ');
 }
 
 /**
@@ -186,7 +190,7 @@ function grantedLabel(checkpoint, option) {
   const granted = grantsText(checkpoint.grants?.[option.id]);
   const labelled = granted ? `${option.label} — ${granted}` : option.label;
   const approving = option.effect === 'continue' ? approvesHeld(checkpoint.held) : '';
-  return approving ? `${labelled} — ${approving.charAt(0).toLowerCase()}${approving.slice(1, -1)}` : labelled;
+  return approving ? `${labelled} — ${approving}` : labelled;
 }
 
 /** `A`, `A and B`, `A, B and C`. */
@@ -388,7 +392,7 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
       const rest = held.length - view.held;
       // A continue's own preview says, on the heading, what choosing it does to them.
       const doing = approving ? approvesHeld(checkpoint.held) : '';
-      const what = doing ? ` — continuing ${doing.charAt(0).toLowerCase()}${doing.slice(1, -1)}` : '';
+      const what = doing ? ` — continuing ${doing}` : '';
       out.push(`${HELD_HEADING}${rest > 0 ? ` (+${rest} more under More details)` : ''}${what}:`);
       out.push(...held.slice(0, view.held).map(item => heldLine(item, view.item)));
     }

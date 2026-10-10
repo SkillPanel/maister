@@ -489,9 +489,7 @@ export function artifactOf(entry) {
  * Who approved each held choice the run's approvals match, keyed by owning
  * node, question id and attempt (1 when absent) — the matching a checkpoint
  * applies (`approvalKey`) — to `{by}`: the approval's `answered_by`, else
- * `operator`, and `no_choice: true` when the held item had no choice taken
- * and was decided at that checkpoint. The first approval recorded for a key
- * names the approver.
+ * `operator`. The first approval recorded for a key names the approver.
  */
 function approversOf(state) {
   const approvers = new Map();
@@ -499,13 +497,13 @@ function approversOf(state) {
     const key = approvalKey(node, item);
     if (approvers.has(key)) continue;
     const by = typeof item.answered_by === 'string' && item.answered_by.trim() !== '' ? item.answered_by.trim() : 'operator';
-    approvers.set(key, item.no_choice === true ? { by, no_choice: true } : { by });
+    approvers.set(key, { by });
   }
   return approvers;
 }
 
 /**
- * A projected decision marked `approved: {by, no_choice?}` when it is a held
+ * A projected decision marked `approved: {by}` when it is a held
  * choice of node `id` that an approval matches; any other decision, `null`
  * included, passes unchanged. The `triage.held` mark stays, as history.
  */

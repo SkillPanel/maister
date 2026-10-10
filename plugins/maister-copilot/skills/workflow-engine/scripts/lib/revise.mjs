@@ -44,7 +44,7 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
 import { downstreamOf, reviseStretch } from './graph.mjs';
-import { atClose } from './gate-brief.mjs';
+import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 import {
   HELD_APPROVAL, REVISE_PREFIX, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalCurrent, heldApprovalFolded, heldApprovalOptions, heldRevisions,
 } from './question-triage.mjs';
@@ -297,8 +297,10 @@ function heldApprovalRevise({ state, option, input }) {
   // The driven fold of this option: read off the summary, never a node status.
   const folded = heldApprovalFolded(doc) && latest.option === option;
   const pending = isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.gate_pending) ? doc.orchestrator.gate_pending : null;
-  const { owed } = atClose({ doc, runDir: path.dirname(path.resolve(state)) });
-  if (!heldApprovalCurrent(doc, owed)) {
+  const runDir = path.dirname(path.resolve(state));
+  const { owed } = atClose({ doc, runDir });
+  const before = heldApprovalBefore({ doc, runDir, owed });
+  if (!heldApprovalCurrent(doc, owed, before)) {
     const why = pending !== null && pending.node !== HELD_APPROVAL
       ? `a driver's answer is still awaited at ${pending.node ?? 'a gate'}`
       : `it still waits on ${heldApprovalBlockers(doc, owed).join(', ')}`;

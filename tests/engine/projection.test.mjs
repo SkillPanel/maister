@@ -419,8 +419,9 @@ const approval = (extra = {}) => ({
 });
 
 /** The projected decisions of each phase, keyed by node id. */
-function decisionsByNode(summaries) {
+function decisionsByNode(summaries, { classes = true } = {}) {
   const state = {
+    ...(classes ? { orchestrator: { classes_questions: true } } : {}),
     workflow: { nodes: { analysis: { status: 'completed' }, checkpoint: { status: 'completed' } } },
     node_summaries: summaries,
   };
@@ -436,6 +437,14 @@ test('a held choice an approval matches anywhere in the run is marked approved b
   });
   assert.deepEqual(byNode.analysis[0].approved, { by: 'marek' });
   assert.equal(Object.hasOwn(byNode.checkpoint[1], 'approved'), false, 'the approval item itself gains nothing');
+});
+
+test('a run that records no classing marks nothing approved, as it holds nothing', () => {
+  const { byNode } = decisionsByNode({
+    analysis: { decisions: [held()] },
+    checkpoint: { decisions: [{ option: 'continue', answered_by: 'marek' }, approval({ answered_by: 'marek' })] },
+  }, { classes: false });
+  assert.equal(Object.hasOwn(byNode.analysis[0], 'approved'), false);
 });
 
 test('an approval with no answered_by credits the operator', () => {

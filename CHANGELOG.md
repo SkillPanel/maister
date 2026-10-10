@@ -79,7 +79,8 @@ workspace with work in flight.
   `ask:` line after the changed paths, naming the questions still to ask (`ask: none` when
   nothing is). Held choices are listed first at the next checkpoint, with the step that holds
   each, and continuing there approves them; a question that recommended nothing is held with no
-  choice yet, for you to decide there. When no checkpoint follows, the run asks a closing
+  choice yet, and you settle it by sending its phase back with your choice in the note, never by
+  continuing. When no checkpoint follows, the run asks a closing
   checkpoint, *Held for approval* (`held-approval`), before it finishes; a run that cannot ask it
   ends `RUN-FAILED: run-held-unapproved`. The autonomy ceiling is fixed when the run starts: a
   later change may narrow it, never widen it. A dispatch envelope carries the ceiling to the

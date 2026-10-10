@@ -285,9 +285,10 @@ test('outstandingHeld and approvalsOf match on node, question id and attempt, in
   assert.deepEqual(outstandingHeld({}), []);
   assert.deepEqual(approvalsOf({}), []);
 
-  // A run whose freeze recorded no classing holds nothing, whatever its items say.
+  // A run whose freeze recorded no classing holds nothing, whatever its items say, and approves nothing.
   const { orchestrator: _fact, ...unclassed } = heldRun();
   assert.deepEqual(outstandingHeld(unclassed), []);
+  assert.deepEqual(approvalsOf(unclassed), []);
   assert.deepEqual(outstandingHeld({ ...heldRun(), orchestrator: { classes_questions: false } }), []);
 });
 
@@ -303,6 +304,15 @@ test('heldApprovalOptions offers continue, a revise per owning node in frozen or
   assert.equal(offered.options[0].recommended, true);
   assert.equal(offered.revision, 1);
   assert.equal(offered.spent, false);
+
+  // A held question with no choice yet: no continue, its step's revise recommended.
+  const open = heldRun();
+  open.node_summaries.polish.decisions[0] = { ...open.node_summaries.polish.decisions[0], decision: NO_CHOICE, no_choice: true };
+  const settling = heldApprovalOptions(open);
+  assert.equal(settling.recommended, 'revise-polish');
+  assert.deepEqual(settling.options.map(each => [each.id, each.recommended ?? false]), [['revise-shape', false], ['revise-polish', true], ['stop', false]]);
+  open.node_summaries[HELD_APPROVAL] = { decisions: Array.from({ length: REVISION_CEILING }, () => ({ option: 'revise-shape', note: 'again' })) };
+  assert.deepEqual(heldApprovalOptions(open).options.map(each => [each.id, each.recommended ?? false]), [['stop', true]]);
 
   doc.node_summaries[HELD_APPROVAL] = { decisions: Array.from({ length: REVISION_CEILING }, () => ({ option: 'revise-shape', note: 'again' })) };
   const spent = heldApprovalOptions(doc);

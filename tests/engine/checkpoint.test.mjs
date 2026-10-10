@@ -1203,13 +1203,14 @@ test('held: every continue says it approves the held choices — label, descript
   ]);
   assert.deepEqual(requestOf(each, 'Verified.').options.map(option => option.description), listed.map(option => option.consequence));
 
-  // A held question no choice was taken for is never approved as a choice.
+  // A held question no choice was taken for is never approved by a continue: it stays held for a revise.
   const open = heldCheckpoint({ held: 2 });
   open.held[1] = { ...open.held[1], decision: 'No choice yet — needs your decision', no_choice: true };
-  assert.equal(approvesHeld(open.held), 'Approves 1 held choice; records 1 held question with no choice yet as decided here.');
-  assert.equal(approvesHeld([open.held[1]]), 'Records 1 held question with no choice yet as decided here.');
+  assert.equal(approvesHeld(open.held), 'approves 1 held choice; leaves 1 held question with no choice yet held until a revise of its step supplies one');
+  assert.equal(approvesHeld([open.held[1], open.held[1]]), 'leaves 2 held questions with no choice yet held until a revise of their steps supplies one');
+  assert.equal(approvesHeld(checkpoint.held), 'approves 2 held choices');
   assert.equal(approvesHeld([]), '');
-  assert.match(richPicker(open).options[0].label, /^Continue — approves 1 held choice; records 1 held question with no choice yet as decided here/);
+  assert.match(richPicker(open).options[0].label, /^Continue — approves 1 held choice; leaves 1 held question with no choice yet held until a revise of its step supplies one/);
 });
 
 test('held: More details opens with the held choices right after Done, each with its class and rationale', () => {

@@ -51,7 +51,13 @@ carries can raise its class, never lower it — and records one of four outcomes
 
 A classed question that recommends nothing is never given a choice by the writer: one it would
 settle, default or ask is left to ask, and stays open where nobody can be asked; one it would hold
-is held with no choice taken, for a person to decide at the checkpoint that lists it.
+is held with no choice taken. Only a revise of its step settles it, never a continue: the
+checkpoint that lists it recommends the revise that re-runs that step — or, where the next
+checkpoint has none, `held-approval` is raised before it, offering that revise and stop but no
+continue. The person names their choice in the revise note; the step re-runs and sends the
+question with that option recommended, so it is held with a provisional choice that a later
+continue approves. A continue that approved a question nobody chose would record a decision
+nobody made.
 
 It prints `ask:` with the ids still to ask, and a cockpit request is built from those alone.
 Settling and holding happen nowhere else, so two paths can never disagree. A triage the model

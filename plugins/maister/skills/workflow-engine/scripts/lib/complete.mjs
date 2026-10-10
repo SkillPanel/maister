@@ -128,10 +128,10 @@ import { scanState } from '../../../../lib/state-scan.mjs';
 import { published } from '../../../umbrella/scripts/lib/outbox.mjs';
 import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
-import { atClose } from './gate-brief.mjs';
+import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
 import { gateAnswer } from './items.mjs';
-import { HELD_APPROVAL, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, isOpenHeld, outstandingHeld } from './question-triage.mjs';
 import { projectRootOf } from './state.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
@@ -167,7 +167,7 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
     const runDir = path.dirname(path.resolve(state));
     const close = atClose({ doc, runDir });
     if (status === 'completed' && close.owed.length) {
-      throw new Refusal('run-nodes-unfinished', unfinished(state, close));
+      throw new Refusal('run-nodes-unfinished', unfinished(state, close, heldApprovalBefore({ doc, runDir, owed: close.owed })));
     }
     if (status === 'completed') {
       const waiting = outstandingHeld(doc);
@@ -223,10 +223,12 @@ function closeoutRefusal({ outbox, dispatchId }) {
  * recovery is offered only for the others, and not at all when every owed
  * node is such a gate. A gate owed because choices are held for approval
  * (`held`) is named as asked for them, and is never offered that recovery
- * either.
+ * either; the one `HELD_APPROVAL` is raised `before` (`heldApprovalBefore`)
+ * says so.
  */
-function unfinished(state, { owed, drift }) {
+function unfinished(state, { owed, drift }, before = null) {
   const named = owed.map(({ id, status, guard, asked, held }) => {
+    if (id === before) return `${id} (${status}; ${HELD_APPROVAL} is asked before it: a held question has no choice yet, and it offers no revise that re-runs that question's step)`;
     if (asked) return `${id} (${status}; a gate whose guard reads a value the run records, and more than a confirmation)`;
     if (held) return `${id} (${status}; asked because held choices wait for approval)`;
     if (guard) return `${id} (${status}; its guard ${guard} reads a value that was never recorded)`;
@@ -261,7 +263,8 @@ function unapproved(state, waiting) {
     return `${node}: ${question} → ${typeof item.decision === 'string' ? item.decision : ''}`;
   });
   return `${state} records task.status completed, but ${waiting.length === 1 ? 'a choice the run held for approval has' : `${waiting.length} choices the run held for approval have`} no approval: ${named.join('; ')}. `
-    + `Ask ${HELD_APPROVAL} (gate-brief --node=${HELD_APPROVAL}) and record its answer, then run this verb again; a continue approves them. `
+    + `Ask ${HELD_APPROVAL} (gate-brief --node=${HELD_APPROVAL}) and record its answer, then run this verb again; a continue approves them`
+    + `${waiting.some(each => isOpenHeld(each.item)) ? ', and a question with no choice yet is settled by its revise of that step, with the choice in your note' : ''}. `
     + `Under a driver whose request writer refused that checkpoint, this marker is the run's ending: echo it.`;
 }
 

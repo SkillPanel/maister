@@ -100,7 +100,7 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { canAsk } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -1155,7 +1155,8 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   }
   // Each gate answer the patch sends, as the run held it before this write:
   // what tells a newly recorded continue from one re-sent (`approveHeld`).
-  const answeredBefore = priorAnswers(doc, patch);
+  const answering = answeringIds(patch);
+  const answeredBefore = priorAnswers(doc, answering);
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
   if (regress !== null) clearClassed(doc, regress, changed);
   if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
@@ -1180,7 +1181,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   let typed = null;
   const typedNow = () => (typed ??= typedOf(doc));
   // The gates this write judges, read once for the two passes that care.
-  const { judged, fresh } = judgedGates(patch, typedNow, runDir, answeredBefore);
+  const { judged, fresh } = judgedGates(answering, typedNow, runDir, answeredBefore);
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   judgeGates(doc, typedNow, judged, changed, writeWarnings);
@@ -2599,6 +2600,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
   for (const [key, value] of Object.entries(summaries)) {
     if (!isPlainObject(value)) throw new Refusal('state-patch-invalid', `the summary ${key} must be an object`);
     let entry = { ...value };
+    let dropAsking = false;
     if (kind === 'node' && classing !== null) {
       recorded ??= recordedNodes(doc);
       const isGate = isGateSummary(recorded, key);
@@ -2611,10 +2613,10 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         entry.decisions = sentDecisions(entry.decisions, heldOf(key)?.decisions, key, classing.notes);
       }
       if (Object.hasOwn(entry, 'question_set') || Object.hasOwn(entry, 'reasons')) {
-        entry = classQuestions(entry, key, { recorded, typedNow, held: heldOf(key), runDir, writeWarnings, classing });
+        ({ entry, dropAsking } = classQuestions(entry, key, { recorded, typedNow, held: heldOf(key), runDir, writeWarnings, classing }));
         // A write that sent nothing but a set the run does not class records
         // nothing, unless a stale `asking` is to go.
-        if (Object.keys(entry).length === 0 && !entry[STALE_ASKING]) continue;
+        if (Object.keys(entry).length === 0 && !dropAsking) continue;
       }
     }
     if (kind === 'node' && Object.hasOwn(entry, 'answer')) {
@@ -2663,7 +2665,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         const { status: _status, ...kept } = prior;
         entry = { ...kept, ...entry };
       }
-      if (entry[STALE_ASKING]) delete entry.asking;
+      if (dropAsking) delete entry.asking;
     }
     if (!('status' in entry)) {
       const nodeId = kind === 'node' ? key : entry.node;
@@ -3141,15 +3143,11 @@ function sentDecisions(decisions, prior, node, notes) {
  * writer-classed item for the same question in this attempt, and the ids
  * still to ask are stored as `asking`. Otherwise nothing is recorded, a hash
  * mismatch warns `policy-hash-mismatch:<node>`, every id is still to ask, and
- * an `asking` an earlier write stored is removed (`STALE_ASKING`).
+ * an `asking` an earlier write stored is removed. Returns `{entry,
+ * dropAsking}`: the entry to record in the set's place, and whether the
+ * node's recorded `asking` goes.
  * The ids still to ask are added to `classing.out.asking` either way.
  */
-/**
- * Marks a summary entry whose recorded `asking` the write removes: a symbol,
- * so it is never written and the entry's fields read as they were sent.
- */
-const STALE_ASKING = Symbol('stale asking');
-
 function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWarnings, classing }) {
   const { question_set: set, reasons, ...rest } = entry;
   const refuse = reason => new Refusal('state-patch-invalid',
@@ -3186,7 +3184,7 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
   classing.out.asking = [...(classing.out.asking ?? []), ...classed.asking];
   // Nothing classed: an `asking` an earlier classing write stored would filter
   // the next request by a remainder this set never had, so it goes.
-  if (!matches) return isPlainObject(held) && Object.hasOwn(held, 'asking') ? { ...rest, [STALE_ASKING]: true } : rest;
+  if (!matches) return { entry: rest, dropAsking: isPlainObject(held) && Object.hasOwn(held, 'asking') };
 
   const next = { ...rest, asking: classed.asking };
   if (classed.items.length || Array.isArray(rest.decisions)) {
@@ -3194,7 +3192,7 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
     const base = Array.isArray(rest.decisions) ? rest.decisions : Array.isArray(held?.decisions) ? held.decisions : [];
     next.decisions = [...base.filter(item => !(isClassedItem(item) && fresh.has(classedKey(item)))), ...classed.items];
   }
-  return next;
+  return { entry: next, dropAsking: false };
 }
 
 /**
@@ -3626,9 +3624,7 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
  * so asked again. A write re-sending an answer the run already holds is
  * judged, and records nothing new.
  */
-function judgedGates(patch, typedNow, runDir, answeredBefore = new Map()) {
-  const answering = isPlainObject(patch.node_summaries)
-    ? Object.entries(patch.node_summaries).filter(([, entry]) => recordsAnswer(entry)).map(([id]) => id) : [];
+function judgedGates(answering, typedNow, runDir, answeredBefore = new Map()) {
   let closing = runDir === null ? [] : closingRows(runDir);
   if (answering.length === 0 && closing.length === 0) return { judged: new Set(), fresh: new Set() };
   if (closing.length > 0 && !settledState(typedNow())) closing = [];
@@ -3636,6 +3632,10 @@ function judgedGates(patch, typedNow, runDir, answeredBefore = new Map()) {
   const newly = answering.filter(id => {
     const now = gateAnswer(Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].decisions : null);
     if (now === null) return false;
+    // The closing checkpoint is asked exactly while it is current with held
+    // items outstanding, so an answer to it then is new however many came
+    // before; whether anything still blocks it is the brief's to judge.
+    if (id === HELD_APPROVAL && heldApprovalCurrent(typedNow(), [])) return true;
     const before = answeredBefore.get(id);
     if (before === undefined || before.option === null) return true;
     if (before.status !== undefined && before.status !== 'completed') return true;
@@ -3644,16 +3644,20 @@ function judgedGates(patch, typedNow, runDir, answeredBefore = new Map()) {
   return { judged: new Set([...answering, ...closing]), fresh: new Set([...newly, ...closing]) };
 }
 
-/**
- * For each summary the patch sends that records an answer (`recordsAnswer`),
- * the gate as the run held it before this write: `{option, status}` — the
- * option its answer named, null with none, and its recorded node status,
- * undefined with no node entry. Read before any part of the patch lands, and
- * only when the patch records an answer.
- */
-function priorAnswers(doc, patch) {
-  const answering = isPlainObject(patch.node_summaries)
+/** The ids of the summaries a patch sends that record an answer (`recordsAnswer`). */
+function answeringIds(patch) {
+  return isPlainObject(patch.node_summaries)
     ? Object.entries(patch.node_summaries).filter(([, entry]) => recordsAnswer(entry)).map(([id]) => id) : [];
+}
+
+/**
+ * For each of `answering` (`answeringIds`), the gate as the run held it
+ * before this write: `{option, status}` — the option its answer named, null
+ * with none, and its recorded node status, undefined with no node entry. Read
+ * before any part of the patch lands, and only when the patch records an
+ * answer.
+ */
+function priorAnswers(doc, answering) {
   const before = new Map();
   if (answering.length === 0 || !doc.has('workflow')) return before;
   const typed = typedOf(doc);
@@ -3716,13 +3720,16 @@ function closingRows(runDir) {
  */
 function approveHeld(doc, freshIds, graphOf, changed) {
   if (freshIds.size === 0) return;
-  // Nothing held, nothing to approve: checked before the graph is resolved.
-  if (outstandingHeld(typedOf(doc)).length === 0) return;
+  // Nothing held with a choice, nothing to approve: checked before the graph
+  // is resolved. A held question with no choice yet (`isOpenHeld`) is never
+  // approved by a continue: a revise of its step supplies the choice.
+  const approvable = typed => outstandingHeld(typed).filter(each => !isOpenHeld(each.item));
+  if (approvable(typedOf(doc)).length === 0) return;
   const frozen = isPlainObject(typedOf(doc).workflow?.nodes) ? typedOf(doc).workflow.nodes : {};
   const isGate = id => id === HELD_APPROVAL || (Object.hasOwn(frozen, id) && isPlainObject(frozen[id]) && frozen[id].kind === 'gate');
   for (const id of [...Object.keys(frozen), HELD_APPROVAL].filter(each => freshIds.has(each) && isGate(each))) {
     const typed = typedOf(doc);
-    const waiting = outstandingHeld(typed);
+    const waiting = approvable(typed);
     if (waiting.length === 0) continue;
     const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
     const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : null;
@@ -3759,23 +3766,16 @@ function optionEffectOf(id, option, frozen, graphOf) {
  * One approval item: the held item `node` records for `question_id`, approved
  * by `answer` and credited as it is, the way a settlement item is
  * (`settlementOf`). Its triage is the held item's without `held`, and it
- * carries the held item's `attempt` when that has one. A held item no choice
- * was taken for (`isOpenHeld`) approves no choice: its item says the question
- * was decided at this checkpoint and carries `no_choice: true`.
+ * carries the held item's `attempt` when that has one.
  */
 function approvalOf({ node, question_id: questionId, item: held }, answer) {
   const { held: _held, ...triage } = isPlainObject(held.triage) ? held.triage : {};
-  const decision = isOpenHeld(held) ? `${questionId}: ${DECIDED_HERE}` : `${questionId}: ${held.decision}`;
-  const item = { decision, by: 'operator', node, question_id: questionId, triage };
-  if (isOpenHeld(held)) item.no_choice = true;
+  const item = { decision: `${questionId}: ${held.decision}`, by: 'operator', node, question_id: questionId, triage };
   if (attemptNumber(held) !== null) item.attempt = held.attempt;
   if (answer.answered_by !== undefined) item.answered_by = answer.answered_by;
   if (answer.via !== undefined) item.via = answer.via;
   return { ...item, ...provenanceOf(answer) };
 }
-
-/** What an approval of a held item no choice was taken for records. */
-const DECIDED_HERE = 'decided at this checkpoint; no choice was taken before it';
 
 /**
  * The approval items a gate's summary already holds that a write of its

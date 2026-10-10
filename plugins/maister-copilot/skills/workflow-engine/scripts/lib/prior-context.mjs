@@ -46,7 +46,7 @@ import { isContextBlock } from './state.mjs';
 // A revise the run is in the middle of is found the way `resume-check` finds it.
 import { openRevision } from './revise.mjs';
 import { PROVENANCE_KEYS, riskOf, riskText } from './items.mjs';
-import { approvalKey, outstandingHeld } from './question-triage.mjs';
+import { approvalKey, isOpenHeld, outstandingHeld } from './question-triage.mjs';
 
 /**
  * The two fields the artifact summary contract is written against. They lead
@@ -69,8 +69,12 @@ const HEADING_FIELDS = new Set(['node', LEAD]);
  */
 const WRITER_FIELDS = new Set(['asking']);
 
-/** The note an unapproved held choice is printed with: it is provisional until a person approves it. */
+/**
+ * The notes an unapproved held item is printed with: a choice is provisional
+ * until a person approves it, and a question with no choice yet has none.
+ */
 const HELD_NOTE = '(held — awaiting approval)';
+const NO_CHOICE_NOTE = '(held — no choice yet)';
 
 /**
  * Render the prior-phase context of the run whose state file is `state`.
@@ -116,7 +120,7 @@ export function priorContext({ state, background = false }) {
     return refuse('prior-context-absent', 'node_summaries is not a map, so its entries cannot be rendered');
   }
   // A held choice no approval matches yet is printed as provisional.
-  const held = new Set(outstandingHeld(doc).map(each => approvalKey(each.node, each.item)));
+  const held = new Map(outstandingHeld(doc).map(each => [approvalKey(each.node, each.item), isOpenHeld(each.item) ? NO_CHOICE_NOTE : HELD_NOTE]));
   return { ok: true, text: render('node_summaries', 'node', isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc), errors: [] };
 }
 
@@ -159,7 +163,7 @@ function refuse(code, message) {
  * map's path in state and `unit` what one of its entries records — a phase for
  * a context block's `phase_summaries`, a node for `node_summaries`.
  */
-function render(source, unit, summaries, background = false, held = new Set()) {
+function render(source, unit, summaries, background = false, held = new Map()) {
   // Every entry the state writer records is a map — it refuses any other shape —
   // so an entry that is not one was written by hand, and is not read.
   const entries = Object.entries(summaries).filter(([, value]) => isPlainObject(value));
@@ -205,8 +209,8 @@ function render(source, unit, summaries, background = false, held = new Set()) {
       out.push(`Summary: ${lead}`);
       out.push('');
     }
-    const isHeld = item => held.size > 0 && isPlainObject(item) && typeof item.question_id === 'string' && held.has(approvalKey(key, item));
-    for (const field of CONTRACT_LISTS) out.push(...section(field, listOf(entry[field]), true, isHeld));
+    const heldNote = item => (held.size > 0 && isPlainObject(item) && typeof item.question_id === 'string' ? held.get(approvalKey(key, item)) ?? '' : '');
+    for (const field of CONTRACT_LISTS) out.push(...section(field, listOf(entry[field]), true, heldNote));
     for (const [field, value] of Object.entries(entry)) {
       if (HEADING_FIELDS.has(field) || WRITER_FIELDS.has(field) || CONTRACT_LISTS.includes(field)) continue;
       if (Array.isArray(value)) out.push(...section(field, listOf(value), false));
@@ -225,21 +229,23 @@ function render(source, unit, summaries, background = false, held = new Set()) {
  * they are empty — the state said "none", and a delegate that is told nothing
  * cannot tell that apart from a node that forgot.
  */
-function section(field, items, always, isHeld = () => false) {
+function section(field, items, always, heldNote = () => '') {
   if (!items.length && !always) return [];
   if (!items.length) return [`${label(field)} (0): none recorded.`, ''];
-  const line = item => `- ${listItemText(field, item)}${field === 'decisions' && isHeld(item) ? ` ${HELD_NOTE}` : ''}`;
+  const note = item => (field === 'decisions' ? heldNote(item) : '');
+  const line = item => `- ${listItemText(field, item)}${note(item) ? ` ${note(item)}` : ''}`;
   return [`${label(field)} (${items.length}):`, ...items.map(line), ''];
 }
 
 /**
  * The bookkeeping a typed decision carries — when and through which surface it
  * was answered, the reserved triage block, the assumption and the reversal a
- * settled record-class choice is kept with, and the answer's provenance (who
+ * settled record-class choice is kept with, the no-choice mark a held
+ * question carries (its note says it instead), and the answer's provenance (who
  * acted, for whom, under which rule, on what evidence, what it overrode) —
  * which says nothing a delegate acts on.
  */
-const RECORD_ONLY = new Set(['at', 'via', 'triage', 'assumption', 'reversal', ...PROVENANCE_KEYS]);
+const RECORD_ONLY = new Set(['at', 'via', 'triage', 'assumption', 'reversal', 'no_choice', ...PROVENANCE_KEYS]);
 
 /**
  * One item of a contract list. A typed risk reads `<tag>: <risk> → <change>`,
