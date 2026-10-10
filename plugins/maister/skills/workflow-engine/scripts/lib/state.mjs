@@ -92,9 +92,10 @@ import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
-import { foldAnswer, requestQuestions } from './question-set.mjs';
-import { effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { classesQuestions } from './question-triage.mjs';
+import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
+import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
+import { classSet, classesQuestions, declaredQuestionIds, isClassedItem } from './question-triage.mjs';
+import { canAsk } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -447,7 +448,7 @@ const WORKFLOW_CONTEXT = {
 /**
  * Apply `patch` to the state file at `state`.
  *
- * Returns `{ok, changed, errors, warnings, ignored, undeclared, writeWarnings}`. On a refusal `changed` is empty and
+ * Returns `{ok, changed, errors, warnings, ignored, undeclared, writeWarnings, notes, asking?}`. On a refusal `changed` is empty and
  * the file on disk is byte-for-byte what it was: every check that can refuse runs
  * before the rename, and the rename is the only thing that publishes a write.
  *
@@ -470,9 +471,15 @@ const WORKFLOW_CONTEXT = {
  * — each printed as its own `warning:` line.
  *
  * `notes` carries the reason for each writer-owned value the patch sent and
- * the write dropped rather than refused — `orchestrator.classes_questions`,
- * and an `orchestrator.options.ceiling` that would widen or remove the run's
- * autonomy ceiling — one sentence each, printed as a `note:` line.
+ * the write dropped rather than refused — `orchestrator.classes_questions`, a
+ * node summary's `asking`, an `orchestrator.options.ceiling` that would widen
+ * or remove the run's autonomy ceiling, and in a run whose policy classes
+ * questions a decision that would replace a writer-classed one or a triage
+ * sent on a decision — one sentence each, printed as a `note:` line.
+ *
+ * `asking`, present only when the patch sent a node's `question_set` (the
+ * classing write, `classQuestions`), lists the question ids still to ask, in
+ * set order; `workflow.mjs` prints them on an `ask:` line.
  *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
@@ -504,7 +511,9 @@ export function writeState({ state, patch, regress = null }) {
     // write that starts a run, and a later write re-sending `workflow:` into a
     // file that already carries one is not that write.
     const hadWorkflow = doc.has('workflow');
-    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), { changed, ignored, undeclared, writeWarnings, notes }, regress)) allowed.add(key);
+    // `asking`: the ids a classing write left to ask, null when the write sent no question set.
+    const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null };
+    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -533,6 +542,7 @@ export function writeState({ state, patch, regress = null }) {
     warnings.push(...display(state, text, now, banner));
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
     if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
+    if (out.asking !== null) result.asking = out.asking;
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -1137,6 +1147,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     intended.add('workflow');
   }
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
+  if (regress !== null) clearClassed(doc, regress, changed);
   if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings);
   if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
   if (patch.context || patch.phase_summaries) {
@@ -1150,7 +1161,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     if (patch.phase_summaries) applySummaries(doc, block, patch.phase_summaries, patch.nodes, 'phase', changed);
   }
   if (patch.node_summaries) {
-    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed, runDir, graphOf, writeWarnings);
+    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed, runDir, graphOf, writeWarnings, { notes, policyNow, out });
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
@@ -2497,8 +2508,15 @@ function applyContext(doc, contextKey, context, changed) {
  * every answer the user had given in that node. `status` is the exception: it
  * is the node's outcome, mirrored afresh on every write that does not state
  * one. The user's answers are history on top of that (`earlierAnswers`).
+ *
+ * A task node's `question_set` (with its `reasons`) is the classing write
+ * (`classQuestions`), consumed the way an `answer` is folded. In a run whose
+ * policy classes questions the items the writer classed are writer-owned:
+ * kept across later writes (`writerKept`), never replaced by a sent item, and
+ * a triage sent on a decision is dropped (`sentDecisions`). `asking` is the
+ * writer's too, dropped with a note when a patch sends it.
  */
-function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null, graphOf = null, writeWarnings = []) {
+function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null, graphOf = null, writeWarnings = [], classing = null) {
   if (!isPlainObject(summaries)) throw new Refusal('state-patch-invalid', `the ${kind} summaries must be an object`);
   let recorded = null;
   let run = null;
@@ -2509,9 +2527,31 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     held ??= heldSummaries(doc);
     return Object.hasOwn(held, id) && isPlainObject(held[id]) ? held[id] : null;
   };
+  // The document as the node writes left it, read only by a rule that needs
+  // it: the classing write, and whether the run classes questions at all.
+  let typed = null;
+  const typedNow = () => (typed ??= typedOf(doc));
+  const classes = () => isPlainObject(typedNow().orchestrator) && typedNow().orchestrator.classes_questions === true;
   for (const [key, value] of Object.entries(summaries)) {
     if (!isPlainObject(value)) throw new Refusal('state-patch-invalid', `the summary ${key} must be an object`);
     let entry = { ...value };
+    if (kind === 'node' && classing !== null) {
+      recorded ??= recordedNodes(doc);
+      const isGate = Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate';
+      if (Object.hasOwn(entry, 'asking')) {
+        delete entry.asking;
+        classing.notes.push(`ignored the supplied node_summaries.${key}.asking; the writer records it from the question set it classed, so no patch sets it`);
+      }
+      // On the raw patch, before the answer fold: what the fold produces is never touched.
+      if (!isGate && Array.isArray(entry.decisions) && classes()) {
+        entry.decisions = sentDecisions(entry.decisions, heldOf(key)?.decisions, key, classing.notes);
+      }
+      if (Object.hasOwn(entry, 'question_set') || Object.hasOwn(entry, 'reasons')) {
+        entry = classQuestions(entry, key, { recorded, typedNow, held: heldOf(key), runDir, writeWarnings, classing });
+        // A write that sent nothing but a set the run does not class records nothing.
+        if (Object.keys(entry).length === 0) continue;
+      }
+    }
     if (kind === 'node' && Object.hasOwn(entry, 'answer')) {
       recorded ??= recordedNodes(doc);
       if (Object.hasOwn(recorded, key) && recorded[key]?.kind === 'gate') entry = foldFlatAnswer(entry);
@@ -2539,7 +2579,8 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         via ??= answerVia(parseState(doc.text()));
         const prior = heldOf(key)?.decisions;
         entry.decisions = stampAnswers(keepProvenance(prior, keepAttempts(prior, entry.decisions)), runDir, via);
-        entry.decisions = [...earlierAnswers(heldOf(key)?.decisions, entry.decisions), ...entry.decisions];
+        const kept = classing !== null && classes() ? writerKept(prior, entry.decisions) : [];
+        entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
     }
     if (kind === 'node') {
@@ -2924,6 +2965,153 @@ function earlierAnswers(prior, decisions) {
   };
   const sent = new Set(decisions.map(keyOf).filter(Boolean));
   return prior.filter(item => isPlainObject(item) && decisionOf(item)?.by === 'operator' && !sent.has(keyOf(item)));
+}
+
+/**
+ * The writer-classed items a node already carries that a write of its
+ * `decisions` leaves out, in the order they were recorded (R5 of the classing
+ * rules): in a run whose policy classes questions, only the classing write
+ * records, replaces or — through a revise reset — removes them, so a write
+ * that omits them keeps them. They are placed after the earlier operator
+ * answers and ahead of what the write sent. An item counts as sent when the
+ * write carries a writer-classed item for the same question in the same
+ * attempt: an identical re-send (`sentDecisions` keeps it in place).
+ */
+function writerKept(prior, decisions) {
+  if (!Array.isArray(prior)) return [];
+  const sent = new Set(decisions.filter(isClassedItem).map(classedKey));
+  return prior.filter(item => isClassedItem(item) && !sent.has(classedKey(item)));
+}
+
+/** A writer-classed item's question and attempt (1 when absent): what the classing write replaces by. */
+function classedKey(item) {
+  return `${item.question_id}\u0000${attemptNumber(item) ?? 1}`;
+}
+
+/**
+ * A task node's `decisions` as a patch sent them, in a run whose policy
+ * classes questions, read before any answer fold. In order: an item equal to
+ * a writer-classed item the node carries (`sameValue`, triage included) is
+ * an identical re-send and stays where it is, silently — a closing write
+ * re-sending the whole list prints nothing; a `by: run` or `by: default` item
+ * for a question the writer classed is dropped with a note, since only the
+ * classing write records one; and any other item's `triage` is dropped with a
+ * note, since only the writer records a triage.
+ */
+function sentDecisions(decisions, prior, node, notes) {
+  const writer = Array.isArray(prior) ? prior.filter(isClassedItem) : [];
+  const classed = new Set(writer.map(item => item.question_id));
+  const out = [];
+  for (const item of decisions) {
+    if (!isPlainObject(item) || writer.some(own => own.question_id === item.question_id && sameValue(item, own))) {
+      out.push(item);
+      continue;
+    }
+    if ((item.by === 'run' || item.by === 'default') && classed.has(item.question_id)) {
+      notes.push(`ignored the ${item.by} decision node_summaries.${node} sent for ${item.question_id}; `
+        + 'the writer classed that question, so its own item stays');
+      continue;
+    }
+    if (!Object.hasOwn(item, 'triage')) {
+      out.push(item);
+      continue;
+    }
+    const { triage, ...bare } = item;
+    if (triage !== null && triage !== undefined) {
+      notes.push(`ignored the triage sent on node_summaries.${node}.decisions; in a run whose policy classes questions, `
+        + 'only the writer records a triage, from the question set the node sends it');
+    }
+    out.push(bare);
+  }
+  return out;
+}
+
+/**
+ * The classing write: a running task node's `question_set`, with its optional
+ * `reasons`, consumed — never stored as sent — and turned into what the run
+ * may decide without asking (R3 of the classing rules). Returns the entry to
+ * record in its place.
+ *
+ * Refused `state-patch-invalid`, naming the fault, for a gate or a node that
+ * is not running, a set `checkSet` rejects, `reasons` naming another id or
+ * carrying another key, and a question that is classed but names no default.
+ *
+ * It classes only when the run recorded `orchestrator.classes_questions` and
+ * the policy loaded now has the hash the freeze recorded. Then each question
+ * is settled (`by: run`), defaulted or held (`by: default`) under the run's
+ * autonomy ceiling and driver (`classSet`), each item replacing any
+ * writer-classed item for the same question in this attempt, and the ids
+ * still to ask are stored as `asking`. Otherwise nothing is recorded, a hash
+ * mismatch warns `policy-hash-mismatch:<node>`, and every id is still to ask.
+ * The ids still to ask are added to `classing.out.asking` either way.
+ */
+function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWarnings, classing }) {
+  const { question_set: set, reasons, ...rest } = entry;
+  const refuse = reason => new Refusal('state-patch-invalid',
+    `node_summaries.${node} cannot be classed: ${reason}. Nothing was written. Correct the question set or its reasons and send the write again`);
+  if (set === undefined) throw refuse('"reasons" explain a question set, so they travel with node_summaries.' + `${node}.question_set in one write`);
+  const own = Object.hasOwn(recorded, node) && isPlainObject(recorded[node]) ? recorded[node] : null;
+  if (own === null) throw refuse(`${node} is no node of this run's frozen graph`);
+  if (own.kind === 'gate') throw refuse(`${node} is a gate, and a gate is asked from its own brief`);
+  const status = own.status === undefined || own.status === null ? 'pending' : String(own.status);
+  if (status !== 'running') throw refuse(`${node} is ${JSON.stringify(status)}, and only a running node asks a question inside itself`);
+  const checked = checkSet(set);
+  if (!checked.ok) throw refuse(checked.errors.join('; '));
+
+  const typed = typedNow();
+  const orchestrator = isPlainObject(typed.orchestrator) ? typed.orchestrator : {};
+  const fact = orchestrator.classes_questions === true;
+  const loaded = fact ? classing.policyNow() : null;
+  const matches = fact && orchestrator.policy_hash === loaded.hash;
+  if (fact && !matches && !writeWarnings.includes(`policy-hash-mismatch:${node}`)) writeWarnings.push(`policy-hash-mismatch:${node}`);
+  const workflow = isPlainObject(typed.workflow) ? typed.workflow : {};
+  // Not classed, nothing classes: a carried triage is set aside with the policy,
+  // so the faults below are the reasons' alone and every id is still to ask.
+  const classed = classSet({
+    questions: matches ? checked.set.questions : checked.set.questions.map(({ triage: _carried, ...question }) => question),
+    reasons,
+    policy: matches ? loaded.policy : null,
+    workflow: workflow.name,
+    declaredIds: matches ? declaredQuestionIds(runDir === null ? null : definitionPathOf(typed, runDir), node) : [],
+    settles: matches ? ceilingOf({ options: orchestrator.options, policy: loaded.policy })?.settles ?? null : null,
+    canAsk: canAsk(typed),
+    attempt: attemptOf(own),
+  });
+  if (classed.faults.length) throw refuse(classed.faults.join('; '));
+  classing.out.asking = [...(classing.out.asking ?? []), ...classed.asking];
+  if (!matches) return rest;
+
+  const next = { ...rest, asking: classed.asking };
+  if (classed.items.length || Array.isArray(rest.decisions)) {
+    const fresh = new Set(classed.items.map(classedKey));
+    const base = Array.isArray(rest.decisions) ? rest.decisions : Array.isArray(held?.decisions) ? held.decisions : [];
+    next.decisions = [...base.filter(item => !(isClassedItem(item) && fresh.has(classedKey(item)))), ...classed.items];
+  }
+  return next;
+}
+
+/**
+ * The reset write of a revise, in a run whose policy classes questions: each
+ * reset task node loses its writer-classed items and its `asking`, so its next
+ * attempt classes its questions afresh. Operator answers stay as history, and
+ * a gate's summary — approvals included — is never touched.
+ */
+function clearClassed(doc, regress, changed) {
+  const typed = typedOf(doc);
+  if (!isPlainObject(typed.orchestrator) || typed.orchestrator.classes_questions !== true) return;
+  const nodes = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  for (const id of regress) {
+    if (!Object.hasOwn(summaries, id) || !isPlainObject(summaries[id])) continue;
+    if (Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) && nodes[id].kind === 'gate') continue;
+    const { asking, ...summary } = summaries[id];
+    const decisions = Array.isArray(summary.decisions) ? summary.decisions : null;
+    const kept = decisions === null ? null : decisions.filter(item => !isClassedItem(item));
+    if (asking === undefined && (decisions === null || kept.length === decisions.length)) continue;
+    if (kept !== null) summary.decisions = kept;
+    doc.set(['node_summaries', id], block(id, summary, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+  }
 }
 
 /**

@@ -17,6 +17,8 @@
  *                  take; without --name, the project's own workflows)
  *   write-state    --state, --patch-file (or the patch as JSON on stdin)
  *                                                             changed paths
+ *                  (and, for a node's question set, a blank line and the
+ *                  `ask:` line naming the ids still to ask, or `none`)
  *   gate-request   --state, --patch-file (or the request as JSON on stdin)
  *                                                             the files written
  *                  (the request file, the gate index and the pending marker)
@@ -507,6 +509,12 @@ function reportWrite(result, input) {
   // nobody read it. A caller after the paths skips to the first blank line.
   if (result.banner) process.stdout.write(`${result.banner}\n`);
   for (const changed of result.changed || []) process.stdout.write(`${changed}\n`);
+  // The classing write's remainder, after a blank line as a revise's line is:
+  // the question ids the node still asks, or `none` when the writer settled
+  // every one. Only a write that sent a question set has one.
+  if (result.ok && Array.isArray(result.asking)) {
+    process.stdout.write(`\nask: ${result.asking.length ? result.asking.join(' ') : 'none'}\n`);
+  }
   // A warning is not a refusal and must not read like one: the refusal contract
   // puts the code as the first stderr token, so these lines open with `warning:`
   // and name what did not happen. The dashboard is a projection of a write that
