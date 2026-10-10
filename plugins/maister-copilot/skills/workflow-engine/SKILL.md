@@ -1495,11 +1495,29 @@ keeps every criterion whole, and say so in the question ("Recommended because it
 shared notes', which the context checkpoint flagged as uncertain"). The person may still choose
 the narrower reading; the run never makes it the default.
 
+**One topic is one drafted story.** Requirement gathering never splits one behaviour into single
+facts asked one by one — who may do it, where they start, what changes, who sees the result —
+because each answer then lands alone and the behaviour ends up scattered across them. The
+questions that belong to one topic are drafted into one user story, or journey, and asked as one
+question: the actor, the entry point, the action, the resulting state change — what is stored
+and what is audited — and what is visible afterwards, each part filled with the reading the
+run's evidence best supports, a default the person can correct. Its options are answers: accept
+the story, the recommendation, its reason naming what the defaults rest on; accept it with the
+corrections the run lists — its weakest defaults, each changed to the next-best reading and named
+in the description; and a concrete alternative story where one exists. More details is last
+while a slot is free, and the person's own story goes through Other. Each story is one decision,
+asked under its own id — the node's declared story id, then the topic as a short slug — and
+never folded into an accept-all. A question stays on its own only when its answer changes no
+story: which existing component to reuse, whether visual assets exist.
+A story's question lists its parts, a line each, then each correction the corrections option
+applies, a line each.
+
 **Independent items go in pages; decision areas go one at a time.**
 A picker call holds up to four questions, one tab each. Items that stand on their own — the fix
-loop's per-issue decisions, confirmations of the run's own assumptions — are asked four to a
-page, further pages following in the same turn. A later page opens by saying, in one line, how
-many questions are left ("Two more scope questions"), so the user knows the end is near.
+loop's per-issue decisions, confirmations of the run's own assumptions, drafted stories that do
+not depend on one another — are asked four to a page, further pages following in the same
+turn. A later page opens by saying, in one line, how many questions are left ("Two more scope
+questions"), so the user knows the end is near.
 The question tool takes a message and a form: a page is one call whose form has a property per
 question, each titled by its header, with its question — its own context included — as the
 property's description and its options as the choices, each option's id as the value and its
@@ -1581,6 +1599,7 @@ one. The families and what each takes:
 | An opt-in | the recommended option |
 | A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is recorded as an `open` risk in the node's summary, which the next gate's More details shows |
 | A set offered as bundles | the recommended bundle |
+| A drafted story | the story as drafted, kept in the requirements as drafted rather than confirmed |
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
 | A decision page of the automatic fix loop | nothing is asked; each issue stays open as an `open` risk for the gate |
 | The automatic fix loop's stopping point | "Continue as is" — the open issues become `open` risks for the gate |

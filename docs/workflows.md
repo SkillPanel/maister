@@ -392,9 +392,13 @@ A design decision comes one area at a time, each with every alternative, its pro
 the recommendation, because a later area can depend on an earlier answer; it is never offered as
 accept-all. In research and product design the areas are asked from the record the brainstorm keeps
 beside its document, word for word, and a cockpit shows each area with its full write-up — the same
-text **More details** writes out in the terminal. A question the run can already answer from its
-own analysis is not asked: it says the answer in one line instead ("User guide: on — asked for
-when the run started").
+text **More details** writes out in the terminal. Questions about one behaviour — who may deactivate a user, where the action is, what
+is stored and audited, who sees the user afterwards — come as one drafted story instead, its
+defaults filled in: accept it, accept it with the corrections the run lists, take the alternative
+story it offers where there is one, or write your own. Each story is one answer, kept as a
+requirement that the specification carries under the story's id and that the completeness check
+confirms was built. A question the run can already answer from its own analysis is not asked: it says the
+answer in one line instead ("User guide: on — asked for when the run started").
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
 At a checkpoint the question is one line: what finished, and whether it is ready to go on. Where the run goes if you continue is named by the continue option.
