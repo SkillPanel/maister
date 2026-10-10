@@ -10,6 +10,7 @@ import { canAsk } from '../../plugins/maister/skills/workflow-engine/scripts/lib
 import { REVISION_CEILING } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 import {
   HELD_APPROVAL,
+  NO_CHOICE,
   approvalsOf,
   classSet,
   classesQuestions,
@@ -205,7 +206,15 @@ test('classesQuestions and classSet', () => {
   assert.deepEqual(classSet({ ...common, canAsk: true }).asking, ['asked-choice', 'signed-choice', 'loose-choice']);
   const refused = classSet({ ...common, canAsk: true, reasons: { stray: {}, 'quick-choice': { mood: 'x' } }, questions: [{ ...set[0], default: undefined }] });
   assert.equal(refused.items.length, 0);
-  assert.equal(refused.faults.length, 3);
+  assert.equal(refused.faults.length, 2, 'a question with no default is no fault');
+
+  // No default: a question that would settle, default or be asked is left to ask; one that would be held is held with no choice.
+  const bare = set.map(each => ({ ...each, default: undefined }));
+  const open = classSet({ ...common, questions: bare, canAsk: false });
+  assert.deepEqual(open.faults, []);
+  assert.deepEqual(open.asking, ['quick-choice', 'noted-choice', 'asked-choice', 'loose-choice']);
+  assert.deepEqual(open.items.map(each => [each.question_id, each.decision, each.no_choice, each.triage.held]), [['signed-choice', NO_CHOICE, true, true]]);
+  assert.deepEqual(classSet({ ...common, questions: bare, canAsk: true }).asking, bare.map(each => each.id));
 });
 
 test('declaredQuestionIds reads one node\'s ids from the companion, and none without one', () => {

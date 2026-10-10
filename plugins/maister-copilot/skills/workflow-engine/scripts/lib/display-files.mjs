@@ -58,7 +58,7 @@ import { pathToFileURL } from 'node:url';
 import * as canonical from '../../../../lib/canonical.mjs';
 import { isPlainObject } from './state-read.mjs';
 import { humanize, titleOf } from './display.mjs';
-import { HELD_APPROVAL } from './question-triage.mjs';
+import { frozenIds } from './question-triage.mjs';
 
 /** The directory beside the state file that holds a run's display files. */
 export const DISPLAY_DIR = 'display';
@@ -144,7 +144,7 @@ function currentPhase(doc) {
  */
 export function checkpointOf(doc, titles) {
   const nodes = nodesOf(doc);
-  const gates = Object.keys(nodes).filter(id => id !== HELD_APPROVAL && nodes[id].kind === 'gate');
+  const gates = frozenIds(nodes).filter(id => nodes[id].kind === 'gate');
   const at = gates.findIndex(id => !SETTLED.has(nodes[id].status));
   if (at === -1) return null;
   return { index: at + 1, total: gates.length, title: titleOf(titles, gates[at]) };

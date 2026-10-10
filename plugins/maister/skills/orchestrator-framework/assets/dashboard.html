@@ -344,13 +344,16 @@ function sourceChip(x) {
   const who = x.by === "operator" && x.answered_by && x.answered_by !== "operator" ? x.answered_by : SOURCE_LABEL[x.by];
   return '<span class="src ' + esc(x.by) + '">' + esc(who) + '</span>';
 }
-/* A choice the run held for approval: "Approved by …" once a checkpoint approved it, else "Held"; then its class. */
+/* A choice the run held for approval: "Approved by …" once a checkpoint approved it — "Decided at the checkpoint by …"
+   when no choice was taken before it — else "Held", or "Held — no choice yet"; then its class. */
 function triageMarks(x) {
   if (!x || typeof x !== "object") return "";
   const t = x.triage && typeof x.triage === "object" ? x.triage : {};
   let html = "";
-  if (x.approved && typeof x.approved === "object") html += '<span class="src approved">Approved by ' + esc(x.approved.by || "operator") + '</span>';
-  else if (t.held === true) html += '<span class="src held">Held</span>';
+  if (x.approved && typeof x.approved === "object") {
+    const lead = x.approved.no_choice === true ? "Decided at the checkpoint by " : "Approved by ";
+    html += '<span class="src approved">' + lead + esc(x.approved.by || "operator") + '</span>';
+  } else if (t.held === true) html += '<span class="src held">' + (x.no_choice === true ? "Held — no choice yet" : "Held") + '</span>';
   if (typeof t.class === "string" && t.class) html += '<span class="src cls">' + esc(t.class) + '</span>';
   return html;
 }

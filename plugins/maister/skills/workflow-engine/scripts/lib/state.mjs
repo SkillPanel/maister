@@ -100,7 +100,7 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalOptions, isApproval, isClassedItem, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { canAsk } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -3130,8 +3130,9 @@ function sentDecisions(decisions, prior, node, notes) {
  * record in its place.
  *
  * Refused `state-patch-invalid`, naming the fault, for a gate or a node that
- * is not running, a set `checkSet` rejects, `reasons` naming another id or
- * carrying another key, and a question that is classed but names no default.
+ * is not running, a set `checkSet` rejects, and `reasons` naming another id or
+ * carrying another key. A classed question naming no default is never
+ * refused: it is left to ask, or held with no choice taken (`classSet`).
  *
  * It classes only when the run recorded `orchestrator.classes_questions` and
  * the policy loaded now has the hash the freeze recorded. Then each question
@@ -3758,16 +3759,23 @@ function optionEffectOf(id, option, frozen, graphOf) {
  * One approval item: the held item `node` records for `question_id`, approved
  * by `answer` and credited as it is, the way a settlement item is
  * (`settlementOf`). Its triage is the held item's without `held`, and it
- * carries the held item's `attempt` when that has one.
+ * carries the held item's `attempt` when that has one. A held item no choice
+ * was taken for (`isOpenHeld`) approves no choice: its item says the question
+ * was decided at this checkpoint and carries `no_choice: true`.
  */
 function approvalOf({ node, question_id: questionId, item: held }, answer) {
   const { held: _held, ...triage } = isPlainObject(held.triage) ? held.triage : {};
-  const item = { decision: `${questionId}: ${held.decision}`, by: 'operator', node, question_id: questionId, triage };
+  const decision = isOpenHeld(held) ? `${questionId}: ${DECIDED_HERE}` : `${questionId}: ${held.decision}`;
+  const item = { decision, by: 'operator', node, question_id: questionId, triage };
+  if (isOpenHeld(held)) item.no_choice = true;
   if (attemptNumber(held) !== null) item.attempt = held.attempt;
   if (answer.answered_by !== undefined) item.answered_by = answer.answered_by;
   if (answer.via !== undefined) item.via = answer.via;
   return { ...item, ...provenanceOf(answer) };
 }
+
+/** What an approval of a held item no choice was taken for records. */
+const DECIDED_HERE = 'decided at this checkpoint; no choice was taken before it';
 
 /**
  * The approval items a gate's summary already holds that a write of its

@@ -434,7 +434,9 @@ is, and the issues it could not fix stay open for that gate.
 classes the questions a phase asks, the run settles the routine ones within its
 autonomy ceiling and shows them to you at the next checkpoint. A run nobody can ask — a dispatched
 one — takes a default for the rest, and holds any choice that needs your approval. Held choices
-come first at the next checkpoint, and continuing approves them. When no checkpoint follows one,
+come first at the next checkpoint, and continuing approves them; a choice it could not make
+because nothing was recommended is held with no choice yet, for you to decide there. When no
+checkpoint follows one,
 the run asks one more, *Held for approval*, before it finishes: approve and finish, send a phase
 back, or stop. The dashboard marks each held choice approved once you have.
 

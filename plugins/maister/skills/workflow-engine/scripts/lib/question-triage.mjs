@@ -27,8 +27,9 @@
  *   record, the ids still to ask, and the faults that refuse the write.
  * - `raiseTriage(computed, carried)` — the raise-only merge of a triage the
  *   question already carried with the one computed for it.
- * - `isClassedItem(item)`, `isHeld(item)`, `isApproval(item)` — the item
- *   shapes this module owns.
+ * - `isClassedItem(item)`, `isHeld(item)`, `isOpenHeld(item)`,
+ *   `isApproval(item)` — the item shapes this module owns; `NO_CHOICE` the
+ *   decision text of a held item no choice was taken for.
  * - `approvalKey(node, item)` — the key a held item and its approval share.
  * - `outstandingHeld(doc)`, `approvalsOf(doc)` — the held items with no
  *   approval yet, and every approval, in frozen node order.
@@ -75,6 +76,13 @@ const LABEL_JOIN = ', ';
 
 /** The class whose settled items also keep the node's assumption and reversal. */
 const RECORD_CLASS = 'record';
+
+/**
+ * The decision text of a held item no choice was taken for: an approval-class
+ * question nobody could be asked that recommends no option. A person decides
+ * it at the checkpoint that lists it; the item carries `no_choice: true`.
+ */
+export const NO_CHOICE = 'No choice yet — needs your decision';
 
 /** The `by` values the writer records a classed item under. */
 const CLASSED_BY = new Set(['run', 'default']);
@@ -200,10 +208,17 @@ function floorOf(triage) {
  * whether a person can be asked (`canAsk`) and the node's `attempt`.
  *
  * Returns `{items, asking, faults}`: the decision items to record, in set
- * order; the ids still to ask (asked or unclassed), in set order; and every
- * reason the write is refused — a `reasons` entry naming no question of the
- * set or carrying another key, or a classed question with no default. When
- * `faults` is non-empty nothing is to be recorded.
+ * order; the ids still to ask, in set order; and every reason the write is
+ * refused — a `reasons` entry naming no question of the set or carrying
+ * another key. When `faults` is non-empty nothing is to be recorded.
+ *
+ * The ids still to ask are the unclassed and asked questions, and every
+ * classed one with no default — no recommended option and no `default` —
+ * whose outcome would settle or default it: nothing is invented for it, so it
+ * is asked where a person can be, and elsewhere stays open as the node's
+ * prose says. One that would be held is held with no choice taken
+ * (`NO_CHOICE`, `no_choice: true`): a person decides it at the next
+ * checkpoint. The rest of the set is classed either way.
  *
  * The caller decides whether to class at all (the run records that its policy
  * classes questions, and the policy hash matches): this function always does.
@@ -219,22 +234,19 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
     const computed = triageFor({ policy, workflow, kind: 'question', id: question.id, declaredIds });
     const triage = raiseTriage(computed, question.triage);
     const { outcome, triage: recorded } = questionOutcome({ triage, settles, canAsk });
-    if (triage !== null && defaultOf(question) === null) {
-      faults.push(`question "${question.id}" is classed, so it needs a default: mark one option recommended or name its "default"`);
-      continue;
-    }
-    if (outcome === 'ask' || outcome === 'unclassed') {
+    const chosen = defaultOf(question);
+    if (outcome === 'ask' || outcome === 'unclassed' || (chosen === null && outcome !== 'hold')) {
       asking.push(question.id);
       continue;
     }
-    const chosen = defaultOf(question);
     const why = isMap(sent[question.id]) ? sent[question.id] : {};
     const item = {
-      decision: chosen.map(option => option.label).join(LABEL_JOIN),
+      decision: chosen === null ? NO_CHOICE : chosen.map(option => option.label).join(LABEL_JOIN),
       by: outcome === 'settle' ? 'run' : 'default',
       question_id: question.id,
       question: oneLine(question.question),
     };
+    if (chosen === null) item.no_choice = true;
     if (outcome === 'settle') {
       const rationale = why.rationale ?? chosen[0].description;
       if (typeof rationale === 'string' && rationale !== '') item.rationale = oneLine(rationale);
@@ -297,6 +309,11 @@ export function isClassedItem(item) {
 /** A held item: a classed item whose triage is `held`. */
 export function isHeld(item) {
   return isClassedItem(item) && item.triage.held === true;
+}
+
+/** A held item no choice was taken for (`NO_CHOICE`). */
+export function isOpenHeld(item) {
+  return isHeld(item) && item.no_choice === true;
 }
 
 /**

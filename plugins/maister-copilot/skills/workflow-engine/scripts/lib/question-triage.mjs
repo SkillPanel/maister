@@ -15,6 +15,7 @@
  *
  * - `HELD_APPROVAL` — the reserved checkpoint id a run asks before it finishes
  *   while held items are outstanding. Never a node of the frozen graph.
+ * - `frozenIds(nodes)` — a run's recorded node ids less that reserved one.
  * - `inNodeQuestions(text)` — every `{node, id}` a companion prose file names
  *   on its bold question-set lines.
  * - `declaredQuestionIds(definitionFile, node)` — the ids one node's prose
@@ -26,12 +27,17 @@
  *   record, the ids still to ask, and the faults that refuse the write.
  * - `raiseTriage(computed, carried)` — the raise-only merge of a triage the
  *   question already carried with the one computed for it.
- * - `isClassedItem(item)`, `isApproval(item)` — the two item shapes this
- *   module owns.
+ * - `isClassedItem(item)`, `isHeld(item)`, `isOpenHeld(item)`,
+ *   `isApproval(item)` — the item shapes this module owns; `NO_CHOICE` the
+ *   decision text of a held item no choice was taken for.
+ * - `approvalKey(node, item)` — the key a held item and its approval share.
  * - `outstandingHeld(doc)`, `approvalsOf(doc)` — the held items with no
  *   approval yet, and every approval, in frozen node order.
- * - `heldApprovalOptions(doc, {ceiling})` — the options `HELD_APPROVAL`
- *   offers, revises left out once the safety limit is spent.
+ * - `REVISION_CEILING`, `REVISE_PREFIX` — the revise safety limit every gate
+ *   shares, and the prefix of a revise option at `HELD_APPROVAL`.
+ * - `heldRevisions(doc)`, `heldApprovalOptions(doc)` — how many revises
+ *   `HELD_APPROVAL` has recorded, and the options it offers, revises left out
+ *   once the safety limit is spent.
  * - `heldApprovalLabel(option, title)` — the words one of those options is
  *   shown and recorded by.
  * - `heldApprovalBlockers(doc, owed)`, `heldApprovalCurrent(doc, owed)`,
@@ -52,6 +58,16 @@ import { attemptNumber, oneLine } from './items.mjs';
 /** The reserved closing checkpoint's id. */
 export const HELD_APPROVAL = 'held-approval';
 
+/**
+ * The ids of the frozen graph's nodes in `nodes` — a run's `workflow.nodes` —
+ * in their recorded order: every key but the reserved `HELD_APPROVAL` status
+ * entry a driven run may carry. Every reader that walks the frozen graph
+ * walks these.
+ */
+export function frozenIds(nodes) {
+  return isMap(nodes) ? Object.keys(nodes).filter(id => id !== HELD_APPROVAL) : [];
+}
+
 /** The keys a question's `reasons` entry may carry. */
 const REASON_KEYS = ['rationale', 'assumption', 'reversal'];
 
@@ -61,11 +77,27 @@ const LABEL_JOIN = ', ';
 /** The class whose settled items also keep the node's assumption and reversal. */
 const RECORD_CLASS = 'record';
 
+/**
+ * The decision text of a held item no choice was taken for: an approval-class
+ * question nobody could be asked that recommends no option. A person decides
+ * it at the checkpoint that lists it; the item carries `no_choice: true`.
+ */
+export const NO_CHOICE = 'No choice yet — needs your decision';
+
 /** The `by` values the writer records a classed item under. */
 const CLASSED_BY = new Set(['run', 'default']);
 
 /** The prefix of a revise option at `HELD_APPROVAL`, followed by the owning node's id. */
-const REVISE_PREFIX = 'revise-';
+export const REVISE_PREFIX = 'revise-';
+
+/**
+ * How many times one gate may send the run back: a safety ceiling against a
+ * runaway loop, not a budget on the user. A revise a person chooses is their
+ * call however often they make it, so the ceiling sits well past any revise
+ * loop a person runs on purpose. The engine's own constant, not a grammar key;
+ * kept in this leaf module so every reader imports it without a cycle.
+ */
+export const REVISION_CEILING = 10;
 
 const isMap = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isLine = value => typeof value === 'string' && value.trim() !== '' && !/[\r\n]/.test(value);
@@ -176,10 +208,17 @@ function floorOf(triage) {
  * whether a person can be asked (`canAsk`) and the node's `attempt`.
  *
  * Returns `{items, asking, faults}`: the decision items to record, in set
- * order; the ids still to ask (asked or unclassed), in set order; and every
- * reason the write is refused — a `reasons` entry naming no question of the
- * set or carrying another key, or a classed question with no default. When
- * `faults` is non-empty nothing is to be recorded.
+ * order; the ids still to ask, in set order; and every reason the write is
+ * refused — a `reasons` entry naming no question of the set or carrying
+ * another key. When `faults` is non-empty nothing is to be recorded.
+ *
+ * The ids still to ask are the unclassed and asked questions, and every
+ * classed one with no default — no recommended option and no `default` —
+ * whose outcome would settle or default it: nothing is invented for it, so it
+ * is asked where a person can be, and elsewhere stays open as the node's
+ * prose says. One that would be held is held with no choice taken
+ * (`NO_CHOICE`, `no_choice: true`): a person decides it at the next
+ * checkpoint. The rest of the set is classed either way.
  *
  * The caller decides whether to class at all (the run records that its policy
  * classes questions, and the policy hash matches): this function always does.
@@ -195,22 +234,19 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
     const computed = triageFor({ policy, workflow, kind: 'question', id: question.id, declaredIds });
     const triage = raiseTriage(computed, question.triage);
     const { outcome, triage: recorded } = questionOutcome({ triage, settles, canAsk });
-    if (triage !== null && defaultOf(question) === null) {
-      faults.push(`question "${question.id}" is classed, so it needs a default: mark one option recommended or name its "default"`);
-      continue;
-    }
-    if (outcome === 'ask' || outcome === 'unclassed') {
+    const chosen = defaultOf(question);
+    if (outcome === 'ask' || outcome === 'unclassed' || (chosen === null && outcome !== 'hold')) {
       asking.push(question.id);
       continue;
     }
-    const chosen = defaultOf(question);
     const why = isMap(sent[question.id]) ? sent[question.id] : {};
     const item = {
-      decision: chosen.map(option => option.label).join(LABEL_JOIN),
+      decision: chosen === null ? NO_CHOICE : chosen.map(option => option.label).join(LABEL_JOIN),
       by: outcome === 'settle' ? 'run' : 'default',
       question_id: question.id,
       question: oneLine(question.question),
     };
+    if (chosen === null) item.no_choice = true;
     if (outcome === 'settle') {
       const rationale = why.rationale ?? chosen[0].description;
       if (typeof rationale === 'string' && rationale !== '') item.rationale = oneLine(rationale);
@@ -271,8 +307,13 @@ export function isClassedItem(item) {
 }
 
 /** A held item: a classed item whose triage is `held`. */
-function isHeld(item) {
+export function isHeld(item) {
   return isClassedItem(item) && item.triage.held === true;
+}
+
+/** A held item no choice was taken for (`NO_CHOICE`). */
+export function isOpenHeld(item) {
+  return isHeld(item) && item.no_choice === true;
 }
 
 /**
@@ -292,15 +333,19 @@ export function isApproval(item) {
  */
 function summariesInOrder(doc) {
   const summaries = isMap(doc?.node_summaries) ? doc.node_summaries : {};
-  const frozen = isMap(doc?.workflow?.nodes) ? Object.keys(doc.workflow.nodes).filter(id => id !== HELD_APPROVAL) : [];
+  const frozen = frozenIds(doc?.workflow?.nodes);
   const order = [...frozen, ...Object.keys(summaries).filter(id => !frozen.includes(id))];
   return order
     .filter(id => isMap(summaries[id]) && Array.isArray(summaries[id].decisions))
     .map(id => [id, summaries[id].decisions]);
 }
 
-/** The key a held item and its approval share: node, question id and attempt (1 when absent). */
-function keyOf(node, item) {
+/**
+ * The key a held item and its approval share: the owning `node`, the item's
+ * question id and its attempt (1 when absent). Every reader that matches an
+ * approval to a held item matches on this.
+ */
+export function approvalKey(node, item) {
   return JSON.stringify([node, item.question_id, attemptNumber(item) ?? 1]);
 }
 
@@ -318,39 +363,52 @@ export function approvalsOf(doc) {
  * Every held item no approval matches, in frozen node order:
  * `{node, question_id, attempt, item}`. A held item is approved by an approval
  * item with the same node, question id and attempt (1 when absent), wherever
- * in the run it is recorded.
+ * in the run it is recorded. Only a run whose freeze recorded
+ * `orchestrator.classes_questions: true` holds anything: elsewhere a held
+ * triage was written by hand, never by the writer, and nothing waits on it.
  */
 export function outstandingHeld(doc) {
-  const approved = new Set(approvalsOf(doc).map(each => keyOf(each.node, each.item)));
+  if (doc?.orchestrator?.classes_questions !== true) return [];
+  const approved = new Set(approvalsOf(doc).map(each => approvalKey(each.node, each.item)));
   return summariesInOrder(doc).flatMap(([node, decisions]) => decisions
-    .filter(item => isHeld(item) && !approved.has(keyOf(node, item)))
+    .filter(item => isHeld(item) && !approved.has(approvalKey(node, item)))
     .map(item => ({ node, question_id: item.question_id, attempt: attemptNumber(item) ?? 1, item })));
+}
+
+/**
+ * How many revise answers `node_summaries.held-approval` records: every
+ * decision naming a `revise-<node>` option, a folded one not yet applied
+ * included.
+ */
+export function heldRevisions(doc) {
+  const own = doc?.node_summaries?.[HELD_APPROVAL];
+  const answers = isMap(own) && Array.isArray(own.decisions) ? own.decisions : [];
+  return answers.filter(item => isMap(item) && typeof item.option === 'string' && item.option.startsWith(REVISE_PREFIX)).length;
 }
 
 /**
  * The options `HELD_APPROVAL` offers: `continue` (recommended), a
  * `revise-<node>` for each node owning an outstanding held item in frozen
- * order, then `stop`. `revision` is the revise items already recorded under
- * `node_summaries.held-approval` plus one; past `ceiling` — the engine's
- * revision safety limit, passed in — the revises are `spent` and only continue
- * and stop are offered. Returns `{revision, spent, options}`, each option
- * `{id, effect, reruns?, recommended?}`.
+ * order, then `stop`. `revision` is the revise items already recorded
+ * (`heldRevisions`) plus one; past `REVISION_CEILING` the revises are `spent`
+ * and only continue and stop are offered. Returns `{revision, spent, options,
+ * revises}`, each option `{id, effect, reruns?, recommended?}`; `revises` is
+ * every revise option the held items call for, spent or not.
  */
-export function heldApprovalOptions(doc, { ceiling } = {}) {
-  const own = doc?.node_summaries?.[HELD_APPROVAL];
-  const answers = isMap(own) && Array.isArray(own.decisions) ? own.decisions : [];
-  const revised = answers.filter(item => isMap(item) && typeof item.option === 'string' && item.option.startsWith(REVISE_PREFIX)).length;
-  const revision = revised + 1;
-  const spent = typeof ceiling === 'number' && revision > ceiling;
+export function heldApprovalOptions(doc) {
+  const revision = heldRevisions(doc) + 1;
+  const spent = revision > REVISION_CEILING;
   const owners = [...new Set(outstandingHeld(doc).map(each => each.node))];
+  const revises = owners.map(node => ({ id: `${REVISE_PREFIX}${node}`, effect: 'revise', reruns: node }));
   return {
     revision,
     spent,
     options: [
       { id: 'continue', effect: 'continue', recommended: true },
-      ...(spent ? [] : owners.map(node => ({ id: `${REVISE_PREFIX}${node}`, effect: 'revise', reruns: node }))),
+      ...(spent ? [] : revises),
       { id: 'stop', effect: 'stop' },
     ],
+    revises,
   };
 }
 

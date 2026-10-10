@@ -2495,6 +2495,27 @@ function checkRevise(node, id, at, file, errors, { nodes, closures }) {
 }
 
 /**
+ * Every node whose transitive needs closure contains `gate`. `nodes` is a list
+ * of `{id, needs}`. Also the stretch a `held-approval` revise resets, with the
+ * owning node itself (`gate-revise`).
+ */
+export function downstreamOf(nodes, gate) {
+  const found = new Set();
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const entry of nodes) {
+      if (found.has(entry.id)) continue;
+      if ((Array.isArray(entry.needs) ? entry.needs : []).some(need => need === gate || found.has(need))) {
+        found.add(entry.id);
+        grew = true;
+      }
+    }
+  }
+  return found;
+}
+
+/**
  * The nodes a revise resets, in `ids` order: the `reruns` node, the gate, and
  * every node that waits on `reruns` and that the gate waits on. A side branch
  * off `reruns` that the gate does not wait on is not part of it, and nothing

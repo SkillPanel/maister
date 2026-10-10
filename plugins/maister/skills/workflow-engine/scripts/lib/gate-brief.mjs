@@ -112,13 +112,13 @@ import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
-import { grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
+import { approvesHeld, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, outstandingHeld } from './question-triage.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -1221,6 +1221,8 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       // option, so either picker shows why it is the one marked.
       const why = base.recommended && preferred?.option === id ? preferred.reason : null;
       if (why) consequence = `${consequence} ${sentenceOf(why)}`;
+      // A continue approves every choice held for approval, and says so.
+      if (held.length) consequence = `${consequence} ${approvesHeld(held)}`;
       return [{ ...base, consequence, ...(why ? { reason: why } : {}), ...(sets ? { sets, next: own } : {}) }];
     }
     if (effect === 'revise') {
@@ -1281,9 +1283,10 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
 /**
  * The run's outstanding held choices (`outstandingHeld`), in frozen order, as
  * the checkpoint lists them: `{node, step, question_id, question, decision,
- * class, floor?, rationale?}` — `step` the owning node's title, read from
- * `titles`, so every surface names the step wherever it ran. Empty under the
- * default, where nothing is held.
+ * class, floor?, rationale?, no_choice?}` — `step` the owning node's title,
+ * read from `titles`, so every surface names the step wherever it ran;
+ * `no_choice` on one no choice was taken for, its decision `NO_CHOICE`. Empty
+ * under the default, where nothing is held.
  */
 function heldOf(doc, titles) {
   return outstandingHeld(doc).map(({ node, question_id: questionId, item }) => compact({
@@ -1295,6 +1298,7 @@ function heldOf(doc, titles) {
     class: classOf(item) ?? undefined,
     floor: Array.isArray(item.triage.floor) && item.triage.floor.length ? item.triage.floor.map(String) : undefined,
     rationale: typeof item.rationale === 'string' && item.rationale.trim() !== '' ? item.rationale.trim() : undefined,
+    no_choice: isOpenHeld(item) ? true : undefined,
   }));
 }
 

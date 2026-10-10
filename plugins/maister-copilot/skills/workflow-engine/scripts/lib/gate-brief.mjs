@@ -109,17 +109,16 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
-import { REVISION_CEILING } from './revise.mjs';
-import { grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
+import { approvesHeld, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isClassedItem, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, outstandingHeld } from './question-triage.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -252,7 +251,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
 
   // The choices held for a person's approval, in frozen order: every form
   // lists them first, and this gate approves them with its continue.
-  const held = heldOf(doc);
+  const held = heldOf(doc, current.display.titles);
   const { direct: candidates, stretch } = closingCandidates(recorded, byId, node);
   let closing;
   if (candidates.length) {
@@ -459,7 +458,7 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   }
   const runDir = path.dirname(path.resolve(state));
   const { display } = reread(doc, workflow, runDir);
-  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const order = frozenIds(recorded);
   const title = titleOf(display.titles, node);
   const checkpoint = questionCheckpoint({
     set,
@@ -522,8 +521,7 @@ const NOTHING_SINCE = 'Nothing recorded since the last checkpoint.';
  * end and stop, and its question names the rest.
  */
 function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask }) {
-  const held = heldOf(doc);
-  if (!held.length) {
+  if (!outstandingHeld(doc).length) {
     return refuse('gate-brief-nothing-held',
       'Nothing is held for approval. Nothing was written. Publish the close-out when the run is dispatched, '
       + 'write the closing patch and run run-complete');
@@ -538,6 +536,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   }
 
   const current = reread(doc, workflow, runDir);
+  const held = heldOf(doc, current.display.titles);
   const warnings = [];
   if (current.drift) {
     warnings.push({
@@ -547,7 +546,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   }
   const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
   const { titles } = current.display;
-  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const order = frozenIds(recorded);
   const gateId = id => isGate(recorded, byId, id);
 
   // The stretch: every node recorded since the last checkpoint answered.
@@ -565,7 +564,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
 
   // The options, and what each revise re-runs: its node and every frozen node
   // whose needs reach it, in frozen order.
-  const derived = heldApprovalOptions(doc, { ceiling: REVISION_CEILING });
+  const derived = heldApprovalOptions(doc);
   const labels = Object.fromEntries(derived.options.map(option => [option.id, heldApprovalLabel(option.id, id => lowered(titleOf(titles, id)))]));
   const options = Object.fromEntries(derived.options.map(option => [option.id, option.effect === 'revise' ? { effect: 'revise', reruns: option.reruns } : { effect: option.effect }]));
   const edges = order.map(id => ({ id, needs: needsOf(recorded, byId, id) }));
@@ -1103,7 +1102,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   const title = id => titleOf(titles, id);
   // The frozen nodes alone: the reserved closing checkpoint's status entry is
   // never counted, and it stands after them all.
-  const order = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const order = frozenIds(recorded);
   const at = order.includes(node) ? order.indexOf(node) : order.length;
   const sources = summarySources(doc);
   let truncated = false;
@@ -1158,7 +1157,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     }
     for (const item of entry.decisions) {
       // A held choice is listed under `held`, never counted as a default.
-      if (isHeldItem(item)) continue;
+      if (isHeld(item)) continue;
       const decision = decisionOf(item);
       if (!decision || !once('decision', decision.decision)) continue;
       if (decision.by === 'operator') {
@@ -1222,6 +1221,8 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       // option, so either picker shows why it is the one marked.
       const why = base.recommended && preferred?.option === id ? preferred.reason : null;
       if (why) consequence = `${consequence} ${sentenceOf(why)}`;
+      // A continue approves every choice held for approval, and says so.
+      if (held.length) consequence = `${consequence} ${approvesHeld(held)}`;
       return [{ ...base, consequence, ...(why ? { reason: why } : {}), ...(sets ? { sets, next: own } : {}) }];
     }
     if (effect === 'revise') {
@@ -1281,24 +1282,24 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
 
 /**
  * The run's outstanding held choices (`outstandingHeld`), in frozen order, as
- * the checkpoint lists them: `{node, question_id, question, decision, class,
- * floor?, rationale?}`. Empty under the default, where nothing is held.
+ * the checkpoint lists them: `{node, step, question_id, question, decision,
+ * class, floor?, rationale?, no_choice?}` — `step` the owning node's title,
+ * read from `titles`, so every surface names the step wherever it ran;
+ * `no_choice` on one no choice was taken for, its decision `NO_CHOICE`. Empty
+ * under the default, where nothing is held.
  */
-function heldOf(doc) {
+function heldOf(doc, titles) {
   return outstandingHeld(doc).map(({ node, question_id: questionId, item }) => compact({
     node,
+    step: titleOf(titles, node),
     question_id: questionId,
     question: typeof item.question === 'string' && item.question.trim() !== '' ? item.question.trim() : undefined,
     decision: decisionOf(item)?.decision ?? '',
     class: classOf(item) ?? undefined,
     floor: Array.isArray(item.triage.floor) && item.triage.floor.length ? item.triage.floor.map(String) : undefined,
     rationale: typeof item.rationale === 'string' && item.rationale.trim() !== '' ? item.rationale.trim() : undefined,
+    no_choice: isOpenHeld(item) ? true : undefined,
   }));
-}
-
-/** Whether a recorded decision is a choice the writer held for approval. */
-function isHeldItem(item) {
-  return isClassedItem(item) && item.triage.held === true;
 }
 
 /** The class a decision the writer classed carries, or null for any other. */
@@ -1779,26 +1780,6 @@ function blockers(nodes, downstream, status) {
   return nodes.map(entry => entry.id).filter(id => waiting.has(id));
 }
 
-/**
- * Every node whose transitive needs closure contains `gate`. `nodes` is a list
- * of `{id, needs}`. Also the stretch a `held-approval` revise resets, with the
- * owning node itself (`gate-revise`).
- */
-export function downstreamOf(nodes, gate) {
-  const found = new Set();
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const entry of nodes) {
-      if (found.has(entry.id)) continue;
-      if (list(entry.needs).some(need => need === gate || found.has(need))) {
-        found.add(entry.id);
-        grew = true;
-      }
-    }
-  }
-  return found;
-}
 
 /**
  * Whether a predecessor in `state` no longer holds back a node with this `on`.
@@ -1968,7 +1949,7 @@ export function atClose({ doc, runDir }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   // The reserved closing checkpoint is judged by its own rules, never here.
-  const ids = Object.keys(recorded).filter(id => id !== HELD_APPROVAL);
+  const ids = frozenIds(recorded);
   if (!ids.length) return { owed: [], graph: null, drift: false };
 
   const current = reread(doc, workflow, runDir);
@@ -2207,7 +2188,7 @@ const DRIVEN = {
     const kind = classOf(decision);
     return `${decision.by}${kind ? ` (${kind})` : ''}: ${decisionText(decision)}`;
   },
-  held: entry => `${entry.class ? `${entry.class}: ` : ''}${entry.question_id} → ${entry.decision}`,
+  held: entry => `${entry.class ? `${entry.class}: ` : ''}${entry.question_id} → ${entry.decision}${entry.step ? ` — ${lowered(entry.step)}` : ''}`,
   risk: item => {
     const risk = riskOf(item);
     return risk ? `${risk.tag}: ${riskText(risk)}` : '';
@@ -2228,7 +2209,7 @@ const READABLE = {
     const kind = text === '' ? null : classOf(decisionOf(item));
     return kind ? `${text} (${kind})` : text;
   },
-  held: entry => `${entry.question ? `${entry.question}: ` : ''}${entry.decision}${entry.class ? ` (${entry.class})` : ''}`,
+  held: entry => `${entry.question ? `${entry.question}: ` : ''}${entry.decision}${entry.class ? ` (${entry.class})` : ''}${entry.step ? ` — ${lowered(entry.step)}` : ''}`,
   risk: headlineOf,
   fix: item => {
     const fix = fixOf(item);
@@ -2263,7 +2244,7 @@ function fit(closing, form, tail, where, held = []) {
   const sections = closing.sections.map(({ title, text }) => ({ title, text: text.trim() }));
   const summary = drawSummary(sections, Infinity);
   const fixes = (closing.fixes ?? []).map(form.fix).filter(text => text !== '');
-  const decisions = closing.decisions.filter(item => !isHeldItem(item)).map(form.decision).filter(text => text !== '');
+  const decisions = closing.decisions.filter(item => !isHeld(item)).map(form.decision).filter(text => text !== '');
   const holds = held.map(form.held).filter(text => text !== '');
   const rendered = raw => raw.map(form.risk).filter(text => text !== '');
   let risks = rendered(closing.risks);

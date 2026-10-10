@@ -49,13 +49,19 @@ carries can raise its class, never lower it — and records one of four outcomes
 | defaulted, `by: default` | above it, and nobody can be asked; a consult item is marked advice not obtained |
 | held, `by: default`, `held: true` | an approval-class question nobody can be asked |
 
+A classed question that recommends nothing is never given a choice by the writer: one it would
+settle, default or ask is left to ask, and stays open where nobody can be asked; one it would hold
+is held with no choice taken, for a person to decide at the checkpoint that lists it.
+
 It prints `ask:` with the ids still to ask, and a cockpit request is built from those alone.
 Settling and holding happen nowhere else, so two paths can never disagree. A triage the model
 writes on a decision is dropped with a note.
 
 **Held choices reach a person before the run ends.** While one waits, a gate whose guard reads a
 task's value is asked whatever its guard reads, and lists the held choices first on every
-surface. Its continue records one approval item per held choice. When no checkpoint follows, the
+surface, with the step that holds each, and every continue there says it approves them. Its
+continue records one approval item per held choice. Only a run whose freeze recorded the classing
+fact holds anything; elsewhere a held triage is inert. When no checkpoint follows, the
 closing node asks `held-approval` before its closing patch and before any close-out: approve and
 finish, revise the node that held the choice, or stop. Under dispatch no close-out is published
 while a choice is held. Where the driver cannot carry the checkpoint, the close-out is graded

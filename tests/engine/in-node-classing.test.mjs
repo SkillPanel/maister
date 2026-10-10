@@ -295,7 +295,7 @@ test('a briefed decision area keeps its carried triage through the classing writ
 // 4. refusals
 // ---------------------------------------------------------------------------
 
-test('a classing write is refused state-patch-invalid for a gate, a node not running, a bad set, bad reasons and no default', t => {
+test('a classing write is refused state-patch-invalid for a gate, a node not running, a bad set and bad reasons', t => {
   const run = started(t, QUESTIONS.engine);
   const before = fs.readFileSync(run.state, 'utf8');
   const cases = [
@@ -304,13 +304,41 @@ test('a classing write is refused state-patch-invalid for a gate, a node not run
     ['a set checkSet rejects', classing(QUESTIONS.engine, run, [], { questions: [] }), /"questions" must be a non-empty list/],
     ['an unknown reasons id', classing(QUESTIONS.engine, run, ['quick-choice'], { reasons: { 'no-such': { rationale: 'x' } } }), /"reasons" names "no-such"/],
     ['an unknown reasons key', classing(QUESTIONS.engine, run, ['quick-choice'], { reasons: { 'quick-choice': { why: 'x' } } }), /the key "why"/],
-    ['a classed question with no default', classing(QUESTIONS.engine, run, [], { questions: [question('quick-choice', { recommended: false })] }), /needs a default/],
   ];
   for (const [what, result, message] of cases) {
     refused(result, 'state-patch-invalid');
     assert.match(result.stderr, message, what);
   }
   assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+});
+
+test('a classed question recommending nothing is never refused: it is asked where a person can be, and the rest of the set still settles', t => {
+  const run = started(t, QUESTIONS.engine);
+  const result = classing(QUESTIONS.engine, run, [], {
+    questions: [question('quick-choice'), question('asked-choice', { recommended: false }), question('noted-choice', { recommended: false })],
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(askLine(result.stdout), 'ask: asked-choice noted-choice', 'nothing is invented for a settleable one either');
+  const summary = summaryOf(run);
+  assert.deepEqual(summary.decisions.map(item => [item.question_id, item.by]), [['quick-choice', 'run']]);
+  assert.deepEqual(summary.asking, ['asked-choice', 'noted-choice']);
+});
+
+test('dispatch: an approval-class question recommending nothing is held with no choice taken; the others recommending nothing stay to the node', t => {
+  const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
+  const result = classing(QUESTIONS.engine, run, [], {
+    questions: ['quick-choice', 'asked-choice', 'signed-choice'].map(id => ({ ...labelled(id), options: labelled(id).options.map(({ recommended: _r, ...option }) => option) })),
+    reasons: { 'signed-choice': { rationale: 'Either layout ships.' } },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  // Settle and default take a recommendation, and there is none: the node's own rule keeps them open.
+  assert.equal(askLine(result.stdout), 'ask: quick-choice asked-choice');
+  const held = byId(summaryOf(run).decisions, 'signed-choice');
+  assert.deepEqual(held, {
+    decision: 'No choice yet — needs your decision', by: 'default', question_id: 'signed-choice', question: 'Which signed-choice?',
+    no_choice: true, rationale: 'Either layout ships.', triage: { version: 1, class: 'approve', family: 'signed-family', held: true },
+  });
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['scoping', 'signed-choice', 1]]);
 });
 
 // ---------------------------------------------------------------------------
@@ -1143,6 +1171,20 @@ test('held-approval: its answer is folded, held to its options, stamped and judg
   assert.equal(outstandingHeld(readState(stopped)).length, 1);
 });
 
+test('held-approval: a held question with no choice taken is listed there as needing a decision, and its continue records it decided', t => {
+  const run = heldClosing(t, { owners: [] });
+  const open = { ...labelled('closing-choice'), options: labelled('closing-choice').options.map(({ recommended: _r, ...option }) => option), triage: APPROVE_TRIAGE };
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'closing', questions: [open] }).stdout), 'ask: none');
+  const checkpoint = JSON.parse(heldBrief(run, '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.held.map(each => [each.node, each.decision, each.no_choice]), [['closing', 'No choice yet — needs your decision', true]]);
+  assert.match(heldBrief(run).stdout, /^- Which closing-choice\?: No choice yet — needs your decision \(approve\) — closing$/m);
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  const [, approval] = decisionsAt(run, HELD_APPROVAL_ID);
+  assert.equal(approval.decision, 'closing-choice: decided at this checkpoint; no choice was taken before it');
+  assert.equal(approval.no_choice, true);
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+});
+
 test('held-approval: run-complete refuses run-held-unapproved after the unfinished nodes and before the close-out', t => {
   // Unfinished nodes are judged first.
   const early = heldClosing(t, { upTo: 'tidy' });
@@ -1365,6 +1407,43 @@ test('end to end under dispatch: held, briefed first at the forced gate, approve
   for (const other of dashboardDecisions(run, 'scoping').filter(each => each.question_id !== 'signed-choice')) {
     assert.equal(Object.hasOwn(other, 'approved'), false, other.question_id);
   }
+});
+
+test('end to end under dispatch: a held question with no choice taken forces the checkpoint, is shown as needing a decision, and is recorded decided there', t => {
+  const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
+  const unrecommended = { ...labelled('signed-choice'), options: labelled('signed-choice').options.map(({ recommended: _r, ...option }) => option) };
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [labelled('quick-choice'), unrecommended] }).stdout), 'ask: none');
+  ok(QUESTIONS.engine, run, {
+    nodes: { scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } } },
+    node_summaries: { scoping: { summary: 'Scoped the work.' } },
+  });
+  // Forced like any held choice: the run owes the gate its task guard would skip.
+  const owed = atClose({ doc: readState(run), runDir: run.dir }).owed.find(each => each.id === 'review-approval');
+  assert.equal(owed?.held, true);
+
+  const checkpoint = JSON.parse(gateBriefOf(run, 'review-approval', '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.held, [{
+    node: 'scoping', step: 'Scoping', question_id: 'signed-choice', question: 'Which signed-choice?', decision: 'No choice yet — needs your decision',
+    class: 'approve', no_choice: true,
+  }]);
+  const go = checkpoint.options.find(option => option.id === 'continue-past-review');
+  assert.match(go.consequence, / Records 1 held question with no choice yet as decided here\.$/);
+  assert.doesNotMatch(go.consequence, /Approves/);
+  const request = JSON.parse(gateBriefOf(run, 'review-approval', '--request').stdout);
+  assert.equal(request.options.find(option => option.id === 'continue-past-review').description, go.consequence);
+  assert.match(gateBriefOf(run, 'review-approval').stdout, /^- Which signed-choice\?: No choice yet — needs your decision \(approve\) — scoping$/m);
+  const before = byId(dashboardDecisions(run, 'scoping'), 'signed-choice');
+  assert.equal(before.no_choice, true);
+  assert.equal(Object.hasOwn(before, 'approved'), false);
+
+  drivenAnswer(run, 'review-approval', 'continue-past-review');
+  ok(QUESTIONS.engine, run, {});
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  const recorded = decisionsAt(run, 'review-approval').find(item => item.question_id === 'signed-choice');
+  assert.equal(recorded.decision, 'signed-choice: decided at this checkpoint; no choice was taken before it');
+  assert.equal(recorded.no_choice, true);
+  assert.equal(recorded.answered_by, 'dana');
+  assert.deepEqual(byId(dashboardDecisions(run, 'scoping'), 'signed-choice').approved, { by: 'dana', no_choice: true });
 });
 
 test('one continue records the answer, the settlement of the value it sets, then the approval of the held choice', t => {

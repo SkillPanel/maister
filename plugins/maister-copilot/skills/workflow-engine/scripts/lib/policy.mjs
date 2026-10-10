@@ -507,9 +507,6 @@ export function narrowerLevel(a, b) {
   return ASK_LEVELS.indexOf(one) <= ASK_LEVELS.indexOf(two) ? one : two;
 }
 
-/** The outcomes of a classed question, and of one the policy does not class. */
-export const OUTCOMES = ['settle', 'ask', 'default', 'hold', 'unclassed'];
-
 /**
  * What a question comes to: `{outcome, triage}`.
  *

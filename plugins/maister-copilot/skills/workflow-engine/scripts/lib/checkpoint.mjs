@@ -162,10 +162,31 @@ export function grantsText(names) {
   return words.length ? `also ${andList(words)}` : '';
 }
 
-/** An option's label with what answering it grants after a dash. */
+/**
+ * What a continue does to the choices held for approval (`checkpoint.held`):
+ * "Approves 2 held choices.", and for the held questions no choice was taken
+ * for, that they are recorded as decided here — or '' when nothing is held.
+ */
+export function approvesHeld(held) {
+  const list = Array.isArray(held) ? held : [];
+  const open = list.filter(entry => entry?.no_choice === true).length;
+  const chosen = list.length - open;
+  const parts = [];
+  if (chosen) parts.push(`approves ${chosen} held ${chosen === 1 ? 'choice' : 'choices'}`);
+  if (open) parts.push(`records ${open} held ${open === 1 ? 'question' : 'questions'} with no choice yet as decided here`);
+  return parts.length ? sentenceOf(parts.join('; ')) : '';
+}
+
+/**
+ * An option's label with what answering it grants after a dash, and — on a
+ * continue at a checkpoint holding choices for approval — that it approves
+ * them (`approvesHeld`).
+ */
 function grantedLabel(checkpoint, option) {
   const granted = grantsText(checkpoint.grants?.[option.id]);
-  return granted ? `${option.label} — ${granted}` : option.label;
+  const labelled = granted ? `${option.label} — ${granted}` : option.label;
+  const approving = option.effect === 'continue' ? approvesHeld(checkpoint.held) : '';
+  return approving ? `${labelled} — ${approving.charAt(0).toLowerCase()}${approving.slice(1, -1)}` : labelled;
 }
 
 /** `A`, `A and B`, `A, B and C`. */
@@ -292,11 +313,13 @@ function leadOf(text) {
 
 /**
  * The choices the run made that wait for the user's approval, each with the
- * step that holds it: `source` is that step's title, as a decision's is.
+ * step that holds it: `source` is that step's title, as a decision's is —
+ * the entry's own `step`, else the title of the closed node it names.
  */
 function heldOf(checkpoint) {
   const titles = new Map((checkpoint.closed ?? []).map(each => [each.node, each.title]));
-  return (checkpoint.held ?? []).map(item => ({ ...item, source: titles.has(item.node) ? lowered(titles.get(item.node)) : null }));
+  const stepOf = item => (typeof item.step === 'string' && item.step !== '' ? item.step : titles.get(item.node) ?? null);
+  return (checkpoint.held ?? []).map(item => ({ ...item, source: stepOf(item) === null ? null : lowered(stepOf(item)) }));
 }
 
 /** One held line at a glance: the question, the choice made, and the step. */
@@ -345,7 +368,7 @@ function openRisks(checkpoint) {
  * listed after *Review*, ahead of everything else — down to one and a count;
  * *Next* is never cut.
  */
-function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false, ways = waysOf(checkpoint) }) {
+function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false, ways = waysOf(checkpoint), approving = false }) {
   const items = decided(checkpoint);
   const held = heldOf(checkpoint);
   const fixes = checkpoint.fixes ?? [];
@@ -363,7 +386,10 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
     if (review) out.push(`Review: ${review}`);
     if (held.length) {
       const rest = held.length - view.held;
-      out.push(`${HELD_HEADING}${rest > 0 ? ` (+${rest} more under More details)` : ''}:`);
+      // A continue's own preview says, on the heading, what choosing it does to them.
+      const doing = approving ? approvesHeld(checkpoint.held) : '';
+      const what = doing ? ` — continuing ${doing.charAt(0).toLowerCase()}${doing.slice(1, -1)}` : '';
+      out.push(`${HELD_HEADING}${rest > 0 ? ` (+${rest} more under More details)` : ''}${what}:`);
       out.push(...held.slice(0, view.held).map(item => heldLine(item, view.item)));
     }
     if (view.risks > 0) {
@@ -794,7 +820,7 @@ function answerFields(option, profile) {
 export function richPicker(checkpoint) {
   const options = ordered(checkpoint).map(option => {
     let lines;
-    if (option.effect === 'continue') lines = glance(checkpoint, { companion: 'beside', markdown: true, ways: option.next !== undefined ? [option] : [] });
+    if (option.effect === 'continue') lines = glance(checkpoint, { companion: 'beside', markdown: true, ways: option.next !== undefined ? [option] : [], approving: true });
     else if (option.effect === 'revise') lines = reviseLines(option);
     else lines = stopLines(checkpoint, option);
     return {

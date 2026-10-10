@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { ENGINE_DIR, FIXTURES, freeze, freezePatch, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import {
-  FOCUS_BUDGET, FOCUS_LINES, choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, requestOf, richPicker, unmarked,
+  FOCUS_BUDGET, FOCUS_LINES, approvesHeld, choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, requestOf, richPicker, unmarked,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
@@ -1170,14 +1170,46 @@ test('held: the glance lists held choices after Next and Review, ahead of the ri
   const checkpoint = heldCheckpoint({ held: 2 });
   const rich = richPicker(checkpoint).options[0].preview.split('\n');
   const plain = plainPicker(checkpoint).question.split('\n');
+  // The continue's own preview says on the heading that choosing it approves them.
+  assert.ok(rich.includes('Held for your approval — continuing approves 2 held choices:'), rich.join('\n'));
+  assert.ok(plain.includes('Held for your approval:'), plain.join('\n'));
   for (const glance of [rich, plain]) {
-    const at = glance.indexOf('Held for your approval:');
+    const at = glance.findIndex(line => line.startsWith('Held for your approval'));
     assert.ok(at > glance.findIndex(line => line.startsWith('Review: ')), glance.join('\n'));
     assert.ok(at > glance.findIndex(line => line.startsWith('Next: ')));
     assert.equal(glance[at + 1], '- Which wave order 1?: Order 1 first — planning');
     assert.equal(glance[at + 2], '- Which wave order 2?: Order 2 first — planning');
     assert.ok(at < glance.findIndex(line => line.startsWith('Open risks')), glance.join('\n'));
   }
+});
+
+test('held: every continue says it approves the held choices — label, description and preview on both pickers, and the request', () => {
+  const checkpoint = heldCheckpoint({ held: 2 });
+  const listed = [
+    { id: 'continue', label: 'Continue', effect: 'continue', recommended: true, consequence: 'Goes on. Approves 2 held choices.' },
+    { id: 'skip-ahead', label: 'Skip ahead', effect: 'continue', recommended: false, consequence: 'Skips ahead. Approves 2 held choices.' },
+    { id: 'stop', label: 'Stop', effect: 'stop', recommended: false, consequence: 'Ends the run here.' },
+  ];
+  const each = { ...checkpoint, options: listed };
+  const rich = richPicker(each).options;
+  assert.deepEqual(rich.slice(0, 3).map(option => option.label), [
+    'Continue — approves 2 held choices (Recommended)', 'Skip ahead — approves 2 held choices', 'Stop',
+  ]);
+  assert.deepEqual(rich.slice(0, 2).map(option => option.description), ['Goes on. Approves 2 held choices.', 'Skips ahead. Approves 2 held choices.']);
+  for (const option of rich.slice(0, 2)) assert.match(option.preview, /^Held for your approval — continuing approves 2 held choices:$/m);
+  assert.doesNotMatch(rich[2].preview, /approves/);
+  assert.deepEqual(plainPicker(each).options.slice(0, 3).map(option => option.label), [
+    'Continue — approves 2 held choices (Recommended)', 'Skip ahead — approves 2 held choices', 'Stop — keeps everything written so far',
+  ]);
+  assert.deepEqual(requestOf(each, 'Verified.').options.map(option => option.description), listed.map(option => option.consequence));
+
+  // A held question no choice was taken for is never approved as a choice.
+  const open = heldCheckpoint({ held: 2 });
+  open.held[1] = { ...open.held[1], decision: 'No choice yet — needs your decision', no_choice: true };
+  assert.equal(approvesHeld(open.held), 'Approves 1 held choice; records 1 held question with no choice yet as decided here.');
+  assert.equal(approvesHeld([open.held[1]]), 'Records 1 held question with no choice yet as decided here.');
+  assert.equal(approvesHeld([]), '');
+  assert.match(richPicker(open).options[0].label, /^Continue — approves 1 held choice; records 1 held question with no choice yet as decided here/);
 });
 
 test('held: More details opens with the held choices right after Done, each with its class and rationale', () => {
@@ -1224,7 +1256,7 @@ test('held: many held choices are cut to one and a count, never to none; no held
   });
   const glance = richPicker(checkpoint).options[0].preview.split('\n').filter(line => line !== '');
   assert.ok(glance.length <= FOCUS_LINES && glance.join('\n').length <= FOCUS_BUDGET, glance.join('\n'));
-  assert.ok(glance.includes('Held for your approval (+11 more under More details):'), glance.join('\n'));
+  assert.ok(glance.includes('Held for your approval (+11 more under More details) — continuing approves 12 held choices:'), glance.join('\n'));
   assert.ok(glance.some(line => line.startsWith('- Which wave order 1?')), glance.join('\n'));
   const panel = panelOfCheckpoint(checkpoint);
   assertFits(panel.glance);
