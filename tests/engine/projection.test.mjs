@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { artifactOf, decisionOf, deriveProgress, issueOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/dashboard.mjs';
+import { artifactOf, decisionOf, deriveProgress, issueOf, render } from '../../plugins/maister/skills/workflow-engine/scripts/lib/dashboard.mjs';
 import { FIXTURES, freeze, readDashboard, readState, scratch, write } from '../helpers.mjs';
 
 // ---------------------------------------------------------------------------
@@ -398,4 +398,68 @@ test('with the definition gone the absence keeps its reason and carries no path'
   });
   const analysis = readDashboard(run).phases.find(phase => phase.id === 'analysis');
   assert.deepEqual(analysis.absent, [{ artifact: 'report', path: null, reason: 'the ticket names no code' }]);
+});
+
+// ---------------------------------------------------------------------------
+// held and approved choices, through the pure render
+// ---------------------------------------------------------------------------
+
+const NOW = '2026-01-05T09:00:00Z';
+
+/** A held choice the run made on `analysis`, classed `approve`. */
+const held = (extra = {}) => ({
+  decision: 'q-scope: keep the parser', by: 'run', question_id: 'q-scope',
+  triage: { class: 'approve', held: true }, ...extra,
+});
+
+/** The approval a checkpoint's continue records for it. */
+const approval = (extra = {}) => ({
+  decision: 'q-scope: keep the parser', by: 'operator', node: 'analysis', question_id: 'q-scope',
+  triage: { class: 'approve' }, ...extra,
+});
+
+/** The projected decisions of each phase, keyed by node id. */
+function decisionsByNode(summaries) {
+  const state = {
+    workflow: { nodes: { analysis: { status: 'completed' }, checkpoint: { status: 'completed' } } },
+    node_summaries: summaries,
+  };
+  const text = render({ state }, { now: NOW });
+  const data = JSON.parse(text.slice('window.MAISTER_DATA = '.length, -2));
+  return { text, byNode: Object.fromEntries(data.phases.map(phase => [phase.id, phase.decisions])) };
+}
+
+test('a held choice an approval matches anywhere in the run is marked approved by its approver', () => {
+  const { byNode } = decisionsByNode({
+    analysis: { decisions: [held()] },
+    checkpoint: { decisions: [{ option: 'continue', answered_by: 'marek' }, approval({ answered_by: 'marek' })] },
+  });
+  assert.deepEqual(byNode.analysis[0].approved, { by: 'marek' });
+  assert.equal(Object.hasOwn(byNode.checkpoint[1], 'approved'), false, 'the approval item itself gains nothing');
+});
+
+test('an approval with no answered_by credits the operator', () => {
+  const { byNode } = decisionsByNode({
+    analysis: { decisions: [held({ attempt: 2 })] },
+    checkpoint: { decisions: [approval({ attempt: 2 })] },
+  });
+  assert.deepEqual(byNode.analysis[0].approved, { by: 'operator' });
+});
+
+test('a held choice no approval matches gains nothing', () => {
+  const { byNode } = decisionsByNode({
+    analysis: { decisions: [held({ attempt: 2 }), held({ question_id: 'q-other', decision: 'q-other: x' })] },
+    // Same question, another attempt; another node's same question.
+    checkpoint: { decisions: [approval(), approval({ node: 'checkpoint', question_id: 'q-other' })] },
+  });
+  for (const decision of byNode.analysis) assert.equal(Object.hasOwn(decision, 'approved'), false);
+  assert.equal(byNode.analysis[0].triage.held, true, 'the held mark stays as history');
+});
+
+test('with no classed choices the projection is unchanged: every decision is decisionOf of its entry', () => {
+  const entries = ['keep the parser', { decision: 'd', by: 'run' }, { option: 'continue', answered_by: 'marek' }];
+  const { text, byNode } = decisionsByNode({ analysis: { decisions: entries }, checkpoint: { decisions: [] } });
+  assert.deepEqual(byNode.analysis, entries.map(entry => decisionOf(entry)).map(d =>
+    d.option === 'continue' ? { ...d, decision: 'Continue' } : d));
+  assert.equal(text.includes('"approved"'), false);
 });
