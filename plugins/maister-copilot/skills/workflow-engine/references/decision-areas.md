@@ -120,7 +120,7 @@ node composes every area from the markdown:
 | `decision-areas-missing:<path>` | The file is not there; `:not-declared` in place of a path when the node names no file, `:producer-not-completed` after the path when its brainstorm did not complete |
 | `decision-areas-unreadable:<path>:<code>` | The file exists but cannot be read; the detail is the error code |
 | `decision-areas-invalid:<path>:<fault>` | The file fails the check; the detail is its first fault |
-| `decision-areas-stale:<path>:<source>` | The markdown's bytes no longer match the stamp; `:source-unreadable` when the markdown cannot be read, `:source-not-declared` when `source.path` is not the markdown the brainstorm declares |
+| `decision-areas-stale:<path>:<source>[:<detail>]` | The markdown's bytes no longer match the stamp; `:source-unreadable` when the markdown cannot be read, `:source-not-declared` when `source.path` is not the markdown the brainstorm declares |
 | `decision-areas-unwritable:<patch path>:<code>` | The driven question set could not be written to the patch file; nothing was written and no temp is left |
 
 ## What the verb adds

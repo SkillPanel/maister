@@ -1592,12 +1592,13 @@ file:
 | `decision-areas-unreadable:<path>:<code>` | exists but cannot be read |
 | `decision-areas-invalid:<path>:<fault>` | failed the check, its first fault as `<reason> at <path>` |
 | `decision-areas-stale:<path>:<source>[:<detail>]` | no longer matches the markdown it was written from; `:source-unreadable` when that markdown cannot be read, `:source-not-declared` when it is not the markdown the brainstorm declares |
-| `decision-areas-unwritable:<patch path>:<code>` | was read, but the question set could not be written to the patch file; nothing was written |
+| `decision-areas-unwritable:<patch path>:<code>` | was read, but the question set could not be written to the patch file; nothing was written. `EEXIST` means another write holds the patch file's temp, or a crash left one; it is reclaimed after a minute, so running the set form again after a minute is fine. `EACCES` or `EPERM` means the run directory refuses writes, so neither the composed set nor the request can be written either: stop and report the run directory as unwritable rather than composing into it |
 
 Each means the same: compose every area from the brainstorm's markdown, exactly as the node
 prose describes, with the same detail and the question ids it names, and say in the node summary
-which warning made it do so. The warning holds for every area of the run, so do not run the verb
-again for the next one, and never edit the file to make it pass — it is the brainstorm's.
+which warning made it do so. Apart from the `decision-areas-unwritable` cases above, the warning
+holds for every area of the run, so do not run the verb again for the next one, and never edit
+the file to make it pass — it is the brainstorm's.
 
 Its refusals name no state write and leave nothing written:
 
