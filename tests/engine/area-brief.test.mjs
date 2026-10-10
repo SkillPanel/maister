@@ -10,7 +10,9 @@ import {
 import {
   FIXED_LABELS, areaDetails, areaEntry, areaPicker, loadAreas,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/decision-areas.mjs';
+import { areaBrief } from '../../plugins/maister/skills/workflow-engine/scripts/lib/area-brief.mjs';
 import { PREVIEW_BUDGET } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+import { HEADER_MAX } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display.mjs';
 
 // The decision areas a brainstorm writes beside its markdown, and the questions
 // the engine renders from them. The contract pinned here: a file is judged
@@ -189,6 +191,40 @@ test('area-brief: an area left open offers the first three in rank order, none m
   assert.deepEqual(rich.options.map(option => option.id), ['hosted-api', 'same-db', 'own-service', 'more-details']);
   assert.ok(rich.options.every(option => option.recommended === false && !/Recommended/.test(option.label)));
   assert.equal(rich.question.split('\n').at(-1), 'Also considered — type one to choose it: Document store.');
+});
+
+test('area-brief: the rich and driven headers clip a long area name to the header length, the plain one keeps it whole', () => {
+  const all = areas();
+  // Exactly the header length is kept whole.
+  assert.equal([...all[1].area].length, HEADER_MAX);
+  assert.equal(areaPicker(all[1], all, 'rich').header, 'Access model');
+  assert.equal(areaEntry(all[1], all).header, 'Access model');
+  const long = { ...all[0], area: 'Storage of shared calendars' };
+  const rich = areaPicker(long, all, 'rich');
+  assert.equal(rich.header, 'Storage of…');
+  assert.ok([...rich.header].length <= HEADER_MAX);
+  assert.equal(areaEntry(long, all).header, rich.header, 'the driven entry clips the same way');
+  assert.equal(areaPicker(long, all, 'plain').header, 'Storage of shared calendars');
+  // The question and the write-up carry the name whole in every form.
+  assert.match(rich.question, /^Storage of shared calendars: /);
+  assert.match(rich.more_details, /^\*\*Storage of shared calendars\*\*\n/);
+});
+
+test('area-brief: an alternative\'s preview is clipped to the budget while the write-up and the driven entry keep it whole', () => {
+  const all = areas();
+  const long = structuredClone(all[0]);
+  const description = 'A long account of the shared table and its joins. '.repeat(60).trim();
+  long.alternatives.find(alternative => alternative.id === 'same-db').description = description;
+  const picker = areaPicker(long, all, 'rich');
+  const recommended = picker.options[0];
+  assert.equal(recommended.id, 'same-db');
+  assert.ok(recommended.preview.length <= PREVIEW_BUDGET, `${recommended.preview.length} over the budget`);
+  assert.match(recommended.preview, /^\*\*Same database\*\*\n\nA long account/);
+  assert.match(recommended.preview, /…$/, 'the clip is marked');
+  assert.doesNotMatch(recommended.preview, /\*\*Why recommended\*\*/, 'what falls past the budget is cut, not moved');
+  for (const option of picker.options) assert.ok(option.preview.length <= PREVIEW_BUDGET, option.id);
+  assert.ok(picker.more_details.includes(description), 'the write-up is never clipped');
+  assert.ok(areaEntry(long, all).details.includes(description), 'the driven details are never clipped');
 });
 
 // ---------------------------------------------------------------------------
@@ -489,6 +525,24 @@ test('area-brief: a missing, invalid, stale or undeclared file warns once and th
   }
 });
 
+test('area-brief: a declared file that exists but cannot be read warns unreadable with its error code, exit 0', t => {
+  const run = atConvergence(t, { file: false });
+  fs.mkdirSync(path.join(run.dir, run.declared), { recursive: true });
+  const warning = `decision-areas-unreadable:${run.declared}:EISDIR`;
+  const json = brief(run, ['--area=storage', '--json']);
+  assert.equal(json.code, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout), { ok: true, fallback: true, errors: [], warnings: [warning] });
+  assert.equal(json.stderr, `warning: ${warning}\n`);
+  const writeUp = brief(run, ['--area=storage']);
+  assert.equal(writeUp.code, 0, writeUp.stderr);
+  assert.equal(writeUp.stdout, '');
+  const patch = path.join(run.dir, '.state-patch.json');
+  const set = brief(run, [`--patch-file=${patch}`]);
+  assert.equal(set.code, 0, set.stderr);
+  assert.equal(set.stderr, `warning: ${warning}\n`);
+  assert.equal(fs.existsSync(patch), false);
+});
+
 // ---------------------------------------------------------------------------
 // location: each built-in's declared path, through the convergence node's with:
 // ---------------------------------------------------------------------------
@@ -682,4 +736,17 @@ test('area-brief --patch-file on a fallback writes no patch file and prints noth
   assert.equal(result.stdout, '');
   assert.equal(result.stderr, `warning: decision-areas-missing:${run.declared}\n`);
   assert.equal(fs.existsSync(run.patch), false);
+});
+
+test('area-brief --patch-file whose write fails leaves no temp file and the place untouched', t => {
+  const run = drivenRun(t);
+  // A non-empty directory where the patch file goes: the entry point refuses
+  // it as usage, so the module is called directly to reach the rename.
+  const patch = path.join(run.dir, '.state-patch.json');
+  fs.mkdirSync(patch);
+  fs.writeFileSync(path.join(patch, 'keep'), 'kept');
+  assert.throws(() => areaBrief({ state: run.state, node: run.node, form: 'set', patchFile: patch }));
+  assert.deepEqual(fs.readdirSync(run.dir).filter(name => name.endsWith('.tmp')), [], 'no temp file left behind');
+  assert.deepEqual(fs.readdirSync(patch), ['keep']);
+  assert.equal(fs.readFileSync(path.join(patch, 'keep'), 'utf8'), 'kept');
 });
