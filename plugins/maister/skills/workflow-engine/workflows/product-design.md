@@ -12,10 +12,10 @@ whether a node succeeded, or how many times the engine may re-drive one. Those
 live here.
 
 **State the consequence plainly**: a reader of `product-design.yml` alone cannot
-see that the run asks ten further kinds of question beyond its five gates — and
-the mockup studio runs a refinement loop of its own inside the prototyping node.
-In run order: the additional context, the problem questions in pages, the
-problem statement's approval, the persona questions in pages, the persona
+see that the run asks eleven further kinds of question beyond its five gates —
+and the mockup studio runs a refinement loop of its own inside the prototyping
+node. In run order: the additional context, the problem questions and the
+drafted stories in pages, the problem statement's approval, the persona questions in pages, the persona
 cards' approval, a retry when the brainstormer fails twice, one question per
 decision area in the convergence, each specification section's approval, the
 depth enrichments for a complex design, and the brief's approval. The design
@@ -46,10 +46,10 @@ because a direction nobody chose would be built into
 every document after it (`idea-convergence` says how).
 
 **Every question carries what it asks about** (engine § *In-node questions*).
-This workflow presents drafts and asks about them — the problem statement, the
-persona cards, each decision area, each specification section, the enrichments,
-the brief — and the question, its options and their previews are the only text
-sure to reach the screen. So each such question names in its own text what the
+This workflow presents drafts and asks about them — each story, the problem
+statement, the persona cards, each decision area, each specification section,
+the enrichments, the brief — and the question, its options and their previews
+are the only text sure to reach the screen. So each such question names in its own text what the
 draft settles, and each option says what it changes. More details is its last
 option while a slot is free, and typed as "details" when four options fill the
 slots: the draft written out in full, then the same question again. Every ask
@@ -589,6 +589,31 @@ is answered the way that keeps it whole (engine § *In-node questions*).
    problem statement built without the operator's answers is one, and saying so
    is the difference between a gate an operator reads carefully and one they
    wave through.
+
+   **Questions about one behaviour are one story.** Once the description or an
+   earlier answer names a behaviour the feature must support — removing a
+   member, sharing a calendar — the questions about it are not asked one by
+   one: they are drafted into one story and asked as one question, id
+   `user-story-<topic>`, in the same pages (engine § *In-node questions*, *One
+   topic is one drafted story*). Keep each story at the level of the journey —
+   who acts, the situation they start from, what they do, what changes and is
+   kept or recorded, what they and others see afterwards — and name a screen or
+   a control only where the design context already does: the layout is the
+   specification's and the prototypes' to decide. The questions that stay on
+   their own are those whose answer changes no story: the problem's framing, a
+   constraint, a success measure. Each story goes into
+   `analysis/problem-statement.md` under **User stories**, by its id, with how
+   it was settled.
+
+   **With question sets** (`user-story`): each story that stands on its own is
+   its own question in the first page's request, beside the problem questions,
+   its draft, corrections and alternative written to
+   `analysis/problem-statement.md` before the node suspends. A story that waits
+   on another's answer is not asked, and is marked drafted.
+
+   **Without question sets** (`user-story`): each story is taken as
+   drafted, recorded `by: default` under its own id, and marked drafted in the
+   problem statement, as the rest of that draft is marked a proposal.
 2. **Converge.** Announce the switch, then present the complete draft: the
    problem statement, the key constraints and the success criteria.
 3. **Refine** — ask *"Use this problem statement?"*, the question giving the
@@ -621,8 +646,9 @@ is answered the way that keeps it whole (engine § *In-node questions*).
    continue — no round is taken and the count stays at zero.
    `problem-approval` is the operator's route back.
 4. **Write `analysis/problem-statement.md`**: the approved problem statement,
-   constraints, success criteria and the key assumptions behind them — the full
-   exploration, which the brief later condenses.
+   constraints, success criteria, the user stories as settled, and the key
+   assumptions behind them — the full exploration, which the brief later
+   condenses.
 
 **Gate brief content.** Into this node's closing summary: a `headline` giving
 the problem in one sentence. In `summary`, the problem statement in a sentence or two, and the
@@ -631,7 +657,8 @@ the exploration settled, each `{decision, by: run}`, beside the operator's
 answers as recorded above, or `{decision, by: default, question_id}` for each
 defaulted question; an earlier answer is never restated as the exploration's. In
 `risks`, the assumptions the statement rests on, each
-`{risk, tag: open, change}` with what would change if it is wrong; a need left
+`{risk, tag: open, change}` with what would change if it is wrong — a story
+taken as drafted is one, its `change` the correction listed for it; a need left
 out of scope on purpose is `tag: tradeoff`.
 
 **When re-run after a revise.** `problem-approval` sent the run back, and
@@ -978,6 +1005,14 @@ and `specification-approval` is where the operator approves them; a choice the
 run made on thin evidence goes in `risks` as `open`, with the other way as its
 `change`.
 
+**Keep the stories.** When `analysis/problem-statement.md` holds user stories,
+write them first into `analysis/feature-spec.md` under **User stories**, each by
+its id and whole, as the problem exploration settled them — they are not asked
+again. Each section then names the stories it serves. A story the chosen
+direction changes is restated as changed, the change named, and is an `open`
+risk for `specification-approval`; a story no section serves is an `open` risk
+too, never a silent drop.
+
 **Scale the sections to the complexity**: three or four sections of about 20 to
 50 lines each for a simple design — what to build; five or six of about 50 to
 100 for a standard one — what, and the key decisions about how; six to eight of
@@ -1187,7 +1222,9 @@ run's own close is `completion`'s.
    for handoff that points at the detailed documents rather than repeating them:
    - **Core brief**, always: the problem statement, the target users, the feature
      overview, the constraints, the success criteria and the acceptance criteria,
-     condensed from the problem statement and the specification;
+     condensed from the problem statement and the specification; and the user
+     stories from the specification, each by its id and whole — they are the
+     requirements a development run carries, so they are never condensed;
    - **Persona cards**, when the state records `persona-exploration` completed;
    - **Design decisions**, a summary per decision area, pointing at the decision
      record and the alternatives, when the state records `idea-convergence`

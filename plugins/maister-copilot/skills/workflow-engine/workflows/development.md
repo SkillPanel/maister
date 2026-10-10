@@ -11,9 +11,9 @@ writes into its closing summary for the gate brief, the self-checks that decide 
 node succeeded, or how many times the engine may re-drive one. Those live here.
 
 **State the consequence plainly**: a reader of `development.yml` alone cannot
-see that the run asks nine further questions beyond its gates, and the
+see that the run asks ten further questions beyond its gates, and the
 generated diagram does not show them either. Anyone reasoning about how
-interactive this workflow is must read this file, not the graph. The nine
+interactive this workflow is must read this file, not the graph. The ten
 reach the user as eight asks, in run order:
 
 1. `intake` — the task description, only when the invocation gave none.
@@ -22,7 +22,7 @@ reach the user as eight asks, in run order:
 3. `gap-analysis` — the scope decisions.
 4. `specification`, Part A — a page of technical questions, then each open
    architecture choice in its own call.
-5. `specification`, Part B — the assumptions page.
+5. `specification`, Part B — the drafted stories, then the assumptions page.
 6. `verification-options` — the checks page: the reviews and the user
    documentation, one tab each.
 7. `verification` — the fix loop's decision pages and its stopping question,
@@ -681,9 +681,9 @@ is frozen into the graph hash and cannot carry a value that differs per run.
 ## `specification`
 
 Executed inline in three parts, the last of them delegated. This is the widest
-node in the run: it holds two of the eight asks — the technical questions and
-the assumptions page — writes three artifacts and recommends whether the audit
-runs, which `specification-approval` decides.
+node in the run: it holds two of the eight asks — the technical questions, and
+the drafted stories with the assumptions page — writes three artifacts and
+recommends whether the audit runs, which `specification-approval` decides.
 
 **An architecture constrains every part.** When the intake copied one in — this
 node reads it as `architecture` — the interfaces, contracts and decisions it
@@ -740,28 +740,61 @@ approach is recommended, none is invented: the choice stays open, is written to
 risk in this node's summary, its `change` naming the choice still to make, so it
 reaches an operator at `specification-approval`.
 
-**Part B — requirements gathering (inline).** The fifth of the eight asks: one
-page confirming the specification's assumptions.
+**Part B — requirements gathering (inline).** The fifth of the eight asks: the
+drafted stories, then one page confirming the specification's assumptions.
 
-*The assumptions tab.* Frame the specification questions as confirmable
-assumptions rather than open prompts, with the count adapted to how much the
-invocation already said: a brief description earns six to eight, a standard one
-four to six, a detailed one two or three focused ones. Offer "Accept all N as
-stated (Recommended)" first, its question stating each assumption on a line of
-its own — never "the assumptions above" — and go through them one by one, each
-stated in its own tab, four to a page, only when the user asks to (engine
-§ *In-node questions*). Three are always among them whatever the count: how
-users reach the feature and which personas it serves; which existing components
-and patterns it should reuse; and whether any visual assets exist that have not
-been ingested yet. The visual-assets assumption is the one exception to
-"always": when the gap analysis recorded the task as not UI-heavy and intake
-found no design source, the run already knows the answer — there is no
-interface to draw — so it is not asked, and `analysis/requirements.md` says "no
-visual assets: the change has no user interface" (engine § *In-node questions*,
-asking only what the run does not know). Save the whole round to
-`analysis/requirements.md` — the initial description, the questions and
-answers, the similar features found, the functional requirements, the reuse
-opportunities, the scope boundaries and the technical considerations.
+*The stories.* Group what the specification still has to settle by topic: each
+behaviour a user or a calling system triggers and then observes — deactivating
+a user, exporting a report — is one topic, and its open points are drafted into
+one story by engine § *In-node questions* (*One topic is one drafted story*),
+never asked as separate tabs. Draft each from the analysis, the gap analysis
+and its scope answers, and the design context. A story the design brief
+already carries (`analysis/design-context/brief.md`) was accepted there: it is
+carried as it stands and not asked again. Ask each story as its own question,
+id `user-story-<topic>`, up to four that stand on their own to a page; a story
+whose framing depends on another's answer waits for the next page. A change
+nobody triggers or observes — a refactor, or a defect fix whose behaviour the
+failing test already pins — has no stories, and none is invented. Each story
+goes into `analysis/requirements.md` under **User stories**, by its id, with
+its five parts and how it was settled: accepted, accepted with the listed
+corrections and written as corrected, the alternative, the operator's own
+words, or taken as drafted without an answer and marked drafted, not
+confirmed. That section is the requirement each story records; the
+specification keeps it and the verification checks it, both by that id.
+
+**With question sets** (`user-story`): each story is its own question in the
+same request as the technical questions, its `why` naming what the story
+settles (*In-node questions*). Each draft, its corrections and its alternative
+are in `analysis/requirements.md` before the node suspends, so the answer is
+applied from the file.
+
+**Without question sets** (`user-story`): each story is taken as
+drafted and recorded `by: default` under its own id. `analysis/requirements.md`
+marks it drafted, not confirmed, and the specification carries it that way —
+which is what `specification-approval` puts in front of an operator.
+
+*The assumptions tab.* Only what changes no story is an assumption. Frame the
+specification questions as confirmable assumptions rather than open prompts,
+with the count adapted to how much the invocation already said: a brief
+description earns six to eight, a standard one four to six, a detailed one two
+or three focused ones. Offer "Accept all N as stated (Recommended)" first, its
+question stating each assumption on a line of its own — never "the assumptions
+above" — and go through them one by one, each stated in its own tab, four to a
+page, only when the user asks to (engine § *In-node questions*). Two are always
+among them whatever the count: which existing components and patterns the
+change should reuse, and whether any visual assets exist that have not been
+ingested yet. A third, how users reach the feature and which personas it
+serves, is among them only when the run drafted no story, because a story's
+actor and entry point already say it. The visual-assets assumption is the one
+exception to "always": when the gap analysis recorded the task as not UI-heavy
+and intake found no design source, the run already knows the answer — there is
+no interface to draw — so it is not asked, and `analysis/requirements.md` says
+"no visual assets: the change has no user interface" (engine § *In-node
+questions*, asking only what the run does not know). Save the whole round to
+`analysis/requirements.md` — the initial description, the user stories, the
+questions and answers, the similar features found, the functional
+requirements, the reuse opportunities, the scope boundaries and the technical
+considerations.
 
 **With question sets** (`specification-requirements`): asked through the
 cockpit, in the same request as the technical questions (*In-node questions*);
@@ -789,8 +822,10 @@ conflict the creator finds is listed in the specification as an open risk
 rather than resolved.
 
 If the agent returns without `implementation/spec.md`, or with one that leaves a
-requirement gathered in Part B uncovered, re-invoke it with the missing context
-rather than writing the specification yourself.
+requirement gathered in Part B uncovered — a story in `analysis/requirements.md`
+missing from the specification's User Stories under its id among them —
+re-invoke it with the missing context rather than writing the specification
+yourself.
 
 **Recommend the audit, never ask it.** Whether the audit runs is the answer to
 `specification-approval`, whose two continues set the value the audit stretch's
@@ -825,9 +860,11 @@ or any other earlier answer, are never restated as the specification's. In
 `risks`, each assumption the specification makes as an `open` risk whose `change`
 says what would change if it is wrong ("CSV cells are never quoted", change:
 "quote cells that hold a comma") — never a bare "Assumption: …", because a revise
-offers that change; each consequence the specification accepts on purpose, such
-as a breaking change it ships, as a `tradeoff`; each related problem it leaves
-out of scope as a `followup`; each conflict with the architecture input as an
+offers that change; a story taken as drafted without an answer is one such
+assumption, its `change` the correction Part B listed for it; each consequence
+the specification accepts on purpose, such as a breaking change it ships, as a
+`tradeoff`; each related problem it leaves out of scope as a `followup`; each
+conflict with the architecture input as an
 `open` risk whose `change` says what would follow either way — the specification
 changed to fit the architecture, or the architecture revisited upstream. In
 `recommends`, the continue of

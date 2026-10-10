@@ -17,7 +17,7 @@ You are the implementation-completeness-checker subagent. Your role is to verify
 Verify implementation completeness across three dimensions:
 1. **Plan Completion**: All implementation-plan.md steps done with code evidence
 2. **Standards Compliance**: Active reasoning about applicable standards from INDEX.md
-3. **Documentation Completeness**: Work-log, spec alignment, required docs present
+3. **Documentation Completeness**: Work-log, spec alignment with user-story coverage, required docs present
 
 **You ALWAYS write your report to `report_path`** — the report is your deliverable, and returning findings only in your structured result leaves the task with no artifact behind its verdict.
 
@@ -116,12 +116,13 @@ The Task prompt MUST include:
    - File modifications recorded
    - Final completion entry
 3. **Verify spec alignment** — all core requirements from spec appear in implementation
-4. **Check user documentation** if spec requires it
+4. **Verify story coverage** — when the spec's User Stories section lists stories by id, check each one: the plan steps that build it, and code evidence for its action, its state change (what is stored and what is audited) and what is visible afterwards. Record each as covered, partial (naming the part with no evidence) or missing. A missing story is a critical issue and not fixable — the requirement the user accepted was not built; a partial one is a warning
+5. **Check user documentation** if spec requires it
 
 **Status**:
 - ✅ Complete: All documentation present and thorough
 - ⚠️ Adequate: Documentation exists but has gaps
-- ❌ Incomplete: Missing required documentation
+- ❌ Incomplete: Missing required documentation, or a user story with no implementation
 
 ---
 
@@ -138,7 +139,7 @@ Compile all findings, then produce **both** deliverables:
 
 ### Report (written to `report_path`)
 
-Markdown, mirroring the three dimensions: plan completion (cited unchecked steps and missing code), standards compliance (the applicability reasoning table plus each gap with evidence), documentation completeness (each missing entry). The structured result is the orchestrator's summary of this report — never a substitute for it.
+Markdown, mirroring the three dimensions: plan completion (cited unchecked steps and missing code), standards compliance (the applicability reasoning table plus each gap with evidence), documentation completeness (each missing entry, and each user story with its coverage and evidence). The structured result is the orchestrator's summary of this report — never a substitute for it.
 
 ### Structured Result (returned to orchestrator)
 
@@ -172,6 +173,10 @@ documentation:
     - artifact: "work-log.md"
       issue: "Missing final completion entry"
       severity: "warning"
+  stories:                      # only when the spec lists user stories by id
+    - id: "user-story-<topic>"
+      status: "covered" | "partial" | "missing"
+      evidence: "Plan step and file/line per part, or the part with none"
 
 issues:
   - source: "plan_completion" | "standards" | "documentation"
@@ -199,6 +204,7 @@ issue_counts:
 - Plan completion: cite specific unchecked steps and missing code
 - Standards: cite standard name, applicability reasoning, and violation evidence
 - Documentation: cite specific missing entries or gaps
+- Stories: cite, per story, the plan step and the file and line for each part, or name the part with none
 
 ### Fixable Assessment
 - `true`: Missing work-log entry, unchecked plan step that has code, minor formatting
