@@ -1,0 +1,77 @@
+# The in-node classing definition. `scoping` asks a question set and records
+# two values. `review-approval` is a pure confirmation guarded by one of them,
+# so a held item can force it; `depth-approval` is guarded by an input, so
+# nothing forces it. `drafting` asks a second set. `notes-approval` has the
+# shape of a documentation approval: guarded by a task value, its only direct
+# need `notes` guarded the same way, so `notes` can be recorded skipped while
+# the gate is still forced.
+name: in-node-questions
+version: 1
+description: "Scopes the work, drafts it, writes notes when wanted, then finishes."
+inputs:
+  thorough: {type: bool, required: false, default: false}
+
+nodes:
+  scoping:
+    uses: direct:scoping
+    needs: []
+    outputs:
+      values:
+        wants_review: bool
+        wants_notes: bool
+
+  review-approval:
+    type: gate
+    needs: [scoping]
+    when: "${scoping.values.wants_review}"
+    ask: "Scoping reviewed. Continue?"
+    options:
+      continue-past-review: continue
+      stop-at-review: stop
+
+  depth-approval:
+    type: gate
+    needs: [review-approval]
+    when: "${inputs.thorough}"
+    ask: "Thorough pass requested. Continue?"
+    options:
+      continue-past-depth: continue
+      stop-at-depth: stop
+
+  drafting:
+    uses: direct:drafting
+    needs: [depth-approval]
+    outputs:
+      artifacts:
+        draft: outputs/draft.md
+
+  notes:
+    uses: direct:notes
+    needs: [drafting]
+    when: "${scoping.values.wants_notes}"
+    outputs:
+      artifacts:
+        notes: outputs/notes.md
+
+  notes-approval:
+    type: gate
+    needs: [notes]
+    when: "${scoping.values.wants_notes}"
+    ask: "Notes written. Continue to the finish?"
+    options:
+      continue-to-finish: continue
+      stop-at-notes: stop
+
+  finish:
+    uses: direct:finish
+    needs: [notes-approval]
+
+display:
+  titles:
+    scoping: Scoping
+    review-approval: Review approval
+    depth-approval: Depth approval
+    drafting: Drafting
+    notes: Notes
+    notes-approval: Notes approval
+    finish: Finish
