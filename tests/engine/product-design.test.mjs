@@ -430,6 +430,26 @@ test('specification-approval: a long specification never trims the prototypes an
   assert.match(picker.brief, /Next: Product brief and delivery scope/);
 });
 
+test('specification-approval: the prototypes are offered for review beside the specification, by their folder', t => {
+  const run = atDirectionApproval(t, { summary: 'Link-based sharing.' });
+  write(run, { nodes: { 'direction-approval': { status: 'completed' } } });
+  const onDisk = (relative, text) => {
+    fs.mkdirSync(path.dirname(path.join(run.dir, relative)), { recursive: true });
+    fs.writeFileSync(path.join(run.dir, relative), text);
+  };
+  onDisk('analysis/feature-spec.md', '# Feature specification\n');
+  write(run, {
+    nodes: { 'feature-specification': { status: 'completed' } },
+    node_summaries: { 'feature-specification': { summary: 'Five sections.', artifacts: [{ path: 'analysis/feature-spec.md', label: 'Feature spec', role: 'primary' }] } },
+  });
+  // The studio drew its screens and the node registered none of them by name.
+  for (const screen of ['share-dialog', 'guest-calendar']) onDisk(`analysis/mockups/${screen}.html`, '<p>screen</p>\n');
+  write(run, { nodes: { 'visual-prototyping': { status: 'completed' } }, node_summaries: { 'visual-prototyping': { summary: 'Two screens.' } } });
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.review.map(each => [each.path, each.label]),
+    [['analysis/feature-spec.md', 'Feature spec'], ['analysis/mockups/', '2 files']]);
+});
+
 // ---------------------------------------------------------------------------
 // as a sub-run, and at the simple depth
 // ---------------------------------------------------------------------------
@@ -442,6 +462,10 @@ test('inputs: the depth and the embedded flag are optional bools that default to
   assert.deepEqual({ ...doc.inputs.simple }, { type: 'bool', required: false, default: false });
   assert.deepEqual({ ...doc.inputs.embedded }, { type: 'bool', required: false, default: false });
   assert.equal(doc.nodes.completion.when, '!${inputs.embedded}');
+  // The full depth guards nothing itself: the intake reads it and records the design complex.
+  assert.deepEqual({ ...doc.inputs.full }, { type: 'bool', required: false, default: false });
+  assert.equal(doc.nodes.intake.with.full, '${inputs.full}');
+  for (const [id, node] of Object.entries(doc.nodes)) assert.doesNotMatch(node.when ?? '', /inputs\.full/, id);
   for (const id of DEPTH_SKIPS) assert.equal(doc.nodes[id].when, '!${inputs.simple}', id);
 });
 
@@ -470,6 +494,16 @@ test('outputs: a parent runs product design embedded and at the simple depth, bi
   const result = chainBinding(t,
     { brief: 'outputs/product-brief.md', delivery_scope: 'outputs/delivery-scope.yml' },
     { embedded: 'true', simple: 'true' });
+  const report = JSON.parse(result.stdout);
+  assert.equal(result.code, 0);
+  assert.deepEqual(report.errors, []);
+  assert.deepEqual(report.warnings, []);
+});
+
+test('outputs: a parent asks product design for the full design, binding the brief and the scope with no warning', t => {
+  const result = chainBinding(t,
+    { brief: 'outputs/product-brief.md', delivery_scope: 'outputs/delivery-scope.yml' },
+    { embedded: 'true', full: 'true' });
   const report = JSON.parse(result.stdout);
   assert.equal(result.code, 0);
   assert.deepEqual(report.errors, []);

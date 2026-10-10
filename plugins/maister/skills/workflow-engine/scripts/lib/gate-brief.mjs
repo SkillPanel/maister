@@ -437,8 +437,8 @@ const REVIEW_MAX = 3;
  * named only when it exists, by its path from the
  * project root, so the user can open it as printed. The registered artifacts
  * of a node's summary come first; a node that registered none is read off the
- * declared outputs of the definition, files only — a directory is no document
- * to review.
+ * declared outputs of the definition. A folder is named once, with a trailing
+ * `/`, when none of its files is named on its own.
  */
 function reviewLine(doc, runDir, ids, byId) {
   const files = reviewFiles(doc, runDir, ids, byId);
@@ -457,9 +457,15 @@ function reviewLine(doc, runDir, ids, byId) {
  * The files a gate's closing nodes wrote that are on disk, at most
  * `REVIEW_MAX` and the primary ones first, as `{file, html, label, role}` with absolute paths. The
  * registered artifacts of a node's summary come first; a node that registered
- * none is read off the declared outputs of the definition, files only — a
- * directory is no document to review. An artifact registered as evidence or a
- * log is no document to review either.
+ * none is read off the declared outputs of the definition. An artifact
+ * registered as evidence or a log is no document to review.
+ *
+ * A registered or declared folder is one entry, `folder: true`, labelled as
+ * registered or else by the count of the files in it: a step that drew its screens into a folder and
+ * registered only the folder is what its gate approves, and naming nothing
+ * left the operator a specification to read and no prototypes. A folder with
+ * no file in it is not named, and neither is one holding a file the list
+ * already names — that file is the more precise pointer.
  *
  * When there are more files than the cap, a node's files inside one of its
  * declared output folders are named once, by that folder, with `folder: true`:
@@ -480,7 +486,21 @@ function reviewFiles(doc, runDir, ids, byId) {
     if (typeof relative !== 'string' || relative === '' || relative.includes('${')) return;
     if (role === 'evidence' || role === 'log') return;
     const file = path.resolve(runDir, relative);
-    if (!isFile(file) || files.some(each => each.file === file)) return;
+    if (files.some(each => each.file === file)) return;
+    if (!isFile(file)) {
+      const count = filesIn(file);
+      if (count > 0) {
+        files.push({
+          id,
+          file,
+          html: null,
+          label: typeof label === 'string' && label !== '' ? label : `${count} file${count === 1 ? '' : 's'}`,
+          role: typeof role === 'string' ? role : null,
+          folder: true,
+        });
+      }
+      return;
+    }
     const sibling = typeof html === 'string' && html !== '' ? path.resolve(runDir, html) : file.replace(/\.md$/, '.html');
     files.push({
       id,
@@ -499,7 +519,11 @@ function reviewFiles(doc, runDir, ids, byId) {
     const declared = byId.get(id)?.outputs?.artifacts;
     if (isPlainObject(declared)) for (const relative of Object.values(declared)) add(id, relative, null);
   }
-  const listed = files.length > REVIEW_MAX ? foldFolders(files, runDir, byId) : files;
+  // A folder holding a file named on its own gives way to that file; the
+  // folding below names the folder again when its files outnumber the list.
+  const inside = (folder, file) => file.startsWith(`${folder}${path.sep}`);
+  const precise = files.filter(each => !each.folder || !files.some(other => !other.folder && inside(each.file, other.file)));
+  const listed = precise.length > REVIEW_MAX ? foldFolders(precise, runDir, byId) : precise;
   // When the cap bites, the deliverable wins: registration order put a brief
   // and a plan ahead of the report they led to.
   const rank = file => REVIEW_RANK[file.role] ?? REVIEW_RANK.other;
@@ -507,6 +531,27 @@ function reviewFiles(doc, runDir, ids, byId) {
     .sort((a, b) => rank(a.file) - rank(b.file) || a.index - b.index)
     .slice(0, REVIEW_MAX)
     .map(({ file: { id: _id, ...file } }) => file);
+}
+
+/**
+ * How many files a folder holds at any depth, leaving out hidden ones — a
+ * manifest such as `.mockups.json` is bookkeeping, not something to review.
+ * Zero for anything that is not a readable folder.
+ */
+function filesIn(folder) {
+  let entries;
+  try {
+    entries = fs.readdirSync(folder, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  let count = 0;
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    if (entry.isFile()) count += 1;
+    else if (entry.isDirectory()) count += filesIn(path.join(folder, entry.name));
+  }
+  return count;
 }
 
 /**

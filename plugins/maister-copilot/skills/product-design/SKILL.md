@@ -23,9 +23,10 @@ link and the first phase, composed from the lines the freeze prints first, the p
 printed. The terminal collapses that output, so the banner is not on screen until you write it;
 before the next call, check that you did (engine Step 4).
 
-- **The three flags are inputs of the definition**: `--research=PATH` is `research`,
-  `--no-visual` is `no_visual: true` and `--simple` is `simple: true`, the short
-  design depth. An invocation with no description takes it from the
+- **The four flags are inputs of the definition**: `--research=PATH` is `research`,
+  `--no-visual` is `no_visual: true`, `--simple` is `simple: true`, the short
+  design depth, and `--full` is `full: true`, the full design whatever the
+  detected complexity. An invocation with no description takes it from the
   conversation, as the design brief the operator has been describing.
   Any other flag, apart from the two resume flags below, is not an input of this workflow: name
   it as not taken, in one line, and continue without it — never drop one in silence.

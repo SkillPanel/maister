@@ -105,6 +105,8 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 | A loop offering another pass | the accept-as-is exit — the following gate is the operator's route back |
 | An exhausted recovery budget | the phase fails rather than choosing retry or skip on the operator's behalf |
 
+**A recommendation keeps every criterion the task states**, so a default taken from one never narrows the task either. Where an earlier phase flagged a criterion as open to two readings, the recommendation is the reading that keeps it whole. The workflow engine's *In-node questions* states the rule.
+
 **What is recorded.** One entry per defaulted question on that phase's summary `decisions` list — `{decision: <default taken>, by: default, question_id: <question-id>}` — where the id is the one the phase prose names and the decision is the default this run actually used, in the user's words. A state written before this shape may carry the older `defaulted: <id> -> <taken>` string; it still reads as a default. A phase that asked nothing because it had nothing to ask records nothing. The entry is an ordinary decision item and reaches the dashboard the way every other decision does (§ 4, § 8).
 
 **A run started under a driver has its inputs**, so a task description or research question is never invented: if one is genuinely missing, stop with `RUN-FAILED` rather than inventing one.

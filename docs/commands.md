@@ -218,6 +218,7 @@ Starts the interactive product/feature design workflow (ten phases and five chec
 | `--research=PATH` | Start design informed by a completed research task |
 | `--no-visual` | Skip browser-based visual companion (use ASCII mockups only) |
 | `--simple` | Short design: two checkpoints (problem, specification), no personas, no brainstorm of alternatives, prototypes only when asked for |
+| `--full` | Full design whatever the detected complexity: personas drafted and every phase at its deepest |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
 

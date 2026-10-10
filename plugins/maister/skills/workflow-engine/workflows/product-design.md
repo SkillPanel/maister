@@ -262,6 +262,16 @@ a brief and a delivery scope an operator can approve. It is a depth, not a
 reading of the design: the detected complexity says how deep each document goes,
 the depth says which stretches run, and when the input is true it wins.
 
+The `full` input is the other end: the full design, whatever the detection
+reads. Every stretch runs, as at the default, and the intake records the design
+`complex` — so the personas are drafted and each node asks and writes at its
+complex depth. A caller that asked for the full design must get it; a
+description too short to read as complex is no reason to draft fewer
+personas than were asked for. It needs no guard of its own: the persona guard
+already reads what the intake records. Both inputs true contradict each other,
+and `simple` wins, because its guards have already taken the stretches out of
+the graph; the intake names the contradiction as an `open` risk.
+
 | Skipped in a simple run | Why it can go |
 |---|---|
 | `characteristics-approval` | the characteristics it corrects only switch the personas and prototypes, which the depth already turns off |
@@ -286,7 +296,9 @@ record or the alternatives read them only when the state records their node
 of it as a child, and the `embedded` input means exactly that — *this run is a
 sub-run of another run*. The engine supplies it at the child freeze; an
 operator never types it and no command exposes it. A parent may pass `simple`
-in the same `with:`, which is how a chain chooses the depth.
+or `full` in the same `with:`, which is how a chain chooses the depth: a parent
+whose own run was asked for the full design passes `full: true`, because
+`simple: false` alone leaves the depth to the detection.
 
 Its only effect is the guard on `completion`, which is therefore skipped for a
 child: that node tells an operator the run is over and points at the
@@ -370,6 +382,11 @@ and gathers whatever extra context the operator has.
    wins** (*Depth*): record the complexity `simple` whatever the signals say, and
    when they said more, name it in `risks` as `{risk: "detected as <level>; the
    simple depth was requested", tag: open, change: "run the full design"}`.
+   **When the `full` input is true**, record the complexity `complex` whatever
+   the signals say, and say in the summary that the full design was requested.
+   When both are true, `simple` wins as above, and `risks` carries `{risk: "both
+   the simple and the full depth were requested; the simple design ran", tag:
+   open, change: "run again with only the full depth"}`.
 8. **Ask for additional context** in one call: *"Any additional context for
    this design?"*, a multi-select of four options —
    - *"No additional context (Recommended)"* first, its description saying the
@@ -408,7 +425,8 @@ and gathers whatever extra context the operator has.
    values — `personas_enabled` true when the design is greenfield or complex,
    `prototyping_enabled` true when it is UI-focused, and `complexity_level`. In a
    simple run `personas_enabled` is false, and `prototyping_enabled` is true only
-   when the description itself asks for screens or mockups.
+   when the description itself asks for screens or mockups; in a full run
+   `personas_enabled` is true.
    Those values are what guard the persona and prototyping nodes, so write
    them in the same patch that marks the node `completed`.
 
@@ -539,7 +557,11 @@ Executed inline and interactive. Read the interaction-patterns reference first,
 `${CLAUDE_PLUGIN_ROOT}/skills/product-design/references/interaction-patterns.md`
 — the exploration and convergence modes, the refinement loop and how its options
 are designed. Read `analysis/design-context.md` in full, not only its summary,
-so every question can be specific to this project.
+so every question can be specific to this project. Then read what the run left
+uncertain: the `open` risks in `prior-context` — the characteristics and context
+checkpoints raised them — and the open questions of any imported research under
+`context/research-context/`. A criterion one of them says may be read two ways
+is answered the way that keeps it whole (engine § *In-node questions*).
 
 1. **Explore.** Announce exploration mode in a line, then ask context-aware
    questions **in pages of up to four** — two or three for a simple design, four
@@ -550,7 +572,9 @@ so every question can be specific to this project.
    design context, the description or an earlier page ("The sync conflicts come
    up in three support threads, all from teams sharing one calendar") — and two
    or three answers generated from it, the one the context best supports first,
-   marked `(Recommended)` with why. The operator's own words go through Other.
+   marked `(Recommended)` with why. The recommended answer keeps every criterion
+   the description states — its "done when" lines included; an answer that
+   narrows one names what it drops and is never the recommendation. The operator's own words go through Other.
    Fold each page's answers in before the next, so the next page builds on them
    and a misreading is corrected before it compounds.
 
@@ -635,7 +659,8 @@ and `problem-approval` still fires for the problem statement.
    the feature — in pages of up to four independent questions, as the problem
    exploration does: each question carries its own synthesis line from the
    design context and the problem statement, and two or three generated
-   answers, the best-supported first and marked `(Recommended)` with why.
+   answers, the best-supported first and marked `(Recommended)` with why — never
+   one that narrows a criterion the description states.
 
    **With question sets** (`persona-questions`): the first page is asked through
    the cockpit, in this node's one request (*In-node questions*); a question
@@ -826,8 +851,10 @@ line, then walk the alternatives one decision area at a time.
 > **SELF-CHECK before each question**: does the question itself name THIS area,
 > why it matters and every alternative, and does each option's description carry
 > its pro and con — the recommended one's its reason? If the question holds only
-> the area's name, STOP and write it out. And, in a terminal run, does this
-> call ask exactly one area?
+> the area's name, STOP and write it out. Does the recommended alternative keep
+> every criterion the description states? If it narrows one, recommend the
+> strongest alternative that does not, and say why. And, in a terminal run, does
+> this call ask exactly one area?
 
 **With question sets** (`convergence-decisions`): asked through the cockpit —
 every decision area in this node's one request, one question per area (*In-node
@@ -968,7 +995,9 @@ contracts, ready to implement from.
 
 **For each section:**
 
-1. Draft it at the depth above.
+1. Draft it at the depth above. A section never quietly drops a criterion the
+   description states; one it leaves to another section names that section, and
+   one the direction left out is an `open` risk, never an approved omission.
 2. Ask *"Approve the <section> section?"*, the question saying in a line what
    the section settles. Options: *"Approve (Recommended)"*, its description
    saying the section is implementation-ready and why; *"Add more detail"*,

@@ -1350,8 +1350,12 @@ test('Review line: it is never trimmed, and the brief still keeps inside the bud
   assert.equal(lastLine(text), `Review: ${fromRoot(run, 'analysis/report.md')}`);
 });
 
-/** A run at a gate closing a specification and a stretch that drew `screens` screens into its declared folder. */
-function mockupsRun(t, screens) {
+/**
+ * A run at a gate closing a specification and a stretch that drew `screens` screens into its
+ * declared folder. `register` says what the drawing step's summary names: each screen, the
+ * folder alone, or nothing, leaving the declared outputs to speak for it.
+ */
+function mockupsRun(t, screens, register = 'screens') {
   const run = scratch(t);
   const definition = path.join(run.root, 'drawing.yml');
   fs.writeFileSync(definition, [
@@ -1372,7 +1376,11 @@ function mockupsRun(t, screens) {
     nodes: { spec: { status: 'completed' }, mockups: { status: 'completed' } },
     node_summaries: {
       spec: { summary: 'Specified.', artifacts: [{ path: 'analysis/spec.md', label: 'Specification', role: 'primary' }] },
-      mockups: { summary: 'Drew the screens.', artifacts: drawn.map((file, index) => ({ path: file, label: `Screen ${index + 1}`, role: 'review' })) },
+      mockups: {
+        summary: 'Drew the screens.',
+        ...(register === 'screens' ? { artifacts: drawn.map((file, index) => ({ path: file, label: `Screen ${index + 1}`, role: 'review' })) } : {}),
+        ...(register === 'folder' ? { artifacts: [{ path: 'analysis/mockups', role: 'review' }] } : {}),
+      },
     },
   });
   return run;
@@ -1398,6 +1406,44 @@ test('Review line: files that fit the list are each named, even inside a declare
   const run = mockupsRun(t, 2);
   assert.equal(lastLine(brief(run, 'approval').stdout), `Review: ${[
     'analysis/spec.md', 'analysis/mockups/screen-1.html', 'analysis/mockups/screen-2.html',
+  ].map(file => fromRoot(run, file)).join(', ')}`);
+});
+
+test('Review line: a step that registered only its folder is named by it, so the prototypes reach the gate', t => {
+  const run = mockupsRun(t, 3, 'folder');
+  // The studio's own manifest is bookkeeping, never counted as a screen.
+  onDisk(run, 'analysis/mockups/.mockups.json', '{}\n');
+  assert.equal(lastLine(brief(run, 'approval').stdout),
+    `Review: ${fromRoot(run, 'analysis/spec.md')}, ${fromRoot(run, 'analysis/mockups')}/`);
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.review, [
+    { path: 'analysis/spec.md', label: 'Specification', html: null, role: 'primary' },
+    { path: 'analysis/mockups/', label: '3 files', html: null, role: 'review' },
+  ]);
+});
+
+test('Review line: a step that registered nothing is named by its declared folder', t => {
+  const run = mockupsRun(t, 1, 'nothing');
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.review.map(each => [each.path, each.label]),
+    [['analysis/spec.md', 'Specification'], ['analysis/mockups/', '1 file']]);
+});
+
+test('Review line: an empty folder is not named', t => {
+  const run = mockupsRun(t, 0, 'folder');
+  fs.mkdirSync(path.join(run.dir, 'analysis/mockups'), { recursive: true });
+  onDisk(run, 'analysis/mockups/.mockups.json', '{}\n');
+  assert.equal(lastLine(brief(run, 'approval').stdout), `Review: ${fromRoot(run, 'analysis/spec.md')}`);
+});
+
+test('Review line: a folder holding a file the list names is not named beside it', t => {
+  const run = mockupsRun(t, 1, 'screens');
+  write(run, { node_summaries: { mockups: { artifacts: [
+    { path: 'analysis/mockups/screen-1.html', label: 'Screen 1', role: 'review' },
+    { path: 'analysis/mockups', role: 'review' },
+  ] } } });
+  assert.equal(lastLine(brief(run, 'approval').stdout), `Review: ${[
+    'analysis/spec.md', 'analysis/mockups/screen-1.html',
   ].map(file => fromRoot(run, file)).join(', ')}`);
 });
 
