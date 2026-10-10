@@ -9,6 +9,11 @@
  * hashes to and what it classes. So the file is read here, judged here as a
  * whole, hashed here, and read for triage here — nowhere else.
  *
+ * The same holds for the autonomy ceiling, the most a run may settle alone:
+ * `ceilingOf` reads it, `effectiveCeiling` and `narrowerLevel` are the one rule
+ * every clamp uses, and `questionOutcome` says what a classed in-node question
+ * comes to under it and the run's driver.
+ *
  * Where the policy comes from, first match wins:
  *
  * 1. a path the caller gives;
@@ -439,4 +444,94 @@ function rank(value) {
 
 function ids(value) {
   return Array.isArray(value) ? value.filter(each => typeof each === 'string' && each.length > 0) : [];
+}
+
+// ---------------------------------------------------------------------------
+// The autonomy ceiling, and what a classed question comes to under it
+// ---------------------------------------------------------------------------
+
+/** The most a run ever settles alone, whatever its autonomy ceiling names. */
+const SETTLES_AT_MOST = 'record';
+
+/** An ask level as recorded: a known level itself, anything else `approve`, the narrowest. */
+function levelOf(value) {
+  return ASK_LEVELS.includes(value) ? value : ASK_LEVELS[0];
+}
+
+/**
+ * The autonomy ceiling a run reads: `{level, settles}`, or null when it has
+ * none. The level is `options.ceiling` when that is a non-empty string — a
+ * value outside `ASK_LEVELS` reads as `approve` — else the policy's
+ * `default_ceiling`. `settles` is that level's `ceilings.<level>.settles`,
+ * capped at `record`, or null when the policy does not define the level. The
+ * level's `delegates` flag is not read here.
+ *
+ * The caller reads it only for a run whose recorded `policy_hash` is the
+ * loaded policy's.
+ */
+export function ceilingOf({ options, policy } = {}) {
+  const sent = options && typeof options === 'object' ? options.ceiling : undefined;
+  let level;
+  if (typeof sent === 'string' && sent !== '') level = levelOf(sent);
+  else if (typeof policy?.default_ceiling === 'string') level = levelOf(policy.default_ceiling);
+  else return null;
+  const defined = isMap(policy?.ceilings) && isMap(policy.ceilings[level]) ? policy.ceilings[level].settles : null;
+  if (!SETTLES.includes(defined)) return { level, settles: null };
+  return { level, settles: rank(defined) > rank(SETTLES_AT_MOST) ? SETTLES_AT_MOST : defined };
+}
+
+/**
+ * The autonomy ceiling in effect for a run, as a level or null: its recorded
+ * `options.ceiling` (an unknown value reading as `approve`), else the policy's
+ * `default_ceiling` when the run's `policy_hash` is `policyHash`, else none.
+ * One rule for every reader that clamps by it: a later write, a child run's
+ * freeze, a dispatch envelope.
+ */
+export function effectiveCeiling({ orchestrator, policy, policyHash: hash } = {}) {
+  const options = isMap(orchestrator) && isMap(orchestrator.options) ? orchestrator.options : {};
+  if (typeof options.ceiling === 'string' && options.ceiling !== '') return levelOf(options.ceiling);
+  const matches = isMap(orchestrator) && typeof hash === 'string' && orchestrator.policy_hash === hash;
+  if (matches && typeof policy?.default_ceiling === 'string') return levelOf(policy.default_ceiling);
+  return null;
+}
+
+/**
+ * The narrower of two ask levels, by `approve` < `advice` < `decide`, a value
+ * outside them reading as `approve`. A null or undefined side is absent and
+ * bounds nothing: the other is returned, and null when both are absent.
+ */
+export function narrowerLevel(a, b) {
+  if (a == null) return b == null ? null : levelOf(b);
+  if (b == null) return levelOf(a);
+  const [one, two] = [levelOf(a), levelOf(b)];
+  return ASK_LEVELS.indexOf(one) <= ASK_LEVELS.indexOf(two) ? one : two;
+}
+
+/** The outcomes of a classed question, and of one the policy does not class. */
+export const OUTCOMES = ['settle', 'ask', 'default', 'hold', 'unclassed'];
+
+/**
+ * What a question comes to: `{outcome, triage}`.
+ *
+ * - `triage` null: `unclassed`, carried as today.
+ * - A class within `settles` (decide-alone or record, never above record):
+ *   `settle`, under every driver.
+ * - Otherwise, when a person can be asked (`canAsk`): `ask`.
+ * - Otherwise a decide-alone or record question is `default`ed; a consult one
+ *   is `default`ed with `advice: not_obtained`; an approve one — or one whose
+ *   class this build does not know — is `hold`, with `held: true`.
+ *
+ * Pure: the triage given is copied, never changed. Consult and approve are
+ * never settled.
+ */
+export function questionOutcome({ triage, settles, canAsk } = {}) {
+  if (!isMap(triage)) return { outcome: 'unclassed', triage: null };
+  const known = rank(triage.class);
+  const level = known === -1 ? rank(FLOOR_CLASS) : known;
+  const bound = SETTLES.includes(settles) ? Math.min(rank(settles), rank(SETTLES_AT_MOST)) : -1;
+  if (level <= rank(SETTLES_AT_MOST) && level <= bound) return { outcome: 'settle', triage: { ...triage } };
+  if (canAsk === true) return { outcome: 'ask', triage: { ...triage } };
+  if (level === rank('consult')) return { outcome: 'default', triage: { ...triage, advice: 'not_obtained' } };
+  if (level >= rank(FLOOR_CLASS)) return { outcome: 'hold', triage: { ...triage, held: true } };
+  return { outcome: 'default', triage: { ...triage } };
 }

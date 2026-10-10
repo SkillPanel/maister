@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "note": "A made-up policy like questions.json that names a default autonomy ceiling.",
+  "floor": {
+    "floor-a": {
+      "description": "A made-up floor id."
+    }
+  },
+  "families": {
+    "quick-family": {
+      "class": "decide-alone",
+      "description": "Settled alone."
+    },
+    "noted-family": {
+      "class": "record",
+      "description": "Settled and recorded."
+    },
+    "asked-family": {
+      "class": "consult",
+      "description": "Worth a second opinion."
+    },
+    "signed-family": {
+      "class": "approve",
+      "description": "Needs a person's approval."
+    },
+    "guarded-family": {
+      "class": "record",
+      "floor": [
+        "floor-a"
+      ],
+      "description": "Carries a floor id, so approved."
+    },
+    "fallback-family": {
+      "class": "consult",
+      "description": "Read for a question with no row."
+    }
+  },
+  "unknown_family": "fallback-family",
+  "table": [
+    {
+      "workflow": "in-node-questions",
+      "id": "quick-choice",
+      "kind": "question",
+      "families": [
+        "quick-family"
+      ]
+    },
+    {
+      "workflow": "in-node-questions",
+      "id": "noted-choice",
+      "kind": "question",
+      "families": [
+        "noted-family"
+      ]
+    },
+    {
+      "workflow": "in-node-questions",
+      "id": "asked-choice",
+      "kind": "question",
+      "families": [
+        "asked-family"
+      ]
+    },
+    {
+      "workflow": "in-node-questions",
+      "id": "signed-choice",
+      "kind": "question",
+      "families": [
+        "signed-family"
+      ]
+    },
+    {
+      "workflow": "in-node-questions",
+      "id": "guarded-choice",
+      "kind": "question",
+      "families": [
+        "guarded-family"
+      ]
+    },
+    {
+      "workflow": "held-closing",
+      "id": "held-choice",
+      "kind": "question",
+      "families": [
+        "signed-family"
+      ]
+    }
+  ],
+  "bands": {
+    "clear": {
+      "description": "No raise of its own."
+    },
+    "toss-up": {
+      "description": "At least approve.",
+      "at_least": "approve"
+    }
+  },
+  "ceilings": {
+    "approve": {
+      "settles": "decide-alone",
+      "delegates": false,
+      "description": "Settles only what needs nobody."
+    },
+    "advice": {
+      "settles": "record",
+      "delegates": false,
+      "description": "Settles and records."
+    },
+    "decide": {
+      "settles": "consult",
+      "delegates": true,
+      "description": "Names consult, which the run never settles."
+    }
+  },
+  "default_ceiling": "advice"
+}
