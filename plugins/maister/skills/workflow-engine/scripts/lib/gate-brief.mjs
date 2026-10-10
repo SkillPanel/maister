@@ -306,15 +306,21 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const open = held.filter(entry => entry.no_choice === true);
   let settling = null;
   if (open.length) {
-    const reach = reviseReach(recorded, byId, node, options);
-    const unreached = open.filter(entry => !reach.has(entry.node));
-    if (unreached.length) {
+    const stretches = reviseStretches(recorded, byId, node, options);
+    const owners = [...new Set(open.map(entry => entry.node))];
+    if (!reachesAll(stretches, owners)) {
+      // One rule with `held-approval`'s own askability (`noChoiceRoute`): the
+      // way out named is the one that is open.
+      const route = noChoiceRoute({ doc, runDir });
+      const steps = andList(owners.map(owner => lowered(titleOf(current.display.titles, owner))));
+      const way = route.via !== null && route.via !== node
+        ? `Answer --node=${route.via} first: its revise re-runs ${owners.length === 1 ? 'that step' : 'those steps'} with the choice in your note`
+        : `Ask --node=${HELD_APPROVAL} first: its revise re-runs ${owners.length === 1 ? 'that step' : 'those steps'} with the choice in your note`;
       return refuse('gate-brief-not-askable',
-        `--node=${node} cannot be asked yet: ${heldQuestions(unreached)} ${unreached.length === 1 ? 'has' : 'have'} no choice yet, and this checkpoint `
-        + `offers no revise that re-runs ${andList([...new Set(unreached.map(entry => lowered(entry.step ?? entry.node)))])}. Nothing was written. `
-        + `Ask --node=${HELD_APPROVAL} first: its revise re-runs that step with the choice in your note`, warnings);
+        `--node=${node} cannot be asked yet: ${heldQuestions(open)} ${open.length === 1 ? 'has' : 'have'} no choice yet, and this checkpoint `
+        + `offers no revise that re-runs ${steps}. Nothing was written. ${way}`, warnings);
     }
-    const revise = revisions.options.find(each => open.some(entry => each.work.includes(entry.node) || each.reruns === entry.node));
+    const revise = revisions.options.find(each => open.some(entry => stretches.get(each.id)?.has(entry.node)));
     if (revise) {
       settling = { option: revise.id, reason: `${heldQuestions(open)} ${open.length === 1 ? 'has' : 'have'} no choice yet: revise with the choice in your note` };
       revise.suggestions = [...open.map(choiceSuggestion), ...revise.suggestions].slice(0, SUGGESTIONS_MAX);
@@ -624,8 +630,11 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   // Raised before a checkpoint, it leads there; at the close, to the end of the run.
   const walked = { ok: true, next: before, skipped: [], waiting: [] };
   const display = { ...current.display, option_labels: { ...current.display.option_labels, [HELD_APPROVAL]: labels } };
+  // Raised mid-run, before a checkpoint, it is asked by that checkpoint, not as the run's end.
+  const ask = before === null ? HELD_ASK
+    : `Held questions need your choice before ${lowered(titleOf(titles, before))}. Revise the step that holds them, with your choice in the note?`;
   const built = buildCheckpoint({
-    doc, runDir, node: HELD_APPROVAL, recorded, byId, titles, display, closing, ids, gateNode: { ask: HELD_ASK }, options, walked,
+    doc, runDir, node: HELD_APPROVAL, recorded, byId, titles, display, closing, ids, gateNode: { ask }, options, walked,
     recommended: derived.recommended, revisions, gateId, held, approves: [],
   });
   const reason = open.length
@@ -942,21 +951,28 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
 }
 
 /**
- * The nodes a revise this gate still offers would re-run: the union of each
- * revise option's stretch (`reviseStretch`), its targets read from the frozen
+ * What each revise this gate still offers would re-run, as a map from the
+ * option id to its stretch (`reviseStretch`), the targets read from the frozen
  * `reruns`, else the definition's options. Empty once the gate's revisions are
- * spent, and for a gate with no revise.
+ * spent, and for a gate with no revise. The one stretch rule for whether a
+ * gate can settle a held question with no choice and which revise does.
  */
-function reviseReach(recorded, byId, gate, options) {
+function reviseStretches(recorded, byId, gate, options) {
   const entry = entryOf(recorded, gate);
   const attempt = Number(entry.attempt);
-  if (Number.isInteger(attempt) && attempt > REVISION_CEILING) return new Set();
+  if (Number.isInteger(attempt) && attempt > REVISION_CEILING) return new Map();
   const targets = isPlainObject(entry.reruns)
-    ? Object.values(entry.reruns).filter(target => typeof target === 'string')
-    : Object.values(isPlainObject(options) ? options : {})
-      .filter(option => isPlainObject(option) && option.effect === 'revise' && typeof option.reruns === 'string').map(option => option.reruns);
+    ? Object.entries(entry.reruns).filter(([, target]) => typeof target === 'string')
+    : Object.entries(isPlainObject(options) ? options : {})
+      .filter(([, option]) => isPlainObject(option) && option.effect === 'revise' && typeof option.reruns === 'string')
+      .map(([id, option]) => [id, option.reruns]);
   const ids = frozenIds(recorded).length ? frozenIds(recorded) : [...byId.keys()];
-  return new Set(targets.flatMap(reruns => reviseStretch({ ids, needsOf: each => needsOf(recorded, byId, each), reruns, gate })));
+  return new Map(targets.map(([id, reruns]) => [id, new Set(reviseStretch({ ids, needsOf: each => needsOf(recorded, byId, each), reruns, gate }))]));
+}
+
+/** Whether some revise of `stretches` (`reviseStretches`) re-runs every one of `owners`. */
+function reachesAll(stretches, owners) {
+  return owners.every(owner => [...stretches.values()].some(stretch => stretch.has(owner)));
 }
 
 /** Held questions named for a sentence: `"Which A?"`, `"Which A?" and "Which B?"`. */
@@ -973,34 +989,45 @@ function choiceSuggestion(entry) {
   const question = entry.question ?? entry.question_id;
   return {
     label: clip(`Choose: ${question}`, 60),
-    description: 'Name your choice; the step asks it again with that option recommended',
-    note: sliced(`My choice for "${question}" (${entry.question_id}):`, NOTE_MAX),
+    description: 'Name your choice; the re-run step sends it as the recommended option',
+    note: sliced(`My choice for "${question}" (${entry.question_id}), to send as its recommended option when the step asks it again:`, NOTE_MAX),
     recommended: false,
   };
 }
 
 /**
- * The checkpoint `held-approval` is raised before, or null. While a held
- * question with no choice yet waits (`openHeld`), the next checkpoint the run
- * reaches — the first owed gate whose needs have all settled — lists it only
- * when one of its revises re-runs the step that holds it (`reviseReach`);
- * otherwise `held-approval`, whose revise always does, is asked there first.
- * `owed` is `atClose`'s.
+ * Where a held question with no choice yet (`openHeld`) is settled, read once
+ * for every reader: `{ready, via, before}`. `ready` is every owed gate whose
+ * needs have all ended — the checkpoints the run has reached — in frozen
+ * order. `via` is the first of them whose revises re-run every step holding
+ * such a question (`reviseStretches`): it lists them and recommends that
+ * revise. With none, `before` is the first ready gate: `held-approval`, whose
+ * revise always reaches the step, is asked before it. Both null while nothing
+ * waits, or no checkpoint is reached yet. `owed` is `atClose`'s.
  */
-export function heldApprovalBefore({ doc, runDir, owed = null }) {
+function noChoiceRoute({ doc, runDir, owed = null }) {
   const open = openHeld(doc);
-  if (!open.length) return null;
+  if (!open.length) return { ready: [], via: null, before: null };
+  const owners = [...new Set(open.map(each => each.node))];
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   const current = reread(doc, workflow, runDir);
   const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
   const status = id => entryOf(recorded, id).status ?? 'pending';
-  const due = (owed ?? atClose({ doc, runDir }).owed).find(each => isGate(recorded, byId, each.id)
-    && readiness(needsOf(recorded, byId, each.id).map(status), byId.get(each.id)?.on) === 'ready');
-  if (!due) return null;
-  const options = byId.get(due.id)?.type === 'gate' && isPlainObject(byId.get(due.id).options) ? byId.get(due.id).options : null;
-  const reach = reviseReach(recorded, byId, due.id, options);
-  return open.every(each => reach.has(each.node)) ? null : due.id;
+  const ready = (owed ?? atClose({ doc, runDir }).owed).map(each => each.id).filter(id => isGate(recorded, byId, id)
+    && readiness(needsOf(recorded, byId, id).map(status), byId.get(id)?.on) === 'ready');
+  const optionsOf = id => (byId.get(id)?.type === 'gate' && isPlainObject(byId.get(id).options) ? byId.get(id).options : null);
+  const via = ready.find(id => reachesAll(reviseStretches(recorded, byId, id, optionsOf(id)), owners)) ?? null;
+  return { ready, via, before: via === null && ready.length ? ready[0] : null };
+}
+
+/**
+ * The checkpoint `held-approval` is raised before, or null: while a held
+ * question with no choice yet waits and no checkpoint the run has reached can
+ * revise the step holding it, the first of them (`noChoiceRoute`).
+ */
+export function heldApprovalBefore({ doc, runDir, owed = null }) {
+  return noChoiceRoute({ doc, runDir, owed }).before;
 }
 
 /**

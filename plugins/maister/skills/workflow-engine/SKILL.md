@@ -540,10 +540,12 @@ patch and, under dispatch, before its close-out (*Ending a dispatched run*):
 
 It is askable once nothing is owed but the running closing node; earlier it is refused
 `gate-brief-not-askable`, naming what is still owed. **One exception, the no-choice rule:** while
-a held question has no choice yet, the next checkpoint the run reaches — the first owed gate whose
-needs have all ended — lists it only when one of its revises re-runs the step holding it, and
-recommends that revise. A checkpoint with no such revise is not asked: `held-approval` is asked at
-that point instead, before it (its brief refuses `gate-brief-not-askable`, naming
+a held question has no choice yet, a checkpoint the run has reached — an owed gate whose needs
+have all ended — is asked only when one of its revises re-runs the step holding it; it lists the
+question and recommends that revise. Another reached checkpoint with no such revise refuses
+`gate-brief-not-askable`, naming the one that has it. When no reached checkpoint has one,
+`held-approval` is asked at that point instead, before the first of them, its question naming
+that checkpoint (that checkpoint's brief refuses `gate-brief-not-askable`, naming
 `held-approval`, and `run-complete` names it among the unfinished nodes as preceded by it), and
 its revise of the step, with the choice in the note, re-runs the step and everything after it.
 
@@ -1072,8 +1074,9 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   means another node is still owed — the message names it — or a question set was sent with it:
   finish the owed nodes first and ask the closing checkpoint from the closing node, before its
   close-out, without `--patch-file`. For a gate while a held question has no choice yet, it means
-  the gate offers no revise that re-runs that question's step: ask `--node=held-approval` first,
-  and revise the step there with the choice in your note.
+  the gate offers no revise that re-runs that question's step: answer the checkpoint the message
+  names first — another reached gate whose revise does, else `--node=held-approval` — and revise
+  the step there with the choice in your note.
 - **`gate-brief-questions-invalid`**: the set itself is wrong — empty, an id missing or used
   twice, a question with fewer than two options, an option without a label, an option with the
   id `other` (reserved for an answer in the operator's own words), two recommended in a single choice, a `default` naming no option, or a key the set does not have. The message
@@ -1911,9 +1914,10 @@ open and is recorded as an `open` risk. Where it would be held, it is held with 
 and only a revise of its step settles it — never a continue: the checkpoint that lists it
 recommends the revise that re-runs that step, with a suggested note asking for the choice, and
 the person names their choice in the note. The step re-runs (*Revising at a gate*), reads the note
-in its prior context, and sends the question again with that option recommended (or as its
-`default`): the classing write then holds it with that provisional choice, and a later continue
-approves it as usual. The rest of the set is classed as usual.
+in its prior context, and sends the question again with the option the note names as its
+recommended option (or as its `default`): the classing write then holds it with that provisional
+choice, and a later continue approves it as usual. A re-run that again recommends nothing is held
+with no choice again, and spends another revise. The rest of the set is classed as usual.
 
 **What the set carries.** The question ids it sends are the ids the node's question-set lines
 in its prose declare; another id reads as itself and may fall to the policy's unknown family. A
@@ -2155,7 +2159,7 @@ writer runs. Exit `2` carries no code at all and is the table's last row:
 | `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo or a phase key used as a node id, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
 | `state-gate-values-sent` | The write sends `values` for a gate. A gate's values are recorded by the writer from the answer, as the chosen continue option sets them. Nothing was written. Drop `values` from the gate's entry and record the answer the usual way — the gate `completed`, the chosen option under its `decisions` — and the writer records the values in the same write. |
 | `state-value-invalid` | A value recorded under a key the node declares is not of the declared type. The message names the key, the value and the form it should take. Nothing was written. Send the node's whole `values` map again with that key corrected, because values are replaced whole. If the node produced no such value, the node prose decides whether it failed; never coerce one to get past the check. |
-| `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. At `held-approval` the options are the ones its brief offers — continue, a `revise-<node>` per node holding a choice, stop — and only continue and stop once its revises are spent. |
+| `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. At `held-approval` the options are the ones its brief offers — continue, a `revise-<node>` per node holding a choice, stop — and only continue and stop once its revises are spent; while a held question with no choice yet waits there is no continue — only the revises and stop, and stop alone once the revises are spent too. |
 | `state-absent-invalid` | A node summary's `absent` map is not a map, names an artifact the node does not declare, or gives an entry no reason (*Recording an outcome*). The message lists the declared keys. Nothing was written. Name each artifact by its declared key, never by its path, give the reason in a few words, and send the write again. An artifact the node was meant to produce and did not is not an absence to sanction: the node has not completed. |
 | `state-summary-item-invalid` | A typed field of a summary holds a value no reader knows: a decision's `by` outside `operator`, `run`, `audit` and `default`; a risk object with no `risk` text, or a `tag` outside `open`, `tradeoff`, `followup`, `stop` and `resolved`; an artifact `role` outside `primary`, `review`, `evidence` and `log`; a `headline` that is empty, spans lines or runs past 220 characters; an `as_recommended` that is not true, false or null; a `metrics` entry without a label and a value; a `decision_areas` that is not a list of `{area, alternatives_count, chosen_approach}` maps; or a `recommends` that names no continue option of a gate waiting on the node, or carries no one-line reason. The message names the field and the allowed values. Nothing was written. Correct that one value and send the write again. A string item is always accepted, so a source or tag you cannot place can be written as plain text. |
 | `state-question-answer-invalid` | A node's `answer` block could not be folded into its decisions: the node's request file is missing or carries no question set, a question has no answer, an answer names an option the question does not offer, a list answers a single choice, own words answer a question that does not take them, or `answers` names a question the request does not hold. The message names each. Nothing was written — but the gate was already cleared, so the node is `running` and nothing is pending. Re-read the answer file and send its `answer` block again, whole and unchanged; a block retyped by hand is the usual cause. When the answer file itself holds the fault, record each question it cannot answer as `{decision: <its default>, by: default, question_id}`, with an `open` risk naming the answer that could not be read, and continue the node. Never ask the question again in this attempt. |

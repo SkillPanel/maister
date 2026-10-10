@@ -1193,7 +1193,7 @@ test('held-approval: with a question held with no choice it offers no continue �
   assert.deepEqual(checkpoint.held.map(each => [each.node, each.decision, each.no_choice]), [['closing', 'No choice yet — needs your decision', true]]);
   assert.deepEqual(checkpoint.options.map(each => [each.id, each.recommended]), [['revise-closing', true], ['stop', false]]);
   assert.deepEqual(checkpoint.recommended, { option: 'revise-closing', reason: '"Which closing-choice?" has no choice yet: revise its step with the choice in your note' });
-  assert.equal(checkpoint.options[0].suggestions[0].note, 'My choice for "Which closing-choice?" (closing-choice):');
+  assert.equal(checkpoint.options[0].suggestions[0].note, 'My choice for "Which closing-choice?" (closing-choice), to send as its recommended option when the step asks it again:');
   assert.match(heldBrief(run).stdout, /^- Which closing-choice\?: No choice yet — needs your decision \(approve\) — closing$/m);
   assert.match(heldBrief(run, '--oneline').stdout, / · Recommended: revise-closing · /);
   const request = JSON.parse(heldBrief(run, '--request').stdout);
@@ -1203,6 +1203,19 @@ test('held-approval: with a question held with no choice it offers no continue �
   // The writer holds the answer to the same options: a continue is refused, and nothing is approved.
   refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } }), 'state-gate-option-unknown');
   assert.equal(outstandingHeld(readState(run)).length, 1);
+});
+
+test('held-approval: with a question held with no choice and its revises spent, it offers stop alone, recommended', t => {
+  const run = heldClosing(t, { owners: [] });
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'closing', questions: [{ ...unrecommended('closing-choice'), triage: APPROVE_TRIAGE }] }).stdout), 'ask: none');
+  const spent = Array.from({ length: 10 }, (_, index) => ({ option: 'revise-closing', attempt: index + 1, note: 'again' }));
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { decisions: spent } } });
+  const checkpoint = JSON.parse(heldBrief(run, '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.options.map(each => [each.id, each.recommended]), [['stop', true]]);
+  assert.equal(checkpoint.recommended.option, 'stop');
+  assert.deepEqual(JSON.parse(heldBrief(run, '--request').stdout).options.map(each => each.id), ['stop']);
+  refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } }), 'state-gate-option-unknown');
+  refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'revise-closing' } } }), 'state-gate-option-unknown');
 });
 
 test('held-approval: a second continue, after another choice is held, approves it too', t => {
@@ -1469,7 +1482,7 @@ test('end to end under dispatch: a question held with no choice is settled by a 
   assert.deepEqual(checkpoint.recommended, { option: 'send-back', reason: '"Which layout-choice?" has no choice yet: revise with the choice in your note' });
   const sendBack = checkpoint.options.find(option => option.id === 'send-back');
   assert.equal(sendBack.recommended, true);
-  assert.equal(sendBack.suggestions[0].note, 'My choice for "Which layout-choice?" (layout-choice):');
+  assert.equal(sendBack.suggestions[0].note, 'My choice for "Which layout-choice?" (layout-choice), to send as its recommended option when the step asks it again:');
   const publish = checkpoint.options.find(option => option.id === 'publish-draft');
   assert.match(publish.consequence, / Leaves 1 held question with no choice yet held until a revise of its step supplies one\.$/);
 
@@ -1511,6 +1524,35 @@ test('end to end under dispatch: a question held with no choice is settled by a 
   ok(QUESTIONS.engine, run, { task: { status: 'completed' } });
   refused(gateBriefOf(run, HELD_APPROVAL_ID), 'gate-brief-nothing-held');
   assert.match(completeRun(run, ...publishCloseout(run)).stdout, /RUN-COMPLETE\n$/);
+});
+
+test('two checkpoints ready at once: the one that cannot revise the step points at the one that can, never at held-approval', t => {
+  const run = started(t, QUESTIONS.engine, { definition: path.join(FIXTURES, 'definitions/two-checkpoints.yml'), node: 'choosing', driver: DISPATCH });
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'choosing', questions: [{ ...unrecommended('pick-choice'), triage: APPROVE_TRIAGE }] }).stdout), 'ask: none');
+  ok(QUESTIONS.engine, run, { nodes: { choosing: { status: 'completed' } }, node_summaries: { choosing: { summary: 'Chose.' } } });
+
+  // One rule: a reached checkpoint can settle it, so held-approval is not raised.
+  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), null);
+  refused(heldBrief(run), 'gate-brief-not-askable');
+  const plain = gateBriefOf(run, 'plain-approval', '--checkpoint');
+  refused(plain, 'gate-brief-not-askable');
+  assert.match(plain.stderr, /offers no revise that re-runs choosing\. Nothing was written\. Answer --node=redo-approval first: its revise re-runs that step with the choice in your note/);
+  assert.doesNotMatch(plain.stderr, /held-approval/);
+  const redo = JSON.parse(gateBriefOf(run, 'redo-approval', '--checkpoint').stdout);
+  assert.equal(redo.recommended.option, 'redo-choosing');
+});
+
+test('held-approval raised before a checkpoint asks by that checkpoint, not by the end of the run', t => {
+  const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [unrecommended('signed-choice')] }).stdout), 'ask: none');
+  ok(QUESTIONS.engine, run, {
+    nodes: { scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } } },
+    node_summaries: { scoping: { summary: 'Scoped the work.' } },
+  });
+  const ask = 'Held questions need your choice before review approval. Revise the step that holds them, with your choice in the note?';
+  assert.equal(JSON.parse(heldBrief(run, '--checkpoint').stdout).ask, ask);
+  assert.equal(JSON.parse(heldBrief(run, '--request').stdout).question, ask);
+  assert.doesNotMatch(ask, /finish the run/);
 });
 
 test('end to end under dispatch: a checkpoint that cannot revise the step is preceded by held-approval, whose revise carries the choice', t => {
