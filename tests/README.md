@@ -44,6 +44,16 @@ scaffolds with `init`. Only the dashboard normalizers
   id, a list, and an answer in the operator's own words, whose first question answered that way
   sends `option: other`. `in-step-questions.test.mjs` asserts the
   request against the verb's output and folds both answers, so a cockpit can render from them.
+- `fixtures/decision-areas/` — decision areas as the solution brainstormer writes them, read by
+  `area-brief.test.mjs`. `valid.json` is stamped with the SHA-256 of `source.md` beside it, and holds
+  an area with more than three alternatives, one with no recommendation, and areas that depend on
+  earlier ones. Every other `<reason>.json` is refused for that one reason, the file named after it
+  (`not-json.json`, `unknown-key.json`, `depends-order.json`, …), sixteen in all. `golden/` pins what
+  `area-brief` renders from `valid.json`: the picker in the `rich` profile (`picker.rich.json`, and
+  `picker.rich.open.json` for the area left open), the labels-only picker (`picker.plain.json`), the
+  full write-up (`write-up.md`) and the question set a cockpit is sent (`set.json`), each with the
+  scratch path masked. `SNAPSHOT_AREAS=1 node --test tests/engine/area-brief.test.mjs` rewrites the
+  goldens after a reviewed change to what an area question says.
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.

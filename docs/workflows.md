@@ -316,8 +316,9 @@ It is the most interactive of the workflows. Its exploration questions and refin
 the work rather than overhead around it, so the phases ask a good deal between the gates. Driven
 from a cockpit that can show a set of questions, each phase sends you its questions as one card —
 the design direction too, every decision area at once, each with its alternatives, their pros and
-cons and a recommendation. A run that cannot ask takes each question's stated default instead,
-and the documents it writes say they were drafted without review. Choosing a design direction is
+cons and a recommendation, and each carrying its full write-up, so an area can be decided without
+opening the alternatives document. A run that cannot ask takes each question's stated default
+instead, and the documents it writes say they were drafted without review. Choosing a design direction is
 the one exception: such a run never picks one itself. It lays the alternatives out with a
 recommendation for each decision, and the direction pause is where you choose — continuing adopts
 the recommendations, and sending the run back names the ones you want instead.
@@ -389,8 +390,11 @@ A recommended answer gives its reason. Questions that stand on their own — ass
 confirm, issues to decide — come as pages of up to four, and a later page says how many are left.
 A design decision comes one area at a time, each with every alternative, its pros and cons and
 the recommendation, because a later area can depend on an earlier answer; it is never offered as
-accept-all. A question the run can already answer from its own analysis is not asked: it says the
-answer in one line instead ("User guide: on — asked for when the run started").
+accept-all. In research and product design the areas are asked from the record the brainstorm keeps
+beside its document, word for word, and a cockpit shows each area with its full write-up — the same
+text **More details** writes out in the terminal. A question the run can already answer from its
+own analysis is not asked: it says the answer in one line instead ("User guide: on — asked for
+when the run started").
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
 At a checkpoint the question is one line: what finished, and whether it is ready to go on. Where the run goes if you continue is named by the continue option.
@@ -530,8 +534,8 @@ What sits beside them depends on the workflow:
 | Workflow | Subdirectories |
 |----------|----------------|
 | **development** | `analysis/` (codebase analysis, gap analysis, `research-context/`, `design-context/`), `implementation/` (spec, plan, work log), `verification/`, `documentation/` |
-| **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log) |
-| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, feature spec, `mockups/`), `outputs/` (product brief, delivery scope) |
+| **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log, `decision-areas.json`) |
+| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, `decision-areas.json`, feature spec, `mockups/`), `outputs/` (product brief, delivery scope) |
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
 
