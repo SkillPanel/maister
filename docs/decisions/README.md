@@ -35,6 +35,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - A gate's continue option may declare `grants: [push, pr-create]`, hashed with the option and shown in every surface's label; the driver registers it and the engine itself pushes nothing (ADR-0033)
 - A run records the canonical hash of the autonomy policy it applied at the freeze; triage is raise-only and written only under a matching classifying policy on a write that judges a gate; every answer carries its provenance and a terminal answer names its person; a gate guarded by a run-recorded value is asked unless it only confirms; the grant set grows to six names (ADR-0037)
 - A decision area is asked from the brainstorm's own record, `decision-areas.json`, which the engine checks against the markdown's hash and renders without adding words; a cockpit question carries the area's full write-up as `details`, and a missing or stale record falls back to composing it as before (ADR-0039)
+- A review finding that needs a decision is asked as its own question, built by `finding-brief` from the reviewer's record with the accept option generated, after the step's own fixes; a classed gate's continue records every value it sets as its own item (ADR-0041)
 
 ## Index
 
@@ -79,3 +80,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0038](0038-development-publishes-at-its-plan-gate.md) | Development publishes at its plan gate when asked to | Accepted | 2026-10-09 | Builds on ADR-0033 (the first built-in to declare grants) |
 | [ADR-0039](0039-engine-briefs-decision-areas.md) | The engine briefs each decision area from the brainstorm's own record | Accepted | 2026-10-10 | Builds on ADR-0032 (a question set gains the optional `details` key on its checkpoint item) and ADR-0037 (triage per area under a matching policy) |
 | [ADR-0040](0040-in-node-questions-under-the-autonomy-ceiling.md) | In-node questions are classed under the run's autonomy ceiling | Accepted | 2026-10-10 | Builds on ADR-0032 (the question set) and ADR-0037 (the policy hash and raise-only triage); the reserved closing checkpoint `held-approval` sits outside the frozen graph |
+| [ADR-0041](0041-findings-asked-one-question-each.md) | A review finding that needs a decision is asked as its own question | Accepted | 2026-10-10 | Builds on ADR-0039 (a set rendered from a record), ADR-0040 (classed in-node questions) and ADR-0037 (settlement items now also for values a classed gate's policy names not) |

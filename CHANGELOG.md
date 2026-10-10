@@ -85,6 +85,13 @@ workspace with work in flight.
   ends `RUN-FAILED: run-held-unapproved`. The autonomy ceiling is fixed when the run starts: a
   later change may narrow it, never widen it. A dispatch envelope carries the ceiling to the
   worker, never wider than the dispatcher's own.
+- **A question per review finding.** When the specification audit or the verification fix loop
+  leaves a finding that needs your decision, each is asked on its own, after the fixes the run
+  makes without asking: the reviewer's proposed change, the alternatives it names, "Accept the risk
+  and list it", the recommended choice with its reason, and the evidence. An accepted risk is
+  listed as a tradeoff at the next checkpoint; under a driver that cannot ask, a finding stays an
+  open risk, or is held for your approval when an autonomy policy says so. Under such a policy, a
+  checkpoint's continue also records each value it sets as its own decision.
 - **A record of who decided.** Every decision a run records says who settled it: the analysis,
   an audit, a default taken because nobody could be asked, or you. Your answers are kept in the
   task's state, with whether you took the recommendation, and the dashboard shows each decision
