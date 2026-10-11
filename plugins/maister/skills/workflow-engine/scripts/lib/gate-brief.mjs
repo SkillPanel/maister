@@ -980,6 +980,23 @@ function reachesAny(stretches, owners) {
   return owners.some(owner => [...stretches.values()].some(stretch => stretch.has(owner)));
 }
 
+/**
+ * What a revise does to the choices held for approval whose step it re-runs,
+ * as a sentence with a leading space, or '': a choice taken is sent back for
+ * the step to make again, with the note, instead of being approved; a question
+ * with no choice yet is asked again. A revise is how a person who disagrees
+ * with one held choice rejects it without approving the rest.
+ */
+function rejectsHeld(held, work) {
+  const inStretch = (Array.isArray(held) ? held : []).filter(entry => work.includes(entry.node));
+  const taken = inStretch.filter(entry => entry.no_choice !== true);
+  const open = inStretch.filter(entry => entry.no_choice === true);
+  const parts = [];
+  if (taken.length) parts.push(`rejects the held ${taken.length === 1 ? 'choice' : 'choices'} for ${heldQuestions(taken)}, which the step makes again`);
+  if (open.length) parts.push(`asks again for ${heldQuestions(open)}`);
+  return parts.length ? ` ${sentenceOf(parts.join('; '))}` : '';
+}
+
 /** Held questions named for a sentence: `"Which A?"`, `"Which A?" and "Which B?"`. */
 function heldQuestions(entries) {
   return andList(entries.map(entry => `"${entry.question ?? entry.question_id}"`));
@@ -1395,7 +1412,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       const reruns = work.map(each => ({ node: each, title: title(each) }));
       return [{
         ...base,
-        consequence: `Re-runs ${andList(reruns.map(each => each.title))} with your note, then asks this again.${history}`,
+        consequence: `Re-runs ${andList(reruns.map(each => each.title))} with your note, then asks this again.${history}${rejectsHeld(held, work)}`,
         reruns,
         revision: { n: revisions.revision, max: REVISION_CEILING },
         suggestions,

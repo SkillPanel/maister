@@ -1131,7 +1131,9 @@ its *Done* reads `Skipped.` and the held choices lead.
 - **Held choices come first** on every surface — the glance, More details, the plain and one-line
   briefs, the request and the panel — whenever a choice waits for approval: each its question, the
   choice and the step that made it. Trimming cuts them last, and never below one with a pointer to
-  the rest. Without a held choice nothing here appears.
+  the rest. A revise whose stretch re-runs a step holding one says so in its consequence: it rejects
+  that choice, which the step makes again from the note, or asks again for a question with no
+  choice yet. Without a held choice nothing here appears.
 - **The glance** is each continue option's preview, and in the `plain` profile it is the question
   above the ask. It holds:
   - *Done*: the headline;

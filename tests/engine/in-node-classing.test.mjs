@@ -1654,12 +1654,13 @@ test('end to end under dispatch: a question held with no choice is settled by a 
  * The review loop under dispatch, with a question held with no choice in each
  * of `owners`: `review` sits in review-approval's send-back stretch, while
  * `side-note` sits behind final-approval only. Stops at review-approval.
+ * `chosen` holds each with its recommended choice instead.
  */
-function reviewLoopHolding(t, owners) {
+function reviewLoopHolding(t, owners, { chosen = false } = {}) {
   const run = started(t, QUESTIONS.engine, { definition: REVISE, node: 'draft', driver: DISPATCH });
   const hold = node => {
     if (!owners.includes(node)) return;
-    const set = [{ ...unrecommended(`${node}-choice`), triage: APPROVE_TRIAGE }];
+    const set = [{ ...(chosen ? labelled(`${node}-choice`) : unrecommended(`${node}-choice`)), triage: APPROVE_TRIAGE }];
     assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node, questions: set }).stdout), 'ask: none');
   };
   ok(QUESTIONS.engine, run, {
@@ -1692,6 +1693,22 @@ test('a checkpoint whose revise reaches only some steps holding a question with 
     { note: 'My choice for "Which review-choice?" (review-choice): review-choice B' });
   assert.equal(sent.code, 0, sent.stderr);
   assert.deepEqual(keyed(outstandingHeld(readState(run))), [['side-note', 'side-note-choice', 1]]);
+});
+
+test('a revise names the held choice it rejects; one whose step it does not re-run is left out', t => {
+  const run = reviewLoopHolding(t, ['review', 'side-note'], { chosen: true });
+  const checkpoint = JSON.parse(gateBriefOf(run, 'review-approval', '--checkpoint').stdout);
+  const sendBack = checkpoint.options.find(option => option.id === 'send-back');
+  assert.match(sendBack.consequence, / Rejects the held choice for "Which review-choice\?", which the step makes again\.$/);
+  assert.doesNotMatch(sendBack.consequence, /side-note-choice/, 'side note is outside the stretch');
+  assert.equal(checkpoint.recommended.option, 'publish-draft', 'a revise is never recommended for a choice taken');
+  const request = JSON.parse(gateBriefOf(run, 'review-approval', '--request').stdout);
+  assert.match(JSON.stringify(request.options.find(option => option.id === 'send-back')), /Rejects the held choice for/);
+
+  // Control: with nothing held in its stretch, the revise says what it always said.
+  const plain = reviewLoopHolding(t, ['side-note'], { chosen: true });
+  const control = JSON.parse(gateBriefOf(plain, 'review-approval', '--checkpoint').stdout).options.find(option => option.id === 'send-back');
+  assert.match(control.consequence, /^Re-runs .* with your note, then asks this again\.$/);
 });
 
 test('control: a checkpoint whose revises reach none of the steps holding a question with no choice is still preceded by held-approval', t => {
