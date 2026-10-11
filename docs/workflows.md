@@ -428,7 +428,10 @@ in migration's issue resolution — the run fixes every issue that is clear and 
 asking, then checks again on its own, up to two times. Only then does it ask: one question per
 issue that needs your decision, and whether to take another round, continue as is or stop. The
 gate after it lists every fix made without asking. A run with nobody in the session continues as
-is, and the issues it could not fix stay open for that gate.
+is, and the issues it could not fix stay open for that gate. Each review finding that needs your
+decision, from the specification audit as well as from verification, is asked as its own question:
+the proposed change, its alternatives and "Accept the risk and list it", with the recommended one
+and the reason for it.
 
 **When the run's policy classes questions.** None does by default. Where an autonomy policy
 classes the questions a phase asks, the run settles the routine ones within its
