@@ -821,6 +821,18 @@ function drivenAnswer(run, gate, option) {
   foldAt(run, gate, option);
 }
 
+/**
+ * An answer a driver carried: `gate`'s request answered on disk with `option`,
+ * and the answer recorded through write-state, as a model folds it.
+ */
+function carried(run, gate, option, extra = {}) {
+  const gates = path.join(run.dir, 'gates');
+  fs.mkdirSync(gates, { recursive: true });
+  fs.writeFileSync(path.join(gates, `${gate}.request.yml`),
+    `${requestHead(gate)}\nanswer:\n  option: ${option}\n  answered_by: dana\n  at: "2026-01-05T09:05:00Z"\n  via: cockpit\n`);
+  return ok(QUESTIONS.engine, run, { node_summaries: { [gate]: { answer: option, ...extra } } });
+}
+
 test('approvals: a continue at a forced gate records one approval per held choice, right after the answer', t => {
   const run = heldRun(t);
   const held = byId(summaryOf(run).decisions, 'signed-choice');
@@ -1196,13 +1208,13 @@ test('held-approval: the writer records its status alone, and every reader of th
   assert.deepEqual(asking[1], asking[0]);
 });
 
-test('held-approval: its answer is folded, held to its options, stamped and judged — in session with no node entry, driven with one', t => {
+test('held-approval: its answer is folded, held to its options, stamped and judged — through write-state with no node entry, driven with one', t => {
   const run = heldClosing(t);
   const held = byId(summaryOf(run, 'choosing').decisions, 'choosing-choice');
   refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'revise-outline' } } }), 'state-gate-option-unknown');
   refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'more-details' } } }), 'state-gate-option-unknown');
 
-  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue', on_behalf_of: 'lee' } } });
+  carried(run, HELD_APPROVAL_ID, 'continue', { on_behalf_of: 'lee' });
   assert.equal(Object.hasOwn(readState(run).workflow.nodes, HELD_APPROVAL_ID), false, 'an answer in session needs no node entry');
   const [answer, approval, ...rest] = decisionsAt(run, HELD_APPROVAL_ID);
   assert.deepEqual(rest, []);
@@ -1267,14 +1279,48 @@ test('held-approval: with a question held with no choice and its revises spent, 
   refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'revise-closing' } } }), 'state-gate-option-unknown');
 });
 
+test('held-approval: a continue no driver carried is refused state-held-approval-not-askable, and the choices stay held until run-complete refuses', t => {
+  const run = heldClosing(t);
+  const before = fs.readFileSync(run.state, 'utf8');
+  const refusal = refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } }), 'state-held-approval-not-askable');
+  assert.match(refusal.stderr, /this run's dispatch driver asks a checkpoint through its request, which was never written/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+  assert.equal(outstandingHeld(readState(run)).length, 1);
+  // A request answered with something else carries no continue either.
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, 'gates', `${HELD_APPROVAL_ID}.request.yml`), `${requestHead(HELD_APPROVAL_ID)}\nanswer:\n  option: stop\n`);
+  assert.match(refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } }), 'state-held-approval-not-askable').stderr, /which carries no continue/);
+  // Where the driver cannot carry it, the run closes and run-complete refuses: never a choice nobody approved.
+  closeRun(run);
+  assert.equal(completeRun(run, ...publishCloseout(run, 'failed')).stdout, 'RUN-FAILED: run-held-unapproved\n');
+});
+
+test('held-approval: a continue while another node is owed is refused state-held-approval-not-askable, even when a request carried it', t => {
+  const run = heldClosing(t, { upTo: 'tidy' });
+  const before = fs.readFileSync(run.state, 'utf8');
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, 'gates', `${HELD_APPROVAL_ID}.request.yml`), `${requestHead(HELD_APPROVAL_ID)}\nanswer:\n  option: continue\n`);
+  const refusal = refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } }), 'state-held-approval-not-askable');
+  assert.match(refusal.stderr, /which is not asked while tidy, closing are still owed/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+});
+
+test('control: a run taken over in the terminal approves at held-approval in session, with no request', t => {
+  const run = heldClosing(t);
+  ok(QUESTIONS.engine, run, { orchestrator: { driver: { kind: 'terminal' } } });
+  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  assert.equal(decisionsAt(run, HELD_APPROVAL_ID)[0].via, 'terminal');
+});
+
 test('held-approval: a second continue, after another choice is held, approves it too', t => {
   const run = heldClosing(t, { owners: ['closing'] });
-  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  carried(run, HELD_APPROVAL_ID, 'continue');
   assert.deepEqual(outstandingHeld(readState(run)), []);
   const again = { ...labelled('second-choice'), triage: APPROVE_TRIAGE };
   assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'closing', questions: [again] }).stdout), 'ask: none');
   assert.deepEqual(keyed(outstandingHeld(readState(run))), [['closing', 'second-choice', 1]]);
-  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  carried(run, HELD_APPROVAL_ID, 'continue');
   assert.deepEqual(outstandingHeld(readState(run)), []);
   assert.deepEqual(keyed(approvalsOf(readState(run))), [['closing', 'closing-choice', 1], ['closing', 'second-choice', 1]]);
   closeRun(run);
@@ -1307,7 +1353,7 @@ test('held-approval: run-complete refuses run-held-unapproved after the unfinish
   assert.equal(completeRun(run, ...flags).stdout, 'RUN-FAILED: run-held-unapproved\n', 'a close-out published too early never completes the run');
 
   // A continue approves them, and the published close-out completes the run.
-  ok(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  carried(run, HELD_APPROVAL_ID, 'continue');
   assert.match(completeRun(run, ...flags).stdout, /(?:^|\n)RUN-COMPLETE\n$/);
 
   // A stopped run is not judged.
@@ -1418,7 +1464,7 @@ test('held-approval revise: refused revise-gate-not-current while it is not the 
   assert.match(heldRefused(pending, 'revise-tidy', 'revise-gate-not-current').stderr, /outline-approval/);
 
   const answered = heldClosing(t, { owners: ['tidy'] });
-  ok(QUESTIONS.engine, answered, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } });
+  carried(answered, HELD_APPROVAL_ID, 'continue');
   heldRefused(answered, 'revise-tidy', 'revise-option-unknown');
 
   const run = heldClosing(t, { owners: ['tidy'] });

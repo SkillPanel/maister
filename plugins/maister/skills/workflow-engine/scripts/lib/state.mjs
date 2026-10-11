@@ -100,9 +100,10 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { canAsk, driverFeatures } from './driver.mjs';
+import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -1195,7 +1196,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   judgeGates(doc, typedNow, judged, changed, writeWarnings);
-  approveHeld(doc, fresh, graphOf, changed);
+  approveHeld(doc, fresh, graphOf, changed, runDir);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -3735,7 +3736,8 @@ function judgedGates(answering, typedNow, runDir, answeredBefore = new Map()) {
     if (now === null) return false;
     // The closing checkpoint is asked exactly while it is current with held
     // items outstanding, so an answer to it then is new however many came
-    // before; whether anything still blocks it is the brief's to judge.
+    // before; whether it could have been asked is judged where its continue
+    // approves (`assertHeldAskable`).
     if (id === HELD_APPROVAL && heldApprovalCurrent(typedNow(), [])) return true;
     const before = answeredBefore.get(id);
     if (before === undefined || before.option === null) return true;
@@ -3819,7 +3821,7 @@ function closingRows(runDir) {
  * later write of the gate's summary keeps them (`keptApprovals`) and a revise
  * reset never touches a gate's summary.
  */
-function approveHeld(doc, freshIds, graphOf, changed) {
+function approveHeld(doc, freshIds, graphOf, changed, runDir = null) {
   if (freshIds.size === 0) return;
   // Nothing held with a choice, nothing to approve: checked before the graph
   // is resolved. A held question with no choice yet (`isOpenHeld`) is never
@@ -3837,12 +3839,53 @@ function approveHeld(doc, freshIds, graphOf, changed) {
     const decisions = Array.isArray(summary?.decisions) ? summary.decisions : null;
     const answer = gateAnswer(decisions);
     if (answer === null || optionEffectOf(id, answer.option, frozen, graphOf) !== 'continue') continue;
+    if (id === HELD_APPROVAL && runDir !== null) assertHeldAskable(typed, runDir);
     let at = decisions.indexOf(answer) + 1;
     while (at < decisions.length && (isSettlement(decisions[at], id) || isApproval(decisions[at]))) at += 1;
     const next = [...decisions.slice(0, at), ...waiting.map(each => approvalOf(each, answer)), ...decisions.slice(at)];
     doc.set(['node_summaries', id], block(id, { ...summary, decisions: next }, 2));
     if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
   }
+}
+
+/** The driver kinds that ask a gate by suspending on a request rather than in session. */
+const SUSPENDING_KINDS = new Set(['cockpit', 'dispatch']);
+
+/**
+ * A continue at `HELD_APPROVAL` approves only an answer someone could have
+ * given. The checkpoint must be the run's current question (`heldApprovalCurrent`,
+ * with what the run still owes and the checkpoint it may be raised before),
+ * and a driver that asks by suspending must have carried it: its request,
+ * `gates/held-approval.request.yml`, answered with that continue. Otherwise
+ * the continue is refused `state-held-approval-not-askable` and the choices
+ * stay held: under a driver that cannot carry the checkpoint, the run ends on
+ * `run-held-unapproved`, never with a choice nobody approved.
+ */
+function assertHeldAskable(typed, runDir) {
+  const { owed } = atClose({ doc: typed, runDir });
+  const before = heldApprovalBefore({ doc: typed, runDir, owed });
+  const blockers = before === null ? heldApprovalBlockers(typed, owed) : [];
+  if (blockers.length) {
+    throw new Refusal('state-held-approval-not-askable',
+      `this write records a continue at ${HELD_APPROVAL}, which is not asked while ${blockers.join(', ')} `
+      + `${blockers.length === 1 ? 'is' : 'are'} still owed, so nobody was asked to approve the held choices. Nothing was written. `
+      + 'Finish what is owed, ask the checkpoint from its brief, and record the answer it is given');
+  }
+  const kind = isPlainObject(typed.orchestrator?.driver) ? typed.orchestrator.driver.kind : undefined;
+  if (!SUSPENDING_KINDS.has(kind)) return;
+  let request = null;
+  try {
+    request = parseState(fs.readFileSync(path.join(runDir, 'gates', `${HELD_APPROVAL}${REQUEST_SUFFIX}`), 'utf8'));
+  } catch {
+    request = null;
+  }
+  const answered = isPlainObject(request?.answer) ? request.answer.option : request?.answer;
+  if (answered === 'continue') return;
+  throw new Refusal('state-held-approval-not-askable',
+    `this write records a continue at ${HELD_APPROVAL}, and this run's ${kind} driver asks a checkpoint through its request, `
+    + `which ${request === null ? 'was never written' : 'carries no continue'}: nobody approved the held choices. Nothing was written. `
+    + 'Suspend on the checkpoint with gate-request and fold the answer it brings; where the driver cannot carry it, '
+    + 'publish the close-out graded failed, naming each held choice, and let run-complete refuse');
 }
 
 /**
