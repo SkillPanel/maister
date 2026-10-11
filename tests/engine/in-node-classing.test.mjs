@@ -1719,37 +1719,35 @@ test('control: a checkpoint whose revises reach none of the steps holding a ques
   assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), 'review-approval');
 });
 
-test('two checkpoints ready at once: the one that cannot revise the step points at the one that can, never at held-approval', t => {
+test('two checkpoints ready at once: each settles the question with no choice, by its own revise or the one it offers for the step', t => {
   const run = started(t, QUESTIONS.engine, { definition: path.join(FIXTURES, 'definitions/two-checkpoints.yml'), node: 'choosing', driver: DISPATCH });
   assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'choosing', questions: [{ ...unrecommended('pick-choice'), triage: APPROVE_TRIAGE }] }).stdout), 'ask: none');
   ok(QUESTIONS.engine, run, { nodes: { choosing: { status: 'completed' } }, node_summaries: { choosing: { summary: 'Chose.' } } });
 
-  // One rule: a reached checkpoint can settle it, so held-approval is not raised.
+  // A reached checkpoint can settle it, so held-approval is not raised.
   assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), null);
   refused(heldBrief(run), 'gate-brief-not-askable');
-  const plain = gateBriefOf(run, 'plain-approval', '--checkpoint');
-  refused(plain, 'gate-brief-not-askable');
-  assert.match(plain.stderr, /offers no revise that re-runs choosing\. Nothing was written\. Answer --node=redo-approval first: its revise re-runs that step with the choice in your note/);
-  assert.doesNotMatch(plain.stderr, /held-approval/);
+  // plain-approval has no revise of its own: it offers one for the step holding the question, and recommends it.
+  const plain = JSON.parse(gateBriefOf(run, 'plain-approval', '--checkpoint').stdout);
+  assert.equal(plain.recommended.option, 'revise-choosing');
+  assert.deepEqual(plain.options.map(each => each.id), ['go-on', 'revise-choosing', 'halt']);
+  // redo-approval's own revise already re-runs it, so it offers no second one.
   const redo = JSON.parse(gateBriefOf(run, 'redo-approval', '--checkpoint').stdout);
   assert.equal(redo.recommended.option, 'redo-choosing');
+  assert.deepEqual(redo.options.map(each => each.id), ['keep', 'redo-choosing', 'quit']);
 });
 
 test('held-approval raised before a checkpoint asks by that checkpoint, not by the end of the run', t => {
-  const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
-  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [unrecommended('signed-choice')] }).stdout), 'ask: none');
-  ok(QUESTIONS.engine, run, {
-    nodes: { scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } } },
-    node_summaries: { scoping: { summary: 'Scoped the work.' } },
-  });
+  // side note holds the question; review-approval is not behind it, so it cannot send it back.
+  const run = reviewLoopHolding(t, ['side-note']);
   const ask = 'Held questions need your choice before review approval. Revise the step that holds them, with your choice in the note?';
   assert.equal(JSON.parse(heldBrief(run, '--checkpoint').stdout).ask, ask);
   assert.equal(JSON.parse(heldBrief(run, '--request').stdout).question, ask);
   assert.doesNotMatch(ask, /finish the run/);
 });
 
-test('end to end under dispatch: a checkpoint that cannot revise the step is preceded by held-approval, whose revise carries the choice', t => {
-  // review-approval offers continue and stop only, so held-approval is asked before it.
+test('end to end under dispatch: a checkpoint with no revise of its own offers one for the step holding a question with no choice, carrying the choice', t => {
+  // review-approval offers continue and stop of its own; it is behind scoping, so it offers revise-scoping too.
   const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
   const open = { ...unrecommended('signed-choice') };
   assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [labelled('quick-choice'), open] }).stdout), 'ask: none');
@@ -1757,24 +1755,24 @@ test('end to end under dispatch: a checkpoint that cannot revise the step is pre
     nodes: { scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } } },
     node_summaries: { scoping: { summary: 'Scoped the work.' } },
   });
-  const blocked = gateBriefOf(run, 'review-approval', '--checkpoint');
-  refused(blocked, 'gate-brief-not-askable');
-  assert.match(blocked.stderr, /"Which signed-choice\?" has no choice yet, and this checkpoint offers no revise that re-runs scoping\. Nothing was written\. Ask --node=held-approval first/);
-  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), 'review-approval');
-  // run-complete owes the gate, and says held-approval comes first.
-  ok(QUESTIONS.engine, run, { task: { status: 'completed' } });
-  assert.match(completeRun(run).stderr, /review-approval \(pending; held-approval is asked before it: a held question has no choice yet/);
-  ok(QUESTIONS.engine, run, { task: { status: 'in_progress' } });
-
-  const checkpoint = JSON.parse(heldBrief(run, '--checkpoint').stdout);
-  assert.deepEqual(checkpoint.options.map(each => each.id), ['revise-scoping', 'stop']);
-  assert.equal(checkpoint.next.node, 'review-approval');
-  assert.deepEqual(checkpoint.held.map(each => [each.question_id, each.no_choice]), [['signed-choice', true]]);
-  const revised = heldRevised(run, 'revise-scoping', 'My choice for "Which signed-choice?" (signed-choice): signed-choice B');
-  assert.match(revised.stdout, /^revised: held-approval reruns=scoping revision=1\/10 reset=scoping,review-approval,depth-approval,drafting,notes,notes-approval,finish$/m);
+  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), null);
+  const checkpoint = JSON.parse(gateBriefOf(run, 'review-approval', '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.options.map(each => each.id), ['continue-past-review', 'revise-scoping', 'stop-at-review']);
+  const revise = checkpoint.options.find(each => each.id === 'revise-scoping');
+  assert.equal(revise.label, 'Revise scoping');
+  assert.equal(revise.recommended, true);
+  assert.equal(checkpoint.recommended.option, 'revise-scoping');
+  const revised = runScript(QUESTIONS.engine, ['gate-revise', `--state=${run.state}`, '--node=review-approval', '--option=revise-scoping'],
+    { note: 'My choice for "Which signed-choice?" (signed-choice): signed-choice B' });
+  assert.equal(revised.code, 0, revised.stderr);
+  assert.match(revised.stdout, /^revised: review-approval reruns=scoping revision=1\/10 reset=scoping,review-approval$/m);
+  const decision = decisionsAt(run, 'review-approval').at(-1);
+  assert.equal(decision.option, 'revise-scoping');
+  assert.equal(decision.reruns, 'scoping');
+  assert.equal(decision.decision, 'Revise scoping');
   assert.deepEqual(outstandingHeld(readState(run)), []);
 
-  // The re-run holds the choice it was given; review-approval is now asked, and its continue approves it.
+  // The re-run holds the choice it was given; review-approval is asked again, and its continue approves it.
   ok(QUESTIONS.engine, run, { nodes: { scoping: { status: 'running' } } });
   const chosen = { ...unrecommended('signed-choice') };
   chosen.options = chosen.options.map(option => (option.id === 'b' ? { ...option, recommended: true } : option));
@@ -1783,12 +1781,11 @@ test('end to end under dispatch: a checkpoint that cannot revise the step is pre
     nodes: { scoping: { status: 'completed', values: { wants_review: false, wants_notes: false } } },
     node_summaries: { scoping: { summary: 'Scoped again.' } },
   });
-  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), null);
   const listed = JSON.parse(gateBriefOf(run, 'review-approval', '--checkpoint').stdout);
   assert.deepEqual(listed.held.map(each => [each.decision, each.no_choice ?? null]), [['signed-choice B', null]]);
+  assert.equal(listed.recommended.option, 'continue-past-review', 'a revise for a choice taken is never recommended');
   answerGate(run, 'review-approval', 'continue-past-review');
   assert.deepEqual(outstandingHeld(readState(run)), []);
-  assert.deepEqual(byId(dashboardDecisions(run, 'scoping'), 'signed-choice').approved?.by !== undefined, true);
   ok(QUESTIONS.engine, run, {
     task: { status: 'completed' },
     nodes: { 'depth-approval': { status: 'skipped' }, drafting: { status: 'completed' }, notes: { status: 'skipped' }, 'notes-approval': { status: 'skipped' }, finish: { status: 'completed' } },
@@ -1845,4 +1842,123 @@ test('the built-in default: a gate\'s checkpoint and request after a classing wr
     // Nothing is ever held, so the closing checkpoint has nothing to ask.
     refused(verb(['gate-brief', `--state=${run.state}`, '--node=held-approval']), 'gate-brief-nothing-held');
   }
+});
+
+// ---------------------------------------------------------------------------
+// 13. a revise for a held choice at an ordinary checkpoint
+// ---------------------------------------------------------------------------
+
+const HELD_REVISE = path.join(FIXTURES, 'definitions/held-revise.yml');
+
+/**
+ * `held-revise` under dispatch, its three steps run in turn with a choice held
+ * in each of `owners`, stopped at `check`, the checkpoint behind them all.
+ */
+function heldBeforeCheck(t, owners) {
+  const run = started(t, QUESTIONS.engine, { definition: HELD_REVISE, node: 'first', driver: DISPATCH });
+  for (const [index, node] of ['first', 'second', 'third'].entries()) {
+    if (index) ok(QUESTIONS.engine, run, { nodes: { [node]: { status: 'running' } } });
+    if (owners.includes(node)) holdIn(run, node);
+    ok(QUESTIONS.engine, run, { nodes: { [node]: { status: 'completed' } }, node_summaries: { [node]: { summary: `Made the ${node} choice.` } } });
+  }
+  return run;
+}
+
+function checkRevise(run, option, note) {
+  return runScript(QUESTIONS.engine, ['gate-revise', `--state=${run.state}`, '--node=check', `--option=${option}`], { note });
+}
+
+test('held revise: a checkpoint with no revise of its own offers one per step holding a choice, never recommended', t => {
+  const run = heldBeforeCheck(t, ['first', 'second']);
+  const checkpoint = JSON.parse(gateBriefOf(run, 'check', '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.options.map(each => [each.id, each.effect]), [['go-on', 'continue'], ['revise-first', 'revise'], ['revise-second', 'revise'], ['halt', 'stop']]);
+  assert.equal(checkpoint.recommended.option, 'go-on');
+  const second = checkpoint.options.find(each => each.id === 'revise-second');
+  assert.equal(second.label, 'Revise second');
+  assert.match(second.consequence, /^Re-runs Second and Third with your note, then asks this again\. Rejects the held choice for "Which second-choice\?", which the step makes again\.$/);
+  assert.deepEqual(second.revision, { n: 1, max: 10 });
+
+  // The request carries them as revise options needing a note; the one-line brief lists them.
+  const request = JSON.parse(gateBriefOf(run, 'check', '--request').stdout);
+  const offered = request.options.find(each => each.id === 'revise-second');
+  assert.equal(offered.effect, 'revise');
+  assert.equal(offered.note, true);
+  assert.match(gateBriefOf(run, 'check', '--oneline').stdout, / · revise: revise-second reruns=second revision=1\/10 · /);
+  // The rich picker lists them in its four slots, More details then typed.
+  const rich = JSON.parse(gateBriefOf(run, 'check', '--json', '--picker=rich').stdout);
+  assert.deepEqual(rich.options.map(each => each.id), ['go-on', 'revise-first', 'revise-second', 'halt']);
+  assert.equal(rich.details, 'typed');
+
+  // Control: with nothing held, the gate offers its own options alone.
+  const plain = heldBeforeCheck(t, []);
+  assert.deepEqual(JSON.parse(gateBriefOf(plain, 'check', '--checkpoint').stdout).options.map(each => each.id), ['go-on', 'halt']);
+  refused(checkRevise(plain, 'revise-first', 'Use B'), 'revise-option-unknown');
+});
+
+test('held revise: sending one step back rejects its choice without approving the rest, in session', t => {
+  const run = heldBeforeCheck(t, ['first', 'second']);
+  const revised = checkRevise(run, 'revise-second', 'Take second-choice B instead');
+  assert.equal(revised.code, 0, revised.stderr);
+  assert.match(revised.stdout, /^revised: check reruns=second revision=1\/10 reset=second,third,check$/m);
+  const decision = decisionsAt(run, 'check').at(-1);
+  assert.deepEqual([decision.option, decision.reruns, decision.attempt, decision.note, decision.decision],
+    ['revise-second', 'second', 1, 'Take second-choice B instead', 'Revise second']);
+  // first's choice is still held and unapproved; second's left with its reset.
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['first', 'first-choice', 1]]);
+  assert.deepEqual(approvalsOf(readState(run)), []);
+  assert.deepEqual(resumeCheckOf(run).revision, { gate: 'check', option: 'revise-second', reruns: 'second', revision: 1, applied: true });
+  assert.match(runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]).stdout, /^Note: Take second-choice B instead$/m);
+
+  // The step re-runs and holds its new choice; the checkpoint's continue then approves both.
+  ok(QUESTIONS.engine, run, { nodes: { second: { status: 'running' } } });
+  holdIn(run, 'second');
+  ok(QUESTIONS.engine, run, { nodes: { second: { status: 'completed' } }, node_summaries: { second: { summary: 'Chose again.' } } });
+  ok(QUESTIONS.engine, run, { nodes: { third: { status: 'running' } } });
+  ok(QUESTIONS.engine, run, { nodes: { third: { status: 'completed' } }, node_summaries: { third: { summary: 'Made the third choice again.' } } });
+  answerGate(run, 'check', 'go-on');
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  assert.deepEqual(keyed(approvalsOf(readState(run))), [['first', 'first-choice', 1], ['second', 'second-choice', 2]]);
+});
+
+test('held revise: driven, the folded answer is open and unapplied until gate-revise applies it', t => {
+  const run = heldBeforeCheck(t, ['first', 'second']);
+  drivenAnswer(run, 'check', 'revise-first');
+  assert.deepEqual(resumeCheckOf(run).revision, { gate: 'check', option: 'revise-first', reruns: 'first', revision: 1, applied: false });
+  // The fold is accepted by the writer as an answer the gate offered.
+  ok(QUESTIONS.engine, run, {});
+  const revised = checkRevise(run, 'revise-first', 'Take first-choice B');
+  assert.equal(revised.code, 0, revised.stderr);
+  assert.match(revised.stdout, /reset=first,second,third,check$/m);
+  assert.equal(resumeCheckOf(run).revision.applied, true);
+  assert.deepEqual(outstandingHeld(readState(run)), [], 'every step holding a choice re-runs');
+});
+
+test('held revise: the writer accepts the answer while the gate offers it, and refuses it once nothing is held', t => {
+  const run = heldBeforeCheck(t, ['first']);
+  const before = fs.readFileSync(run.state, 'utf8');
+  refused(send(QUESTIONS.engine, run, { node_summaries: { check: { answer: 'revise-second' } } }), 'state-gate-option-unknown');
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+  ok(QUESTIONS.engine, run, { nodes: { check: { status: 'completed' } }, node_summaries: { check: { answer: 'revise-first' } } });
+  assert.equal(decisionsAt(run, 'check').at(-1).decision, 'Revise first');
+
+  const none = heldBeforeCheck(t, []);
+  refused(send(QUESTIONS.engine, none, { node_summaries: { check: { answer: 'revise-first' } } }), 'state-gate-option-unknown');
+});
+
+test('held revise: with more than the rich picker holds, it lists the revises nearest the end and names the rest', t => {
+  const run = heldBeforeCheck(t, ['first', 'second', 'third']);
+  const rich = JSON.parse(gateBriefOf(run, 'check', '--json', '--picker=rich').stdout);
+  assert.deepEqual(rich.options.map(each => each.id), ['go-on', 'revise-second', 'revise-third', 'halt']);
+  assert.match(rich.question, /Also offered, not listed: Revise first \(revise-first\); name one to choose it\./);
+  const plain = JSON.parse(gateBriefOf(run, 'check', '--json', '--picker=plain').stdout);
+  assert.ok(plain.options.some(each => each.id === 'revise-first'), 'the plain picker lists every one');
+});
+
+test('held revise: none is offered once the checkpoint has spent its revisions', t => {
+  const run = heldBeforeCheck(t, ['first']);
+  const text = fs.readFileSync(run.state, 'utf8').replace(/^( {4}check: \{kind: gate, status: pending)/m, '$1, attempt: 11');
+  fs.writeFileSync(run.state, text);
+  const checkpoint = JSON.parse(gateBriefOf(run, 'check', '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.options.map(each => each.id), ['go-on', 'halt']);
+  refused(checkRevise(run, 'revise-first', 'Use B'), 'revise-option-unknown');
 });

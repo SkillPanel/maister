@@ -100,7 +100,7 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { canAsk, driverFeatures } from './driver.mjs';
 import { atClose, heldApprovalBefore } from './gate-brief.mjs';
@@ -2255,12 +2255,14 @@ function typeMismatch(type, value) {
  * was written before, and the reader that later looked for the chosen option
  * found none of the gate's own.
  */
-function assertOptions(id, decisions, gate) {
+function assertOptions(id, decisions, gate, held = []) {
   if (!Array.isArray(decisions)) return;
-  const offered = isPlainObject(gate.options) ? Object.keys(gate.options) : [];
+  const offered = [...(isPlainObject(gate.options) ? Object.keys(gate.options) : []), ...held];
   for (const decision of decisions) {
     if (!isPlainObject(decision) || !Object.hasOwn(decision, 'option')) continue;
     if (offered.includes(decision.option)) continue;
+    // A held-choice revise the reset applied is history, as any applied revise is.
+    if (isAppliedHeldRevise(decision)) continue;
     if (decision.option === MORE_DETAILS_ID) {
       throw new Refusal('state-gate-option-unknown',
         `node_summaries.${id} records "${MORE_DETAILS_ID}", which is not an answer: it asks for the full brief. Nothing was written. `
@@ -2728,7 +2730,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     if (Array.isArray(entry.decisions)) entry.decisions = entry.decisions.map(withoutGrants);
     if (kind === 'node' && graphOf !== null && Object.hasOwn(entry, 'decisions')) {
       const gate = resolvedNode(graphOf(), key);
-      if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate);
+      if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate, heldRevisesOf(typedNow(), key, gate));
     }
     // The reserved closing checkpoint offers what the brief derives from the
     // state, so its answer is held to that, definition or none. A revise the
@@ -2745,7 +2747,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       if (isGateSummary(recorded, key)) {
         display ??= runDir === null ? displayOf() : displayOfRun(parseState(doc.text()), runDir);
         via ??= answerVia(parseState(doc.text()));
-        entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display), runDir, via);
+        entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display, gateHeldRevises(typedNow(), key).map(each => each.id)), runDir, via);
         // An approval carrying its attempt is kept once, as an approval, not as an earlier revision.
         const revisions = earlierRevisions(doc, key, entry.decisions).filter(item => !isApproval(item));
         entry.decisions = [...revisions, ...entry.decisions, ...keptApprovals(heldOf(key)?.decisions, entry.decisions)];
@@ -2803,6 +2805,15 @@ function isGateSummary(recorded, key) {
  * as the brief derives them from `doc` (`heldApprovalOptions`), revises left
  * out once the safety limit is spent.
  */
+/**
+ * The ids of the held-choice revises a frozen gate offers beside its own
+ * (`gateHeldRevises`), its own options from the definition kept out.
+ */
+function heldRevisesOf(doc, id, gate) {
+  const offered = isPlainObject(gate?.options) ? Object.keys(gate.options) : [];
+  return gateHeldRevises(doc, id, { offered }).map(each => each.id);
+}
+
 function heldApprovalGate(doc) {
   const { options } = heldApprovalOptions(doc);
   return { options: Object.fromEntries(options.map(option => [option.id, option.effect])) };
@@ -2936,10 +2947,13 @@ function assertRecommends(id, recommends, graph) {
  * The option's label goes in `decision` and `by: operator` beside it, once, on
  * the way in; a field the caller already sent is kept.
  */
-function foldAnswers(decisions, gate, display) {
+function foldAnswers(decisions, gate, display, held = []) {
   const labels = isPlainObject(display?.option_labels) ? display.option_labels : {};
   // The reserved closing checkpoint's options are the engine's, labelled as its brief labels them.
-  const labelFor = option => (gate === HELD_APPROVAL
+  // So are the revises a frozen gate offers for held choices, which no
+  // definition labels: "Revise <step>".
+  const heldRevise = option => held.includes(option);
+  const labelFor = option => (gate === HELD_APPROVAL || heldRevise(option)
     ? heldApprovalLabel(option, id => lowered(titleOf(display?.titles, id)))
     : labelOf(labels, gate, option));
   return decisions.map(decision => {

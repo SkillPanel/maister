@@ -47,7 +47,7 @@ import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from '
 import { downstreamOf, reviseStretch } from './graph.mjs';
 import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 import {
-  HELD_APPROVAL, REVISE_PREFIX, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalCurrent, heldApprovalFolded, heldApprovalOptions, heldRevisions, startedSubrun,
+  HELD_APPROVAL, REVISE_PREFIX, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalCurrent, heldApprovalFolded, heldApprovalOptions, heldRevisions, startedSubrun, gateHeldRevises, isAppliedHeldRevise,
 } from './question-triage.mjs';
 import { gateAnswer, isPlaceholderName, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
@@ -88,7 +88,10 @@ export function gateRevise({ state, node, option, input }) {
       `--node=${node} names ${Object.hasOwn(recorded, node) ? `a node this run recorded as ${JSON.stringify(gate.kind ?? null)}` : 'no node of this run'}, `
       + 'not a gate. Nothing was written. Name the gate whose revise option the operator chose');
   }
-  const targets = isPlainObject(gate.reruns) ? gate.reruns : {};
+  // Its own revise options, then the revise of each step holding a choice for
+  // approval behind it (`gateHeldRevises`).
+  const targets = { ...(isPlainObject(gate.reruns) ? gate.reruns : {}) };
+  for (const held of gateHeldRevises(doc, node)) targets[held.id] = held.reruns;
   if (!Object.hasOwn(targets, option) || typeof targets[option] !== 'string') {
     const offered = Object.keys(targets);
     return refuse('revise-option-unknown',
@@ -367,15 +370,21 @@ export function openRevision(doc) {
   const recorded = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
   const open = [];
   for (const [gate, entry] of Object.entries(recorded)) {
-    if (!isPlainObject(entry) || entry.kind !== 'gate' || !isPlainObject(entry.reruns)) continue;
+    if (!isPlainObject(entry) || entry.kind !== 'gate') continue;
     const latest = gateAnswer(decisionsOf(doc, gate));
-    if (!isPlainObject(latest) || !Object.hasOwn(entry.reruns, latest.option)) continue;
+    if (!isPlainObject(latest)) continue;
     const applied = Object.hasOwn(latest, 'attempt');
+    // A held-choice revise: applied, its decision names what it re-ran; folded
+    // and not yet applied, it is one the gate still offers.
+    const held = applied ? (isAppliedHeldRevise(latest) ? latest.reruns : null)
+      : gateHeldRevises(doc, gate).find(each => each.id === latest.option)?.reruns ?? null;
+    const own = isPlainObject(entry.reruns) && Object.hasOwn(entry.reruns, latest.option) ? String(entry.reruns[latest.option]) : null;
+    if (own === null && held === null) continue;
     if (!applied && entry.status !== 'completed') continue;
     open.push({
       gate,
       option: latest.option,
-      reruns: String(entry.reruns[latest.option]),
+      reruns: own ?? held,
       revision: applied ? attemptOf(latest) : attemptOf(entry),
       applied,
       note: typeof latest.note === 'string' ? latest.note : null,

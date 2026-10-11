@@ -1527,6 +1527,18 @@ field says `applied: false`. Run `gate-revise` for it before anything else, with
 answer file; do not walk the ready set first, or the run moves past the gate as if the answer
 had been continue.
 
+**For a held choice.** While choices are held for approval, a frozen gate offers, beside its own
+options, one `revise-<node>` for each node holding a choice that sits behind it (in its needs
+closure) and that none of its own revises already re-runs — its label "Revise <step>", its note
+required, never recommended except under the no-choice rule (*The ready set*). Its stretch, its
+revision count and its safety ceiling of ten are the gate's own, as for any revise of the gate
+from that node; it is not offered once the ceiling is reached, when its id is one of the gate's
+own options, or when its stretch holds a sub-run that has started. The writer accepts it as an
+answer at that gate while it is offered, and `gate-revise --node=<gate> --option=revise-<node>`
+applies it: the decision it records carries `option`, `reruns` (the node), `attempt` and the
+note, and `resume-check` reports it as any revise. It approves nothing; the other held choices
+stay held for the next continue. A step not behind the gate is not offered there.
+
 **At `held-approval`.** The closing checkpoint has a revise rule of its own: `revise-<node>` names a
 node that holds a choice, and its stretch is that node and every frozen node downstream of it,
 the closing node included, all reset in one write; a run already recorded `completed` goes back to
@@ -1540,7 +1552,7 @@ holding a sub-run, a missing note.
 | Refusal | Response |
 |---|---|
 | `revise-not-a-gate` | `--node` names no node of the run, or a node that is not a gate. Nothing was written. Correct `--node` to the gate the operator answered and run the verb again; no state write fixes this. |
-| `revise-option-unknown` | `--option` is not one of the gate's revise options; the message lists them. Nothing was written. Correct the id — the option's id, never its label. A continue or a stop is recorded as an ordinary answer (*Terminal mode*), not through this verb. |
+| `revise-option-unknown` | `--option` is not one of the gate's revise options — its own, and a `revise-<node>` for a step holding a choice while it offers one (*For a held choice*); the message lists them. Nothing was written. Correct the id — the option's id, never its label. A continue or a stop is recorded as an ordinary answer (*Terminal mode*), not through this verb. |
 | `revise-note-missing` | The patch file carries no note, an empty one, or an `at` that is not a UTC timestamp. Nothing was written and the patch file is kept. Put the note the operator gave — the chosen suggestions and anything typed — into it, send the answer's own stamp or no `at` at all, and run the verb again. |
 | `revise-gate-not-current` | The gate is not the question the run is asking: something it waits on has not ended, it is already answered, a revise already reset it, or a driver's answer is still awaited. Nothing was written. Do not repeat the call; take the ready set from the state and ask the gate the run is actually at. A second call after a revise that landed is refused this way, which is what makes it safe. |
 | `revise-budget-exhausted` | The gate has reached its safety ceiling of ten revisions: no revises are left at this checkpoint. Nothing was written. Ask it again with its continue and stop options only; the brief no longer offers the revise, and the user decides between going on and stopping. |
@@ -1993,8 +2005,10 @@ and ask it, or take its default, exactly as the sections above say.
 done on its strength — nothing pushed, published, sent or deleted — before a person approves it.
 It forces the next checkpoint that runs and is listed first there, with the step that holds it,
 and every continue there says it approves the held choices — and that a held question with no
-choice yet stays held until a revise of its step supplies one (*The ready set*, *Gates*); where
-that checkpoint offers no revise, stopping is the way to reject a choice. When no checkpoint follows, the closing node asks
+choice yet stays held until a revise of its step supplies one (*The ready set*, *Gates*). A
+person who disagrees with one held choice sends its step back from that checkpoint with a revise
+and a note, approving none of the others (*Revising at a gate*, *For a held choice*); a step the
+checkpoint cannot send back is reached at a later one, or at `held-approval`. When no checkpoint follows, the closing node asks
 `held-approval` before it closes (*Ending a dispatched run*). Say this when you present the
 checkpoint in session: continuing approves what is listed as held.
 
@@ -2234,7 +2248,7 @@ twenty-six, each with its response below; two more are raised before the writer 
 | `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo or a phase key used as a node id, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
 | `state-gate-values-sent` | The write sends `values` for a gate. A gate's values are recorded by the writer from the answer, as the chosen continue option sets them. Nothing was written. Drop `values` from the gate's entry and record the answer the usual way — the gate `completed`, the chosen option under its `decisions` — and the writer records the values in the same write. |
 | `state-value-invalid` | A value recorded under a key the node declares is not of the declared type. The message names the key, the value and the form it should take. Nothing was written. Send the node's whole `values` map again with that key corrected, because values are replaced whole. If the node produced no such value, the node prose decides whether it failed; never coerce one to get past the check. |
-| `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. At `held-approval` the options are the ones its brief offers — continue, a `revise-<node>` per node holding a choice, stop — and only continue and stop once its revises are spent; while a held question with no choice yet waits there is no continue — only the revises and stop, and stop alone once the revises are spent too. |
+| `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. While choices are held, a frozen gate also offers a `revise-<node>` for each step behind it holding one (*For a held choice*), and only while it does. At `held-approval` the options are the ones its brief offers — continue, a `revise-<node>` per node holding a choice, stop — and only continue and stop once its revises are spent; while a held question with no choice yet waits there is no continue — only the revises and stop, and stop alone once the revises are spent too. |
 | `state-absent-invalid` | A node summary's `absent` map is not a map, names an artifact the node does not declare, or gives an entry no reason (*Recording an outcome*). The message lists the declared keys. Nothing was written. Name each artifact by its declared key, never by its path, give the reason in a few words, and send the write again. An artifact the node was meant to produce and did not is not an absence to sanction: the node has not completed. |
 | `state-summary-item-invalid` | A typed field of a summary holds a value no reader knows: a decision's `by` outside `operator`, `run`, `audit` and `default`; a risk object with no `risk` text, or a `tag` outside `open`, `tradeoff`, `followup`, `stop` and `resolved`; an artifact `role` outside `primary`, `review`, `evidence` and `log`; a `headline` that is empty, spans lines or runs past 220 characters; an `as_recommended` that is not true, false or null; a `metrics` entry without a label and a value; a `decision_areas` that is not a list of `{area, alternatives_count, chosen_approach}` maps; or a `recommends` that names no continue option of a gate waiting on the node, or carries no one-line reason. The message names the field and the allowed values. Nothing was written. Correct that one value and send the write again. A string item is always accepted, so a source or tag you cannot place can be written as plain text. |
 | `state-question-answer-invalid` | A node's `answer` block could not be folded into its decisions: the node's request file is missing or carries no question set, a question has no answer, an answer names an option the question does not offer, a list answers a single choice, own words answer a question that does not take them, or `answers` names a question the request does not hold. The message names each. Nothing was written — but the gate was already cleared, so the node is `running` and nothing is pending. Re-read the answer file and send its `answer` block again, whole and unchanged; a block retyped by hand is the usual cause. When the answer file itself holds the fault, record each question it cannot answer as `{decision: <its default>, by: default, question_id}`, with an `open` risk naming the answer that could not be read, and continue the node. Never ask the question again in this attempt. |

@@ -118,7 +118,7 @@ import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as ent
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, REVISION_CEILING, frozenIds, gateHeldRevises, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 
 /** The context blocks a summary may also be recorded in, beside `node_summaries`. */
 const CONTEXT_SUFFIX = '_context';
@@ -308,7 +308,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const open = held.filter(entry => entry.no_choice === true);
   let settling = null;
   if (open.length) {
-    const stretches = reviseStretches(recorded, byId, node, options);
+    const stretches = reviseStretches(doc, recorded, byId, node, options);
     const owners = [...new Set(open.map(entry => entry.node))];
     if (!reachesAny(stretches, owners)) {
       // One rule with `held-approval`'s own askability (`noChoiceRoute`): the
@@ -424,7 +424,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     }
     return { ok: true, request, panel, errors: [], warnings };
   }
-  const shaped = picker === 'plain' ? plainPicker(checkpoint) : richPicker(checkpoint);
+  const shaped = picker === 'plain' ? plainPicker(checkpoint) : richHeldPicker(checkpoint, options);
   // The plain profile's header titles a form property, which has no length
   // limit and shows a cut word as written: it takes the closing node's own
   // title, where the rich profile's chip takes the short header.
@@ -715,6 +715,29 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   };
 }
 
+/** The options the rich picker has room for. */
+const RICH_SLOTS = 4;
+
+/**
+ * The rich picker of a frozen gate. Its four slots take the gate's own options
+ * first; the revises offered for held choices fill the room left, nearest the
+ * end, the recommended one always among them, and the question names the rest,
+ * reached by typing.
+ */
+function richHeldPicker(checkpoint, options) {
+  const own = id => isPlainObject(options) && Object.hasOwn(options, id);
+  const held = checkpoint.options.filter(option => !own(option.id));
+  const room = Math.max(0, RICH_SLOTS - (checkpoint.options.length - held.length));
+  if (held.length <= room) return richPicker(checkpoint);
+  const chosen = held.find(option => option.recommended);
+  let listed = room ? held.slice(-room) : [];
+  if (chosen && !listed.includes(chosen)) listed = [chosen, ...listed.slice(1)];
+  const rest = held.filter(option => !listed.includes(option));
+  const shaped = richPicker({ ...checkpoint, options: checkpoint.options.filter(option => own(option.id) || listed.includes(option)) });
+  shaped.question = `${shaped.question} Also offered, not listed: ${rest.map(option => `${option.label} (${option.id})`).join(', ')}; name one to choose it.`;
+  return shaped;
+}
+
 /** How many files the `Review:` line names before it stops. */
 const REVIEW_MAX = 3;
 
@@ -932,6 +955,8 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
       if (isPlainObject(option) && option.effect === 'revise' && typeof option.reruns === 'string') targets[id] = option.reruns;
     }
   }
+  // Beside its own, the revise of each step holding a choice for approval.
+  for (const held of heldRevisesFor(doc, gate, options)) targets[held.id] = held.reruns;
   const attempt = Number(entry.attempt);
   const revision = Number.isInteger(attempt) && attempt > 0 ? attempt : 1;
   const ids = frozenIds(recorded).length ? frozenIds(recorded) : [...byId.keys()];
@@ -962,17 +987,26 @@ function revisionsOf(doc, recorded, byId, gate, options, titles, guards) {
  * spent, and for a gate with no revise. The one stretch rule for whether a
  * gate can settle a held question with no choice and which revise does.
  */
-function reviseStretches(recorded, byId, gate, options) {
+function reviseStretches(doc, recorded, byId, gate, options) {
   const entry = entryOf(recorded, gate);
   const attempt = Number(entry.attempt);
   if (Number.isInteger(attempt) && attempt > REVISION_CEILING) return new Map();
-  const targets = isPlainObject(entry.reruns)
+  const targets = [...(isPlainObject(entry.reruns)
     ? Object.entries(entry.reruns).filter(([, target]) => typeof target === 'string')
     : Object.entries(isPlainObject(options) ? options : {})
       .filter(([, option]) => isPlainObject(option) && option.effect === 'revise' && typeof option.reruns === 'string')
-      .map(([id, option]) => [id, option.reruns]);
+      .map(([id, option]) => [id, option.reruns])),
+  ...heldRevisesFor(doc, gate, options).map(held => [held.id, held.reruns])];
   const ids = frozenIds(recorded).length ? frozenIds(recorded) : [...byId.keys()];
   return new Map(targets.map(([id, reruns]) => [id, new Set(reviseStretch({ ids, needsOf: each => needsOf(recorded, byId, each), reruns, gate }))]));
+}
+
+/**
+ * The revises `gate` offers for held choices beside its own
+ * (`gateHeldRevises`), its definition's option ids kept out.
+ */
+function heldRevisesFor(doc, gate, options) {
+  return gateHeldRevises(doc, gate, { offered: isPlainObject(options) ? Object.keys(options) : [] });
 }
 
 /** Whether some revise of `stretches` (`reviseStretches`) re-runs at least one of `owners`. */
@@ -1042,7 +1076,7 @@ function noChoiceRoute({ doc, runDir, owed = null }) {
   const ready = (owed ?? atClose({ doc, runDir }).owed).map(each => each.id).filter(id => isGate(recorded, byId, id)
     && readiness(needsOf(recorded, byId, id).map(status), byId.get(id)?.on) === 'ready');
   const optionsOf = id => (byId.get(id)?.type === 'gate' && isPlainObject(byId.get(id).options) ? byId.get(id).options : null);
-  const via = ready.find(id => reachesAny(reviseStretches(recorded, byId, id, optionsOf(id)), owners)) ?? null;
+  const via = ready.find(id => reachesAny(reviseStretches(doc, recorded, byId, id, optionsOf(id)), owners)) ?? null;
   // A sub-run ready to start after a step holding such a question is a point
   // the question must be settled before: once its child has run, no revise
   // can re-run the step (`state-subrun-held-open`).
@@ -1385,9 +1419,16 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     .filter((file, index, all) => all.indexOf(file) === index)
     .slice(0, Math.max(review.length, KEEPS_MAX));
   const revise = new Map(revisions.options.map(each => [each.id, each]));
-  const listed = !isPlainObject(options) ? [] : Object.entries(options).flatMap(([id, option]) => {
+  // The revises offered for held choices are no option of the definition's:
+  // each is listed beside the gate's own, labelled "Revise <step>".
+  const extra = node === HELD_APPROVAL || !isPlainObject(options) ? []
+    : revisions.options.filter(each => !Object.hasOwn(options, each.id)).map(each => [each.id, { effect: 'revise', reruns: each.reruns }]);
+  const heldLabels = new Set(extra.map(([id]) => id));
+  const all = isPlainObject(options) ? [...Object.entries(options), ...extra] : [];
+  const listed = all.flatMap(([id, option]) => {
     const effect = isPlainObject(option) ? option.effect : option;
-    const base = { id, label: labelOf(labels, node, id), effect, recommended: id === recommended };
+    const label = heldLabels.has(id) ? heldApprovalLabel(id, each => lowered(title(each))) : labelOf(labels, node, id);
+    const base = { id, label, effect, recommended: id === recommended };
     if (effect === 'continue') {
       // A continue that sets the gate's values was walked on its own answer,
       // and says where that answer leads; any other reads the preferred walk.

@@ -437,7 +437,9 @@ and the reason for it.
 classes the questions a phase asks, the run settles the routine ones within its
 autonomy ceiling and shows them to you at the next checkpoint. A run nobody can ask — a dispatched
 one — takes a default for the rest, and holds any choice that needs your approval. Held choices
-come first at the next checkpoint, and continuing approves them; a choice it could not make
+come first at the next checkpoint, and continuing approves them; to reject one, send its phase
+back from that checkpoint with *Revise <phase>* and a note, and the others stay held for the
+next continue. A choice it could not make
 because nothing was recommended is held with no choice yet, and the checkpoint asks you to send
 that phase back with your choice in the note: continuing never decides it. When no
 checkpoint follows one,

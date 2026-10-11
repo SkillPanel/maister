@@ -82,7 +82,9 @@ workspace with work in flight.
   choice yet, and you settle it by sending its phase back with your choice in the note, never by
   continuing. A checkpoint that can send back only some of the phases holding such a question
   settles those, and a sub-run after such a phase waits until the question is settled. A revise
-  at a checkpoint says which held choice it rejects. When no checkpoint follows, the run asks a closing
+  at a checkpoint says which held choice it rejects, and a checkpoint offers a *Revise <phase>*
+  for each phase before it that holds a choice, so you can send one back with a note without
+  approving the rest. When no checkpoint follows, the run asks a closing
   checkpoint, *Held for approval* (`held-approval`), before it finishes; a run that cannot ask it
   ends `RUN-FAILED: run-held-unapproved`, and a continue nobody could have been asked there is
   refused rather than recorded. The autonomy ceiling is fixed when the run starts: a

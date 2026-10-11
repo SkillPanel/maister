@@ -401,6 +401,61 @@ export function startedSubrun(entry) {
 }
 
 /**
+ * The revises a frozen gate offers beside its own while choices are held for
+ * approval, so a person who disagrees with one can send its step back from the
+ * checkpoint in front of them, without approving the rest: one
+ * `revise-<node>` per node owning an outstanding held item (`outstandingHeld`),
+ * in frozen order, as `{id, reruns}` — `reruns` the owning node. Offered only
+ * for a node behind the gate (in its needs closure) that none of the gate's
+ * own revises (`reruns`) already re-runs, whose stretch holds no sub-run that
+ * has started (`startedSubrun`), and whose id is none of the gate's own
+ * options (`offered`, plus the frozen `reruns` and `sets` keys). None once the
+ * gate's revisions are spent (`REVISION_CEILING`, counted on its attempt).
+ * The stretch is the gate's own revise stretch from the owning node: that node,
+ * every node behind the gate whose needs reach it, and the gate.
+ */
+export function gateHeldRevises(doc, gate, { offered = [] } = {}) {
+  const nodes = isMap(doc?.workflow?.nodes) ? doc.workflow.nodes : {};
+  const entry = Object.hasOwn(nodes, gate) && isMap(nodes[gate]) ? nodes[gate] : null;
+  if (entry === null || entry.kind !== 'gate') return [];
+  const attempt = Number(entry.attempt);
+  if (Number.isInteger(attempt) && attempt > REVISION_CEILING) return [];
+  const owners = [...new Set(outstandingHeld(doc).map(each => each.node))];
+  if (!owners.length) return [];
+  const needsOf = id => (Object.hasOwn(nodes, id) && isMap(nodes[id]) && Array.isArray(nodes[id].needs) ? nodes[id].needs.map(String) : []);
+  const closure = from => {
+    const seen = new Set();
+    const pending = [...needsOf(from)];
+    while (pending.length) {
+      const next = pending.pop();
+      if (seen.has(next)) continue;
+      seen.add(next);
+      pending.push(...needsOf(next));
+    }
+    return seen;
+  };
+  const behind = closure(gate);
+  const own = isMap(entry.reruns) ? Object.values(entry.reruns).filter(target => typeof target === 'string') : [];
+  const taken = new Set([...offered, ...Object.keys(isMap(entry.reruns) ? entry.reruns : {}), ...Object.keys(isMap(entry.sets) ? entry.sets : {})]);
+  const ids = frozenIds(nodes);
+  return owners.filter(owner => behind.has(owner)
+    && !own.some(target => target === owner || closure(owner).has(target))
+    && !taken.has(`${REVISE_PREFIX}${owner}`)
+    && !ids.some(id => (id === owner || (behind.has(id) && closure(id).has(owner))) && startedSubrun(nodes[id])))
+    .map(owner => ({ id: `${REVISE_PREFIX}${owner}`, reruns: owner }));
+}
+
+/**
+ * Whether `decision`, recorded on a frozen gate, is a held-choice revise the
+ * reset has applied (`gateHeldRevises`): it names `revise-<node>`, its
+ * `reruns` that node and an `attempt`. History, kept as any applied revise is.
+ */
+export function isAppliedHeldRevise(decision) {
+  return isMap(decision) && typeof decision.option === 'string' && typeof decision.reruns === 'string'
+    && decision.option === `${REVISE_PREFIX}${decision.reruns}` && Object.hasOwn(decision, 'attempt');
+}
+
+/**
  * The options `HELD_APPROVAL` offers: `continue`, a `revise-<node>` for each
  * node owning an outstanding held item in frozen order, then `stop`.
  * `revision` is the revise items already recorded (`heldRevisions`) plus one;
