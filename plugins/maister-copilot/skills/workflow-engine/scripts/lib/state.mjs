@@ -100,9 +100,10 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { canAsk, driverFeatures } from './driver.mjs';
+import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -1195,7 +1196,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   judgeGates(doc, typedNow, judged, changed, writeWarnings);
-  approveHeld(doc, fresh, graphOf, changed);
+  approveHeld(doc, fresh, graphOf, changed, runDir);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
     applyTopLevel(doc, key, patch[key], changed);
@@ -1502,12 +1503,14 @@ function mergeMap(doc, section, key, value, changed) {
 function splitFlowMap(inline, where) {
   if (!inline.startsWith('{')) return null;
   let depth = 0;
-  let quoted = false;
+  let quote = null;
   let end = -1;
   for (let i = 0; i < inline.length && end < 0; i++) {
     const ch = inline[i];
-    if (ch === '"') quoted = !quoted;
-    else if (quoted) continue;
+    if (quote) {
+      if (quote === '"' && ch === '\\') i++;
+      else if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") quote = ch;
     else if (ch === '{' || ch === '[') depth++;
     else if (ch === '}' || ch === ']') {
       depth--;
@@ -1519,7 +1522,7 @@ function splitFlowMap(inline, where) {
     throw new Refusal('state-unreadable',
       `${where} is written as "${inline}", which cannot be read back to be merged: ${message}. Repair the line before writing this key again.`);
   };
-  if (quoted || end < 0) unreadable('the flow map does not close on its line');
+  if (quote !== null || end < 0) unreadable('the flow map does not close on its line');
   // Whatever follows the closing brace is a trailing comment and is kept; a
   // second value there is a line this writer did not produce and will not
   // guess at.
@@ -1539,16 +1542,24 @@ function splitFlowMap(inline, where) {
   return { entries, trailing };
 }
 
-/** Split on the commas that separate a flow map's own entries, and no others. */
+/**
+ * Split on the commas that separate a flow map's own entries, and no others:
+ * never inside a quoted value of either kind. The emitter single-quotes a value
+ * holding a backslash, a Windows path with its `:` and perhaps a `,`, and its
+ * doubled `''` closes and reopens the quote. Inside double quotes a backslash
+ * escapes the character after it.
+ */
 function splitTopLevel(body) {
   const parts = [];
   let depth = 0;
-  let quoted = false;
+  let quote = null;
   let start = 0;
   for (let i = 0; i < body.length; i++) {
     const ch = body[i];
-    if (ch === '"') quoted = !quoted;
-    else if (quoted) continue;
+    if (quote) {
+      if (quote === '"' && ch === '\\') i++;
+      else if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") quote = ch;
     else if (ch === '{' || ch === '[') depth++;
     else if (ch === '}' || ch === ']') depth--;
     else if (ch === ',' && depth === 0) {
@@ -1969,6 +1980,7 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     const before = Object.hasOwn(existing, id) ? existing[id] ?? {} : {};
     const resetting = regress !== null && regress.has(id);
     if (!resetting) assertForward(id, patchEntry, before);
+    if (!resetting) assertSubrunSettled(doc, id, patchEntry, before);
     const supplied = { ...patchEntry };
     for (const field of WRITER_FIELDS) {
       if (!Object.hasOwn(supplied, field)) continue;
@@ -1979,6 +1991,45 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     doc.setNode(id, serializeNode(id, merged, supplied, now));
     changed.push(`workflow.nodes.${id}`);
   }
+}
+
+/**
+ * A sub-run does not start while a step it follows holds a question with no
+ * choice yet (`openHeld`). The revise that supplies the choice resets that step
+ * and everything after it, and a sub-run whose child has run cannot be reset:
+ * its child would be adopted again (`revise-stretch-has-subrun`). So the
+ * question is settled first, by the checkpoint the run has reached whose
+ * revise re-runs the step, else by `held-approval`, which is raised before the
+ * sub-run. Judged on the write that starts it: a `workflow:` node not yet
+ * started, sent `running`.
+ */
+function assertSubrunSettled(doc, id, patchEntry, before) {
+  if (patchEntry.status !== 'running' || before.kind !== 'workflow') return;
+  if (before.status !== undefined && before.status !== null && before.status !== 'pending') return;
+  const typed = typedOf(doc);
+  const open = openHeld(typed);
+  if (!open.length) return;
+  const nodes = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  const upstream = new Set();
+  const pending = [id];
+  while (pending.length) {
+    const next = pending.pop();
+    const needs = Object.hasOwn(nodes, next) && Array.isArray(nodes[next]?.needs) ? nodes[next].needs.map(String) : [];
+    for (const need of needs) {
+      if (upstream.has(need)) continue;
+      upstream.add(need);
+      pending.push(need);
+    }
+  }
+  const owners = [...new Set(open.map(each => each.node))].filter(owner => upstream.has(owner));
+  if (!owners.length) return;
+  const waiting = open.filter(each => owners.includes(each.node));
+  const questions = waiting.map(each => `"${each.item.question ?? each.question_id}"`).join(', ');
+  throw new Refusal('state-subrun-held-open',
+    `the sub-run ${id} follows ${owners.join(', ')}, where ${questions} ${waiting.length === 1 ? 'has' : 'have'} no choice yet, `
+    + 'and once its child has run no revise can re-run that step. Nothing was written. Settle the question first: ask the '
+    + `checkpoint the run has reached whose revise re-runs ${owners.length === 1 ? 'that step' : 'those steps'}, or --node=${HELD_APPROVAL} when none does, `
+    + 'and revise with the choice in the note; start the sub-run once nothing it follows holds a question with no choice');
 }
 
 /** The statuses the reserved closing checkpoint may be recorded with: a gate's. */
@@ -2204,12 +2255,14 @@ function typeMismatch(type, value) {
  * was written before, and the reader that later looked for the chosen option
  * found none of the gate's own.
  */
-function assertOptions(id, decisions, gate) {
+function assertOptions(id, decisions, gate, held = []) {
   if (!Array.isArray(decisions)) return;
-  const offered = isPlainObject(gate.options) ? Object.keys(gate.options) : [];
+  const offered = [...(isPlainObject(gate.options) ? Object.keys(gate.options) : []), ...held];
   for (const decision of decisions) {
     if (!isPlainObject(decision) || !Object.hasOwn(decision, 'option')) continue;
     if (offered.includes(decision.option)) continue;
+    // A held-choice revise the reset applied is history, as any applied revise is.
+    if (isAppliedHeldRevise(decision)) continue;
     if (decision.option === MORE_DETAILS_ID) {
       throw new Refusal('state-gate-option-unknown',
         `node_summaries.${id} records "${MORE_DETAILS_ID}", which is not an answer: it asks for the full brief. Nothing was written. `
@@ -2677,7 +2730,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     if (Array.isArray(entry.decisions)) entry.decisions = entry.decisions.map(withoutGrants);
     if (kind === 'node' && graphOf !== null && Object.hasOwn(entry, 'decisions')) {
       const gate = resolvedNode(graphOf(), key);
-      if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate);
+      if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate, heldRevisesOf(typedNow(), key, gate));
     }
     // The reserved closing checkpoint offers what the brief derives from the
     // state, so its answer is held to that, definition or none. A revise the
@@ -2694,7 +2747,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       if (isGateSummary(recorded, key)) {
         display ??= runDir === null ? displayOf() : displayOfRun(parseState(doc.text()), runDir);
         via ??= answerVia(parseState(doc.text()));
-        entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display), runDir, via);
+        entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display, gateHeldRevises(typedNow(), key).map(each => each.id)), runDir, via);
         // An approval carrying its attempt is kept once, as an approval, not as an earlier revision.
         const revisions = earlierRevisions(doc, key, entry.decisions).filter(item => !isApproval(item));
         entry.decisions = [...revisions, ...entry.decisions, ...keptApprovals(heldOf(key)?.decisions, entry.decisions)];
@@ -2752,6 +2805,15 @@ function isGateSummary(recorded, key) {
  * as the brief derives them from `doc` (`heldApprovalOptions`), revises left
  * out once the safety limit is spent.
  */
+/**
+ * The ids of the held-choice revises a frozen gate offers beside its own
+ * (`gateHeldRevises`), its own options from the definition kept out.
+ */
+function heldRevisesOf(doc, id, gate) {
+  const offered = isPlainObject(gate?.options) ? Object.keys(gate.options) : [];
+  return gateHeldRevises(doc, id, { offered }).map(each => each.id);
+}
+
 function heldApprovalGate(doc) {
   const { options } = heldApprovalOptions(doc);
   return { options: Object.fromEntries(options.map(option => [option.id, option.effect])) };
@@ -2885,10 +2947,13 @@ function assertRecommends(id, recommends, graph) {
  * The option's label goes in `decision` and `by: operator` beside it, once, on
  * the way in; a field the caller already sent is kept.
  */
-function foldAnswers(decisions, gate, display) {
+function foldAnswers(decisions, gate, display, held = []) {
   const labels = isPlainObject(display?.option_labels) ? display.option_labels : {};
   // The reserved closing checkpoint's options are the engine's, labelled as its brief labels them.
-  const labelFor = option => (gate === HELD_APPROVAL
+  // So are the revises a frozen gate offers for held choices, which no
+  // definition labels: "Revise <step>".
+  const heldRevise = option => held.includes(option);
+  const labelFor = option => (gate === HELD_APPROVAL || heldRevise(option)
     ? heldApprovalLabel(option, id => lowered(titleOf(display?.titles, id)))
     : labelOf(labels, gate, option));
   return decisions.map(decision => {
@@ -3685,7 +3750,8 @@ function judgedGates(answering, typedNow, runDir, answeredBefore = new Map()) {
     if (now === null) return false;
     // The closing checkpoint is asked exactly while it is current with held
     // items outstanding, so an answer to it then is new however many came
-    // before; whether anything still blocks it is the brief's to judge.
+    // before; whether it could have been asked is judged where its continue
+    // approves (`assertHeldAskable`).
     if (id === HELD_APPROVAL && heldApprovalCurrent(typedNow(), [])) return true;
     const before = answeredBefore.get(id);
     if (before === undefined || before.option === null) return true;
@@ -3769,7 +3835,7 @@ function closingRows(runDir) {
  * later write of the gate's summary keeps them (`keptApprovals`) and a revise
  * reset never touches a gate's summary.
  */
-function approveHeld(doc, freshIds, graphOf, changed) {
+function approveHeld(doc, freshIds, graphOf, changed, runDir = null) {
   if (freshIds.size === 0) return;
   // Nothing held with a choice, nothing to approve: checked before the graph
   // is resolved. A held question with no choice yet (`isOpenHeld`) is never
@@ -3787,12 +3853,53 @@ function approveHeld(doc, freshIds, graphOf, changed) {
     const decisions = Array.isArray(summary?.decisions) ? summary.decisions : null;
     const answer = gateAnswer(decisions);
     if (answer === null || optionEffectOf(id, answer.option, frozen, graphOf) !== 'continue') continue;
+    if (id === HELD_APPROVAL && runDir !== null) assertHeldAskable(typed, runDir);
     let at = decisions.indexOf(answer) + 1;
     while (at < decisions.length && (isSettlement(decisions[at], id) || isApproval(decisions[at]))) at += 1;
     const next = [...decisions.slice(0, at), ...waiting.map(each => approvalOf(each, answer)), ...decisions.slice(at)];
     doc.set(['node_summaries', id], block(id, { ...summary, decisions: next }, 2));
     if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
   }
+}
+
+/** The driver kinds that ask a gate by suspending on a request rather than in session. */
+const SUSPENDING_KINDS = new Set(['cockpit', 'dispatch']);
+
+/**
+ * A continue at `HELD_APPROVAL` approves only an answer someone could have
+ * given. The checkpoint must be the run's current question (`heldApprovalCurrent`,
+ * with what the run still owes and the checkpoint it may be raised before),
+ * and a driver that asks by suspending must have carried it: its request,
+ * `gates/held-approval.request.yml`, answered with that continue. Otherwise
+ * the continue is refused `state-held-approval-not-askable` and the choices
+ * stay held: under a driver that cannot carry the checkpoint, the run ends on
+ * `run-held-unapproved`, never with a choice nobody approved.
+ */
+function assertHeldAskable(typed, runDir) {
+  const { owed } = atClose({ doc: typed, runDir });
+  const before = heldApprovalBefore({ doc: typed, runDir, owed });
+  const blockers = before === null ? heldApprovalBlockers(typed, owed) : [];
+  if (blockers.length) {
+    throw new Refusal('state-held-approval-not-askable',
+      `this write records a continue at ${HELD_APPROVAL}, which is not asked while ${blockers.join(', ')} `
+      + `${blockers.length === 1 ? 'is' : 'are'} still owed, so nobody was asked to approve the held choices. Nothing was written. `
+      + 'Finish what is owed, ask the checkpoint from its brief, and record the answer it is given');
+  }
+  const kind = isPlainObject(typed.orchestrator?.driver) ? typed.orchestrator.driver.kind : undefined;
+  if (!SUSPENDING_KINDS.has(kind)) return;
+  let request = null;
+  try {
+    request = parseState(fs.readFileSync(path.join(runDir, 'gates', `${HELD_APPROVAL}${REQUEST_SUFFIX}`), 'utf8'));
+  } catch {
+    request = null;
+  }
+  const answered = isPlainObject(request?.answer) ? request.answer.option : request?.answer;
+  if (answered === 'continue') return;
+  throw new Refusal('state-held-approval-not-askable',
+    `this write records a continue at ${HELD_APPROVAL}, and this run's ${kind} driver asks a checkpoint through its request, `
+    + `which ${request === null ? 'was never written' : 'carries no continue'}: nobody approved the held choices. Nothing was written. `
+    + 'Suspend on the checkpoint with gate-request and fold the answer it brings; where the driver cannot carry it, '
+    + 'publish the close-out graded failed, naming each held choice, and let run-complete refuse');
 }
 
 /**
