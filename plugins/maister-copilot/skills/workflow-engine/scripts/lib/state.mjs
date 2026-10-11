@@ -3927,7 +3927,9 @@ function assertFlowKey(key, where) {
  * context keys. Prose is welcome here, so a string that would confuse a reader
  * is quoted and escaped onto one line rather than refused — the double-quoted
  * form YAML and JSON share means no block scalar is ever emitted, which is also
- * what keeps the file re-indentable later.
+ * what keeps the file re-indentable later. Every reader of these positions skips
+ * a backslash and the character after it while it looks for the closing quote,
+ * so an escaped quote reads back as written.
  */
 function block(key, value, indent) {
   assertBlockKey(key);
@@ -4104,8 +4106,10 @@ function valueOf(body) {
 function balanced(body) {
   let depth = 0;
   let quoted = false;
-  for (const ch of body) {
-    if (ch === '"') quoted = !quoted;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (quoted && ch === '\\') i++;
+    else if (ch === '"') quoted = !quoted;
     else if (!quoted && (ch === '{' || ch === '[')) depth++;
     else if (!quoted && (ch === '}' || ch === ']')) depth--;
   }

@@ -285,13 +285,20 @@ function parseScalar(text) {
   return body;
 }
 
-/** A trailing `# comment`, but only outside quotes and only after whitespace. */
+/**
+ * A trailing `# comment`, but only outside quotes and only after whitespace.
+ *
+ * Inside double quotes a backslash escapes the character after it, here and in
+ * both flow splitters: the writer spells an inner quote `\"`, and a scanner that
+ * closed the string on it would cut the value short at the next ` #` or comma.
+ */
 function stripComment(text) {
   let quote = null;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (quote) {
-      if (ch === quote) quote = null;
+      if (quote === '"' && ch === '\\') i++;
+      else if (ch === quote) quote = null;
       continue;
     }
     if (ch === '"' || ch === "'") quote = ch;
@@ -309,7 +316,8 @@ function splitFlow(body) {
   for (let i = 0; i < body.length; i++) {
     const ch = body[i];
     if (quote) {
-      if (ch === quote) quote = null;
+      if (quote === '"' && ch === '\\') i++;
+      else if (ch === quote) quote = null;
       continue;
     }
     if (ch === '"' || ch === "'") quote = ch;
@@ -330,7 +338,8 @@ function splitFlowPair(part) {
   for (let i = 0; i < part.length; i++) {
     const ch = part[i];
     if (quote) {
-      if (ch === quote) quote = null;
+      if (quote === '"' && ch === '\\') i++;
+      else if (ch === quote) quote = null;
       continue;
     }
     if (ch === '"' || ch === "'") quote = ch;
