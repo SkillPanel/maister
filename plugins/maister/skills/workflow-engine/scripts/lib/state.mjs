@@ -1502,12 +1502,14 @@ function mergeMap(doc, section, key, value, changed) {
 function splitFlowMap(inline, where) {
   if (!inline.startsWith('{')) return null;
   let depth = 0;
-  let quoted = false;
+  let quote = null;
   let end = -1;
   for (let i = 0; i < inline.length && end < 0; i++) {
     const ch = inline[i];
-    if (ch === '"') quoted = !quoted;
-    else if (quoted) continue;
+    if (quote) {
+      if (quote === '"' && ch === '\\') i++;
+      else if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") quote = ch;
     else if (ch === '{' || ch === '[') depth++;
     else if (ch === '}' || ch === ']') {
       depth--;
@@ -1519,7 +1521,7 @@ function splitFlowMap(inline, where) {
     throw new Refusal('state-unreadable',
       `${where} is written as "${inline}", which cannot be read back to be merged: ${message}. Repair the line before writing this key again.`);
   };
-  if (quoted || end < 0) unreadable('the flow map does not close on its line');
+  if (quote !== null || end < 0) unreadable('the flow map does not close on its line');
   // Whatever follows the closing brace is a trailing comment and is kept; a
   // second value there is a line this writer did not produce and will not
   // guess at.
@@ -1539,16 +1541,24 @@ function splitFlowMap(inline, where) {
   return { entries, trailing };
 }
 
-/** Split on the commas that separate a flow map's own entries, and no others. */
+/**
+ * Split on the commas that separate a flow map's own entries, and no others:
+ * never inside a quoted value of either kind. The emitter single-quotes a value
+ * holding a backslash, a Windows path with its `:` and perhaps a `,`, and its
+ * doubled `''` closes and reopens the quote. Inside double quotes a backslash
+ * escapes the character after it.
+ */
 function splitTopLevel(body) {
   const parts = [];
   let depth = 0;
-  let quoted = false;
+  let quote = null;
   let start = 0;
   for (let i = 0; i < body.length; i++) {
     const ch = body[i];
-    if (ch === '"') quoted = !quoted;
-    else if (quoted) continue;
+    if (quote) {
+      if (quote === '"' && ch === '\\') i++;
+      else if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") quote = ch;
     else if (ch === '{' || ch === '[') depth++;
     else if (ch === '}' || ch === ']') depth--;
     else if (ch === ',' && depth === 0) {
