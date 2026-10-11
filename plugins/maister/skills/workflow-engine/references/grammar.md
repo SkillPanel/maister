@@ -56,8 +56,8 @@ number is a number, and every other bare word — `yes`, `on`, `off` included �
 **Refused:** anchors and aliases (`&`, `*`); block scalars (`|`, `>`); tags (`!`) — which is why
 a negated guard is quoted, `when: "!${inputs.embedded}"`; multiple documents (`---`, `...`);
 tab indentation; duplicate keys; a flow collection or a quoted scalar spanning lines; a
-double-quoted escape other than `\n \t \r \\ \" \/`. A decoded newline, carriage return or tab
-is refused in any node value.
+double-quoted escape other than JSON's (`\n \t \r \b \f \\ \" \/` and `\u` with four hex
+digits). A decoded newline, carriage return or tab is refused in any node value.
 
 **`version: 1`**, written as the bare number. A quoted, fractional or zero version is a
 misspelling and an error. A whole number above 1 declares a newer grammar: every verb degrades on

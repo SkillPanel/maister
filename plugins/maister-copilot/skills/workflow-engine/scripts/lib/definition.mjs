@@ -314,19 +314,20 @@ function parseInline(raw, path, line) {
  * The escapes a double-quoted scalar may carry. Decoded rather than stripped:
  * `"a\nb"` is a two-line value in YAML, and dropping the backslash would hand
  * the validator the six-character string `anb` — a value the author never wrote.
- * The list is closed, so an escape outside it stops the read rather than
- * resolving to whatever character happened to follow the backslash. \u#### is
- * deliberately not in it: these files are UTF-8 and "é" is written as itself,
- * so the escape would be a second spelling of something already expressible —
- * and a reader that decodes it is a reader that can produce any code point,
- * including the ones the state writer refuses. An author who reaches for it is
- * told what the accepted list is, which is the whole point of closing it.
+ * The list is JSON's, because this reader also reads the state files the engine
+ * writes, and the engine spells any prose that needs quoting as a JSON string:
+ * a control character in a summary arrives as `\b`, `\f` or `\u####`, and a
+ * reader that refused those would refuse the run. It is still closed, so an
+ * escape outside it stops the read rather than resolving to whatever character
+ * happened to follow the backslash. A `\u####` pair spelling a surrogate pair
+ * decodes to the one character it spells.
  *
- * Two of the accepted three do produce a value the writer refuses, and that is
+ * Some accepted escapes do produce a value the writer refuses, and that is
  * why `lib/graph.mjs` rejects a decoded newline, return or tab at validate
- * time. Decoding is the reader's job; deciding the value is runnable is not.
+ * time, however it was spelled. Decoding is the reader's job; deciding the
+ * value is runnable is not.
  */
-const ESCAPES = { n: '\n', t: '\t', r: '\r', '\\': '\\', '"': '"', '/': '/' };
+const ESCAPES = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', '\\': '\\', '"': '"', '/': '/' };
 
 /** A quoted scalar keeps its text exactly, punctuation and `${…}` refs included. */
 function parseQuoted(raw, path, line) {
@@ -344,10 +345,15 @@ function parseQuoted(raw, path, line) {
       out += body[i];
       continue;
     }
+    if (body[i + 1] === 'u' && /^[0-9A-Fa-f]{4}$/.test(body.slice(i + 2, i + 6))) {
+      out += String.fromCharCode(parseInt(body.slice(i + 2, i + 6), 16));
+      i += 5;
+      continue;
+    }
     const escape = ESCAPES[body[i + 1]];
     if (escape === undefined) {
       throw new SubsetError(path, line.number,
-        `"\\${body[i + 1] ?? ''}" is not an escape this reader accepts; the closed list is \\n \\t \\r \\\\ \\" \\/ — write any other character as itself`);
+        `"\\${body[i + 1] ?? ''}" is not an escape this reader accepts; the closed list is \\n \\t \\r \\b \\f \\\\ \\" \\/ and \\u followed by four hex digits — write any other character as itself`);
     }
     out += escape;
     i++;

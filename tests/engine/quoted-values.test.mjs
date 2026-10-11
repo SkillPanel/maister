@@ -1,9 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import { freeze, readState, scratch, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
+import { readState as umbrellaState } from '../../plugins/maister/skills/umbrella/scripts/lib/envelope.mjs';
 
 // Prose in a block position — a summary, a decision's text — is written as a
 // JSON string whenever it carries a quote, a colon, a `#` or a control
@@ -121,4 +124,30 @@ test('a file at a foreign indent holding an escaped quote is adopted, not refuse
   fs.writeFileSync(run.state, wide);
   write(run, { nodes: { approval: { status: 'completed' } } });
   assert.equal(readState(run).node_summaries.analysis.summary, TRICKY[0]);
+});
+
+test('a summary carrying a control character reads back through the umbrella reader', t => {
+  const run = scratch(t);
+  freeze(run);
+  const values = ['Bell\u0007 and backspace\b and form feed\f', 'Astral 😀 beside \u0001', CONTROLS[0], CONTROLS[1]];
+  write(run, { node_summaries: Object.fromEntries([['analysis', { summary: values[0] }], ['approval', { summary: values[1] }]]) });
+  const text = fs.readFileSync(run.state, 'utf8');
+  assert.match(text, /\\u0007/, 'the writer spells the control character as a JSON escape');
+  let read = umbrellaState(run.dir);
+  assert.equal(read.node_summaries.analysis.summary, values[0]);
+  assert.equal(read.node_summaries.approval.summary, values[1]);
+  write(run, { node_summaries: { analysis: { summary: values[2] }, approval: { summary: values[3] } } });
+  read = umbrellaState(run.dir);
+  assert.equal(read.node_summaries.analysis.summary, values[2]);
+  assert.equal(read.node_summaries.approval.summary, values[3]);
+});
+
+test('the umbrella reader decodes a surrogate pair spelled as two escapes', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quoted-values-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'orchestrator-state.yml'), 'summary: "a \\ud83d\\ude00 b \\u00e9"\n');
+    assert.equal(umbrellaState(dir).summary, 'a 😀 b é');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
