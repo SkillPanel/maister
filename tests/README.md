@@ -9,6 +9,9 @@ the exit code, stdout, stderr and the files left behind. `umbrella-input-file.te
 for the umbrella runtime's `envelope`, `ledger` and `outbox` through `--input-file`, in a workspace it
 scaffolds with `init`. Only the dashboard normalizers
 (`issueOf`, `artifactOf`, `decisionOf`, `deriveProgress`) are imported directly.
+`quoted-values.test.mjs` sends summaries and decisions holding escaped quotes, backslashes and
+control characters through `write-state`, and reads them back with the engine's reader and the
+umbrella's, plus 20,000 seeded random values parsed in process.
 
 - `helpers.mjs` — the scratch project (`<tmp>/.maister/tasks/<type>/<name>/`), the verb runner, the freeze.
 - `fixtures/definitions/` — a small definition covering a direct node, a gate, the plan executor and a
