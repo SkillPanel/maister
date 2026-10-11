@@ -822,14 +822,27 @@ function drivenAnswer(run, gate, option) {
 }
 
 /**
+ * `gate`'s request as a driver leaves it: asked, its gate-index row pending,
+ * then answered on disk with `option`. `fresh: false` leaves the index alone,
+ * as an answered request left from an earlier round is.
+ */
+function answeredRequest(run, gate, option, { fresh = true } = {}) {
+  const gates = path.join(run.dir, 'gates');
+  const file = path.join(gates, `${gate}.request.yml`);
+  fs.mkdirSync(gates, { recursive: true });
+  if (fresh) {
+    fs.writeFileSync(file, `${requestHead(gate)}\nanswer: null\n`);
+    refreshIndex(run.dir);
+  }
+  fs.writeFileSync(file, `${requestHead(gate)}\nanswer:\n  option: ${option}\n  answered_by: dana\n  at: "2026-01-05T09:05:00Z"\n  via: cockpit\n`);
+}
+
+/**
  * An answer a driver carried: `gate`'s request answered on disk with `option`,
  * and the answer recorded through write-state, as a model folds it.
  */
 function carried(run, gate, option, extra = {}) {
-  const gates = path.join(run.dir, 'gates');
-  fs.mkdirSync(gates, { recursive: true });
-  fs.writeFileSync(path.join(gates, `${gate}.request.yml`),
-    `${requestHead(gate)}\nanswer:\n  option: ${option}\n  answered_by: dana\n  at: "2026-01-05T09:05:00Z"\n  via: cockpit\n`);
+  answeredRequest(run, gate, option);
   return ok(QUESTIONS.engine, run, { node_summaries: { [gate]: { answer: option, ...extra } } });
 }
 
@@ -1293,6 +1306,26 @@ test('held-approval: a continue no driver carried is refused state-held-approval
   // Where the driver cannot carry it, the run closes and run-complete refuses: never a choice nobody approved.
   closeRun(run);
   assert.equal(completeRun(run, ...publishCloseout(run, 'failed')).stdout, 'RUN-FAILED: run-held-unapproved\n');
+});
+
+test('held-approval: a request left from an earlier round carries no continue for this one; this round\'s request does', t => {
+  const run = heldClosing(t, { owners: ['closing'] });
+  carried(run, HELD_APPROVAL_ID, 'continue');
+  const first = decisionsAt(run, HELD_APPROVAL_ID).find(item => item.option === 'continue');
+  // A second choice is held; the first round's answered request is still on disk.
+  const again = { ...labelled('second-choice'), triage: APPROVE_TRIAGE };
+  assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'closing', questions: [again] }).stdout), 'ask: none');
+  // The first round's request, its index row closed by the first continue.
+  answeredRequest(run, HELD_APPROVAL_ID, 'continue', { fresh: false });
+  const before = fs.readFileSync(run.state, 'utf8');
+  const stale = refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { decisions: [first, { option: 'continue' }] } } }), 'state-held-approval-not-askable');
+  assert.match(stale.stderr, /was answered in an earlier round: its row in the gate index is already closed/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['closing', 'second-choice', 1]]);
+
+  // Control: the request asked for this round carries its continue.
+  carried(run, HELD_APPROVAL_ID, 'continue');
+  assert.deepEqual(outstandingHeld(readState(run)), []);
 });
 
 test('held-approval: a continue while another node is owed is refused state-held-approval-not-askable, even when a request carried it', t => {

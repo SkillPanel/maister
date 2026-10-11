@@ -3870,7 +3870,8 @@ const SUSPENDING_KINDS = new Set(['cockpit', 'dispatch']);
  * given. The checkpoint must be the run's current question (`heldApprovalCurrent`,
  * with what the run still owes and the checkpoint it may be raised before),
  * and a driver that asks by suspending must have carried it: its request,
- * `gates/held-approval.request.yml`, answered with that continue. Otherwise
+ * `gates/held-approval.request.yml`, answered with that continue in this
+ * round — its gate-index row still pending, closed by this write. Otherwise
  * the continue is refused `state-held-approval-not-askable` and the choices
  * stay held: under a driver that cannot carry the checkpoint, the run ends on
  * `run-held-unapproved`, never with a choice nobody approved.
@@ -3894,10 +3895,18 @@ function assertHeldAskable(typed, runDir) {
     request = null;
   }
   const answered = isPlainObject(request?.answer) ? request.answer.option : request?.answer;
-  if (answered === 'continue') return;
+  // Only this round's request counts: the one whose row in the gate index is
+  // still pending, which the write folding its answer closes (`closingRows`).
+  // A request left from an earlier round had its row closed then, before the
+  // choices now held were shown to anyone.
+  const current = closingRows(runDir).includes(HELD_APPROVAL);
+  if (answered === 'continue' && current) return;
+  const which = request === null ? 'was never written'
+    : answered !== 'continue' ? 'carries no continue'
+      : 'was answered in an earlier round: its row in the gate index is already closed';
   throw new Refusal('state-held-approval-not-askable',
     `this write records a continue at ${HELD_APPROVAL}, and this run's ${kind} driver asks a checkpoint through its request, `
-    + `which ${request === null ? 'was never written' : 'carries no continue'}: nobody approved the held choices. Nothing was written. `
+    + `which ${which}: nobody approved the held choices. Nothing was written. `
     + 'Suspend on the checkpoint with gate-request and fold the answer it brings; where the driver cannot carry it, '
     + 'publish the close-out graded failed, naming each held choice, and let run-complete refuse');
 }

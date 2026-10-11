@@ -25,7 +25,8 @@ the writer refuses to start it (`state-subrun-held-open`), `held-approval` is as
 revise resets a sub-run that never started (`revise-stretch-has-subrun` now refuses only one that
 has). The writer refuses a continue at `held-approval` that nobody could have been asked
 (`state-held-approval-not-askable`): while the checkpoint is not askable, or under a `cockpit` or
-`dispatch` driver without its request answering continue.
+`dispatch` driver without this round's request answering continue — the request whose
+gate-index row is still pending, never one an earlier round's answer closed.
 - New writer-owned keys: `orchestrator.classes_questions` (freeze only, present only as `true`)
   and a node summary's `asking`. `orchestrator.options.ceiling` is recorded at the freeze and may
   only narrow afterwards.
