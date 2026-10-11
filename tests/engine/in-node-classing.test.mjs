@@ -977,9 +977,14 @@ const HELD_CLOSING = path.join(FIXTURES, 'definitions/held-closing.yml');
 const APPROVE_TRIAGE = { version: 1, class: 'approve', family: 'area-family' };
 const HELD_APPROVAL_ID = 'held-approval';
 
-/** Hold one choice in the running `node`: a question carrying an approve triage, which nobody can be asked under dispatch. */
-function holdIn(run, node) {
-  const written = classing(QUESTIONS.engine, run, [], { node, questions: [{ ...labelled(`${node}-choice`), triage: APPROVE_TRIAGE }] });
+/**
+ * Hold one choice in the running `node`: a question carrying an approve triage,
+ * which nobody can be asked under dispatch. `open` recommends nothing, so it is
+ * held with no choice.
+ */
+function holdIn(run, node, { open = false } = {}) {
+  const asked = open ? unrecommended(`${node}-choice`) : labelled(`${node}-choice`);
+  const written = classing(QUESTIONS.engine, run, [], { node, questions: [{ ...asked, triage: APPROVE_TRIAGE }] });
   assert.equal(written.code, 0, written.stderr);
   assert.equal(askLine(written.stdout), 'ask: none');
 }
@@ -987,18 +992,28 @@ function holdIn(run, node) {
 /**
  * `held-closing` driven by `driver`, past its one frozen gate and up to `upTo`
  * running (`tidy` or `closing`), with a choice held in each of `owners`.
- * `choosing` records no audit, so the sub-run is skipped.
+ * `choosing` records no audit, so the sub-run is skipped — unless `audit` is
+ * `completed`, when the sub-run ran. `upTo: 'audit'` stops with `choosing`
+ * completed and the sub-run ready to start; `open` holds `choosing`'s question
+ * with no choice.
  */
-function heldClosing(t, { owners = ['choosing'], driver = DISPATCH, upTo = 'closing' } = {}) {
+function heldClosing(t, { owners = ['choosing'], driver = DISPATCH, upTo = 'closing', audit = 'skipped', open = false } = {}) {
   const run = started(t, QUESTIONS.engine, { definition: HELD_CLOSING, node: 'outline', driver });
   ok(QUESTIONS.engine, run, { nodes: { outline: { status: 'completed' } }, node_summaries: { outline: { summary: 'Outlined the work.' } } });
   answerGate(run, 'outline-approval', 'continue-past-outline');
   ok(QUESTIONS.engine, run, { nodes: { choosing: { status: 'running' } } });
-  if (owners.includes('choosing')) holdIn(run, 'choosing');
+  if (owners.includes('choosing')) holdIn(run, 'choosing', { open });
+  const audited = audit !== 'skipped';
   ok(QUESTIONS.engine, run, {
-    nodes: { choosing: { status: 'completed', values: { wants_audit: false } }, audit: { status: 'skipped' }, tidy: { status: 'running' } },
-    node_summaries: { choosing: { summary: 'Chose to finish without an audit.' } },
+    nodes: { choosing: { status: 'completed', values: { wants_audit: audited } }, ...(audited ? {} : { audit: { status: 'skipped' } }) },
+    node_summaries: { choosing: { summary: audited ? 'Chose to finish with an audit.' : 'Chose to finish without an audit.' } },
   });
+  if (upTo === 'audit') return run;
+  if (audited) {
+    ok(QUESTIONS.engine, run, { nodes: { audit: { status: 'running' } } });
+    ok(QUESTIONS.engine, run, { nodes: { audit: { status: 'completed' } }, node_summaries: { audit: { summary: 'Audited the outline.' } } });
+  }
+  ok(QUESTIONS.engine, run, { nodes: { tidy: { status: 'running' } } });
   if (owners.includes('tidy')) holdIn(run, 'tidy');
   if (upTo === 'tidy') return run;
   ok(QUESTIONS.engine, run, {
@@ -1412,10 +1427,39 @@ test('held-approval revise: refused revise-gate-not-current while it is not the 
   heldRefused(run, 'continue', 'revise-option-unknown');
 });
 
-test('held-approval revise: a stretch holding a sub-run is refused revise-stretch-has-subrun', t => {
-  const run = heldClosing(t, { owners: ['choosing'] });
+test('held-approval revise: a stretch holding a sub-run that ran is refused revise-stretch-has-subrun; one skipped is reset', t => {
+  const run = heldClosing(t, { owners: ['choosing'], audit: 'completed' });
   const result = heldRefused(run, 'revise-choosing', 'revise-stretch-has-subrun');
   assert.match(result.stderr, /\baudit\b/);
+
+  // Control: a skipped sub-run has no child to adopt again, so the revise resets it with the rest.
+  const skipped = heldClosing(t, { owners: ['choosing'] });
+  assert.match(heldRevised(skipped, 'revise-choosing').stdout, /^revised: held-approval reruns=choosing revision=1\/10 reset=choosing,audit,tidy,closing$/m);
+});
+
+test('a sub-run after a step holding a question with no choice does not start: held-approval is raised before it, and its revise resets the sub-run not yet run', t => {
+  const run = heldClosing(t, { owners: ['choosing'], audit: 'completed', upTo: 'audit', open: true });
+  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), 'audit');
+  const before = fs.readFileSync(run.state, 'utf8');
+  const start = refused(send(QUESTIONS.engine, run, { nodes: { audit: { status: 'running' } } }), 'state-subrun-held-open');
+  assert.match(start.stderr, /the sub-run audit follows choosing, where "Which choosing-choice\?" has no choice yet/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+
+  const checkpoint = JSON.parse(heldBrief(run, '--checkpoint').stdout);
+  assert.equal(checkpoint.ask, 'Held questions need your choice before audit. Revise the step that holds them, with your choice in the note?');
+  assert.deepEqual(checkpoint.options.map(each => each.id), ['revise-choosing', 'stop']);
+  const revised = heldRevised(run, 'revise-choosing', 'My choice for "Which choosing-choice?" (choosing-choice): choosing-choice B');
+  assert.match(revised.stdout, /reset=choosing,audit,tidy,closing$/m);
+  assert.deepEqual(outstandingHeld(readState(run)), []);
+  assert.equal(statusesOf(run).audit, 'pending');
+});
+
+test('control: a sub-run after a step holding a provisional choice, or after a step holding nothing, starts as before', t => {
+  const provisional = heldClosing(t, { owners: ['choosing'], audit: 'completed', upTo: 'audit' });
+  assert.equal(heldApprovalBefore({ doc: readState(provisional), runDir: provisional.dir }), null);
+  ok(QUESTIONS.engine, provisional, { nodes: { audit: { status: 'running' } } });
+  const nothing = heldClosing(t, { owners: [], audit: 'completed', upTo: 'audit' });
+  ok(QUESTIONS.engine, nothing, { nodes: { audit: { status: 'running' } } });
 });
 
 test('held-approval revise: a folded driven revise is open and unapplied until gate-revise stamps it; prior-context then prints the note', t => {

@@ -390,6 +390,17 @@ export function heldRevisions(doc) {
 }
 
 /**
+ * A sub-run whose child may exist: a `workflow:` node recorded neither
+ * `pending` nor `skipped`. Resetting one would adopt its finished child again;
+ * one never started has no child, so a revise may reset it.
+ */
+export function startedSubrun(entry) {
+  if (!isMap(entry) || entry.kind !== 'workflow') return false;
+  const status = String(entry.status ?? 'pending');
+  return status !== 'pending' && status !== 'skipped';
+}
+
+/**
  * The options `HELD_APPROVAL` offers: `continue`, a `revise-<node>` for each
  * node owning an outstanding held item in frozen order, then `stop`.
  * `revision` is the revise items already recorded (`heldRevisions`) plus one;

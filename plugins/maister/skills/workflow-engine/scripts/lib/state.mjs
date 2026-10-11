@@ -100,7 +100,7 @@ import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
-import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { canAsk, driverFeatures } from './driver.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -1979,6 +1979,7 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     const before = Object.hasOwn(existing, id) ? existing[id] ?? {} : {};
     const resetting = regress !== null && regress.has(id);
     if (!resetting) assertForward(id, patchEntry, before);
+    if (!resetting) assertSubrunSettled(doc, id, patchEntry, before);
     const supplied = { ...patchEntry };
     for (const field of WRITER_FIELDS) {
       if (!Object.hasOwn(supplied, field)) continue;
@@ -1989,6 +1990,45 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
     doc.setNode(id, serializeNode(id, merged, supplied, now));
     changed.push(`workflow.nodes.${id}`);
   }
+}
+
+/**
+ * A sub-run does not start while a step it follows holds a question with no
+ * choice yet (`openHeld`). The revise that supplies the choice resets that step
+ * and everything after it, and a sub-run whose child has run cannot be reset:
+ * its child would be adopted again (`revise-stretch-has-subrun`). So the
+ * question is settled first, by the checkpoint the run has reached whose
+ * revise re-runs the step, else by `held-approval`, which is raised before the
+ * sub-run. Judged on the write that starts it: a `workflow:` node not yet
+ * started, sent `running`.
+ */
+function assertSubrunSettled(doc, id, patchEntry, before) {
+  if (patchEntry.status !== 'running' || before.kind !== 'workflow') return;
+  if (before.status !== undefined && before.status !== null && before.status !== 'pending') return;
+  const typed = typedOf(doc);
+  const open = openHeld(typed);
+  if (!open.length) return;
+  const nodes = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  const upstream = new Set();
+  const pending = [id];
+  while (pending.length) {
+    const next = pending.pop();
+    const needs = Object.hasOwn(nodes, next) && Array.isArray(nodes[next]?.needs) ? nodes[next].needs.map(String) : [];
+    for (const need of needs) {
+      if (upstream.has(need)) continue;
+      upstream.add(need);
+      pending.push(need);
+    }
+  }
+  const owners = [...new Set(open.map(each => each.node))].filter(owner => upstream.has(owner));
+  if (!owners.length) return;
+  const waiting = open.filter(each => owners.includes(each.node));
+  const questions = waiting.map(each => `"${each.item.question ?? each.question_id}"`).join(', ');
+  throw new Refusal('state-subrun-held-open',
+    `the sub-run ${id} follows ${owners.join(', ')}, where ${questions} ${waiting.length === 1 ? 'has' : 'have'} no choice yet, `
+    + 'and once its child has run no revise can re-run that step. Nothing was written. Settle the question first: ask the '
+    + `checkpoint the run has reached whose revise re-runs ${owners.length === 1 ? 'that step' : 'those steps'}, or --node=${HELD_APPROVAL} when none does, `
+    + 'and revise with the choice in the note; start the sub-run once nothing it follows holds a question with no choice');
 }
 
 /** The statuses the reserved closing checkpoint may be recorded with: a gate's. */

@@ -32,7 +32,8 @@
  *
  * The refusals, each leaving the file exactly as it was: `revise-not-a-gate`,
  * `revise-option-unknown`, `revise-note-missing`, `revise-gate-not-current`,
- * `revise-budget-exhausted` and `revise-stretch-has-subrun`, plus `state-unreadable`
+ * `revise-budget-exhausted` and `revise-stretch-has-subrun` (a sub-run already started),
+ * plus `state-unreadable`
  * and any refusal of the writer itself, passed through.
  *
  * Pure but for the one write: no stdio. Returns what `writeState` returns, and
@@ -46,7 +47,7 @@ import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from '
 import { downstreamOf, reviseStretch } from './graph.mjs';
 import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 import {
-  HELD_APPROVAL, REVISE_PREFIX, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalCurrent, heldApprovalFolded, heldApprovalOptions, heldRevisions,
+  HELD_APPROVAL, REVISE_PREFIX, REVISION_CEILING, frozenIds, heldApprovalBlockers, heldApprovalCurrent, heldApprovalFolded, heldApprovalOptions, heldRevisions, startedSubrun,
 } from './question-triage.mjs';
 import { gateAnswer, isPlaceholderName, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import * as canonical from '../../../../lib/canonical.mjs';
@@ -125,7 +126,7 @@ export function gateRevise({ state, node, option, input }) {
   const ids = Object.keys(recorded);
   const needsOf = id => (Array.isArray(entry(id).needs) ? entry(id).needs.map(String) : []);
   const stretch = reviseStretch({ ids, needsOf, reruns, gate: node });
-  const subrun = stretch.find(id => entry(id).kind === 'workflow');
+  const subrun = stretch.find(id => startedSubrun(entry(id)));
   if (subrun) {
     return refuse('revise-stretch-has-subrun',
       `the stretch from ${reruns} to ${node} holds the sub-run ${subrun}, and a revise cannot re-run one: its child run `
@@ -321,7 +322,7 @@ function heldApprovalRevise({ state, option, input }) {
   const nodes = ids.map(id => ({ id, needs: Array.isArray(entry(id).needs) ? entry(id).needs.map(String) : [] }));
   const reach = downstreamOf(nodes, reruns);
   const stretch = ids.filter(id => id === reruns || reach.has(id));
-  const subrun = stretch.find(id => entry(id).kind === 'workflow');
+  const subrun = stretch.find(id => startedSubrun(entry(id)));
   if (subrun) {
     return refuse('revise-stretch-has-subrun',
       `the stretch from ${reruns} to the end of the run holds the sub-run ${subrun}, and a revise cannot re-run one: its `

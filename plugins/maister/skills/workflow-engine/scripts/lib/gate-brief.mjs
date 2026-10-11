@@ -1008,7 +1008,8 @@ function choiceSuggestion(entry) {
  * holding such a question (`reviseStretches`): it lists them and recommends
  * the revise that re-runs the most of those steps, and a step it does not
  * reach waits for the next point that does. With none, `before` is the first
- * ready gate: `held-approval`, whose
+ * ready gate, or the first sub-run ready to start after a step holding such a
+ * question, in frozen order: `held-approval`, whose
  * revise always reaches the step, is asked before it. Both null while nothing
  * waits, or no checkpoint is reached yet. `owed` is `atClose`'s.
  */
@@ -1025,7 +1026,28 @@ function noChoiceRoute({ doc, runDir, owed = null }) {
     && readiness(needsOf(recorded, byId, id).map(status), byId.get(id)?.on) === 'ready');
   const optionsOf = id => (byId.get(id)?.type === 'gate' && isPlainObject(byId.get(id).options) ? byId.get(id).options : null);
   const via = ready.find(id => reachesAny(reviseStretches(recorded, byId, id, optionsOf(id)), owners)) ?? null;
-  return { ready, via, before: via === null && ready.length ? ready[0] : null };
+  // A sub-run ready to start after a step holding such a question is a point
+  // the question must be settled before: once its child has run, no revise
+  // can re-run the step (`state-subrun-held-open`).
+  const order = frozenIds(recorded);
+  const blocking = (owed ?? atClose({ doc, runDir }).owed).map(each => each.id).filter(id => entryOf(recorded, id).kind === 'workflow'
+    && status(id) === 'pending' && readiness(needsOf(recorded, byId, id).map(status), byId.get(id)?.on) === 'ready'
+    && owners.some(owner => upstreamOf(recorded, byId, id).has(owner)));
+  const points = [...ready, ...blocking].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  return { ready, via, before: via === null && points.length ? points[0] : null };
+}
+
+/** Every node `id`'s needs reach, over the frozen edges. */
+function upstreamOf(recorded, byId, id) {
+  const seen = new Set();
+  const pending = [...needsOf(recorded, byId, id)];
+  while (pending.length) {
+    const next = pending.pop();
+    if (seen.has(next)) continue;
+    seen.add(next);
+    pending.push(...needsOf(recorded, byId, next));
+  }
+  return seen;
 }
 
 /**
