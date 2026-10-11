@@ -17,6 +17,16 @@ is fixed at the freeze and can only narrow. With no policy file nothing changes.
 ### Status
 Accepted. No definition changes and no built-in hash moves: `held-approval` is a reserved id
 outside the frozen graph.
+
+Amended 2026-10-11: a reached checkpoint whose revises re-run only some of the steps holding a
+question with no choice is asked and settles those, instead of sending all of them to
+`held-approval`. A sub-run ready after such a step counts as a reached checkpoint with no revise:
+the writer refuses to start it (`state-subrun-held-open`), `held-approval` is asked before it, and a
+revise resets a sub-run that never started (`revise-stretch-has-subrun` now refuses only one that
+has). The writer refuses a continue at `held-approval` that nobody could have been asked
+(`state-held-approval-not-askable`): while the checkpoint is not askable, or under a `cockpit` or
+`dispatch` driver without this round's request answering continue — the request whose
+gate-index row is still pending, never one an earlier round's answer closed.
 - New writer-owned keys: `orchestrator.classes_questions` (freeze only, present only as `true`)
   and a node summary's `asking`. `orchestrator.options.ceiling` is recorded at the freeze and may
   only narrow afterwards.

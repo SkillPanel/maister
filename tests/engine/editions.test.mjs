@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ROOT, SAMPLE, freeze, run, scratch, verb } from '../helpers.mjs';
+import { ROOT, SAMPLE, freeze, run, scratch, scratchPlugin, verb } from '../helpers.mjs';
 import { findEditionCollision } from '../../plugins/maister/lib/editions.mjs';
 
 const PLUGIN = path.join(ROOT, 'plugins/maister');
@@ -212,4 +212,17 @@ test('editions: the session-start hook is silent without a collision or a payloa
   const unreadable = settings(t, project, { user: enabled([[MINE, true], [OTHER, true]]), project: '{ not json' });
   const failedOpen = run(HOOK, [], { cwd: project }, unreadable);
   assert.deepEqual([failedOpen.code, failedOpen.stdout], [0, '']);
+});
+
+test('editions: a verb whose module this edition does not include says so, naming no other edition', t => {
+  const engine = scratchPlugin(t);
+  const target = scratch(t);
+  freeze(target);
+  // Control: the verb runs while its module is there.
+  assert.equal(run(engine, ['resume-check', `--state=${target.state}`]).code, 0);
+  fs.rmSync(path.join(path.dirname(engine), 'lib/resume-check.mjs'));
+  const result = run(engine, ['resume-check', `--state=${target.state}`]);
+  assert.notEqual(result.code, 0);
+  assert.match(result.stderr, /the module lib\/resume-check\.mjs is not included in this edition of the plugin, so the verb cannot run/);
+  assert.doesNotMatch(result.stderr, /\bpro\b/i);
 });

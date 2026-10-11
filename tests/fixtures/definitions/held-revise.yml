@@ -1,0 +1,40 @@
+# The held-choice revise definition. `first`, `second` and `third` each ask a
+# question set, one after another, and `check` is the one checkpoint behind
+# them all with no revise of its own: while a choice is held it offers a
+# revise for each step holding one. `finish` closes.
+name: held-revise
+version: 1
+description: "Makes three choices in turn, checks them, then finishes."
+
+nodes:
+  first:
+    uses: direct:first
+    needs: []
+
+  second:
+    uses: direct:second
+    needs: [first]
+
+  third:
+    uses: direct:third
+    needs: [second]
+
+  check:
+    type: gate
+    needs: [third]
+    ask: "Choices made. Continue?"
+    options:
+      go-on: continue
+      halt: stop
+
+  finish:
+    uses: direct:finish
+    needs: [check]
+
+display:
+  titles:
+    first: First
+    second: Second
+    third: Third
+    check: Check
+    finish: Finish

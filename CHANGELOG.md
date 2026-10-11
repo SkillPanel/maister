@@ -80,9 +80,14 @@ workspace with work in flight.
   nothing is). Held choices are listed first at the next checkpoint, with the step that holds
   each, and continuing there approves them; a question that recommended nothing is held with no
   choice yet, and you settle it by sending its phase back with your choice in the note, never by
-  continuing. When no checkpoint follows, the run asks a closing
+  continuing. A checkpoint that can send back only some of the phases holding such a question
+  settles those, and a sub-run after such a phase waits until the question is settled. A revise
+  at a checkpoint says which held choice it rejects, and a checkpoint offers a *Revise <phase>*
+  for each phase before it that holds a choice, so you can send one back with a note without
+  approving the rest. When no checkpoint follows, the run asks a closing
   checkpoint, *Held for approval* (`held-approval`), before it finishes; a run that cannot ask it
-  ends `RUN-FAILED: run-held-unapproved`. The autonomy ceiling is fixed when the run starts: a
+  ends `RUN-FAILED: run-held-unapproved`, and a continue nobody could have been asked there is
+  refused rather than recorded. The autonomy ceiling is fixed when the run starts: a
   later change may narrow it, never widen it. A dispatch envelope carries the ceiling to the
   worker, never wider than the dispatcher's own.
 - **A question per review finding.** When the specification audit or the verification fix loop

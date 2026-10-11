@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { freeze, readState, scratch, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
+import { scanState } from '../../plugins/maister/lib/state-scan.mjs';
 import { readState as umbrellaState } from '../../plugins/maister/skills/umbrella/scripts/lib/envelope.mjs';
 
 // Prose in a block position — a summary, a decision's text — is written as a
@@ -150,4 +151,44 @@ test('the umbrella reader decodes a surrogate pair spelled as two escapes', () =
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// A one-line value holding a backslash is single-quoted by the writer, `'` doubled
+// inside it, since YAML gives a backslash no meaning there. A Windows path holds
+// `:`, and may hold `,` and `'`: the one-line readers split the flow map only
+// outside quotes of either kind, and undo the doubled quote.
+const PATHS = ["C:\\work\\a,b:c\\it's", 'C:\\Users\\x', "D:\\o'clock, then: more\\"];
+
+test('a single-quoted driver value holding a comma, a colon or a quote reads back through the one-line reader', t => {
+  for (const cwd of PATHS) {
+    const run = scratch(t);
+    freeze(run, { orchestrator: { driver: { kind: 'dispatch', cwd } } });
+    const text = fs.readFileSync(run.state, 'utf8');
+    assert.ok(text.includes(`cwd: '${cwd.replace(/'/g, "''")}'`), `single-quoted on disk: ${cwd}`);
+    assert.equal(scanState(text).driverKind, 'dispatch', cwd);
+    assert.equal(readState(run).orchestrator.driver.cwd, cwd, cwd);
+  }
+});
+
+test('a later merge into an open map keeps a single-quoted value byte for byte', t => {
+  for (const workdir of PATHS) {
+    const run = scratch(t);
+    freeze(run);
+    write(run, { orchestrator: { options: { workdir } } });
+    const spelled = `workdir: '${workdir.replace(/'/g, "''")}'`;
+    write(run, { orchestrator: { options: { mode: 'quick' } } });
+    const line = fs.readFileSync(run.state, 'utf8').split('\n').find(each => each.trimStart().startsWith('options:'));
+    assert.ok(line.includes(spelled) && line.includes('mode: quick'), `kept: ${line}`);
+    assert.equal(readState(run).orchestrator.options.workdir, workdir);
+  }
+});
+
+test('the one-line reader splits a flow map outside single quotes and undoes a doubled quote', () => {
+  const scanned = scanState("workflow:\n  nodes:\n    build: {kind: task, status: pending, note: 'a, b: c''d'}\n");
+  assert.equal(scanned.nodes.build.note, "a, b: c'd");
+  assert.equal(scanned.nodes.build.status, 'pending');
+  // Controls: double-quoted and bare values read as before.
+  const control = scanState('workflow:\n  nodes:\n    build: {kind: task, status: pending, started: "2026-01-01T00:00:00Z", needs: [a, b]}\n');
+  assert.equal(control.nodes.build.started, '2026-01-01T00:00:00Z');
+  assert.equal(control.nodes.build.needs, '[a, b]');
 });

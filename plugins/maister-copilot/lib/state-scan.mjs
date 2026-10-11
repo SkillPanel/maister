@@ -158,18 +158,27 @@ function parseFlowMap(text, where) {
   return map;
 }
 
-/** Split a flow-map body on `sep`, honouring nesting and double quotes. */
+/**
+ * Split a flow-map body on `sep`, honouring nesting and quotes of both kinds.
+ * The writer single-quotes a value holding a backslash — a Windows path, which
+ * holds a `:` and may hold a `,` — so a single-quoted value is one value too.
+ * Its doubled `''` closes and reopens the quote, which splits nothing. Inside
+ * double quotes a backslash escapes the character after it.
+ */
 function splitFlow(text, sep) {
   const parts = [];
   let depth = 0;
-  let quoted = false;
+  let quote = null;
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (ch === '"') quoted = !quoted;
-    else if (!quoted && (ch === '{' || ch === '[')) depth++;
-    else if (!quoted && (ch === '}' || ch === ']')) depth--;
-    else if (!quoted && depth === 0 && ch === sep) {
+    if (quote) {
+      if (quote === '"' && ch === '\\') i++;
+      else if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') depth--;
+    else if (depth === 0 && ch === sep) {
       parts.push(text.slice(start, i));
       start = i + 1;
     }
@@ -181,7 +190,7 @@ function splitFlow(text, sep) {
 function unquote(text) {
   const value = text.trim();
   if (value.length > 1 && value.startsWith('"') && value.endsWith('"')) return value.slice(1, -1);
-  if (value.length > 1 && value.startsWith("'") && value.endsWith("'")) return value.slice(1, -1);
+  if (value.length > 1 && value.startsWith("'") && value.endsWith("'")) return value.slice(1, -1).replace(/''/g, "'");
   return value;
 }
 
