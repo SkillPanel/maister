@@ -301,29 +301,34 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const revisions = revisionsOf(doc, recorded, byId, node, options, titles, guards);
 
   // A held question with no choice yet is settled by a revise of its step,
-  // the choice in the note. This gate recommends the revise that re-runs it;
-  // a gate with none that does is preceded by `held-approval`, which has one.
+  // the choice in the note. This gate recommends the revise that re-runs the
+  // most of the steps holding one, and asks there for those questions' choices;
+  // one it reaches none of waits for a checkpoint that does. A gate whose
+  // revises reach none of them is preceded by `held-approval`, which has one.
   const open = held.filter(entry => entry.no_choice === true);
   let settling = null;
   if (open.length) {
     const stretches = reviseStretches(recorded, byId, node, options);
     const owners = [...new Set(open.map(entry => entry.node))];
-    if (!reachesAll(stretches, owners)) {
+    if (!reachesAny(stretches, owners)) {
       // One rule with `held-approval`'s own askability (`noChoiceRoute`): the
       // way out named is the one that is open.
       const route = noChoiceRoute({ doc, runDir });
       const steps = andList(owners.map(owner => lowered(titleOf(current.display.titles, owner))));
       const way = route.via !== null && route.via !== node
-        ? `Answer --node=${route.via} first: its revise re-runs ${owners.length === 1 ? 'that step' : 'those steps'} with the choice in your note`
+        ? `Answer --node=${route.via} first: its revise re-runs ${owners.length === 1 ? 'that step' : 'a step holding one'} with the choice in your note`
         : `Ask --node=${HELD_APPROVAL} first: its revise re-runs ${owners.length === 1 ? 'that step' : 'those steps'} with the choice in your note`;
       return refuse('gate-brief-not-askable',
         `--node=${node} cannot be asked yet: ${heldQuestions(open)} ${open.length === 1 ? 'has' : 'have'} no choice yet, and this checkpoint `
         + `offers no revise that re-runs ${steps}. Nothing was written. ${way}`, warnings);
     }
-    const revise = revisions.options.find(each => open.some(entry => stretches.get(each.id)?.has(entry.node)));
+    const reached = each => open.filter(entry => stretches.get(each.id)?.has(entry.node));
+    const revise = revisions.options.filter(each => reached(each).length)
+      .reduce((best, each) => (best === null || reached(each).length > reached(best).length ? each : best), null);
     if (revise) {
-      settling = { option: revise.id, reason: `${heldQuestions(open)} ${open.length === 1 ? 'has' : 'have'} no choice yet: revise with the choice in your note` };
-      revise.suggestions = [...open.map(choiceSuggestion), ...revise.suggestions].slice(0, SUGGESTIONS_MAX);
+      const settled = reached(revise);
+      settling = { option: revise.id, reason: `${heldQuestions(settled)} ${settled.length === 1 ? 'has' : 'have'} no choice yet: revise with the choice in your note` };
+      revise.suggestions = [...settled.map(choiceSuggestion), ...revise.suggestions].slice(0, SUGGESTIONS_MAX);
     }
   }
 
@@ -970,9 +975,9 @@ function reviseStretches(recorded, byId, gate, options) {
   return new Map(targets.map(([id, reruns]) => [id, new Set(reviseStretch({ ids, needsOf: each => needsOf(recorded, byId, each), reruns, gate }))]));
 }
 
-/** Whether some revise of `stretches` (`reviseStretches`) re-runs every one of `owners`. */
-function reachesAll(stretches, owners) {
-  return owners.every(owner => [...stretches.values()].some(stretch => stretch.has(owner)));
+/** Whether some revise of `stretches` (`reviseStretches`) re-runs at least one of `owners`. */
+function reachesAny(stretches, owners) {
+  return owners.some(owner => [...stretches.values()].some(stretch => stretch.has(owner)));
 }
 
 /** Held questions named for a sentence: `"Which A?"`, `"Which A?" and "Which B?"`. */
@@ -999,9 +1004,11 @@ function choiceSuggestion(entry) {
  * Where a held question with no choice yet (`openHeld`) is settled, read once
  * for every reader: `{ready, via, before}`. `ready` is every owed gate whose
  * needs have all ended — the checkpoints the run has reached — in frozen
- * order. `via` is the first of them whose revises re-run every step holding
- * such a question (`reviseStretches`): it lists them and recommends that
- * revise. With none, `before` is the first ready gate: `held-approval`, whose
+ * order. `via` is the first of them whose revises re-run at least one step
+ * holding such a question (`reviseStretches`): it lists them and recommends
+ * the revise that re-runs the most of those steps, and a step it does not
+ * reach waits for the next point that does. With none, `before` is the first
+ * ready gate: `held-approval`, whose
  * revise always reaches the step, is asked before it. Both null while nothing
  * waits, or no checkpoint is reached yet. `owed` is `atClose`'s.
  */
@@ -1017,7 +1024,7 @@ function noChoiceRoute({ doc, runDir, owed = null }) {
   const ready = (owed ?? atClose({ doc, runDir }).owed).map(each => each.id).filter(id => isGate(recorded, byId, id)
     && readiness(needsOf(recorded, byId, id).map(status), byId.get(id)?.on) === 'ready');
   const optionsOf = id => (byId.get(id)?.type === 'gate' && isPlainObject(byId.get(id).options) ? byId.get(id).options : null);
-  const via = ready.find(id => reachesAll(reviseStretches(recorded, byId, id, optionsOf(id)), owners)) ?? null;
+  const via = ready.find(id => reachesAny(reviseStretches(recorded, byId, id, optionsOf(id)), owners)) ?? null;
   return { ready, via, before: via === null && ready.length ? ready[0] : null };
 }
 

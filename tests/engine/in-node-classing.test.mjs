@@ -1560,6 +1560,58 @@ test('end to end under dispatch: a question held with no choice is settled by a 
   assert.match(completeRun(run, ...publishCloseout(run)).stdout, /RUN-COMPLETE\n$/);
 });
 
+/**
+ * The review loop under dispatch, with a question held with no choice in each
+ * of `owners`: `review` sits in review-approval's send-back stretch, while
+ * `side-note` sits behind final-approval only. Stops at review-approval.
+ */
+function reviewLoopHolding(t, owners) {
+  const run = started(t, QUESTIONS.engine, { definition: REVISE, node: 'draft', driver: DISPATCH });
+  const hold = node => {
+    if (!owners.includes(node)) return;
+    const set = [{ ...unrecommended(`${node}-choice`), triage: APPROVE_TRIAGE }];
+    assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node, questions: set }).stdout), 'ask: none');
+  };
+  ok(QUESTIONS.engine, run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } }, figures: { status: 'skipped' }, review: { status: 'running' }, 'side-note': { status: 'running' } },
+    node_summaries: { draft: { summary: 'Drafted.' } },
+  });
+  hold('review');
+  hold('side-note');
+  ok(QUESTIONS.engine, run, {
+    nodes: { review: { status: 'completed' }, 'side-note': { status: 'completed' } },
+    node_summaries: { review: { summary: 'Reviewed.' }, 'side-note': { summary: 'Noted.' } },
+  });
+  return run;
+}
+
+test('a checkpoint whose revise reaches only some steps holding a question with no choice settles those, and the rest wait for one that reaches them', t => {
+  const run = reviewLoopHolding(t, ['review', 'side-note']);
+  // review-approval's send-back re-runs review, not side-note: it is asked, not preceded by held-approval.
+  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), null);
+  refused(heldBrief(run), 'gate-brief-not-askable');
+  const checkpoint = JSON.parse(gateBriefOf(run, 'review-approval', '--checkpoint').stdout);
+  assert.deepEqual(checkpoint.recommended, { option: 'send-back', reason: '"Which review-choice?" has no choice yet: revise with the choice in your note' });
+  const sendBack = checkpoint.options.find(option => option.id === 'send-back');
+  const asking = sendBack.suggestions.filter(each => each.note.startsWith('My choice for'));
+  assert.deepEqual(asking.map(each => each.label), ['Choose: Which review-choice?'], 'only the question its revise re-runs');
+  assert.deepEqual(checkpoint.held.filter(each => each.no_choice).map(each => each.question_id), ['review-choice', 'side-note-choice']);
+
+  // The revise carries the choice; side-note's question still waits, for final-approval, which reaches it.
+  const sent = runScript(QUESTIONS.engine, ['gate-revise', `--state=${run.state}`, '--node=review-approval', '--option=send-back'],
+    { note: 'My choice for "Which review-choice?" (review-choice): review-choice B' });
+  assert.equal(sent.code, 0, sent.stderr);
+  assert.deepEqual(keyed(outstandingHeld(readState(run))), [['side-note', 'side-note-choice', 1]]);
+});
+
+test('control: a checkpoint whose revises reach none of the steps holding a question with no choice is still preceded by held-approval', t => {
+  const run = reviewLoopHolding(t, ['side-note']);
+  const blocked = gateBriefOf(run, 'review-approval', '--checkpoint');
+  refused(blocked, 'gate-brief-not-askable');
+  assert.match(blocked.stderr, /offers no revise that re-runs side note\. Nothing was written\. Ask --node=held-approval first/);
+  assert.equal(heldApprovalBefore({ doc: readState(run), runDir: run.dir }), 'review-approval');
+});
+
 test('two checkpoints ready at once: the one that cannot revise the step points at the one that can, never at held-approval', t => {
   const run = started(t, QUESTIONS.engine, { definition: path.join(FIXTURES, 'definitions/two-checkpoints.yml'), node: 'choosing', driver: DISPATCH });
   assert.equal(askLine(classing(QUESTIONS.engine, run, [], { node: 'choosing', questions: [{ ...unrecommended('pick-choice'), triage: APPROVE_TRIAGE }] }).stdout), 'ask: none');

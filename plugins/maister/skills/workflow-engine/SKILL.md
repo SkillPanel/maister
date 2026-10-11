@@ -545,8 +545,10 @@ patch and, under dispatch, before its close-out (*Ending a dispatched run*):
 It is askable once nothing is owed but the running closing node; earlier it is refused
 `gate-brief-not-askable`, naming what is still owed. **One exception, the no-choice rule:** while
 a held question has no choice yet, a checkpoint the run has reached — an owed gate whose needs
-have all ended — is asked only when one of its revises re-runs the step holding it; it lists the
-question and recommends that revise. Another reached checkpoint with no such revise refuses
+have all ended — is asked only when one of its revises re-runs a step holding one; it lists the
+questions and recommends the revise that re-runs the most of those steps, asking for those
+questions' choices. A question whose step it does not re-run waits for the next checkpoint that
+does. Another reached checkpoint with no such revise refuses
 `gate-brief-not-askable`, naming the one that has it. When no reached checkpoint has one,
 `held-approval` is asked at that point instead, before the first of them, its question naming
 that checkpoint (that checkpoint's brief refuses `gate-brief-not-askable`, naming
@@ -1080,7 +1082,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   means another node is still owed — the message names it — or a question set was sent with it:
   finish the owed nodes first and ask the closing checkpoint from the closing node, before its
   close-out, without `--patch-file`. For a gate while a held question has no choice yet, it means
-  the gate offers no revise that re-runs that question's step: answer the checkpoint the message
+  the gate offers no revise that re-runs any such question's step: answer the checkpoint the message
   names first — another reached gate whose revise does, else `--node=held-approval` — and revise
   the step there with the choice in your note.
 - **`gate-brief-questions-invalid`**: the set itself is wrong — empty, an id missing or used
