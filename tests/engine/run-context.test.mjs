@@ -279,3 +279,41 @@ test('run-context: a run frozen through an overlay and a profile owes what the m
   assert.equal(runContext(lean, 'draft').stdout,
     block({ taskPath: lean.dir, html: GUIDE, companions: ['analysis/report.html'] }));
 });
+
+test('run-context: a node dispatched into a member repository, like a gate, prints html off and no companions', t => {
+  // The write-state and run-complete checks both skip a `dir:` node, whose work
+  // lands in another repository; the block a delegate reads says the same.
+  const check = path.join(DEFINITIONS, 'companion-check.yml');
+  const run = scratch(t, { type: 'companion-check', name: '2026-01-05-remote' });
+  freeze(run, { definition: check, orchestrator: { options: { inputs: { deep: false }, html_output: true } } });
+  const result = runContext(run, 'remote');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off' }));
+  // A sibling that owes a page in the same run still lists it.
+  assert.equal(runContext(run, 'review').stdout,
+    block({ taskPath: run.dir, html: GUIDE, companions: ['review/notes.html', 'review/log.html'] }));
+});
+
+test('run-context: a recorded path holding a line break is skipped, never printed', t => {
+  // A value with an embedded newline would print a line the block never meant
+  // to carry. The writer refuses one, so it arrives only by a hand edit, which
+  // the reader decodes from a double-quoted escape; it is left out.
+  const run = scratch(t, { type: 'research', name: '2026-01-05-research' });
+  freeze(run, { definition: RESEARCH, inputs: { question: 'What?' } });
+  const docs = path.join(run.root, '.maister/docs');
+  write(run, {
+    orchestrator: { task_path: 'TASK-PATH' },
+    project_context: { project_doc_paths: ['DOC-A', '.maister/docs/b.md', 'DOC-C'] },
+  });
+  const text = fs.readFileSync(run.state, 'utf8');
+  const edited = text
+    .replace(/"?TASK-PATH"?/, '".maister/tasks/research/x\\ncompanions: none"')
+    .replace(/"?DOC-A"?/, '".maister/docs/a.md\\nhtml: off"')
+    .replace(/"?DOC-C"?/, '".maister/docs/c.md\\r"');
+  assert.notEqual(edited, text);
+  fs.writeFileSync(run.state, edited);
+  const result = runContext(run, 'completion');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [path.join(docs, 'b.md')] }));
+});

@@ -248,9 +248,10 @@ space goes in single quotes.
 
 **The invocation is the whole command.** No `cd` in front of it, no `set -e`, no
 variable assigned first and used in it, no second command after it, no redirection
-other than the here-string, no heredoc, no substitution — and never several verbs packed
-into one shell script. Flag values are written bare; a path holding a space goes in single
-quotes, never double quotes or a backslash. Any other form brings the approval prompt back.
+other than the here-string, no heredoc (an agent host's shell-safety check refuses one
+whose body is a JSON object), no substitution — and never several verbs packed into one
+shell script. Flag values are written bare; a path holding a space goes in single quotes,
+never double quotes or a backslash. Any other form brings the approval prompt back.
 
 A patch or a request document travels as a here-string (*Before anything else*, item 2).
 Inside single quotes nothing is expanded. An apostrophe inside the JSON is written `'\''` —
@@ -258,13 +259,13 @@ close the quote, an escaped quote, open it again — so `{"summary":"the operato
 Never the JSON escape `'`, which a tool call decodes into a bare quote that ends the
 string early. The typographic `’` may stand for an apostrophe only in a prose text value,
 never in code, a command, a path or a quoted identifier. A pipe (`echo '<json>' |` in front)
-is accepted too, but the command then no longer starts with the engine path. Never a heredoc:
-an agent host's shell-safety check refuses one whose body is a JSON object.
+is accepted too, but the command then no longer starts with the engine path.
 
 **bash, zsh and Git Bash take the here-string; PowerShell and cmd, which have none, take
-the patch file** — and so may any shell, as the fallback. Write the JSON to
-`.state-patch.json` in the run directory — beside `orchestrator-state.yml` — with the
-file-writing tool, then name it on the call:
+the patch file** — and so may any shell, as the fallback. A large document (a big question
+set or summary) goes through `--patch-file`, because a command line is limited in length
+(about 32 KB on Windows). Write the JSON to `.state-patch.json` in the run directory —
+beside `orchestrator-state.yml` — with the file-writing tool, then name it on the call:
 
 ```
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=<run>/orchestrator-state.yml --patch-file=<run>/.state-patch.json
@@ -441,7 +442,8 @@ What every delegate needs from the run rather than from its node is fetched, nev
 run `run-context --state=<state> --node=<node>` in the turn that writes the prompt and paste its
 stdout unedited, or run `prior-context --node=<node>`, which prints the same block before the
 prior-phase passage. A delegate whose prompt lacked the block returns `companion: not-requested`
-— delegate it again with the block. An artifact a `direct:` node writes inline gets its
+— delegate it again with the block: its markdown was written without the run context, so it is
+redone, not just given a companion. An artifact a `direct:` node writes inline gets its
 companion from the `html-companion-writer` agent, handed the same block (framework § 9).
 Anything node-scoped is in `with:`, interpolated as below.
 

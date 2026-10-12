@@ -263,9 +263,10 @@ question, the research type, the methodology and `project_doc_paths`, plus the
 
 **Read the synthesizer's `companion`** from its structured result, never from its
 prose. `written` and `disabled` need nothing. On `not-requested` the run context
-was missing from the prompt: invoke the synthesizer again with it. On `failed`,
-run `maister-copilot:html-companion-writer` once on `outputs/research-report.md` with the
-`run-context --node=research-foundation` output; a second miss is left for
+was missing from the prompt: invoke the synthesizer again with it, since its report
+was written without that context and is redone, not just given a companion. On
+`failed`, run `maister-copilot:html-companion-writer` once on `outputs/research-report.md`
+with the `run-context --node=research-foundation` output; a second miss is left for
 `run-complete` to report. `disabled` while the run context's `html:` was a path
 is a defect: name it in this node's `risks`.
 

@@ -822,7 +822,7 @@ async function runPriorContext(flags) {
   if (!flags.state) throw new UsageError('prior-context needs --state');
   const module = await loadModule(VERBS['prior-context'].module);
   const render = entryOf(module, 'priorContext', VERBS['prior-context'].module);
-  if (flags.node === true || flags.node === '') throw new UsageError('prior-context --node needs a node id');
+  if (flags.node === '') throw new UsageError('prior-context --node needs a node id');
   const node = typeof flags.node === 'string' ? flags.node : null;
   const result = render({ state: flags.state, background: flags.background === true, node });
   return reportContext(result);
@@ -836,7 +836,7 @@ async function runPriorContext(flags) {
  */
 async function runRunContext(flags) {
   if (!flags.state) throw new UsageError('run-context needs --state');
-  if (!flags.node || flags.node === true) throw new UsageError('run-context needs --node');
+  if (!flags.node) throw new UsageError('run-context needs --node');
   const module = await loadModule(VERBS['run-context'].module);
   const render = entryOf(module, 'runContext', VERBS['run-context'].module);
   return reportContext(render({ state: flags.state, node: flags.node }));

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
-import { companionsOf, owedCompanions } from '../../plugins/maister/skills/workflow-engine/scripts/lib/companions.mjs';
+import { companionsOf, isMarkdown, owedCompanions } from '../../plugins/maister/skills/workflow-engine/scripts/lib/companions.mjs';
 import { foldDefinition, resolve } from '../../plugins/maister/skills/workflow-engine/scripts/lib/graph.mjs';
 import { ENGINE_DIR, FIXTURES, verb } from '../helpers.mjs';
 
@@ -160,6 +160,19 @@ test('merge: an overlay replaces a node\'s list, [] clears it, and the profile h
   assert.deepEqual(owedCompanions(owed, 'wrap-up'), []);
   assert.deepEqual(owedCompanions({ merged: { analysis: ['data', 'missing', 'report'] }, definition: folded }, 'analysis'),
     [{ key: 'report', md: 'analysis/report.md', html: 'analysis/report.html' }], 'unknown keys and non-markdown paths are skipped');
+});
+
+test('an interpolated markdown path owes no companion, as the artifact reconcile skips it', () => {
+  // The reconcile cannot name a `${…}` path's file, so no page is held to it either.
+  const definition = { nodes: { draft: { outputs: { artifacts: {
+    report: 'analysis/report.md',
+    named: 'analysis/${inputs.name}.md',
+    dated: '${inputs.dir}/notes.md',
+  } } } } };
+  assert.deepEqual(owedCompanions({ merged: { draft: ['named', 'report', 'dated'] }, definition }, 'draft'),
+    [{ key: 'report', md: 'analysis/report.md', html: 'analysis/report.html' }]);
+  assert.equal(isMarkdown('analysis/${inputs.name}.md'), false);
+  assert.equal(isMarkdown('analysis/report.md'), true);
 });
 
 test('resolve omits the block, and the block leaves the graph hash where it was', t => {

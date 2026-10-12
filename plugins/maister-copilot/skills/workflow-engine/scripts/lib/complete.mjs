@@ -141,7 +141,7 @@ import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
 import { gateAnswer } from './items.mjs';
 import { HELD_APPROVAL, isOpenHeld, outstandingHeld } from './question-triage.mjs';
-import { companionsOfRun, htmlOutput, missingCompanions, projectRootOf } from './state.mjs';
+import { companionsOfRun, htmlOutput, missingCompanions, projectRootOf, sanctionedAbsences } from './state.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
 /** The closing markers, spelled here once. */
@@ -191,7 +191,7 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
     const nodes = nodesOf(doc);
     // Only with the HTML output on: a run that turned it off owes no page.
     const companions = htmlOutput(doc) ? companionsOfRun(doc, runDir) : null;
-    const reconciled = reconcile(nodes, close.graph, runDir, absencesOf(doc), companions);
+    const reconciled = reconcile(nodes, close.graph, runDir, sanctionedAbsences(doc), companions);
     if (status === 'failed') {
       const reason = failureOf(nodes);
       return {
@@ -370,20 +370,6 @@ function reconcile(nodes, graph, runDir, absences, companions = null) {
     missing.push(`missing-companion: ${node} ${file}`);
   }
   return { missing, warnings: [] };
-}
-
-/**
- * The artifact keys a node's summary sanctions as not produced, as a function of
- * the node id. Only a key with a reason counts: the writer refuses any other, and
- * a hand-edited entry that gives none has not sanctioned anything.
- */
-function absencesOf(doc) {
-  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
-  return id => {
-    const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : {};
-    const absent = isPlainObject(summary.absent) ? summary.absent : {};
-    return new Set(Object.keys(absent).filter(key => typeof absent[key] === 'string' && absent[key].trim() !== ''));
-  };
 }
 
 /** The line one absent artifact prints: node id first, then the path. */

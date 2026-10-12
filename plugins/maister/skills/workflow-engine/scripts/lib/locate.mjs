@@ -155,20 +155,15 @@ function dispatchesOf(doc) {
 /**
  * The merged `html_companions:` block as a plain map, without the nodes an
  * overlay's or the selected profile's `disable` removed: a run of this name
- * never reaches those nodes, so it owes nothing for them. A malformed block
- * contributes nothing here; `validate` is where it is reported.
+ * never reaches those nodes, so it owes nothing for them. The folded graph
+ * already left them out, so the block keeps only the nodes it holds. A
+ * malformed block contributes nothing here; `validate` is where it is reported.
  */
 function companionsFor({ definition, overlays, profile }) {
-  const disabled = new Set();
-  for (const layer of overlays) {
-    const bodies = [layer.doc];
-    if (profile !== null && isMap(layer.doc?.profiles) && isMap(layer.doc.profiles[profile])) bodies.push(layer.doc.profiles[profile]);
-    for (const body of bodies) {
-      if (isMap(body) && Array.isArray(body.disable)) for (const id of body.disable) disabled.add(String(id));
-    }
-  }
+  const folded = foldDefinition({ definition, overlays, profile });
+  const ids = new Set(isMap(folded?.nodes) ? Object.keys(folded.nodes) : []);
   const merged = companionsOf({ definition, overlays, profile });
-  return Object.fromEntries(Object.entries(merged).filter(([id]) => !disabled.has(id)));
+  return Object.fromEntries(Object.entries(merged).filter(([id]) => ids.has(id)));
 }
 
 /**

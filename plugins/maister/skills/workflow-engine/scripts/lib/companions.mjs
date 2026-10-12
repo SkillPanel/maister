@@ -115,9 +115,13 @@ export function owedCompanions({ merged = null, definition = null } = {}, nodeId
   return owed;
 }
 
-/** Whether a declared artifact path is a literal markdown file, the one kind a companion is written for. */
+/**
+ * Whether a declared artifact path is a literal markdown file, the one kind a
+ * companion is written for. A path that interpolates `${…}` is not literal: the
+ * artifact reconcile skips it, so no page is owed for it either.
+ */
 export function isMarkdown(value) {
-  return typeof value === 'string' && value.endsWith('.md') && value.length > '.md'.length;
+  return typeof value === 'string' && value.endsWith('.md') && value.length > '.md'.length && !value.includes('${');
 }
 
 function docOf(source) {

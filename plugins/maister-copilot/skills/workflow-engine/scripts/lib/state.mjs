@@ -3695,9 +3695,11 @@ export function missingCompanions({ companions, nodes, ids, runDir, absences }) 
 /**
  * The artifact keys a node's summary sanctions as not produced, as a function
  * of the node id: a key under `node_summaries.<node>.absent` with a reason.
- * `run-complete` reads absences by the same rule.
+ * Only a key with a reason counts: the writer refuses any other, and a
+ * hand-edited entry that gives none has not sanctioned anything. `run-complete`
+ * reads absences through this same function.
  */
-function sanctionedAbsences(doc) {
+export function sanctionedAbsences(doc) {
   const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
   return id => {
     const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : {};

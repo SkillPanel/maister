@@ -106,6 +106,10 @@ workspace with work in flight.
   and the specification and prototypes. A run driven from outside the session never chooses a
   design direction itself: it lays out the alternatives with a recommendation for each decision, and
   the direction pause is where you choose.
+- **HTML pages declared, not remembered.** Every delegate gets the run's context from the engine
+  (`run-context`), and a definition declares which steps owe an HTML page beside their markdown
+  (`html_companions`). A missing page is reported when its step completes, and again at the end
+  of the run.
 - **Also new.** Umbrella workspaces span several repositories (`/maister:umbrella init`, `validate`
   and `prune`) and are driven as chains from the
   [maister cockpit](https://github.com/SkillPanel/maister-cockpit). On GitHub Copilot CLI, the
@@ -168,6 +172,11 @@ permission settings, and it stops asking.
 *If a driver raises a run's autonomy ceiling after it starts*, expect that write to be dropped
 with a note: the ceiling is fixed when the run starts and may only narrow. Set the ceiling you
 want when the run starts. This matters only where an autonomy policy is installed.
+
+*If a project workflow — an eject or an overlay — should produce HTML pages*, declare
+`html_companions` in it and have its steps fetch `run-context`. Agents no longer take a style-guide
+path parameter. A run already in flight may report a missing page for a step it completes after
+the upgrade; one html-companion-writer run fixes it.
 
 *To stay on 2.x*, install the 2.x maintenance line instead. It receives fixes only — no new
 features — for six months after 3.0.0 is released:

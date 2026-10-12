@@ -127,9 +127,9 @@ fetched, not composed**:
 prompt: |
   [Task instructions]
 
-  [the stdout of `run-context --state <task path>/orchestrator-state.yml --node <this node>`
+  [the stdout of `run-context --state=<task path>/orchestrator-state.yml --node=<this node>`
    — or, for a delegate that writes an artifact, of
-   `prior-context --state <task path>/orchestrator-state.yml --node <this node>`,
+   `prior-context --state=<task path>/orchestrator-state.yml --node=<this node>`,
    which prints the same block followed by the prior-phase passage —
    pasted in unedited; it opens with its own heading]
 
@@ -530,7 +530,7 @@ A companion is a rich HTML page beside a markdown artifact, for people to read. 
 
 **Who writes it.** The delegate that writes the markdown writes the companion in the same pass, so the two never drift. A `direct:` node that owes one hands its finished md to html-companion-writer before its completion write. Companions follow `html-report-style.md`, the file beside this one: one self-contained file, no external resources, relative links and images only.
 
-**How a delegate learns of it.** The `run-context --node <node>` block pasted into the prompt (§ 3) carries one `html:` line: `html: <absolute path of the style guide>` when the run has HTML output on and the node owes a companion, `html: off` otherwise, and a `companions:` list of the owed paths. A delegate returns `companion: written | disabled | failed | not-requested`:
+**How a delegate learns of it.** The `run-context --node=<node>` block pasted into the prompt (§ 3) carries one `html:` line: `html: <absolute path of the style guide>` when the run has HTML output on and the node owes a companion, `html: off` otherwise, and a `companions:` list of the owed paths. A delegate returns `companion: written | disabled | failed | not-requested`:
 - `written` — every owed companion is on disk.
 - `disabled` — the prompt said `html: off`. Returned while `html:` was a path, it is a defect to report.
 - `not-requested` — the prompt had no `html:` line; the delegate wrote the markdown and warned. An absent line is never read as off: re-delegate with the run context.
@@ -543,7 +543,7 @@ Skills that write a companion (`implementation-verifier`) take no `html:` line: 
 **Never block.** A companion that fails never fails the node or the workflow: keep the md, name the miss, continue.
 
 **Recovery on `companion-missing:`.** When a node completes without a companion it owes, `write-state` prints `companion-missing: <node> <path>` after its changed paths. Then:
-1. Run html-companion-writer once for that file, pasting `run-context --node <node>` so it gets `html:`.
+1. Run html-companion-writer once for that file, pasting `run-context --node=<node>` so it gets `html:`.
 2. When the node already has a summary, re-send `{"node_summaries":{"<node>":{}}}` to register the companion. When it has none, the summary's own write — still owed — registers it; never send the empty summary then.
 3. Never re-run the node. A `failed` result is left for `run-complete` to report (§ 10).
 

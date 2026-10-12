@@ -101,15 +101,17 @@ export function runContext({ state, node }) {
 
   let html = 'off';
   let companions = ['companions: none'];
-  // A gate asks; it never delegates a file, so it owes nothing whatever a block says.
-  if (htmlOutput(doc) && entry.kind !== 'gate') {
+  // A gate asks; it never delegates a file, so it owes nothing whatever a block
+  // says. Nor does a `dir:` node, whose work lands in another repository: the
+  // write-state and run-complete checks skip it, so the block says the same.
+  if (htmlOutput(doc) && entry.kind !== 'gate' && !isDispatch(entry)) {
     const owing = companionsOfRun(doc, runDir);
     if (owing === null) {
       html = STYLE_GUIDE;
       companions = [UNKNOWN];
       warnings.push(`run-context-definition-unread: ${state}`);
     } else {
-      const lines = owedLines(owing, node, entry);
+      const lines = isDispatch(owing.definition?.nodes?.[node]) ? [] : owedLines(owing, node, entry);
       if (lines.length) {
         html = STYLE_GUIDE;
         companions = ['companions:', ...lines];
@@ -131,6 +133,20 @@ export function runContext({ state, node }) {
   return { ok: true, text: `${text.join('\n')}\n`, errors: [], warnings };
 }
 
+/** Whether a node entry, recorded or declared, carries `dir:`. */
+function isDispatch(entry) {
+  return isPlainObject(entry) && typeof entry.dir === 'string' && entry.dir !== '';
+}
+
+/**
+ * Whether a recorded string can be printed as one line. A value holding a line
+ * break was not written by the writer, and printed it would add a line the
+ * block never meant to carry, so it is skipped.
+ */
+function isLine(value) {
+  return typeof value === 'string' && value.trim() !== '' && !/[\r\n]/.test(value);
+}
+
 function refuse(code, message) {
   return { ok: false, text: '', errors: [{ code, message: `${code}: ${message}` }], warnings: [] };
 }
@@ -138,18 +154,20 @@ function refuse(code, message) {
 /**
  * The task directory as an absolute path: `orchestrator.task_path` when the run
  * recorded one, taken against the project root as every other recorded path is,
- * and otherwise the directory the state file is in.
+ * and otherwise — or when it holds a line break — the directory the state file
+ * is in.
  */
 function taskPathOf(doc, runDir, root) {
   const recorded = isPlainObject(doc.orchestrator) ? doc.orchestrator.task_path : undefined;
-  return typeof recorded === 'string' && recorded !== '' ? path.resolve(root, recorded) : runDir;
+  return isLine(recorded) ? path.resolve(root, recorded) : runDir;
 }
 
 /**
  * The project documentation a delegate reads, absolute and listed once: the
  * shared `project_context` paths, then each context block's in key order, then
  * the standards index when the project has one. A value that is not a list, or
- * an item that is not a string, was not written by the writer and is skipped.
+ * an item that is not a one-line string, was not written by the writer and is
+ * skipped.
  */
 function docsOf(doc, root) {
   const lists = [isPlainObject(doc.project_context) ? doc.project_context.project_doc_paths : undefined];
@@ -160,7 +178,7 @@ function docsOf(doc, root) {
   const seen = new Set();
   for (const list of lists) {
     if (!Array.isArray(list)) continue;
-    for (const item of list) if (typeof item === 'string' && item.trim() !== '') seen.add(path.resolve(root, item));
+    for (const item of list) if (isLine(item)) seen.add(path.resolve(root, item));
   }
   const index = path.join(root, STANDARDS_INDEX);
   if (fs.existsSync(index)) seen.add(index);
