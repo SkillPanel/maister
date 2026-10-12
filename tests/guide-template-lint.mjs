@@ -364,7 +364,8 @@ class Output {
 
   failAt(file, line, name, what) {
     this.report.failures.push(what);
-    this.lines.push({ file, line, text: `FAIL: ${file}:${line}: ${name}: ${what}` });
+    // Written with `/` on every platform, as the engine prints its paths.
+    this.lines.push({ file, line, text: `FAIL: ${file.replaceAll('\\', '/')}:${line}: ${name}: ${what}` });
   }
 
   /** The guide's lines in line order, then the definition's: a stable sort, so one line's findings keep their order. */
