@@ -110,6 +110,14 @@ workspace with work in flight.
   (`run-context`), and a definition declares which steps owe an HTML page beside their markdown
   (`html_companions`). A missing page is reported when its step completes, and again at the end
   of the run.
+- **One brief per step.** Before each step the engine prints its brief (`node-brief`): what the
+  run already knows about the step — its inputs, the files it writes, the questions it may ask and
+  their defaults, the checkpoint it feeds — the rules every step of its kind follows, and then only
+  that step's own section of the workflow's guide. The five built-in guides are about a third
+  shorter, each step written in one fixed shape, and the per-step data — summary keys, sanctioned
+  absences, attempt budgets, recommendations, question defaults — sits in the definition's
+  `brief:` block. In your own workflow, a step with nothing to say beyond those rules needs no
+  section in its guide; a guide heading that names no step is warned about rather than ignored.
 - **Also new.** Umbrella workspaces span several repositories (`/maister:umbrella init`, `validate`
   and `prune`) and are driven as chains from the
   [maister cockpit](https://github.com/SkillPanel/maister-cockpit). On GitHub Copilot CLI, the
