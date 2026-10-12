@@ -25,53 +25,34 @@ its diagram shows. They reach the user as nine asks, in run order:
    content.
 
 Only the assumptions page and the checks page are asked on every attended run;
-the rest are asked only when the run does not already know the answer. Every
-answer is recorded as engine `references/in-node-questions.md` says; the gate
-brief counts those entries as the user's own, so no "Gate brief content"
-paragraph below lists them again.
+the rest are asked only when the run does not already know the answer. How each
+question is asked, recorded, sent to the cockpit or defaulted is engine
+`references/in-node-questions.md`; each section's question-set lines name its
+id and its default. A question-set line saying only "in this node's one request"
+means asked through the cockpit in that request. The gate brief counts the
+answers as the user's own, so no "Gate brief content" paragraph lists them.
 
-**Every question asked inside a node names its default here.** Under a `cockpit`
-driver whose features list `question-sets`, a node asks through the cockpit, in
-one request per attempt, and each section's **With question sets** line says
-whether its question goes there. Under any other `cockpit` or `dispatch` driver
-nobody is in the session: each question takes the default its section states
-under **Without question sets**, recorded as a `by: default` decision carrying
-the question's id. The rule and what is never defaulted past are the engine's.
+**When the freeze recorded `orchestrator.classes_questions`**, a node asks only
+the ids the classing writer's `ask:` line names (engine skill); no section below
+changes for it.
 
-**When the run's policy classes in-node questions** — the freeze recorded
-`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
-before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
-settled, defaulted or held under the run's autonomy ceiling and are already on the node's
-summary. The engine skill states the rule once; no section below changes for it.
+**Each "Gate brief content" paragraph** names what belongs in the `headline`,
+`summary`, `decisions` and `risks` of its node, written by engine
+`references/gates.md` § *Before every gate*. The brief, never this prose, names
+the node that runs next.
 
-**What a closing node writes for its gate**: a `headline`, a `summary` with the
-findings, the decisions this node made, and the risks it raised, tagged `open`
-(with the `change` a revise would make), `tradeoff`, `followup` or `stop` — by
-engine `references/gates.md` § *Before every gate*. Each "Gate brief content"
-paragraph below names what belongs where for its node.
-
-**A skip does not cascade.** A node whose guard is false is marked skipped, and
-a skip satisfies everything downstream. The skip is stamped in a patch that
-lands no later than the next executed node's `running` patch — earlier, or in
-that same patch — never after the run has moved on. That is why the closing gate
-of a conditional stretch repeats its stretch's guard. The gate brief names the
-node that actually runs next, with the skipped ones listed, so no node here
-names a destination.
-
-**There is no embedded mode.** Nothing runs this workflow as a sub-run, so the
-definition declares no embedded input, `finalization` carries no guard, and
-there is no handoff block or output contract to keep.
+**Every gate** is asked from `gate-brief --json` by engine `references/gates.md`:
+record the answer, stop the run on its stop option, and on a revise re-run the
+node its `reruns:` names with the operator's note (§ *Revising at a gate*). A
+guarded gate repeats its stretch's guard and is skipped with it. Each gate
+section adds only what is its own.
 
 ## Run-scoped context
 
 Every delegate prompt opens with the `run-context --node=<this node>` output,
-pasted unedited (artifact writers: `prior-context --node=<this node>`, which
-prints that block first): the task path, the HTML style guide, the documentation
-paths, the scratch rule and the companions the node owes. What this workflow
-adds:
-
-- **The documentation paths** are discovered by `intake` and recorded as
-  `project_context.project_doc_paths`; every later node reads them from state.
+pasted unedited (artifact writers: `prior-context --node=<this node>`). Its
+documentation paths are the ones `intake` records as
+`project_context.project_doc_paths`.
 
 ## Phase summary keys
 
@@ -106,40 +87,30 @@ from.
 for it as free text — "What should this run build or fix? One or two sentences."
 Never invent one.
 
-**With question sets** (`task-description`): never reached either — the start
-brief supplies the description.
+**With question sets** (`task-description`): never reached — the start brief
+supplies the description.
 
-**Without question sets** (`task-description`): none, because the
-question is never reached — the start brief supplied the description and the
-freeze persisted it. A non-terminal run that has no description is
-`RUN-FAILED`, never a run with an invented one.
+**Without question sets** (`task-description`): never reached either. A
+non-terminal run with no description is `RUN-FAILED`.
 
-1. **Capture the clock** through the shell rather than from context. Every
-   timestamp written this turn uses that one value; a date-only or
-   midnight-stamped value is the documented failure mode.
-2. **Create and initialize** the task directory and its state file, with the
-   task description, the risk placeholder and an empty `phase_summaries` map.
-3. **Read the project configuration** and set `options.html_output` (default
-   true when the file or the key is absent) and `options.mockup_format` (default
-   `html`, read later by `ui-mockups`). When `html_output` is false, skip the
-   dashboard entirely — no dashboard asset, no data projection, no browser open.
-   Otherwise the freeze installed `dashboard.html` in the task root — copy
-   nothing; open it in the operator's browser by the plain absolute path, never
-   a `file://` URL. On failure print the path; never block.
-4. **Make sure the user has seen the start banner** (engine Step 4); if not,
-   write it now from the freeze's output.
-5. **Discover the project documentation** — read the documentation index under
+1. **Initialize** as `orchestrator-patterns.md` § 5 says: the clock from the
+   shell, the state file with the task description, the risk placeholder and an
+   empty `phase_summaries` map, the dashboard opened unless `html_output` is
+   false, and the start banner shown.
+2. **Read the project configuration** for `options.mockup_format` (default
+   `html`, read later by `ui-mockups`).
+3. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation section, predefined and operator-added alike. Record
    them as `project_context.project_doc_paths`, a top-level sibling of the
    orchestrator and task-context blocks, never nested inside either.
-6. **Detect research context** — when the invocation named a completed research
+4. **Detect research context** — when the invocation named a completed research
    task, as the sole argument or through the research input, copy its report and
    artifacts under `analysis/research-context/`. Record
    `task_context.research_reference`: the copied path, the research question,
    the research type and the confidence level. Research **informs** every later
    node and skips none of them.
-7. **Ingest design context from three sources** and unify them under
+5. **Ingest design context from three sources** and unify them under
    `analysis/design-context/`: a product-design task path, named in the
    description or supplied through the design input, whose brief and mockups are
    copied in; inline mockup paths and design-tool links in the task description,
@@ -166,7 +137,7 @@ freeze persisted it. A non-terminal run that has no description is
    up. It is a design source by declaration, so the table does not judge it.
    When it resolves to no product-design task — nothing there, or no brief — say
    so in one line in the node summary and continue without it.
-8. **Ingest the architecture** when the architecture input names one: a
+6. **Ingest the architecture** when the architecture input names one: a
    high-level design document, or a research task directory whose
    `outputs/high-level-design.md` is that document. Copy it to
    `analysis/architecture-context/high-level-design.md`, and `decision-log.md`
@@ -176,14 +147,14 @@ freeze persisted it. A non-terminal run that has no description is
    architecture **constrains** the specification and the plan and skips no node.
    When the input resolves to no file, say so in one line in the node summary
    and continue without it.
-9. **Generate the design index** when any design source was ingested — one row
+7. **Generate the design index** when any design source was ingested — one row
    per screen or component with a stable id, its source mockup and a one-line
    description.
    Downstream nodes reference screens by those ids and by nothing else.
-10. **Record `task_context.design_reference`** whenever a design ingest happened
-    — which of the three sources supplied it, the product-design task path when
-    that was the source, how many mockups were copied, whether a brief came with
-    them, and the index path. It stays unset when no source existed.
+8. **Record `task_context.design_reference`** whenever a design ingest happened
+   — which of the three sources supplied it, the product-design task path when
+   that was the source, how many mockups were copied, whether a brief came with
+   them, and the index path. It stays unset when no source existed.
 
 Any of the three declared artifacts may be absent when its source was. Record
 each one not written under this node's `absent` — `research_context` when no
@@ -201,26 +172,20 @@ time, then a short clarification round inline; no gate follows.
 
 After the skill returns, write the analysis summary, the key files and the
 primary language into state. Then ask the clarifications as **one page of at
-most four tabs**, only what the analysis could not settle, and nothing when it
-settled everything. Each tab states what is open and why it matters; its options
-are two or three answers generated from what the analysis found, the recommended
-one first with its reason in its description, and More details last when the
-context is longer than the tab holds. Never ask here what the scope decisions in
-`gap-analysis` will decide. When more than four things are open, ask the four
-that change the most and let the analysis's own answer stand for the rest, named
-as unsettled in the file.
+most four tabs**, only what the analysis could not settle, each tab's options
+two or three answers drawn from what it found. Never ask here what the scope
+decisions in `gap-analysis` will decide. When more than four things are open,
+ask the four that change the most and name the rest in the file as unsettled,
+the analysis's own answer standing.
 
 Save the answers to `analysis/clarifications.md`, then set
 `task_context.clarifications_resolved` to true — also when no question was
 asked: the file is still written.
 
-**With question sets** (`clarifications`): asked through the cockpit, in this
-node's one request (engine `references/in-node-questions.md`).
+**With question sets** (`clarifications`): in this node's one request.
 
-**Without question sets** (`clarifications`): none is asked, and the analysis's
-own answers stand. The file is written and the flag set as for a run that had
-nothing to ask, and what the analysis could not settle is named in the file as
-unsettled rather than guessed at.
+**Without question sets** (`clarifications`): none is asked; the analysis's
+answers stand, and what it could not settle is named in the file as unsettled.
 
 **Recovery budget**: 2 attempts — expand the search patterns on the second, and
 prompt the operator when the second also comes back thin.
@@ -253,20 +218,15 @@ the risk level to `task_context.risk_level`.
 `risk_level` is declared but guards nothing; it is state and dashboard content.
 
 **The scope decisions.** When the analyzer flagged critical or important
-decisions, ask them. Every decision is its own single-select question with its
-own option set; critical decisions get a call each with full context, important
-ones may be grouped as up to four separate questions in one call. Each question
-carries its decision whole — what is undecided, why it matters and what each
-option would change (engine `references/in-node-questions.md`). The analyzer's
-recommended option comes first, marked `(Recommended)`, with its reason in its
-description; More details is last while a slot is free. When both lists are
-empty, record that no scope decision was needed. Save the outcome to
-`analysis/scope-clarifications.md`, and record `task_context.scope_expanded` —
-true when a decision widened the work beyond what the invocation described.
+decisions, ask each as its own question, its recommended option first: a
+critical one in a call of its own, important ones up to four to a call. When
+both lists are empty, record that no scope decision was needed. Save the
+outcome to `analysis/scope-clarifications.md`, and record
+`task_context.scope_expanded` — true when a decision widened the work beyond
+what the invocation described.
 
-**With question sets** (`scope-decisions`): asked through the cockpit, in this
-node's one request, each decision its own question, critical ones included
-(engine `references/in-node-questions.md`).
+**With question sets** (`scope-decisions`): in this node's one request, each
+decision its own question, critical ones included.
 
 **Without question sets** (`scope-decisions`): each decision takes the option
 the analyzer recommended. A decision left without a recommendation is not
@@ -278,10 +238,8 @@ reaches an operator at `gap-approval`.
 task seeds both browser tests and user documentation on; a task that creates new
 entities seeds user documentation on. Command flags override the seeds. The keys
 are `orchestrator.options.e2e_enabled` and
-`orchestrator.options.user_docs_enabled`, by those exact names. They only seed:
-`user_docs_enabled` is declared later by `verification-options`, and
-`browser_tests_enabled` is set by the answer to `verification-approval`, whose
-recommendation `verification` takes from this seed.
+`orchestrator.options.user_docs_enabled`, by those exact names; they only shape
+the recommendations `verification-options` and `verification` make.
 
 **Gate brief content.** Read `analysis/gap-analysis.md`. The `headline` says
 what the analysis found: the gap between the code and the task, and the largest
@@ -309,12 +267,8 @@ on the second, and ask the operator when the second also comes back thin.
 
 ## `gap-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate.
-Record the answer, and stop the run on the stop option. Its revise option sends
-the run back to `gap-analysis` with the operator's note (engine
-`references/gates.md`, *Revising at a gate*). Its question is deliberately
-neutral: the guards on the nodes that follow fix the destination, and the brief
-carries what `gap-analysis` found and the node that runs next.
+A gate, unguarded; its revise re-runs `gap-analysis`. Its question is neutral:
+the guards after it fix the destination.
 
 ## `tdd-red`
 
@@ -341,12 +295,8 @@ in the gate artifact rather than proceeding on a test that proves nothing.
 
 ## `tdd-red-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate,
-guarded by the same condition as `tdd-red`, and skipped with it.
-
-**There is no matching approval for the passing test.** `tdd-green` re-runs this
-test after the fix, and its red-to-green evidence reaches the user at
-`verification-approval`, so the implementation is approved once, not twice.
+A gate, guarded as `tdd-red` is. The passing test has no approval of its own:
+its evidence reaches the user at `verification-approval`.
 
 ## `ui-mockups`
 
@@ -398,13 +348,9 @@ failing, and the fallback is a recorded note, not a retry.
 
 ## `mockup-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate,
-guarded by the same condition as `ui-mockups`, and skipped with it. Record the
-answer, and stop the run on the stop option. **Its revise option is the way to
-change the screens**: it sends the run back to `ui-mockups` with the operator's
-note (engine `references/gates.md`, *Revising at a gate*), and the gate is asked
-again with the new gallery pointer. The revise suggestions come from the
-stretch's `open` risks.
+A gate, guarded as `ui-mockups` is. **Its revise is the way to change the
+screens**: it re-runs `ui-mockups`, and the gate is asked again with the new
+gallery pointer. The revise suggestions come from the stretch's `open` risks.
 
 ## `specification`
 
@@ -427,13 +373,8 @@ silently either way.
   again what the scope decisions settled.
 - **The architecture choice.** When several architectural approaches are
   genuinely open, each open choice is a decision area by engine
-  `references/in-node-questions.md`, asked **one area per call** with its full
-  context, never paged with the technical tabs or another area: the question
-  names the area, why it matters and each approach in a line; each option is an
-  approach, the recommended one first with its reason, its description its key
-  trade-off in a few words; More details while a slot is free. An area with more
-  approaches than the options hold offers the recommended one and its strongest
-  rivals and names the rest in the question.
+  `references/in-node-questions.md`, asked **one area per call**, never paged
+  with the technical tabs or another area, each option an approach.
 <!-- rich-picker -->
   Each approach's own option carries its full description, pros and cons as its
   preview, and the recommended one's preview adds why it is recommended.
@@ -452,40 +393,32 @@ to true — also when this part was skipped; when it wrote no clarifications fil
 record `technical_clarifications` under this node's `absent`, the reason that
 there was one obvious approach (engine § *Recording an outcome*).
 
-**With question sets** (`technical-questions`): asked through the cockpit, in
-this node's one request, each architecture area its own question beside the
-technical ones (engine `references/in-node-questions.md`).
+**With question sets** (`technical-questions`): in this node's one request,
+each architecture area its own question beside the technical ones.
 
 **Without question sets** (`technical-questions`): the recommended answer to
 each technical question and the recommended approach for each architecture area.
-When no approach is recommended, none is invented: the choice is written to
-`analysis/technical-clarifications.md` as open and recorded as an `open` risk,
-its `change` naming the choice still to make, so it reaches an operator at
-`specification-approval`.
+A choice with no recommendation is not invented: it is written to
+`analysis/technical-clarifications.md` as open and recorded as an `open` risk.
 
 **Part B — requirements gathering (inline).** The drafted stories, then one page
 confirming the specification's assumptions.
 
-*The stories.* Group what the specification still has to settle by topic: each
-behaviour a user or a calling system triggers and then observes — deactivating a
-user, exporting a report — is one topic, drafted into one story by engine
-`references/in-node-questions.md` (*One topic is one drafted story*), never
-asked as separate tabs. Draft each from the analysis, the gap analysis and its
-scope answers, and the design context. A story the design brief already carries
-(`analysis/design-context/brief.md`) is carried as it stands and not asked
+*The stories.* Each behaviour a user or a calling system triggers and then
+observes — deactivating a user, exporting a report — is one topic, drafted into
+one story by engine `references/in-node-questions.md` (*One topic is one drafted
+story*) from the analysis, the scope answers and the design context. A story the
+design brief already carries (`analysis/design-context/brief.md`) is not asked
 again. Ask each story as its own question, id `user-story-<topic>`, up to four
-that stand on their own to a page; a story whose framing depends on another's
-answer waits for the next page. A change nobody triggers or observes — a
-refactor, or a defect fix the failing test already pins — has no stories. Each
-story goes into `analysis/requirements.md` under **User stories**, by its id,
-with its five parts and how it was settled: accepted, accepted with the listed
-corrections and written as corrected, the alternative, the operator's own words,
-or taken as drafted without an answer and marked drafted, not confirmed. The
-specification keeps that section and the verification checks it, by id.
+to a page; a story whose framing depends on another's answer waits for the next
+page. A refactor, or a defect fix the failing test already pins, has no stories.
+Each story goes into `analysis/requirements.md` under **User stories**, by its
+id, with its five parts and how it was settled — a story nobody answered marked
+drafted, not confirmed. The specification keeps that section and the
+verification checks it, by id.
 
 **With question sets** (`user-story`): each story is its own question in the
-same request as the technical questions, its `why` naming what the story settles
-(engine `references/in-node-questions.md`). Each draft, its corrections and its
+same request as the technical questions. Each draft, its corrections and its
 alternative are in `analysis/requirements.md` before the node suspends, so the
 answer is applied from the file.
 
@@ -496,14 +429,12 @@ drafted, not confirmed, and the specification carries it that way.
 *The assumptions tab.* Only what changes no story is an assumption. Frame the
 specification questions as confirmable assumptions, the count adapted to how
 much the invocation already said: a brief description earns six to eight, a
-standard one four to six, a detailed one two or three. Offer "Accept all N as
-stated (Recommended)" first, its question stating each assumption on a line of
-its own, and go through them one by one, each in its own tab, four to a page,
-only when the user asks to (engine `references/in-node-questions.md`). Two are
-always among them: which existing components and patterns the change should
-reuse, and whether any visual assets exist that have not been ingested yet. A
-third, how users reach the feature and which personas it serves, only when the
-run drafted no story. The visual-assets assumption is not asked when the gap
+standard one four to six, a detailed one two or three, asked as engine
+`references/in-node-questions.md` asks assumptions. Two are always among them:
+which existing components and patterns the change should reuse, and whether
+any visual assets exist that have not been ingested yet. A third, how users
+reach the feature and which personas it serves, only when the run drafted no
+story. The visual-assets assumption is not asked when the gap
 analysis recorded the task as not UI-heavy and intake found no design source;
 `analysis/requirements.md` then says "no visual assets: the change has no user
 interface". Save the whole round to `analysis/requirements.md` — the initial
@@ -511,21 +442,19 @@ description, the user stories, the questions and answers, the similar features
 found, the functional requirements, the reuse opportunities, the scope
 boundaries and the technical considerations.
 
-**With question sets** (`specification-requirements`): asked through the
-cockpit, in the same request as the technical questions (engine
-`references/in-node-questions.md`); going through the assumptions one by one
-would be a second ask, so it is not offered.
+**With question sets** (`specification-requirements`): in the same request as
+the technical questions; going through the assumptions one by one is not
+offered.
 
 **Without question sets** (`specification-requirements`): the assumptions stand
 as framed, recorded in `analysis/requirements.md` and carried into the
 specification as stated assumptions rather than settled fact.
 
 **Part C — specification creation (delegate).** Invoke the
-`maister:specification-creator` agent through the Task tool, every time. Its
-node-scoped context is in `with:`; the `prior-context --node=specification`
-output supplies the rest, including the `html:` line for the companion. When an
-architecture was ingested, hand it over with the rule above: a conflict the
-creator finds is listed in the specification as an open risk. If the agent
+`maister:specification-creator` agent through the Task tool, every time, with
+its `with:` context and the `prior-context --node=specification` output. An
+ingested architecture goes with it under the rule above: a conflict the creator
+finds is listed in the specification as an open risk. If the agent
 returns without `implementation/spec.md`, or with one that leaves a requirement
 from Part B uncovered — a story in `analysis/requirements.md` missing from the
 specification's User Stories under its id among them — re-invoke it with the
@@ -581,15 +510,10 @@ sibling field beside the summaries map — where later nodes read it.
 
 ## `specification-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate,
-unguarded, and the one that decides the audit. `continue-to-spec-audit` sets
-`spec_audit_enabled` true so the audit stretch runs next; `continue-to-planning`
-sets it false so the stretch is skipped; beside them its revise and its stop.
-Record the answer, and stop the run on the stop option; the guards of
-`spec-audit` and `spec-audit-approval` read the recorded value. The continue
-`specification` recommends is the recommended option. Its revise sends the run
-back to `specification` with the operator's note (engine `references/gates.md`,
-*Revising at a gate*), and the audit is decided again when the gate is asked
+A gate, unguarded, and the one that decides the audit: `continue-to-spec-audit`
+sets `spec_audit_enabled` true, `continue-to-planning` sets it false. The
+continue `specification` recommends is the recommended option. Its revise
+re-runs `specification`, and the audit is decided again when the gate is asked
 once more.
 
 ## `spec-audit`
@@ -609,43 +533,24 @@ report as text and the file does not exist, write that text to the path
 verbatim, once; never append to, edit or annotate it. Record the verdict in
 state.
 
-**The obvious fixes are made without asking**
-(`orchestrator-patterns.md` § 6, *The Specification Audit's Fix Pass*, which
-this follows step by step):
+**The fix pass follows `orchestrator-patterns.md` § 6**, *The Specification
+Audit's Fix Pass*, step by step: the fixable findings go in one amend pass to
+the `maister:specification-creator` agent through the Task tool; one re-audit
+runs only when a fix changed a requirement; each applied fix goes in this
+node's summary's `fixes_applied` as `{finding, change}`, and the re-audits in
+`reaudit_count` (0 or 1).
 
-- **One fix pass.** Hand every fixable finding, with its change, to the
-  `maister:specification-creator` agent through the Task tool in its amend mode.
-  It applies exactly those changes to `implementation/spec.md`, and to
-  `analysis/requirements.md` where a fix reaches it, and says per fix whether it
-  was applied and whether it changed a requirement.
-- **One re-audit, only when a fix changed a requirement**: the auditor again,
-  with the same inputs; it rewrites the report. Its new findings are not fixed
-  again, and a fixed finding that comes back is no progress: both stay open.
-- **Record** each applied fix in this node's summary's `fixes_applied` as
-  `{finding, change}`, and the re-audits as `reaudit_count` (0 or 1).
+**Each finding that needs a decision is its own question** (step 5 there):
+write the auditor's decision findings to `verification/spec-audit-findings.json`,
+each `id` the auditor's `name`, and build the set with `finding-brief` for this
+node. The chosen changes go to the creator in one more amend pass, with no
+re-audit.
 
-**Each finding that needs a decision is its own question**, only when the audit
-(after its fix pass and re-audit) leaves one (`orchestrator-patterns.md` § 6,
-step 5; engine `references/in-node-questions.md` § *Findings that need a
-decision*). Write the auditor's decision findings, as its structured result
-gives them, to `verification/spec-audit-findings.json`, each finding's `id` the
-auditor's `name`, and build the set with `finding-brief` for this node. Send it
-through the classing write when the run classes questions, then ask what is
-left: one question per finding, most severe first, each with the auditor's
-change and alternatives, "Accept the risk and list it", the recommended choice
-with its reason, and the finding's evidence. Hand every chosen change to the
-specification creator in one more amend pass — no re-audit — and record each
-answer as the writer folds it; an accepted risk becomes a `tradeoff` risk. A
-held choice goes on provisionally, and the gate after this node approves it. A
-file `finding-brief` cannot use is a fallback: compose the same questions
-yourself.
+**With question sets** (`spec-audit-findings`): this node's one request, with
+the audit report and every fix written first.
 
-**With question sets** (`spec-audit-findings`): asked through the cockpit as
-this node's one request, with the audit report and every fix written first.
-
-**Without question sets** (`spec-audit-findings`): nothing is asked. A finding
-the policy does not class stays open as an `open` risk; a classed one takes the
-outcome the classing write gives it.
+**Without question sets** (`spec-audit-findings`): nothing is asked; a finding
+the policy does not class stays an `open` risk.
 
 A failing verdict does not end the run on its own: the gate's stop option is the
 route out.
@@ -670,14 +575,10 @@ verdict; a fix pass that fails leaves its findings open for the gate.
 
 ## `spec-audit-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate,
-guarded by the same condition as `spec-audit`, and skipped with it. Its brief
-lists what the run fixed and, as open items, only the findings left; the revise
-option's suggested notes come from those. Its revise sends the run back to
-`specification` with the operator's note, the audit's open findings reaching the
-re-run through the prior context; the specification is then approved again at
-`specification-approval`, which decides the audit again (engine
-`references/gates.md`, *Revising at a gate*).
+A gate, guarded as `spec-audit` is. Its revise suggestions come from the
+findings left open. Its revise re-runs `specification`, the open findings
+reaching it through the prior context, and `specification-approval` then
+decides the audit again.
 
 ## `planning`
 
@@ -721,22 +622,16 @@ gaps named in the context.
 
 ## `planning-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. Asked when
-the `publish` input is off, which is the default. A gate, guarded by that input
-alone. Record the answer, and stop the run on the stop option. Its revise option
-sends the run back to `planning` with the operator's note (engine
-`references/gates.md`, *Revising at a gate*).
+A gate, asked when the `publish` input is off, the default; its revise re-runs
+`planning`.
 
 ## `planning-approval-publish`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. Asked
-instead of `planning-approval` when the `publish` input is on. A gate, guarded
-by that input alone. Record the answer, and stop the run on the stop option. Its
-revise option sends the run back to `planning` with the operator's note. Its
-continue grants `push` and `pr-create`: every picker label and the checkpoint
-say so, the answer is the approval, and a driver registers the grant for the
-worker when it delivers the answer. Nothing is pushed here; `finalization`
-publishes.
+A gate, asked instead of `planning-approval` when the `publish` input is on;
+its revise re-runs `planning`. Its continue grants `push` and `pr-create`:
+every picker label and the checkpoint say so, the answer is the approval, and a
+driver registers the grant for the worker when it delivers the answer. Nothing
+is pushed here; `finalization` publishes.
 
 ## `implementation`
 
@@ -767,8 +662,7 @@ rather than continuing on a red suite.
 
 ## `implementation-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate,
-unguarded. Record the answer, and stop the run on the stop option.
+A gate, unguarded, with no revise.
 
 ## `tdd-green`
 
@@ -816,12 +710,10 @@ own.
    verification pass does not run it again, and it runs on every pass after a
    fix changes code — "Test suite: passed in implementation (40 of 40); runs
    again after any fix". Never list it under "always runs". The options are
-   bundles in one single-select (engine `references/in-node-questions.md`):
-   **"All four reviews (Recommended)"** — code review, pragmatic review, reality
-   check and production readiness — its description saying why all four are
-   worth their time for this change, then **"Code review only"**, then **"Choose
-   individually"**, which opens the four as a multi-choice question after the
-   page. **None of the four carries `(Recommended)` there**.
+   the bundles engine `references/in-node-questions.md` names: **"All four
+   reviews (Recommended)"** — code review, pragmatic review, reality check and
+   production readiness — then **"Code review only"**, then **"Choose
+   individually"**, whose multi-choice question marks none as recommended.
 2. **The user-guide tab — on or off.** The recommended option is the seed
    `gap-analysis` wrote to `orchestrator.options.user_docs_enabled` — on when it
    is true, off when it is false or absent — its description giving the reason
@@ -842,15 +734,13 @@ so in one line of the reviews tab's plan ("User guide: on — asked for when the
 run started"). In a terminal run the seed is a default for the recommendation,
 not an answer.
 
-**With question sets** (`standard-verifications`): asked through the cockpit, in
-this node's one request (engine `references/in-node-questions.md`); "Choose
-individually" would need a second ask, so it is not offered.
+**With question sets** (`standard-verifications`): in this node's one request;
+"Choose individually" is not offered.
 
 **Without question sets** (`standard-verifications`): the
 recommended bundle, all four reviews.
 
-**With question sets** (`user-docs`): asked through the cockpit, in this node's
-one request (engine `references/in-node-questions.md`).
+**With question sets** (`user-docs`): in this node's one request.
 
 **Without question sets** (`user-docs`): the recommendation, by
 the same rule, recorded as `user_docs_enabled`.
@@ -877,69 +767,32 @@ guide itself and gates its own companion on the HTML output option.
 severity, and the report's path from the project root
 (`.maister/tasks/development/<run>/verification/implementation-verification.md`).
 
-**The fix loop runs on its own for the obvious fixes**
-(`orchestrator-patterns.md` § 6, *Fix-Then-Reverify Loop*, which this follows
-step by step):
+**The fix loop follows `orchestrator-patterns.md` § 6**, *Fix-Then-Reverify
+Loop*, step by step — its two automatic re-checks, its fix records, its exit
+conditions. What this node adds:
 
-- **Fixed without asking**: every unfixed issue the verifier marked fixable and
-  not risky. Log each in the work log, in `verification_context.fixes_applied`
-  and in this node's summary's `fixes_applied` as `{finding, change}`, and clear
-  `skip_test_suite` when a fix changed code.
-- **Re-checked without asking**: a full re-verification after a fix that changed
-  behaviour; the verifier's `recheck: tests-only` after fixes that changed none.
-  Each raises `verification_context.reverify_count` by one. **Two re-checks run
-  without asking.** Say each as "re-check 1 of 2"; never announce a fix before it
-  is made.
-- **Asked only when** an issue needs the user's decision, a fix is risky, the
-  two re-checks are spent with fixable issues still open, or there is no
-  progress (the same issues return, or new ones keep appearing) — and only once
-  the automatic fixes and re-checks are done. **Each such issue is its own
-  question** (engine `references/in-node-questions.md` § *Findings that need a
-  decision*): write the verifier's decision fields for those issues to
-  `verification/verification-findings.json`, each issue's `id` the verifier's
-  `name` (issues with one root cause are one finding), and build the set with
-  `finding-brief` for this node. Send it through the classing write when the run
-  classes questions, then ask what is left, paged as engine
-  `references/in-node-questions.md` says, the first question naming the report's
-  path; more than about eight first get the triage question. A change the user
-  picks is applied, logged and re-checked like any fix — the gate after this
-  node offers no revise; an accepted risk becomes a `tradeoff` risk; a held
-  choice goes on provisionally, and `verification-approval` approves it. A file
-  `finding-brief` cannot use is a fallback: compose the same questions yourself.
-- **The stopping question** says what was fixed, what is left by severity and
-  how many re-checks ran, and offers three ways on, one recommended with its
-  reason in its description: **"Continue as is"** when only warnings remain
-  ("only warnings are left; none blocks the change"); **"One more round"** when
-  the last round made progress ("the last round cleared three issues; one more
-  is likely to clear the rest"); **"Stop"** when a critical issue is left ("a
-  critical issue is still open, and shipping past it is not safe"). More details
-  is the fourth option.
+- **Each fix is also logged in the work log.**
+- **The findings that need the user**: write the verifier's decision fields to
+  `verification/verification-findings.json`, each `id` the verifier's `name`,
+  and build the set with `finding-brief` for this node, the first question
+  naming the report's path. The gate after this node offers no revise, so a
+  change the user picks is applied here, logged and re-checked like any fix.
 
-**With question sets** (`verification-findings`): asked through the cockpit as
-this node's one request in its attempt, with the verification report and every
-fix so far written first.
+**With question sets** (`verification-findings`): this node's one request in its
+attempt, with the verification report and every fix so far written first.
 
-**Without question sets** (`verification-findings`): nothing is asked. An issue
-the policy does not class stays open as an `open` risk; a classed one takes the
-outcome the classing write gives it.
+**Without question sets** (`verification-findings`): nothing is asked; an issue
+the policy does not class stays an `open` risk.
 
-**With question sets** (`verification-fix-loop`): asked through the cockpit only
-when it is the first thing this node asks in its attempt, with the verification
-report and every fix so far written first; after an earlier request in the same
-attempt — the finding questions — the default below is taken (engine
-`references/in-node-questions.md`).
+**With question sets** (`verification-fix-loop`): the stopping question, asked
+only when it is the first request of this node's attempt, with the report and
+every fix written first; after the finding questions its default is taken.
 
-**Without question sets** (`verification-fix-loop`): the loop runs
-exactly as above — fixable, non-risky issues fixed and re-checked within the same
-two re-checks — and nothing is asked. Every issue that needs a decision, and every
-risky fix, stays open as an `open` risk in this node's summary, and the stopping
-point takes "Continue as is". An issue still critical is **not** proceeded past:
-it is an `open` risk, which reaches a person at `verification-approval`.
-
-**Exit conditions**: nothing fixable or undecided is left; or the user chose
-"Continue as is"; or they chose "Stop". **Never proceed past an unresolved
-critical issue without an explicit answer saying so** — a gate answered from
-outside is such an answer; a default is not.
+**Without question sets** (`verification-fix-loop`): the loop runs as above and
+nothing is asked: every issue that needs a decision and every risky fix stays an
+`open` risk, and the stopping point takes "Continue as is". An issue still
+critical is **not** proceeded past on a default: it reaches a person at
+`verification-approval`.
 
 > **GATE CHECK**: the canonical report and its companion must carry the *final*
 > post-fix verdict before this node completes. A report still showing the
@@ -987,19 +840,12 @@ over, before asking the operator how to proceed.
 
 ## `verification-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate,
-unguarded, and the one that decides the browser checks.
-`continue-to-browser-checks` sets `browser_tests_enabled` true so the browser
-stretch runs next; `continue-past-verification` sets it false so the stretch is
-skipped; beside them its stop. Record the answer, and stop the run on the stop
-option; the guards of `e2e-verification` and `e2e-approval` read the recorded
-value. The continue `verification` recommends is the recommended option; a
-`stop` risk from `verification` recommends the stop instead.
-
-**Three names for the browser checks, on purpose.** The input is
-`browser_tests`, the gate value is `browser_tests_enabled` (a guard reference
-cannot carry a digit), and `orchestrator.options.e2e_enabled` is the seed that
-only shapes the recommendation and is never mirrored from the answer.
+A gate, unguarded, and the one that decides the browser checks:
+`continue-to-browser-checks` sets `browser_tests_enabled` true,
+`continue-past-verification` sets it false. The continue `verification`
+recommends is the recommended option; a `stop` risk from `verification`
+recommends the stop instead. The seed `orchestrator.options.e2e_enabled` is
+never mirrored from the answer.
 
 ## `e2e-verification`
 
@@ -1024,13 +870,10 @@ corrupts both sessions.
 
 **Read the verifier's structured result, never its prose.** `verdict` is the
 verdict the summary reports; `status: failed`, with `verdict: null`, means the
-verification could not run, which is a finding (the recovery budget below). Then
-its `companion`: `written` and `disabled` need nothing. On `not-requested` the
-run context was missing from the prompt: invoke the agent again with it. On
-`failed`, run `maister:html-companion-writer` once for each report whose `.html`
-is missing, with the `run-context --node=e2e-verification` output; a second miss
-is left for `run-complete` to report. `disabled` while the run context's `html:`
-was a path is a defect: name it in this node's `risks`.
+verification could not run, which is a finding (the recovery budget below). Its
+`companion` follows `orchestrator-patterns.md` § 9: on `not-requested`, invoke
+the agent again with the run context; on `failed`, run
+`maister:html-companion-writer` once for each missing `.html`.
 
 **Gate brief content.** The `headline` gives the verdict and the scenario counts
 ("Browser checks pass: 9 of 10 scenarios, one failing on the empty board"). In
@@ -1045,10 +888,8 @@ reported as a finding rather than retried blindly.
 
 ## `e2e-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate,
-guarded by the same condition as `e2e-verification`, and skipped with it. There
-is no return to it from the documentation stretch: the browser stretch completes
-or skips before `user-docs` starts.
+A gate, guarded as `e2e-verification` is. The browser stretch completes or
+skips before `user-docs` starts.
 
 ## `user-docs`
 
@@ -1071,14 +912,11 @@ a section aimed at maintainers — apply them all without asking and record each
 in this node's summary's `fixes_applied`. Ask only when a suggestion adds or
 rewrites content: one single-select before closing, its question naming each
 such change in a line, with **"Apply them, then continue (Recommended)"** first,
-its description saying why the guide reads better with them, then **"Keep the
-guide as written"**, and More details last. The `docs-approval` gate can only
-continue or stop, so this is where such a fix is taken. Ask nothing when the
-generator suggested nothing.
+then **"Keep the guide as written"**. The `docs-approval` gate can only
+continue or stop, so this is where such a fix is taken.
 
-**With question sets** (`docs-fixes`): asked through the cockpit, in this node's
-one request, with the guide as written already on disk (engine
-`references/in-node-questions.md`).
+**With question sets** (`docs-fixes`): in this node's one request, with the
+guide as written already on disk.
 
 **Without question sets** (`docs-fixes`): apply the suggested
 changes, recorded as one `by: default` decision.
@@ -1095,8 +933,7 @@ rather than retried.
 
 ## `docs-approval`
 
-Ask it from `gate-brief --json` as engine `references/gates.md` says. A gate,
-guarded by the same condition as `user-docs`, and skipped with it.
+A gate, guarded as `user-docs` is. It can only continue or stop.
 
 ## `finalization`
 
@@ -1107,11 +944,9 @@ follows.
    report always; the TDD gate artifacts, the mockups and their index, the
    audit, the browser reports and the user guide when the stretches that produce
    them ran. Say plainly which stretches were skipped and why. Take the
-   inventory from disk and not from state: `run-complete` checks every declared
-   artifact and every declared HTML companion, printing a `missing-artifact:` or
-   `missing-companion:` line for each one absent, and those lines are relayed
-   below; check by hand only a path a summary lists beyond the declarations
-   (`orchestrator-patterns.md` § 10).
+   inventory from disk: `run-complete` reports each declared artifact or
+   companion missing; check by hand only a path a summary lists beyond the
+   declarations (`orchestrator-patterns.md` § 10).
 2. **Present the executive summary**: what was built, which task groups landed,
    the verification verdict with any issues left open, and the risk level the
    gap analysis recorded.
@@ -1144,12 +979,10 @@ dropped or merged. Each `missing-artifact:` and `missing-companion:` line the
 verb printed is named in plain words under **Needs you**.
 
 **No close-out while a choice is held.** When the freeze recorded
-`orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
-closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
-`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
-revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
-refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
-ends on `run-held-unapproved`.
+`orchestrator.classes_questions`, this node runs
+`gate-brief --node=held-approval` before its closing patch and before any
+close-out, and acts on its outcome as the engine's *Ending a dispatched run*
+says.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out
