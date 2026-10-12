@@ -95,10 +95,10 @@ refusal can arrive after the entry was already written.
 
 Stdin stays for scripts, tests and hosts with no file tool. **"Optional" means the
 document may be empty, not that the read is skipped.** Without `--input-file`,
-`envelope` reads stdin unconditionally, so invoked with stdin attached to a terminal
-it blocks, waiting for a document nobody is typing — it looks like a hang and it is
-not one. Anything scripting a sweep of several runs, or an operator calling the verb
-by hand, closes stdin: append `< /dev/null`.
+a verb reads stdin to its end. A terminal on stdin is never read: `envelope` and
+`ledger` take it as no document, and `outbox` refuses it. Stdin that stops arriving
+without ending is refused after a short wait, with nothing written, so a verb never
+sits waiting on a caller that left its stdin open.
 
 ### Exit codes
 

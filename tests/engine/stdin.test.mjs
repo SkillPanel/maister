@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { PassThrough } from 'node:stream';
 
-import { ENGINE, freeze, readState, scratch, verb } from '../helpers.mjs';
-import { readStdin } from '../../plugins/maister/skills/workflow-engine/scripts/lib/stdin.mjs';
+import { ENGINE, freeze, heldOpen, readState, scratch, verb } from '../helpers.mjs';
+import { readStdin } from '../../plugins/maister/lib/stdin.mjs';
 
 // The engine reads a patch from stdin to its end, and never waits on it for
 // ever: a terminal is never read, and a pipe that goes quiet without ending is
@@ -17,37 +17,16 @@ import { readStdin } from '../../plugins/maister/skills/workflow-engine/scripts/
 const IDLE_MS = 300;
 const PATCH = { node_summaries: { analysis: { summary: 'Read from stdin' } } };
 
-/**
- * Run `write-state` with stdin a pipe this test holds open, writing `chunks`
- * and never ending it. Resolves with the exit code, the stderr and how long the
- * child took; a child still alive after `deadline` is killed and reported as
- * hung, so the test fails in seconds rather than waiting on it.
- */
-function heldOpen(run, chunks, deadline = 5000) {
-  return new Promise(resolve => {
-    const started = Date.now();
-    const child = spawn(process.execPath, [ENGINE, 'write-state', `--state=${run.state}`], {
-      env: { ...process.env, MAISTER_STDIN_IDLE_MS: String(IDLE_MS) },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    let stderr = '';
-    child.stderr.on('data', chunk => { stderr += chunk; });
-    child.stdout.resume();
-    for (const chunk of chunks) child.stdin.write(chunk);
-    const timer = setTimeout(() => child.kill('SIGKILL'), deadline);
-    child.on('close', (code, signal) => {
-      clearTimeout(timer);
-      child.stdin.destroy();
-      resolve({ code, signal, stderr, elapsed: Date.now() - started });
-    });
-  });
+/** `write-state` on a pipe held open, under a short bound. */
+function heldWrite(run, chunks) {
+  return heldOpen(ENGINE, ['write-state', `--state=${run.state}`], chunks, { MAISTER_STDIN_IDLE_MS: String(IDLE_MS) });
 }
 
 test('a pipe that never ends is refused after the bound, never waited on', async t => {
   const run = scratch(t);
   freeze(run);
   const before = fs.readFileSync(run.state, 'utf8');
-  const result = await heldOpen(run, []);
+  const result = await heldWrite(run, []);
   assert.equal(result.signal, null, 'the child hung on stdin and was killed at the deadline');
   assert.equal(result.code, 2, result.stderr);
   assert.match(result.stderr, /^usage: the patch on stdin never ended \(0 bytes received/);
@@ -61,7 +40,7 @@ test('a patch whose end never arrives is refused, not applied', async t => {
   freeze(run);
   const before = fs.readFileSync(run.state, 'utf8');
   const text = JSON.stringify(PATCH);
-  const result = await heldOpen(run, [text]);
+  const result = await heldWrite(run, [text]);
   assert.equal(result.signal, null, 'the child hung on stdin and was killed at the deadline');
   assert.equal(result.code, 2, result.stderr);
   assert.match(result.stderr, new RegExp(`never ended \\(${Buffer.byteLength(text)} bytes received`));

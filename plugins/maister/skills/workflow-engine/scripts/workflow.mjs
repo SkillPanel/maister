@@ -119,7 +119,8 @@ import { findEditionCollision } from '../../../lib/editions.mjs';
 // Shared with the umbrella runtime's `--input-file`: one rule for a document
 // read from a fixed file instead of stdin.
 import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
-import { readStdin } from './lib/stdin.mjs';
+// Shared with the umbrella runtime too: one bounded read of a document on stdin.
+import { readStdin, STDIN_IDLE_MS } from '../../../lib/stdin.mjs';
 
 /** The exit-code table, named so no call site writes a bare integer. */
 const EXIT = { OK: 0, REJECTED: 1, INTERNAL: 2 };
@@ -717,14 +718,6 @@ async function runGateRequest(flags) {
 const PATCH_FILE = '.state-patch.json';
 
 /**
- * How long stdin may stay silent, without ending, before the document on it is
- * refused. A here-string or a pipe delivers at once, so this only ever bounds a
- * writer that will never finish. The variable exists for the tests, which wait
- * on the bound and would otherwise take this long.
- */
-const STDIN_IDLE_MS = Number(process.env.MAISTER_STDIN_IDLE_MS) > 0 ? Number(process.env.MAISTER_STDIN_IDLE_MS) : 10_000;
-
-/**
  * A structured input: `{document, file}`, from the patch file when
  * `--patch-file` names one, else read whole from stdin. Unreadable or non-JSON
  * never ran.
@@ -737,13 +730,13 @@ const STDIN_IDLE_MS = Number(process.env.MAISTER_STDIN_IDLE_MS) > 0 ? Number(pro
  * lands the same bytes whichever way it arrived. Given a file, stdin is never
  * read. Without one, stdin is read to its end but never waited on for ever: a
  * terminal is refused unread, and a pipe silent for `STDIN_IDLE_MS` without
- * ending is refused (`lib/stdin.mjs`).
+ * ending is refused (`lib/stdin.mjs` at the plugin root).
  */
 async function readInput(flags, what) {
   if (flags['patch-file'] === undefined) {
     let read;
     try {
-      read = await readStdin({ idleMs: STDIN_IDLE_MS });
+      read = await readStdin();
     } catch (err) {
       throw new UsageError(`${what} could not be read from stdin: ${err.message}`);
     }

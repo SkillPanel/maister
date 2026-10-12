@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { freeze, maskRoot, umbrella } from '../helpers.mjs';
+import { UMBRELLA, freeze, heldOpen, maskRoot, umbrella } from '../helpers.mjs';
 
 const UMBRELLA_INPUT_FILE = '.umbrella-input.json';
 
@@ -121,6 +121,16 @@ test('input file: stdin is not read when the flag is given', t => {
   put(outboxInput(ws), closeout);
   const result = umbrella([...outboxArgs(ws), `--input-file=${outboxInput(ws)}`], 'not json at all');
   assert.equal(result.code, 0, result.stderr);
+});
+
+test('stdin: a pipe that never ends is refused after the bound, and nothing is published', async t => {
+  const ws = workspace(t);
+  const result = await heldOpen(UMBRELLA, outboxArgs(ws), [JSON.stringify(closeout)], { MAISTER_STDIN_IDLE_MS: '300' });
+  assert.equal(result.signal, null, 'the verb hung on stdin and was killed at the deadline');
+  assert.equal(result.code, 2, result.stderr);
+  assert.match(result.stderr, /^usage: the input on stdin never ended \(\d+ bytes received/);
+  assert.match(result.stderr, /--input-file/);
+  assert.equal(fs.existsSync(path.join(ws.outbox, 'd-0001')), false, 'nothing was published');
 });
 
 test('input file: read only from the dispatch directory it names — every other place is usage', t => {

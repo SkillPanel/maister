@@ -13,16 +13,27 @@
  *
  * The bytes are decoded once, after the end, exactly as `readFileSync(0,
  * 'utf8')` decodes them, so one document lands the same bytes whether it came
- * by pipe, by here-string or from the patch file. Zero dependencies, `node:`
- * builtins only, Node >= 20.
+ * by pipe, by here-string or from a file. Zero dependencies, `node:` builtins
+ * only, Node >= 20. Shared by the workflow engine and the umbrella runtime,
+ * whose verbs take a JSON document on stdin, so it sits at the plugin root
+ * rather than inside either skill. Each entry point keeps its own parse and its
+ * own usage error; this module owns only the read and its bound.
  */
+
+/**
+ * How long stdin may stay silent, without ending, before the document on it is
+ * refused. A here-string or a pipe delivers at once, so this only ever bounds a
+ * writer that will never finish. The variable exists for the tests, which wait
+ * on the bound and would otherwise take this long.
+ */
+export const STDIN_IDLE_MS = Number(process.env.MAISTER_STDIN_IDLE_MS) > 0 ? Number(process.env.MAISTER_STDIN_IDLE_MS) : 10_000;
 
 /**
  * `{text}` once the stream ends; `{refused: 'tty', bytes: 0}` for a terminal,
  * never read; `{refused: 'idle', bytes}` when nothing more arrived for
  * `idleMs`, with the byte count received so far.
  */
-export function readStdin({ stream = process.stdin, idleMs }) {
+export function readStdin({ stream = process.stdin, idleMs = STDIN_IDLE_MS } = {}) {
   if (stream.isTTY) return Promise.resolve({ refused: 'tty', bytes: 0 });
   return new Promise((resolve, reject) => {
     const chunks = [];
