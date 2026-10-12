@@ -118,6 +118,7 @@ Common patterns:
 ### Task Group N: [Layer Name]
 **Dependencies:** [group numbers or "None"]
 **Files to Modify:** [comma-separated paths from repo root, or "None" for review-only groups]
+**Serves:** [the spec's Core Requirement ids this group delivers, or "None" for review-only groups]
 **Visual References:** [REQUIRED when design-context exists AND group touches UI; OMIT entire section otherwise]
 - mockup: analysis/design-context/mockups/[file]
   element: [screen-id or component-id from INDEX.md, e.g. screen:login]
@@ -281,7 +282,13 @@ Source: `analysis/design-context/INDEX.md`
 
 ---
 
-### Phase 4.7: HTML Companion Report
+### Phase 4.7: Requirement Coverage
+
+Before the companion, check that every Core Requirement id in `implementation/spec.md` is served by at least one task group whose `Serves:` line names it. Add or extend a group for any that is not. A requirement the plan cannot serve — out of this repository's reach, or contradicted by the spec — goes into `warnings` with its id and the reason, never silently.
+
+---
+
+### Phase 4.8: HTML Companion Report
 
 After the plan (and coverage matrix, when applicable) is written, write `implementation/implementation-plan.html` — the user-facing companion:
 
@@ -350,6 +357,7 @@ Before completing, verify:
 
 ```yaml
 status: "success" | "failed"
+headline: "[...]"   # one sentence, at most 220 characters: the plan's groups and their order; the node summary's headline
 plan_path: "implementation/implementation-plan.md"
 companion: "written" | "disabled" | "failed" | "not-requested"
 html_path: "implementation/implementation-plan.html"  # null unless companion is written
@@ -369,6 +377,7 @@ groups:
     tests: [count]
     dependencies: [group numbers or "None"]
     files_modified: [list of paths or "None"]
+    serves: [Core Requirement ids]
     visual_references: [list of {mockup, element} pairs or empty]
   - ...
 
@@ -377,6 +386,8 @@ visual_coverage:  # present only when design-context/INDEX.md existed
   covered_screens: [count]
   uncovered_screens: [list of IDs with reasons, or empty]
   matrix_path: "implementation/visual-coverage.md"
+
+warnings: ["non-blocking observations, including each Core Requirement id no group serves, with the reason"]
 ```
 
 ---

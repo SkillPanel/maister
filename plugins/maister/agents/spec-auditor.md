@@ -182,7 +182,11 @@ Full evidence-based findings follow below the block, unchanged.
 **Structured result** — when a workflow invokes you, return beside the report:
 
 ```yaml
+status: "success" | "failed"
+headline: "[...]"   # one sentence, at most 220 characters: the verdict and what it rests on; the node summary's headline
+report_path: "[the spec-audit.md written, per Output Location]"
 verdict: "compliant" | "mostly_compliant" | "non_compliant"
+warnings: ["non-blocking observations, e.g. a spec claim that could not be checked"]
 findings:
   - id: 1                       # the report's own number for the finding
     severity: "critical" | "high" | "medium" | "low"

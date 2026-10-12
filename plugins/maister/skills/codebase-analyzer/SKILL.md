@@ -128,10 +128,11 @@ The subagent produces the final report at `{task_path}/analysis/{artifact_name}`
 
 ### Step 5: Return Results to Orchestrator
 
-Pass through the subagent's structured output:
+Pass through the subagent's structured output, its `headline` unchanged:
 
 ```yaml
 status: success|partial|failed
+headline: "[...]"   # the reporter's headline, relayed: one sentence, at most 220 characters
 report_path: analysis/[artifact_name]
 summary: "[1-2 sentence summary]"
 files_found: [count]
