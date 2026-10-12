@@ -51,22 +51,16 @@ the stretch its section names, then the gate again (*Revising at a gate*).
 ## Run-scoped context
 
 Every delegate prompt opens with the `run-context --node=<this node>` output,
-pasted unedited (artifact writers: `prior-context --node=<this node>`, which
-prints that block first): the task path, the HTML style guide, the documentation
-paths, the scratch rule and the companions the node owes. What this workflow
-adds:
+pasted unedited (artifact writers: `prior-context --node=<this node>`). What
+this workflow adds:
 
 - **`task_path`** sits under the type directory `product-design/`.
-- **The documentation paths** are discovered by `intake` and recorded as
-  `project_context.project_doc_paths`; every later node reads them from state.
-- **A `direct:` node that owes a companion** — the run context lists it under
-  `companions:` — hands its final markdown to the
+- **The documentation paths** are the ones `intake` records as
+  `project_context.project_doc_paths`.
+- **A `direct:` node that owes a companion** hands its final markdown to the
   `maister:html-companion-writer` agent through the Task tool, before this
   node's completion write: the markdown path, a label for the artifact and the
   sibling reports that exist, for the breadcrumb, plus the `run-context` output.
-  With `html: off` there is nothing to hand over. A companion that fails never
-  blocks the run: keep the markdown, say so in the summary, and leave the miss
-  for `run-complete` to report.
 - **`outputs/delivery-scope.yml`** is read by a machine: it carries its fixed
   shape and no artifact summary block.
 
@@ -285,7 +279,7 @@ source into one document the later nodes read in full.
 3. **Fetch every link** in `design_context.collected_urls`.
 4. **Research each topic** in `design_context.research_topics` through a
    `maister:information-gatherer` agent per topic, launched in parallel through
-   the Task tool with the topic, its scope and the task path.
+   the Task tool with the topic and its scope, plus the `run-context` output.
 5. **Write `analysis/design-context.md`**, synthesising every source: the
    project documentation, the codebase summary for an enhancement, the key
    takeaways of each supplied file and link, the research findings, the
@@ -491,8 +485,8 @@ Skipped in a simple run (*Depth*). Delegated to the
 `maister:solution-brainstormer` agent through the Task tool, **deliberately
 non-interactive**: alternatives generated outside the conversation are not
 anchored on the first idea anybody in it had. Everything node-scoped is in
-`with:`; the `prior-context --node=idea-generation` output supplies the rest,
-including the `html:` line. Also hand it:
+`with:`; the `prior-context --node=idea-generation` output supplies the rest.
+Also hand it:
 
 - the design characteristics from state;
 - `analysis/personas.md` **only when the state records `persona-exploration`

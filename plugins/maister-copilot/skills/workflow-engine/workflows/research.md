@@ -53,13 +53,9 @@ section below changes for it.
 ## Run-scoped context
 
 Every delegate prompt opens with the `run-context --node=<this node>` output,
-pasted unedited (artifact writers: `prior-context --node=<this node>`, which
-prints that block first): the task path, the HTML style guide, the documentation
-paths, the scratch rule and the companions the node owes. What this workflow adds:
-
-- **The documentation paths** are discovered by `research-foundation` and
-  recorded as `research_context.project_doc_paths`; every later node reads them
-  from state.
+pasted unedited (artifact writers: `prior-context --node=<this node>`). Its
+documentation paths are the ones `research-foundation` records as
+`research_context.project_doc_paths`.
 
 ---
 
@@ -262,13 +258,7 @@ question, the research type, the methodology and `project_doc_paths`, plus the
 `run-context` output.
 
 **Read the synthesizer's `companion`** from its structured result, never from its
-prose. `written` and `disabled` need nothing. On `not-requested` the run context
-was missing from the prompt: invoke the synthesizer again with it, since its report
-was written without that context and is redone, not just given a companion. On
-`failed`, run `maister-copilot:html-companion-writer` once on `outputs/research-report.md`
-with the `run-context --node=research-foundation` output; a second miss is left for
-`run-complete` to report. `disabled` while the run context's `html:` was a path
-is a defect: name it in this node's `risks`.
+prose; its handling follows `orchestrator-patterns.md` § 9.
 
 **Recommend the way on, never ask it.** Which way the run goes on is the answer
 to `foundation-approval`. This node only says which of its three continues it

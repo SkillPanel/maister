@@ -60,8 +60,8 @@ Accepted. No definition's graph hash moves; the five built-in diagrams are byte-
    markdown. An agent with two companions returns one aggregate status and `html_paths`.
 5. **`rules:` pointers.** A verb names the reference file and the section that governs the moment
    — for a refusal, the section holding its recovery — in one spelling,
-   `rules: <absolute path> § <heading>` (a `"rules"` key in JSON). `gate-brief`, `area-brief`, `finding-brief` and
-   `gate-revise` carry it, and so does every refusal of those verbs, `write-state` and
+   `rules: <absolute path> § <heading>` (a `"rules"` key in JSON). `gate-brief`, `area-brief`, `finding-brief`
+   in its `--patch-file` form and `gate-revise` carry it, and so does every refusal of those verbs, `write-state` and
    `run-complete`. It is appended after the renderer, outside the gate brief's character budget,
    and never added to `--checkpoint`, `--request`, `--oneline`, a question set or a request
    file, whose shapes are closed.

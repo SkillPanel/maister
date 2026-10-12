@@ -184,18 +184,19 @@ test('area-brief: the write-up and the set path end on the areas pointer, --json
   assert.doesNotMatch(nothing.stderr, /rules:/);
 });
 
-test('finding-brief: the set on stdout and the set path both end on the findings pointer; the file is unchanged', t => {
+test('finding-brief: the bare set is valid JSON with no pointer; the patch-file form ends on the findings pointer and the file holds the set alone', t => {
   const run = reviewing(t);
   const printed = findingBrief(run);
   assert.equal(printed.code, 0, printed.stderr);
-  assert.ok(printed.stdout.endsWith(trailing(FINDINGS)), printed.stdout);
-  assert.equal(JSON.parse(briefOf(printed.stdout)).questions.length, 1);
+  assert.doesNotMatch(printed.stdout, /rules:/, 'no pointer on the bare set');
+  const bare = JSON.parse(printed.stdout);
+  assert.equal(bare.questions.length, 1);
   const filed = findingBrief(run, { patch: true });
   assert.equal(filed.code, 0, filed.stderr);
   assert.equal(filed.stdout, `${run.patch}${trailing(FINDINGS)}`);
   const set = fs.readFileSync(run.patch, 'utf8');
   assert.doesNotMatch(set, /rules/);
-  assert.deepEqual(JSON.parse(set), JSON.parse(briefOf(printed.stdout)), 'the file holds the set stdout printed');
+  assert.deepEqual(JSON.parse(set), bare, 'the file holds the set stdout printed');
 });
 
 test('gate-revise: a revise ends on the revising pointer after its revised line; a refusal names it on stderr', t => {

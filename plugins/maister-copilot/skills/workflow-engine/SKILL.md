@@ -58,7 +58,7 @@ rules, and the forms never to use, are in *The invocation contract*.
 
 **4. Every delegate prompt carries the run's context, fetched.** In the turn that writes the
 prompt, run `run-context --state=<state> --node=<node>`, or `prior-context --node=<node>` where
-the delegate also needs the earlier phases, and paste its stdout unedited (*Run-scoped context*).
+the delegate also needs the earlier phases, and paste its stdout unedited (framework § 3).
 
 **5. Every state change goes through `write-state`.** Never edit `orchestrator-state.yml` or the
 dashboard files with an editor tool; the one exception is answering a pending gate
@@ -66,8 +66,9 @@ dashboard files with an editor tool; the one exception is answering a pending ga
 one-write-per-moment rule are in `references/writing-state.md`.
 
 **6. Read what a `rules:` line names.** A verb that prints `rules:` names the reference and the
-section that govern this moment — for a refusal, the section holding its recovery — read that
-section before acting.
+section that govern this moment. On a refusal it is the section holding the recovery: always read
+it before acting. On a brief, read it the first time in a session, and again after a compaction,
+which drops what was read.
 
 **7. A missing companion.** **A `write-state` that prints `companion-missing: <node> <path>`**
 completed a node whose owed `.html` is not on disk. Recover it as
@@ -288,7 +289,7 @@ write a question set there themselves.
 | `gate-revise` | `--state`, `--node` (the gate), `--option` (its revise option); `{note, answered_by?, at?, via?}` by here-string, or `--patch-file` naming it in the patch file | the changed paths, one per line, then a blank line and `revised: <gate> reruns=<node> revision=<n>/10 reset=<ids>`: the stretch from the option's rerun node to the gate reset in one write, with the note on the gate (`references/gates.md` § *Revising at a gate*) |
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines, then any `missing-companion:` lines, and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state`, optional `--background`, optional `--node` | the prior phases' decisions and risks as markdown, to paste into a delegate prompt; `--background` frames them as background for a document written for end users; `--node` prints that node's `run-context` block first, then one blank line, then the same passage, with `run-context`'s refusals — reads the run, writes nothing |
-| `run-context` | `--state`, `--node` (the node about to delegate) | the run-scoped context a delegate prompt carries, as markdown to paste unedited (*Run-scoped context*); when the definition the run froze cannot be re-read, `companions: unknown` and one `warning: run-context-definition-unread` line, exit `0` — reads the run, writes nothing |
+| `run-context` | `--state`, `--node` (the node about to delegate) | the run-scoped context a delegate prompt carries, as markdown to paste unedited (*Before anything else*, item 4); when the definition the run froze cannot be re-read, `companions: unknown` and one `warning: run-context-definition-unread` line, exit `0` — reads the run, writes nothing |
 | `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=plain`, `--checkpoint`, `--request` or `--oneline`; or `--node` (a running node) with `--checkpoint` or `--request` and `--patch-file` — the node's question set as JSON in the patch file | The brief for a gate, or for a running node's question set. It writes no state, only the run's `display/next.json`. With no form, the brief as text within 1,600 characters, plus the trailing `rules:` line; `--node=held-approval` briefs the run's closing checkpoint. Each form's shape is `references/gates.md` § *The `gate-brief` forms* |
 | `area-brief` | `--state`, `--node` (the convergence node that is asking), and one form: `--area=<id>` with `--json` and `--picker=plain`; `--area=<id>` alone; or `--patch-file=<run>/.state-patch.json` with `--area` repeated or omitted | One decision area of the brainstorm, as a picker in the field shape of `gate-brief --json`, as its full write-up in markdown, or written as a driven question set to the patch file (`references/in-node-questions.md` § *Decision areas from the brainstorm*). A file it cannot use is one `warning: decision-areas-…` line on stderr, exit `0`, and the node composes the area itself. Writes no state and no `display/next.json` |
 | `finding-brief` | `--state`, `--node` (the reviewing node that is asking), `--findings-file=<file in the run>`, and optionally `--patch-file=<run>/.state-patch.json` | The node's findings that need a decision as one question set, printed as JSON or written to the patch file (`references/in-node-questions.md` § *Findings that need a decision*). A file it cannot use is one `warning: finding-list-…` line on stderr, exit `0`, and the node composes the questions itself. Writes no state |
@@ -436,17 +437,6 @@ questions it asks inline, and how many times it may be re-driven. Read the secti
 executing the node, not after it fails. Whether those inline questions are asked at all
 follows the run's driver — see `references/in-node-questions.md` § *In-node questions*.
 
-### Run-scoped context
-
-What every delegate needs from the run rather than from its node is fetched, never composed:
-run `run-context --state=<state> --node=<node>` in the turn that writes the prompt and paste its
-stdout unedited, or run `prior-context --node=<node>`, which prints the same block before the
-prior-phase passage. A delegate whose prompt lacked the block returns `companion: not-requested`
-— delegate it again with the block: its markdown was written without the run context, so it is
-redone, not just given a companion. An artifact a `direct:` node writes inline gets its
-companion from the `html-companion-writer` agent, handed the same block (framework § 9).
-Anything node-scoped is in `with:`, interpolated as below.
-
 ### Interpolating `${…}`
 
 Before a node runs, the driver substitutes every `${…}` in its `with:` — however deeply nested —
@@ -558,7 +548,7 @@ resuming, a stop and a revise are `references/gates.md`, and the line `gate-brie
 **A question a node asks inside itself** is asked, suspended on or defaulted according to the
 run's driver, and classed first when the freeze recorded `classes_questions` — read
 `references/in-node-questions.md` before a node asks its first one. `area-brief` and
-`finding-brief` name the section for theirs.
+`finding-brief --patch-file` name the section for theirs.
 
 ---
 

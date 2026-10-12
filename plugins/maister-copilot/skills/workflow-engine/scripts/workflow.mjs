@@ -1017,10 +1017,14 @@ async function runFindingBrief(flags) {
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
   if (!result.ok) return EXIT.REJECTED;
   if (result.fallback) return EXIT.OK;
-  // The pointer follows the set on stdout and is never written into the
-  // patch file: the file holds the set alone, for the write that sends it.
-  if (patchFile !== null) process.stdout.write(`${result.file}\n`);
-  else process.stdout.write(`${JSON.stringify(result.set, null, 2)}\n`);
+  // The bare set is JSON on stdout and carries no pointer, so stdout parses
+  // as it stands. The patch-file form prints the file's path and then the
+  // pointer, never writing it into the file: the file holds the set alone.
+  if (patchFile === null) {
+    process.stdout.write(`${JSON.stringify(result.set, null, 2)}\n`);
+    return EXIT.OK;
+  }
+  process.stdout.write(`${result.file}\n`);
   printRules('findingBrief');
   return EXIT.OK;
 }

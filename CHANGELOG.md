@@ -174,9 +174,10 @@ with a note: the ceiling is fixed when the run starts and may only narrow. Set t
 want when the run starts. This matters only where an autonomy policy is installed.
 
 *If a project workflow — an eject or an overlay — should produce HTML pages*, declare
-`html_companions` in it and have its steps fetch `run-context`. Agents no longer take a style-guide
-path parameter. A run already in flight may report a missing page for a step it completes after
-the upgrade; one html-companion-writer run fixes it.
+`html_companions` in it and have its steps fetch `run-context`. A definition that uses the key
+needs this plugin version or newer, because an older engine refuses it. Agents no longer take a
+style-guide path parameter. A run already in flight may report a missing page for a step it
+completes after the upgrade; one html-companion-writer run fixes it.
 
 *To stay on 2.x*, install the 2.x maintenance line instead. It receives fixes only — no new
 features — for six months after 3.0.0 is released:

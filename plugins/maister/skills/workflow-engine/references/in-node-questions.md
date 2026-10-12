@@ -1,7 +1,7 @@
 # In-node questions
 
 The workflow engine's rules for a question a node asks inside itself. `area-brief` names
-*Decision areas from the brainstorm*, and `finding-brief` names *Findings that need a decision*.
+*Decision areas from the brainstorm*, and `finding-brief --patch-file` names *Findings that need a decision*.
 
 A gate is not the only question a run asks. A node's prose may ask its own — a clarification,
 an opt-in that decides whether a later stretch runs, a decision between approaches, or a loop

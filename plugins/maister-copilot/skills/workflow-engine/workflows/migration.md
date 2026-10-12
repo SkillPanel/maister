@@ -44,13 +44,10 @@ with the skipped ones listed (engine `references/gates.md`).
 ## Run-scoped context
 
 Every delegate prompt opens with the `run-context --node=<this node>` output,
-pasted unedited (artifact writers: `prior-context --node=<this node>`, which
-prints that block first): the task path, the HTML style guide, the documentation
-paths, the scratch rule and the companions the node owes. What this workflow adds:
-
-- **`task_path`** sits under the type directory `migrations/`, plural.
-- **The documentation paths** are discovered by `intake` and recorded as
-  `project_context.project_doc_paths`; every later node reads them from state.
+pasted unedited (artifact writers: `prior-context --node=<this node>`). Its
+documentation paths are the ones `intake` records as
+`project_context.project_doc_paths`, and its `task_path` sits under the type
+directory `migrations/`, plural.
 
 > **ANTI-PATTERN**: Do NOT re-summarize a summary block. `decisions` and `risks`
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
@@ -317,9 +314,9 @@ are named in this node's closing summary whatever else the round covered.
 **Part B — specification creation (delegate).** Invoke the
 specification-creator agent through the Task tool, whatever the migration's
 size, with the migration task type. Everything node-scoped it needs is in
-`with:`; the `prior-context --node=specification` output supplies the rest, the
-`html:` line and the documentation paths included. Two things are this node's
-own and reach it in neither: the requirements path Part A just wrote,
+`with:`; the `prior-context --node=specification` output supplies the rest. Two
+things are this node's own and reach it in neither: the requirements path Part
+A just wrote,
 `analysis/requirements.md`, and the migration facts already in state —
 `migration_context.current_system`, `target_system`, `risk_level` and
 `breaking_changes` — which the specification has to name rather than rediscover.

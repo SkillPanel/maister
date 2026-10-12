@@ -41,12 +41,9 @@ always the next node in run order (engine `references/gates.md`).
 ## Run-scoped context
 
 Every delegate prompt opens with the `run-context --node=<this node>` output,
-pasted unedited (artifact writers: `prior-context --node=<this node>`, which
-prints that block first): the task path, the HTML style guide, the documentation
-paths, the scratch rule and the companions the node owes. What this workflow adds:
-
-- **The documentation paths** are discovered by `intake` and recorded as
-  `project_context.project_doc_paths`; every later node reads them from state.
+pasted unedited (artifact writers: `prior-context --node=<this node>`). Its
+documentation paths are the ones `intake` records as
+`project_context.project_doc_paths`.
 
 > **ANTI-PATTERN**: Do NOT re-summarize a summary block. `decisions` and `risks`
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
@@ -235,7 +232,8 @@ found.
 **Check the profiling directory before delegating.** When
 `analysis/user-profiling-data/` holds files, pass them: they turn a static
 ranking into a measured one. When it is empty, the analysis is static-only —
-this node asks nothing. Say in the phase summary which it was.
+this node asks nothing. Say in the phase summary which it was. Either way, hand
+the analyzer the `prior-context --node=bottleneck-analysis` output.
 
 **Write the structured result to state before anything else.** Record
 `performance_context.bottlenecks_identified` from the analyzer's count,
@@ -346,8 +344,7 @@ invent a performance target: it becomes an acceptance criterion nobody set.
 **Part B — specification creation (delegate).** Invoke the
 specification-creator agent through the Task tool, whatever the task's size,
 with the performance task type. Everything node-scoped it needs is in `with:`;
-the `prior-context --node=specification` output supplies the rest, the `html:`
-line and the documentation paths included.
+the `prior-context --node=specification` output supplies the rest.
 
 If the agent returns without `implementation/spec.md`, or with one that leaves a
 priority gathered in Part A uncovered, re-invoke it with the missing context
@@ -400,14 +397,14 @@ threshold, no flag. The auditor checks the spec's claims against the codebase
 before any code exists.
 
 The auditor's prompt names its report path `verification/spec-audit.md` and
-hands it the user's earlier answers — `analysis/requirements.md` and the
-decisions `prior-context --background` returns — so it can tell a finding with
-one obvious fix from one that needs a decision. The report carries a verdict —
-pass, pass with concerns, or fail — issue counts by severity, and the findings,
-each graded fixable or needing a decision. The report is the auditor's: if it
-returns the report as text and the file does not exist, write that text to the
-path verbatim, once; never append to it, edit it or annotate it. Record the
-verdict in state.
+hands it the user's earlier answers — `analysis/requirements.md` — plus the
+`prior-context --background --node=spec-audit` output for the decisions, so it
+can tell a finding with one obvious fix from one that needs a decision. The
+report carries a verdict — pass, pass with concerns, or fail — issue counts by
+severity, and the findings, each graded fixable or needing a decision. The
+report is the auditor's: if it returns the report as text and the file does not
+exist, write that text to the path verbatim, once; never append to it, edit it
+or annotate it. Record the verdict in state.
 
 **The obvious fixes are made without asking**
 (`orchestrator-patterns.md` § 6, *The Specification Audit's Fix Pass*): one fix

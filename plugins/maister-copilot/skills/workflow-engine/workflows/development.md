@@ -517,15 +517,15 @@ pass, and only when the operator chose `continue-to-spec-audit`. The auditor
 checks the spec's claims against the codebase rather than trusting them.
 
 The auditor's prompt names its report path `verification/spec-audit.md` and
-hands it the user's earlier answers — `analysis/requirements.md`,
-`analysis/technical-clarifications.md` when it exists, and the decisions
-`prior-context --background` returns — so it can tell a finding with one obvious
-fix from one that needs a decision. The report carries a verdict — pass, pass
-with concerns, or fail — issue counts by severity, and the findings, each graded
-fixable or needing a decision. The report is the auditor's: if it returns the
-report as text and the file does not exist, write that text to the path
-verbatim, once; never append to, edit or annotate it. Record the verdict in
-state.
+hands it the user's earlier answers — `analysis/requirements.md` and
+`analysis/technical-clarifications.md` when it exists — plus the
+`prior-context --background --node=spec-audit` output for the decisions, so it
+can tell a finding with one obvious fix from one that needs a decision. The
+report carries a verdict — pass, pass with concerns, or fail — issue counts by
+severity, and the findings, each graded fixable or needing a decision. The
+report is the auditor's: if it returns the report as text and the file does not
+exist, write that text to the path verbatim, once; never append to, edit or
+annotate it. Record the verdict in state.
 
 **The fix pass follows `orchestrator-patterns.md` § 6**, *The Specification
 Audit's Fix Pass*, step by step: the fixable findings go in one amend pass to
@@ -863,9 +863,7 @@ corrupts both sessions.
 **Read the verifier's structured result, never its prose.** `verdict` is the
 verdict the summary reports; `status: failed`, with `verdict: null`, means the
 verification could not run, which is a finding (the recovery budget below). Its
-`companion` follows `orchestrator-patterns.md` § 9: on `not-requested`, invoke
-the agent again with the run context; on `failed`, run
-`maister-copilot:html-companion-writer` once for each missing `.html`.
+`companion` follows `orchestrator-patterns.md` § 9.
 
 **Gate brief content.** The `headline` gives the verdict and the scenario counts
 ("Browser checks pass: 9 of 10 scenarios, one failing on the empty board"). In
@@ -891,8 +889,9 @@ only when the user-docs bool came back true. The guide is written to
 
 **Reuse the browser stretch's screenshots when it ran.** Pass the screenshot
 directory with the instruction to reuse what applies before capturing anything
-new. When the browser stretch was skipped, omit the directory entirely rather
-than passing an empty path.
+new, plus the `prior-context --background --node=user-docs` output. When the
+browser stretch was skipped, omit the directory entirely rather than passing an
+empty path.
 
 **The prior decisions are background for this delegate, not content.** Fetch
 them with `prior-context --background`: the guide must stay consistent with the
