@@ -5,14 +5,11 @@ The workflow engine's rules for writing a run's state. A refused `write-state` n
 
 **Every state change goes through `write-state`. Never edit `orchestrator-state.yml` with an
 editor tool** — not to fix a stray line, not to record one small field, not when a write has
-just been refused. There is exactly one exception, and it is not a fallback: answering a
-pending gate, where the engine's shell calls cannot run and the writer is therefore
-unreachable, records the decision with editor tools and then hands the file straight back to
-the writer for re-validation (see `references/gates.md` § *Driver-suspended mode — resume*). Outside that window, an editor-tool
-write is the corruption this writer exists to prevent. The writer owns the `workflow:` block and its one-line node entries, the
-per-node summaries and their mirrored phase summaries, and the scalars beside them; it emits
-at a fixed canonical indent, writes the whole file once per invocation, and self-checks the
-candidate through the shared state reader before it publishes anything.
+just been refused. The one exception is answering a pending gate, which records the decision
+with editor tools and hands the file straight back to the writer for re-validation
+(`references/gates.md` § *Driver-suspended mode — resume*). The writer emits at a fixed
+canonical indent, writes the whole file once per invocation, and self-checks the candidate
+before it publishes anything.
 
 The patch vocabulary is closed, and it is exactly the set of state blocks a run has to be
 able to write:
@@ -22,68 +19,58 @@ able to write:
   carries an optional `dispatch_id` beside `kind` and `cwd`, the dispatch it runs, which the
   writer keeps and the engine never reads. The four **open
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
-  — merge key by key instead, because different nodes write different keys of them at
-  different times: a write recording `user_docs_enabled` leaves an `html_output` an earlier
-  node set alone. Send the whole map only when you mean to add to it. `task.status` is the
-  writer's at one moment: the first write that moves a node off `pending` — the run starting
-  to execute — records `in_progress` when the status is absent or `pending`. The freeze runs
-  nothing and records none; a status already set otherwise, or one the same patch sends, is
-  left alone, and the run's ending is the closing patch's to record.
+  — merge key by key instead: a write recording `user_docs_enabled` leaves an `html_output` an
+  earlier node set alone. `task.status` is the writer's at one moment: the first write that
+  moves a node off `pending` records `in_progress` when the status is absent or `pending`; a
+  status already set otherwise, or one the same patch sends, is left alone, and the run's
+  ending is the closing patch's to record.
 - `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
   edited in place afterwards. Never send a node's `started` or `completed`, or
   `orchestrator.updated`: the writer stamps all three from its own clock on each status change
   and drops, with a `note:` line on stderr, any value a patch carries for them.
 - `context` and `phase_summaries` — written into the run's context block, whose name the
   writer derives from `workflow.name`: `<name>_context`, the name's dashes written as
-  underscores, so `acme-review` writes `acme_review_context`. Two built-ins keep the blocks they
-  had before the name was the rule: `development` writes `task_context` and `product-design`
-  writes `design_context`. A workflow named `project` or `verification` would derive one of
-  the shared blocks below, so its context writes are refused with
-  `state-context-block-unknown` and the workflow has to be renamed. `node_summaries` is its
-  own top-level block, keyed by node id.
+  underscores, so `acme-review` writes `acme_review_context`. Two built-ins keep older blocks:
+  `development` writes `task_context` and `product-design` writes `design_context`. A workflow
+  named `project` or `verification` would derive one of the shared blocks below, so its context
+  writes are refused with `state-context-block-unknown`. `node_summaries` is its own top-level
+  block, keyed by node id.
   A phase summary is always sent as the **top-level** `phase_summaries` patch key, never nested
-  under `context`, although the file keeps the map inside the context block: the top-level key
-  merges entry by entry, while every `context` key is free-form and replaces whole, so a nested
-  map would erase every summary earlier phases wrote. The writer refuses the nested shape with
-  `state-patch-invalid`. `node_summaries` merges entry by entry the same way, and **each node
-  summary merges field by field**: a field you send replaces that field whole, and a field you
-  leave out keeps its value. So a later node retagging one earlier risk `resolved` sends only
-  that node's `risks`, and its summary, artifacts and answers stay. Send a field as `null` to
-  clear it. **The user's answers are history**: a write of a node's `decisions` keeps every
+  under `context`, although the file keeps the map inside the context block: every `context`
+  key replaces whole, so a nested map would erase every summary earlier phases wrote, and the
+  writer refuses it with `state-patch-invalid`. `node_summaries` merges entry by entry, and
+  **each node summary merges field by field**: a field you send replaces that field whole, and
+  a field you leave out keeps its value. So a later node retagging one earlier risk `resolved`
+  sends only that node's `risks`, and its summary, artifacts and answers stay. Send a field as
+  `null` to clear it. **The user's answers are history**: a write of a node's `decisions` keeps every
   earlier `by: operator` item it leaves out, unless it carries the same `question_id`, question
   and `attempt` (none is the first) — a question asked again replaces its own answer. That holds
   across a revise, so a node that re-runs records only what it settled this time; a question set
   a driver asks again in the node's new attempt keeps the earlier attempt's answers as history
   (`references/in-node-questions.md` § *In-node questions*).
 - `project_context`, `related_tasks`, `verification_context`, `external_research` — the four
-  optional top-level blocks. Each is written as a **top-level sibling** of `orchestrator:`
-  and of the context block, never nested inside either. A mapping is merged key by key, so
-  one write recording `verification_context.fixes_applied` leaves a `reverify_count` another
-  write put there alone; `related_tasks` is a list and is replaced whole, so a caller that
-  means to append sends the whole list.
+  optional top-level blocks, each a **top-level sibling** of `orchestrator:` and of the context
+  block. A mapping is merged key by key; `related_tasks` is a list and is replaced whole, so a
+  caller that means to append sends the whole list.
 
-Anything else is an error rather than a silent no-op. Never work around a refusal with an
-editor tool.
+Anything else is an error rather than a silent no-op.
 
-**`orchestrator.policy_hash` is the writer's** (engine Step 4): never send it. The writer judges a gate's
-triage itself, on the write that records its answer and on the re-validation of a driven answer
-(`references/gates.md`). These warnings print as plain `warning:` lines on stderr, and none is ever a
-refusal — the write lands and the exit code does not move:
+**The writer judges a gate's triage itself**, on the write that records its answer and on the
+re-validation of a driven answer (`references/gates.md`). These `warning:` lines on stderr are
+never refusals — the write lands and the exit code does not move:
 - **`policy-hash-mismatch:<gate>`** — the policy loaded now would classify the gate, but its hash
-  is not the run's `policy_hash`, or the run recorded none. Nothing is classified; relay it.
-  `gate-brief --request` warns the same on the request it builds. A classing write warns it
-  naming the node: nothing was classed or recorded, and every question is printed under `ask:`.
+  is not the run's `policy_hash`, or the run recorded none. Nothing is classified; relay it. A
+  classing write warns it naming the node, and every question is printed under `ask:`.
 - **`held-gate-skipped:<gate>`** — the write recorded `skipped` on a gate the held rule asks while
   choices wait for approval (engine § *The ready set*). The status was written as sent: ask the gate, and its
   continue approves the held choices.
 - **`autonomy-ceiling-parent-unread:<run>`** — a child run's freeze could not read its parent's
-  state, so it copied no autonomy ceiling from it; the freeze landed with the patch's own, if any.
-  Relay it.
-- **`driver-features-parent-unread:<run>`** — a child run's freeze could not read its parent's
-  state, so its driver carries no features: in-node questions take their defaults. Relay it.
+  state, so it copied no autonomy ceiling from it. Relay it.
+- **`driver-features-parent-unread:<run>`** — the same, for the driver's features: in-node
+  questions take their defaults. Relay it.
 - **`skip-guard-skipped:<gate>`** — the write recorded `skipped` on a gate the skip-guard rule
-  asks whatever its guard reads (grammar § 7). The status was written as sent, and nothing
-  checks it later: ask the gate and record its answer.
+  asks whatever its guard reads (grammar § 7). The status was written as sent: ask the gate and
+  record its answer.
 - **`provenance-unusable:<node>:<key>`** — an answer's provenance value holds a map key the state
   file cannot carry, so it was left off the decision; relay it, naming the request file it gives.
 
@@ -92,83 +79,58 @@ clock fields and `policy_hash`, the writer drops, each with its note: an
 `orchestrator.options.ceiling` wider than the run's autonomy ceiling, or one removing it (engine Step 4);
 `orchestrator.classes_questions` and a node's `asking`, which only the writer records; and, in a
 run that records `classes_questions`, a `by: run` or `by: default` item sent for a question the
-writer classed — its own item stays — and any `triage` sent on a node's decisions. A note is
-never a refusal: correct the prose that sent it rather than re-sending.
+writer classed, and any `triage` sent on a node's decisions. Correct the prose that sent it
+rather than re-sending.
 
 ## What the freeze write adds
 
 The freeze patch carries what engine Step 4 lists; the writer checks it and adds the rest.
 
-**The writer proves the freeze before it installs it**, because the freeze is written once and
-every reader lays the run out from it. It re-resolves the recorded `source`, `overlays` and
-`profile` from the run's own project root, and writes nothing when the result does not hash to
-the recorded `graph_hash` (`state-freeze-unproven`), when `workflow.name` is not the
-definition's own (`state-freeze-name-mismatch`), when the nodes are not exactly the resolved
-set under the kinds engine Step 4 gives (`state-freeze-nodes-mismatch`), or when an input the definition
-declares `required` with no default has no value under `orchestrator.options.inputs`
-(`state-freeze-input-missing`). Each is corrected in the patch and the freeze sent again
-(*When a write is refused*).
+**The writer proves the freeze before it installs it.** It re-resolves the recorded `source`,
+`overlays` and `profile` from the run's own project root, and writes nothing when the result
+disagrees with the patch — the hash, the name, the node set, or a required input with no value.
+Each refusal has its row under *When a write is refused*.
 
-**The freeze patch carries `orchestrator.completed_phases: []` and
-`orchestrator.failed_phases: []`.** The state contract requires both on every run, from its
-first write. The writer seeds each as an empty list, at the top of the block, when the write
-that installs the `workflow:` block does not supply it and the file does not already carry it,
-so the freeze patch need not spell them and a freeze that omits them still lands valid. A
-later write of either replaces the whole list; there is no key to merge on, so a caller that
-means to append sends the whole list.
+**It seeds what every run carries**, each only when the patch does not supply it and the file
+does not already hold it: `orchestrator.completed_phases: []` and `orchestrator.failed_phases: []`
+at the top of the block, `orchestrator.task_ids: {}`, and `orchestrator.created` from its own
+clock — a child run's freeze included. A later write of either phase list replaces the whole
+list, so a caller that means to append sends the whole list.
 
-**The writer stamps `orchestrator.created` at the freeze** from the write's own clock, when the
-patch does not supply it and the file does not already carry it — a child run's freeze
-included. A driver drives no run without it, so it is never left to the caller; a value the
-patch does supply is kept.
+**It records `orchestrator.policy_hash`** — which autonomy policy the run applies. The policy is
+an optional file, `policy/autonomy-policy.json` in this skill's folder; none ships, and without
+one the built-in `{"version": 1}` applies, which classifies nothing. The hash is `sha256:` over
+the whole parsed file, its keys sorted at every depth, arrays kept in order, no whitespace. A
+file that exists but cannot be applied is refused whole: the run applies the built-in default,
+records that hash, and the freeze prints `warning: policy-refused:<path>:<reason>`, with
+` at <dotted path>` for a shape fault. Relay the warning; the run goes on. A value a patch sends
+is ignored with a `note:` line, a sub-run's freeze records its own, and no later write changes it.
 
-**The writer records `orchestrator.policy_hash` at the freeze** — which autonomy policy the run
-applies, so every later reader of a classified answer can tell what classed it. The policy is an
-optional file, `policy/autonomy-policy.json` in this skill's folder; none ships, and without one
-the built-in `{"version": 1}` applies, which classifies nothing, so every gate is asked and shown
-as it would be with no policy at all. The hash is `sha256:` over the whole parsed file, its keys
-sorted at every depth, arrays kept in order, no whitespace. A file that exists but cannot be
-applied — unreadable, not JSON, a `version` other than `1`, or a fault in its shape — is refused
-whole: the run applies the built-in default, records that hash, and the freeze prints
-`warning: policy-refused:<path>:<reason>`, with ` at <dotted path>` for a shape fault. Relay the
-warning; it is never a refusal, and the run goes on. The key is the writer's alone: a value a
-patch sends is ignored with a `note:` line, a sub-run's freeze records its own, and no later
-write adds, changes or removes it.
+**It records `orchestrator.classes_questions: true` when the policy classes in-node questions**
+for this workflow, and nothing otherwise. The key is the writer's too, dropped with a `note:`
+line when a patch sends it. It is the one fact a node reads before it asks
+(`references/in-node-questions.md` § *When the policy classes a question*).
 
-**The writer records `orchestrator.classes_questions: true` at the freeze when the policy classes
-in-node questions** for this workflow, and writes nothing otherwise — never under the built-in
-default. The key is the writer's too, dropped with a `note:` line when a patch sends it. It is
-the one fact a node reads before it asks (`references/in-node-questions.md` § *When the policy classes a question*).
+**It records the run's autonomy ceiling** as `orchestrator.options.ceiling` when the patch
+carries one: `approve` < `advice` < `decide`, an unknown value reading as `approve`. A child
+run's freeze records the narrower of its parent's effective ceiling and its own (engine
+§ *Sub-runs*). After the freeze it may narrow, never widen: a later write naming a wider level,
+or removing a recorded one, is dropped with a `note:` line, and the rest of the patch lands.
 
-**The freeze records the run's autonomy ceiling** as `orchestrator.options.ceiling` when the patch
-carries one — a dispatched run's seed names the level to record, beside the driver. The autonomy
-ceiling bounds what the run may settle without asking: `approve` < `advice` < `decide`, an
-unknown value reading as `approve`. A child run's freeze records the narrower of its parent's
-effective autonomy ceiling and its own (engine § *Sub-runs*). After the freeze it may narrow, never widen:
-a later write naming a wider level, or removing a recorded one, is dropped with a `note:` line,
-and the rest of the patch lands.
-
-**The writer seeds `orchestrator.task_ids: {}`** beside
-the two phase sequences, on the same terms — unless the patch supplies it or the file already
-holds it — and that empty map records that no task items exist.
-
-**The freeze write installs the dashboard viewer.** When `html_output` is not false and the run
-directory holds no `dashboard.html`, the freeze copies the plugin's viewer there and reports
-`dashboard.html` among the changed paths. It never replaces a file already there, and a copy
-that fails is a warning on stderr — the state write still lands. No later write copies it.
+**It installs the dashboard viewer.** When `html_output` is not false and the run directory
+holds no `dashboard.html`, the freeze copies the plugin's viewer there and reports it among the
+changed paths. It never replaces a file already there, and a copy that fails is a warning.
 
 ## Recording an outcome — the detail
 
 The engine skill's *Recording an outcome* holds what a node records; here is what the writer
-checks, and why.
+checks.
 
 **A node is recorded only with one of eight statuses, and only if the run froze it.** The
 statuses are `pending`, `running`, `waiting`, `suspended`, `completed`, `skipped`, `failed` and
 `stopped`. Any other status is refused with `state-node-status-unknown`, including the summary
-spelling `in_progress`: no reader knows what it means, and every reader would otherwise read the
-node as never started. A node the frozen graph does not carry is refused with
-`state-node-unknown`, because a node the graph lacks has no place in it, and nothing downstream
-would ever wait on it.
+spelling `in_progress`, and a node the frozen graph does not carry is refused with
+`state-node-unknown`.
 
 **A node's values are held to the outputs it declares.** Each declared type has one form:
 - `bool`: `true` or `false`;
@@ -176,52 +138,29 @@ would ever wait on it.
 - `enum`: one of its members.
 
 A skipped node records its declared strings and enums as null. Any other value for a declared
-key is refused with `state-value-invalid`, because a guard or a later node would misread it
-without any error: a guard reading `"false"` finds no bool at all. A key the node does not
-declare is still written, and a `warning:` line names it. Nothing reads an undeclared value, so
-the key either belongs in the node's `outputs` or should not be sent. A `workflow:` node's
-`task_path` and `run_id` are exempt: the node records those two about its child itself. This
-check and the gate-answer check (`references/gates.md` § *Terminal mode*) read the definition, so they apply only while
-the frozen block still resolves to its recorded hash.
+key is refused with `state-value-invalid`: a guard reading `"false"` finds no bool at all. A key
+the node does not declare is still written, and a `warning:` line names it; it belongs in the
+node's `outputs` or should not be sent. A `workflow:` node's `task_path` and `run_id` are
+exempt: the node records those two about its child itself. This check and the gate-answer check
+(`references/gates.md` § *Terminal mode*) read the definition, so they apply only while the
+frozen block still resolves to its recorded hash.
 
-**A declared artifact path resolves against the task directory of the run that wrote it.** Stated
-once, covering every scheme: for a `direct:`, `skill:` or `agent:` node that is the run's own task
-directory, as it always has been; for a `workflow:` node it is the **child's**, named by the
-node's recorded `values.task_path`, because the path the parent declares is the path as the child
-writes it. The join applies to both readers of a declared artifact — the existence check (engine § *Recording an outcome*) and
-`${<node>.artifacts.<key>}` downstream — and the joined value is repository-root-relative.
-Artifacts are therefore never copied into the parent node's values; only declared *values* are.
-Storing the joined path as well would be a third copy of one fact, kept in step by hand. The
-writer makes the same join when it registers a completing node's artifacts, and spells the result
-relative to the parent's own run directory instead, because that is what the dashboard links it
-against. The declared path itself is literal: nothing substitutes a `${…}` inside it, so
-`validate` refuses one there.
+**Artifacts are never copied into a node's values**; only declared *values* are. A declared path
+resolves against the task directory of the run that wrote it (engine § *Recording an outcome*),
+and is literal: `validate` refuses a `${…}` inside it.
 
-**A sanctioned absence is recorded, not just described.** The completing write's node summary
-carries `absent: {<artifact-key>: "<reason>"}` — one entry per declared artifact the node
-completed without, named by its declared key (never its path), with the reason in a few words.
-Its `summary` still says it in prose for the gate brief. The entry is what the tools read, since
-none of them can read prose: `run-complete` prints no `missing-artifact:` line for it, and the
-dashboard shows the artifact as *not produced* with the reason instead of leaving a gap. The
-writer refuses an entry that names an artifact the node does not declare or gives no reason
-(`state-absent-invalid`). Record it only where the node prose sanctions the absence; an
-artifact the node owed and did not write is the second row of the engine's missing-artifact table, never an absence to sanction.
-
-The engine's existence check costs one test per declared path and needs nothing the engine does not
-already hold: the definition declares every artifact, so the list is free. Without it, a
-delegate that returns successfully having written nothing is indistinguishable from one that
-wrote everything, and the absence surfaces only when a later node reads the path — or when a
-human compares two lists by hand. `run-complete` repeats the comparison once more at the end,
-over every completed node and less the absences each node recorded, but only to report: its
-`missing-artifact:` lines never refuse, because the completing check — the one that can read the prose —
-is where the judgement belongs.
+**An `absent` entry is what the tools read**, since none of them can read prose: `run-complete`
+prints no `missing-artifact:` line for it, and the dashboard shows the artifact as *not
+produced* with the reason. The writer refuses an entry that names an artifact the node does not
+declare or gives no reason (`state-absent-invalid`). `run-complete`'s own comparison over every
+completed node only reports; the completing check, which can read the prose, is where the
+judgement belongs.
 
 A node's summary carries the shorter phase-status vocabulary, so the node status is mapped
 rather than copied. `pending`, `completed`, `skipped` and `failed` map to themselves; `running`
-and `waiting` both become `in_progress`, a parent whose child run is still going being exactly
-that in the shorter vocabulary; and **`stopped` maps to `skipped`**. `suspended` occurs only on
-a node the run is suspended at while its gate awaits an answer — a driver-suspended mode only,
-since in terminal mode the answer arrives in the same turn — so it has no mirror and needs none.
+and `waiting` both become `in_progress`; and **`stopped` maps to `skipped`** — the member that
+says *did not produce its outcome, and not because anything broke*. `suspended` has no mirror.
+A node a stop option left unexecuted carries no summary, because it never ran.
 
 **A completing node summary is checked against what the node declared.** When a
 `node_summaries` entry is written for a node whose status is `completed`, the writer appends
@@ -230,41 +169,24 @@ directory, and which the entry does not already list. It also fills a missing `h
 listed markdown file whose sibling `.html` companion exists, unless `html_output` is off; a
 directory gets none. For a `workflow:` node the paths are looked for under the child's task
 directory, named by the node's recorded `values.task_path`, and registered as
-`../../<type>/<run>/<path>`. A `workflow:` node that recorded no `task_path` registers nothing,
-because the parent's own directory is not where its child writes. The writer adds only what is on
-disk and overwrites nothing the entry states. The closing write still lists what the node prose
-asks for: the check catches a list that was forgotten, it does not replace the list.
-
-**Why `stopped` mirrors to `skipped`.** The summary vocabulary has five members and none is
-`stopped`, so the status is spelled as one of the five or not written at all. `skipped` is the
-member that says *did not produce its outcome, and not because anything broke*, which is what
-a stop is; `failed` would read as the `RUN-FAILED` the engine deliberately does not print for
-one. Both halves of the rule hold at once, and the distinction is the point: a node a stop
-option left **unexecuted** still carries no summary, because it never ran, while a `workflow:`
-node that **did** run, waited and then saw its child stop is recorded `stopped` and its
-adopting write carries a summary — which is the one that needed a spelling.
+`../../<type>/<run>/<path>`, relative to the parent's run directory; one that recorded no
+`task_path` registers nothing. The writer adds only what is on disk and overwrites nothing the
+entry states.
 
 ## One write per moment
 
 **A patch may carry every block at once, and a moment that changes several things is one
-write, not one write per thing.** The vocabulary above is a per-invocation union: the writer
-applies every key present in a single pass, and `nodes`, `node_summaries` and the top-level
-`phase_summaries` key are maps merged entry by entry, so any number of entries ride in one patch
-and none of them disturbs an entry it does not name. A run that issues a
-write per field is paying a process, a whole-file rename and — on a terminal session — an
-operator's attention for each one.
-
-What "a moment" means, and there are four of them:
+write, not one write per thing.** The writer applies every key present in a single pass, and
+`nodes`, `node_summaries` and the top-level `phase_summaries` key merge entry by entry, so any
+number of entries ride in one patch. There are four moments:
 
 - **A node starts.** One patch: the node's `status: running`, and the `orchestrator` scalars
   the start moves.
 - **A node ends.** One patch: the node's status, its `node_summaries` entry, the
   `phase_summaries` key the node prose names when it mirrors one, and the `orchestrator`
-  scalars the outcome moves. Splitting these is three writes instead of one. The writer
-  still mirrors the node's status onto its summary either way. It mirrors from the node's
-  recorded status when the summary arrives in a later call, and onto the recorded summary
-  when the status arrives later. A summary written with its own `status` keeps it until
-  the node's status next changes.
+  scalars the outcome moves. The writer mirrors the node's status onto its summary whichever
+  arrives first; a summary written with its own `status` keeps it until the node's status
+  next changes.
 - **A ready-set walk skips nodes.** Every node a false guard skips goes in one patch, with
   their summaries, however many there are. That patch lands no later than the next
   executed node's `running` patch — either earlier, or as part of that same patch — so no
@@ -274,34 +196,24 @@ What "a moment" means, and there are four of them:
   likewise one patch carrying `task.status: stopped` and every unexecuted node. `run-complete`
   follows it and publishes nothing, so it is not a write and never merges with one.
 
-That leaves two writes around a node — one before the delegation and one after — which is the
-floor, because the delegation happens between them and its outcome is what the second one
-records.
+That leaves two writes around a node, one before the delegation and one after.
 
 **A node's prose may name milestones inside it**, where a long node registers what it has
-produced so far so that the dashboard does not sit still for its whole length. Each milestone
-is one write carrying the node's summary entries and whatever else that moment moves, and never
-the node's status, which only the node's own end writes.
+produced so far. Each milestone is one write carrying the node's summary entries and whatever
+else that moment moves, and never the node's status, which only the node's own end writes.
 
-**Three writes stand alone, and each has its own reason:**
+**Three writes stand alone:**
 
 | The write | Why it cannot join anything |
 |---|---|
-| the freeze | it precedes node 1, and is already the merged write of the `workflow:` block, `task.key`, `orchestrator.options.inputs`, `orchestrator.options.html_output`, the two empty phase sequences and the empty `task_ids` (engine Step 4) |
+| the freeze | it precedes node 1, and is already the merged write engine Step 4 lists |
 | `gate-request` | one invocation, three writes, in the order `references/gates.md` § *Driver-suspended mode — the write order* fixes — a run is pending from the moment its request file lands, so a second shell call against it cannot run |
 | the empty patch on gate resume | the shell becomes reachable only the instant `gate_pending` goes null, which is what that write re-validates (`references/gates.md` § *Driver-suspended mode — resume*) |
 
-**A fifth pair can never merge, and for a different reason: it lands in two files.** Starting a
-sub-run writes the parent's node (W1), then the whole child freeze (W2), then the parent's link
-(W3). W2 is a write against the **child's** state file and the other two are against the parent's,
-so no patch vocabulary could carry them together however close in time they are — "one write per
-moment" is per state file, and a sub-run start is three moments across two runs.
-
-**W2 is one call and must stay one call.** A state carrying a `workflow:` block but no `nodes` and
-no `task` reads as *gate-pending* to the shared state reader, so a two-call freeze leaves the
-child looking pending between the calls and the second call cannot land — a child that can never be
-finished and a parent that can never proceed. It is the same reasoning that makes `gate-request`
-one call, arriving from the other side.
+**A sub-run start never merges**: W1 and W3 land in the parent's state and W2 in the child's,
+and "one write per moment" is per state file. **W2 is one call and must stay one call**: a state
+carrying a `workflow:` block but no `nodes` and no `task` reads as gate-pending, so a two-call
+freeze leaves a child whose second call cannot land.
 
 ## When a write is refused
 
@@ -341,26 +253,15 @@ twenty-six, each with its response below; two more are raised before the writer 
 | exit `2`, `usage: the patch on stdin …` | The here-string never delivered a document: it arrived empty or not JSON — most often an apostrophe that closed the single quotes early. Nothing was written. Write each apostrophe inside the JSON as `'\''` and run the verb once more, or send the document through the patch file; the same message twice is `RUN-FAILED: writer-unavailable`. |
 | exit `2`, any other message | The writer itself did not run — a module it imports is missing, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable` and report the message verbatim. |
 
-A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
-projection and the display files are written after the state rename, so one that could not be
-published leaves the state write untouched, `dashboard-data.js` simply absent from the reported
-files, and the exit code at `0`. Read the next write's output rather than re-sending the patch. The same holds for
-the warning that names values a node recorded but does not declare: the write landed with them.
-Correct the node prose, or the definition's outputs, before the next run rather than re-sending.
+A `warning:` line on stderr is **not** in this table and never blocks: the state write landed,
+and the exit code is `0`. Read the next write's output rather than re-sending the patch.
 
-Exit `2` is the one row that is not a refusal at all, which is why it is easy to mishandle:
-there is no code to look up and no patch to correct, so the tempting next step is to record
-the state change with an editor tool instead. **Do not.** A writer that could not start is
-exactly the case the no-fallback rule in engine Step 2 was written for; an editor-tool write here
-produces exactly the drifted state file the writer exists to prevent.
+Exit `2` is not a refusal at all, and is never a reason to record the state change with an
+editor tool instead (engine Step 2).
 
-`state-patch-invalid` is the broadest of the caller-defect codes, and it now also refuses a
-block-path map key that is not a plain identifier rather than emitting it — the shape that
-corrupted state files before the guard existed. A key that arrives from a name rather than
-from a literal is the one to watch.
-
-Two of its causes are corrected in the patch rather than ending the run, because the message
-names the fault and nothing was written:
+`state-patch-invalid` is the broadest of the caller-defect codes; it also refuses a block-path
+map key that is not a plain identifier. Two of its causes are corrected in the patch rather than
+ending the run, because the message names the fault and nothing was written:
 - **A classing write it cannot class** — the node is a gate or is not `running`, the set fails the
   checks `gate-brief` makes, `reasons` arrive without a set, name an id the set does not hold or
   carry a key other than `rationale`, `assumption` and `reversal`. Correct the set or its reasons
@@ -368,18 +269,13 @@ names the fault and nothing was written:
 - **A `held-approval` entry under `nodes`** carrying anything but `status`, or a status other than
   `pending`, `suspended` or `completed`. Send that status alone.
 
-The last group is a defect in the caller, so it is worth naming what a defect looks like: a
-`workflow:` block sent without its nodes, a pending marker sent as a block map, a node
-summary sent as an inline collection, a patch key outside the closed vocabulary, a phase
-summary nested under `context` instead of sent as the top-level key, a context write sent
-before the workflow has a name. Fix the patch and re-run; **re-sending the same
-patch, or reaching for an editor tool because the script said no, is the failure mode this
-whole design removes.** A refusal is a correct answer, not an obstacle.
+**Never re-send the same patch, or reach for an editor tool because the script said no**: a
+refusal is a correct answer, not an obstacle.
 
 ## When `run-complete` refuses
 
-`run-complete` publishes nothing, so its refusals are not write refusals and do not belong in
-the table above. Each is exit `1`, the message on stderr, and `RUN-FAILED: <code>` on stdout.
+`run-complete` publishes nothing. Each refusal is exit `1`, the message on stderr, and
+`RUN-FAILED: <code>` on stdout.
 A failed run's `RUN-FAILED: node <id> failed` is also exit `1`, but it is the run's ending
 rather than a refusal: echo it, there is nothing to recover.
 
@@ -415,6 +311,4 @@ its outbox holds no close-out for this dispatch, or that the outbox root and the
 were not given, so nothing could be checked. **The recovery is the step that was missed, not
 a retry**: publish the close-out through the umbrella runtime's outbox verb with the grade
 and the summary the seed's close-out contract asks for, then run `run-complete` again with
-the same `--outbox` root and `--dispatch-id`. Re-running it unchanged only repeats the
-refusal, and printing `RUN-COMPLETE` by hand restores the exact silence the check exists to
-break: the chain would wait forever on a run that looked finished.
+the same `--outbox` root and `--dispatch-id`. Never print `RUN-COMPLETE` by hand.
