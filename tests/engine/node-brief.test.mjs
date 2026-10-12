@@ -83,11 +83,14 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     'asks (in session):',
     '- scope-decisions: asked in session',
     'feeds: gap-approval — continues: continue-past-analysis; revise: revise-gap-analysis → gap-analysis',
+    'summary keys: gap_analysis, scope_clarifications',
+    'budget: 2 attempts — a prose rule; nothing enforces it',
     row('`agent:` step'),
     row('every step'),
     row('asks'),
     row('feeds a checkpoint'),
     row('named by a revise'),
+    row('has a budget'),
     RULES,
   ]);
   assert.ok(slice.trim().length > 0 && !slice.startsWith('\n'), 'the section follows the one blank line');
@@ -182,11 +185,11 @@ test('node-brief: the asks line follows the driver — in session, in a question
   write(sample, { orchestrator: { driver: { kind: 'dispatch' } } });
   assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(nobody can be asked\):\n- tone: not asked — default: A plain tone\.$/m);
 
-  // A question brief: names no default for falls back to its section's Without line.
+  // A built-in's question prints the default its brief: names.
   const dev = scratch(t);
   freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { driver: { kind: 'dispatch' } } });
   assert.match(nodeBrief(dev.state, 'gap-analysis').stdout,
-    /^asks \(nobody can be asked\):\n- scope-decisions: not asked — default: the Without line below$/m);
+    /^asks \(nobody can be asked\):\n- scope-decisions: not asked — default: The analyzer's recommended option; .+$/m);
 });
 
 test('node-brief: a gate points at gate-brief unless its section carries an exception', t => {

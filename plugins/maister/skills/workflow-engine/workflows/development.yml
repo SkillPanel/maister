@@ -52,12 +52,13 @@
 # under every generated variant without a rewrite.
 #
 # The node prose lives beside this file in `development.md`, one section per
-# node id. Every `direct:` node is executed from its section there, and the
+# step that needs one; `node-brief` prints each node's derived facts and then
+# its section. Every `direct:` node is executed from that output, and the
 # eleven operator questions asked inside nodes, in nine asks, appear only in
-# that prose — a reader of this file alone cannot see them, and neither can the
-# generated diagram. The per-node recovery budgets live there too, never here: a
-# budget written into `with:` would read like a grammar feature while being
-# inert data the engine never consults.
+# that prose and in `brief:` — a reader of `nodes:` alone cannot see them, and
+# neither can the generated diagram. The recovery budgets sit in `brief:`, never
+# in `with:`: a budget written there would read like a grammar feature while
+# being inert data the engine never consults.
 name: development
 version: 1
 description: "Builds a change to the code — a new feature, an enhancement, a bug fix or a refactor — from analysis through specification, planning, implementation and verification, with an operator gate after each phase. Use it for any task that modifies code; the optional stretches (a failing test written before the fix, UI mockups, a specification audit, browser checks, user documentation) run only when the task calls for them."
@@ -213,6 +214,81 @@ html_companions:
   planning: [plan]
   verification: [report]
   e2e-verification: [e2e, fidelity]
+
+# What each node's brief prints beside its prose: the phase keys it mirrors its
+# summary under, the declared artifacts it may leave unwritten and why, its
+# recovery budget, which continue an input recommends, and each in-node
+# question's default when nobody can be asked. Read beside the graph, not part
+# of it: the block moves no graph hash.
+brief:
+  intake:
+    summary_keys: [research, design]
+    absent:
+      research_context: "No research task was named."
+      design_index: "No design source was ingested."
+      architecture_context: "No architecture was supplied, or it resolved to no file."
+    questions:
+      task-description: "Never reached; a non-terminal run with no description is RUN-FAILED."
+  codebase-analysis:
+    summary_keys: [codebase_analysis, clarifications]
+    budget: 2
+    questions:
+      clarifications: "None asked; the analysis's answers stand, what it could not settle named in the file as unsettled."
+  gap-analysis:
+    summary_keys: [gap_analysis, scope_clarifications]
+    budget: 2
+    questions:
+      scope-decisions: "The analyzer's recommended option; a decision with none is written as open and recorded as an open risk."
+  tdd-red:
+    budget: 2
+  ui-mockups:
+    summary_keys: [ui_mockups, design]
+  specification:
+    summary_keys: [specification, architecture_decision]
+    absent:
+      technical_clarifications: "One obvious approach, so Part A asked nothing."
+    budget: 2
+    recommends:
+      audit_flag:
+        "yes": continue-to-spec-audit
+        "no": continue-to-planning
+    questions:
+      technical-questions: "The recommended answer and approach; a choice with none is written as open and recorded as an open risk."
+      user-story: "Each story taken as drafted, marked drafted, not confirmed."
+      specification-requirements: "The assumptions stand as framed, carried into the spec as stated assumptions."
+  spec-audit:
+    summary_keys: [spec_audit]
+    questions:
+      spec-audit-findings: "Nothing asked; a finding the policy does not class stays an open risk."
+  planning:
+    summary_keys: [implementation_plan]
+    absent:
+      visual_coverage: "No design index to cover."
+    budget: 2
+  implementation:
+    summary_keys: [implementation]
+    budget: 5
+  tdd-green:
+    budget: 3
+  verification-options:
+    questions:
+      standard-verifications: "The recommended bundle, all four reviews."
+      user-docs: "The recommendation, by the seed rule, recorded as user_docs_enabled."
+  verification:
+    budget: 3
+    recommends:
+      browser_tests_flag:
+        "yes": continue-to-browser-checks
+        "no": continue-past-verification
+    questions:
+      verification-findings: "Nothing asked; an issue the policy does not class stays an open risk."
+      verification-fix-loop: "Nothing asked; issues stay open risks, the loop stops on Continue as is; a critical one reaches verification-approval."
+  e2e-verification:
+    absent:
+      fidelity: "No design context to compare against."
+  user-docs:
+    questions:
+      docs-fixes: "Apply the suggested changes, recorded as one by: default decision."
 
 nodes:
   intake:
