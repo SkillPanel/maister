@@ -131,26 +131,28 @@ function copied(t, names, convert = text => text, { guides = true } = {}) {
 }
 
 test('guide-template-lint: CRLF samples pass and fail exactly as their LF copies, on the same lines', t => {
-  const crlf = copied(t, ['good', 'bad-parts', 'bad-question-sets'], text => text.replace(/\n/g, '\r\n'));
-  const lf = copied(t, ['good', 'bad-parts', 'bad-question-sets']);
+  // Each copy is converted from whatever the checkout holds, CRLF on Windows included.
+  const crlf = copied(t, ['good', 'bad-parts', 'bad-question-sets'], text => text.replace(/\r?\n/g, '\r\n'));
+  const lf = copied(t, ['good', 'bad-parts', 'bad-question-sets'], text => text.replace(/\r\n/g, '\n'));
   for (const name of ['good', 'bad-parts', 'bad-question-sets']) {
     const [a, b] = [lint(lf.out[name]), lint(crlf.out[name])];
     assert.equal(b.code, a.code, `${name}: ${b.stdout}${b.stderr}`);
-    assert.equal(b.stdout.split(crlf.dir).join('<dir>'), a.stdout.split(lf.dir).join('<dir>'), name);
+    const mask = (text, dir) => text.split(dir.replaceAll('\\', '/')).join('<dir>').split(dir).join('<dir>');
+    assert.equal(mask(b.stdout, crlf.dir), mask(a.stdout, lf.dir), name);
     assert.ok(!b.stdout.includes('\r'), name);
   }
   assert.equal(lint(crlf.out['bad-parts']).code, 1, 'a CRLF guide does not hide a failure');
 });
 
 test('guide-template-lint: a question with a With line and no Without line fails at its With line; a Without-only question passes', t => {
-  const withOnly = copied(t, ['good'], text => text.replace('**Without question sets** (`tone`): a plain tone, as the step\'s assumption.\n', ''));
+  const withOnly = copied(t, ['good'], text => text.replace(/\r\n/g, '\n').replace('**Without question sets** (`tone`): a plain tone, as the step\'s assumption.\n', ''));
   const result = lint(withOnly.out.good);
   assert.equal(result.code, 1, result.stdout + result.stderr);
   assert.deepEqual(lines(result.stdout, 'FAIL: '), [
-    `FAIL: ${path.join(withOnly.dir, 'good.md')}:23: scope: \`tone\` has a **With question sets** line and no **Without question sets** line`,
+    `FAIL: ${path.join(withOnly.dir, 'good.md').replaceAll('\\', '/')}:23: scope: \`tone\` has a **With question sets** line and no **Without question sets** line`,
   ]);
 
-  const withoutOnly = copied(t, ['good'], text => text.replace('**With question sets** (`tone`): in this step\'s one request.\n', ''));
+  const withoutOnly = copied(t, ['good'], text => text.replace(/\r\n/g, '\n').replace('**With question sets** (`tone`): in this step\'s one request.\n', ''));
   const passing = lint(withoutOnly.out.good);
   assert.equal(passing.code, 0, passing.stdout + passing.stderr);
   assert.equal(passing.stdout, '');

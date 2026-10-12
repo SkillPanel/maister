@@ -29,7 +29,8 @@ function nodeBrief(state, node, engine = null) {
 
 /** The convention rows of the engine skill, by their first cell, read the way a reader of the table reads them. */
 function conventions(skill = SKILL) {
-  const lines = fs.readFileSync(skill, 'utf8').split('\n');
+  // A Windows checkout gives `.md` files CRLF.
+  const lines = fs.readFileSync(skill, 'utf8').split(/\r?\n/);
   const start = lines.indexOf('### Node conventions');
   const rows = {};
   for (const line of lines.slice(start + 1)) {
@@ -419,8 +420,9 @@ test('node-brief: a brief: block that only a profile carries reaches the brief w
 });
 
 test('node-brief: a CRLF guide gives the same brief as its LF copy, see: line included, with no CR in it', t => {
-  const lf = copiedSample(t);
-  const crlf = copiedSample(t, { guide: text => text.replace(/\n/g, '\r\n') });
+  // Each copy is converted from whatever the checkout holds, CRLF on Windows included.
+  const lf = copiedSample(t, { guide: text => text.replace(/\r\n/g, '\n') });
+  const crlf = copiedSample(t, { guide: text => text.replace(/\r?\n/g, '\r\n') });
   for (const each of [lf, crlf]) freeze(each, { definition: path.join(each.root, 'node-brief.yml'), orchestrator: { options: { html_output: true } } });
   for (const node of ['scope', 'draft', 'audit-approval']) {
     const [a, b] = [nodeBrief(lf.state, node), nodeBrief(crlf.state, node)];
