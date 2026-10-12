@@ -1,0 +1,67 @@
+# A small definition that carries a brief: block. Its entries name a node's
+# phase summary keys, a sanctioned absence, a recovery budget, an input that
+# recommends a gate option, and a question's default; one entry is for a node
+# the overlay's profile disables.
+name: brief
+version: 1
+inputs:
+  audit: {type: bool, required: false}
+
+brief:
+  analysis:
+    summary_keys: [analysis, scope]
+    absent:
+      notes: "Written only when the analysis raises open questions."
+    budget: 2
+    questions:
+      scope-check: "Take the scope as the task describes it."
+  specification:
+    summary_keys: [specification]
+    recommends:
+      audit_flag:
+        "yes": continue-to-audit
+        "no": continue-to-review
+  audit:
+    budget: 1
+  review:
+    budget: 1
+
+nodes:
+  analysis:
+    uses: direct:analysis
+    needs: []
+    outputs:
+      artifacts:
+        report: analysis/report.md
+        notes: analysis/notes.md
+
+  specification:
+    uses: direct:specification
+    needs: [analysis]
+    with:
+      audit_flag: "${inputs.audit}"
+    outputs:
+      artifacts:
+        spec: implementation/spec.md
+
+  approval:
+    type: gate
+    needs: [specification]
+    ask: "Specification complete. Continue?"
+    options:
+      continue-to-audit: {effect: continue, sets: {audit_enabled: true}}
+      continue-to-review: {effect: continue, sets: {audit_enabled: false}}
+      revise-specification: {effect: revise, reruns: specification}
+      stop-here: stop
+
+  audit:
+    uses: direct:audit
+    needs: [approval]
+
+  review:
+    uses: direct:review
+    needs: [audit]
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [review]

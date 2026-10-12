@@ -77,6 +77,7 @@ judges nothing else — so a newer definition in a mixed fleet is a diagnostic, 
 | `display` | no | Icons, titles, option labels and gate headers for the dashboard and the gate question (§ 3.1) |
 | `nodes` | yes | Node id → node (§ 4) |
 | `html_companions` | no | Node id → the artifact keys whose markdown owes an HTML companion (§ 3.2) |
+| `brief` | no | Node id → the data a node's brief prints beside its prose (§ 3.3) |
 
 `profiles:` is not a definition key: profiles belong to an overlay, and a definition's own are
 refused rather than silently ignored. Nor is there a `title:` key: a workflow's title is its
@@ -138,6 +139,45 @@ the node without one prints `companion-missing:`, and closing the run prints
 `missing-companion:` for each still absent. A definition without the block owes nothing.
 The block is outside the recorded identity: declaring a companion moves no frozen run. It is
 not the prose companion of § 11, which is the definition's own `.md` file.
+
+### 3.3 `brief`
+
+What a node's brief prints beside its prose section — data a step reads, kept out of the prose
+so every workflow states it the same way and an overlay can change one item:
+
+```yaml
+brief:
+  specification:
+    summary_keys: [specification, architecture_decision]
+    absent: {technical_clarifications: "Written only when clarifications were needed."}
+    recommends: {audit_flag: {"yes": continue-to-spec-audit, "no": continue-to-planning}}
+```
+
+Keys are node ids; each entry holds any of these keys:
+
+<!-- vocabulary: BRIEF_KEYS -->
+| Key | Shape |
+|---|---|
+| `summary_keys` | A list of the phase keys the node mirrors its summary under, each lower-case letters, digits, underscores and dashes starting with a letter, none twice. A phase key is never derived from the node id |
+| `absent` | Artifact key → a one-line reason the node may leave that artifact unwritten |
+| `budget` | A whole number from 1 to 10: the recovery attempts the node may make, printed as a rule and not enforced. A node with no recovery budget has no `budget` key |
+| `recommends` | `with:` key → (value → continue option id): which option the gate the node feeds should recommend for each value. Values are read as text, so quote `"yes"`, `"no"`, `"true"`, `"false"` |
+| `questions` | In-node question id → the default it takes when nobody can be asked, one line of at most 120 characters, a short form of the prose's *Without question sets* line |
+
+**Merge.** The base, then each overlay's block, then the selected profile's, node by node and
+key by key: a later key replaces the earlier one, a key set to `null` removes it, and an entry
+set to `null` removes the node's entry. `null` is an overlay's or a profile's removal, and an
+error in a definition. A node an overlay or the profile disables gets no brief data.
+
+**Checks.** A block that is not a mapping, a key that is not a node id, an entry that is not a
+mapping, a key outside the table, and a value of the wrong shape or with a line break are errors,
+each located at its path (`brief.<node>.<key>…`, prefixed `profiles.<name>.` in a profile). A
+node the resolved graph does not carry, an `absent` key the node does not declare, a `recommends`
+key that is not one of its `with:` keys, and a recommended option that is not a continue option
+of a gate the node feeds each warn (§ 14); nothing is printed for that item.
+
+The block is outside the recorded identity: changing a budget or a default moves no frozen run,
+and `resolve` never prints it.
 
 ## 4. Nodes
 
@@ -568,6 +608,7 @@ result is validated as a whole: an overlay that breaks the graph is an error, ne
 | `profiles` | Profile name → an alternative set of operations, applied only when selected |
 | `display` | Icons, titles, option labels and headers, including for added nodes (§ 3.1) |
 | `html_companions` | Companions owed, including by added nodes; a node's list replaces the base's (§ 3.2) |
+| `brief` | Brief data, including for added nodes; merged key by key, `null` removing (§ 3.3) |
 
 **Fold order:** the base, then for each overlay in order its `disable`, its `tune`, its `add`;
 then the selected profile's `disable`, `tune` and `add`. Validation reads the graph that results.
@@ -613,6 +654,7 @@ refused, because the node's dependents no longer wait for it. To change what a n
 | `add` | As above |
 | `display` | As above; the profile's wins |
 | `html_companions` | As above; the profile's wins |
+| `brief` | As above; the profile's wins, key by key |
 
 Every profile is validated whether or not it is selected, and a finding only one profile produces
 is prefixed with its name. Selecting a profile no overlay declares is an error.
@@ -713,6 +755,10 @@ Warnings never block, and each one is worth reading:
 | `skip-guard-not-pure:<node>` | A gate guarded by a value a non-gate node records that is more than a pure confirmation, so it is asked whatever its guard reads (§ 7); guard it on an input or a gate's value, or make it a single continue with no `sets` and no `grants` |
 | `icon-hint-unknown-node:<path>:<node>`, `title-unknown-node:<path>:<node>` | Display for a node the graph does not carry |
 | `html-companion-unknown-node:<path>:<node>`, `html-companion-unknown-artifact:<path>:<node>`, `html-companion-not-markdown:<path>:<node>` | An `html_companions` entry for a node the graph does not carry, a key the node does not declare, or a path that is not `.md`; nothing is owed for it |
+| `brief-unknown-node:<path>:<node>` | A `brief` entry for a node the graph does not carry; a node an overlay or profile disabled counts as removed and does not warn |
+| `brief-unknown-artifact:<path>:<node>` | An `absent` key the node does not declare under `outputs.artifacts` |
+| `brief-unknown-input:<path>:<node>` | A `recommends` key that is not one of the node's `with:` keys |
+| `brief-unknown-option:<path>:<node>` | A recommended option that is not a continue option of a gate the node feeds |
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |
 
