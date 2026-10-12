@@ -207,7 +207,9 @@ export function freezePatch({ definition = SAMPLE, overlays = [], profile = null
       name: graph.name,
       nodes,
     },
-    orchestrator: { ...orchestrator, ...(inputs ? { options: { inputs } } : {}) },
+    // The inputs join any options the caller sent, so a run frozen with both
+    // keeps its `html_output` beside them.
+    orchestrator: { ...orchestrator, ...(inputs ? { options: { ...orchestrator.options, inputs } } : {}) },
   };
   return { patch, graph };
 }
@@ -252,4 +254,15 @@ export function maskRoot(text, root, mark = '<root>') {
 export function lastLine(text) {
   const lines = text.split('\n').filter(line => line !== '');
   return lines[lines.length - 1];
+}
+
+/**
+ * A brief's stdout without its `rules:` pointer: the verbs that print one end
+ * on a blank line and `rules: <file> § <heading>`, appended after the
+ * renderer returns, so a check on the brief itself — its bytes or its budget —
+ * reads what the renderer wrote. A stdout without the pointer is returned as is.
+ */
+export function briefOf(stdout) {
+  const match = stdout.match(/\n\nrules: [^\n]*\n$/);
+  return match ? stdout.slice(0, match.index + 1) : stdout;
 }

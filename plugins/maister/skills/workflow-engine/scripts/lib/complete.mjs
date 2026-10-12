@@ -106,7 +106,16 @@
  * completed without it on purpose and said why, and a line for it would be a
  * false alarm the operator learns to ignore, taking the real ones with it.
  *
- * It is a warning, never a refusal, and the exit code does not move. Whether a
+ * After every such line, one `missing-companion: <node> <path>` line for each
+ * HTML companion a completed node owes and did not write — the definition's
+ * `html_companions:` block says which, and only with the run's `html_output`
+ * on. The markdown is there and its page is not; a node whose markdown is
+ * missing has already been named above, a `dir:` node is skipped, a child
+ * joins through its `task_path`, and a sanctioned absence owes nothing. The
+ * state writer names the same file the moment the node completes; this is the
+ * last place it can still be seen.
+ *
+ * Both kinds are warnings, never refusals, and the exit code does not move. Whether a
  * missing artifact is a defect is the node's own call, made before it recorded
  * `completed`: its prose may sanction the absence, and a node that forgot to
  * record the sanction is still right, so a refusal would stop runs that no
@@ -132,7 +141,7 @@ import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
 import { gateAnswer } from './items.mjs';
 import { HELD_APPROVAL, isOpenHeld, outstandingHeld } from './question-triage.mjs';
-import { projectRootOf } from './state.mjs';
+import { companionsOfRun, htmlOutput, missingCompanions, projectRootOf } from './state.mjs';
 import { isPlainObject, parse } from './state-read.mjs';
 
 /** The closing markers, spelled here once. */
@@ -180,7 +189,9 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
     }
 
     const nodes = nodesOf(doc);
-    const reconciled = reconcile(nodes, close.graph, runDir, absencesOf(doc));
+    // Only with the HTML output on: a run that turned it off owes no page.
+    const companions = htmlOutput(doc) ? companionsOfRun(doc, runDir) : null;
+    const reconciled = reconcile(nodes, close.graph, runDir, absencesOf(doc), companions);
     if (status === 'failed') {
       const reason = failureOf(nodes);
       return {
@@ -308,11 +319,18 @@ function nodesOf(doc) {
 /**
  * `{missing, warnings}`: one `missing-artifact: <node> <path>` line per artifact
  * a completed node declared that is not on disk and whose summary does not
- * sanction its absence, in graph order, or — when the
- * run's graph cannot be shown to be the frozen one — no lines and one warning
- * saying nothing was checked. A run with no frozen nodes has nothing to check.
+ * sanction its absence, in graph order; then one `missing-companion: <node>
+ * <path>` line per HTML companion a completed node owes (`companions`, null
+ * when the HTML output is off or nothing can be said) whose markdown is on
+ * disk and whose page is not, by the write-state check's own rule
+ * (`missingCompanions`). Or — when the run's graph cannot be shown to be the
+ * frozen one — no lines and one warning saying nothing was checked. A run with
+ * no frozen nodes has nothing to check.
+ *
+ * Every artifact line comes before every companion line: a missing report is
+ * the larger gap, and its page cannot be written until it exists.
  */
-function reconcile(nodes, graph, runDir, absences) {
+function reconcile(nodes, graph, runDir, absences, companions = null) {
   if (!nodes.length) return { missing: [], warnings: [] };
   if (graph === null) {
     return {
@@ -345,6 +363,11 @@ function reconcile(nodes, graph, runDir, absences) {
       const shown = child ? path.posix.join(taskPath, declared) : declared;
       if (!fs.existsSync(path.resolve(child ? root : runDir, shown))) missing.push(missingLine(id, shown));
     }
+  }
+  const completed = nodes.filter(([id, entry]) => entry.status === 'completed' && byId.has(id)).map(([id]) => id);
+  const recorded = Object.fromEntries(nodes);
+  for (const { node, path: file } of missingCompanions({ companions, nodes: recorded, ids: completed, runDir, absences })) {
+    missing.push(`missing-companion: ${node} ${file}`);
   }
   return { missing, warnings: [] };
 }

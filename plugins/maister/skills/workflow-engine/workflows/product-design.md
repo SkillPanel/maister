@@ -141,11 +141,10 @@ the node that actually runs, with the skipped ones listed (engine § Gates).
 
 ## Run-scoped context
 
-The four fields every delegate receives outside `with:` — `task_path`,
-`html_style_guide_path`, the project's documentation paths and the prior-phase
-passage fetched with `prior-context` — and the `${…}` substitution that fills
-`with:` are the engine's, stated once in engine § *Run-scoped context* and
-§ *Interpolating `${…}`*. What this workflow adds:
+Every delegate prompt opens with the `run-context --node=<this node>` output,
+pasted unedited (artifact writers: `prior-context --node=<this node>`, which
+prints that block first): the task path, the HTML style guide, the documentation
+paths, the scratch rule and the companions the node owes. What this workflow adds:
 
 - **`task_path`** sits under the type directory `product-design/`.
 - **The documentation paths** are discovered by `intake` and recorded as
@@ -154,18 +153,14 @@ passage fetched with `prior-context` — and the `${…}` substitution that fill
   alternatives, the decision record and the prototypes are read from disk, and
   only when the state records their node `completed`. A node that reads one says
   so in its own section.
-- **Four artifacts get an HTML companion** when `html_output` is on. The
-  brainstormer writes its own for `analysis/alternatives.md`, because it is
-  handed the style guide path. The other three are written inline by a
-  `direct:` node, so each gets its companion from the
-  `maister:html-companion-writer` agent, invoked through the Task tool once the
-  markdown is final: `analysis/design-decisions.md`,
-  `analysis/feature-spec.md` and `outputs/product-brief.md`. Pass the
-  markdown path, the style guide path, a label for the artifact and the sibling
-  reports that exist, for the breadcrumb. Register the returned path under
-  `artifacts[].html` on the summary entry that owns the artifact. A companion
-  that fails never blocks the run: keep the markdown and say so in the summary.
-  When `html_output` is false, invoke none and pass no style guide path.
+- **A `direct:` node that owes a companion** — the run context lists it under
+  `companions:` — writes its markdown inline, so once the markdown is final it
+  hands it to the `maister:html-companion-writer` agent through the Task tool,
+  before this node's completion write: the markdown path, a label for the
+  artifact and the sibling reports that exist, for the breadcrumb, plus the
+  `run-context` output. With `html: off` there is nothing to hand over. A
+  companion that fails never blocks the run: keep the markdown, say so in the
+  summary, and leave the miss for `run-complete` to report.
 - **Every artifact a node writes inline opens with the artifact summary
   contract** (framework § 7): TL;DR, Key Decisions and Open Questions / Risks.
   The one exception is `outputs/delivery-scope.yml`, a file a machine reads,
@@ -775,8 +770,9 @@ through the Task tool, **deliberately non-interactive**: alternatives generated 
 anchored on the first idea anybody in it had.
 
 The `maister:solution-brainstormer` agent generates the alternatives rather than
-an inline list. Everything node-scoped it needs is in `with:`; the run-scoped
-four supply the rest, including the style guide path for its HTML companion.
+an inline list. Everything node-scoped it needs is in `with:`; the
+`prior-context --node=idea-generation` output supplies the rest, including the
+`html:` line its HTML companion follows.
 Also hand it:
 
 - the design characteristics from state;
@@ -899,7 +895,8 @@ line, then walk the alternatives one decision area at a time.
 4. **Write `analysis/design-decisions.md`**: the chosen approach and its
    rationale, the key decision per area, the trade-offs accepted, and the
    alternatives considered in brief, pointing at `analysis/alternatives.md` for
-   the detail. Then its HTML companion (*Run-scoped context*).
+   the detail. Then hand it to `maister:html-companion-writer` before this
+   node's completion write (*Run-scoped context*).
 
 > **SELF-CHECK before each question**: does the question itself name THIS area,
 > why it matters and every alternative, and does each option's description carry
@@ -1125,8 +1122,9 @@ is appended as drafted, marked as added by the depth check.
 > approved. Approval confirms direction; the verification is what makes the
 > specification implementation-ready.
 
-Then present a short summary of the specification, and write its HTML companion
-(*Run-scoped context*).
+Then present a short summary of the specification, and hand
+`analysis/feature-spec.md` to `maister:html-companion-writer` before this node's
+completion write (*Run-scoped context*).
 
 **Gate brief content.** Into this node's closing summary: a `headline` saying
 what the feature does and how many sections specify it, in one sentence. In
@@ -1311,8 +1309,9 @@ run's own close is `completion`'s.
    every section no operator confirmed in session.
 5. **Shut the mockup companion down** if `visual-prototyping` started one, by
    posting to the server's shutdown route.
-6. **Write the brief's HTML companion** (*Run-scoped context*) after approval,
-   so it shows the approved brief — never once per revision round.
+6. **Hand the brief to `maister:html-companion-writer`** (*Run-scoped
+   context*) after approval and before this node's completion write, so the
+   companion shows the approved brief — never once per revision round.
 There is no gate after this node. `completion` follows unless the run is
 embedded, and nothing follows when it is.
 
@@ -1348,8 +1347,8 @@ development run per member in scope, in its `depends_on` order.
 terminal run a person reads it: write the closing patch and call `run-complete`
 first, then end with one wrap-up message that fits one screen and is the last
 thing the run prints — the engine's six sections (Done: what was designed, in a
-sentence; Needs you, with each artifact the verb reported missing named in plain
-words; Follow-ups; Next; Files: the brief's path and the scope's; Dashboard), and
+sentence; Needs you, with each `missing-artifact:` and `missing-companion:`
+line the verb printed named in plain words; Follow-ups; Next; Files: the brief's path and the scope's; Dashboard), and
 nothing after the Dashboard line. **Next** carries this next step exactly,
 inventing no other command:
 

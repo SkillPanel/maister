@@ -222,11 +222,11 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Issues requiring attention
    - Recommendations
    - Verification checklist
-4. **Write HTML companion** to `verification/implementation-verification.html` — *skip this step entirely when `orchestrator.options.html_output` is false in `orchestrator-state.yml` (markdown-only mode; leave `html_path: null`)*. As a **skill**, this receives no `html_style_guide_path` parameter: it resolves the guide itself and gates on state (`orchestrator-patterns.md` § 9):
+4. **Write HTML companion** to `verification/implementation-verification.html` — *skip this step entirely when `orchestrator.options.html_output` is false in `orchestrator-state.yml` (markdown-only mode; return `companion: disabled`, leave `html_path: null`)*. As a **skill**, this receives no run context `html:` line: it resolves the guide itself and gates on the run's `html_output` in state:
    - Follow the shared style guide at `../orchestrator-framework/references/html-report-style.md` (relative to this SKILL.md): self-contained single file, standard CSS block, no external resources
    - Lead with the verdict banner (✅ Passed / ⚠️ Passed with Issues / ❌ Failed) and issue counts; then findings table sorted critical→info with severity badges, per-check section status, fixes-applied list. Link to the md twin in the header
    - Same content as the md — restructure and visualize, never add findings
-   - Never block on it: if generation fails, keep the md, note the miss, continue
+   - Never block on it: if generation fails, keep the md, return `companion: failed`, note the miss, continue
 5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 5 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
 6. **Record this cycle** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status` set to this cycle's verdict, `reviews.done` set to the reviews that returned (their short names, as Step 3b recorded them), and `issues_found` set to the report's issues, in the issue shape of `../orchestrator-framework/references/orchestrator-patterns.md` § 4. Keep each issue's original severity, and set `fixed: true` on the ones fixed since. Registering the report and its companion as artifacts is not part of this write: the caller's closing `node_summaries` write carries it. This is the state counterpart of the **Re-verification rule** above. The canonical report and the recorded verdict change together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
 7. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
@@ -284,7 +284,8 @@ When invoked by an orchestrator, return structured result alongside the report:
 ```yaml
 status: "passed" | "passed_with_issues" | "failed"
 report_path: "verification/implementation-verification.md"
-html_path: "verification/implementation-verification.html"  # null if companion generation failed
+companion: "written" | "disabled" | "failed"   # disabled when html_output is false in state
+html_path: "verification/implementation-verification.html"  # null unless companion is written
 
 issues:
   - source: "completeness" | "test_suite" | "code_review" | "pragmatic" | "production" | "reality" | "artifacts"

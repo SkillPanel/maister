@@ -131,18 +131,13 @@ no usual one, the label names none.
 
 ## Run-scoped context
 
-The four fields every delegate receives outside `with:` — `task_path`,
-`html_style_guide_path`, the project's documentation paths and the prior-phase
-passage fetched with `prior-context` — and the `${…}` substitution that fills
-`with:` are the engine's, stated once in engine § *Run-scoped context* and
-§ *Interpolating `${…}`*. What this workflow adds:
+Every delegate prompt opens with the `run-context --node=<this node>` output,
+pasted unedited (artifact writers: `prior-context --node=<this node>`, which
+prints that block first): the task path, the HTML style guide, the documentation
+paths, the scratch rule and the companions the node owes. What this workflow adds:
 
 - **The documentation paths** are discovered by `intake` and recorded as
   `project_context.project_doc_paths`; every later node reads them from state.
-- **Five artifacts get an HTML companion** when `html_output` is on: the
-  specification, the implementation plan, the verification report, the
-  browser-verification report and the visual-fidelity report. Each companion
-  path is registered under `artifacts[].html` on the summary entry that owns it.
 
 ---
 
@@ -828,12 +823,12 @@ whatever the task's size, because it searches for reusable code and checks
 requirement coverage before the audit and the planner read the result.
 
 Invoke the specification creator through the Task tool. Everything node-scoped
-it needs is in `with:`; the run-scoped five supply the rest, including the style
-guide path that produces the specification's HTML companion. When an
-architecture was ingested, hand it the architecture context with the rule above:
-what it names is a constraint the specification states and builds within, and a
-conflict the creator finds is listed in the specification as an open risk
-rather than resolved.
+it needs is in `with:`; the `prior-context --node=specification` output supplies
+the rest, including the `html:` line that produces the specification's HTML
+companion. When an architecture was ingested, hand it the architecture context
+with the rule above: what it names is a constraint the specification states and
+builds within, and a conflict the creator finds is listed in the specification
+as an open risk rather than resolved.
 
 If the agent returns without `implementation/spec.md`, or with one that leaves a
 requirement gathered in Part B uncovered — a story in `analysis/requirements.md`
@@ -1474,8 +1469,9 @@ application and collects evidence; it is a verification pass, so no browser
 test files are written here.
 
 Pass the specification, the verification report and, when design context exists,
-the mockup directory — with it the agent additionally performs a structural
-visual-fidelity comparison and writes `verification/visual-fidelity.md`. That
+the mockup directory, plus the `run-context` output. With the mockup directory
+the agent additionally performs a structural visual-fidelity comparison and
+writes `verification/visual-fidelity.md`. That
 report is informational: it never decides whether this node succeeded. Decide
 whether design context exists on disk: the mockup reference resolves to its
 declared path even when the mockup stretch was skipped. When it does not exist,
@@ -1487,6 +1483,16 @@ outcome*).
 after the other, which the linear chain already guarantees — but never dispatch
 the two delegate calls in one message even when both stretches are enabled.
 Concurrent dispatch corrupts both sessions.
+
+**Read the verifier's structured result, never its prose.** `verdict` is the
+verdict the summary reports; `status: failed`, with `verdict: null`, means the
+verification could not run, which is a finding (the recovery budget below). Then
+its `companion`: `written` and `disabled` need nothing. On `not-requested` the
+run context was missing from the prompt: invoke the agent again with it. On
+`failed`, run `maister:html-companion-writer` once for each report whose `.html`
+is missing, with the `run-context --node=e2e-verification` output; a second miss
+is left for `run-complete` to report. `disabled` while the run context's `html:`
+was a path is a defect: name it in this node's `risks`.
 
 **Gate brief content.** Write into this node's closing `node_summaries` entry a
 `headline` giving, in one sentence, the verdict and the scenario counts ("Browser
@@ -1598,9 +1604,11 @@ workflow as a sub-run, so there is no embedded case to guard against.
    audit, the browser reports and the user guide when the stretches that produce
    them ran. Say plainly which stretches were skipped and why — a reader of the
    summary should not have to infer a skip from a missing file. Take the
-   inventory from disk and not from state: compare every artifact the run
-   declared against what is actually there, and name every declared path that
-   is absent (`orchestrator-patterns.md` § 10).
+   inventory from disk and not from state: `run-complete` checks every declared
+   artifact and every declared HTML companion, printing a `missing-artifact:` or
+   `missing-companion:` line for each one absent, and those lines are relayed
+   below; check by hand only a path a summary lists beyond the declarations
+   (`orchestrator-patterns.md` § 10).
 2. **Present the executive summary**: what was built, which task groups landed,
    the verification verdict with any issues left open, and the risk level the
    gap analysis recorded.
@@ -1633,17 +1641,17 @@ terminal run a person reads it: write the closing patch and call `run-complete`
 first, then end with one wrap-up message that fits one screen and is the last
 thing the run prints. Its sections are the engine's six — Done, Needs you,
 Follow-ups, Next, Files, Dashboard — and nothing follows the Dashboard line.
-**Next** holds every one of step 4's next steps, a line each: commit first,
-with the message file's path, then the rest of this workflow's own four, then
-the fresh-session suggestion, none dropped or merged. Each artifact the verb
-reported missing is named in plain words under **Needs you**. A choice is credited
-to whoever made it ("the spec keeps version 1.0.0", not "as you chose"), and
-nothing about how the run was carried out appears unless it changed the result.
-The verb's own lines are never shown. Under a `cockpit` or `dispatch`
-driver tooling reads it, and the order is reversed: the executive summary and
-every next step are printed as ordinary text **before** the `run-complete` call;
-after it, print nothing but the lines the verb printed, copied exactly, its
-marker last. Never type a marker the verb did not print.
+**Next** holds every one of step 4's next steps, a line each: commit first, with
+the message file's path, then the rest of this workflow's own four, then the
+fresh-session suggestion, none dropped or merged. Each `missing-artifact:` and
+`missing-companion:` line the verb printed is named in plain words under **Needs
+you**. A choice is credited to whoever made it ("the spec keeps version 1.0.0",
+not "as you chose"), and nothing about how the run was carried out appears
+unless it changed the result. The verb's own lines are never shown. Under a
+`cockpit` or `dispatch` driver tooling reads it, and the order is reversed: the
+executive summary and every next step are printed as ordinary text **before**
+the `run-complete` call; after it, print nothing but the lines the verb printed,
+copied exactly, its marker last. Never type a marker the verb did not print.
 
 **No close-out while a choice is held.** When the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its

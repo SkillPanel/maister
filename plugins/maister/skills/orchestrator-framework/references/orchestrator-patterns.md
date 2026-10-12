@@ -142,27 +142,20 @@ fetched, not composed**:
 ```
 prompt: |
   [Task instructions]
-  Task path: [path]
 
-  [the stdout of `prior-context --state <task path>/orchestrator-state.yml`,
-   pasted in unedited — it opens with its own heading]
-
-  ## RESEARCH CONTEXT (if research_reference exists)
-  Research question: [research_reference.research_question]
-  Summary: [phase_summaries.research.summary]
+  [the stdout of `run-context --state <task path>/orchestrator-state.yml --node <this node>`
+   — or, for a delegate that writes an artifact, of
+   `prior-context --state <task path>/orchestrator-state.yml --node <this node>`,
+   which prints the same block followed by the prior-phase passage —
+   pasted in unedited; it opens with its own heading]
 
   ## ARTIFACTS TO READ
   [List relevant files for full details]
-
-  ## ARTIFACT SUMMARY CONTRACT
-  Open every markdown artifact you write with the summary block from
-  orchestrator-patterns.md § 7 (TL;DR / Key Decisions / Open Questions / Risks).
-  The writer heading is `## Open Questions / Risks`.
 ```
 
-**Why**: Subagents run in isolated context. Without summaries, they must re-parse entire files and miss prior decisions.
+**Why**: Subagents run in isolated context. The run-context block carries what every delegate needs — `task_path:`, the `html:` line (§ 9), the project's `docs:`, the `scratch:` rule, the summary contract of § 7 and the `companions:` the node owes — so none of it is typed by hand and none of it is forgotten.
 
-**The prior-phase passage is fetched, not composed.** Four attended runs measured the same thing: the rule holds where the lift is mechanical and happens once, and fails where a phase writes the passage afresh from an artifact it has already read — thirteen items arrived as seven clauses on one line, and nothing in the prompt recorded that they had ever been thirteen. So the composing step is gone, and a hand-written `## CONTEXT FROM PRIOR PHASES` block is the superseded shape. The workflow engine's read-only `prior-context` verb takes the run's state file and prints the whole passage — every phase, its decisions and its risks, one bullet each with the count beside the heading, so a truncation shows up as a number that disagrees with its own bullets. It finds the run's context block itself, and renders `node_summaries` for a run that has none, so every workflow is served by the same call (`workflow-engine/SKILL.md` § *Executing a node* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — paste its stdout in, and leave it alone: trimming it, re-ordering it or tightening it is the same defect by hand. Re-using a rendering produced for an earlier delegate is not licensed however recent it looks: a summary written in between makes it stale, the prompt records nothing about when it was taken, and a prompt that happens to be current is current by timing rather than by construction. The verb reads the run and writes nothing, so the extra call costs nothing.
+**The prior-phase passage is fetched, not composed.** Four attended runs measured the same thing: the rule holds where the lift is mechanical and happens once, and fails where a phase writes the passage afresh from an artifact it has already read — thirteen items arrived as seven clauses on one line, and nothing in the prompt recorded that they had ever been thirteen. So the composing step is gone, and a hand-written `## CONTEXT FROM PRIOR PHASES` block is the superseded shape. The workflow engine's read-only `prior-context` verb takes the run's state file and prints the whole passage — every phase, its decisions and its risks, one bullet each with the count beside the heading, so a truncation shows up as a number that disagrees with its own bullets. It finds the run's context block itself, and renders `node_summaries` for a run that has none, so every workflow is served by the same call (`workflow-engine/SKILL.md` § *Delegation by scheme* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — paste its stdout in, and leave it alone: trimming it, re-ordering it or tightening it is the same defect by hand. Re-using a rendering produced for an earlier delegate is not licensed however recent it looks: a summary written in between makes it stale, the prompt records nothing about when it was taken, and a prompt that happens to be current is current by timing rather than by construction. The verb reads the run and writes nothing, so the extra call costs nothing.
 
 ### Context Extraction
 
@@ -607,50 +600,50 @@ The viewer decides presentation (hero artifacts per workflow type — none for a
 
 > **Config gate**: `options.html_output` false disables this section — see § 4 Project Configuration. Not gated: product-design's `visual-prototyping` mockups are design deliverables, not report companions.
 
-Selected high-value artifacts get a rich HTML companion written by the **same subagent** that writes the markdown, at the same time (one context read, md and HTML never drift):
+A companion is a rich HTML page beside a markdown artifact, for people to read. The markdown stays the source of truth — subagents read md, humans read HTML — and the companion adds visual structure (severity badges, matrices, embedded screenshots), never unique content.
 
-| Artifact (md) | Companion (html) | Written by |
-|---------------|------------------|------------|
-| `implementation/spec.md` | `implementation/spec.html` | specification-creator |
-| `implementation/implementation-plan.md` | `implementation/implementation-plan.html` | implementation-planner |
-| `verification/implementation-verification.md` | `verification/implementation-verification.html` | implementation-verifier |
-| `verification/e2e-verification-report.md` | `verification/e2e-verification-report.html` | e2e-test-verifier |
-| `verification/visual-fidelity.md` | `verification/visual-fidelity.html` | e2e-test-verifier |
-| `outputs/research-report.md` | `outputs/research-report.html` | research-synthesizer |
-| `outputs/solution-exploration.md` | `outputs/solution-exploration.html` | solution-brainstormer |
-| `outputs/high-level-design.md` | `outputs/high-level-design.html` | solution-designer |
-| `outputs/decision-log.md` | `outputs/decision-log.html` | solution-designer |
-| `analysis/alternatives.md` | `analysis/alternatives.html` | solution-brainstormer |
-| `analysis/design-decisions.md` | `analysis/design-decisions.html` | html-companion-writer |
-| `analysis/feature-spec.md` | `analysis/feature-spec.html` | html-companion-writer |
-| `outputs/product-brief.md` | `outputs/product-brief.html` | html-companion-writer |
+**Declared, not listed here.** Which artifacts owe one is part of the workflow definition: a top-level `html_companions` block maps a node id to the artifact keys of that node whose `.md` owes a sibling `.html` (`workflow-engine/references/grammar.md` § 3.2). An overlay or a profile may add, replace or clear a node's list. A definition without the block owes nothing.
 
-**Rules**:
-- The markdown remains the source of truth for subagent context passing — subagents read md, humans read HTML. The companion adds visual structure (severity badges, matrices, embedded screenshots), never unique content.
-- Companions follow the shared style guide: `html-report-style.md`, the file beside this one. Self-contained single file, no external resources, relative links/images only.
-- Orchestrators pass `html_style_guide_path` (the absolute path of that style guide — it sits next to the patterns file read at initialization) to every companion-writing **agent**, and omit it when `options.html_output` is false; an agent given no path writes only the `.md`. **Skills** that write companions (`implementation-verifier`) receive no such parameter: they resolve the guide themselves and gate on `orchestrator.options.html_output` in state.
-- Register companions in `phase_summaries.[phase].artifacts[].html` so the dashboard (§ 8) links HTML first with md fallback (`html: null` when companions are disabled).
-- Companion generation must never block the workflow: if it fails, keep the md, log the miss, continue.
+**Who writes it.** The delegate that writes the markdown writes the companion in the same pass, so the two never drift. A `direct:` node that owes one hands its finished md to html-companion-writer before its completion write. Companions follow `html-report-style.md`, the file beside this one: one self-contained file, no external resources, relative links and images only.
+
+**How a delegate learns of it.** The `run-context --node <node>` block pasted into the prompt (§ 3) carries one `html:` line: `html: <absolute path of the style guide>` when the run has HTML output on and the node owes a companion, `html: off` otherwise, and a `companions:` list of the owed paths. A delegate returns `companion: written | disabled | failed | not-requested`:
+- `written` — every owed companion is on disk.
+- `disabled` — the prompt said `html: off`. Returned while `html:` was a path, it is a defect to report.
+- `not-requested` — the prompt had no `html:` line; the delegate wrote the markdown and warned. An absent line is never read as off: re-delegate with the run context.
+- `failed` — the markdown stands, the companion did not; run html-companion-writer once for it.
+
+Skills that write a companion (`implementation-verifier`) take no `html:` line: they resolve the guide themselves and gate on the run's `html_output` in state.
+
+**Registration.** A node's summary registers each companion as `artifacts[].html` beside its `path`, so the dashboard (§ 8) links HTML first with md fallback (`html: null` when companions are disabled). `write-state` fills it from disk when the summary is written.
+
+**Never block.** A companion that fails never fails the node or the workflow: keep the md, name the miss, continue.
+
+**Recovery on `companion-missing:`.** When a node completes without a companion it owes, `write-state` prints `companion-missing: <node> <path>` after its changed paths. Then:
+1. Run html-companion-writer once for that file, pasting `run-context --node <node>` so it gets `html:`.
+2. When the node already has a summary, re-send `{"node_summaries":{"<node>":{}}}` to register the companion. When it has none, the summary's own write — still owed — registers it; never send the empty summary then.
+3. Never re-run the node. A `failed` result is left for `run-complete` to report (§ 10).
 
 ---
 
 ## 10. Finalization: Artifact Reconciliation
 
 State records what each phase produced; only disk records what each phase actually wrote. At
-finalization — the closing phase of every workflow — reconcile the two before declaring the task
-complete.
+finalization — the closing node of every workflow — the two are reconciled before the task is
+declared complete.
 
-**What to compare**: every `artifacts[].path` and every non-null `.html` beside it, in the
-`phase_summaries` of the run's context block (`<name>_context`, § 4) and in `node_summaries`.
-Resolve each against the task root and check it exists.
+**What the engine compares**: `run-complete` checks every declared artifact of a completed node
+and every companion the run's `html_companions` declares against disk. It prints one
+`missing-artifact: <node> <path>` line per absent artifact, then one
+`missing-companion: <node> <path>` line per absent companion. They are warnings: the run still
+closes. A declared artifact a node recorded under its summary's `absent` is not missing.
 
-**What to report**: a **Missing artifacts** block in the workflow summary, one line per absent
-path, naming the phase or node that declared it and the subagent or skill that owed it. When nothing is
-missing, omit the block — silence here means the declaration held. A declared artifact that a node
-recorded under its summary's `absent` is not missing: name it as *not produced*, with the reason
-recorded there, apart from the block.
+**What the closing node does**: relays those lines in a **Missing artifacts** block of the
+workflow summary, in plain words, naming the node that owed each path. It still checks any path a
+summary lists beyond the declarations (`artifacts[].path` and a non-null `.html` beside it). An
+artifact recorded under `absent` is named as *not produced*, with its reason, apart from the
+block. When nothing is missing, omit the block — silence here means the declaration held.
 
-**What not to do**: reconciliation reports, it never repairs. Do not re-run a phase, regenerate a
+**What not to do**: reconciliation reports, it never repairs. Do not re-run a node, regenerate a
 companion or delete the stale entry from state; the entry is the evidence that the artifact was
 promised. Nor does it block completion — a workflow with a missing artifact still finishes, with
 the miss named.

@@ -639,6 +639,15 @@ describe('quiet bookkeeping', () => {
     await result.unmount()
   })
 
+  test('a state write by here-string draws as the same one quiet line', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [{ ...saved(), gone: [] }] })
+    const content = json({ nodes: { intake: { status: 'completed' }, 'codebase-analysis': { status: 'running' } } })
+    const ran = await $.tool.call({ tool: 'Bash', command: `${ENGINE} write-state --state=${RUN}/orchestrator-state.yml <<< '${content}'` })
+    expect(ran.result).toEqual((seen.results[0] as any).result)
+    const drawn = await row($, 'terminal', seen.ids[0])
+    expect(drawn.texts).toEqual(['· maister · saved · intake → done, codebase analysis → running', 'maister'])
+  })
+
   test('a quiet line sits under the row\'s bullet, dim, as a tool result\'s line does', async ($: any, on: any) => {
     const seen = beneath(on, files(), { shells: [saved()] })
     await $.tool.call({ tool: 'Bash', command: WRITE })

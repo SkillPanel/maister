@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  ENGINE, ENGINE_DIR, FIXTURES, freeze, freezePatch, maskRoot, run as runScript, scratch, scratchPlugin, verb, write,
+  ENGINE, ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, maskRoot, run as runScript, scratch, scratchPlugin, verb, write,
 } from '../helpers.mjs';
 import {
   FIXED_LABELS, areaDetails, areaEntry, areaPicker, loadAreas,
@@ -31,6 +31,22 @@ import { HEADER_MAX } from '../../plugins/maister/skills/workflow-engine/scripts
 const AREAS = path.join(FIXTURES, 'decision-areas');
 const REFERENCE = path.join(ENGINE_DIR, 'references/decision-areas.md');
 const fixture = name => path.join(AREAS, name);
+
+/** The pointer every form of the verb carries but a text-form fallback, appended after the renderer returns. */
+const RULES = `${path.join(ENGINE_DIR, 'references/in-node-questions.md')} § Decision areas from the brainstorm`;
+
+/**
+ * A form's stdout without its pointer, which it must carry: the trailing
+ * `rules:` paragraph of the write-up, or the `rules` key `--json` ends on. The
+ * pointer holds an absolute path into the plugin, so the goldens are kept
+ * without it.
+ */
+function withoutRules(stdout) {
+  const key = `,\n  "rules": ${JSON.stringify(RULES)}\n}\n`;
+  if (stdout.endsWith(key)) return `${stdout.slice(0, -key.length)}\n}\n`;
+  assert.ok(stdout.endsWith(`\n\nrules: ${RULES}\n`), `no rules pointer at the end: ${stdout.slice(-200)}`);
+  return briefOf(stdout);
+}
 
 /** The valid fixture's areas, loaded the way the verb loads them. */
 function areas() {
@@ -546,7 +562,7 @@ test('area-brief: a missing, invalid, stale or undeclared file warns once and th
     const before = snapshotOf(run.dir);
     const json = brief(run, ['--area=storage', '--json'], { node });
     assert.equal(json.code, 0, `${warning}: ${json.stderr}`);
-    assert.deepEqual(JSON.parse(json.stdout), { ok: true, fallback: true, errors: [], warnings: [warning] });
+    assert.deepEqual(JSON.parse(json.stdout), { ok: true, fallback: true, errors: [], warnings: [warning], rules: RULES });
     assert.equal(json.stderr, `warning: ${warning}\n`);
     const writeUp = brief(run, ['--area=storage'], { node });
     assert.equal(writeUp.code, 0, warning);
@@ -565,7 +581,7 @@ test('area-brief: a declared file that exists but cannot be read warns unreadabl
   const warning = `decision-areas-unreadable:${run.declared}:EISDIR`;
   const json = brief(run, ['--area=storage', '--json']);
   assert.equal(json.code, 0, json.stderr);
-  assert.deepEqual(JSON.parse(json.stdout), { ok: true, fallback: true, errors: [], warnings: [warning] });
+  assert.deepEqual(JSON.parse(json.stdout), { ok: true, fallback: true, errors: [], warnings: [warning], rules: RULES });
   assert.equal(json.stderr, `warning: ${warning}\n`);
   const writeUp = brief(run, ['--area=storage']);
   assert.equal(writeUp.code, 0, writeUp.stderr);
@@ -616,7 +632,7 @@ test('area-brief: the picker and write-up forms print the goldens, the write-up 
     const result = brief(run, flags);
     assert.equal(result.code, 0, `${name}: ${result.stderr}`);
     assert.equal(result.stderr, '', name);
-    const printed = maskRoot(result.stdout, run.root);
+    const printed = maskRoot(withoutRules(result.stdout), run.root);
     const file = path.join(GOLDEN, name);
     if (process.env.SNAPSHOT_AREAS === '1') {
       fs.mkdirSync(GOLDEN, { recursive: true });
@@ -681,7 +697,7 @@ test('area-brief --patch-file writes every area as a question set and prints the
   const result = setOf(run);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.equal(result.stdout, `${run.patch}\n`, 'the file prints its own path as one line');
+  assert.equal(briefOf(result.stdout), `${run.patch}\n`, 'the file prints its own path as one line');
   const text = maskRoot(fs.readFileSync(run.patch, 'utf8'), run.root);
   const file = path.join(GOLDEN, 'set.json');
   if (process.env.SNAPSHOT_AREAS === '1') fs.writeFileSync(file, text);

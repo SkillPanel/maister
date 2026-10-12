@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, freezePatch, readState, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
+import { FIXTURES, briefOf, freeze, freezePatch, readState, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
 import { checkSet } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-set.mjs';
 import { ACCEPT_OPTION, findingBrief } from '../../plugins/maister/skills/workflow-engine/scripts/lib/finding-brief.mjs';
 import { outstandingHeld } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
@@ -92,7 +92,8 @@ function brief(run, { node = run.node, file = FINDINGS, patch = false } = {}) {
 function printed(result) {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
-  return JSON.parse(result.stdout);
+  // The set is the JSON before the trailing `rules:` pointer.
+  return JSON.parse(briefOf(result.stdout));
 }
 
 /** A fallback: exit 0, nothing on stdout, the one warning on stderr. */
@@ -177,7 +178,7 @@ test('finding-brief --patch-file writes the set there and prints the file', t =>
   const result = brief(run, { patch: true });
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.equal(result.stdout, `${run.patch}\n`);
+  assert.equal(briefOf(result.stdout), `${run.patch}\n`);
   const written = JSON.parse(fs.readFileSync(run.patch, 'utf8'));
   assert.deepEqual(Object.keys(written), ['questions']);
   assert.deepEqual(written, printed(brief(run)));

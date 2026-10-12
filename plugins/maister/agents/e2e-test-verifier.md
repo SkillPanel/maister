@@ -37,7 +37,7 @@ This agent focuses on **evidence-based runtime verification**, not test file gen
 | `spec_path` | Orchestrator | Path to spec.md |
 | `base_url` | Orchestrator | Application base URL for Playwright |
 | `design_context_path` | Orchestrator (optional) | Path to `analysis/design-context/` when mockups are present. Triggers visual-fidelity comparison (Step 7) and writes `verification/visual-fidelity.md`. |
-| `html_style_guide_path` | Orchestrator | Absolute path to `html-report-style.md` (for the HTML companion reports, Step 8) |
+| `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
 **CRITICAL**: Always use `task_path` as the root for ALL file writes. Save report to `{task_path}/verification/e2e-verification-report.md`, screenshots to `{task_path}/verification/screenshots/`, visual fidelity report to `{task_path}/verification/visual-fidelity.md` (when design_context_path provided). NEVER write to project-level directories.
 
@@ -409,17 +409,28 @@ For each screen ID in INDEX.md:
 
 After the markdown reports and screenshots are finalized, write user-facing HTML companions:
 
-- `verification/e2e-verification-report.html` (always)
+- `verification/e2e-verification-report.html` (when its md exists)
 - `verification/visual-fidelity.html` (only when Step 7 produced `visual-fidelity.md`)
 
-**Rules**:
-**Companions are optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this step entirely: write only the markdown reports, note the skip in your summary, and continue. The steps below run only when `html_style_guide_path` is provided.
+Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write the companions above. With `off`, write only the markdown and return `companion: disabled`. With no `html:` line at all, write the markdown, return `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. A companion that fails never fails the markdown: keep the md and return `companion: failed` with the reason in warnings. With two companions, `companion` is `written` only when both are written, `failed` when either failed, and the warnings name which.
 
-1. **Read the style guide** at `html_style_guide_path` (provided in your prompt) and follow it: self-contained single file, standard CSS block, no external resources.
+1. **Follow the style guide**: self-contained single file, standard CSS block, no external resources.
 2. **E2E companion**: lead with the verdict banner and pass/fail counts; then scenario cards with embedded screenshots (`<img class="shot" src="screenshots/...">` — relative paths, same form as the md), step tables with ✅/❌ status, discrepancies sorted by severity with `.sev` badges. Link to the md twin in the header.
 3. **Visual-fidelity companion**: lead with the fidelity verdict; then side-by-side mockup-vs-screenshot pairs per screen (relative `<img>` paths into `../analysis/design-context/mockups/` and `screenshots/`), discrepancy notes per screen.
 4. **Same content as the md** — restructure and visualize, never add findings.
-5. **Never block on it** — if generation fails, keep the md reports, note the miss in your summary, continue.
+
+### 9. Structured Result (returned to orchestrator)
+
+```yaml
+status: "success" | "failed"   # failed = the verification could not run (no Playwright, app unreachable)
+verdict: "GO" | "GO WITH CAVEATS" | "NO-GO" | null   # null only when status is failed
+report_path: "verification/e2e-verification-report.md"
+fidelity_path: "verification/visual-fidelity.md"   # null without design context
+counts: {scenarios: N, passed: N, failed: N}
+companion: "written" | "disabled" | "failed" | "not-requested"
+html_paths: ["verification/e2e-verification-report.html"]   # only the companions written; [] otherwise
+warnings: ["non-blocking observations, including any companion miss"]
+```
 
 ---
 

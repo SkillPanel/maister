@@ -361,7 +361,7 @@ was given no reason for it.
 
 ## The invocation contract
 
-One script, thirteen verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, fifteen verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -377,17 +377,41 @@ is not the literal path a permission rule or hook can match, and the operator is
 to approve it. A root holding a space goes in single quotes.
 
 **The invocation is the whole command.** No `cd` in front of it, no `set -e`, no
-variable assigned first and used in it, no second command after it, no redirection,
-no pipe, no heredoc, no substitution — and never several verbs packed into one shell
-script. Flag values are written bare; a path holding a space goes in single quotes,
-never double quotes or a backslash.
+variable assigned first and used in it, no second command after it, no redirection
+other than the here-string, no heredoc, no substitution — and never several verbs packed
+into one shell script. Flag values are written bare; a path holding a space goes in single
+quotes, never double quotes or a backslash.
 
-**A patch or a request document travels in the patch file.** Write the JSON to
+**A patch or a request document travels as a here-string.** Put the JSON in single quotes
+after `<<<`, at the end of the command, which still starts with the engine path itself:
+
+```
+node <plugin root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=<run>/orchestrator-state.yml <<< '<json>'
+node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-request --state=<run>/orchestrator-state.yml <<< '<json>'
+node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-revise --state=<run>/orchestrator-state.yml --node=<gate> --option=<revise option> <<< '<json>'
+```
+
+Inside single quotes nothing is expanded: `$`, backticks and backslashes reach the verb as
+written. An apostrophe inside the JSON is written `'\''` — close the quote, an escaped
+quote, open it again — so `{"summary":"the operator'\''s note"}`. Never the JSON escape
+`'`: a tool call decodes it into a bare quote before the shell reads the line, and the
+bare quote ends the string early. The typographic `’` may stand for an apostrophe only in a
+prose text value — a summary, a rationale — never in code, a command, a path or a quoted
+identifier, where it changes what the value names. A pipe into the same command — with
+`echo '<json>' |` in front of it — is accepted by the verb too, but the command then no
+longer starts with the engine path, so an allow rule for the script may not match it as
+written.
+Never a heredoc: an agent host's shell-safety check refuses a heredoc whose body is a JSON
+object — braces beside quotes — even one fed through `cat` into a pipe, and allow-listing
+the script does not lift it.
+
+**bash, zsh and Git Bash take the here-string; PowerShell and cmd, which have none, take
+the patch file** — and so may any shell, as the fallback. Write the JSON to
 `.state-patch.json` in the run directory — beside `orchestrator-state.yml` — with the
 file-writing tool (Write, or the host's own file-creating tool), then name it on the call:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs write-state --state=<run>/orchestrator-state.yml --patch-file=<run>/.state-patch.json
+node <plugin root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=<run>/orchestrator-state.yml --patch-file=<run>/.state-patch.json
 ```
 
 That one name, in that one place, is the only file the verbs read a document from:
@@ -395,38 +419,46 @@ any other name or directory, a `..` segment or a link is refused at exit `2`. Wh
 write lands, the verb deletes the file, so the next write creates it afresh. When it is
 refused, the file stays: correct it and run the verb again — it is a file this session
 wrote, so the file tool overwrites it; one left by an earlier session is read first.
-Never send the document through a heredoc, `echo`, a pipe or `< file`: an agent
-host's shell-safety check refuses a JSON heredoc outright — braces beside quotes —
-and allow-listing the script does not lift it, while a file needs no quoting in any
-shell, PowerShell included. And the file is written by the file tool, never by the
-shell. The exceptions are `area-brief --patch-file` and `finding-brief --patch-file`, which
-write a question set there themselves; each is the engine's own write, so no edit rule is
-involved.
+The file is written by the file tool, never by the shell, and needs no quoting in any
+shell. `area-brief --patch-file` and `finding-brief --patch-file` write a question set
+there themselves; each is the engine's own write, so no edit rule is involved.
 
 This is not style: a permission rule or hook can recognise this plugin's own call only
 in this exact form — the command by its text, the patch file by its name inside a run —
 so anything else brings the approval prompt back. The operator's own permission rules
-decide: an allow rule for the script, and an edit rule for `**/.state-patch.json`, spare
-them the prompts.
+decide: an allow rule for the script, and where the patch file is used an edit rule for
+`**/.state-patch.json`, spare them the prompts.
 
 One verb, one call. When a step needs two verbs, that is two calls.
+
+A verb that prints `rules:` names the reference and the section that govern this moment —
+for a refusal, the section holding its recovery — read that section before acting.
 
 | Verb | Flags | Gives |
 |---|---|---|
 | `validate` | `--definition`, repeatable `--overlay`, `--profile` | `{ok, errors[], warnings[], resolved[]}` on stdout — `resolved` says where each target was found. Every profile the overlays declare is judged, selected or not, and a finding only one profile produces is prefixed with its name. A version 1 document is closed: a key the grammar does not define, at any level, is an error that names the accepted keys, and only a reserved key warns instead. An overlay given without `--definition` is judged on its shape, and a base it names by workflow name must exist — a built-in or a project definition. A workflow in the project's `.maister/workflows/` that says nowhere what it is for — no `description:`, no paragraph under its companion's title — warns `workflow-undescribed`, because `/maister:work` cannot match a task to it. A gate guarded by a value a non-gate node records that is more than a pure confirmation warns `skip-guard-not-pure:<gate>`: it is asked whatever its guard reads (grammar § 7) |
 | `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; its header names the overlays (by file name) and the profile applied, and a gate box carries its question and its options as `id: effect` |
-| `locate` | optional `--name` (bare or `builtin:`-prefixed); with it, repeatable `--overlay` and `--profile` — the run's own | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[]}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take (the lookup's own, before any the caller adds), a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `title` is the companion's H1, and `summary` the definition's `description:`, else the paragraph under that H1; `dispatches` names the nodes that carry `dir:` in the graph folded from the definition, every overlay and the profile. Exit `1` when the name is found nowhere, is not a workflow name, finds only an overlay with no built-in beneath it, or finds a file whose `name:` is another. With no name, `{ok, errors[], workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
-| `write-state` | `--state`, `--patch-file` — the patch as JSON in the patch file | the changed paths, one per line; the freeze prints the startup banner and a blank line before them, the model's first message composed from it (Step 4). A write carrying a node's question set adds a blank line and `ask: <id> <id> …`, or `ask: none`, after them: the questions still to ask (*When the policy classes a question*). The answer to the closing checkpoint `held-approval` is written under `node_summaries.held-approval`, and its `status` — alone among ids outside the frozen graph — under `nodes`, as `pending`, `suspended` or `completed` (*The ready set*) |
-| `gate-request` | `--state`, `--patch-file` — the request as JSON in the patch file | the files written, one per line |
-| `gate-revise` | `--state`, `--node` (the gate), `--option` (its revise option), `--patch-file` — `{note, answered_by?, at?, via?}` in the patch file; without `answered_by`, the operator's own name is stamped, and without `via` the run's driver kind under a `cockpit` or `dispatch` driver, `terminal` otherwise | the changed paths, one per line, then a blank line and `revised: <gate> reruns=<node> revision=<n>/10 reset=<ids>`; the stretch from the option's rerun node to the gate reset in one write, with the note on the gate (§ Gates). With `--node=held-approval` and `--option=revise-<node>`, the stretch is that node and every node downstream of it, the closing node included (*Revising at a gate*) |
-| `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines and a stop's notice above it; the refusal on stderr |
-| `prior-context` | `--state`, optional `--background` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt; `--background` frames them as background for a document written for end users, to stay consistent with rather than reproduce — reads the run, writes nothing |
-| `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=rich` — the profile the asking tool takes — `--checkpoint`, `--request` or `--oneline`; or `--node` (a running node) with `--checkpoint` or `--request` and `--patch-file` — the node's question set as JSON in the patch file | Every form reads the run and writes no state: its one write is the run's `display/next.json`, the panel an editor extension draws above the question (§ Gates). With no form, the brief as text: the summary of each node the gate closes, at most three fixes the run applied, three decisions and three risks by their lead sentences, the `Next:` line — one per continue, named by its label and in the options' order, when the gate's continues set its values — and the `Review:` line, within 1,600 characters. `--checkpoint` prints the **checkpoint**, the one structured object every other form projects from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed, fixes, decisions, risks, recommended, options, grants, approves, run, truncated}`. `fixes` lists what the closing nodes fixed without asking, each `{finding, change, node}`, apart from the decisions; `held`, after `fixes` and present only when a choice waits, lists every choice held for approval across the run, each `{node, step, question_id, question, decision, class, floor?, rationale?, no_choice?}` — `step` the title of the step that holds it, `no_choice` on one with no choice taken — and every form shows it first, naming that step, and every continue's consequence and label say it approves them — and that one with no choice stays held for a revise, which the checkpoint recommends when one of its revises re-runs that step; `decisions` is grouped by who settled them (`run`, `audit`, `default`, and `operator` as `{count, actors, not_recommended}` — `actors` the answers counted by actor kind, present only when `count` is above zero, and each `not_recommended` entry carrying its `actor_kind`), `risks` by tag, and each option carries its `consequence` — a continue that sets gate values also `sets` and its own `next`, walked on its answer (the top-level `next` is the recommended continue's), and the recommended continue the `reason` a closing node's `recommends` gave, a revise also `reruns`, `revision` and `suggestions`, a stop also `keeps` and `not_run`; `grants` maps each option that declares grants to their names, `{}` when none does, `approves` lists the classified values the gate's continues set, `[]` when the policy classes none, and both pickers and `--oneline` say them in words. `--json` returns the in-session picker projected from it: `{ok, picker, question, header, options[{id, label, description, recommended, preview}], details, more_details, errors, warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The `rich` profile's question is the one-line ask — the finished work, never the destination — its header the short chip, and every option has a `preview`; the `plain` profile's question is the glance followed by the ask, its header the title of the step the gate closes, and its options are titles that carry their consequence; its text keeps the code of inline code but drops the backticks, which a labels-only tool prints as typed (`more_details` keeps them, written out as markdown). Both profiles end with the More details option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.` (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`, `reruns`, `revision`, `suggestions[{label, description, note, recommended}]` — none of them recommended — and `note_question`, the note question built for the profile: `{header, question, multi_select, options}`, its `options` empty when there are fewer than two suggestions, its question then asking for the note typed. `--request` prints the whole driven gate request as JSON: `{node, kind, question, context: {summary, artifacts, checkpoint}, options, multi_select}`, ending with `triage` when the applied policy classes the gate and its hash is the run's `policy_hash` (§ Gates), each revise suggestion as `{label, note, recommended}`; with `--reask=<revise option>` its question opens with a sentence saying that option needs a note, every option still offered — the request a driven revise that came without its note is asked again with (§ Revising at a gate), never beside `--patch-file`. With a question set (*In-node questions*), `--checkpoint` prints `{version, kind: question, node, header, ask, headline, progress, questions, run, truncated}` and `--request` a `kind: question` request whose question and options repeat the first question's, with every question under `questions` and the checkpoint under `context.checkpoint`; every question a request carries is one line with no `"`, a line break folded to a space and a double quote turned single, the checkpoint keeping the text as written; the file is read and kept, for the request to be written over it. `--oneline` is that request's one-line summary: every risk prefixed by its tag, then every fix under `Fixed by the run:`, then every decision by who settled it, the `Next:` line with every skipped node — one `Next (<option id>):` line per continue, in the options' order, when the gate's continues set its values — one `revise: <id> reruns=<node> revision=<n>/10` section per revise option still offered, `Recommended: <option id>` and `Run: <dir> · Dashboard: <path>`, all within the same budget. `--node=held-approval` briefs the run's closing checkpoint, in every form (*The ready set*). When the asking node recorded `asking` (*When the policy classes a question*), a question set's `--checkpoint` and `--request` carry only those questions |
+| `locate` | optional `--name` (bare or `builtin:`-prefixed); with it, repeatable `--overlay` and `--profile` — the run's own | with a name, where the run-by-name lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[], html_companions}` — `definition` and `overlays` are the `--definition` and `--overlay` values the three verbs above take (the lookup's own, before any the caller adds), a project path written relative to the project root; `inputs` is the definition's declared `inputs:`; `title` is the companion's H1, and `summary` the definition's `description:`, else the paragraph under that H1; `dispatches` names the nodes that carry `dir:` in the graph folded from the definition, every overlay and the profile. `html_companions` is the `html_companions:` block merged from the definition, every overlay and the profile, the nodes an overlay disables left out — `{}` when no layer declares one. Exit `1` when the name is found nowhere, is not a workflow name, finds only an overlay with no built-in beneath it, or finds a file whose `name:` is another. With no name, `{ok, errors[], workflows[]}` — the project's own definitions, each with `name`, `definition`, `title`, `summary`, `chain` and `error`, overlays, built-in names and generated chains left out. Reads only |
+| `write-state` | `--state`; the patch as JSON by here-string, or `--patch-file` naming it in the patch file | the changed paths, one per line; the freeze prints the startup banner and a blank line before them, the model's first message composed from it (Step 4). A write carrying a node's question set adds a blank line and `ask: <id> <id> …`, or `ask: none`, after them: the questions still to ask (*When the policy classes a question*). A write that completes a node whose markdown is on disk while the `.html` companion it owes is not ends with a blank line and one `companion-missing: <node> <path>` line per such companion — exit `0`, recovered as *Run-scoped context* says. The answer to the closing checkpoint `held-approval` is written under `node_summaries.held-approval`, and its `status` — alone among ids outside the frozen graph — under `nodes`, as `pending`, `suspended` or `completed` (*The ready set*) |
+| `gate-request` | `--state`; the request as JSON by here-string, or `--patch-file` naming it in the patch file | the files written, one per line |
+| `gate-revise` | `--state`, `--node` (the gate), `--option` (its revise option); `{note, answered_by?, at?, via?}` by here-string, or `--patch-file` naming it in the patch file; without `answered_by`, the operator's own name is stamped, and without `via` the run's driver kind under a `cockpit` or `dispatch` driver, `terminal` otherwise | the changed paths, one per line, then a blank line and `revised: <gate> reruns=<node> revision=<n>/10 reset=<ids>`; the stretch from the option's rerun node to the gate reset in one write, with the note on the gate (§ Gates). With `--node=held-approval` and `--option=revise-<node>`, the stretch is that node and every node downstream of it, the closing node included (*Revising at a gate*) |
+| `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines, then any `missing-companion:` lines, and a stop's notice above it; the refusal on stderr |
+| `prior-context` | `--state`, optional `--background`, optional `--node` | the prior phases' decisions and risks as markdown on stdout, to paste into a delegate prompt; `--background` frames them as background for a document written for end users, to stay consistent with rather than reproduce; `--node` prints that node's `run-context` block first, then one blank line, then the same passage, and its refusals are `run-context`'s — reads the run, writes nothing |
+| `run-context` | `--state`, `--node` (the node about to delegate) | the run-scoped context a delegate prompt carries, as markdown on stdout to paste unedited: `task_path`, `html:` — the HTML report guide when the run's `html_output` is on and the node owes a companion, else `off` — the project documentation paths and the standards index when the project has one, the scratch-copy rule, the summary contract, and the `.html` companions the node owes in declaration order; when the definition the run froze cannot be re-read, `companions: unknown` and one `warning: run-context-definition-unread` line, exit `0` — reads the run, writes nothing |
+| `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=rich` — the profile the asking tool takes — `--checkpoint`, `--request` or `--oneline`; or `--node` (a running node) with `--checkpoint` or `--request` and `--patch-file` — the node's question set as JSON in the patch file | Every form reads the run and writes no state: its one write is the run's `display/next.json`, the panel an editor extension draws above the question (§ Gates). With no form, the brief as text: the summary of each node the gate closes, at most three fixes the run applied, three decisions and three risks by their lead sentences, the `Next:` line — one per continue, named by its label and in the options' order, when the gate's continues set its values — and the `Review:` line, within 1,600 characters — the trailing `rules:` line the verb adds sits outside that budget. `--checkpoint` prints the **checkpoint**, the one structured object every other form projects from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed, fixes, decisions, risks, recommended, options, grants, approves, run, truncated}`. `fixes` lists what the closing nodes fixed without asking, each `{finding, change, node}`, apart from the decisions; `held`, after `fixes` and present only when a choice waits, lists every choice held for approval across the run, each `{node, step, question_id, question, decision, class, floor?, rationale?, no_choice?}` — `step` the title of the step that holds it, `no_choice` on one with no choice taken — and every form shows it first, naming that step, and every continue's consequence and label say it approves them — and that one with no choice stays held for a revise, which the checkpoint recommends when one of its revises re-runs that step; `decisions` is grouped by who settled them (`run`, `audit`, `default`, and `operator` as `{count, actors, not_recommended}` — `actors` the answers counted by actor kind, present only when `count` is above zero, and each `not_recommended` entry carrying its `actor_kind`), `risks` by tag, and each option carries its `consequence` — a continue that sets gate values also `sets` and its own `next`, walked on its answer (the top-level `next` is the recommended continue's), and the recommended continue the `reason` a closing node's `recommends` gave, a revise also `reruns`, `revision` and `suggestions`, a stop also `keeps` and `not_run`; `grants` maps each option that declares grants to their names, `{}` when none does, `approves` lists the classified values the gate's continues set, `[]` when the policy classes none, and both pickers and `--oneline` say them in words. `--json` returns the in-session picker projected from it: `{ok, picker, question, header, options[{id, label, description, recommended, preview}], details, more_details, errors, warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The `rich` profile's question is the one-line ask — the finished work, never the destination — its header the short chip, and every option has a `preview`; the `plain` profile's question is the glance followed by the ask, its header the title of the step the gate closes, and its options are titles that carry their consequence; its text keeps the code of inline code but drops the backticks, which a labels-only tool prints as typed (`more_details` keeps them, written out as markdown). Both profiles end with the More details option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.` (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`, `reruns`, `revision`, `suggestions[{label, description, note, recommended}]` — none of them recommended — and `note_question`, the note question built for the profile: `{header, question, multi_select, options}`, its `options` empty when there are fewer than two suggestions, its question then asking for the note typed. `--request` prints the whole driven gate request as JSON: `{node, kind, question, context: {summary, artifacts, checkpoint}, options, multi_select}`, ending with `triage` when the applied policy classes the gate and its hash is the run's `policy_hash` (§ Gates), each revise suggestion as `{label, note, recommended}`; with `--reask=<revise option>` its question opens with a sentence saying that option needs a note, every option still offered — the request a driven revise that came without its note is asked again with (§ Revising at a gate), never beside `--patch-file`. With a question set (*In-node questions*), `--checkpoint` prints `{version, kind: question, node, header, ask, headline, progress, questions, run, truncated}` and `--request` a `kind: question` request whose question and options repeat the first question's, with every question under `questions` and the checkpoint under `context.checkpoint`; every question a request carries is one line with no `"`, a line break folded to a space and a double quote turned single, the checkpoint keeping the text as written; the file is read and kept, for the request to be written over it. `--oneline` is that request's one-line summary: every risk prefixed by its tag, then every fix under `Fixed by the run:`, then every decision by who settled it, the `Next:` line with every skipped node — one `Next (<option id>):` line per continue, in the options' order, when the gate's continues set its values — one `revise: <id> reruns=<node> revision=<n>/10` section per revise option still offered, `Recommended: <option id>` and `Run: <dir> · Dashboard: <path>`, all within the same budget. `--node=held-approval` briefs the run's closing checkpoint, in every form (*The ready set*). When the asking node recorded `asking` (*When the policy classes a question*), a question set's `--checkpoint` and `--request` carry only those questions |
 | `area-brief` | `--state`, `--node` (the convergence node that is asking), and one form: `--area=<id>` with `--json` and `--picker=rich` — the profile the asking tool takes, `rich` by default — or `--area=<id>` alone, or `--patch-file=<run>/.state-patch.json` with `--area` repeated or omitted | One decision area of the brainstorm, rendered from the file its brainstorm wrote (*Decision areas from the brainstorm*). `--json` prints the picker in the field shape of `gate-brief --json` — `{ok, picker, question, header, options, details, more_details, question_id, errors, warnings}`, the answer recorded under `question_id`, `convergence-decisions-<area id>`; `--area` alone prints the area's full write-up as markdown, the text More details shows; `--patch-file` writes every area, or the named ones, as a driven question set to the patch file and prints its path. A file it cannot use is one `warning: decision-areas-…` line on stderr, exit `0` and nothing to paste — `{ok: true, fallback: true}` under `--json` — and the node composes the area itself. Reads the run; writes no state and no `display/next.json` |
 | `finding-brief` | `--state`, `--node` (the reviewing node that is asking), `--findings-file=<file in the run>`, and optionally `--patch-file=<run>/.state-patch.json` | The node's findings that need a decision as one question set, `{questions}`, one question per finding (*Findings that need a decision*): printed as JSON, or with `--patch-file` written to the patch file and its path printed. The node's prose must declare `<node>-findings`. A file it cannot use is one `warning: finding-list-…` line on stderr, exit `0` and nothing to paste, and the node composes the questions itself. Never classes; reads the run and writes no state |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume — a 2.x one among them — with an operator `message` (§ Resume) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
+
+`run-context`, and `prior-context` with `--node`, refuse with exit `1`, an empty stdout and the code first on stderr; nothing was written:
+
+| Refusal | Response |
+|---|---|
+| `run-context-state-unreadable` | `--state` cannot be read or parsed as a state document, and nothing was read further. Point `--state` at the run's `orchestrator-state.yml` — the run directory this node belongs to — and run the verb again. |
+| `run-context-not-a-run` | The file carries no `workflow:` block: the engine never froze it, so it has no nodes and no run context. Run the verb on the state of a frozen run — freeze it first through `write-state` (Step 4) — and never write the block by hand. |
+| `run-context-unknown-node` | `--node` is not a node of the run's frozen graph, or names `held-approval`, which delegates nothing. Name the node about to delegate, exactly as `workflow.nodes` spells it, and run the verb again; no state write fixes this. |
 
 `gate-request` suspends a run at one gate, whole: it writes `gates/<node>.request.yml`, a
 regenerated `gates/index.yml`, **and** the pending marker — `orchestrator.gate_pending` plus
@@ -483,8 +515,9 @@ changes nothing, and one that differs in a node or in any scalar beside `workflo
 `graph_hash` among them — is refused with `state-workflow-frozen`. Nothing is carried
 forward into the block and nothing is dropped from it.
 
-The patch arrives in a file so no quoting has to survive a shell — Windows without a POSIX
-shell is a supported target. A newer version — a whole number above 1 — degrades **the same
+The patch arrives on standard input or in the patch file, never in an argument, so no
+quoting beyond the here-string's single quotes has to survive a shell — and Windows without
+a POSIX shell, a supported target, takes the file. A newer version — a whole number above 1 — degrades **the same
 way in every verb** — `validate`, `resolve` and `diagram` alike short-circuit on it, render
 what they recognise, warn, and still exit `0` — so a newer definition in a mixed fleet is a
 diagnostic rather than a dead run, and never a document one verb accepts while another
@@ -596,8 +629,11 @@ artifact a `completed` node declared that is not on disk and that its summary do
 under `absent` — a sub-run node's path joined onto its child's task directory. It is a warning,
 never a refusal, and the exit code does not move: whether an absence is a defect was the node's
 own check to make (*Recording an outcome*). Because a sanctioned absence prints nothing, a line
-that remains is a genuine gap, and the operator's cue to re-drive that node. How the lines reach
-the operator depends on the driver (*Operator visibility*).
+that remains is a genuine gap, and the operator's cue to re-drive that node. When the run's
+`html_output` is on, one `missing-companion: <node> <path>` line follows them for each `.html`
+companion a `completed` node owes whose markdown is on disk and whose companion is not — the same
+warning, recovered by `html-companion-writer` (*Run-scoped context*), never by re-running the node.
+How the lines reach the operator depends on the driver (*Operator visibility*).
 
 A dispatched run that owes a close-out it never published gets `RUN-FAILED:
 closeout-unpublished` whatever its status. Echo the verb's lines, the marker last; do not
@@ -725,32 +761,27 @@ follows the run's driver — see *In-node questions*.
 
 ### Run-scoped context
 
-Five things reach every delegate without appearing in any node's `with:`, because they
-belong to the run rather than to a node. Every workflow's delegates get them; a workflow's
-companion says only what it adds.
+What every delegate needs from the run rather than from its node — the task directory, the
+HTML guide or `off`, the project's documentation paths and standards index, the scratch-copy
+rule, the artifact summary contract and the `.html` companions the node owes — is fetched, never
+composed: run `run-context --state=<state> --node=<node>` in the turn that writes the prompt and
+paste its stdout unedited, or run `prior-context --node=<node>`, which prints the same block
+before the prior-phase passage. A delegate reads its companion instruction from the `html:`
+line: one whose prompt lacked the block writes no companion and returns `companion:
+not-requested` — delegate it again with the block. Anything node-scoped is in `with:`,
+interpolated as below.
 
-- `task_path` — the run's task directory, which every declared artifact path is relative to.
-- `html_style_guide_path` — the absolute path of the framework's `html-report-style.md`,
-  passed **only** when `orchestrator.options.html_output` is not false. When it is false, no
-  companion is requested, no dashboard file is written, and an existing data file is removed.
-- The project's documentation paths, when a node of the workflow has recorded them — its
-  companion names the node and the key.
-- The prior-phase passage — the `prior-context` output, fetched at each consuming delegate as
-  *Delegation by scheme* above says, never composed.
-- Where scratch copies go. A delegate that needs a throwaway copy — a sandbox for a mutation
-  probe, a copy of the project to try a change in — makes it with `mktemp -d` under the system
-  temp directory and leaves it there: no cleanup step and no `rm -rf`, which the
-  destructive-command guard blocks for most delegates. Say so in every delegate prompt. A
-  copy left in the temp directory is not worth mentioning to the user.
-
-Anything node-scoped is in `with:`, interpolated as below. Every prompt that asks a delegate to
-write an artifact also carries the artifact summary contract (framework § 7), so the summary
-lifted into state is one the delegate wrote rather than one the engine invented. Which artifacts
-also get an HTML companion is the node prose's to say (framework § 9). A delegate that writes one
-is handed `html_style_guide_path`; an artifact a `direct:` node writes inline gets its companion
-from the `html-companion-writer` agent. Each companion is registered under `artifacts[].html` on
-the summary entry that owns the artifact. Reconciling what state lists against what is on disk is
-the closing node's job (framework § 10).
+An artifact a `direct:` node writes inline gets its companion from the `html-companion-writer`
+agent, handed the same block. Each companion is registered under `artifacts[].html` on the
+summary entry that owns the artifact. **A `write-state` that prints `companion-missing: <node>
+<path>`** completed a node whose markdown is on disk and whose owed `.html` is not. Run
+`html-companion-writer` once for that file, pasting `run-context --node=<node>` so it gets the
+`html:` line. When the node already has a summary, then send `{"node_summaries":{"<node>":{}}}`
+to register the companion; when it has none, its summary's own write — still owed — registers
+it, and the empty summary is never sent then. Never re-run the node for a companion. A
+companion that comes back `failed` is left for `run-complete`, which names it as
+`missing-companion:`. Reconciling what state lists against what is on disk is the closing
+node's job (framework § 10).
 
 ### Interpolating `${…}`
 
@@ -2227,7 +2258,7 @@ one call, arriving from the other side.
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
 twenty-six, each with its response below; two more are raised before the writer runs,
-`edition-collision` and `gate-request-unavailable`. Exit `2` carries no code at all and is the table's last row:
+`edition-collision` and `gate-request-unavailable`. Exit `2` carries no code at all and has the table's last rows:
 
 | Refusal | Response |
 |---|---|
@@ -2257,6 +2288,7 @@ twenty-six, each with its response below; two more are raised before the writer 
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings, so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions and the command that disables each, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
 | `gate-request-unavailable` | This edition of the plugin carries no gate module, so a driven run cannot suspend at a gate. Nothing was written and the request in the patch file is kept. Stop with `RUN-FAILED: gate-request-unavailable` — never ask in session and never take a default answer. |
 | exit `2`, `usage: the patch file …` or `usage: the patch in …` | The document never reached the writer: the flag named another file, or the file is missing, empty or not JSON. Nothing was written and the file is kept. Write the document to the run's own `.state-patch.json`, name that path, and run the verb once more; the same message twice is `RUN-FAILED: writer-unavailable`. |
+| exit `2`, `usage: the patch on stdin …` | The here-string never delivered a document: it arrived empty or not JSON — most often an apostrophe that closed the single quotes early. Nothing was written. Write each apostrophe inside the JSON as `'\''` and run the verb once more, or send the document through the patch file; the same message twice is `RUN-FAILED: writer-unavailable`. |
 | exit `2`, any other message | The writer itself did not run — a module it imports is missing, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable` and report the message verbatim. |
 
 A `warning:` line on stderr is **not** in this table and never blocks: the dashboard
@@ -2474,8 +2506,9 @@ already open, and a gate's question and glance stay short. A run without a dashb
   - **Needs you:** each `open` risk still open as the run ends, one line each, or "nothing".
     State each as an item: what is open and where to take it ("Open in the design: no
     deprecation release before the old call is removed — take it into the development run").
-    Each `missing-artifact:` line the verb printed goes here too, restated in plain words as a
-    file a named phase should have written and did not. Never ask a question here: the run has
+    Every `missing-artifact:` and every `missing-companion:` line the verb printed goes here
+    too, each restated in plain words as a file a named phase should have written and did not —
+    the report itself, or its HTML companion. Never ask a question here: the run has
     ended, and an answer given now reaches nothing;
   - **Follow-ups:** each `followup` risk the run recorded, one line each, or "none";
   - **Next:** every next step, one line each: the workflow's own next step as the real command,
@@ -2490,7 +2523,7 @@ already open, and a gate's question and glance stay short. A run without a dashb
   **Done** when it changed the result, and next steps live only under **Next**. Process notes
   stay out (*Speaking to the user*).
 
-  Never show the raw `missing-artifact:`, `run stopped:` or `RUN-` lines, and never type a
+  Never show the raw `missing-artifact:`, `missing-companion:`, `run stopped:` or `RUN-` lines, and never type a
   marker. A child run driven in session is the exception: it runs `run-complete` with no wrap-up,
   because its parent's walk goes on and the parent's own ending carries the wrap-up.
 - **Under a `cockpit` or `dispatch` driver tooling reads it,** and everything below applies.
@@ -2500,7 +2533,7 @@ when a turn ends at a sub-run rather than at the run — `WAITING-SUBRUN: <node>
 **The first two come from a verb; the third is typed.** `RUN-COMPLETE` and `RUN-FAILED` are what
 `run-complete` printed — which is what makes a dispatched run's unpublished close-out a
 `RUN-FAILED: closeout-unpublished` instead of a silence its chain waits on forever — so for those
-two, echo the verb's lines — the `missing-artifact:` lines and a stop's notice above the marker —
+two, echo the verb's lines — the `missing-artifact:` and `missing-companion:` lines and a stop's notice above the marker —
 and do not type a marker it did not give you. Everything the operator is meant to read at the end —
 the executive summary, the full list of next steps and the dashboard link — is printed before the
 `run-complete` call, never after it, so the verb's marker stays the last line.

@@ -72,18 +72,13 @@ node in the table.
 
 ## Run-scoped context
 
-The four fields every delegate receives outside `with:` — `task_path`,
-`html_style_guide_path`, the project's documentation paths and the prior-phase
-passage fetched with `prior-context` — and the `${…}` substitution that fills
-`with:` are the engine's, stated once in engine § *Run-scoped context* and
-§ *Interpolating `${…}`*. What this workflow adds:
+Every delegate prompt opens with the `run-context --node=<this node>` output,
+pasted unedited (artifact writers: `prior-context --node=<this node>`, which
+prints that block first): the task path, the HTML style guide, the documentation
+paths, the scratch rule and the companions the node owes. What this workflow adds:
 
 - **The documentation paths** are discovered by `intake` and recorded as
   `project_context.project_doc_paths`; every later node reads them from state.
-- **Three artifacts get an HTML companion** when `html_output` is on: the
-  specification, the implementation plan and the verification report. Each
-  companion path is registered under `artifacts[].html` on the summary entry
-  that owns it.
 
 > **ANTI-PATTERN**: Do NOT re-summarize a summary block. `decisions` and `risks`
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
@@ -454,9 +449,10 @@ the task's size, because it searches for reusable code and checks coverage of
 the priorities before the audit and the planner read the result.
 
 Invoke the specification creator through the Task tool with the performance task
-type. Everything node-scoped it needs is in `with:`; the run-scoped five supply
-the rest, including the style guide path that produces the specification's HTML
-companion, and the project documentation paths `intake` discovered.
+type. Everything node-scoped it needs is in `with:`; the
+`prior-context --node=specification` output supplies the rest, including the
+`html:` line that produces the specification's HTML companion, and the project
+documentation paths `intake` discovered.
 
 If the agent returns without `implementation/spec.md`, or with one that leaves a
 priority gathered in Part A uncovered, re-invoke it with the missing context
@@ -887,9 +883,11 @@ workflow as a sub-run, so there is no embedded case to guard against.
    specification, the audit, the plan, the work log and the verification report.
    All seven exist on a run that reached here, because nothing in this workflow
    is conditional — so an absent one is a defect to name rather than a skip to
-   explain. Take the inventory from disk and not from state: compare every
-   artifact the run declared against what is actually there, and name every
-   declared path that is absent (`orchestrator-patterns.md` § 10).
+   explain. Take the inventory from disk and not from state: `run-complete`
+   checks every declared artifact and every declared HTML companion, printing a
+   `missing-artifact:` or `missing-companion:` line for each one absent, and
+   those lines are relayed below; check by hand only a path a summary lists
+   beyond the declarations (`orchestrator-patterns.md` § 10).
 2. **Present the executive summary**: which bottlenecks were found, which
    optimizations landed, the verification verdict with any issues left open, and
    whether the ranking rested on profiling data or on static analysis alone.
@@ -909,13 +907,14 @@ thing the run prints. Its sections are the engine's six — Done, Needs you,
 Follow-ups, Next, Files, Dashboard — and nothing follows the Dashboard line.
 **Next** holds every one of step 4's next steps, a line each: all four of this
 workflow's own, then the fresh-session suggestion, none dropped or merged. Each
-artifact the verb reported missing is named in plain words under **Needs you**.
-Nothing about how the run was carried out appears unless it changed the
-result. The verb's own lines are never shown. Under a `cockpit` or `dispatch`
-driver tooling reads it, and the order is reversed: the executive summary and
-every next step are printed as ordinary text **before** the `run-complete` call;
-after it, print nothing but the lines the verb printed, copied exactly, its
-marker last. Never type a marker the verb did not print.
+`missing-artifact:` and `missing-companion:` line the verb printed is named in
+plain words under **Needs you**. Nothing about how the run was carried out
+appears unless it changed the result. The verb's own lines are never shown.
+Under a `cockpit` or `dispatch` driver tooling reads it, and the order is
+reversed: the executive summary and every next step are printed as ordinary text
+**before** the `run-complete` call; after it, print nothing but the lines the
+verb printed, copied exactly, its marker last. Never type a marker the verb did
+not print.
 
 **No close-out while a choice is held.** When the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its

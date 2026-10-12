@@ -74,19 +74,14 @@ actually runs, with the skipped ones listed (engine § Gates).
 
 ## Run-scoped context
 
-The four fields every delegate receives outside `with:` — `task_path`,
-`html_style_guide_path`, the project's documentation paths and the prior-phase
-passage fetched with `prior-context` — and the `${…}` substitution that fills
-`with:` are the engine's, stated once in engine § *Run-scoped context* and
-§ *Interpolating `${…}`*. What this workflow adds:
+Every delegate prompt opens with the `run-context --node=<this node>` output,
+pasted unedited (artifact writers: `prior-context --node=<this node>`, which
+prints that block first): the task path, the HTML style guide, the documentation
+paths, the scratch rule and the companions the node owes. What this workflow adds:
 
 - **`task_path`** sits under the type directory `migrations/`, plural.
 - **The documentation paths** are discovered by `intake` and recorded as
   `project_context.project_doc_paths`; every later node reads them from state.
-- **Three artifacts get an HTML companion** when `html_output` is on: the
-  specification, the implementation plan and the verification report. Each
-  companion path is registered under `artifacts[].html` on the summary entry
-  that owns it.
 
 > **ANTI-PATTERN**: Do NOT re-summarize a summary block. `decisions` and `risks`
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
@@ -418,13 +413,13 @@ tool, whatever the migration's size — it owns `implementation/spec.md` and its
 companion, and the planner and the verifier read the spec in that agent's shape.
 
 Pass it the migration task type. Everything node-scoped it needs is in `with:`;
-the run-scoped five supply the rest, including the style guide path that
-produces the specification's HTML companion, and the project documentation paths
-`intake` discovered. Two things are this node's own and reach it in neither:
-the requirements path Part A just wrote, `analysis/requirements.md`, and the
-migration facts already in state — `migration_context.current_system`,
-`target_system`, `risk_level` and `breaking_changes` — which the specification
-has to name rather than rediscover.
+the `prior-context --node=specification` output supplies the rest, including the
+`html:` line that produces the specification's HTML companion, and the project
+documentation paths `intake` discovered. Two things are this node's own and
+reach it in neither: the requirements path Part A just wrote,
+`analysis/requirements.md`, and the migration facts already in state —
+`migration_context.current_system`, `target_system`, `risk_level` and
+`breaking_changes` — which the specification has to name rather than rediscover.
 
 The rollback plan is written in this node and declared as its artifact, because
 every later node reads it: the planner sequences the undo steps, and the
@@ -885,9 +880,11 @@ from a node that no guard can skip.
    compatibility results. The migration guide is there only when the run was
    asked for one, and the dual-run plan only for a dual-run strategy — name each
    absent one as skipped rather than as missing, and every other absence as a
-   defect. Take the inventory from disk and not from state: compare every
-   artifact the run declared against what is actually there, and name every
-   declared path that is absent (`orchestrator-patterns.md` § 10).
+   defect. Take the inventory from disk and not from state: `run-complete`
+   checks every declared artifact and every declared HTML companion, printing a
+   `missing-artifact:` or `missing-companion:` line for each one absent, and
+   those lines are relayed below; check by hand only a path a summary lists
+   beyond the declarations (`orchestrator-patterns.md` § 10).
 2. **Present the executive summary**: what was migrated and to what, the
    strategy used, the verification verdict with any issues left open, whether
    the rollback procedure was tested and whether it is still available.
@@ -907,13 +904,14 @@ thing the run prints. Its sections are the engine's six — Done, Needs you,
 Follow-ups, Next, Files, Dashboard — and nothing follows the Dashboard line.
 **Next** holds every one of step 4's next steps, a line each: all four of this
 workflow's own, then the fresh-session suggestion, none dropped or merged. Each
-artifact the verb reported missing is named in plain words under **Needs you**.
-Nothing about how the run was carried out appears unless it changed the
-result. The verb's own lines are never shown. Under a `cockpit` or `dispatch`
-driver tooling reads it, and the order is reversed: the executive summary and
-every next step are printed as ordinary text **before** the `run-complete` call;
-after it, print nothing but the lines the verb printed, copied exactly, its
-marker last. Never type a marker the verb did not print.
+`missing-artifact:` and `missing-companion:` line the verb printed is named in
+plain words under **Needs you**. Nothing about how the run was carried out
+appears unless it changed the result. The verb's own lines are never shown.
+Under a `cockpit` or `dispatch` driver tooling reads it, and the order is
+reversed: the executive summary and every next step are printed as ordinary text
+**before** the `run-complete` call; after it, print nothing but the lines the
+verb printed, copied exactly, its marker last. Never type a marker the verb did
+not print.
 
 **No close-out while a choice is held.** When the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its

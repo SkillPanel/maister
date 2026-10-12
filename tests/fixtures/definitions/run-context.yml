@@ -1,0 +1,40 @@
+# The run-context verb's definition: a node owing two companions declared out
+# of artifact order beside a JSON file it owes nothing for, a gate, a sub-run
+# whose companion lives in its child's directory, and a node owing nothing.
+name: run-context
+version: 1
+
+html_companions:
+  draft: [notes, report]
+  delegate: [findings]
+
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []
+    outputs:
+      artifacts:
+        report: analysis/report.md
+        notes: analysis/notes.md
+        data: analysis/data.json
+
+  check:
+    type: gate
+    needs: [draft]
+    ask: "Draft complete. Continue?"
+    options:
+      continue: continue
+      stop-here: stop
+
+  delegate:
+    uses: workflow:run-context-child
+    needs: [check]
+    with:
+      subject: "the draft"
+    outputs:
+      artifacts:
+        findings: analysis/findings.md
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [delegate]

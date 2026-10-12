@@ -120,3 +120,37 @@ test('prior-context --background: the same items, framed as background an end-us
   assert.match(result.stdout, /^Risks \(1\):\n- rate limits$/m);
   assert.match(priorContext(run).stdout, /These are binding\./, 'without the flag the block is binding, as before');
 });
+
+test('prior-context: without --node the output is the prior-phase passage alone, byte for byte', t => {
+  const run = survey(t);
+  write(run, { node_summaries: { scan: { summary: 'Scanned the api.', decisions: ['scan the api only'], risks: [] } } });
+  const result = priorContext(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, [
+    '## Prior-phase context — decisions and risks carried forward',
+    '',
+    'Pasted from `node_summaries` in this run\'s `orchestrator-state.yml`: 1 node, 1 decision, 0 risks. '
+      + 'These are binding. Every item below is one item in state — do not drop one, do not merge two, and do not re-word them.',
+    '',
+    '### scan',
+    '',
+    'Summary: Scanned the api.',
+    '',
+    'Decisions (1):',
+    '- scan the api only',
+    '',
+    'Risks (0): none recorded.',
+    '',
+    'Status: pending',
+    '',
+    '',
+  ].join('\n'));
+});
+
+test('prior-context --node: a node the run does not have is refused by the run block before anything prints', t => {
+  const run = survey(t);
+  const result = verb(['prior-context', `--state=${run.state}`, '--node=nope']);
+  assert.equal(result.code, 1);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /^run-context-unknown-node: /);
+});

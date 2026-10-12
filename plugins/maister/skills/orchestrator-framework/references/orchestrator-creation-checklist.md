@@ -26,7 +26,7 @@ Before considering a workflow complete, verify ALL items:
 - [ ] **Sanctioned absences** — a declared artifact a node may legitimately not write is named in its prose and recorded under `absent`
 - [ ] **Delegation** — each delegated node names its skill or agent and gives the reason in one line (what the delegate produces that later nodes read)
 - [ ] **Standards discovery** — `.maister/docs/INDEX.md` referenced in the nodes that specify, plan, implement and verify
-- [ ] **Closing node** — reconciles declared artifacts against disk (§ 10), calls `run-complete`, ends a terminal run with a readable wrap-up, and publishes the close-out under a dispatch driver
+- [ ] **Closing node** — calls `run-complete`, relays its `missing-artifact:` and `missing-companion:` lines and checks any undeclared path a summary lists (§ 10), ends a terminal run with a readable wrap-up, and publishes the close-out under a dispatch driver
 - [ ] **Diagram** — `make diagram` regenerates `<name>.mmd`; `make validate` fails on a stale one
 - [ ] **Hand-off skill** — names `builtin:<name>`, passes the description, the resume target and the flags, and keeps the Step-0 gate block byte-identical
 - [ ] **Suite** — the generic built-in tests pass for the new file, and a run fixture replays the workflow's particular gates
@@ -45,7 +45,7 @@ Before considering a workflow complete, verify ALL items:
 | A budget written into `with:` | Inert data the engine never consults; budgets are prose |
 | Vague delegation ("invoke X") | Name the Skill or Task call and its parameters |
 | Inline execution to "save time" | Delegate regardless of perceived simplicity |
-| Finishing without reconciling artifacts | A declared artifact that never reached disk closes the run in silence |
+| Finishing without relaying `run-complete`'s missing lines | A declared artifact or companion that never reached disk closes the run in silence |
 | Auto-accepting a delegate's decisions | The operator consents through a question or a gate |
 
 ---

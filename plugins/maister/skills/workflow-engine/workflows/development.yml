@@ -206,6 +206,14 @@ display:
     e2e-approval:             "Browser"
     docs-approval:            "User docs"
 
+# The markdown artifacts that owe an HTML companion beside them, per node.
+# Read beside the graph, not part of it: the block moves no graph hash.
+html_companions:
+  specification: [spec]
+  planning: [plan]
+  verification: [report]
+  e2e-verification: [e2e, fidelity]
+
 nodes:
   intake:
     uses: direct:intake

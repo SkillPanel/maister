@@ -16,6 +16,15 @@ You always write both files below, at these exact paths, even for simple researc
 | `analysis/synthesis.md` | Pattern analysis | Cross-source analysis, patterns, key insights, gaps |
 | `outputs/research-report.md` | Comprehensive report | Executive summary, findings, conclusions, recommendations |
 
+`outputs/research-report.html` is written beside them when the run context asks for it (Phase 7).
+
+## Input
+
+| Input | Source | Purpose |
+|-------|--------|---------|
+| `analysis/findings/*.md` | Information gathering | The collected findings to synthesize |
+| `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
+
 ---
 
 ## Mission
@@ -305,14 +314,13 @@ Combine relevant elements from above frameworks based on research objectives.
 
 ### Phase 7: HTML Companion Report
 
-After writing research-report.md, write `outputs/research-report.html` — the user-facing companion:
+After writing research-report.md, its user-facing companion is `outputs/research-report.html`.
 
-**Companion is optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this companion entirely: write only `research-report.md`, note the skip in your summary, and continue. The steps below run only when `html_style_guide_path` is provided.
+Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write `outputs/research-report.html`. With `off`, write only the markdown and return `companion: disabled`. With no `html:` line at all, write the markdown, return `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. A companion that fails never fails the markdown: keep the md and return `companion: failed` with the reason in warnings.
 
-1. **Read the style guide** at `html_style_guide_path` (provided in your prompt) and follow it: self-contained single file, standard CSS block, breadcrumb bar (research suite), stat-tile row (findings / sources / confidence), no external resources.
+1. **Follow the style guide**: self-contained single file, standard CSS block, breadcrumb bar (research suite), stat-tile row (findings / sources / confidence), no external resources.
 2. **Lead with** the TL;DR block; then findings table (title, category, confidence badge, source count), insight cards, SWOT grid, collapsed `<details>` for evidence and citations. Link to `research-report.md` in the header (`target="_blank"`).
 3. **Same content as the md** — restructure and visualize, never add findings.
-4. **Never block on it** — if generation fails, keep the md, note the miss in your summary, continue.
 
 ---
 
@@ -321,7 +329,19 @@ After writing research-report.md, write `outputs/research-report.html` — the u
 **Outputs**:
 1. `analysis/synthesis.md` - Pattern analysis and insights
 2. `outputs/research-report.md` - Comprehensive research report
-3. `outputs/research-report.html` - Operator-facing HTML companion (style guide compliant)
+3. `outputs/research-report.html` - Operator-facing HTML companion, only when the run context's `html:` line is a path
+
+**Structured result** returned to the orchestrator:
+
+```yaml
+status: "success" | "failed"
+report_path: "outputs/research-report.md"
+synthesis_path: "analysis/synthesis.md"
+companion: "written" | "disabled" | "failed" | "not-requested"
+html_path: "outputs/research-report.html"  # null unless companion is written
+confidence: "high" | "medium" | "low"
+warnings: ["non-blocking observations, including any companion miss"]
+```
 
 **Report Back Summary**:
 - Number of patterns identified

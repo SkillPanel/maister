@@ -18,7 +18,10 @@
  *   write-state    --state, --patch-file (or the patch as JSON on stdin)
  *                                                             changed paths
  *                  (and, for a node's question set, a blank line and the
- *                  `ask:` line naming the ids still to ask, or `none`)
+ *                  `ask:` line naming the ids still to ask, or `none`; then,
+ *                  when a node it completed owes an HTML companion that is
+ *                  not on disk, a blank line and one `companion-missing:
+ *                  <node> <path>` line per file)
  *   gate-request   --state, --patch-file (or the request as JSON on stdin)
  *                                                             the files written
  *                  (the request file, the gate index and the pending marker)
@@ -28,9 +31,15 @@
  *                  in one write, with the operator's note on the gate; at
  *                  `--node=held-approval`, the owning node and everything
  *                  downstream of it, closing node included)
- *   prior-context  --state                                    the prior phases'
+ *   prior-context  --state, optional --background, --node     the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
- *                  prompt — read-only over a run
+ *                  prompt; with --node, the node's run context first and a
+ *                  blank line — read-only over a run
+ *   run-context    --state, --node                            the run-scoped
+ *                  context a delegate prompt carries — task directory, HTML
+ *                  guide or off, documentation, scratch rule, summary contract
+ *                  and the companions the node owes — as markdown to paste;
+ *                  read-only over a run
  *   gate-brief     --state, --node, optional one of --oneline,
  *                  --json [--picker=rich|plain], --checkpoint, --request
  *                  [--reask=<revise option>]; with --patch-file
@@ -76,6 +85,14 @@
  * is still printed, so a caller always has the reasons), 2 the tooling itself
  * failed. The separation is what lets a caller distinguish "your definition is
  * wrong" from "the engine is broken" without parsing prose.
+ *
+ * The verbs that brief a moment or refuse a state change — `gate-brief`,
+ * `area-brief`, `finding-brief`, `gate-revise`, `write-state` and
+ * `run-complete` — also name the reference section that governs it, in one
+ * spelling, `rules: <file> § <heading>`: the last stdout paragraph of a text
+ * form, a `rules` key of a `--json` form, one stderr line after a refusal's
+ * message and before any `warning:`. Closed documents a driver reads and usage
+ * errors carry none (`RULES`).
  *
  * Why the patch arrives in a file or on stdin rather than as an argument: no
  * quoting has to survive a shell, which is the same Windows-without-a-shell
@@ -142,7 +159,13 @@ const VERBS = {
   // and therefore nothing else a caller could name wrongly. `--background`
   // frames the same items for a delegate writing for end users, who is to stay
   // consistent with them rather than carry them into its document.
-  'prior-context': { module: 'prior-context.mjs', flags: ['state', 'background'] },
+  // `--node` prints the node's run context first, so an artifact writer
+  // fetches both passages in one call.
+  'prior-context': { module: 'prior-context.mjs', flags: ['state', 'background', 'node'] },
+  // Read-only too: the run facts every delegate prompt carries. `--node`
+  // because what a node owes is the node's, and the state records no
+  // "current" one while a prompt is being composed.
+  'run-context': { module: 'run-context.mjs', flags: ['state', 'node'] },
   // The other verb that never writes state — only the panel beside it, a
   // display file. `--node` because a run has many gates and the
   // state records no "current" one while a question is being composed; the
@@ -182,6 +205,41 @@ const VERBS = {
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+
+/**
+ * The reference section that governs each moment a verb briefs or refuses, as
+ * `<file> § <heading>`. A caller that reads the brief, or recovers from the
+ * refusal, is told where its rules live instead of carrying them all in mind;
+ * for a refusal the section is the one holding its recovery. The heading is a
+ * heading's exact text, so the pointer is followed by a search, not a guess.
+ */
+const RULES = {
+  gateBrief: ['gates.md', 'Before every gate — the gate brief'],
+  gateRevise: ['gates.md', 'Revising at a gate'],
+  areaBrief: ['in-node-questions.md', 'Decision areas from the brainstorm'],
+  findingBrief: ['in-node-questions.md', 'Findings that need a decision'],
+  writeRefused: ['writing-state.md', 'When a write is refused'],
+  completeRefused: ['writing-state.md', 'When `run-complete` refuses'],
+};
+
+/** One pointer's value: the reference's absolute path, then `§` and the heading. */
+function rulesOf(moment) {
+  const [file, heading] = RULES[moment];
+  return `${path.join(PLUGIN_ROOT, 'skills/workflow-engine/references', file)} § ${heading}`;
+}
+
+/**
+ * The pointer as a text form's last stdout paragraph: after the renderer's
+ * own bytes, so a brief's budget covers the brief alone, never this line.
+ */
+function printRules(moment) {
+  process.stdout.write(`\nrules: ${rulesOf(moment)}\n`);
+}
+
+/** The pointer as a refusal's stderr line: after its message, before any `warning:` line. */
+function refuseRules(moment) {
+  process.stderr.write(`rules: ${rulesOf(moment)}\n`);
+}
 
 /** The flags that may be given more than once; every other flag is single-valued. */
 const REPEATABLE = new Set(['overlay', 'area']);
@@ -503,7 +561,7 @@ async function runWriteState(flags) {
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = readInput(flags, 'the patch');
   const result = write({ state: flags.state, patch: input.document });
-  return reportWrite(result, input);
+  return reportWrite(result, input, 'writeRefused');
 }
 
 /** `edition-collision` for a verb that writes state, reported before anything is read. */
@@ -533,16 +591,21 @@ async function runGateRevise(flags) {
   const module = await loadModule(VERBS['gate-revise'].module);
   const revise = entryOf(module, 'gateRevise', VERBS['gate-revise'].module);
   const result = revise({ state: flags.state, node: flags.node, option: flags.option, input: input.document });
-  const code = reportWrite(result, input);
+  const code = reportWrite(result, input, 'gateRevise');
   if (result.ok && result.revision) {
     const { gate, reruns, revision, ceiling, reset } = result.revision;
     process.stdout.write(`\nrevised: ${gate} reruns=${reruns} revision=${revision}/${ceiling} reset=${reset.join(',')}\n`);
+    printRules('gateRevise');
   }
   return code;
 }
 
-/** The report every state write shares: changed paths, then its notes and warnings, then the exit code. */
-function reportWrite(result, input) {
+/**
+ * The report every state write shares: changed paths, then its notes and
+ * warnings, then the exit code. `rules` names the moment whose section a
+ * refusal points at.
+ */
+function reportWrite(result, input, rules) {
   // The freeze's startup banner comes first, then a blank line, then the changed
   // paths: a banner after some forty paths sat in a collapsed tool result where
   // nobody read it. A caller after the paths skips to the first blank line.
@@ -553,6 +616,13 @@ function reportWrite(result, input) {
   // every one. Only a write that sent a question set has one.
   if (result.ok && Array.isArray(result.asking)) {
     process.stdout.write(`\nask: ${result.asking.length ? result.asking.join(' ') : 'none'}\n`);
+  }
+  // The HTML companions the nodes this write completed owe and did not write,
+  // after a blank line, one per line. On stdout and never stderr: the write
+  // landed, and the line asks for a file, not for a different write.
+  if (result.ok && Array.isArray(result.companionMissing) && result.companionMissing.length) {
+    process.stdout.write('\n');
+    for (const { node, path: file } of result.companionMissing) process.stdout.write(`companion-missing: ${node} ${file}\n`);
   }
   // A warning is not a refusal and must not read like one: the refusal contract
   // puts the code as the first stderr token, so these lines open with `warning:`
@@ -604,6 +674,7 @@ function reportWrite(result, input) {
   // A refusal is exit 1 and no rename happened: the state file on disk is
   // exactly what it was before the invocation.
   for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  refuseRules(rules);
   return EXIT.REJECTED;
 }
 
@@ -716,7 +787,8 @@ function consume(input) {
  * line of stdout either way, and the refusal that explains it goes to stderr, so
  * a turn that ends on this verb ends on a line the C5 vocabulary matches. The
  * other stdout lines — one `missing-artifact:` line per declared artifact not
- * on disk, then a stopped run's notice — go above the marker, never below it.
+ * on disk, then one `missing-companion:` line per owed HTML companion not on
+ * disk, then a stopped run's notice — go above the marker, never below it.
  * A warning goes to stderr, opening with `warning:`, and moves no exit code.
  */
 async function runRunComplete(flags) {
@@ -726,6 +798,9 @@ async function runRunComplete(flags) {
   const result = judge({ state: flags.state, outbox: flags.outbox, dispatch_id: flags['dispatch-id'] });
   if (!result.ok) {
     for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    // A failed run's `run-failed` is its ending, echoed as it is, so there is
+    // no recovery to point at; every other `ok: false` is a refusal.
+    if (!(result.errors || []).some(reason => reason.code === 'run-failed')) refuseRules('completeRefused');
   }
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
   for (const line of result.missing || []) process.stdout.write(`${line}\n`);
@@ -747,12 +822,34 @@ async function runPriorContext(flags) {
   if (!flags.state) throw new UsageError('prior-context needs --state');
   const module = await loadModule(VERBS['prior-context'].module);
   const render = entryOf(module, 'priorContext', VERBS['prior-context'].module);
-  const result = render({ state: flags.state, background: flags.background === true });
+  if (flags.node === true || flags.node === '') throw new UsageError('prior-context --node needs a node id');
+  const node = typeof flags.node === 'string' ? flags.node : null;
+  const result = render({ state: flags.state, background: flags.background === true, node });
+  return reportContext(result);
+}
+
+/**
+ * Print the run-scoped context a delegate prompt carries. Reported like
+ * `prior-context`: stdout is the bytes a caller pastes, a refusal is exit 1
+ * with an empty stdout and the code first on stderr, and a warning goes to
+ * stderr beside a block that still printed.
+ */
+async function runRunContext(flags) {
+  if (!flags.state) throw new UsageError('run-context needs --state');
+  if (!flags.node || flags.node === true) throw new UsageError('run-context needs --node');
+  const module = await loadModule(VERBS['run-context'].module);
+  const render = entryOf(module, 'runContext', VERBS['run-context'].module);
+  return reportContext(render({ state: flags.state, node: flags.node }));
+}
+
+/** The shared report of the two context verbs. */
+function reportContext(result) {
   if (!result.ok) {
     for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
     return EXIT.REJECTED;
   }
   process.stdout.write(result.text);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
   return EXIT.OK;
 }
 
@@ -809,6 +906,9 @@ async function runGateBrief(flags) {
   // A refusal's code comes first on stderr, and a drift warning is kept after
   // it: a drifted run that also lacks a summary must still say it drifted.
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  // Only the plain text is read by the asking session; the driven forms are
+  // closed documents a driver or a panel reads, so they point at nothing.
+  if (!result.ok && form === 'plain') refuseRules('gateBrief');
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
   if (result.ok && result.panel) await publishPanel(flags.state, result.panel);
   const warnings = (result.warnings || []).map(warning => warning.message ?? warning);
@@ -816,8 +916,8 @@ async function runGateBrief(flags) {
     // The picker as data, so nothing is parsed out of prose: a refusal is the
     // same JSON with `ok: false`, beside the stderr lines above.
     report(result.ok
-      ? { ok: true, ...result.picker, more_details: result.more_details, errors: [], warnings }
-      : { ok: false, errors: result.errors, warnings });
+      ? { ok: true, ...result.picker, more_details: result.more_details, errors: [], warnings, rules: rulesOf('gateBrief') }
+      : { ok: false, errors: result.errors, warnings, rules: rulesOf('gateBrief') });
     return result.ok ? EXIT.OK : EXIT.REJECTED;
   }
   if (!result.ok) return EXIT.REJECTED;
@@ -825,7 +925,11 @@ async function runGateBrief(flags) {
   // else, so a caller can write stdout to a file as it stands.
   if (form === 'checkpoint') process.stdout.write(`${JSON.stringify(result.checkpoint, null, 2)}\n`);
   else if (form === 'request') process.stdout.write(`${JSON.stringify(result.request, null, 2)}\n`);
-  else process.stdout.write(result.text);
+  else if (form === 'oneline') process.stdout.write(result.text);
+  else {
+    process.stdout.write(result.text.endsWith('\n') ? result.text : `${result.text}\n`);
+    printRules('gateBrief');
+  }
   return EXIT.OK;
 }
 
@@ -869,15 +973,22 @@ async function runAreaBrief(flags) {
   const render = entryOf(module, 'areaBrief', VERBS['area-brief'].module);
   const result = render({ state: flags.state, node: flags.node, areas, form, picker, patchFile });
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  if (!result.ok && form !== 'picker') refuseRules('areaBrief');
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
   if (form === 'picker') {
-    report(result.ok ? result : { ok: false, errors: result.errors, warnings: result.warnings || [] });
+    // The key rides on a fallback too: the node then composes the area
+    // itself, and the section says how.
+    report(result.ok
+      ? { ...result, rules: rulesOf('areaBrief') }
+      : { ok: false, errors: result.errors, warnings: result.warnings || [], rules: rulesOf('areaBrief') });
     return result.ok ? EXIT.OK : EXIT.REJECTED;
   }
   if (!result.ok) return EXIT.REJECTED;
+  // A text-form fallback has nothing to paste, so nothing to point from.
   if (result.fallback) return EXIT.OK;
   if (form === 'set') process.stdout.write(`${result.file}\n`);
   else process.stdout.write(`${result.text}\n`);
+  printRules('areaBrief');
   return EXIT.OK;
 }
 
@@ -902,11 +1013,15 @@ async function runFindingBrief(flags) {
   const render = entryOf(module, 'findingBrief', VERBS['finding-brief'].module);
   const result = render({ state: flags.state, node: flags.node, findingsFile: flags['findings-file'], patchFile });
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  if (!result.ok) refuseRules('findingBrief');
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
   if (!result.ok) return EXIT.REJECTED;
   if (result.fallback) return EXIT.OK;
+  // The pointer follows the set on stdout and is never written into the
+  // patch file: the file holds the set alone, for the write that sends it.
   if (patchFile !== null) process.stdout.write(`${result.file}\n`);
   else process.stdout.write(`${JSON.stringify(result.set, null, 2)}\n`);
+  printRules('findingBrief');
   return EXIT.OK;
 }
 
@@ -976,6 +1091,7 @@ const RUNNERS = {
   'gate-revise': runGateRevise,
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
+  'run-context': runRunContext,
   'gate-brief': runGateBrief,
   'area-brief': runAreaBrief,
   'finding-brief': runFindingBrief,

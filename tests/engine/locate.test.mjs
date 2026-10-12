@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE, ENGINE_DIR, run } from '../helpers.mjs';
+import { ENGINE, ENGINE_DIR, FIXTURES, run } from '../helpers.mjs';
 
 // `locate` is the name lookup a run starts from. Each test lays out a scratch
 // project's `.maister/workflows/` and runs the verb from that project's root,
@@ -228,6 +228,46 @@ test('the caller\'s own overlays are folded in after the lookup\'s, adding or re
   assert.deepEqual(lean.report.overlays, [], 'overlays stays the lookup\'s own, the values validate takes before the caller\'s');
   const split = inProject(root, ['locate', '--name=onboarding', '--overlay=split.overlay.yml']);
   assert.deepEqual(split.report.dispatches, ['handoff']);
+});
+
+test('html_companions is merged over the located overlay, the caller\'s and the profile, and leaves the hash alone', t => {
+  const base = fs.readFileSync(path.join(FIXTURES, 'definitions/companions.yml'), 'utf8');
+  const root = project(t, {
+    [home('companions.yml')]: base,
+    [home('companions.md')]: fs.readFileSync(path.join(FIXTURES, 'definitions/companions.md'), 'utf8'),
+    [home('onboarding.yml')]: CUSTOM,
+    // The caller's overlay replaces one list, clears another, and carries a
+    // profile that disables a node the block still names.
+    'extra.overlay.yml': 'extends: companions\nhtml_companions:\n  specification: [spec, notes]\n  analysis: []\n'
+      + 'profiles:\n  lean:\n    disable: [review]\n    html_companions:\n      specification: [notes]\n',
+  });
+  assert.deepEqual(inProject(root, ['locate', '--name=companions']).report.html_companions,
+    { analysis: ['report'], specification: ['spec'], review: ['report'] });
+  const overlaid = inProject(root, ['locate', '--name=companions', '--overlay=extra.overlay.yml']);
+  assert.equal(overlaid.code, 0, JSON.stringify(overlaid.report.errors));
+  assert.deepEqual(overlaid.report.html_companions, { specification: ['spec', 'notes'], review: ['report'] });
+  const lean = inProject(root, ['locate', '--name=companions', '--overlay=extra.overlay.yml', '--profile=lean']);
+  assert.deepEqual(lean.report.html_companions, { specification: ['notes'] }, 'the disabled node is dropped');
+  assert.deepEqual(inProject(root, ['locate', '--name=onboarding']).report.html_companions, {});
+
+  // A located overlay over a built-in contributes its block too.
+  const builtinRoot = project(t, { [home('research.overlay.yml')]: `${RESEARCH_OVERLAY}html_companions:\n  research-foundation: [report]\n` });
+  const research = inProject(builtinRoot, ['locate', '--name=research']);
+  assert.equal(research.code, 0, JSON.stringify(research.report.errors));
+  assert.deepEqual(research.report.html_companions['research-foundation'], ['report']);
+
+  // The block is read, never hashed: the graph resolve reports is the one it
+  // reports without the block.
+  const flags = report => [`--definition=${report.definition}`, ...report.overlays.map(overlay => `--overlay=${overlay}`)];
+  const withBlock = inProject(root, ['resolve', ...flags(inProject(root, ['locate', '--name=companions']).report)]);
+  assert.equal(withBlock.code, 0, withBlock.stdout);
+  const bareRoot = project(t, {
+    [home('companions.yml')]: base.replace(/^html_companions:\n(?: {2}.*\n)+/m, ''),
+    [home('companions.md')]: fs.readFileSync(path.join(FIXTURES, 'definitions/companions.md'), 'utf8'),
+  });
+  const bare = inProject(bareRoot, ['resolve', `--definition=${home('companions.yml')}`]);
+  assert.equal(bare.code, 0, bare.stdout);
+  assert.equal(withBlock.report.graph_hash, bare.report.graph_hash);
 });
 
 test('an overlay the caller names that cannot be read is refused with the reader\'s error', t => {

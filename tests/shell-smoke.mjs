@@ -11,10 +11,13 @@
  * with `\`, as `CLAUDE_PLUGIN_ROOT` is. cmd.exe takes no single quotes, so its
  * lines quote with `"`.
  *
- * The run: `locate`, `validate`, `resolve`, the freeze, two node writes with a
- * patch no shell may touch, `area-brief`'s fallback at a node that declares no
- * decision areas, `gate-brief --json` at the gate, the dashboard
- * projection and `resume-check`. Then the hooks, each started as `hooks.json`
+ * The run: `locate`, `validate`, `resolve`, the freeze, `run-context` for a
+ * node, two node writes with a patch no shell may touch, `area-brief`'s
+ * fallback at a node that declares no decision areas, `gate-brief --json` at
+ * the gate, the dashboard projection and `resume-check`. The freeze travels in
+ * the patch file under every shell; the node writes travel as a here-string
+ * (`<<< '<json>'`, an apostrophe written `'\''`) under bash and zsh, and in the
+ * patch file under PowerShell and cmd, which have no here-string. Then the hooks, each started as `hooks.json`
  * starts it: the edition check under `node`, the two session-start reminders
  * and the destructive-command guard under `bash` (Git Bash on Windows).
  *
@@ -60,6 +63,8 @@ if (!Object.hasOwn(SHELLS, shellName)) {
   }
 }
 const quote = value => (shellName === 'cmd' ? `"${value}"` : `'${value}'`);
+/** The shells that take a JSON document as a here-string; the rest take the patch file. */
+const HERE_STRING = shellName === 'bash' || shellName === 'zsh';
 
 let failed = 0;
 function check(name, ok, detail = '') {
@@ -102,8 +107,11 @@ delete env.CLAUDE_PROJECT_DIR;
 const engine = path.join(pluginRoot, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs');
 
 /** One engine call, as one command line through the shell, from the project root. */
-function call(verb, flags) {
-  const line = [`node ${quote(engine)} ${verb}`, ...flags].join(' ');
+function call(verb, flags, hereString = null) {
+  const words = [`node ${quote(engine)} ${verb}`, ...flags];
+  // The JSON in single quotes, each apostrophe in it closed, escaped and reopened.
+  if (hereString !== null) words.push(`<<< '${hereString.replaceAll("'", "'\\''")}'`);
+  const line = words.join(' ');
   const [command, args, options] = SHELLS[shellName](line);
   const result = spawnSync(command, args, { ...options, cwd: project, env, encoding: 'utf8' });
   if (result.error) return { code: null, stdout: '', stderr: `${command} did not start: ${result.error.message}`, line };
@@ -125,6 +133,11 @@ const readState = () => JSON.parse(JSON.stringify(parse(fs.readFileSync(statePat
 function writeState(patch) {
   fs.writeFileSync(patchPath, JSON.stringify(patch));
   return call('write-state', [flag('state', statePath), flag('patch-file', patchPath)]);
+}
+
+/** A node write by the shell's own route: the here-string where it has one, else the patch file. */
+function writeNode(patch) {
+  return HERE_STRING ? call('write-state', [flag('state', statePath)], JSON.stringify(patch)) : writeState(patch);
 }
 
 process.stdout.write(`shell: ${shellName}\nplugin root: ${pluginRoot}\nproject: ${project}\n\n`);
@@ -161,20 +174,27 @@ try {
   check('write-state freezes the run', frozen.code === 0 && fs.existsSync(statePath), show(frozen));
   check('the freeze deletes the patch file', !fs.existsSync(patchPath));
 
+  // --- run-context ----------------------------------------------------------
+  const context = call('run-context', [flag('state', statePath), '--node=analysis']);
+  const taskLine = context.stdout.split('\n').find(line => line.startsWith('task_path: ')) ?? '';
+  check('run-context prints the run block for a node, from a path holding a space', context.code === 0 && context.stdout.startsWith('## Run context\n') && taskLine.endsWith('shell-smoke') && taskLine.includes('project dir'), show(context));
+
   // --- node writes ----------------------------------------------------------
-  const running = writeState({ nodes: { analysis: { status: 'running' } } });
-  check('a node write lands', running.code === 0 && readState().workflow?.nodes?.analysis?.status === 'running', show(running));
+  const route = HERE_STRING ? 'here-string' : 'patch file';
+  const running = writeNode({ nodes: { analysis: { status: 'running' } } });
+  check(`a node write lands (${route})`, running.code === 0 && readState().workflow?.nodes?.analysis?.status === 'running', show(running));
+  check(`no patch file is left behind (${route})`, !fs.existsSync(patchPath));
 
   // --- area-brief -----------------------------------------------------------
   const areas = call('area-brief', [flag('state', statePath), '--node=analysis', '--area=storage']);
   check('area-brief at a node with no decision areas warns and prints nothing', areas.code === 0 && areas.stdout === '' && areas.stderr.trim() === 'warning: decision-areas-missing:not-declared', show(areas));
 
   const note = "Two gaps: $HOME, %PATH%, `ticks`, $(date), C:\\Program Files\\x, 'single' and \"double\" quotes";
-  const completed = writeState({
+  const completed = writeNode({
     nodes: { analysis: { status: 'completed' } },
     node_summaries: { analysis: { status: 'completed', summary: note, decisions: [{ decision: 'Patch the tokenizer', rationale: 'smallest change' }] } },
   });
-  check('a summary no shell may touch lands byte for byte', completed.code === 0 && readState().node_summaries?.analysis?.summary === note, show(completed));
+  check(`a summary no shell may touch lands byte for byte (${route})`, completed.code === 0 && readState().node_summaries?.analysis?.summary === note, show(completed));
 
   // --- the gate -------------------------------------------------------------
   const briefed = call('gate-brief', [flag('state', statePath), '--node=approval', '--json']);

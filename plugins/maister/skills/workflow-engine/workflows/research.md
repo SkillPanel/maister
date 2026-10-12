@@ -62,14 +62,14 @@ consults.
 
 ## Run-scoped context
 
-The four fields every delegate receives outside `with:` — `task_path`,
-`html_style_guide_path`, the project's documentation paths and the prior-phase
-passage fetched with `prior-context` — and the `${…}` substitution that fills
-`with:` are the engine's, stated once in engine § *Run-scoped context* and
-§ *Interpolating `${…}`*. What this workflow adds: the documentation paths are
-discovered by `research-foundation` and recorded as
-`research_context.project_doc_paths`, and every later node reads them from
-state.
+Every delegate prompt opens with the `run-context --node=<this node>` output,
+pasted unedited (artifact writers: `prior-context --node=<this node>`, which
+prints that block first): the task path, the HTML style guide, the documentation
+paths, the scratch rule and the companions the node owes. What this workflow adds:
+
+- **The documentation paths** are discovered by `research-foundation` and
+  recorded as `research_context.project_doc_paths`; every later node reads them
+  from state.
 
 ---
 
@@ -251,9 +251,9 @@ Invoke the `maister:research-planner` agent through the Task tool. Choosing
 the methodology is the planner's job, so the planner — not this node — reads
 the methodology reference; pass its path rather than reading it here.
 
-Context for the planner: `task_path`, the research brief path, the research
-type, the research question, the scope, `project_doc_paths`, and
-`methodology_reference` — the absolute path of
+Context for the planner: the research brief path, the research type, the
+research question, the scope, `project_doc_paths` and `methodology_reference`,
+plus the `run-context` output. `methodology_reference` is the absolute path of
 `${CLAUDE_PLUGIN_ROOT}/skills/research/references/research-methodologies.md`,
 which the planner reads in full before it classifies the question.
 
@@ -281,8 +281,8 @@ cannot be told apart from one that silently fell back.
 **CRITICAL: Launch all N agents in ONE message for parallel execution.** Sequential launches turn a parallel step into an N-times-longer one for no benefit.
 
 Each gatherer is the `maister:information-gatherer` agent, invoked through the
-Task tool. Context for each gatherer: its own `source_category`, and the findings
-file prefix it writes under `analysis/findings/`.
+Task tool. Context for each gatherer: its own `source_category` and the findings
+file prefix it writes under `analysis/findings/`, plus the `run-context` output.
 
 ### Step 4 — synthesize (delegate)
 
@@ -292,8 +292,17 @@ if both exist, this node is complete.
 Invoke the research synthesizer, the `maister:research-synthesizer` agent, through
 the Task tool.
 
-Context for the synthesizer: `task_path`, the findings directory path, the
-research question, the research type and the methodology.
+Context for the synthesizer: the findings directory path, the research
+question, the research type, the methodology and `project_doc_paths`, plus the
+`run-context` output.
+
+**Read the synthesizer's `companion`** from its structured result, never from its
+prose. `written` and `disabled` need nothing. On `not-requested` the run context
+was missing from the prompt: invoke the synthesizer again with it. On `failed`,
+run `maister:html-companion-writer` once on `outputs/research-report.md` with the
+`run-context --node=research-foundation` output; a second miss is left for
+`run-complete` to report. `disabled` while the run context's `html:` was a path
+is a defect: name it in this node's `risks`.
 
 **Recommend the way on, never ask it.** Which way the run goes on is the answer
 to `foundation-approval`, whose three continues set the values the brainstorming
@@ -464,8 +473,8 @@ The `maister:solution-brainstormer` agent generates the alternatives rather than
 an inline list, because it works from the research evidence alone and writes the
 exploration the convergence step below presents area by area.
 
-Everything node-scoped the delegate needs is in `with:`; the run-scoped five
-supply the rest. `output_path` is exact — the delegate must write to
+Everything node-scoped the delegate needs is in `with:`; the
+`prior-context --node=solution-generation` output supplies the rest. `output_path` is exact — the delegate must write to
 `outputs/solution-exploration.md` and nowhere else. `areas_output_path` is exact
 too: the decision areas file goes to `outputs/decision-areas.json` and nowhere
 else. Hand the delegate the absolute path of
@@ -755,8 +764,10 @@ The `maister:solution-designer` agent writes the architecture and the decision
 records rather than an inline draft, because it produces the C4 views and the
 decision log in the shapes Part C presents.
 
-Invoke the solution designer through the Task tool. The node-scoped context is
-in `with:`, plus the design preferences from Part A. **When brainstorming was
+Invoke the solution designer through the Task tool. Context for the designer:
+everything `with:` names and the design preferences from Part A, plus the
+`run-context` output. Paste it as `prior-context --node=high-level-design`.
+**When brainstorming was
 skipped**, `exploration` and `selected_approach` resolve to nothing: omit them
 from the delegate's context entirely rather than passing empty values, and say
 that the design input is the research report's recommendations.
@@ -863,8 +874,8 @@ There is no gate after this node. The workflow ends here.
 person reads it: write the closing patch and call `run-complete` first, then end with one
 wrap-up message that fits one screen and is the last thing the run prints. Its sections
 are the engine's six — Done (the answer and its confidence, in a sentence), Needs you (each open
-item stated as an item to take into the next run, never asked as a question, and each artifact
-the verb reported missing, named in plain words), Follow-ups, Next (the command from step 3),
+item stated as an item to take into the next run, never asked as a question, and each
+`missing-artifact:` and `missing-companion:` line the verb printed, named in plain words), Follow-ups, Next (the command from step 3),
 Files (the outputs from the inventory), Dashboard — and nothing follows the Dashboard line. Nothing about how the run was carried out appears
 unless it changed the result. The verb's own lines are never shown. Under a `cockpit` or `dispatch` driver tooling reads it: the executive summary goes
 before the `run-complete` call, in the same final message or an earlier one, and the turn ends

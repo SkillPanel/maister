@@ -155,30 +155,46 @@ findable:
   holds the node's steps, its self-checks, the questions it asks inline and the answer each takes
   when nobody is at the keyboard, what it writes into its closing summary for the next gate, and
   its retry budget.
-- **HTML companions are the node's to ask for.** When a node's artifact deserves an HTML
-  companion and the run's `html_output` is on, the node prose says so. An artifact written by a
-  delegate gets its companion from that delegate, handed the HTML style guide's path. One your
-  `direct:` node writes itself gets one by handing the finished markdown to the plugin's
-  `html-companion-writer` agent. Either way the companion's path is registered as the `html` of
-  that artifact in the node's summary, which is what the dashboard links.
-- **Reconciliation is the closing node's job.** The engine registers each completing node's
-  declared artifacts that exist, and `run-complete` names the declared ones that are missing. A
-  node's summary can list more than the definition declares, though — HTML companions, and files
-  its prose asked for. Have your last node check every path the summaries list against disk, the
-  way the built-ins' finalization nodes do, and report what is missing.
+- **Declare the HTML companions.** A markdown artifact that people read as a page gets an HTML
+  companion beside it when the run's `html_output` is on. List those artifacts in a top-level
+  `html_companions:` block, node id to artifact keys —
+  `html_companions: {research: [report]}` — as the
+  [grammar's § 3.2](../plugins/maister/skills/workflow-engine/references/grammar.md) describes.
+  The page is the declared path with `.html` in place of `.md`. A definition without the block
+  owes nothing, and the block sits outside the graph hash, so adding it moves no frozen run.
+- **Hand delegates the run context.** Before every delegate prompt the run fetches
+  `run-context` for the node and pastes it unedited. Its `html:` line carries the style guide's
+  path when the node owes a companion and `off` when it does not, and the delegate returns
+  `companion: written | disabled | failed | not-requested`. A `direct:` node that writes its own
+  markdown hands it to the plugin's `html-companion-writer` agent before its completion write,
+  not after. A project agent that owes a companion takes `html:` and returns `companion:` the
+  same way. The engine registers each companion as the `html` of its artifact in the node's
+  summary, which is what the dashboard links.
+- **The engine checks what was declared.** You write no reconciliation of your own. When a
+  node completes without a companion it owes, `write-state` prints
+  `companion-missing: <node> <path>`, and the run writes the page once and goes on, without
+  re-running the node. Your last node relays what `run-complete` prints, and still checks any
+  path a summary lists beyond what the definition declares.
 
 **How a run closes.** Every run ends through the engine's `run-complete` verb, which prints the
 run's closing marker. A run recorded `completed` is refused while a node it can still reach has
 not run: a node still running, or a pending one whose needs are met and that no false guard
 keeps off the path. The refusal names each one. A node a false guard skips is not owed, and
 neither is one waiting on a need that failed, unless its `on:` says to run anyway. A gate asked
-whatever its guard reads (above) is owed even when its guard is false. The verb
-also prints one `missing-artifact: <node> <path>` line above the marker for each artifact a
-completed node declared that is not on disk. That line is a warning for you to read, never a
-refusal. A node that legitimately completes without one of its artifacts — say, a report written
-only when some input was given — says so in its prose, and records it on its summary as
-`absent: {<artifact-key>: "<reason>"}`. The verb prints no line for it, and the dashboard shows
-the artifact as not produced, with that reason. Both checks read the resolved graph, overlays included, so a node you add is held to
+whatever its guard reads (above) is owed even when its guard is false. Above the marker the verb
+prints two kinds of line:
+
+- `missing-artifact: <node> <path>` for each artifact a completed node declared that is not on
+  disk;
+- `missing-companion: <node> <path>`, when HTML output is on, for each companion the
+  `html_companions` block owes that is not on disk, while its markdown is.
+
+Both are warnings for you to read, never a refusal, and the run's wrap-up lists them under what
+needs you. A node that legitimately completes without one of its artifacts — say, a report
+written only when some input was given — says so in its prose, and records it on its summary as
+`absent: {<artifact-key>: "<reason>"}`. The verb prints neither line for it, and the dashboard
+shows the artifact as not produced, with that reason. Both checks read the resolved graph and
+the `html_companions` block merged over your overlays and profile, so a node you add is held to
 the same rule as the built-in ones.
 
 **Running your workflow.** `/maister:run <name>` starts it from the terminal:
