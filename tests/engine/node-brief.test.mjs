@@ -9,7 +9,9 @@ import { ENGINE_DIR, FIXTURES, freeze, scratch, scratchPlugin, run, sibling, ver
 // how it runs, its guard, its attempt, its inputs filled in, the files it
 // writes, the questions it asks under this run's driver, the checkpoint it
 // feeds, its brief: data and the convention rows that apply — then the step's
-// own section of the guide. Read-only, as `run-context` is.
+// own section of the guide. Read-only, as `run-context` is. Lines that would
+// say only the default are left out, and a row that may apply later is named
+// on one line rather than printed whole.
 
 const DEFINITIONS = path.join(FIXTURES, 'definitions');
 const NODE_BRIEF = path.join(DEFINITIONS, 'node-brief.yml');
@@ -41,6 +43,7 @@ function conventions(skill = SKILL) {
 }
 
 const row = key => `convention (${key}): ${conventions()[key]}`;
+const LATER = 'convention (named by a revise, has a budget): see rules';
 
 /** Every file under `dir`, by relative path, with its text: equal before and after means nothing was written. */
 function snapshot(dir) {
@@ -59,7 +62,7 @@ function sampleRun(t, { overlays = [], options = { html_output: true } } = {}) {
   return sample;
 }
 
-test('node-brief: a step of a fresh development run — the lines that always print, the empty ones omitted, the inputs filled in', t => {
+test('node-brief: a step of a fresh development run — the lines that always print, the empty and default ones omitted, the inputs filled in', t => {
   const dev = scratch(t);
   freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
 
@@ -70,7 +73,6 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   assert.deepEqual(header.split('\n'), [
     '## Node: gap-analysis — Gap analysis',
     'runs: agent:gap-analyzer — Task tool',
-    'attempt: 1 — pending',
     'with:',
     `- analysis: ${RUN_PATH}/analysis/codebase-analysis.md`,
     `- clarifications: ${RUN_PATH}/analysis/clarifications.md`,
@@ -80,8 +82,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     `- gap: ${RUN_PATH}/analysis/gap-analysis.md`,
     `- scope: ${RUN_PATH}/analysis/scope-clarifications.md`,
     'records: has_reproducible_defect (bool), mockups_needed (bool), risk_level (enum: high, medium, low)',
-    'asks (in session):',
-    '- scope-decisions: asked in session',
+    'asks (in session): scope-decisions',
     'feeds: gap-approval — continues: continue-past-analysis; revise: revise-gap-analysis → gap-analysis',
     'summary keys: gap_analysis, scope_clarifications',
     'budget: 2 attempts — a prose rule; nothing enforces it',
@@ -89,12 +90,27 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     row('every step'),
     row('asks'),
     row('feeds a checkpoint'),
-    row('named by a revise'),
-    row('has a budget'),
+    LATER,
     RULES,
   ]);
   assert.ok(slice.trim().length > 0 && !slice.startsWith('\n'), 'the section follows the one blank line');
   assert.doesNotMatch(header, /^when:/m, 'an unguarded step prints no when line');
+  assert.doesNotMatch(header, /^attempt:/m, 'a first attempt nothing has run prints no attempt line');
+
+  // Sent back by a revise on its last budgeted attempt: the attempt prints, and both rows print whole.
+  const before = fs.readFileSync(dev.state, 'utf8');
+  const revised = before.replace(/(    gap-analysis: \{kind: [a-z]+, )status: pending/, '$1status: pending, attempt: 2');
+  assert.notEqual(revised, before, 'the node line carries the attempt');
+  fs.writeFileSync(dev.state, revised);
+  const again = nodeBrief(dev.state, 'gap-analysis').stdout;
+  assert.match(again, /^attempt: 2 — pending$/m);
+  for (const key of ['named by a revise', 'has a budget']) assert.ok(again.split('\n').includes(row(key)), key);
+  assert.ok(!again.includes(LATER), 'no row is left to name');
+
+  // A direct step that owes no page, keeps its section, declares nothing and feeds no checkpoint: its header is its facts and the pointer.
+  const finalization = nodeBrief(dev.state, 'finalization').stdout;
+  const finalHeader = finalization.slice(0, finalization.indexOf('\n\n')).split('\n');
+  assert.deepEqual(finalHeader.filter(line => !line.startsWith('- ')), ['## Node: finalization — Finalization', 'runs: direct:finalization — inline', 'with:', RULES]);
 
   // A guarded step: its guard as written, and a value no node has recorded yet.
   const red = nodeBrief(dev.state, 'tdd-red');
@@ -104,10 +120,10 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   assert.match(nodeBrief(dev.state, 'tdd-red').stdout, /^when: .* — now true$/m);
   assert.match(nodeBrief(dev.state, 'ui-mockups').stdout, /^when: .* — now false$/m);
 
-  // The slice keeps the rich-picker text and drops the plain-picker passage and every marker.
-  const spec = nodeBrief(dev.state, 'specification').stdout;
-  assert.match(spec, /Each approach's own option carries its full description/);
-  assert.doesNotMatch(spec, /rich-picker|plain-picker|The question carries each approach's line/);
+  // No picker marker reaches a built-in's slice; the sample's draft section shows the rich text kept.
+  for (const id of ['intake', 'specification', 'verification-options']) {
+    assert.doesNotMatch(nodeBrief(dev.state, id).stdout, /rich-picker|plain-picker/, id);
+  }
 });
 
 test('node-brief: the exact brief of a step with brief: data, a renamed section and an owed page', t => {
@@ -119,7 +135,6 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
   assert.equal(result.stdout, [
     '## Node: draft — Drafting',
     'runs: direct:draft-notes — inline',
-    'attempt: 1 — pending',
     'with:',
     '- audit_flag: null',
     '- deep: false',
@@ -128,19 +143,16 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     `- sources: {"list":["plain",false],"notes":"${relative}/analysis/scope.md"}`,
     'writes:',
     `- extras: ${relative}/drafts/extras.md — may be absent: Written only when the draft raises open questions.`,
-    `- notes: ${relative}/drafts/notes.md — HTML page owed: ${relative}/drafts/notes.html`,
-    'asks (in session):',
-    '- tone: asked in session',
+    `- notes: ${relative}/drafts/notes.md — HTML page owed: notes.html beside it`,
+    'asks (in session): tone',
     'feeds: approval — continues: continue-to-audit, continue-to-wrap-up; revise: revise-draft → draft',
-    'recommends: audit_flag unset — the section decides',
     'summary keys: drafting',
     'budget: 2 attempts — a prose rule; nothing enforces it',
     row('`direct:` step'),
     row('every step'),
     row('asks'),
     row('feeds a checkpoint'),
-    row('named by a revise'),
-    row('has a budget'),
+    LATER,
     `see: ${path.join(DEFINITIONS, 'node-brief.md')} § Embedded mode`,
     RULES,
     '',
@@ -173,14 +185,39 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
   });
   const set = nodeBrief(sample.state, 'draft').stdout;
   assert.match(set, /^recommends: audit_flag = yes → continue-to-audit$/m);
+  assert.doesNotMatch(nodeBrief(sampleRun(t).state, 'draft').stdout, /^recommends:/m, 'an unset input recommends nothing, and says nothing');
   assert.match(set, /^- focus: narrow$/m);
   assert.match(set, /^- label: Focus: narrow$/m);
+});
+
+test('node-brief: every rule a step of a built-in can trigger reaches it — the four that must print whole wherever they apply', t => {
+  const always = { agent: '`agent:` step', skill: '`skill:` step', workflow: '`workflow:` step' };
+  for (const name of ['development', 'migration', 'performance', 'product-design', 'research']) {
+    const run = scratch(t, { type: name });
+    const graph = freeze(run, { definition: path.join(ENGINE_DIR, 'workflows', `${name}.yml`), inputs: name === 'research' ? { question: 'A question' } : { task_description: 'A task' }, orchestrator: { options: { html_output: true } } });
+    for (const node of graph.nodes.filter(each => each.type !== 'gate')) {
+      const text = nodeBrief(run.state, node.id).stdout;
+      const header = text.slice(0, text.indexOf('\n\n')).split('\n');
+      const has = key => header.includes(row(key));
+      const where = `${name}/${node.id}`;
+      const scheme = node.uses.slice(0, node.uses.indexOf(':'));
+      if (always[scheme]) assert.ok(has(always[scheme]), `${where}: its scheme's row`);
+      if (header.some(line => /^(writes|records):/.test(line))) assert.ok(has('every step'), `${where}: the artifact self-check`);
+      if (header.some(line => line.startsWith('asks ('))) assert.ok(has('asks'), `${where}: the answer-recording rule`);
+      if (header.some(line => line.startsWith('feeds: '))) assert.ok(has('feeds a checkpoint'), `${where}: the summary contract`);
+      for (const key of ['named by a revise', 'has a budget']) {
+        const named = header.some(line => /^convention \(.*\): see rules$/.test(line) && line.includes(key));
+        assert.ok(!(has(key) && named), `${where}: ${key} printed and named both`);
+      }
+      assert.equal(header.at(-1), RULES, `${where}: the pointer closes the header`);
+    }
+  }
 });
 
 test('node-brief: the asks line follows the driver — in session, in a question set, or the default nobody is asked', t => {
   const sample = sampleRun(t);
   write(sample, { orchestrator: { driver: { kind: 'cockpit', features: ['question-sets'] } } });
-  assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(question sets\):\n- tone: asked in this step's question set$/m);
+  assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(question sets\): tone$/m);
 
   write(sample, { orchestrator: { driver: { kind: 'dispatch' } } });
   assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(nobody can be asked\):\n- tone: not asked — default: A plain tone\.$/m);
@@ -252,7 +289,7 @@ test('node-brief: graph drift and an unread definition warn and still print; unr
   const unread = nodeBrief(drifted.state, 'draft');
   assert.equal(unread.code, 0, unread.stderr);
   assert.equal(unread.stderr, `warning: node-brief-definition-unread: ${drifted.state}\n`);
-  assert.match(unread.stdout, /^## Node: draft — Draft\nruns: direct — inline\nattempt: 1 — pending\n/);
+  assert.match(unread.stdout, /^## Node: draft — Draft\nruns: direct — inline\nconvention \(`direct:` step\): /, 'unread, every row of its scheme prints whole');
   assert.ok(unread.stdout.endsWith(`${RULES}\n\nsection: unknown — the definition this run froze cannot be re-read\n`), unread.stdout);
 
   // A plugin whose skill has lost the conventions table: one line points at the rules instead.

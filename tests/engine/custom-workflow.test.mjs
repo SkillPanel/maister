@@ -826,7 +826,7 @@ test('sectionless: node-brief prints the conventions for a step with no section,
   assert.equal(result.stderr, '');
   assert.match(result.stdout, /^## Node: review — Review\nruns: direct:review — inline\n/);
   assert.match(result.stdout, /^convention \(`direct:` step\): /m);
-  assert.match(result.stdout, /^convention \(every step\): /m);
+  assert.doesNotMatch(result.stdout, /^convention \(every step\): /m, 'a step that declares nothing has no artifact to check');
   assert.ok(result.stdout.endsWith('\n\nsection: none — the conventions above apply\n'), result.stdout);
   // The step beside it, which has a section, prints it.
   assert.ok(verb(['node-brief', `--state=${run.state}`, '--node=draft']).stdout.endsWith('\n\nWrite the note.\n'));
