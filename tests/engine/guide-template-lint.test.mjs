@@ -7,8 +7,8 @@ import { ENGINE_DIR, FIXTURES, ROOT, run, scratch } from '../helpers.mjs';
 
 // The guide template lint runs as `make validate` runs it: a child process from
 // the repository root, its findings on stdout. Each committed sample is a
-// definition plus its guide; a bad one breaks exactly one failing check, the
-// over-target one only a word target, which warns and never fails.
+// definition plus its guide; a bad one breaks exactly one failing check. The
+// lint checks structure only: how many words a part runs to is never a finding.
 
 const LINT = path.join(ROOT, 'tests/guide-template-lint.mjs');
 const SAMPLES = path.join(FIXTURES, 'guide-template');
@@ -34,7 +34,7 @@ const BAD = [
   ['check 3, parts', 'bad-parts', `FAIL: ${guide('bad-parts')}:42: draft: **Writes.** is out of order (Does, Asks, Writes, Summary, Re-run, Budget)`],
   ['check 5, gates', 'bad-gate', `FAIL: ${guide('bad-gate')}:46: approval: a gate section holds **Exception.** only, not **Does.**`],
   ['check 6, question sets', 'bad-question-sets', `FAIL: ${guide('bad-question-sets')}:25: scope: \`tone\` has a second **With question sets** line`],
-  ['check 7, prose needed', 'bad-prose-needed', 'FAIL: tests/fixtures/guide-template/bad-prose-needed.yml:11: wrap-up: brief: carries budget but the guide has no section'],
+  ['check 7, prose needed', 'bad-prose-needed', 'FAIL: tests/fixtures/guide-template/bad-prose-needed.yml:9: wrap-up: brief: carries budget but the guide has no section'],
   ['check 8, conventions not restated', 'bad-restated', `FAIL: ${guide('bad-restated')}:33: draft: restates a convention (Ask it from \`gate-brief --json\`)`],
 ];
 
@@ -56,11 +56,19 @@ test('guide-template-lint: each bad sample fails with exactly its own FAIL line 
   }
 });
 
-test('guide-template-lint: a part over its word target warns and still exits 0 (check 4)', () => {
-  const result = lint(sample('over-target'));
+test('guide-template-lint: a long part is no finding — nothing is printed for word counts', t => {
+  const long = Array.from({ length: 600 }, (_, index) => `word${index}`).join(' ');
+  const { out } = copied(t, ['good'], text => text.replace('**Does.** ', `**Does.** ${long} `));
+  const result = lint(out.good);
   assert.equal(result.code, 0, result.stdout + result.stderr);
-  assert.deepEqual(lines(result.stdout, 'FAIL: '), []);
-  assert.deepEqual(lines(result.stdout, 'warning: '), [`warning: ${guide('over-target')}:33: draft: Does is 135 words (target 120)`]);
+  assert.equal(result.stdout, '');
+  assert.equal(result.stderr, '');
+});
+
+test('guide-template-lint: a heading is hashes then a space — a #tag line in a part is text, as the slicer reads it', t => {
+  const { out } = copied(t, ['good'], text => text.replace('**Does.** ', '**Does.** A line.\n#tag stays inside the part.\n\n**Does.** '));
+  const result = lint(out.good);
+  assert.ok(lines(result.stdout, 'FAIL: ').some(line => line.includes('**Does.** appears twice')), result.stdout);
 });
 
 test('guide-template-lint: every failure is printed, never only the first, and its own errors exit 2', () => {
@@ -123,9 +131,9 @@ function copied(t, names, convert = text => text, { guides = true } = {}) {
 }
 
 test('guide-template-lint: CRLF samples pass and fail exactly as their LF copies, on the same lines', t => {
-  const crlf = copied(t, ['good', 'bad-parts', 'over-target'], text => text.replace(/\n/g, '\r\n'));
-  const lf = copied(t, ['good', 'bad-parts', 'over-target']);
-  for (const name of ['good', 'bad-parts', 'over-target']) {
+  const crlf = copied(t, ['good', 'bad-parts', 'bad-question-sets'], text => text.replace(/\n/g, '\r\n'));
+  const lf = copied(t, ['good', 'bad-parts', 'bad-question-sets']);
+  for (const name of ['good', 'bad-parts', 'bad-question-sets']) {
     const [a, b] = [lint(lf.out[name]), lint(crlf.out[name])];
     assert.equal(b.code, a.code, `${name}: ${b.stdout}${b.stderr}`);
     assert.equal(b.stdout.split(crlf.dir).join('<dir>'), a.stdout.split(lf.dir).join('<dir>'), name);

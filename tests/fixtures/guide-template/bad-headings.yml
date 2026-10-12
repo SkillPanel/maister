@@ -6,8 +6,6 @@ description: "Scopes a note, drafts it, asks to continue, and wraps up."
 brief:
   scope:
     budget: 2
-    questions:
-      tone: "A plain tone."
 
 nodes:
   scope:

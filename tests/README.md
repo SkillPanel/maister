@@ -66,12 +66,12 @@ umbrella's, plus 20,000 seeded random values parsed in process.
   goldens after a reviewed change to what an area question says.
 
 - `guide-template-lint.mjs` — not a test: the step-template lint `make validate` runs over the
-  guide beside each built-in definition (or each `--definition=<yml>` given). A `FAIL:` line fails;
-  a word count over its target prints a `warning:` line only. `guide-template-lint.test.mjs` runs it
+  guide beside each built-in definition (or each `--definition=<yml>` given). It checks structure
+  only, and each `FAIL:` line fails. `guide-template-lint.test.mjs` runs it
   as a subprocess on the five built-ins and on the good and bad samples under
   `fixtures/guide-template/`, one bad sample per failing check. `node-brief-size.test.mjs` freezes
-  each built-in and measures every node's `node-brief` output, warning over the 500-word target
-  (300 for an `agent:` or `skill:` step) and never failing on size.
+  each built-in and prints the words of every node's `node-brief` output as a diagnostic table;
+  it fails only on a brief that does not print.
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.

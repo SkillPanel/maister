@@ -22,8 +22,8 @@ author to date.
 `make validate` checks that every command `hooks.json` names resolves on disk and that the
 committed generated variant matches a fresh `make build` byte for byte, plus the flat-command,
 no-colon, picker-rendering and plugin-root-vocabulary lints, and the guide template lint
-(`tests/guide-template-lint.mjs`), which holds every workflow guide to the step template; a
-word count over its target prints a warning and never fails.
+(`tests/guide-template-lint.mjs`), which holds every workflow guide to the step template's
+structure.
 
 `make test` runs the workflow engine's verbs the way a driver runs them — `validate`,
 `resolve`, `write-state` (the freeze, merges and refusals), the dashboard projection, a gate

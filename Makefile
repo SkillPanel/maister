@@ -52,7 +52,7 @@ validate:
 	  } \
 	  END { exit bad }' plugins/maister/skills/workflow-engine/workflows/*.yml
 	@echo "Checking every workflow guide follows the step template..."
-	@# Word counts over a target print warnings only; a FAIL line fails.
+	@# Structure only: each FAIL line is a finding, and any one fails.
 	@node tests/guide-template-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find plugins/maister-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)

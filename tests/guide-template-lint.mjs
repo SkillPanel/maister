@@ -14,12 +14,16 @@
  * argument it checks the five built-in workflows. A definition other than a
  * built-in may carry `Embedded mode` as its only shared section.
  *
- * Output: one `FAIL: <file>:<line>: <node or header>: <what>` line per failure,
- * and one `warning: <file>:<line>: <node>: <part> is N words (target M)` line
- * per word count over its target. Word targets are guidance and never fail.
- * Exit 1 after printing every failure, 0 when there is none (warnings alone
- * exit 0), and 2 on the script's own error — an unreadable definition, a graph
- * that does not resolve, a guide that is missing, or a usage error.
+ * Output: one `FAIL: <file>:<line>: <node or header>: <what>` line per failure.
+ * The lint checks structure only; how long a part runs is never its finding.
+ * Exit 1 after printing every failure, 0 when there is none, and 2 on the
+ * script's own error — an unreadable definition, a graph that does not
+ * resolve, a guide that is missing, or a usage error.
+ *
+ * It reads a guide by the engine's own walk (`guideRows`, `readerRows`), so a
+ * fence, a heading or a picker passage is where the slicer `node-brief` prints
+ * from finds it, and it fails an orphan node heading by the validator's rule
+ * (`orphanHeadings`).
  *
  * Repository tooling: it never ships under `plugins/`, and it sits outside
  * `tests/engine/` so `make test`'s glob never runs it as a test. Zero
@@ -31,7 +35,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { readDefinition } from '../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
-import { resolve, sectionNameOf } from '../plugins/maister/skills/workflow-engine/scripts/lib/graph.mjs';
+import { NODE_HEADING, guideRows, orphanHeadings, readerRows, resolve, sectionNameOf } from '../plugins/maister/skills/workflow-engine/scripts/lib/graph.mjs';
 import { briefOf } from '../plugins/maister/skills/workflow-engine/scripts/lib/brief.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -55,11 +59,6 @@ const PARTS = ['Does', 'Asks', 'Writes', 'Summary', 'Re-run', 'Budget'];
 /** The one part a gate section may hold. */
 const EXCEPTION = 'Exception';
 
-/** Word targets per part; the Asks run-in's target is per declared question id. */
-const TARGETS = { Does: 120, Writes: 60, Summary: 80, 'Re-run': 60, Budget: 30, [EXCEPTION]: 80 };
-const RUN_IN_PER_ID = 40;
-const SECTION_TARGET = 450;
-
 /** A paragraph's bold run-in label: `**Does.**`. */
 const LABEL = /^\*\*([^*]+?)\.\*\*/;
 
@@ -67,12 +66,6 @@ const LABEL = /^\*\*([^*]+?)\.\*\*/;
 const MARKER = /\*\*(With|Without) question sets\*\*/;
 const MARKER_START = /^\*\*(With|Without) question sets\*\*(?:\s*\(([^)]*)\))?/;
 const QUESTION_ID = /`([a-z0-9-]+)`/;
-
-/** An opening or closing code fence. */
-const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
-
-/** A node section heading: an H2 whose whole text is one backticked name. */
-const NODE_HEADING = /^##\s+`([^`]+)`\s*$/;
 
 /** Text a guide never carries, because a convention row of the engine skill states it. */
 const RESTATED = [
@@ -95,7 +88,7 @@ function main(argv) {
   if (definitions.length === 0) {
     for (const name of Object.keys(BUILT_INS)) definitions.push(path.join(WORKFLOWS, `${name}.yml`));
   }
-  const report = { failures: [], warnings: [], lines: [] };
+  const report = { failures: [], lines: [] };
   for (const file of definitions) lintDefinition(file, report);
   for (const line of report.lines) process.stdout.write(`${line}\n`);
   return report.failures.length > 0 ? 1 : 0;
@@ -118,11 +111,15 @@ function lintDefinition(file, report) {
   const nodes = resolved.nodes;
   const bySection = new Map(nodes.map(node => [sectionNameOf(node), node]));
 
-  const lines = fs.readFileSync(guide, 'utf8').split('\n').map(row => row.replace(/\r$/, ''));
+  const rows = guideRows(fs.readFileSync(guide, 'utf8'));
+  const lines = rows.map(row => row.text);
   const out = new Output(report, display(guide));
 
-  const { headings } = scan(lines);
-  checkHeader(lines, headings, out);
+  const headings = rows.filter(row => row.level !== null);
+  checkHeader(rows, headings, out);
+
+  // Check 1 for node headings is the validator's orphan rule, failed here.
+  for (const orphan of orphanHeadings(file, definition.doc.nodes)) out.fail(orphan.line, orphan.name, 'no node of the graph has this section');
 
   const seen = new Set();
   const sectioned = new Set();
@@ -134,28 +131,25 @@ function lintDefinition(file, report) {
     const text = lines[heading.line].replace(/^##\s*/, '').trim();
     if (!nodeHeading) {
       if (!shared.includes(text)) out.fail(heading.line, text, 'not a node section or an allowed shared section');
-      checkSharedBody(lines, heading.line, end, text, out);
+      checkSharedBody(rows, heading.line, end, text, out);
       continue;
     }
     const name = nodeHeading[1].trim();
     const node = bySection.get(name);
-    if (!node) {
-      out.fail(heading.line, name, 'no node of the graph has this section');
-      continue;
-    }
+    if (!node) continue;
     if (seen.has(name)) {
       out.fail(heading.line, node.id, 'a second section for this node');
       continue;
     }
     seen.add(name);
     sectioned.add(node.id);
-    checkSection({ lines, start: heading.line, end, node, entry: brief[node.id] ?? null, out });
+    checkSection({ rows, lines, start: heading.line, end, node, out });
   }
 
   for (const node of nodes) {
     const entry = brief[node.id];
     if (!entry || sectioned.has(node.id)) continue;
-    const needs = ['questions', 'budget', 'recommends'].filter(key => Object.hasOwn(entry, key));
+    const needs = ['budget', 'recommends'].filter(key => Object.hasOwn(entry, key));
     if (needs.length === 0) continue;
     out.failAt(display(file), briefLine(file, node.id), node.id, `brief: carries ${needs.join(', ')} but the guide has no section`);
   }
@@ -163,33 +157,13 @@ function lintDefinition(file, report) {
   report.lines.push(...out.sorted());
 }
 
-/** Headings outside fences, with their level and 0-based line. */
-function scan(lines) {
-  const headings = [];
-  let fence = null;
-  for (let at = 0; at < lines.length; at++) {
-    const line = lines[at];
-    const marker = FENCE.exec(line);
-    if (fence) {
-      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && marker[2].trim() === '') fence = null;
-      continue;
-    }
-    if (marker) {
-      fence = marker[1];
-      continue;
-    }
-    const level = /^(#+)\s/.exec(line)?.[1].length;
-    if (level) headings.push({ line: at, level });
-  }
-  return { headings };
-}
-
 /** Check 2, and the H1 half of check 1: the H1, one paragraph, then the first H2. */
-function checkHeader(lines, headings, out) {
+function checkHeader(rows, headings, out) {
+  const lines = rows.map(row => row.text);
   const firstH2 = headings.find(h => h.level === 2)?.line ?? lines.length;
   for (const extra of headings.filter(h => h.level === 1).slice(1)) out.fail(extra.line, 'header', 'a second H1');
   checkRestated(lines, 0, firstH2, 'header', out);
-  checkMarkersOutside(lines, 0, firstH2, 'header', out);
+  checkMarkersOutside(rows, 0, firstH2, 'header', out);
 
   let at = 0;
   while (at < firstH2 && isBlank(lines[at])) at++;
@@ -212,13 +186,13 @@ function checkHeader(lines, headings, out) {
 }
 
 /** A shared section is free prose, but it restates no convention and holds no question-set line. */
-function checkSharedBody(lines, start, end, name, out) {
-  checkRestated(lines, start, end, name, out);
-  checkMarkersOutside(lines, start, end, name, out);
+function checkSharedBody(rows, start, end, name, out) {
+  checkRestated(rows.map(row => row.text), start, end, name, out);
+  checkMarkersOutside(rows, start, end, name, out);
 }
 
-function checkMarkersOutside(lines, start, end, name, out) {
-  for (const row of visible(lines, start, end)) {
+function checkMarkersOutside(rows, start, end, name, out) {
+  for (const row of readerRows(rows.slice(start, end))) {
     if (!row.fenced && MARKER.test(row.text)) out.fail(row.line, name, 'a question-set line outside the Asks part');
   }
 }
@@ -232,44 +206,8 @@ function checkRestated(lines, start, end, name, out) {
   }
 }
 
-/**
- * The lines of a stretch as a step reads them: the picker marker lines and the
- * plain-picker comment dropped, the rich-picker text kept, each with its line
- * and whether it sits in a fence.
- */
-function visible(lines, start, end) {
-  const rows = [];
-  let fence = null;
-  let plain = false;
-  for (let row = start; row < end; row++) {
-    const text = lines[row];
-    if (plain) {
-      if (text.includes('-->')) plain = false;
-      continue;
-    }
-    if (!fence && /^\s*<!--\s*plain-picker\b/.test(text)) {
-      plain = !text.includes('-->');
-      continue;
-    }
-    if (!fence && /^\s*<!--\s*\/?rich-picker\s*-->\s*$/.test(text)) continue;
-    const marker = FENCE.exec(text);
-    if (fence) {
-      rows.push({ line: row, text, fenced: true });
-      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && marker[2].trim() === '') fence = null;
-      continue;
-    }
-    if (marker) {
-      fence = marker[1];
-      rows.push({ line: row, text, fenced: true, opens: true });
-      continue;
-    }
-    rows.push({ line: row, text, fenced: false });
-  }
-  return rows;
-}
-
-/** Checks 3–6 and 8 over one node section. */
-function checkSection({ lines, start, end, node, entry, out }) {
+/** Checks 3, 5, 6 and 8 over one node section. */
+function checkSection({ rows, lines, start, end, node, out }) {
   const id = node.id;
   const gate = node.type === 'gate';
   checkRestated(lines, start + 1, end, id, out);
@@ -278,20 +216,12 @@ function checkSection({ lines, start, end, node, entry, out }) {
   let current = null;
   let paragraphStart = true;
   let stray = null;
-  let sectionWords = 0;
-  const add = words => {
-    sectionWords += words;
-    if (!current) return;
-    current.words += words;
-    current.paragraphs.at(-1).words += words;
-  };
 
-  for (const row of visible(lines, start + 1, end)) {
+  for (const row of readerRows(rows.slice(start + 1, end))) {
     const { text, line } = row;
     if (row.fenced) {
-      if (row.opens && paragraphStart && current) current.paragraphs.push({ line, marker: null, words: 0 });
+      if (row.opens && paragraphStart && current) current.paragraphs.push({ line, marker: null });
       if (!current) stray ??= line;
-      add(count(text));
       paragraphStart = false;
       continue;
     }
@@ -299,25 +229,22 @@ function checkSection({ lines, start, end, node, entry, out }) {
       paragraphStart = true;
       continue;
     }
-    if (/^#{3,}\s/.test(text)) {
+    if (row.level !== null && row.level >= 3) {
       if (current?.label !== 'Does') out.fail(line, id, 'a subheading outside the Does part');
-      if (current) current.paragraphs.push({ line, marker: null, words: 0 });
-      add(count(text.replace(/^#+/, '')));
+      if (current) current.paragraphs.push({ line, marker: null });
       paragraphStart = true;
       continue;
     }
 
-    let body = text;
     if (paragraphStart) {
       const label = LABEL.exec(text);
       if (label) {
-        current = { label: label[1], line, words: 0, paragraphs: [] };
+        current = { label: label[1], line, paragraphs: [] };
         parts.push(current);
-        body = text.slice(label[0].length);
       } else if (!current) {
         stray ??= line;
       }
-      if (current) current.paragraphs.push({ line, marker: MARKER_START.exec(text), words: 0 });
+      if (current) current.paragraphs.push({ line, marker: MARKER_START.exec(text) });
     }
 
     if (MARKER.test(text)) {
@@ -326,7 +253,6 @@ function checkSection({ lines, start, end, node, entry, out }) {
       else if (!(paragraphStart && MARKER_START.test(text))) out.fail(line, id, 'a question-set marker not at the start of its paragraph');
     }
 
-    add(count(body));
     paragraphStart = false;
   }
 
@@ -336,8 +262,7 @@ function checkSection({ lines, start, end, node, entry, out }) {
   if (gate) checkGateParts(parts, id, start, out);
   else checkStepParts(parts, id, out);
 
-  const declared = checkQuestionSets({ parts: gate ? [] : parts, id, entry, headingLine: start, out });
-  checkWords({ parts, gate, declared, sectionWords, id, headingLine: start, out });
+  checkQuestionSets({ parts: gate ? [] : parts, id, out });
 }
 
 /** Check 3 for a step section: the six labels, in order, each at most once. */
@@ -372,11 +297,9 @@ function checkGateParts(parts, id, headingLine, out) {
 
 /**
  * Check 6 inside the Asks part: after the run-in only question-set paragraphs,
- * at most one With and one Without per id, and the ids agreeing with the merged
- * `brief:` questions. Returns the ids the section declares.
+ * and at most one With and one Without per id.
  */
-function checkQuestionSets({ parts, id, entry, headingLine, out }) {
-  const declared = [];
+function checkQuestionSets({ parts, id, out }) {
   const counts = new Map();
   const asks = parts.find(part => part.label === 'Asks');
   if (asks) {
@@ -392,46 +315,8 @@ function checkQuestionSets({ parts, id, entry, headingLine, out }) {
       const key = `${paragraph.marker[1]}\0${question}`;
       counts.set(key, (counts.get(key) ?? 0) + 1);
       if (counts.get(key) === 2) out.fail(paragraph.line, id, `\`${question}\` has a second **${paragraph.marker[1]} question sets** line`);
-      if (!declared.includes(question)) {
-        declared.push(question);
-        if (!entry?.questions || !Object.hasOwn(entry.questions, question)) out.fail(paragraph.line, id, `\`${question}\` has no brief: questions entry`);
-      }
     }
   }
-  for (const question of Object.keys(entry?.questions ?? {})) {
-    if (!declared.includes(question)) out.fail(headingLine, id, `brief: questions lists \`${question}\`, which no question-set line names`);
-  }
-  return declared;
-}
-
-/** Check 4: every word count over its target warns, and never fails. */
-function checkWords({ parts, gate, declared, sectionWords, id, headingLine, out }) {
-  for (const part of parts) {
-    if (part.label === 'Asks') {
-      const runIn = runInWords(part);
-      const target = RUN_IN_PER_ID * Math.max(1, declared.length);
-      if (runIn > target) out.warn(part.line, id, 'Asks run-in', runIn, target);
-      continue;
-    }
-    if (gate && part.label !== EXCEPTION) continue;
-    const target = TARGETS[part.label];
-    if (target !== undefined && part.words > target) out.warn(part.line, id, part.label, part.words, target);
-  }
-  if (!gate && sectionWords > SECTION_TARGET) out.warn(headingLine, id, 'section', sectionWords, SECTION_TARGET);
-}
-
-/** The Asks part's words before its first question-set paragraph. */
-function runInWords(part) {
-  let words = 0;
-  for (const paragraph of part.paragraphs) {
-    if (paragraph.marker) break;
-    words += paragraph.words;
-  }
-  return words;
-}
-
-function count(text) {
-  return text.split(/\s+/).filter(Boolean).length;
 }
 
 function isBlank(text) {
@@ -471,11 +356,6 @@ class Output {
   failAt(file, line, name, what) {
     this.report.failures.push(what);
     this.lines.push({ file, line, text: `FAIL: ${file}:${line}: ${name}: ${what}` });
-  }
-
-  warn(line, name, part, words, target) {
-    this.report.warnings.push(part);
-    this.lines.push({ file: this.file, line: line + 1, text: `warning: ${this.file}:${line + 1}: ${name}: ${part} is ${words} words (target ${target})` });
   }
 
   /** The guide's lines in line order, then the definition's: a stable sort, so one line's findings keep their order. */

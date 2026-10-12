@@ -76,9 +76,8 @@ test('the gate-rule sentence occurs exactly once', () => {
 // `### Node conventions` holds every node's default behaviour, once: one
 // `| Applies to | Convention |` table whose first cell is one of ten fixed
 // keys, by which a reader selects the rows that apply to a node. A missing key
-// fails. A row's convention aims at 45 words or fewer; one over that target is
-// reported as a diagnostic and never fails. The table is no home for the gate
-// rule: it carries neither the sentence nor its tail.
+// fails. The table is no home for the gate rule: it carries neither the
+// sentence nor its tail.
 
 const CONVENTION_KEYS = [
   '`agent:` step',
@@ -92,8 +91,6 @@ const CONVENTION_KEYS = [
   'named by a revise',
   'has a budget',
 ];
-
-const ROW_WORD_TARGET = 45;
 
 const GATE_RULE_TAIL = 'ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is '
   + '`cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.';
@@ -137,12 +134,8 @@ test('the conventions table holds each of the ten keys as a first cell, once', (
   assert.deepEqual([...keys].sort(), [...CONVENTION_KEYS].sort(), 'no row outside the ten keys');
 });
 
-test('a convention over the word target is reported, never failed', t => {
-  for (const { key, convention } of conventionRows()) {
-    const words = convention.split(/\s+/).filter(Boolean).length;
-    assert.ok(words > 0, `the ${key} row says something`);
-    if (words > ROW_WORD_TARGET) t.diagnostic(`warning: the ${key} row runs ${words} words (target ${ROW_WORD_TARGET})`);
-  }
+test('every convention row says something', () => {
+  for (const { key, convention } of conventionRows()) assert.ok(convention.trim() !== '', `the ${key} row says something`);
 });
 
 test('the conventions table carries no copy of the gate-rule sentence or its tail', () => {
