@@ -51,8 +51,8 @@ node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-request --st
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-revise --state=<run>/orchestrator-state.yml --node=<gate> --option=<revise option> <<< '<json>'
 ```
 
-An apostrophe inside the JSON is `'\''`; PowerShell and cmd take the patch file instead. Both
-rules, and the forms never to use, are in *The invocation contract*.
+An apostrophe inside the JSON is `'\''`. On Windows every shell, Git Bash included, takes the
+patch file instead. Both rules, and the forms never to use, are in *The invocation contract*.
 
 **3. One verb, one call.** When a step needs two verbs, that is two calls.
 
@@ -262,9 +262,11 @@ string early. The typographic `’` may stand for an apostrophe only in a prose 
 never in code, a command, a path or a quoted identifier. A pipe (`echo '<json>' |` in front)
 is accepted too, but the command then no longer starts with the engine path.
 
-**bash, zsh and Git Bash take the here-string; PowerShell and cmd, which have none, take
-the patch file** — and so may any shell, as the fallback. A large document (a big question
-set or summary) goes through `--patch-file`, because a command line is limited in length
+**bash and zsh take the here-string; on Windows every shell takes the patch file** —
+PowerShell and cmd have no here-string, and Git Bash can lose the backslashes of a JSON escape
+on its way into the command. Any shell may take the patch file as the fallback. A large
+document (a big question set or summary) goes through `--patch-file`, because a command line is
+limited in length
 (about 32 KB on Windows). Write the JSON to `.state-patch.json` in the run directory —
 beside `orchestrator-state.yml` — with the file-writing tool, then name it on the call:
 

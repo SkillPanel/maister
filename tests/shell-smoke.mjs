@@ -17,7 +17,7 @@
  * the gate, the dashboard projection and `resume-check`. The freeze travels in
  * the patch file under every shell; the node writes travel as a here-string
  * (`<<< '<json>'`, an apostrophe written `'\''`) under bash and zsh, and in the
- * patch file under PowerShell and cmd, which have no here-string. Then the hooks, each started as `hooks.json`
+ * patch file under every shell on Windows. Then the hooks, each started as `hooks.json`
  * starts it: the edition check under `node`, the two session-start reminders
  * and the destructive-command guard under `bash` (Git Bash on Windows).
  *
@@ -63,8 +63,12 @@ if (!Object.hasOwn(SHELLS, shellName)) {
   }
 }
 const quote = value => (shellName === 'cmd' ? `"${value}"` : `'${value}'`);
-/** The shells that take a JSON document as a here-string; the rest take the patch file. */
-const HERE_STRING = shellName === 'bash' || shellName === 'zsh';
+/**
+ * The shells that take a JSON document as a here-string; the rest take the patch file. On
+ * Windows every shell does: Git Bash rebuilds its arguments from the Windows command line and
+ * collapses the doubled backslash of a JSON escape on the way, so a patch holding a path breaks.
+ */
+const HERE_STRING = !WINDOWS && (shellName === 'bash' || shellName === 'zsh');
 
 let failed = 0;
 function check(name, ok, detail = '') {
