@@ -82,7 +82,7 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 |---|---|
 | absent, or `kind: terminal` | asked in session, exactly as the phase describes it |
 | `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator**: every question the phase can form at its first asking point goes out as one `kind: question` request, and the phase resumes `running` with the answers recorded as `by: operator` decisions |
-| any other — `dispatch`, or a cockpit without that feature | **never asked**; the phase takes the default its own prose names, and records that it did |
+| any other — `dispatch`, or a cockpit without that feature | **never asked**; the phase takes the default its `brief:` `questions` entry names, and records that it did |
 
 The workflow engine's `references/in-node-questions.md` holds the mechanism — one request per attempt, written to disk before suspending, what is recorded, and the policy that classes questions when the freeze recorded `orchestrator.classes_questions`. Asking in session under a driver is the defect this rule prevents: nobody is in the session to answer.
 
@@ -251,7 +251,7 @@ Workflows add domain-specific fields in their context block, at the **top level*
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |
 | Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
-Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/references/writing-state.md`); the full schema of each block is in that workflow's node prose, `workflow-engine/workflows/<name>.md` ("Run-scoped context", "Phase summary keys", and for product design "The context block").
+Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/references/writing-state.md`); the phase keys each node mirrors are its `brief:` `summary_keys` in that workflow's definition, `workflow-engine/workflows/<name>.yml`, which `node-brief` prints for the node, and for product design the block's shape is "The context block" in `product-design.md` beside it.
 
 ### Shared: research_reference
 

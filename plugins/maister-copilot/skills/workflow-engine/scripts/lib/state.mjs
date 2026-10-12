@@ -955,7 +955,7 @@ export function companionsOfRun(doc, runDir) {
  * taken against the project root, as the freeze recorded them. Each caller
  * decides what an unreadable source costs it.
  */
-function sourcesOf(workflow, runDir) {
+export function sourcesOf(workflow, runDir) {
   const file = definitionPathOf({ workflow }, runDir);
   if (file === null) return null;
   const root = projectRootOf(runDir);

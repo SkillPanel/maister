@@ -183,7 +183,7 @@ number of entries ride in one patch. There are four moments:
 - **A node starts.** One patch: the node's `status: running`, and the `orchestrator` scalars
   the start moves.
 - **A node ends.** One patch: the node's status, its `node_summaries` entry, the
-  `phase_summaries` key the node prose names when it mirrors one, and the `orchestrator`
+  `phase_summaries` key its `brief:` entry names under `summary_keys`, and the `orchestrator`
   scalars the outcome moves. The writer mirrors the node's status onto its summary whichever
   arrives first; a summary written with its own `status` keeps it until the node's status
   next changes.

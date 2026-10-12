@@ -25,12 +25,10 @@
 # under every generated variant without a rewrite.
 #
 # The node prose lives beside this file in `performance.md`, one section per node
-# id. Every `direct:` node is executed from its section there, and the four
-# operator questions asked inside nodes appear only in that prose — a reader of
-# this file alone cannot see them, and neither can the generated diagram. The
-# per-node recovery budgets live there too, never here: a budget written into
-# `with:` would read like a grammar feature while being inert data the engine
-# never consults.
+# id. Every `direct:` node is executed from its section there, and the operator
+# questions asked inside nodes appear only in that prose — a reader of the graph
+# alone cannot see them, and neither can the generated diagram. Their defaults,
+# the recovery budgets and the phase summary keys sit in the `brief:` block below.
 name: performance
 version: 1
 description: "Finds and fixes performance problems by static analysis of the code — N+1 queries, missing indexes, quadratic algorithms, blocking I/O, memory leaks — informed by profiling data when the operator supplies it, then specifies, plans, implements and verifies the optimisation. Use it when the task is to make something faster or leaner rather than to change what it does."
@@ -45,8 +43,7 @@ inputs:
 # `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
 # member rather than inventing one; anything else fails validation. Each gate
 # carries the icon of the node it closes, so a phase and the approval that
-# closes it read as one pair. The same table lives in the prose beside this
-# file.
+# closes it read as one pair.
 display:
   icons:
     intake:                        analysis
@@ -119,6 +116,43 @@ html_companions:
   specification: [spec]
   planning: [plan]
   verification: [report]
+
+# What each step's brief prints beside its prose: the phase keys its summary is
+# mirrored under, its recovery budget (a prose rule, never enforced) and the
+# default each in-node question takes when nobody can be asked — a short form
+# of the prose's Without line, changed together with it. Outside the recorded
+# identity, like the two blocks above.
+brief:
+  codebase-analysis:
+    summary_keys: [codebase_analysis]
+    budget: 2
+    questions:
+      clarifications: "None asked; the analysis's answers stand, and what it could not settle is recorded as unsettled."
+      profiling-data: "No profiling data: the run proceeds on static analysis alone, never waiting for files."
+  bottleneck-analysis:
+    summary_keys: [bottleneck_analysis]
+    budget: 2
+  specification:
+    summary_keys: [specification]
+    budget: 2
+    questions:
+      optimization-priorities: "Every P0 and P1, the recommended constraints bundle, no numeric target beyond the invocation's."
+  spec-audit:
+    questions:
+      spec-audit-findings: "Nothing asked: an unclassed finding stays an open risk; a classed one takes its classing outcome."
+  planning:
+    budget: 2
+  implementation:
+    summary_keys: [implementation]
+    budget: 5
+  verification-options:
+    questions:
+      standard-verifications: "Code review only, production readiness off; the reality check and pragmatic review still run."
+  verification:
+    budget: 3
+    questions:
+      verification-findings: "Nothing asked: an unclassed issue stays an open risk; a classed one takes its classing outcome."
+      verification-fix-loop: "Fix and re-check unasked, two re-checks; decisions and risky fixes stay open risks; the stop takes Continue as is."
 
 nodes:
   intake:

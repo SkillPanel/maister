@@ -11,7 +11,7 @@
  * **Warn where a static check cannot decide, error where it can.** Only one of
  * the four target schemes is decidable here. A `direct:` node is executed by
  * this engine out of the prose companion beside its own definition, so a
- * missing section is a fact of the file in hand and an error. The other three
+ * missing companion is a fact of the file in hand and an error. The other three
  * name something an environment this validator cannot see may provide: a
  * `workflow:` target may come from a workspace eject, and a `skill:` or
  * `agent:` target from a plugin installed later or a project this definition
@@ -42,6 +42,13 @@
  * graph reached by an overlay and by a hand-written eject must carry one
  * identity. If provenance entered the hash the two routes could never agree,
  * and comparing them would be meaningless.
+ *
+ * One reader of the prose companion lives here too: `proseSection` slices a
+ * node's section out of the guide beside a definition. The caller passes the
+ * section name — the node id — and the slicer finds the heading that is
+ * exactly that name, skipping fenced blocks, so a heading quoted in an example
+ * neither starts nor ends a section. The `direct:` check above is that slicer
+ * returning something.
  */
 
 import { createHash } from 'node:crypto';
@@ -162,10 +169,37 @@ const TUNABLE = ['with', 'provider'];
  * key, so an `id:` written inside a node is refused like any other key outside
  * the set.
  */
-const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes', 'html_companions'];
-const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display', 'html_companions'];
-const PROFILE_KEYS = ['disable', 'tune', 'add', 'display', 'html_companions'];
+const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes', 'html_companions', 'brief'];
+const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display', 'html_companions', 'brief'];
+const PROFILE_KEYS = ['disable', 'tune', 'add', 'display', 'html_companions', 'brief'];
 const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
+
+/**
+ * The keys of one node's entry in the top-level `brief:` block: what the node's
+ * brief prints beside its prose — the phase summary keys the node mirrors, the
+ * artifacts it may leave unwritten and why, its recovery budget, the `with:`
+ * values that recommend a continue option of the gate it feeds, and the default
+ * each of its in-node questions takes when nobody can be asked. Every one is
+ * data a step reads; none is graph data, so the block stays outside the hash
+ * (`buildGraph`). Exported for `brief.mjs`, which merges the block by the same
+ * shape rules (`briefValueProblems`).
+ */
+export const BRIEF_KEYS = ['summary_keys', 'absent', 'budget', 'recommends', 'questions'];
+
+/**
+ * A phase key, as a node mirrors its summary under it. The dash is admitted
+ * because a frozen state shape already carries phase keys written with one.
+ */
+const PHASE_KEY = /^[a-z][a-z0-9_-]*$/;
+
+/** An in-node question's id, the class its prose declares it in. */
+const QUESTION_KEY = /^[a-z0-9][a-z0-9-]*$/;
+
+/** The longest default a `brief.<node>.questions` entry may give. */
+const QUESTION_DEFAULT_MAX = 120;
+
+/** The highest recovery budget a brief may print. */
+const BUDGET_MAX = 10;
 
 /**
  * An authored gate option in its map form: its effect, for a revise option
@@ -291,7 +325,12 @@ const WARN = {
   companionUnknownNode: (path, node) => `html-companion-unknown-node:${path}:${node}`,
   companionUnknownArtifact: (path, node) => `html-companion-unknown-artifact:${path}:${node}`,
   companionNotMarkdown: (path, node) => `html-companion-not-markdown:${path}:${node}`,
+  briefUnknownNode: (path, node) => `brief-unknown-node:${path}:${node}`,
+  briefUnknownArtifact: (path, node) => `brief-unknown-artifact:${path}:${node}`,
+  briefUnknownInput: (path, node) => `brief-unknown-input:${path}:${node}`,
+  briefUnknownOption: (path, node) => `brief-unknown-option:${path}:${node}`,
   overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
+  orphanSection: (companion, name) => `orphan-prose-section:${companion}:${name}`,
   undescribed: (name) => `workflow-undescribed:${name} — the work command offers a project workflow by what it is for, `
     + 'and this one does not say: add a one-paragraph description: to the definition, '
     + 'or a paragraph under the title of its prose companion',
@@ -440,6 +479,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   if (hidden) warnings.push(hidden);
   const undescribed = undescribedWorkflow(definition);
   if (undescribed) warnings.push(undescribed);
+  warnings.push(...orphanSections(definition, overlays));
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) {
     checkGraph(graph, errors, warnings, resolved, project);
@@ -752,25 +792,113 @@ function isFile(target) {
 
 /**
  * Whether the prose companion beside a definition carries a section for a node.
- * `direct:` nodes are executed by the engine itself from that section, so a
- * missing one is a node with no implementation at all.
- *
- * The heading must *be* the node id, not mention it: a section titled "Notes on
- * assess-scope failure modes" is prose about the node, and accepting it would
- * report an implementation that is not there.
+ * A `direct:` node with one runs from it; one without runs from the node
+ * conventions alone.
  */
 function hasProseSection(file, name) {
-  if (!file) return false;
+  return proseSection(file, name) !== null;
+}
+
+/** An opening or closing code fence: three or more backticks or tildes. */
+const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+
+/**
+ * One node's section of the prose companion beside a definition file, or null
+ * when the companion is missing or carries no such section. The caller passes
+ * the section name — the node id — not a heading.
+ *
+ * A heading is a line outside a fenced block that starts with `#`; it names
+ * `name` when its text, with the `#`s, backticks and surrounding spacing
+ * removed, equals it. The heading must *be* the node id, not mention it: a
+ * section titled "Notes on assess-scope failure modes" is prose about the
+ * node, and accepting it would report an implementation that is not there.
+ *
+ * The section runs to the next heading outside a fence at the same or a higher
+ * level, so a `### Step` stays inside its node. Fences are skipped both ways:
+ * a heading quoted in an example neither opens a section nor closes one. The
+ * heading line itself, trailing blank lines and trailing `---` rules are
+ * dropped. Lines are split on LF with a trailing CR removed, so a CRLF checkout
+ * slices the same as an LF one.
+ */
+export function proseSection(file, name) {
+  if (!file) return null;
   const companion = file.replace(/\.ya?ml$/i, '.md');
-  if (companion === file || !isFile(companion)) return false;
-  const text = fs.readFileSync(companion, 'utf8');
-  for (const row of text.split('\n')) {
-    const line = row.replace(/\r$/, '');
+  if (companion === file || !isFile(companion)) return null;
+  const lines = fs.readFileSync(companion, 'utf8').split('\n').map(row => row.replace(/\r$/, ''));
+  let fence = null;
+  let found = null;
+  for (let at = 0; at < lines.length; at++) {
+    const line = lines[at];
+    const marker = FENCE.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && marker[2].trim() === '') fence = null;
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
     if (!line.startsWith('#')) continue;
+    const level = /^#+/.exec(line)[0].length;
+    if (found) {
+      if (level <= found.level) {
+        found.end = at;
+        break;
+      }
+      continue;
+    }
     const heading = line.replace(/^#+\s*/, '').replace(/`/g, '').trim();
-    if (heading === name) return true;
+    if (heading === name) found = { at, level, end: lines.length };
   }
-  return false;
+  if (!found) return null;
+  const body = lines.slice(found.at + 1, found.end);
+  while (body.length > 0 && (body.at(-1).trim() === '' || body.at(-1).trim() === '---')) body.pop();
+  return { companion, heading: lines[found.at], text: body.join('\n') };
+}
+
+/**
+ * The name a node's section of the prose companion is found by: the name after
+ * `direct:` for a `direct:` node, and the node id for any other node or gate.
+ * By convention the two are the same, but the target is what `resolveTarget`
+ * slices by, so a reader of the companion that matched headings with ids would
+ * call the section of a renamed target an orphan and miss a mistyped one.
+ *
+ * The id is the node's own `id` when it carries one, as a resolved node does,
+ * or the second argument for a node read from a definition's `nodes:` map.
+ */
+export function sectionNameOf(node, id = node?.id) {
+  const uses = node?.uses;
+  if (typeof uses === 'string' && uses.startsWith('direct:')) return uses.slice('direct:'.length);
+  return id;
+}
+
+/** A node heading: an H2 whose whole text is one backticked name. */
+const NODE_HEADING = /^##\s+`([^`]+)`\s*$/;
+
+/**
+ * The names of every node heading in a companion — `` ## `x` `` outside a fenced
+ * block — in file order, or an empty list when the companion is missing. Shared
+ * H2s such as `## Embedded mode` are not node headings and are not listed.
+ */
+function nodeHeadings(companion) {
+  if (!isFile(companion)) return [];
+  const names = [];
+  let fence = null;
+  for (const raw of fs.readFileSync(companion, 'utf8').split('\n')) {
+    const line = raw.replace(/\r$/, '');
+    const marker = FENCE.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && marker[2].trim() === '') fence = null;
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
+    const heading = NODE_HEADING.exec(line);
+    if (heading) names.push(heading[1].trim());
+  }
+  return names;
 }
 
 // ---------------------------------------------------------------------------
@@ -1090,8 +1218,12 @@ function hiddenOverlay(definition, overlays) {
  * provide resolves, and the report says where.
  *
  * `direct:` is the decidable one and stays an error. Its implementation is the
- * section in the prose companion beside the definition being validated, which
- * is a file in hand: no environment can supply it later.
+ * prose companion beside the file that declared the node, which is a file in
+ * hand: no environment can supply it later. A section named after the target
+ * resolves `from: 'companion'`; a companion with no such section resolves
+ * `from: 'conventions'`, the step running from the engine's node conventions
+ * alone; only a missing companion is an error. A heading left behind by a
+ * rename is caught by the `orphan-prose-section` warning instead.
  *
  * The scheme check and the charset check below are errors under every scheme,
  * absent target or not — the charset check is also the traversal guard, so a
@@ -1120,9 +1252,11 @@ function resolveTarget(uses, origin, project) {
     return { message: `"${written}" is not a ${scheme} name: expected ${TARGET_NAME.source}` };
   }
   if (scheme === 'direct') {
-    return hasProseSection(origin, name)
-      ? { resolved: { at: companionOf(origin), from: 'companion' } }
-      : { message: `the prose companion carries no section for "${name}"` };
+    const companion = companionOf(origin);
+    if (hasProseSection(origin, name)) return { resolved: { at: companion, from: 'companion' } };
+    return isFile(companion)
+      ? { resolved: { at: companion, from: 'conventions' } }
+      : { message: `"${name}" has no prose companion: ${companion} does not exist` };
   }
   // All four homes, not the built-in alone: the report says which one answered,
   // and a target no environment in hand can see still warns rather than errors.
@@ -1203,6 +1337,41 @@ function undescribedWorkflow(definition) {
   if (typeof doc.description === 'string' && doc.description.trim() !== '') return null;
   if (companionSummary(file).summary !== null) return null;
   return WARN.undescribed(stem);
+}
+
+/**
+ * A node heading in a prose companion that no node finds its section by. Since
+ * a `direct:` step with no section runs from the conventions, a heading left
+ * behind by a renamed node or a mistyped target would otherwise be prose that
+ * silently never runs, so each one warns `orphan-prose-section`.
+ *
+ * Each companion is judged against the nodes the file beside it declares: the
+ * definition's `nodes:`, or an overlay's `add:` entries, its profiles' included.
+ * Declared, not resolved: a node an overlay or a profile disables still names
+ * its heading, because the base's prose is not wrong for being trimmed in one
+ * project. The warning never blocks.
+ */
+function orphanSections(definition, overlays) {
+  const warnings = [];
+  const judge = (file, declared) => {
+    if (typeof file !== 'string' || !/\.ya?ml$/i.test(file)) return;
+    const names = new Set(Object.entries(declared).map(([id, node]) => sectionNameOf(node, id)));
+    const companion = companionOf(file);
+    for (const name of nodeHeadings(companion)) {
+      if (!names.has(name)) warnings.push(WARN.orphanSection(companion, name));
+    }
+  };
+  if (isMap(definition?.doc)) judge(definition.file, isMap(definition.doc.nodes) ? definition.doc.nodes : {});
+  for (const overlay of overlays) {
+    const doc = overlay?.doc;
+    if (!isMap(doc)) continue;
+    const declared = { ...(isMap(doc.add) ? doc.add : {}) };
+    for (const body of Object.values(isMap(doc.profiles) ? doc.profiles : {})) {
+      if (isMap(body) && isMap(body.add)) Object.assign(declared, body.add);
+    }
+    judge(overlay.file, declared);
+  }
+  return warnings;
 }
 
 /**
@@ -1335,12 +1504,22 @@ function buildGraph({ definition, overlays, profile, errors }) {
     const selected = selectedProfile(overlay, profile);
     if (selected !== null) companions.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.html_companions });
   }
+  // `brief:` too: what a node's brief prints beside its prose is read by the
+  // step and by no executor, so a run whose only change is a budget or a
+  // question's default is the same executable graph.
+  const briefs = [{ file, prefix: '', block: doc.brief }];
+  for (const overlay of overlays) briefs.push({ file: overlay.file, prefix: '', block: overlay.doc?.brief });
+  for (const overlay of overlays) {
+    const selected = selectedProfile(overlay, profile);
+    if (selected !== null) briefs.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.brief });
+  }
   return {
     file,
     inputs: isMap(doc.inputs) ? doc.inputs : {},
     outputs: doc.outputs,
     displays,
     companions,
+    briefs,
     nodes,
     origins,
     removed,
@@ -2063,6 +2242,174 @@ function checkCompanionNodes({ prefix, block }, nodes, removed, warnings) {
 }
 
 /**
+ * The `brief:` block on its own: a mapping of node id to an entry of
+ * `BRIEF_KEYS`, each value of its key's shape (`briefValueProblems`). Errors,
+ * for the reason `checkCompanionValues` gives: each is a mistake in the file in
+ * hand, and the merge (`briefOf`) drops a malformed value, so a budget or a
+ * default the author wrote would otherwise vanish from the brief without a word.
+ *
+ * `null` is a removal — an entry set to null drops the node's entry, a key set
+ * to null drops that key — which only a layer over another can mean. In an
+ * overlay or a profile (`layered`) it is accepted; in a definition there is
+ * nothing beneath it to remove, so it is an error there.
+ *
+ * Checked per block, like `html_companions:` — the base's in `checkGraph`, an
+ * overlay's and each of its profiles' in `checkOps`.
+ */
+function checkBriefValues(block, file, prefix, errors, { layered }) {
+  if (block === undefined) return;
+  const at = `${prefix}brief`;
+  if (!isMap(block)) {
+    fail(errors, file, at, `brief is a mapping of node id to the node's brief entry; ${describe(block)} is not`, null);
+    return;
+  }
+  for (const [id, entry] of Object.entries(block)) {
+    const dotted = `${at}.${id}`;
+    if (!NODE_ID.test(id)) fail(errors, file, dotted, `"${id}" is not a node id`, id);
+    if (entry === null && layered) continue;
+    if (!isMap(entry)) {
+      fail(errors, file, dotted,
+        `brief.${id} is a mapping of brief keys (${BRIEF_KEYS.join(', ')}); ${describe(entry)} is not`, id);
+      continue;
+    }
+    checkKeys(Object.keys(entry), BRIEF_KEYS, { file, prefix: `${dotted}.`, label: 'a brief key', node: id }, errors);
+    for (const key of BRIEF_KEYS) {
+      if (!Object.hasOwn(entry, key)) continue;
+      if (entry[key] === null) {
+        if (!layered) fail(errors, file, `${dotted}.${key}`,
+          'null removes a key an earlier layer set, which only an overlay or a profile has; leave the key out instead', id);
+        continue;
+      }
+      for (const problem of briefValueProblems(key, entry[key])) {
+        fail(errors, file, `${dotted}.${key}${problem.at}`, problem.message, id);
+      }
+    }
+  }
+}
+
+/**
+ * What is wrong with one brief value, as `{at, message}` rows where `at` is
+ * the path below the key ('' for the value itself); empty when the value is of
+ * its key's shape. The validator locates each row; the merge takes a value
+ * only when there is none.
+ */
+export function briefValueProblems(key, value) {
+  const problems = [];
+  const report = (at, message) => problems.push({ at, message });
+  const shown = item => (typeof item === 'string' ? JSON.stringify(item) : describe(item));
+  if (key === 'summary_keys') {
+    if (!Array.isArray(value) || value.length === 0) {
+      report('', `summary_keys is a list of phase keys the node mirrors its summary under; ${shown(value)} is not`);
+      return problems;
+    }
+    const seen = new Set();
+    for (const [index, each] of value.entries()) {
+      if (typeof each !== 'string' || !PHASE_KEY.test(each)) {
+        report(`.${index}`, `a phase key is lower-case letters, digits, underscores and dashes, starting with a letter; ${shown(each)} is not`);
+        continue;
+      }
+      if (seen.has(each)) report('', `summary_keys names ${each} twice`);
+      seen.add(each);
+    }
+  } else if (key === 'absent') {
+    if (!isMap(value)) {
+      report('', `absent is a mapping of artifact key to the one-line reason the node may leave it unwritten; ${shown(value)} is not`);
+      return problems;
+    }
+    for (const [artifact, reason] of Object.entries(value)) {
+      if (!isOneLine(reason)) report(`.${artifact}`, `an absence's reason is one line of plain text; ${shown(reason)} is not`);
+    }
+  } else if (key === 'budget') {
+    if (!Number.isInteger(value) || value < 1 || value > BUDGET_MAX) {
+      report('', `budget is a whole number from 1 to ${BUDGET_MAX}, the recovery attempts the node may make; ${shown(value)} is not`);
+    }
+  } else if (key === 'recommends') {
+    if (!isMap(value)) {
+      report('', `recommends is a mapping of with: key to (value → continue option); ${shown(value)} is not`);
+      return problems;
+    }
+    for (const [input, choices] of Object.entries(value)) {
+      if (!isMap(choices)) {
+        report(`.${input}`, `recommends.${input} is a mapping of input value to the option it recommends; ${shown(choices)} is not`);
+        continue;
+      }
+      for (const [answer, option] of Object.entries(choices)) {
+        if (typeof option !== 'string' || !OPTION_ID.test(option)) {
+          report(`.${input}.${answer}`, `a recommended option is a gate option id; ${shown(option)} is not`);
+        }
+      }
+    }
+  } else if (key === 'questions') {
+    if (!isMap(value)) {
+      report('', `questions is a mapping of question id to the default it takes when nobody can be asked; ${shown(value)} is not`);
+      return problems;
+    }
+    for (const [id, fallback] of Object.entries(value)) {
+      if (!QUESTION_KEY.test(id)) report(`.${id}`, `"${id}" is not a question id`);
+      else if (!isOneLine(fallback) || fallback.length > QUESTION_DEFAULT_MAX) {
+        report(`.${id}`, `a question's default is one line of at most ${QUESTION_DEFAULT_MAX} characters; ${shown(fallback)} is not`);
+      }
+    }
+  }
+  return problems;
+}
+
+/** A non-empty string with no line break or tab. */
+function isOneLine(value) {
+  return typeof value === 'string' && value.trim() !== '' && !/[\r\n\t]/.test(value);
+}
+
+/**
+ * The block against the resolved graph. A node the graph does not carry, an
+ * `absent` key the node does not declare, a `recommends` key that is not one of
+ * its `with:` keys and a recommended option that is not a continue option of a
+ * gate the node feeds each **warn**: the brief prints nothing for that item,
+ * so nothing breaks, but the author meant something that will never be shown.
+ *
+ * A node an overlay's or the selected profile's `disable` removed is skipped in
+ * silence, for the reason `checkCompanionNodes` gives.
+ */
+function checkBriefNodes({ prefix, block }, nodes, removed, warnings) {
+  if (!isMap(block)) return;
+  for (const [id, entry] of Object.entries(block)) {
+    const at = `${prefix}brief.${id}`;
+    if (entry === null) continue;
+    if (!nodes.has(id)) {
+      if (!removed.has(id)) warnings.push(WARN.briefUnknownNode(at, id));
+      continue;
+    }
+    if (!isMap(entry)) continue;
+    const node = nodes.get(id);
+    if (isMap(entry.absent)) {
+      const artifacts = isMap(node.outputs) && isMap(node.outputs.artifacts) ? node.outputs.artifacts : {};
+      for (const key of Object.keys(entry.absent)) {
+        if (!Object.hasOwn(artifacts, key)) warnings.push(WARN.briefUnknownArtifact(`${at}.absent.${key}`, id));
+      }
+    }
+    if (isMap(entry.recommends)) {
+      const inputs = isMap(node.with) ? node.with : {};
+      const continues = new Set();
+      for (const gate of nodes.values()) {
+        if (gate.type !== 'gate' || !needsOf(gate).includes(id) || !isMap(gate.options)) continue;
+        for (const [option, authored] of Object.entries(gate.options)) {
+          if (optionEffect(authored) === 'continue') continues.add(option);
+        }
+      }
+      for (const [input, choices] of Object.entries(entry.recommends)) {
+        if (!Object.hasOwn(inputs, input)) {
+          warnings.push(WARN.briefUnknownInput(`${at}.recommends.${input}`, id));
+          continue;
+        }
+        if (!isMap(choices)) continue;
+        for (const [answer, option] of Object.entries(choices)) {
+          if (!continues.has(option)) warnings.push(WARN.briefUnknownOption(`${at}.recommends.${input}.${answer}`, id));
+        }
+      }
+    }
+  }
+}
+
+/**
  * The top level of a version 1 definition: `DEFINITION_KEYS` and nothing else.
  *
  * `profiles:` gets its own message rather than the generic one, because it is
@@ -2118,7 +2465,7 @@ function isPresent(value) {
 }
 
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
-  const { file, inputs, outputs, displays, companions, nodes, origins, removed } = graph;
+  const { file, inputs, outputs, displays, companions, briefs, nodes, origins, removed } = graph;
 
   checkInputs(inputs, file, errors);
   checkOutputs(outputs, nodes, file, errors, removed, warnings);
@@ -2126,6 +2473,8 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
   for (const display of displays) checkDisplayNodes(display, nodes, warnings);
   checkCompanionValues(companions[0].block, file, '', errors);
   for (const block of companions) checkCompanionNodes(block, nodes, removed, warnings);
+  checkBriefValues(briefs[0].block, file, '', errors, { layered: false });
+  for (const block of briefs) checkBriefNodes(block, nodes, removed, warnings);
 
   for (const id of nodes.keys()) {
     if (!NODE_ID.test(id)) fail(errors, file, 'nodes',
@@ -3261,6 +3610,7 @@ function checkOverlayBaseExists(overlay, project, errors) {
 function checkOps(body, file, prefix, errors) {
   checkDisplayValues(body.display, file, prefix, errors);
   checkCompanionValues(body.html_companions, file, prefix, errors);
+  checkBriefValues(body.brief, file, prefix, errors, { layered: true });
 
   if (body.disable !== undefined) {
     if (!Array.isArray(body.disable)) fail(errors, file, `${prefix}disable`, 'disable must be a sequence of node ids', null);

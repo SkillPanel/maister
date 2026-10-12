@@ -1,6 +1,6 @@
 ---
 name: workflow-author
-description: Helps a project author its own workflow definitions in `.maister/workflows/` — a new workflow, or an overlay of a built-in — and check them before anything runs. `new <name>` interviews the author and writes the definition with its prose companion; `overlay <builtin>` shows the built-in's attachable surface, then writes the overlay; `check` validates a workflow the way `/maister-copilot:run --check` does and adds the checks the engine does not make on executors and artifact paths; `nodes <builtin>` lists what an overlay can attach to or disable; `preview <name>` draws the resolved graph as ASCII with every guard in words. Says plainly when a change needs an eject rather than an overlay, and what an eject costs. Writes only under `.maister/workflows/`, never freezes, writes state or runs a node — running stays with `/maister-copilot:run`.
+description: Helps a project author its own workflow definitions in `.maister/workflows/` — a new workflow, or an overlay of a built-in — and check them before anything runs. `new <name>` interviews the author and writes the definition with its prose companion; `overlay <builtin>` shows the built-in's attachable surface, then writes the overlay; `check` validates a workflow the way `/maister-copilot:run --check` does and adds the checks the engine does not make on executors, prose sections and artifact paths; `nodes <builtin>` lists what an overlay can attach to or disable; `preview <name>` draws the resolved graph as ASCII with every guard in words. Says plainly when a change needs an eject rather than an overlay, and what an eject costs. Writes only under `.maister/workflows/`, never freezes, writes state or runs a node — running stays with `/maister-copilot:run`.
 argument-hint: "new <name> | overlay <builtin> | check [<name> | --all] [--profile=NAME] [--overlay=PATH ...] | nodes <builtin> | preview <name> [--profile=NAME] [--overlay=PATH ...]"
 user-invocable: true
 ---
@@ -97,7 +97,9 @@ questions:
 4. **Gates.** After which phases should a person approve before the run goes on? Propose one after
    each phase that produces something reviewable; each gate gets one continue option and at least
    one stop (§ 6), or one continue per way on when the gate decides the optional phase after it. Where the author wants a way to send a document back, add a revise option
-   naming the node that wrote it, and give that node's section its re-run paragraph (§ 6, § 11).
+   naming the node that wrote it (§ 6). The engine's node conventions already say how a step a
+   revise names runs again; its section takes a **Re-run.** part only for what it does beyond them
+   (§ 11).
 5. **Optional stretches.** A phase that runs only sometimes is guarded by a `bool` — an input, a
    value an earlier node records, or a value the answer to the gate before it sets (§ 6, § 7). A
    stretch either of two gates can switch on joins their values with `||`; there is no other
@@ -108,9 +110,17 @@ questions:
    declared markdown artifact by what it holds; the answer becomes the `html_companions` block
    (§ 3.2), keyed by node id and listing artifact keys. None is a fine answer — a definition
    without the block owes no page.
-7. **Will another workflow call this one?** Only on request, apply the child-capable recipe
-   (§ 13.1): the `embedded` input, the guarded closing node, a workflow-level `outputs:` block, a
-   default for every in-node question, and the `## Embedded mode` section.
+7. **What does each step described in words need beyond the usual?** For each `direct:` step:
+   the questions it may ask, each with the answer it takes when nobody can be asked; how many
+   attempts it may make before giving up (a budget, 1 to 10); what its closing summary must carry
+   for the next gate (a summary hint); an artifact it may rightly leave unwritten, and why; and,
+   for a step a gate follows, which continue option each value of one of its inputs should
+   recommend. "Nothing" is the common answer — such a step needs no prose at all.
+8. **Will another workflow call this one?** Only on request, apply the child-capable recipe
+   (§ 13.1): the `embedded` input, the guarded closing node, a workflow-level `outputs:` block and
+   a default for every in-node question. Ask whether it behaves differently as a child — writes
+   elsewhere, skips a step, returns something else — and write an `## Embedded mode` section only
+   where the workflow behaves differently as a child, saying how.
 
 **Write the pair.**
 
@@ -120,19 +130,30 @@ questions:
   Pass what a node needs from earlier ones through `with:` using `${…}` references inside its
   `needs` closure (§ 9); a value a skipped node may leave null is read from state by the prose,
   not interpolated (§ 9).
+  Then a top-level `brief:` block (§ 3.3) carrying the step data the interview gave, only for the
+  steps that have any: `questions` (id → the answer taken when nobody can be asked), `budget`,
+  `summary_keys` (only when the author names a phase key), `absent` (artifact key → reason) and
+  `recommends` (`with:` key → value → continue option). It sits outside the graph hash.
 - `<name>.md` — an `# H1` title; an opening paragraph saying what the workflow is for and when to
-  use it; then **one `## <id>` section per `direct:` node**, headed exactly with the name after
-  `direct:` (§ 11). Each section is a short, honest stub the author will finish: the steps in
-  outline, what the node writes and records, what its closing summary must carry for the next
-  gate, the questions it may ask with the default each takes when nobody can answer, and its retry
-  budget. A fix loop inside one node follows § 13.2. A section whose node owes an HTML page says
-  it hands the finished markdown to this plugin's `html-companion-writer` agent before its
-  completion write. The engine checks the declared artifacts and companions at each node and at
-  the close; the closing node relays what it reports, and checks only the paths a summary lists
-  beyond the declarations.
+  use it; then a section only for a `direct:` step that asks a question, keeps a budget or has a
+  summary hint, headed ``## `<name>` `` with the name after `direct:` (§ 11). Every other `direct:`
+  step gets no section: it runs from the engine's node conventions alone, and the check resolves it
+  `from: conventions`. A section follows the template (§ 11): the bold run-in parts **Does.**,
+  **Asks.**, **Writes.**, **Summary.**, **Re-run.**, **Budget.**, in that order, each only when the
+  step has something of its own to say there. **Asks.** carries one
+  ``**With question sets** (`<id>`): …`` line and one ``**Without question sets** (`<id>`): …``
+  line per question id, each at the start of its line, the Without default saying at length what
+  `brief:` `questions` says short; **Budget.** says what each further attempt does differently, the number staying in `brief:`.
+  Each section is a short, honest stub the author will finish. It never restates a convention —
+  checking the declared artifacts, handing a page to `html-companion-writer` before the completing
+  write, how a revised step runs again, what a summary for a gate holds. A fix loop inside one
+  node follows § 13.2. The engine checks the declared artifacts and companions at each node and
+  at the close; the closing node relays what it reports.
 
-Then run **check** on the new name and report. End with the next steps: finish each `## <id>`
-section, `/maister-copilot:workflow-author preview <name>`, then `/maister-copilot:run <name>`.
+Then run **check** on the new name and report. End with the next steps: finish each section
+written, `/maister-copilot:workflow-author preview <name>`, then `/maister-copilot:run <name>` — before each step
+the run prints the step's `node-brief` (its conventions, its `brief:` data and its section), which
+is everything that step runs from.
 
 ## `overlay <builtin>`
 
@@ -152,6 +173,7 @@ without asking.
 | A phase gone | `disable` — clean only when **nodes** says so; otherwise also `tune` each dependent's `with` to drop the key that referred to it, or eject when the reference is a guard |
 | Variants of the same change | `profiles`, selected with `--profile` |
 | Different titles or icons | `display` |
+| A step's summary keys, budget or recommendation changed | `brief:` — merged node by node and key by key over the built-in's, `null` removes a key (§ 3.3) |
 | A companion added or dropped | `html_companions: {<id>: [<key>…]}`, `[]` drops a node's — merged node by node over the built-in's (§ 3.2) |
 | A different executor, gate wording or options, a guard, a reorder | an eject — see *Overlay or eject* |
 
@@ -159,9 +181,11 @@ An added node without `before:` is a side branch nothing waits for; propose the 
 from **nodes** every time. Never disable a node and add it back under the same id — pick a new id.
 
 **Write** `<builtin>.overlay.yml` (`extends: builtin:<builtin>`, `version: 1`, the operations,
-`display.titles` for added nodes) and, only when the overlay adds a `direct:` node,
-`<builtin>.overlay.md` with one `## <id>` stub per added `direct:` node, as in `new`. Then run
-**check** on the built-in's name, which picks the overlay up, and report.
+`display.titles` for added nodes, a `brief:` entry for an added step with data) and
+`<builtin>.overlay.md` whenever the overlay adds a `direct:` step: its `# H1` and opening
+paragraph, then a template section only for an added step that needs prose, as in `new`. An
+added `direct:` step without a section runs from the conventions; one without the file does not
+validate. Then run **check** on the built-in's name, which picks the overlay up, and report.
 
 ## `check [<name> | --all]`
 
@@ -192,12 +216,27 @@ from **nodes** every time. Never disable a node and add it back under the same i
      warning in the report above; add nothing.
    - **Companions** — for each node in `locate --name`'s `html_companions` (the same overlays and
      profile), two checks the engine cannot make, since it only sees whether the page exists:
-     - a `direct:` node's section in the companion must say it hands the finished markdown to
-       this plugin's `html-companion-writer` agent before its completion write. Written after,
-       the completion write reports the page missing. Fix: move that step ahead of it.
+     - a `direct:` node's section must not hand the finished markdown to this plugin's
+       `html-companion-writer` agent after its completion write — the conventions hand it over
+       before, and written after, the completion write reports the page missing. Fix: delete
+       that step from the section, or move it ahead of the completion write.
      - a project or user `agent:` that owes one must take the `html:` line of its prompt and
        return `companion:` with the page's path. Fix: add both to the agent's instructions.
      A misnamed node or artifact key in the block is already a warning in the report above.
+   - **Prose sections** — read each `direct:` step's section in the companion beside the file
+     that declares the step, and the `brief:` blocks of the definition, then each overlay, then
+     the profile, merged as § 3.3 says:
+     - a step whose merged `brief:` has `questions`, `budget` or `recommends` but no section —
+       the step would run from the conventions with data nothing explains. Fix: write its
+       section in the template (§ 11), or drop the data from `brief:`.
+     - a `questions` id with no question-set line in its section, and a question-set line whose
+       id has no `questions` entry. Fix: write the missing **With** and **Without** lines, or add
+       the id with its default to `brief:` — or delete the side that is left over.
+     - a `` ## `x` `` heading outside a fence whose `x` is not the name some node finds its
+       section by: the name after `direct:` for a `direct:` node, the node id otherwise (a
+       disabled node still counts). The report above warns `orphan-prose-section` for it: a
+       renamed node or a mistyped target has silently fallen back to the conventions. Fix: rename
+       the heading to the node id, or delete the section.
    - **Dangling leaves** — the validator warns for these itself, for a definition's own node
      and for one an overlay adds; they are in the report above. Add nothing.
    - **Gates asked whatever their guard reads** — the validator warns `skip-guard-not-pure` for

@@ -67,12 +67,11 @@
 # under every generated variant without a rewrite.
 #
 # The node prose lives beside this file in `product-design.md`, one section per
-# node id. Every `direct:` node is executed from its section there, and the
-# operator questions asked inside nodes appear only in that prose — a reader of
-# this file alone cannot see them, and neither can the generated diagram. The
-# per-node recovery budgets live there too, never here: a budget written into
-# `with:` would read like a grammar feature while being inert data the engine
-# never consults.
+# node id; `node-brief` prints a node's derived facts and then its section. The
+# questions asked inside a node are in that prose, and their defaults in the
+# `brief:` block below; the generated diagram shows neither. A recovery budget
+# sits in `brief:`, never in `with:`, where it would read like a grammar feature
+# while being inert data the engine never consults.
 name: product-design
 version: 1
 description: "Turns a fuzzy product or feature idea into a development-ready product brief: it gathers context, explores the problem and its users, brainstorms alternatives, converges on a direction, specifies the feature section by section, prototypes the screens and assembles the brief. Use it to decide what to build before building it; the brief feeds the development workflow."
@@ -118,8 +117,7 @@ outputs:
 # `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
 # member rather than inventing one; anything else fails validation. Each gate
 # carries the icon of the node it closes, so a stretch and the approval that
-# closes it read as one pair. The prose beside this file points here
-# rather than repeating the table.
+# closes it read as one pair.
 display:
   icons:
     intake:                   analysis
@@ -193,6 +191,65 @@ html_companions:
   feature-specification: [spec]
   review-handoff: [brief]
 
+# What each node's brief prints beside its prose: the phase keys it mirrors its
+# summary under, a file it may leave unwritten, its recovery budget and each
+# in-node question's default when nobody can be asked. Read beside the graph,
+# not part of it: the block moves no graph hash. No node's flag recommends a
+# continue option, so no entry carries `recommends`.
+brief:
+  intake:
+    absent:
+      research_context: "No research task was named."
+    budget: 1
+    questions:
+      additional-context: "No additional context; the lists stay empty rather than half-gathered."
+  context-synthesis:
+    summary_keys: [context_synthesis]
+    absent:
+      codebase_analysis: "A greenfield design has no codebase to analyse."
+    budget: 2
+  problem-exploration:
+    summary_keys: [problem_exploration]
+    budget: 1
+    questions:
+      problem-questions: "None asked: the draft comes from the design context, the description and the docs, marked a proposal."
+      user-story: "Each story taken as drafted, recorded by default under its own id and marked drafted."
+      problem-refinement: "Approve and continue, the count at zero; problem-approval is the route back."
+  persona-exploration:
+    summary_keys: [persona_exploration]
+    budget: 1
+    questions:
+      persona-questions: "None asked: the cards are drafted from the design context and the problem statement, marked drafted."
+      persona-refinement: "Approve and continue, the count at zero; problem-approval is where they change."
+  idea-generation:
+    summary_keys: [idea_generation]
+    absent:
+      decision_areas: "The brainstormer returned no areas file; the convergence asks from the markdown."
+    budget: 2
+    questions:
+      brainstormer-retry: "Neither: the node is recorded failed; inline alternatives would be anchored, and a re-drive is the way back."
+  idea-convergence:
+    summary_keys: [idea_convergence]
+    budget: 1
+    questions:
+      convergence-decisions: "Not defaulted: every area stays open on a decision sheet, its recommendation proposed for direction-approval."
+  feature-specification:
+    summary_keys: [feature_specification]
+    budget: 1
+    questions:
+      specification-sections: "Every section approved as drafted and appended in order; one that needs an answer says which."
+      depth-enrichment: "Every enrichment appended as drafted, marked as added by the depth check."
+  visual-prototyping:
+    summary_keys: [visual_prototyping]
+    budget: 2
+    questions:
+      mockup-refinement: "The studio renders a single pass instead of full iteration and says so; that note goes in the summary."
+  review-handoff:
+    summary_keys: [review_handoff]
+    budget: 1
+    questions:
+      brief-approval: "Approved, its Open Questions / Risks naming every section no operator confirmed in session."
+
 nodes:
   intake:
     uses: direct:intake
@@ -206,7 +263,7 @@ nodes:
     outputs:
       artifacts:
         # Written only when the invocation named a research task; the absence
-        # is sanctioned in the node prose.
+        # is sanctioned in `brief:` under `absent`.
         research_context: context/research-context
       values:
         # Derived from the design characteristics: greenfield or complex for
@@ -238,8 +295,8 @@ nodes:
     outputs:
       artifacts:
         design_context: analysis/design-context.md
-        # Written only for an enhancement; the absence is sanctioned in the
-        # node prose.
+        # Written only for an enhancement; the absence is sanctioned in
+        # `brief:` under `absent`.
         codebase_analysis: analysis/codebase-analysis.md
 
   context-approval:

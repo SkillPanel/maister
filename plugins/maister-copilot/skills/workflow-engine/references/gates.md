@@ -77,8 +77,8 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   `recommend stop:` prefixes; untagged reads as `open`); write new items typed. The writer
   refuses an unknown `by`, tag or role, a fix naming neither its finding nor its change, or a
   `recommends` that is not a continue of a gate waiting on this node or lacks a one-line reason,
-  with `state-summary-item-invalid`. The node prose's "Gate brief content" paragraph names what
-  belongs in each field.
+  with `state-summary-item-invalid`. The engine's `feeds a checkpoint` convention names what
+  belongs in each field, and the node's *Summary* part adds what is its own.
 - **Every answer the user gives inside a node is recorded** on that node's summary, one
   decision per answered question:
   `{decision, by: operator, question_id, question, answer, recommended, as_recommended}`.
@@ -109,7 +109,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 - **`gate-brief-questions-unsupported`**: a question set was sent, but the run's driver carries
   none — only a cockpit whose features list `question-sets` does. Nothing is written. Do not
   suspend: in a terminal run ask the questions in session; under any other driver take the
-  default the node prose names and record it `by: default`.
+  default the node's `brief:` `questions` entry names and record it `by: default`.
 - **`gate-brief-not-askable`**: the question set names a gate, which is asked from its own
   brief, or a node that is not `running`, which has nothing to ask. Nothing is written. Name the
   node that is asking, or brief the gate without `--patch-file`. For `--node=held-approval` it

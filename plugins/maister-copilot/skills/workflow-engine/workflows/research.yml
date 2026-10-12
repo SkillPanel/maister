@@ -53,9 +53,9 @@
 # under every generated variant without a rewrite.
 #
 # The node prose lives beside this file in `research.md`, one section per node
-# id. Every `direct:` node is executed from its section there, and the operator
-# questions asked inside those nodes appear only in that prose — a reader of
-# this file alone cannot see them, and neither can the generated diagram.
+# id; `node-brief` prints a node's derived facts and then its section. The
+# questions asked inside a node are in that prose, and their defaults in the
+# `brief:` block below; the generated diagram shows neither.
 name: research
 version: 1
 description: "Answers a question by gathering evidence from the codebase, its documentation and the web, and synthesising it into a research report, optionally followed by solution brainstorming and a high-level design. Use it when the task is to investigate, compare options or decide an approach before any code is written, whether on its own or as a step inside another run."
@@ -101,8 +101,7 @@ outputs:
 # `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
 # member rather than inventing one; anything else fails validation. Each gate
 # carries the icon of the node it closes, so a stretch and the approval that
-# closes it read as one pair. The same table lives in the prose beside this
-# file.
+# closes it read as one pair.
 display:
   icons:
     research-foundation:      analysis
@@ -161,6 +160,40 @@ html_companions:
   research-foundation: [report]
   solution-generation: [exploration]
   high-level-design: [design, decision_log]
+
+# What each node's brief prints beside its prose: the phase keys it mirrors its
+# summary under, a file it may leave unwritten, its recovery budget, the
+# continue a flag recommends, and each in-node question's default when nobody
+# can be asked. Read beside the graph, not part of it: the block moves no graph
+# hash. Research's per-step budgets in `research-foundation` stay in its prose.
+brief:
+  research-foundation:
+    summary_keys: [phase-1]
+    recommends:
+      brainstorm_flag: {"yes": continue-to-brainstorming}
+    questions:
+      research-question: "None: the start brief supplies the question; a run without one fails rather than invent it."
+      question-clarification: "None: an unclear question fails step 1, and the node is recorded failed; a re-drive carries the answer."
+  solution-generation:
+    summary_keys: [phase-3]
+    absent:
+      decision_areas: "The brainstormer returned no areas file; convergence then asks from the markdown."
+    budget: 2
+    questions:
+      brainstormer-retry: "Neither retry nor skip: the node is recorded failed, never silently skipped."
+  solution-convergence:
+    summary_keys: [phase-4]
+    budget: 1
+    recommends:
+      design_flag: {"yes": continue-to-design, "no": finish-without-design}
+    questions:
+      convergence-decisions: "Each area takes the alternative this node recommends; an area without one stays open as a risk."
+  high-level-design:
+    summary_keys: [phase-5]
+    budget: 2
+    questions:
+      design-constraints: "None: the designer works from the convergence output and the research report alone."
+      designer-retry: "Neither retry nor skip: the node is recorded failed rather than skipped."
 
 nodes:
   research-foundation:

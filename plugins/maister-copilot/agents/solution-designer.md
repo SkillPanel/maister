@@ -321,6 +321,7 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 
 ```yaml
 status: "success" | "partial" | "failed"
+headline: "[...]"   # one sentence, at most 220 characters: the design's shape and its deciding choice; the node summary's headline
 design_path: "outputs/high-level-design.md"
 decision_log_path: "outputs/decision-log.md"
 companion: "written" | "disabled" | "failed" | "not-requested"

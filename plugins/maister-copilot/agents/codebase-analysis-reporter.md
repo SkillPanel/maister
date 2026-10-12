@@ -248,6 +248,7 @@ Return to the skill:
 
 ```yaml
 status: success|partial|failed
+headline: "[...]"   # one sentence, at most 220 characters: what the analysis found that shapes the task; the node summary's headline
 report_path: analysis/[artifact_name]
 summary: "[1-2 sentence summary]"
 files_found: [count]

@@ -296,6 +296,19 @@ P3 (Low):      Priority <0.8 - Nice-to-have improvements
 
 ---
 
+## Output
+
+### Structured Result (returned to orchestrator)
+
+```yaml
+status: "success" | "partial" | "failed"
+headline: "[...]"   # one sentence, at most 220 characters: the bottlenecks found and the top fix; the node summary's headline
+report_path: "analysis/performance-analysis.md"
+warnings: ["non-blocking observations, e.g. a pattern static analysis could not judge"]
+```
+
+---
+
 ## Tool Usage
 
 - **Read**: Load codebase analysis, schema files, migration files, code files, user data
