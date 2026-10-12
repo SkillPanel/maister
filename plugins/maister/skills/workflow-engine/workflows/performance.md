@@ -4,69 +4,37 @@ The node-by-node companion to `performance.yml`. The engine executes every
 `direct:` node from the section below that carries its id, and hands the
 per-node context in `with:` to whatever the node names.
 
-**What this file carries that the graph cannot.** The definition says which
-nodes exist, what they need and what they declare. It says nothing about the
-operator questions asked *inside* a node, what each node writes into its closing
-summary for the gate brief, the self-checks that decide whether a node succeeded, or how many
-times the engine may re-drive one. Those live here.
-
-**State the consequence plainly**: a reader of `performance.yml` alone cannot
-see that the run asks five further questions beyond its six gates — in run
-order, the clarification page with its profiling-data tab, the specification's
-requirements page, the audit findings that need a decision, the choice of
-checks, and the verification fix loop with a question per issue — and the
-generated diagram does not show them either. Anyone reasoning about how
-interactive this workflow is must read this file, not the graph.
+**What this file carries that the graph cannot**: the operator questions asked
+*inside* a node, what each node writes into its closing summary for the gate
+brief, the self-checks that decide whether a node succeeded, and how many times
+the engine may re-drive one. Beyond its six gates the run asks five further
+questions — in run order, the clarification page with its profiling-data tab,
+the specification's requirements page, the audit findings that need a decision,
+the choice of checks, and the verification fix loop with a question per issue.
+Neither `performance.yml` nor its diagram shows them.
 
 **Every question asked inside a node names its default here.** Under a `cockpit`
 driver whose features list `question-sets`, a node asks through the cockpit, in
-one request per attempt, and each section's **With question sets** line says
-whether its question goes there. Under any other `cockpit` or `dispatch` driver
-nobody is in the session, so none of them is asked: each takes the default its
-own section states under **Without question sets** and the node records that
-it did. The rule, the recording shape and what is never defaulted past belong to
-the engine skill, which states them once; this file only says what each
-question takes.
+one request per attempt, as its section's **With question sets** line says.
+Under any other `cockpit` or `dispatch` driver nobody is asked: each question
+takes the default its section states under **Without question sets**, and the
+node records that it did. The rule and the recording shape are the engine's
+(`references/in-node-questions.md` § *When nobody can be asked*).
 
 **When the run's policy classes in-node questions** — the freeze recorded
-`orchestrator.classes_questions` — a node sends the question set it would ask to the writer
-before asking anything, and asks only the ids the writer's `ask:` line names. The rest were
-settled, defaulted or held under the run's autonomy ceiling and are already on the node's
-summary. The engine skill states the rule once; no section below changes for it.
+`orchestrator.classes_questions` — a node sends the question set it would ask to
+the writer before asking anything, and asks only the ids the writer's `ask:`
+line names; the rest are already on the node's summary (engine
+`references/in-node-questions.md` § *When the policy classes a question*). No
+section below changes for it.
 
-**Recovery budgets are prose here on purpose.** They must never be written into
-`with:`, which is an unconstrained free-form object — an attempts key sitting
-there would read like a grammar feature while being inert data the engine never
-consults. Six nodes carry a budget; the rest carry none and re-drive nothing.
+**Recovery budgets are prose**, never `with:` data (engine *Recording an
+outcome*). Six nodes carry one; the rest re-drive nothing.
 
-**This workflow has no guard, so no skip can cascade.** Not one node carries a
-`when` clause. Every phase runs on every run: the specification audit has no
-opt-in and no size threshold, and the one optional thing the workflow takes —
-profiling data the operator supplies — changes what a node *reads* rather than
-whether a node *runs*. Nothing is ever skipped, so no gate repeats a guard and
-no destination a gate names can go missing before the operator reaches it.
-
-## The phase numbers, and where they went
-
-No gate question names a phase number; this table maps the 2.x prose form's phases
-to nodes:
-
-| 2.x phase | Node | Closing gate |
-|---|---|---|
-| Initialization steps 1-7 | `intake` | none — it auto-continues |
-| 1 | `codebase-analysis` | none — it auto-continues |
-| 2 | `bottleneck-analysis` | `bottleneck-approval` |
-| 3 | `specification` | `specification-approval` |
-| 4 | `spec-audit` | `spec-audit-approval` |
-| 5 | `planning` | `planning-approval` |
-| 6 | `implementation` | `implementation-approval` |
-| 7 | `verification-options` | none — it auto-continues |
-| 8 | `verification` | `verification-approval` |
-| 9 | `finalization` | none — the workflow ends |
-
-The gate brief's `Next:` line names the node that actually runs after each gate
-(engine `references/gates.md`); here every node runs on every run, so it is always the next
-node in the table.
+**No node is guarded**, so every phase runs on every run and nothing is ever
+skipped: the specification audit has no opt-in, and profiling data changes what
+a node reads, not whether it runs. The gate brief's `Next:` line is therefore
+always the next node in run order (engine `references/gates.md`).
 
 ---
 
@@ -83,23 +51,18 @@ paths, the scratch rule and the companions the node owes. What this workflow add
 > **ANTI-PATTERN**: Do NOT re-summarize a summary block. `decisions` and `risks`
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
 > blocks **item for item** — the same count, the same words, the artifact's
-> order — into `phase_summaries`, into `node_summaries` and into the dashboard,
-> each item in the shape engine `references/gates.md` gives it: a decision with who settled
-> it, a risk with its tag. The items left out are a decision that restates an
-> earlier answer and a risk an earlier node already recorded: each is already
-> recorded where it was made.
-> Rewriting them in your own words loses the sentence the operator is about to
-> approve at a gate; writing an empty `[]` because the node has already read
-> the artifact loses it outright, and `decisions: []` beside a specification
-> carrying eight of them is the failure this block exists to stop.
+> order — into `phase_summaries`, `node_summaries` and the dashboard, each in
+> the shape engine `references/gates.md` gives it. Left out are only a decision
+> that restates an earlier answer and a risk an earlier node already recorded.
+> `decisions: []` beside a specification carrying eight of them is the failure
+> this block exists to stop.
 
 ---
 
 ## Phase summary keys
 
-`node_summaries` is keyed by node id; `performance_context.phase_summaries` is
-keyed by this workflow's own semantic keys, and the two namespaces do not line
-up. Four keys over four owning nodes:
+`node_summaries` is keyed by node id; `performance_context.phase_summaries` by
+this workflow's own semantic keys. Four keys over four owning nodes:
 
 | Node | `phase_summaries` keys |
 |---|---|
@@ -108,24 +71,16 @@ up. Four keys over four owning nodes:
 | `specification` | `specification` |
 | `implementation` | `implementation` |
 
-Every other node writes a node summary only. Each mirrored entry also carries
-`node:` naming the node it came from, so the two directions stay readable from
-either side.
-
-The block is `performance_context`, and this workflow writes no other context
-block. A run whose state carries a second one is a run two interpreters wrote,
-which the state contract refuses out loud rather than merging.
-
-A phase key is never a node id. Writing one off the node id succeeds and the run
-keeps going with a key nothing else reads, which is why the mapping is pinned
-here rather than derived.
+Every other node writes a node summary only. Each mirrored entry carries
+`node:` naming the node it came from. `performance_context` is the only context
+block this workflow writes. A phase key is never a node id: a key written off
+the node id succeeds and nothing reads it, so the mapping is pinned here.
 
 ---
 
 ## Icon hints
 
-The dashboard needs an `icon_hint` for every node it draws, and the value is not
-derivable from the node id. Each node writes the hint named here:
+Each node writes the `icon_hint` named here; it is not derivable from the id:
 
 | Node | `icon_hint` |
 |---|---|
@@ -140,31 +95,19 @@ derivable from the node id. Each node writes the hint named here:
 | `verification` | `verify` |
 | `finalization` | `done` |
 
-The six gates are not in that table on purpose:
-**each gate node renders the icon of the node it closes** — `bottleneck-approval`
+**Each gate node renders the icon of the node it closes** — `bottleneck-approval`
 `analysis`, `specification-approval` `spec`, `spec-audit-approval` `verify`,
 `planning-approval` `plan`, `implementation-approval` `code`,
-`verification-approval` `verify`. A
-gate inherits rather than owns its icon, so a gate that picked its own would
-break the visual pairing between a phase and the approval that closes it.
+`verification-approval` `verify`.
 
 ---
 
 ## Embedded mode
 
-**There is none.** This workflow is never invoked as a sub-run of another, which
-is why the definition declares no embedded input and why `finalization` carries
-no guard. Every reference to performance elsewhere in the tree hands an operator
-a next step — a suggested command, a handoff path — rather than executing one,
-so there is no parent to owe a handoff block to and no output contract to keep.
-
-If that ever changes, it changes here first, and it is the recipe the engine's
-sub-run rule already sets out: an `embedded` input the engine supplies, a guard
-on the closing node — `finalization` here — and a workflow-level `outputs:`
-block declaring which of this workflow's keys a parent may read. No engine
-change is involved; see the engine skill's *Sub-runs* section and the
-`sub-runs.md` reference beside it. Until then a reader finding no embedded
-behaviour has found the intended answer rather than a gap.
+**There is none.** Nothing runs this workflow as a sub-run, so the definition
+declares no `embedded` input and `finalization` carries no guard. Making it
+child-capable follows engine `references/sub-runs.md` § *Making a workflow
+child-capable*, with the guard on `finalization`.
 
 ---
 
@@ -173,67 +116,55 @@ behaviour has found the intended answer rather than a gap.
 Executed inline, before any analysis. It establishes the task directory, the
 state file and the profiling-data drop point the analysis node reads from.
 
-1. **Capture the clock** — read the wall clock through the shell rather than
-   from context. Every timestamp written this turn uses that one value; a
-   date-only or midnight-stamped value is the documented failure mode.
+1. **Capture the clock** through the shell, not from context. Every timestamp
+   written this turn uses that one value; a date-only or midnight-stamped value
+   is the documented failure mode.
 2. **Create and initialize** the task directory and its state file, with the
    task description and an empty `phase_summaries` map under
-   `performance_context`. The map is the state writer's to seed — the first write that touches
-   the context block creates it empty — so a node that has nothing to mirror
-   still leaves a reader something to read.
-3. **Create `analysis/user-profiling-data/`**, empty. It is the declared
-   artifact of this node. **An empty directory is the answer "no profiling
-   data", not a missing artifact**, and the node that reads it treats it that
-   way.
-4. **Read the project configuration** and set `options.html_output` (default true
-   when the file or the key is absent) and `options.mockup_format` (default
-   `html`) beside it. The second is framework-mandated for every orchestrator and
-   inert here — no node reads it — but a reader of state expects it. When
-   `html_output` is false, skip the dashboard entirely — no dashboard asset, no data projection, no browser open.
-   Otherwise the freeze installed `dashboard.html` in the task root (see the
-   changed paths it reported) — copy nothing; **run the platform opener** on the
-   plain absolute path through the shell — `open "<task path>/dashboard.html"`
-   on macOS, `xdg-open` on Linux, `start ""` on Windows. Never build a `file://`
-   URL; the opener resolves a plain path itself. On failure print the path;
-   never block.
-5. **Make sure the user has seen the start banner** (engine Step 4). It is the
-   run's first message — if your messages since the freeze do not name the workflow
-   and task, the checkpoints, the directory and the dashboard link, write them now,
-   from the freeze's output, the paths copied as printed.
-6. **Discover the project documentation** — read the documentation index under
-   the project's docs directory if one exists and extract every path from its
-   project-documentation section, predefined and operator-added alike. Record
-   them as `project_context.project_doc_paths`, a top-level sibling of the
-   orchestrator and context blocks and never nested inside either — the state
-   writer's patch carries `project_context` as its own key.
+   `performance_context` — the writer seeds it on the first write that touches
+   the block.
+3. **Create `analysis/user-profiling-data/`**, empty — this node's declared
+   artifact. **An empty directory is the answer "no profiling data", not a
+   missing artifact.**
+4. **Read the project configuration** and set `options.html_output` (default
+   true when the file or the key is absent) and `options.mockup_format` (default
+   `html`; no node here reads it, but a reader of state expects it). When
+   `html_output` is false, skip the dashboard entirely — no dashboard asset, no
+   data projection, no browser open. Otherwise the freeze installed
+   `dashboard.html` in the task root — copy nothing; **run the platform opener**
+   on the plain absolute path through the shell — `open "<task
+   path>/dashboard.html"` on macOS, `xdg-open` on Linux, `start ""` on Windows.
+   Never build a `file://` URL. On failure print the path; never block.
+5. **Make sure the user has seen the start banner** (engine Step 4). If your
+   messages since the freeze do not name the workflow and task, the checkpoints,
+   the directory and the dashboard link, write them now, from the freeze's
+   output, the paths copied as printed.
+6. **Discover the project documentation** — from the documentation index under
+   the project's docs directory, if one exists, extract every path in its
+   project-documentation section, predefined and operator-added alike, into
+   `project_context.project_doc_paths`: a top-level key of the patch, never
+   nested inside the orchestrator or context block.
 
-> **ANTI-PATTERN**: Do NOT print the dashboard path instead of opening it. The
-> path hint in the banner is a second copy for the operator's scrollback, not
-> the opener — a run whose transcript carries no `open`, `xdg-open` or
-> `start ""` shipped a dashboard nobody ever saw, and every projection written
-> into it afterwards was written for no reader.
+> **ANTI-PATTERN**: Do NOT print the dashboard path instead of opening it. A
+> transcript with no `open`, `xdg-open` or `start ""` shipped a dashboard nobody
+> ever saw.
 
 **There is no gate after this node.** It auto-continues into the codebase
 analysis.
 
-**Recovery budget**: none — this node establishes state, and a configuration
-file it cannot find is an absence rather than a failure.
+**Recovery budget**: none — a configuration file it cannot find is an absence,
+not a failure.
 
 ---
 
 ## `codebase-analysis`
 
-Delegated to the codebase analyzer through the Skill tool, then a short
-clarification round inline.
+Delegated to the codebase-analyzer skill through the Skill tool, every time,
+then a short clarification round inline.
 
-The codebase-analyzer skill runs this exploration every time rather than an
-inline read: it dispatches parallel explorers and produces the structured
-analysis every later node reads.
-
-Pass the enhancement task type and a performance-focused description. The
-analyzer adaptively selects its explorers, and for a performance run the
-description is what steers them toward database query patterns, hot code paths,
-I/O operations, caching layers, connection management and schema or migration
+Pass the enhancement task type and a performance-focused description: it is
+what steers the explorers toward database query patterns, hot code paths, I/O
+operations, caching layers, connection management and schema or migration
 files. A description that names only the symptom sends them nowhere in
 particular.
 
@@ -245,9 +176,8 @@ primary language into state. Then ask **one page** (engine `references/in-node-q
   settle, at most three of them. Each tab's question states what the analysis
   found and what it could not settle; its options are two or three generated
   answers, the recommended one first with its reason in its description, and
-  More details when the tab needs more than its question holds. Ask only what
-  the analysis could not settle, and never what the specification's priorities,
-  constraints or targets will ask.
+  More details when the tab needs more than its question holds. Never ask what
+  the specification's priorities, constraints or targets will ask.
 - **Profiling data** — one tab, asked while `analysis/user-profiling-data/` is
   empty: "Do you have profiling data — flame graphs, APM screenshots, slow-query
   logs — for the bottleneck analysis?", with **"No, analyse the code alone
@@ -258,35 +188,30 @@ primary language into state. Then ask **one page** (engine `references/in-node-q
   that they will be used.
 
 When the analysis settled everything and the folder holds files, nothing is
-asked. Every answer continues the run, which is why the page is asked here
-rather than at a gate. When the answer is "Yes", say where the folder is and
-wait for the user to say the files are there before this node completes.
+asked. When the answer is "Yes", say where the folder is and wait for the user
+to say the files are there before this node completes.
 
 Save the clarification answers to `analysis/clarifications.md`, then set
-`performance_context.clarifications_resolved` to true. A run that asked no
-clarification still writes the file and still sets the flag: it resolved the
-clarifications by having none to ask. Record each answered tab as a
-`by: operator` decision on this node's summary, one per question, as engine
-`references/in-node-questions.md` says.
+`performance_context.clarifications_resolved` to true — also when nothing was
+asked. Record each answered tab as a `by: operator` decision on this node's
+summary, one per question.
 
 **With question sets** (`clarifications`): asked through the cockpit, in this
 node's one request (engine `references/in-node-questions.md`).
 
 **Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and
-`performance_context.clarifications_resolved` set exactly as they are for a run
-with nothing to ask, and what the analysis could not settle about hotspots or
-goals is recorded in the file as unsettled rather than guessed at.
+`performance_context.clarifications_resolved` set as for a run with nothing to
+ask; what the analysis could not settle about hotspots or goals is recorded in
+the file as unsettled rather than guessed at.
 
 **With question sets** (`profiling-data`): asked through the cockpit, in the
-same request as the clarifications (engine `references/in-node-questions.md`); its "Yes" option says
-the files must be in the folder before answering, because the node does not wait
-after it resumes.
+same request as the clarifications; its "Yes" option says the files must be in
+the folder before answering, because the node does not wait after it resumes.
 
 **Without question sets** (`profiling-data`): no profiling data,
 and the run proceeds on static analysis alone, recorded as a `by: default`
-decision. Waiting for files nobody can drop is the one thing this question must
-not do under a driver — the wait never ends.
+decision. Never wait for files under a driver — nobody can drop them.
 
 **There is no gate after this node.** It auto-continues into the bottleneck
 analysis.
@@ -302,20 +227,15 @@ the primary language, and with `node: codebase-analysis` on the entry.
 
 ## `bottleneck-analysis`
 
-Delegated to the bottleneck analyzer through the Task tool. This is the node the
-whole workflow turns on: everything after it optimizes what this node found.
+Delegated to the bottleneck-analyzer agent through the Task tool; it reads
+source, schema and query patterns together and produces the ranked list the
+specification is written against. Everything after this node optimizes what it
+found.
 
-The bottleneck-analyzer agent does the analysis rather than an inline read or
-grep, because it reads source, schema and query patterns together and produces
-the ranked list the specification is written against.
-
-**Check the profiling directory before delegating.** `intake` declared
-`analysis/user-profiling-data/` and created it empty, and `codebase-analysis`
-already asked whether the user has files for it. When it holds files, pass
-them: flame graphs, APM screenshots and slow-query logs turn a static ranking
-into a measured one. When it is empty, the analysis is static-only — this node
-asks nothing. Say in the phase summary which it was, because a bottleneck list
-built without profiling data otherwise reads the same as one built with it.
+**Check the profiling directory before delegating.** When
+`analysis/user-profiling-data/` holds files, pass them: they turn a static
+ranking into a measured one. When it is empty, the analysis is static-only —
+this node asks nothing. Say in the phase summary which it was.
 
 **Write the structured result to state before anything else.** Record
 `performance_context.bottlenecks_identified` from the analyzer's count,
@@ -342,17 +262,15 @@ this node's closing `node_summaries` entry, as engine `references/gates.md` says
 - **`risks`** — only what the analysis could not settle, as an `open` risk with
   its `change` (a hotspot it could only guess at without profiling data, say).
 
-**This is the compensating behaviour for the gate's constant `ask:`**, which
-cannot carry those counts — the gate brief shows them at `bottleneck-approval`.
+The gate's `ask:` is constant and cannot carry these counts; the brief shows
+them at `bottleneck-approval`.
 
-**When re-run after a revise.** `bottleneck-approval` sent the run back, and
-`prior-context` carries the operator's note under *Revision requested*. Ask
-nothing about profiling data: the directory is read as it stands, with any files
-the note says were added. Hand the analyzer the note and the existing
-`analysis/performance-analysis.md`, and ask it to revise the analysis in place —
-re-rank, add or drop what the note names — then write the structured result to
-state again, because a revise clears it. Say in the summary and the headline
-what changed.
+**When re-run after a revise.** `prior-context` carries the operator's note
+under *Revision requested*. Ask nothing about profiling data: read the directory
+as it stands. Hand the analyzer the note and the existing
+`analysis/performance-analysis.md` to revise in place — re-rank, add or drop
+what the note names — then write the structured result to state again, because
+a revise clears it. Say in the summary and the headline what changed.
 
 **Recovery budget**: 2 attempts — re-analyze with broader patterns on the
 second, and ask the operator when the second also comes back thin.
@@ -371,14 +289,7 @@ Ask it from `gate-brief --json` as engine `references/gates.md` says.
 A gate, unguarded. Record the answer, and stop the run on the stop option —
 nothing after a stopped node ever becomes ready. Its revise option sends the run
 back to `bottleneck-analysis` with the operator's note (engine `references/gates.md`,
-*Revising at a gate*).
-
-**Its `ask:` drops the 2.x prose form's interpolated counts, and that is a
-recorded divergence.** The prose asks it with the bottleneck count and the P0
-and P1 counts spliced in. A gate's `ask:` is authoring-time constant and covered
-by the graph hash, so it cannot carry a value that differs per run. The counts
-are in the `bottleneck-analysis` headline and summary, which the gate brief
-shows while the operator answers.
+*Revising at a gate*). The bottleneck counts are in the brief, not the question.
 
 ---
 
@@ -424,10 +335,10 @@ The page is one form of three properties; where the tool shows no option
 descriptions, each option's reason is its line in the property's description.
 -->
 
-Record each answered tab as a `by: operator` decision, one per question, as
-engine `references/in-node-questions.md` says. Save the round to `analysis/requirements.md`
-together with the performance issue description, the bottleneck summary, the
-chosen priorities, the constraints and the targets.
+Record each answered tab as a `by: operator` decision, one per question. Save
+the round to `analysis/requirements.md` together with the performance issue
+description, the bottleneck summary, the chosen priorities, the constraints and
+the targets.
 
 **With question sets** (`optimization-priorities`): asked through the cockpit,
 in this node's one request (engine `references/in-node-questions.md`); "Choose individually" would
@@ -436,22 +347,14 @@ need a second ask, so it is not offered.
 **Without question sets** (`optimization-priorities`): the
 analyzer's own priorities stand — every P0 and P1 bottleneck it identified, with
 the constraints tab's recommended bundle and no numeric target beyond what the
-invocation already supplied — recorded as one `by: default` decision.
-An invented performance target is the failure mode here: a target nobody set
-becomes an acceptance criterion the specification is written against, and the
-verification node later reports against it as though someone had asked for it.
+invocation already supplied — recorded as one `by: default` decision. Never
+invent a performance target: it becomes an acceptance criterion nobody set.
 
-**Part B — specification creation (delegate).**
-
-The specification-creator agent writes the specification every time, whatever
-the task's size, because it searches for reusable code and checks coverage of
-the priorities before the audit and the planner read the result.
-
-Invoke the specification creator through the Task tool with the performance task
-type. Everything node-scoped it needs is in `with:`; the
-`prior-context --node=specification` output supplies the rest, including the
-`html:` line that produces the specification's HTML companion, and the project
-documentation paths `intake` discovered.
+**Part B — specification creation (delegate).** Invoke the
+specification-creator agent through the Task tool, whatever the task's size,
+with the performance task type. Everything node-scoped it needs is in `with:`;
+the `prior-context --node=specification` output supplies the rest, the `html:`
+line and the documentation paths included.
 
 If the agent returns without `implementation/spec.md`, or with one that leaves a
 priority gathered in Part A uncovered, re-invoke it with the missing context
@@ -464,18 +367,16 @@ optimization targets, the number of changes and the expected impact in
 `summary`; the approach chosen as a `by: run` decision, beside the Part A
 answers already recorded — neither those answers nor the analysis's ranking is
 restated as the specification's; each assumption as an `open` risk whose `change` says
-what would change if it is wrong. The `specification-approval` brief is
-rendered from it.
+what would change if it is wrong.
 
 **When re-run after a revise.** `specification-approval` or
-`spec-audit-approval` sent the run back, and `prior-context` carries the
-operator's note under *Revision requested*, beside the previous attempt's
-summaries — the audit's findings among them when it was the audit's gate. Keep
+`spec-audit-approval` sent the run back; `prior-context` carries the operator's
+note under *Revision requested*, beside the previous attempt's summaries. Keep
 Part A's answers: ask again only what the note reopens, and record the change in
 `analysis/requirements.md`. In Part B, hand the specification creator the note,
 the audit's findings still open when there are any — never the ones the audit's
-fix pass already applied — and the existing `implementation/spec.md`,
-and ask it to revise the specification in place. Say in the summary what changed.
+fix pass already applied — and the existing `implementation/spec.md`, to revise
+in place. Say in the summary what changed.
 
 **Recovery budget**: 2 attempts — regenerate the specification on the second
 with the gaps named in the context.
@@ -493,33 +394,27 @@ Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option. Its
 revise option sends the run back to `specification` with the operator's note
-(engine `references/gates.md`, *Revising at a gate*).
-
-Its question names the specification audit, and the audit is what runs next on
-every run of this workflow; the gate brief's `Next:` line says the same.
+(engine `references/gates.md`, *Revising at a gate*). The audit its question
+names runs next on every run.
 
 ---
 
 ## `spec-audit`
 
-Delegated to the specification auditor through the Task tool, then a fix pass
-for the findings with one obvious fix. **It runs on every run.** There is no opt-in, no size threshold and no flag: every performance
-specification is reviewed before planning starts.
-
-The spec-auditor agent audits the specification rather than an inline review,
-because it checks the spec's claims against the codebase instead of trusting
-them — and it runs before any code exists, so it audits the spec itself, not an
-implementation.
+Delegated to the spec-auditor agent through the Task tool, then a fix pass for
+the findings with one obvious fix. **It runs on every run** — no opt-in, no size
+threshold, no flag. The auditor checks the spec's claims against the codebase
+before any code exists.
 
 The auditor's prompt names its report path `verification/spec-audit.md` and
 hands it the user's earlier answers — `analysis/requirements.md` and the
 decisions `prior-context --background` returns — so it can tell a finding with
-one obvious fix from one that needs a decision. The auditor writes the report
-there: a verdict — pass, pass with concerns, or fail — issue counts by severity,
-and the findings themselves, each graded fixable or needing a decision. The
-report is the auditor's. If the auditor returns its report as text and the file
-does not exist, write that returned text to the path verbatim, once; never
-append to the report, edit it or annotate it. Record the verdict in state.
+one obvious fix from one that needs a decision. The report carries a verdict —
+pass, pass with concerns, or fail — issue counts by severity, and the findings,
+each graded fixable or needing a decision. The report is the auditor's: if it
+returns the report as text and the file does not exist, write that text to the
+path verbatim, once; never append to it, edit it or annotate it. Record the
+verdict in state.
 
 **The obvious fixes are made without asking**
 (`orchestrator-patterns.md` § 6, *The Specification Audit's Fix Pass*): one fix
@@ -538,12 +433,10 @@ decision findings, as its structured result gives them, to
 `verification/spec-audit-findings.json`, each finding's `id` the auditor's
 `name`, and build the set with `finding-brief` for this node. Send it through
 the classing write when the run classes questions, then ask what is left to
-ask: one question per finding, most severe first, each with the auditor's
-change and alternatives, "Accept the risk and list it", the recommended choice
-with its reason, and the finding's evidence. Hand every chosen change to the
-specification creator in one more amend pass — no re-audit — and record each
-answer as the writer folds it; an accepted risk becomes a `tradeoff` risk. A
-held choice goes on provisionally, and the gate after this node approves it. A
+ask: one question per finding, most severe first. Hand every chosen change to
+the specification creator in one more amend pass — no re-audit — and record
+each answer as the writer folds it; an accepted risk becomes a `tradeoff` risk.
+A held choice goes on provisionally, and the gate after this node approves it. A
 file `finding-brief` cannot use is a fallback: compose the same questions
 yourself.
 
@@ -554,23 +447,21 @@ this node's one request, with the audit report and every fix written first.
 the policy does not class stays open as an `open` risk; a classed one takes the
 outcome the classing write gives it.
 
-A failing verdict does not end the run on its own. It is what the operator reads
-at the gate, and the gate's stop option is the route out.
+A failing verdict does not end the run on its own: the gate's stop option is the
+route out.
 
 **Gate brief content.** Read `verification/spec-audit.md` and write into this
 node's closing `node_summaries` entry, as engine `references/gates.md` says: a `headline` —
 the final verdict, how many findings the run fixed and what it means for
 planning, in one sentence; the overall verdict, the issue counts by severity
 and how many were fixed in `summary`; the fixes already in `fixes_applied`,
-which the gate shows as fixed by the run, never repeated in `decisions`; each
-finding the audit settled as a `by: audit` decision, never an earlier answer
-restated, and the answers to the finding questions already there as their
-own; each finding still open — undecided, not applied, or found by the
-re-audit — as an `open` risk whose `change` is the fix the audit proposes, the
-critical ones first; each finding the operator accepted as a `tradeoff`. A
-finding the run fixed or the operator settled is never an open risk: the revise suggestions are
-drawn from the open ones alone. The `spec-audit-approval` brief is rendered
-from it.
+never repeated in `decisions`; each finding the audit settled as a `by: audit`
+decision, beside the answers to the finding questions; each finding still open —
+undecided, not applied, or found by the re-audit — as an `open` risk whose
+`change` is the fix the audit proposes, the critical ones first; each finding
+the operator accepted as a `tradeoff`. A finding the run fixed or the operator
+settled is never an open risk: the revise suggestions are drawn from the open
+ones alone.
 
 **Recovery budget**: none — an audit that returns is an audit, whatever its
 verdict; a fix pass that fails leaves its findings open for the gate.
@@ -584,24 +475,18 @@ Ask it from `gate-brief --json` as engine `references/gates.md` says.
 A gate, unguarded. Its brief lists what the run fixed and, as open items, only
 the findings left; the revise option's suggested notes come from those. Record
 the answer, and stop the run on the stop option. Its revise option sends the run
-back to `specification` with the operator's note; the audit's open findings
-reach the re-run through the prior context, and the
-specification is approved and audited again before this gate asks once more
-(engine `references/gates.md`, *Revising at a gate*).
+back to `specification` with the operator's note; the specification is approved
+and audited again before this gate asks once more (engine `references/gates.md`,
+*Revising at a gate*).
 
 ---
 
 ## `planning`
 
-Delegated to the implementation planner through the Task tool.
-
-The implementation-planner agent writes the plan every time, whatever the
-task's size, because it produces the task groups, their dependencies and the
-test-first step lists the executor dispatches from.
-
-The planner reads the specification, the audit findings and the performance
-analysis, and sequences the optimizations so that a change whose measurement
-depends on an earlier one lands after it.
+Delegated to the implementation-planner agent through the Task tool, whatever
+the task's size. It reads the specification, the audit findings and the
+performance analysis, and sequences the optimizations so that a change whose
+measurement depends on an earlier one lands after it.
 
 If the planner returns without `implementation/implementation-plan.md`, or with
 groups that leave an optimization target uncovered, re-invoke it with the
@@ -612,22 +497,19 @@ into this node's closing `node_summaries` entry, as engine `references/gates.md`
 `headline` — the groups, the steps and the waves they run in, in one sentence;
 how many task groups it carries and the total number of steps in `summary`; the
 key dependencies between groups and the optimization sequence as `by: run`
-decisions, never an earlier answer restated; open risks, if any, as `open` risks with their `change`. The
-`planning-approval` brief is rendered from it.
+decisions, never an earlier answer restated; open risks, if any, as `open` risks with their `change`.
 
-**When re-run after a revise.** `planning-approval` sent the run back, and
-`prior-context` carries the operator's note under *Revision requested*. Hand the
-planner the note and the existing `implementation/implementation-plan.md`, and
-ask it to revise the plan in place — regroup, split or re-sequence what the note
-names and keep the rest — and to check it against the optimization targets
-again. Say in the summary what changed.
+**When re-run after a revise.** `prior-context` carries the operator's note
+under *Revision requested*. Hand the planner the note and the existing
+`implementation/implementation-plan.md` to revise in place — regroup, split or
+re-sequence what the note names and keep the rest — checked against the
+optimization targets again. Say in the summary what changed.
 
 **Recovery budget**: 2 attempts — regenerate the plan on the second with the
 gaps named in the context.
 
 **Phase summary key**: none. Register the plan's companion path on this node's
-own summary entry under `artifacts[].html`; the four phase keys belong to the
-nodes named in the phase-key section above and this is not one of them.
+own summary entry under `artifacts[].html`.
 
 ---
 
@@ -643,47 +525,31 @@ revise option sends the run back to `planning` with the operator's note (engine
 
 ## `implementation`
 
-Delegated to the implementation-plan executor through the Skill tool. This is
-the node that changes code, and it is the only one that does.
+Delegated to the implementation-plan-executor skill through the Skill tool,
+whatever the plan's size. It is the only node that changes code.
 
-The implementation-plan-executor skill applies the optimizations every time,
-whatever the plan's size, because it runs the groups, dispatches the
-implementers and keeps the plan's progress marks in step with what actually
-landed.
+**Before invoking the skill, record the `sequential` input as
+`orchestrator.options.sequential`** — the executor reads that state key, not the
+node input. True runs one task group at a time instead of parallel waves. An
+input the operator did not supply resolves to its declared `default: false` and
+lands as `false`, never `null`.
 
-**The sequential input, and where the executor reads it.** Before invoking the
-skill, record the input's value as `orchestrator.options.sequential`: the
-executor reads that state key rather than the node input, so an input that is
-never landed there is an input the run silently ignores. When it is true the
-executor runs one task group at a time instead of dispatching independent groups
-in parallel waves. It defaults to parallel.
-
-**An input the operator did not supply is not an absent value.** `sequential`
-declares `default: false`, so an invocation that never names it resolves to
-`false` and lands as `false` — never `null`. `null` is what copying an absent
-input writes rather than reading the default the definition already gives, and
-it is not a value this option has.
-
-**After the skill returns**, reconcile the plan's HTML companion: run the
-engine's `sync-plan` verb once against `implementation/implementation-plan.md`.
-It is the call the executor makes after every wave, so it is idempotent and a
-no-op without a companion — here it catches a wave whose sync was missed. A
-companion still showing outstanding work after a complete run is a stale
-projection rather than a finding. Then record what
-landed: the groups completed, the files changed and the incremental test results.
+**After the skill returns**, run the engine's `sync-plan` verb once against
+`implementation/implementation-plan.md`: idempotent, and a no-op without a
+companion, it catches a wave whose sync was missed. Then record what landed:
+the groups completed, the files changed and the incremental test results.
 
 **Gate brief content.** Read `implementation/work-log.md` and write into this
 node's closing `node_summaries` entry, as engine `references/gates.md` says: a `headline` —
 the optimizations applied and the test result, in one sentence; the
 optimizations applied, the files changed and the test results from the
 incremental runs in `summary`; a known issue as an `open` risk with its
-`change`, and an item deferred on purpose as a `followup` risk. The
-`implementation-approval` brief is rendered from it.
+`change`, and an item deferred on purpose as a `followup` risk.
 
-**Recovery budget**: 5 attempts — the widest in the run, because the failures
-here are ordinary and local: fix a syntax error, fix an import, fix a failing
-test, and re-run. When the fifth attempt has not cleared it, stop and ask the
-operator rather than continuing on a red suite.
+**Recovery budget**: 5 attempts — the failures here are ordinary and local: fix
+a syntax error, an import or a failing test, and re-run. When the fifth attempt
+has not cleared it, stop and ask the operator rather than continuing on a red
+suite.
 
 **Phase summary key**: `implementation`. Mirror this node's summary into
 `performance_context.phase_summaries.implementation`, with `node:
@@ -706,49 +572,42 @@ node runs.
 
 **The verification plan is the question's text** — the checks that always run
 (the completeness check, the reality check and the pragmatic review) and the
-recommended reviews, written into the question above its options rather than
-printed ahead of it. The user adjusts what they see; a question that does not
-carry the plan asks about nothing. Say exactly when the test suite runs: it
-already passed during implementation, so the first verification pass does not
-run it again, and it runs on every pass after a fix changes code. Never list it
-under "always runs".
+recommended reviews, written into the question above its options. Say exactly
+when the test suite runs: it already passed during implementation, so the first
+verification pass does not run it again, and it runs on every pass after a fix
+changes code. Never list it under "always runs".
 
 Ask which additional verification checks to run, as bundles in one single-select
 (engine `references/in-node-questions.md`): **"Code review (Recommended)"**, its reason in
 the description, then **"Code review and production readiness"**, then **"No
-additional checks"**. A gate cannot express it: a gate's options map option ids
-to routes — continue, stop or revise — and this question picks a subset rather
-than a route.
+additional checks"**. It picks a subset rather than a route, which is why no
+gate asks it.
 
 **With question sets** (`standard-verifications`): asked through the cockpit, in
 this node's one request (engine `references/in-node-questions.md`).
 
 **Without question sets** (`standard-verifications`): the
 recommended bundle, code review only — production readiness off. The reality
-check and the pragmatic review are always enabled and are not part of this
-question, so a defaulted run still gets both.
+check and the pragmatic review always run, so a defaulted run still gets both.
 
-Record the outcome as `orchestrator.options` keys, by these exact names. The
-verifier reads them by name to decide which reviews run, so a key that is
-missing or spelled differently silently runs a different review set:
+Record the outcome as `orchestrator.options` keys, by these exact names — the
+verifier reads them by name, so a key missing or misspelled silently runs a
+different review set:
 
 - `code_review_enabled` and `production_check_enabled` — each true when the
   chosen bundle includes that review.
-- `reality_check_enabled` and `pragmatic_review_enabled` — always true. They are
-  written here rather than assumed, so a reader of state can see the whole set
-  in one place.
+- `reality_check_enabled` and `pragmatic_review_enabled` — always true, written
+  so a reader of state sees the whole set in one place.
 - `skip_test_suite` — true here, because the full suite already ran during
   implementation; the fix loop in `verification` clears it the moment a fix
   changes code.
 
 **Node summary.** Write into this node's closing `node_summaries` entry the
-review set the verification will run — code review and production readiness,
-each on or off, beside the reality check and the pragmatic review that always
-run — and whether the test suite re-runs, in `summary`; in `decisions`, the
-answer as one `by: operator` decision, or the `by: default` decision when a
-non-terminal driver took the recommended bundle. No gate follows: the summary
-reaches the `verification-approval` brief, which covers the whole stretch back
-to the implementation gate.
+review set — code review and production readiness, each on or off, beside the
+reality check and the pragmatic review — and whether the test suite re-runs, in
+`summary`; in `decisions`, the answer as one `by: operator` decision, or the
+`by: default` decision when a non-terminal driver took the recommended bundle.
+The `verification-approval` brief covers it.
 
 **There is no gate after this node.** The answer is the approval, so the run
 goes straight on to `verification`.
@@ -759,16 +618,9 @@ goes straight on to `verification`.
 
 ## `verification`
 
-Delegated to the implementation verifier through the Skill tool, then a fix loop
-inline.
-
-The implementation-verifier skill does the verification rather than an inline
-review, because it runs the test suite first, as its own step, passes that
-result into every review prompt, and compiles the completeness check and the
-selected reviews into one report.
-
-Pass no style guide path: as a skill it resolves the guide itself and gates its
-own companion on the HTML output option.
+Delegated to the implementation-verifier skill through the Skill tool, then a
+fix loop inline. Pass no style guide path: as a skill it resolves the guide
+itself and gates its own companion on the HTML output option.
 
 **Show the issue breakdown** the verifier returns: the verdict, the counts by
 severity, and the report's path from the project root
@@ -799,14 +651,13 @@ step by step):
   each issue's `id` the verifier's `name` (issues with one root cause are one
   finding), and build the set with `finding-brief` for this node. Send it
   through the classing write when the run classes questions, then ask what is
-  left to ask, paged as engine `references/in-node-questions.md` says, the first question
-  naming the report's path; more than about eight first get the triage
-  question. A change the user picks is applied, logged and re-checked like any
-  fix — the gate after this node offers no revise, so this is where such a
-  change is taken; an accepted risk becomes a `tradeoff` risk; a held choice
-  goes on provisionally, and `verification-approval` approves it. A file
-  `finding-brief` cannot use is a fallback: compose the same questions
-  yourself.
+  left to ask, paged, the first question naming the report's path; more than
+  about eight first get the triage question. A change the user
+  picks is applied, logged and re-checked like any fix — the gate after this
+  node offers no revise, so this is where such a change is taken; an accepted
+  risk becomes a `tradeoff` risk; a held choice goes on provisionally, and
+  `verification-approval` approves it. A file `finding-brief` cannot use is a
+  fallback: compose the same questions yourself.
 - **The stopping question** names what is left — the counts by severity and the
   worst item in a few words — and offers "One more round", "Continue as is" and
   "Stop", one of them recommended with its reason in its description: "Continue
@@ -842,23 +693,20 @@ critical issue without an explicit answer saying so** — a gate answered from
 outside is such an answer; a default is not.
 
 > **GATE CHECK**: the canonical report and its companion must carry the *final*
-> post-fix verdict before this node completes. A report still showing the
-> pre-fix state after fixes landed is a stale artifact, and the operator answers
-> the next gate against it. Recompile it rather than leaving a side file to
-> carry the truth.
+> post-fix verdict before this node completes. Recompile a report still showing
+> the pre-fix state rather than leaving a side file to carry the truth.
 
 **Gate brief content.** Read `verification/implementation-verification.md` and
 write into this node's closing `node_summaries` entry, as engine `references/gates.md` says: a
 `headline` — the verdict, what was fixed and what is left, in one sentence; the
 total issues found, how many were fixed and how many remain by severity in
 `summary`; each fix made without asking — the issue and the change in a few
-words each — in `fixes_applied`, so the checkpoint shows exactly what changed
-without the user choosing it, never also as a decision; each answered fix-loop
-question as a `by: operator` decision;
-no earlier answer restated; each issue still needing a decision as an `open` risk with the fix as its
+words each — in `fixes_applied`, never also as a decision; each answered
+fix-loop question as a `by: operator` decision; no earlier answer restated;
+each issue still needing a decision as an `open` risk with the fix as its
 `change`; each item left for later as a `followup` risk; and, when the user
 chose "Stop" or the budget ran out with a critical issue open, a `stop` risk
-saying why. The `verification-approval` brief is rendered from it.
+saying why.
 
 **Recovery budget**: 3 attempts — fix the failing tests and re-run, three times
 over, before asking the operator how to proceed.
@@ -875,15 +723,13 @@ A gate, unguarded. Record the answer, and stop the run on the stop option.
 
 ## `finalization`
 
-Executed inline, writes no files, and always runs — nothing invokes this
-workflow as a sub-run, so there is no embedded case to guard against.
+Executed inline, writes no files, and always runs.
 
 1. **Inventory the outputs**: the performance analysis, the requirements, the
    specification, the audit, the plan, the work log and the verification report.
-   All seven exist on a run that reached here, because nothing in this workflow
-   is conditional — so an absent one is a defect to name rather than a skip to
-   explain. Take the inventory from disk and not from state: `run-complete`
-   checks every declared artifact and every declared HTML companion, printing a
+   Nothing in this workflow is conditional, so an absent one is a defect to name.
+   Take the inventory from disk, not from state: `run-complete` checks every
+   declared artifact and every declared HTML companion, printing a
    `missing-artifact:` or `missing-companion:` line for each one absent, and
    those lines are relayed below; check by hand only a path a summary lists
    beyond the declarations (`orchestrator-patterns.md` § 10).
@@ -891,47 +737,35 @@ workflow as a sub-run, so there is no embedded case to guard against.
    optimizations landed, the verification verdict with any issues left open, and
    whether the ranking rested on profiling data or on static analysis alone.
 3. **Set the task status to completed**.
-4. **Guide the next steps**, which for this workflow are its own four: run the
-   application and confirm the improvement by hand; profile with runtime tools
-   to measure the actual impact, since this workflow's ranking was static unless
-   the user supplied data; watch the production metrics after deployment;
-   and come back for the remaining P2 and P3 bottlenecks if they still matter.
-   Suggest a fresh session for whatever comes next rather than continuing in
-   this one.
+4. **Guide the next steps**, this workflow's own four: run the application and
+   confirm the improvement by hand; profile with runtime tools to measure the
+   actual impact, since the ranking was static unless the user supplied data;
+   watch the production metrics after deployment; and come back for the
+   remaining P2 and P3 bottlenecks if they still matter. Suggest a fresh session
+   for whatever comes next.
 
-**Close for whoever reads the end** (the engine skill's run-end rule). In a
-terminal run a person reads it: write the closing patch and call `run-complete`
-first, then end with one wrap-up message that fits one screen and is the last
-thing the run prints. Its sections are the engine's six — Done, Needs you,
-Follow-ups, Next, Files, Dashboard — and nothing follows the Dashboard line.
-**Next** holds every one of step 4's next steps, a line each: all four of this
-workflow's own, then the fresh-session suggestion, none dropped or merged. Each
-`missing-artifact:` and `missing-companion:` line the verb printed is named in
-plain words under **Needs you**. Nothing about how the run was carried out
-appears unless it changed the result. The verb's own lines are never shown.
-Under a `cockpit` or `dispatch` driver tooling reads it, and the order is
-reversed: the executive summary and every next step are printed as ordinary text
-**before** the `run-complete` call; after it, print nothing but the lines the
-verb printed, copied exactly, its marker last. Never type a marker the verb did
-not print.
+**Close for whoever reads the end**, as the engine's *Operator visibility*
+says: in a terminal run, the closing patch and `run-complete` first, then the
+six-section wrap-up as the last thing printed. **Next** holds every one of step
+4's next steps, a line each — all four, then the fresh-session suggestion, none
+dropped or merged. Each `missing-artifact:` and `missing-companion:` line the
+verb printed is named in plain words under **Needs you**. Under a `cockpit` or
+`dispatch` driver the executive summary and every next step are printed
+**before** the `run-complete` call; after it, nothing but the lines the verb
+printed, copied exactly, its marker last. Never type a marker the verb did not
+print.
 
 **No close-out while a choice is held.** When the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
-closing patch and before any close-out, as the engine's *Ending a dispatched run* says.
-`gate-brief-nothing-held` closes as usual; a continue records the approvals, then closes; a
-revise runs the stretch again and publishes nothing; a stop closes as a stop. When the driver
-refuses the checkpoint, the close-out is graded `failed` and names each held choice, and the run
-ends on `run-held-unapproved`.
+closing patch and before any close-out, as the engine's *Ending a dispatched run* says, and
+closes as that section's outcomes direct.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out
-contract asks for, drawn from the executive summary above. A dispatching chain
-has no second way to learn this run is over: a run that finishes and publishes
-nothing leaves the chain waiting forever, with the work done and every local sign
-saying success. The engine refuses a dispatched run that reaches its end with no
-close-out in the outbox (`RUN-FAILED: closeout-unpublished`). Under a terminal
-driver there is no seed and no outbox, and step 4 above is what the operator gets
-instead.
+contract asks for, drawn from the executive summary above. The engine refuses a
+dispatched run that reaches its end with no close-out in the outbox
+(`RUN-FAILED: closeout-unpublished`). Under a terminal driver there is no
+outbox, and step 4 is what the operator gets instead.
 
 There is no gate after this node. The workflow ends here.
 
