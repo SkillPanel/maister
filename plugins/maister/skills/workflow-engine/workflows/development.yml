@@ -91,8 +91,8 @@ inputs:
 # `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
 # member rather than inventing one; anything else fails validation. Each gate
 # carries the icon of the node it closes, so a stretch and the approval that
-# closes it read as one pair. The same table lives in the prose beside this
-# file.
+# closes it read as one pair. The prose beside this file does not
+# repeat the table.
 display:
   icons:
     intake:                  analysis

@@ -30,7 +30,7 @@ workflow's node prose cites it by section:
 |------|---------|
 | `references/orchestrator-patterns.md` | Delegation rules, phase gates, state schema, initialization, context passing, issue resolution — the normative shapes for this edition |
 | `references/orchestrator-creation-checklist.md` | Authoring checklist for a new built-in workflow definition (not loaded at runtime) |
-| `references/html-report-style.md` | Style guide for HTML companion reports (passed to companion-writing agents) |
+| `references/html-report-style.md` | Style guide for HTML companion reports (delegates take its path from the `html:` line of `run-context`) |
 | `assets/dashboard.html` | The frozen operator dashboard, copied into every task dir |
 
 ## Key Principles

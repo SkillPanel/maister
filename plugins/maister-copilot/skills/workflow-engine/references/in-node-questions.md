@@ -1,0 +1,424 @@
+# In-node questions
+
+The workflow engine's rules for a question a node asks inside itself. `area-brief` names
+*Decision areas from the brainstorm*, and `finding-brief` names *Findings that need a decision*.
+
+A gate is not the only question a run asks. A node's prose may ask its own — a clarification,
+an opt-in that decides whether a later stretch runs, a decision between approaches, or a loop
+that offers a second pass — and those questions are in the node because the graph cannot say
+them. They follow the same driver, and only the driver:
+
+| The run's driver | An in-node question is |
+|---|---|
+| absent, or `kind: terminal` | asked in session, exactly as the node prose describes it |
+| `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator** as one question set (*When a question suspends*) |
+| any other — `dispatch`, or a cockpit without that feature | **never asked**; the node takes the default its own prose names, and records that it did |
+
+`orchestrator.driver.features` is the driver's own list of what it carries, seeded by whatever
+started the run — for a sub-run, the freeze copies its parent's (engine § *Sub-runs*); otherwise the
+engine only reads it. `question-sets` means the driver can show a set of
+questions to the operator in one request and write the answers back. An absent list, or one
+without that value, means it cannot. Decide this once, when the run starts, like the gate mode.
+
+**Asked in session, a question offers answers, never their categories.** A question that
+invites a correction or an addition offers the corrections and additions themselves: concrete
+candidates generated from what the node found — its open gaps and its weakest inferences — each
+one an answer that can be folded in as it stands, beside the option that changes nothing, with the
+user's own words through Other folded in as typed. Never offer an option such as "add
+something" whose only effect is a second question asking what kind of thing to add: each such
+step costs the user a round trip, and the answer still ends up typed.
+
+**A recommended set is offered as one single choice, never as empty checkboxes.** A multi-select
+cannot pre-tick anything, so a recommended set shown as checkboxes is shown empty, and a user who
+presses Next drops every option the run recommended. Offer the bundles instead, as one
+single-select — "All four reviews (Recommended) / Code review only / Choose individually" — the
+recommended bundle first, and open a multi-select only behind "Choose individually". An empty
+set the user may want is a bundle of its own ("No extra constraints"), never an unticked
+recommendation.
+
+**A question carries its own context, and never points at "above".** This is the floor, on
+every tool. Whatever a question or a tab refers to travels in its own text: an assumption to
+confirm is stated in its tab, an issue to decide carries its file, line and what is wrong in its
+tab, an "Accept all N" question lists the N items, one line each, a draft to approve is named
+with what it settles, a retry-or-skip question says what failed and why, and a decision area's
+question names the area, why it matters and each alternative in a line. Each option's description says what choosing it does or costs; where the
+tool shows no option descriptions, that goes in the question, a line per option. Text
+printed before the picker may never reach the screen — the terminal collapses tool output and
+can show its own recap in place of a silent turn — so "the three assumptions above" asks the
+user to confirm what they never saw. A message composed above a question is still welcome,
+decision areas' and gates' included; nothing the user needs may depend on it.
+
+**More details — one request, one rule.** Offer **More details** as the last option of every
+question whose full context is longer than its question and descriptions hold: a gate (the
+gate brief lists it), a decision area, a draft or section to approve, a page of fix-loop
+decisions, assumptions to confirm. Its description: "Write out the full context, then ask this
+again. Nothing is recorded." When the options already fill the tool's slots, end the question
+with `Type "details" for the full context.` instead; a typed "details" is the same request.
+Choosing it is **not an answer**: nothing is recorded, no state is written, and the question
+stays open. Your next message is the full context, and the call after it is the same question,
+with the same options, in the same turn:
+1. **At a gate**: `more_details` from the picker output, as given — every closing node's summary
+   by its title, every decision with who settled it, the risks grouped by tag, and the files
+   to open — then the gate again. Where the More details option previews it, the gate is asked
+   again at once instead (`references/gates.md` § *Terminal mode*).
+2. **At a decision area**: every alternative, each with a two-to-three-sentence description,
+   its pros and its cons; then the recommendation and why; then the same area again. An area
+   asked from `area-brief` has this text already: its `more_details`, printed as given
+   (*Decision areas from the brainstorm*).
+3. **At any other question**: the full context of each item — an issue's file, line, what is
+   wrong and what each option changes; an assumption and what it rests on; a draft or section
+   in full; a failure's cause and what each way on would do — then the same question again.
+
+> **ANTI-PATTERN**: Do NOT record More details, or treat it as a choice and move on. It asked
+> for text, and the question is still unanswered.
+>
+> **ANTI-PATTERN**: Do NOT answer More details with headlines, a summary of the summary or a
+> pointer to a report or the dashboard. What the user asked for is the text the screen did not
+> show them.
+
+> **SELF-CHECK after More details is chosen**: does your message enumerate every item the
+> question rests on, whole? Is your next call the same question with the same options? If not,
+> STOP and write it first.
+
+Under a driver More details is never taken: a question set carries each question's full
+context in its own fields, `why` and the options' descriptions, and the cockpit shows it.
+
+**Ask only what the run does not know.** A question whose answer earlier phases already
+recorded — visual assets or browser checks for a change the analysis found has no user
+interface — is not asked: say the answer in one line where the question would have been
+("Browser verification: off — this change has no user interface") and record it as the node
+records an answered one.
+
+**A recommendation never drops or narrows what was asked for.** The task states what done means
+— its description, its acceptance criteria or "done when" lines, the research question — and the
+recommended option keeps every one of them. An option that narrows one may still be offered, its
+description naming the criterion it gives up, but it is never the recommendation, however much
+smaller or closer to the existing code it is. Before recommending, read what earlier steps left
+uncertain: the `open` risks in `prior-context` and the open questions of any research the run
+imported. Where one of them says a criterion may be read two ways, recommend the reading that
+keeps every criterion whole, and say so in the question ("Recommended because it keeps 'lists
+shared notes', which the context checkpoint flagged as uncertain"). The person may still choose
+the narrower reading; the run never makes it the default.
+
+**One topic is one drafted story.** Requirement gathering never splits one behaviour into single
+facts asked one by one — who may do it, where they start, what changes, who sees the result —
+because each answer then lands alone and the behaviour ends up scattered across them. The
+questions that belong to one topic are drafted into one user story, or journey, and asked as one
+question: the actor, the entry point, the action, the resulting state change — what is stored
+and what is audited — and what is visible afterwards, each part filled with the reading the
+run's evidence best supports, a default the person can correct. Its options are answers: accept
+the story, the recommendation, its reason naming what the defaults rest on; accept it with the
+corrections the run lists — its weakest defaults, each changed to the next-best reading and named
+in the description; and a concrete alternative story where one exists. More details is last
+while a slot is free, and the person's own story goes through Other. Each story is one decision,
+asked under its own id — the node's declared story id, then the topic as a short slug — and
+never folded into an accept-all. A question stays on its own only when its answer changes no
+story: which existing component to reuse, whether visual assets exist.
+A story's question lists its parts, a line each, then each correction the corrections option
+applies, a line each.
+
+**Independent items go in pages; decision areas go one at a time.**
+A picker call holds up to four questions, one tab each. Items that stand on their own — the fix
+loop's per-issue decisions, confirmations of the run's own assumptions, drafted stories that do
+not depend on one another — are asked four to a page, further pages following in the same
+turn. A later page opens by saying, in one line, how many questions are left ("Two more scope
+questions"), so the user knows the end is near.
+The question tool takes a message and a form: a page is one call whose form has a property per
+question, each titled by its header, with its question — its own context included — as the
+property's description and its options as the choices, each option's id as the value and its
+label as the title, the recommended one as the default. The message names what the page is
+about, and on a later page how many questions are left. A multi-select is one property of type
+array whose items are the options, any of them, the recommended ones as its default.
+
+The form shows no option descriptions, so a recommendation's reason rides in the question: the
+property's description ends "Recommended: <option>, because <reason>." Write the form as plain
+text, because it shows markdown as typed: no `**`, no backticks and no list markers in the
+message or a description. A property's title is a short noun phrase in sentence case, with
+nothing after its last word — the form adds a colon of its own, so "Explore alternatives?"
+reads "Explore alternatives?:" — and every word spelled out: "Specification", never "Spec".
+For assumption confirmations alone, "Accept all N as stated (Recommended)" may come
+first — its question listing the N assumptions, one line each — going through the items only
+when the user asks to. **Decision areas are never paged and
+never offered as accept-all**: research's solution convergence, product design's convergence and
+direction areas, and any step whose choices shape what comes next are asked one area per call,
+each with its full context — every alternative's description, pros and cons, and the
+recommendation with its reason — because a later area can depend on an earlier answer and the
+user needs that context to decide. That context rides in the area's own question: the question
+names the area, why it matters, each alternative in a line, and the recommendation with its
+reason; each alternative's key pro and
+con, in a few words, is its option's description — or its line in the question, where the tool
+shows no descriptions; the full description, pros and cons are
+in its preview where the tool shows previews; and More details is offered while a slot is free.
+An area with more alternatives than the options hold offers the recommended one and its
+strongest rivals, names the rest in the question, and the user reaches them by typing.
+When the brainstorm wrote its decision areas file, `area-brief` renders all of this for each
+area, and the node asks what it prints (*Decision areas from the brainstorm*).
+In a decision area, the message's last line before the ask is the recommendation:
+"Recommended: <alternative> — <reason>."
+
+## Decision areas from the brainstorm
+
+A convergence node asks its decision areas from `area-brief`, which finds the file the brainstorm wrote through the node's `with: decision_areas` and renders each area from it. The file's shape, its check and the few labels the verb adds are in `references/decision-areas.md`; every other word the user reads comes from the file, so the terminal and a cockpit show the same text. The area ids, and the order they are asked in, are the file's.
+
+**In session, one area per call**, in the file's order, each from its picker:
+
+```
+node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<run>/orchestrator-state.yml --node=<the convergence node> --area=<area id> --json --picker=plain
+```
+
+Pass `question`, `header` and `options` to the question tool as given, and record the answer
+under the printed `question_id`, `convergence-decisions-<area id>`. On More details, print
+`more_details` as given — the area's full write-up, which `--area=<id>` without `--json` also
+prints — then ask the same area again from the same picker; nothing is recorded.
+The plain profile offers every alternative as a label; the question carries each alternative's
+line and ends with the recommendation and its reason.
+
+**Under a driver with question sets**, every area goes in the node's one request. Run the verb
+with `--patch-file=<run>/.state-patch.json` in place of `--area` and `--json` — after a revise,
+`--area` repeated names the areas the note reopens — and it writes the question set to the patch
+file and prints its path: one question per area, each with its write-up as `details` and, when
+the run's policy classes the area, its `triage`. Then run `gate-brief --request
+--patch-file=<run>/.state-patch.json` for the node, read the patch file once with the file
+tool, write the printed request over it byte for byte, every question's `details` included,
+and suspend with `gate-request` (*When a question suspends*). A `policy-hash-mismatch` warning
+means no area carries `triage`; the request still goes.
+
+**When the file cannot be used**, the verb prints one warning on stderr, exits `0` and gives
+nothing to ask from — under `--json`, `{ok: true, fallback: true}`; with `--patch-file`, no
+file:
+
+| Warning | The file |
+|---|---|
+| `decision-areas-missing:<path>` | was not written; `:not-declared` when the node names none, `:producer-not-completed` when its brainstorm did not complete |
+| `decision-areas-unreadable:<path>:<code>` | exists but cannot be read |
+| `decision-areas-invalid:<path>:<fault>` | failed the check, its first fault as `<reason> at <path>` |
+| `decision-areas-stale:<path>:<source>[:<detail>]` | no longer matches the markdown it was written from; `:source-unreadable` when that markdown cannot be read, `:source-not-declared` when it is not the markdown the brainstorm declares |
+| `decision-areas-unwritable:<patch path>:<code>` | was read, but the question set could not be written to the patch file; nothing was written. `EEXIST` means another write holds the patch file's temp, or a crash left one; it is reclaimed after a minute, so running the set form again after a minute is fine. `EACCES` or `EPERM` means the run directory refuses writes, so neither the composed set nor the request can be written either: stop and report the run directory as unwritable rather than composing into it |
+
+Each means the same: compose every area from the brainstorm's markdown, exactly as the node
+prose describes, with the same detail and the question ids it names, and say in the node summary
+which warning made it do so. Apart from the `decision-areas-unwritable` cases above, the warning
+holds for every area of the run, so do not run the verb again for the next one, and never edit
+the file to make it pass — it is the brainstorm's.
+
+Its refusals name no state write and leave nothing written:
+
+| Refusal | Response |
+|---|---|
+| `area-brief-state-unreadable` | `--state` cannot be read or parsed as a state document. Nothing was written. Point `--state` at the run's `orchestrator-state.yml` — the run directory this node belongs to — and run the verb again. |
+| `area-brief-unknown-node` | `--node` names no node of the run, or names a gate, which is asked from its own brief. Nothing was written. Name the convergence node that is asking its decision areas and run the verb again; no state write fixes this. |
+| `area-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
+| `area-brief-unknown-area` | An `--area` id is not in the file; it is judged only once the file passed its checks. Nothing was written. Take the area ids, in order, from the file named in the node's `with:` — the message lists them — and run the verb again. |
+
+## Findings that need a decision
+
+A review step — the specification audit, the verification fix loop — asks each finding that
+needs a person as its own question, after the fixes it makes without asking. The node writes the
+findings to a JSON file in the run (its reviewer returns them in this shape) and builds the set
+with `finding-brief`:
+
+```
+{"findings": [{"id": "empty-upload", "severity": "critical",
+  "title": "Server crashes on an empty upload",
+  "evidence": "src/upload.ts:42 reads body.length of undefined",
+  "options": [{"label": "Guard the empty body", "description": "Return 400 before reading it"}],
+  "recommended": 0, "reason": "One guard closes the crash"}]}
+```
+
+`id` is kebab-case and unique; `severity` one of critical, high, medium, low, warning, info;
+`options` one to three, the reviewer's proposed change first, then the alternatives it names;
+`recommended` an option's index, `"accept"`, or null; `reason` required with a recommendation.
+Unknown keys are refused. Each finding becomes the question `<node>-findings-<id>`, most severe
+first: its id in words as the header, the title in the question, the severity and evidence as its
+`why`, the full write-up as `details`, the reviewer's options and then **"Accept the risk and list
+it"**, the recommended one carrying its reason. The node's prose declares `<node>-findings`, so a
+policy classes every finding through that one id.
+
+From there the set is any other in-node set: the classing write when the run classes questions,
+then the asking — paged in session, one request under a cockpit with question sets — and the fold,
+one decision per finding. What each answer does is the node's: a chosen change is applied, an
+accepted risk is a `tradeoff` risk, a finding nobody could be asked about stays an `open` risk
+unless the policy settled, defaulted or held it, and a held choice goes on provisionally until a
+continue approves it.
+
+A file the verb cannot use is a fallback, never a refusal — compose the same questions from the
+reviewer's findings and say which warning made you: `finding-list-missing:<path>` (no file, or
+`:outside-run`), `finding-list-invalid:<path>:<where>` (not JSON, or the first field that breaks the
+shape), `finding-list-unwritable:<patch path>:<code>` (the set could not be written; `EEXIST` clears
+after a minute). Its refusals leave nothing written:
+
+| Refusal | Response |
+|---|---|
+| `finding-brief-state-unreadable` | `--state` cannot be read or parsed as a state document. Nothing was written. Point `--state` at the run's `orchestrator-state.yml` and run the verb again. |
+| `finding-brief-unknown-node` | `--node` names no node of the run, or names a gate. Nothing was written. Name the reviewing node that is asking its findings and run the verb again; no state write fixes this. |
+| `finding-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
+| `finding-brief-undeclared` | The node's prose declares no `<node>-findings` question id, so no policy could class its findings. Nothing was written. Ask the findings as the node's prose says without the verb, or add the declaration to a workflow you own, then run it again. |
+
+## When a question suspends
+
+Under a driver that carries question sets, a node asks what it would have asked in session —
+the clarifications, the opt-ins, the decisions, the bundles — and suspends on them instead of
+taking their defaults. Four rules hold:
+
+- **One request per node attempt, carrying every question.** At its first asking point the node
+  gathers every question it can form there into one set, one entry per question, and suspends
+  once. A node cannot ask a second time in the same attempt, so a question that only exists
+  after an answer or a pass — a follow-up, another refinement round, a retry after a spent
+  budget, the fix loop's stopping point — takes its named default below.
+- **Write before asking.** Whatever the node needs after the answer — its analysis, its draft,
+  the candidates each option stands for — is on disk before it suspends. The answer may come
+  back to a fresh session that never saw this conversation, and it continues from the files.
+- **No cap.** A set holds as many questions as the node has. The four-to-a-page limit belongs to
+  the terminal picker, which pages a long set in one turn; it is never written into a request.
+- **Each question carries its own context**, by the floor above: `question` the question itself,
+  `why` what makes it matter, each option's `description` what choosing it does or costs, and
+  `recommended` on the recommended option, its reason in its description. `header` is a short
+  sentence-case title. `details`, optional, is the question's full write-up as markdown, shown
+  on demand beside it; `area-brief` writes it for each decision area. The multi-choice flag and `allow_other` (the operator's own words, on
+  unless said) are per question. `default` is what a non-answer would take, the recommendation when
+  absent. `triage` is carried as written; for a decision area the engine writes it when a
+  matching policy classes the area.
+
+How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch file, runs
+`gate-brief --request --patch-file=<the patch file>` for itself, and suspends exactly as a gate
+does (`references/gates.md` § *Driver-suspended mode — the write order*). The answer is folded as *A question set
+answered* says, and the node carries on `running` with the answers recorded on its summary.
+A node a gate's revise re-ran asks again in its new attempt (`references/gates.md` § *Revising at a gate*), and the
+operator's earlier answers are not lost: the writer keeps them on the summary, each stamped with
+the `attempt` it was given in, ahead of the new answers, which carry theirs, even when the new
+attempt words a question differently — the `question_id` is the question across attempts. The
+earlier ones are history. The gate brief neither lists nor counts them, and the dashboard shows
+them as earlier answers.
+Anywhere else — no feature, `dispatch`, or a set the verb refuses as unsupported — nothing is
+asked and the default is taken. Asking in session anyway is never right: nobody is there, and a
+session hint saying to continue without asking is not an answer either.
+
+## When nobody can be asked
+
+**Every in-node question names its default, in its own node prose.** The prose that asks is
+also what says what is taken when nobody can be asked — under a driver without question sets,
+or for a question a node reaches after it has already asked — so a reader never has to infer
+one. The families and what each takes:
+
+| The question | What is taken when it cannot be asked |
+|---|---|
+| A clarification | nothing is asked; the analysis or the delegate's own answers stand, and the node writes its artifact and sets its flag as a run with nothing to ask already does |
+| An opt-in | the recommended option |
+| A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is recorded as an `open` risk in the node's summary, which the next gate's More details shows |
+| A set offered as bundles | the recommended bundle |
+| A drafted story | the story as drafted, kept in the requirements as drafted rather than confirmed |
+| A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
+| A finding that needs a decision (a review step's finding questions) | nothing is asked; each finding stays open as an `open` risk for the gate, unless the policy classes it |
+| The automatic fix loop's stopping point | "Continue as is" — the open issues become `open` risks for the gate |
+| An exhausted recovery budget | the node is recorded `failed`, per engine § *Recording an outcome* |
+
+`(Recommended)` appears once per question, on the recommended option, and that option's
+description gives the reason — or, where the tool shows no option descriptions, the question
+does. Behind "Choose individually", no option carries the label: the
+bundle already carried the recommendation.
+
+**What is recorded.** One entry per defaulted question on that node's summary `decisions`
+list:
+
+```
+{decision: "All four reviews", by: default, question_id: standard-verifications}
+```
+
+`question_id` is the id the node prose names, and `decision` is the default actually taken —
+not the option that was recommended in the abstract, but the one this run used. A node that
+asked nothing because it had nothing to ask records nothing: there was no question to
+default. An answered question is recorded the same way, `by: operator`, with the question and
+the answer (`references/gates.md` § *Before every gate*). The older string form, `defaulted: <id> -> <taken>`, is
+still read as `by: default`. The entry is an ordinary decision item and reaches the dashboard
+like every other decision.
+
+**A run started under a driver has its inputs.** The first question in a workflow is usually
+"what is the task?" or "what is the question?", and under a non-terminal driver it is never
+reached: the start brief supplies the inputs and the freeze persists them under
+`orchestrator.options.inputs` (see engine Step 4). If one is nevertheless missing, print
+`RUN-FAILED: <code>` and stop. Inventing a task description is the documented failure mode,
+and defaulting is not a licence to invent one.
+
+**Two things this rule never defaults past.** It settles who answers, not what may be waived:
+
+- An unresolved critical verification issue is not proceeded past. The automatic fix loop
+  fixes what is fixable and not risky, within its two re-checks, in every mode, and records
+  the remainder as `open` risks in the node's summary, which the following gate's brief
+  renders for a person to see and answer.
+- A decision the node owes is still *resolved* rather than skipped. A defaulted decision is a
+  resolved one and satisfies a node's own completeness self-check; an unasked, unrecorded,
+  unresolved one does not, and a node must not be marked complete with one outstanding.
+
+## When the policy classes a question
+
+**The fact.** Everything above holds in every run. When the freeze recorded
+`orchestrator.classes_questions: true` (engine Step 4), the autonomy policy the run applies classes
+in-node questions too, and one step comes first. Without the fact — always under the built-in
+default — skip this subsection: nothing in it is written or called, and the node asks exactly as
+above.
+
+**The classing write.** At its asking point, before it asks anything or suspends, the node sends
+the set it would ask to the writer, in one `write-state` patch on its own summary:
+`node_summaries.<node>.question_set` — the same `{ask?, headline?, questions}` object the cockpit
+form takes — and, optionally, `node_summaries.<node>.reasons`, `{<question id>: {rationale?,
+assumption?, reversal?}}`, each one line. The writer consumes both and stores neither as sent. It
+classes each question under the policy and the run's autonomy ceiling, records the outcome on the
+node's `decisions`, stores the ids still to ask as the node's `asking`, and prints them last:
+
+```
+node_summaries.scoping
+
+ask: scope-choice
+```
+
+**The four outcomes.** A question the policy does not class is left to ask, with no triage; a
+classed one takes one of four outcomes, by its class, the autonomy ceiling and whether anybody can
+be asked — a terminal run, or a cockpit carrying question sets:
+
+| Outcome | When | The writer records | The node |
+|---|---|---|---|
+| settled | the class is within what the autonomy ceiling settles — never a consult or approval class; any driver | `by: run`, with the rationale and the triage | takes it; never asks it |
+| asked | above the autonomy ceiling, and somebody can be asked | nothing; the id is printed under `ask:` | asks it, as the sections above say |
+| defaulted | above it, nobody can be asked; a consult-class one is marked advice not obtained | `by: default`, with the triage | takes it |
+| held | an approval-class question nobody can be asked | `by: default`, its triage `held: true`; with nothing recommended, no choice: `decision: "No choice yet — needs your decision"`, `no_choice: true` | goes on provisionally with it, or without one |
+
+Under a terminal driver ask in session only the ids printed under `ask:`; under a cockpit with
+question sets the request carries only those (*When a question suspends*); under any other
+driver they are the unclassed ones and the ones that recommend nothing, and each takes its named
+default, recorded as *When nobody can be asked* says. `ask: none` means nothing is left to ask:
+ask nothing, suspend on nothing, and carry on.
+
+**A question that recommends nothing.** The writer never picks an option for a classed question
+with no recommended option and no `default`. Where it would be settled, defaulted or asked, its
+id is printed under `ask:`: it is asked where somebody can be, and elsewhere the decision stays
+open and is recorded as an `open` risk. Where it would be held, it is held with no choice taken,
+and only a revise of its step settles it — never a continue: the checkpoint that lists it
+recommends the revise that re-runs that step, with a suggested note asking for the choice, and
+the person names their choice in the note. The step re-runs (`references/gates.md` § *Revising at a gate*), reads the note
+in its prior context, and sends the question again with the option the note names as its
+recommended option (or as its `default`): the classing write then holds it with that provisional
+choice, and a later continue approves it as usual. A re-run that again recommends nothing is held
+with no choice again, and spends another revise. The rest of the set is classed as usual.
+
+**What the set carries.** The question ids it sends are the ids the node's question-set lines
+in its prose declare; another id reads as itself and may fall to the policy's unknown family. A
+question with no options — open text — cannot travel in a set: leave it out of the classing write
+and ask it, or take its default, exactly as the sections above say.
+
+**A held choice is provisional.** It may shape the steps after it, but nothing irreversible is
+done on its strength — nothing pushed, published, sent or deleted — before a person approves it.
+It forces the next checkpoint that runs and is listed first there, with the step that holds it,
+and every continue there says it approves the held choices — and that a held question with no
+choice yet stays held until a revise of its step supplies one (engine § *The ready set*, `references/gates.md` § *Gates*). A
+person who disagrees with one held choice sends its step back from that checkpoint with a revise
+and a note, approving none of the others (`references/gates.md` § *Revising at a gate*, `references/gates.md` § *For a held choice*); a step the
+checkpoint cannot send back is reached at a later one, or at `held-approval`. When no checkpoint follows, the closing node asks
+`held-approval` before it closes (engine § *Ending a dispatched run*). Say this when you present the
+checkpoint in session: continuing approves what is listed as held.
+
+**What a node never does here.** It never composes a triage, never sends `asking` or
+`classes_questions`, and never sends its own `by: run` or `by: default` item for a question the
+writer classed: the writer drops each with a note and keeps its own. It never asks a question the
+writer settled, defaulted or held, and never treats a held choice as approved. A later write may
+re-send the writer's items unchanged or leave them out; they stay either way. A revise's reset
+clears them, so the node's next attempt sends its set again and is classed afresh.

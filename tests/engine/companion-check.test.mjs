@@ -222,3 +222,22 @@ test('run-complete: silent with the HTML output off, and a dir: node is never he
   assert.equal(on.closed.stdout, 'RUN-COMPLETE\n');
   assert.equal(on.closed.stderr, '');
 });
+
+test('recovery without a summary: the companion is registered by the summary write still owed', t => {
+  const run = frozen(t);
+  put(run.dir, 'review/notes.md');
+  put(run.dir, 'review/log.md');
+  const first = writeState(run, { nodes: { review: { status: 'completed' } } });
+  assert.equal(first.code, 0, first.stderr);
+  assert.deepEqual(companionLines(first.stdout),
+    ['companion-missing: review review/notes.html', 'companion-missing: review review/log.html']);
+  assert.equal(Object.hasOwn(readState(run).node_summaries ?? {}, 'review'), false, 'no summary is invented');
+
+  put(run.dir, 'review/notes.html');
+  put(run.dir, 'review/log.html');
+  const owed = writeState(run, { node_summaries: { review: { summary: 'Reviewed.' } } });
+  assert.equal(owed.code, 0, owed.stderr);
+  assert.deepEqual(companionLines(owed.stdout), []);
+  const artifacts = readState(run).node_summaries.review.artifacts;
+  assert.deepEqual(artifacts.map(artifact => artifact.html), ['review/notes.html', 'review/log.html']);
+});

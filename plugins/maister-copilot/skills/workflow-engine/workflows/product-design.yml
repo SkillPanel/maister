@@ -118,8 +118,8 @@ outputs:
 # `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
 # member rather than inventing one; anything else fails validation. Each gate
 # carries the icon of the node it closes, so a stretch and the approval that
-# closes it read as one pair. The same table lives in the prose beside this
-# file.
+# closes it read as one pair. The prose beside this file points here
+# rather than repeating the table.
 display:
   icons:
     intake:                   analysis
@@ -184,6 +184,14 @@ display:
     problem-approval:         "Problem"
     direction-approval:       "Direction"
     specification-approval:   "Spec"
+
+# The markdown artifacts that owe an HTML companion beside them, per node.
+# Read beside the graph, not part of it: the block moves no graph hash.
+html_companions:
+  idea-generation: [alternatives]
+  idea-convergence: [decisions]
+  feature-specification: [spec]
+  review-handoff: [brief]
 
 nodes:
   intake:

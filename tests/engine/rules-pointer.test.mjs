@@ -286,3 +286,16 @@ test('every pointer names a reference that exists and a heading of that referenc
     assert.ok(headings.includes(heading), `${path.basename(file)} has the heading "${heading}"`);
   }
 });
+
+test('the frozen-workflow refusal and an unfinished close each name the writing-state pointer too', t => {
+  const run = scratch(t);
+  freeze(run);
+  const frozen = verb(['write-state', `--state=${run.state}`],
+    { workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } } });
+  refusedWithPointer(frozen, 'state-workflow-frozen', WRITE_REFUSED);
+
+  write(run, { task: { status: 'completed' } });
+  const unfinished = verb(['run-complete', `--state=${run.state}`]);
+  refusedWithPointer(unfinished, 'run-nodes-unfinished', COMPLETE_REFUSED);
+  assert.equal(unfinished.stdout, 'RUN-FAILED: run-nodes-unfinished\n', 'the marker stays the only stdout line');
+});

@@ -45,13 +45,14 @@ This skill uses four, all read-only:
 
 | Verb | Gives |
 |---|---|
-| `locate --name=<name>` | Where the name resolves: `from` (`eject`, `generated`, `overlay`, `builtin`), the `definition` and `overlays` paths the next verbs take, `ignored`, `inputs`, `dispatches`. Without `--name`: the project's own workflows |
+| `locate --name=<name>` | Where the name resolves: `from` (`eject`, `generated`, `overlay`, `builtin`), the `definition` and `overlays` paths the next verbs take, `ignored`, `inputs`, `dispatches`, and `html_companions` — the block (§ 3.2) merged over the overlays and profile given, a node an overlay or the profile disables dropped, `{}` without one. Without `--name`: the project's own workflows |
 | `validate --definition=… [--overlay=…] [--profile=…]` | `errors`, `warnings`, `resolved` (each target, the tier that answered and the file), `counts` |
 | `resolve` (same flags) | The folded graph: `nodes` in frozen order, each with `needs`, `when`, `on`, `with`, `outputs`, and a gate's `ask` and `options`; the `graph_hash` |
 | `diagram` (same flags) | Mermaid text carrying each node's title. Read it for the titles; **never print it** — a terminal does not render Mermaid |
 
 Overlays passed to a verb are always the ones `locate` found, then the author's `--overlay`s, in
-that order, with `--profile` when given.
+that order, with `--profile` when given — and `locate --name` itself takes the author's
+`--overlay`s and `--profile` too, so its `html_companions` matches the graph the other verbs fold.
 
 ---
 
@@ -103,6 +104,10 @@ questions:
    operator, so say so if the author describes an all-of condition, and turn it into one recorded `bool`.
 6. **Artifacts and values** each phase declares (§ 8.2): literal paths relative to the run's task
    directory; values as `bool`, `id` or `enum` rather than `string` where they are handles.
+   **Which of those documents should also get an HTML page for people to read?** Offer each
+   declared markdown artifact by what it holds; the answer becomes the `html_companions` block
+   (§ 3.2), keyed by node id and listing artifact keys. None is a fine answer — a definition
+   without the block owes no page.
 7. **Will another workflow call this one?** Only on request, apply the child-capable recipe
    (§ 13.1): the `embedded` input, the guarded closing node, a workflow-level `outputs:` block, a
    default for every in-node question, and the `## Embedded mode` section.
@@ -110,7 +115,8 @@ questions:
 **Write the pair.**
 
 - `<name>.yml` — `name`, `version: 1`, `description`, `inputs`, `nodes` wired by `needs` in the
-  order given, gates after the phases chosen, guards, outputs, `display.titles` for every node.
+  order given, gates after the phases chosen, guards, outputs, `html_companions` when any page was
+  chosen, `display.titles` for every node.
   Pass what a node needs from earlier ones through `with:` using `${…}` references inside its
   `needs` closure (§ 9); a value a skipped node may leave null is read from state by the prose,
   not interpolated (§ 9).
@@ -119,9 +125,11 @@ questions:
   `direct:` (§ 11). Each section is a short, honest stub the author will finish: the steps in
   outline, what the node writes and records, what its closing summary must carry for the next
   gate, the questions it may ask with the default each takes when nobody can answer, and its retry
-  budget. A fix loop inside one node follows § 13.2. The last `direct:` node that does work also
-  reconciles: it checks every path the run's node summaries list against disk and reports what
-  is missing, because the engine checks only the artifacts the definition declares.
+  budget. A fix loop inside one node follows § 13.2. A section whose node owes an HTML page says
+  it hands the finished markdown to this plugin's `html-companion-writer` agent before its
+  completion write. The engine checks the declared artifacts and companions at each node and at
+  the close; the closing node relays what it reports, and checks only the paths a summary lists
+  beyond the declarations.
 
 Then run **check** on the new name and report. End with the next steps: finish each `## <id>`
 section, `/maister-copilot:workflow-author preview <name>`, then `/maister-copilot:run <name>`.
@@ -144,6 +152,7 @@ without asking.
 | A phase gone | `disable` — clean only when **nodes** says so; otherwise also `tune` each dependent's `with` to drop the key that referred to it, or eject when the reference is a guard |
 | Variants of the same change | `profiles`, selected with `--profile` |
 | Different titles or icons | `display` |
+| A companion added or dropped | `html_companions: {<id>: [<key>…]}`, `[]` drops a node's — merged node by node over the built-in's (§ 3.2) |
 | A different executor, gate wording or options, a guard, a reorder | an eject — see *Overlay or eject* |
 
 An added node without `before:` is a side branch nothing waits for; propose the `before:` anchor
@@ -181,12 +190,14 @@ from **nodes** every time. Never disable a node and add it back under the same i
      installed plugin's skills and agents under that plugin's namespace, so the bare name may not
      be callable. Fix: write `skill:<plugin>:<name>` (§ 5.1). A target in no tier is already a
      warning in the report above; add nothing.
-   - **Artifacts** — one reminder, once per report, when the definition declares artifacts at
-     all (a path that leaves the run's task directory is already an error in the report above):
-     the node prose asks for an artifact's HTML companion (a `direct:` node hands its finished
-     markdown to this plugin's `html-companion-writer` agent and registers the result as that
-     artifact's `html` in its summary), and the closing node reconciles every listed file against
-     disk. The engine does neither on its own.
+   - **Companions** — for each node in `locate --name`'s `html_companions` (the same overlays and
+     profile), two checks the engine cannot make, since it only sees whether the page exists:
+     - a `direct:` node's section in the companion must say it hands the finished markdown to
+       this plugin's `html-companion-writer` agent before its completion write. Written after,
+       the completion write reports the page missing. Fix: move that step ahead of it.
+     - a project or user `agent:` that owes one must take the `html:` line of its prompt and
+       return `companion:` with the page's path. Fix: add both to the agent's instructions.
+     A misnamed node or artifact key in the block is already a warning in the report above.
    - **Dangling leaves** — the validator warns for these itself, for a definition's own node
      and for one an overlay adds; they are in the report above. Add nothing.
    - **Gates asked whatever their guard reads** — the validator warns `skip-guard-not-pure` for
@@ -211,7 +222,10 @@ shipped (`locate`'s `definition` with no overlays); when the project already has
 say so and offer the folded view too. Read `diagram` for the node titles.
 
 **One row per node, in frozen order:** id, title, gate or executor (`uses`), `needs`, the guard in
-words, the `on:` when it is not `success`, declared values with their types, declared artifacts.
+words, the `on:` when it is not `success`, declared values with their types, declared artifacts,
+and the artifacts it owes an HTML page for. Take those from `locate --name=<builtin>`'s
+`html_companions`, never from the files by hand; it folds the project's overlay when there is
+one, so say so beside the column.
 
 **Then two lists:**
 
@@ -248,6 +262,10 @@ Run `locate`, then `validate` — with errors, stop and point to `check` — the
   for it, and the run can close past it. For a definition's own node the fix is a later node's
   `needs`; for an overlay's added node it is `before:`. An `on: failure` or `on: always` node is a
   handler, a leaf by design, and is not one.
+
+- **Under the graph, the HTML pages:** each node and the artifacts it owes a page for, from
+  `locate --name`'s `html_companions` with the same overlays and profile — never from the files
+  by hand. An empty block reads "no HTML pages declared".
 
 Never print the Mermaid text itself.
 

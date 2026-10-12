@@ -96,6 +96,7 @@ import * as dashboard from './dashboard.mjs';
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { companionsOf, owedCompanions } from './companions.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
@@ -492,6 +493,11 @@ const WORKFLOW_CONTEXT = {
  * classing write, `classQuestions`), lists the question ids still to ask, in
  * set order; `workflow.mjs` prints them on an `ask:` line.
  *
+ * `companionMissing`, present only when it is not empty, lists `{node, path}`
+ * for each HTML companion a node this write completed owes and that is not on
+ * disk (`companionCheck`); `workflow.mjs` prints one `companion-missing:` line
+ * for each. It is data about the run, never a refusal: the write landed.
+ *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
  * had to read a second one and a write could be stamped a second apart from the
@@ -522,8 +528,12 @@ export function writeState({ state, patch, regress = null }) {
     // write that starts a run, and a later write re-sending `workflow:` into a
     // file that already carries one is not that write.
     const hadWorkflow = doc.has('workflow');
+    // Each node's status before this write, which is what tells a node this
+    // write completed from one completed earlier: the registration fix in
+    // `apply` and the companion check below both judge only the former.
+    const before = statusesOf(doc.text());
     // `asking`: the ids a classing write left to ask, null when the write sent no question set.
-    const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null };
+    const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null, before };
     for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
@@ -554,6 +564,8 @@ export function writeState({ state, patch, regress = null }) {
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
     if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
     if (out.asking !== null) result.asking = out.asking;
+    const companionMissing = companionCheck(text, path.dirname(path.resolve(state)), before);
+    if (companionMissing.length) result.companionMissing = companionMissing;
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -912,6 +924,31 @@ function displayOfRun(doc, runDir) {
 }
 
 /**
+ * The HTML companions a run owes: `{merged, definition}`, where `merged` is the
+ * `html_companions:` block of the definition the run froze, merged with its
+ * overlays' and the selected profile's (`companionsOf`), and `definition` the
+ * folded document the run executes, which `owedCompanions` reads the declared
+ * paths from. Null when no definition is found or the base cannot be read, so
+ * a caller can tell "owes nothing" from "cannot say".
+ *
+ * Read by the same `sourcesOf` the display and `definitionOf` are, so the
+ * companions a check holds a node to come from the files the run froze and not
+ * from whatever a reader would locate today. An overlay that cannot be read is
+ * left out of the merge, as `definitionOf` leaves it out of the fold.
+ */
+export function companionsOfRun(doc, runDir) {
+  try {
+    const sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
+    if (sources === null || !isPlainObject(sources.definition.doc)) return null;
+    const definition = definitionOf(doc, runDir);
+    if (definition === null) return null;
+    return { merged: companionsOf({ ...sources, overlays: sources.overlays.filter(overlay => overlay.doc) }), definition };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The definition a run froze and the overlays it recorded, each read as the
  * reader returns it (`{file, doc, errors}`), plus the profile: `{definition,
  * overlays, profile}`, or null when no definition is found. Overlay paths are
@@ -1187,6 +1224,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
+  if (patch.nodes && runDir !== null) registerCompleted(doc, patch.node_summaries, out.before, runDir, changed);
   // The document as it now stands, parsed once for the passes below and again
   // only after a pass that changed it.
   let typed = null;
@@ -3522,6 +3560,150 @@ function mirrorOntoRecorded(doc, nodePatch, summaryPatch, changed) {
     doc.set(['node_summaries', id, 'status'], [`    status: ${mirrored}`]);
     changed.push(`node_summaries.${id}.status`);
   }
+}
+
+/**
+ * The registration half of a completion that arrives through `nodes:` alone.
+ * A summary written while its node ran — or before it — registered nothing,
+ * because registration runs on a completing summary; when the node then
+ * completes by a status write that carries no summary, the mirror above moves
+ * only the status line, and the declared report and its companion stayed
+ * unlinked although both sat on disk. So each node this write completed whose
+ * summary the patch did not send, and that already has one, is registered here
+ * as a completing summary would be.
+ *
+ * Only an existing summary is touched, and only when registration added
+ * something. A node with no summary gets none created: an artifacts-only
+ * summary is the shape the gate brief refuses as no summary at all, and the
+ * node's own summary write, still owed, registers what is there.
+ */
+function registerCompleted(doc, summaryPatch, before, runDir, changed) {
+  const typed = typedOf(doc);
+  const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  let run = null;
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (!isPlainObject(entry) || entry.status !== 'completed' || before[id] === 'completed') continue;
+    if (isPlainObject(summaryPatch) && Object.hasOwn(summaryPatch, id)) continue;
+    if (!Object.hasOwn(summaries, id) || !isPlainObject(summaries[id])) continue;
+    const entryCopy = structuredClone(summaries[id]);
+    run ??= runOf(doc, runDir);
+    registerArtifacts(entryCopy, id, run);
+    if (JSON.stringify(entryCopy.artifacts) === JSON.stringify(summaries[id].artifacts)) continue;
+    doc.set(['node_summaries', id], block(id, entryCopy, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+  }
+}
+
+/** Each frozen node's recorded status, by id, from a state file's text; {} when there is none to read. */
+function statusesOf(text) {
+  let doc;
+  try {
+    doc = parseState(text);
+  } catch {
+    return {};
+  }
+  const nodes = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+  const statuses = Object.create(null);
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (isPlainObject(entry) && typeof entry.status === 'string') statuses[id] = entry.status;
+  }
+  return statuses;
+}
+
+/**
+ * The write-state companion check: `{node, path}` for each HTML companion a
+ * node this write completed owes and that is not on disk, read from the
+ * committed text and the disk only, in `workflow.nodes` order. Nothing when
+ * the run's `html_output` is off.
+ *
+ * It exists because a companion is the one file a node can forget without any
+ * reader noticing: the dashboard links what is there, and the markdown alone
+ * reads as finished. The write is the moment the node is still the one running
+ * and the companion is still cheap to write, so the writer names it there and
+ * then, rather than leaving it for the close to find.
+ *
+ * Never a refusal and never a failure of the write: a definition that cannot
+ * be read yields nothing.
+ */
+function companionCheck(text, runDir, before) {
+  try {
+    const doc = parseState(text);
+    if (!htmlOutput(doc)) return [];
+    const nodes = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+    const ids = Object.keys(nodes).filter(id => isPlainObject(nodes[id]) && nodes[id].status === 'completed'
+      && before[id] !== 'completed');
+    if (!ids.length) return [];
+    return missingCompanions({ companions: companionsOfRun(doc, runDir), nodes, ids, runDir, absences: sanctionedAbsences(doc) });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The HTML companions `ids` owe and do not have, as `{node, path}` in the order
+ * given, each node's in its declaration order. Shared by the write-state check
+ * and `run-complete`'s, so the two can never disagree about what a node owes.
+ *
+ * `companions` is `companionsOfRun`'s answer (null owes nothing); `nodes` the
+ * recorded node entries, for a child's `values.task_path`; `absences` a
+ * function from a node id to the artifact keys its summary sanctions as not
+ * produced.
+ *
+ * Skipped, because there is nothing this run could hold them to:
+ * - a node carrying `dir:`, whose work lands in another repository;
+ * - a `workflow:` node with no recorded `task_path`, whose child cannot be
+ *   found — the artifact check already names its markdown as missing;
+ * - a key the summary sanctions absent: the node said why it wrote nothing;
+ * - a markdown file that does not exist: there is nothing to write a page for,
+ *   and whether its absence is a defect is the artifact check's to say;
+ * - a companion that exists.
+ *
+ * A child's paths are joined onto its `task_path`, against the project root,
+ * and printed that way — the spelling `missing-artifact:` uses for the same
+ * child.
+ */
+export function missingCompanions({ companions, nodes, ids, runDir, absences }) {
+  if (companions === null || companions === undefined) return [];
+  const definitionNodes = isPlainObject(companions.definition?.nodes) ? companions.definition.nodes : {};
+  const root = projectRootOf(runDir);
+  const missing = [];
+  for (const id of ids) {
+    const owed = owedCompanions(companions, id);
+    if (!owed.length) continue;
+    const node = Object.hasOwn(definitionNodes, id) && isPlainObject(definitionNodes[id]) ? definitionNodes[id] : {};
+    if (typeof node.dir === 'string' && node.dir !== '') continue;
+    let base = runDir;
+    let prefix = null;
+    if (typeof node.uses === 'string' && node.uses.startsWith(WORKFLOW_SCHEME)) {
+      const entry = Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) ? nodes[id] : {};
+      const taskPath = isPlainObject(entry.values) ? entry.values.task_path : undefined;
+      if (typeof taskPath !== 'string' || taskPath === '') continue;
+      base = path.resolve(root, taskPath);
+      prefix = taskPath;
+    }
+    const sanctioned = absences(id);
+    for (const { key, md, html } of owed) {
+      if (sanctioned.has(key)) continue;
+      if (!isFile(path.resolve(base, md)) || isFile(path.resolve(base, html))) continue;
+      missing.push({ node: id, path: prefix === null ? html : path.posix.join(prefix, html) });
+    }
+  }
+  return missing;
+}
+
+/**
+ * The artifact keys a node's summary sanctions as not produced, as a function
+ * of the node id: a key under `node_summaries.<node>.absent` with a reason.
+ * `run-complete` reads absences by the same rule.
+ */
+function sanctionedAbsences(doc) {
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  return id => {
+    const summary = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : {};
+    const absent = isPlainObject(summary.absent) ? summary.absent : {};
+    return new Set(Object.keys(absent).filter(key => typeof absent[key] === 'string' && absent[key].trim() !== ''));
+  };
 }
 
 /**

@@ -68,6 +68,7 @@ The Task prompt MUST include:
 | `synthesis_path` | Orchestrator | Path to `analysis/synthesis.md` (research) |
 | `research_report_path` | Orchestrator | Path to `outputs/research-report.md` (research) |
 | `project_doc_paths` | Orchestrator | Paths to project docs from INDEX.md (if available) |
+| `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
 Optional, and exact when given:
 
@@ -75,7 +76,6 @@ Optional, and exact when given:
 |-------|---------|---------|
 | `output_path` | `outputs/solution-exploration.md` | Where the exploration markdown goes (product design passes `analysis/alternatives.md`) |
 | `areas_output_path` | `decision-areas.json` beside `output_path` | Where the decision areas file goes |
-| `html_style_guide_path` | none — no companion | Style guide for the HTML companion |
 
 **Accumulated Context** (Pattern 7):
 - `research_type`: technical, requirements, literature, mixed
@@ -196,17 +196,17 @@ Only after the markdown is final:
 |------|---------|
 | `outputs/solution-exploration.md` (or `output_path`) | Complete solution exploration document |
 | `outputs/decision-areas.json` (or `areas_output_path`) | The decision areas, matching the markdown |
-| `outputs/solution-exploration.html` (beside the markdown) | Operator-facing HTML companion (style guide compliant) |
+| `outputs/solution-exploration.html` (beside the markdown) | Operator-facing HTML companion, when `html:` is a path |
 
 ### HTML Companion Report
 
-After writing the exploration markdown, write its HTML twin beside it:
+After writing the exploration markdown, write its HTML twin beside it.
 
-**Companion is optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this companion entirely: write only the markdown and the decision areas file, note the skip in your summary, and continue. The steps below run only when `html_style_guide_path` is provided.
+Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write the exploration's sibling `.html` (same basename, beside the markdown). With `off`, write only the markdown and return `companion: disabled`. With no `html:` line at all, write the markdown, return `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. A companion that fails never fails the markdown: keep the md and return `companion: failed` with the reason in warnings. The decision areas file is written in every case.
 
-1. **Read the style guide** at `html_style_guide_path` (provided in your prompt): self-contained single file, standard CSS block, breadcrumb bar (research suite), stat-tile row (decision areas / alternatives / areas left open), no external resources.
+1. **Follow the style guide**: self-contained single file, standard CSS block, breadcrumb bar (research suite), stat-tile row (decision areas / alternatives / areas left open), no external resources.
 2. **Lead with** the TL;DR block; then one section per decision area, its alternative cards side-by-side with the recommended one highlighted (accent border), its trade-off matrix as a table, "why not others" and deferred ideas collapsed in `<details>`. Link the md twin in the header (`target="_blank"`).
-3. **Same content as the md**; **never block on it** — on failure keep the md, note the miss, continue.
+3. **Same content as the md.**
 
 ### Output Document Structure
 
@@ -253,6 +253,8 @@ The areas appear in the decision areas file's order, and the alternatives in eac
 status: "success" | "partial" | "failed"
 exploration_path: "outputs/solution-exploration.md"
 areas_path: "outputs/decision-areas.json" | null   # null when the file was not written; reason in warnings
+companion: "written" | "disabled" | "failed" | "not-requested"
+html_path: "outputs/solution-exploration.html"  # null unless companion is written
 
 summary:
   hmw_questions_addressed: [number]

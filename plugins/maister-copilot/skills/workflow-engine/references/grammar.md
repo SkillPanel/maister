@@ -76,6 +76,7 @@ judges nothing else — so a newer definition in a mixed fleet is a diagnostic, 
 | `outputs` | no | What a parent run may read when this workflow runs as its child (§ 8.3) |
 | `display` | no | Icons, titles, option labels and gate headers for the dashboard and the gate question (§ 3.1) |
 | `nodes` | yes | Node id → node (§ 4) |
+| `html_companions` | no | Node id → the artifact keys whose markdown owes an HTML companion (§ 3.2) |
 
 `profiles:` is not a definition key: profiles belong to an overlay, and a definition's own are
 refused rather than silently ignored. Nor is there a `title:` key: a workflow's title is its
@@ -107,6 +108,36 @@ label or a header for a node that is not a gate, or a label for an option its ga
 offer. `display:` is outside the recorded identity, so retitling a node or relabelling an option
 never invalidates a frozen run. Overlays and profiles may carry their own `display:` block; the
 later one wins, key by key, and option labels option by option.
+
+### 3.2 `html_companions`
+
+Which markdown artifacts owe an HTML companion — a page written beside the `.md` for a reader
+to open in a browser:
+
+```yaml
+html_companions:
+  specification: [spec]
+  e2e-verification: [e2e, fidelity]
+```
+
+Keys are node ids; values list the node's artifact keys, the names under `outputs.artifacts`.
+The owed page is the declared path with `.html` in place of `.md`. Who writes it follows from
+how the node runs and is never declared.
+
+**Merge.** The base, then each overlay's block, then the selected profile's. A later list
+replaces the earlier one for its node, and `[]` clears it. A node an overlay or the profile
+disables owes nothing.
+
+**Checks.** A block that is not a mapping, a key that is not a node id, a value that is not a
+list, an item that is not a one-line name, or a name listed twice is an error. A node the
+resolved graph does not carry, a key the node does not declare, and a declared path that does
+not end in `.md` each warn (§ 14), and owe nothing.
+
+**At run time**, with HTML output on, a node's run context lists the pages it owes; completing
+the node without one prints `companion-missing:`, and closing the run prints
+`missing-companion:` for each still absent. A definition without the block owes nothing.
+The block is outside the recorded identity: declaring a companion moves no frozen run. It is
+not the prose companion of § 11, which is the definition's own `.md` file.
 
 ## 4. Nodes
 
@@ -304,12 +335,12 @@ A `sets` key is lower-case letters and underscores, the form a guard reference e
 value is `true` or `false`. The writer records the chosen option's map as the gate's values when
 it records the answer, a skipped gate records every key false, and a revise that resets the gate
 clears them. The brief walks each continue on its own answer, so each option names where it leads,
-and the closing node may say which one it recommends and why (engine § Gates). `sets` is part of
+and the closing node may say which one it recommends and why (`references/gates.md`). `sets` is part of
 the graph's identity, its keys in sorted order, so adopting it moves the definition's hash.
 
 When the question needs a value from earlier in the run, interpolate it into `ask` (§ 9). The
 gate brief — the closing node's summary, decisions, risks and a recommended option — is rendered
-beside the question by the engine; the node prose feeds it through its summary (engine § Gates).
+beside the question by the engine; the node prose feeds it through its summary (`references/gates.md` § *Before every gate — the gate brief*).
 
 ## 7. Guards, `on:` and the ready set
 
@@ -536,6 +567,7 @@ result is validated as a whole: an overlay that breaks the graph is an error, ne
 | `add` | Node id → a new node |
 | `profiles` | Profile name → an alternative set of operations, applied only when selected |
 | `display` | Icons, titles, option labels and headers, including for added nodes (§ 3.1) |
+| `html_companions` | Companions owed, including by added nodes; a node's list replaces the base's (§ 3.2) |
 
 **Fold order:** the base, then for each overlay in order its `disable`, its `tune`, its `add`;
 then the selected profile's `disable`, `tune` and `add`. Validation reads the graph that results.
@@ -580,6 +612,7 @@ refused, because the node's dependents no longer wait for it. To change what a n
 | `tune` | As above |
 | `add` | As above |
 | `display` | As above; the profile's wins |
+| `html_companions` | As above; the profile's wins |
 
 Every profile is validated whether or not it is selected, and a finding only one profile produces
 is prefixed with its name. Selecting a profile no overlay declares is an error.
@@ -679,6 +712,7 @@ Warnings never block, and each one is worth reading:
 | `undecidable-value-type:<path>` | A `string` value; prefer `bool`, `id` or an `enum` where the value is a handle |
 | `skip-guard-not-pure:<node>` | A gate guarded by a value a non-gate node records that is more than a pure confirmation, so it is asked whatever its guard reads (§ 7); guard it on an input or a gate's value, or make it a single continue with no `sets` and no `grants` |
 | `icon-hint-unknown-node:<path>:<node>`, `title-unknown-node:<path>:<node>` | Display for a node the graph does not carry |
+| `html-companion-unknown-node:<path>:<node>`, `html-companion-unknown-artifact:<path>:<node>`, `html-companion-not-markdown:<path>:<node>` | An `html_companions` entry for a node the graph does not carry, a key the node does not declare, or a path that is not `.md`; nothing is owed for it |
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |
 

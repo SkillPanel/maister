@@ -255,3 +255,27 @@ test('prior-context --node: the run block, a blank line, then the prior-phase pa
   assert.equal(refused.stdout, '');
   assert.equal(refused.stderr, runContext(run, 'nope').stderr);
 });
+
+test('run-context: a run frozen through an overlay and a profile owes what the merged block says', t => {
+  const check = path.join(DEFINITIONS, 'companion-check.yml');
+  const overlay = path.join(DEFINITIONS, 'companion-check.overlay.yml');
+  const options = { inputs: { deep: false }, html_output: true };
+
+  // The overlay adds a node and declares its companion in its own block.
+  const run = scratch(t, { type: 'companion-check', name: '2026-01-05-overlaid' });
+  freeze(run, { definition: check, overlays: [overlay], orchestrator: { options } });
+  const extra = runContext(run, 'extra');
+  assert.equal(extra.code, 0, extra.stderr);
+  assert.equal(extra.stdout, block({ taskPath: run.dir, html: GUIDE, companions: ['verification/extra.html'] }));
+  assert.equal(runContext(run, 'review').stdout,
+    block({ taskPath: run.dir, html: GUIDE, companions: ['review/notes.html', 'review/log.html'] }));
+
+  // A profile's block has the last word: an empty list clears the node, which then reads as owing nothing.
+  const lean = scratch(t, { type: 'companion-check', name: '2026-01-05-lean' });
+  const leanOverlay = path.join(lean.root, 'lean.overlay.yml');
+  fs.writeFileSync(leanOverlay, 'extends: companion-check.yml\nprofiles:\n  lean:\n    html_companions:\n      review: []\n      draft: [report]\n');
+  freeze(lean, { definition: check, overlays: [leanOverlay], profile: 'lean', orchestrator: { options } });
+  assert.equal(runContext(lean, 'review').stdout, block({ taskPath: lean.dir, html: 'off' }));
+  assert.equal(runContext(lean, 'draft').stdout,
+    block({ taskPath: lean.dir, html: GUIDE, companions: ['analysis/report.html'] }));
+});

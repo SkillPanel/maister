@@ -51,6 +51,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { KNOWN_VERSION, isNewerVersion, nodeOf, readDefinition } from './definition.mjs';
+import { isArtifactKey, isMarkdown } from './companions.mjs';
 import { HEADER_MAX, ICON_HINTS, isHeader, isTitle } from './display.mjs';
 
 /**
@@ -161,9 +162,9 @@ const TUNABLE = ['with', 'provider'];
  * key, so an `id:` written inside a node is refused like any other key outside
  * the set.
  */
-const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes'];
-const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display'];
-const PROFILE_KEYS = ['disable', 'tune', 'add', 'display'];
+const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes', 'html_companions'];
+const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display', 'html_companions'];
+const PROFILE_KEYS = ['disable', 'tune', 'add', 'display', 'html_companions'];
 const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 
 /**
@@ -287,6 +288,9 @@ const WARN = {
   labelUnknownNode: (path, node) => `option-label-unknown-node:${path}:${node}`,
   labelUnknownOption: (path, node) => `option-label-unknown-option:${path}:${node}`,
   headerUnknownNode: (path, node) => `header-unknown-node:${path}:${node}`,
+  companionUnknownNode: (path, node) => `html-companion-unknown-node:${path}:${node}`,
+  companionUnknownArtifact: (path, node) => `html-companion-unknown-artifact:${path}:${node}`,
+  companionNotMarkdown: (path, node) => `html-companion-not-markdown:${path}:${node}`,
   overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
   undescribed: (name) => `workflow-undescribed:${name} — the work command offers a project workflow by what it is for, `
     + 'and this one does not say: add a one-paragraph description: to the definition, '
@@ -1321,11 +1325,22 @@ function buildGraph({ definition, overlays, profile, errors }) {
     const selected = selectedProfile(overlay, profile);
     if (selected !== null) displays.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.display });
   }
+  // `html_companions:` is carried the same way and for the same reason: it says
+  // which markdown files a node owes an HTML page for, which no executor reads
+  // and no hash may see, and an overlay that adds a node has to be able to
+  // declare the page that node owes.
+  const companions = [{ file, prefix: '', block: doc.html_companions }];
+  for (const overlay of overlays) companions.push({ file: overlay.file, prefix: '', block: overlay.doc?.html_companions });
+  for (const overlay of overlays) {
+    const selected = selectedProfile(overlay, profile);
+    if (selected !== null) companions.push({ file: overlay.file, prefix: `profiles.${profile}.`, block: selected.html_companions });
+  }
   return {
     file,
     inputs: isMap(doc.inputs) ? doc.inputs : {},
     outputs: doc.outputs,
     displays,
+    companions,
     nodes,
     origins,
     removed,
@@ -1977,6 +1992,77 @@ function checkDisplayNodes({ prefix, block }, nodes, warnings) {
 }
 
 /**
+ * The `html_companions:` block on its own: a mapping of node id to a list of
+ * that node's artifact keys, each named once. Errors, unlike the node checks
+ * below, because every one of them is a mistake in the file in hand — a list
+ * written as a string, a key misspelt into a sentence — and the merge
+ * (`companionsOf`) drops a malformed list whole, so a page the author meant to
+ * owe would otherwise be owed by nobody without a word.
+ *
+ * Checked per block, like `display:` — the base's in `checkGraph`, an overlay's
+ * and each of its profiles' in `checkOps`, so standalone mode sees them too.
+ */
+function checkCompanionValues(block, file, prefix, errors) {
+  if (block === undefined) return;
+  const at = `${prefix}html_companions`;
+  if (!isMap(block)) {
+    fail(errors, file, at,
+      `html_companions is a mapping of node id to a list of artifact keys; ${describe(block)} is not`, null);
+    return;
+  }
+  for (const [id, keys] of Object.entries(block)) {
+    const dotted = `${at}.${id}`;
+    if (!NODE_ID.test(id)) fail(errors, file, dotted, `"${id}" is not a node id`, id);
+    if (!Array.isArray(keys)) {
+      fail(errors, file, dotted, `html_companions.${id} is a list of the node's artifact keys; ${describe(keys)} is not`, id);
+      continue;
+    }
+    const seen = new Set();
+    for (const [index, key] of keys.entries()) {
+      if (!isArtifactKey(key)) {
+        fail(errors, file, `${dotted}.${index}`,
+          `an artifact key is the name the node declares under outputs.artifacts; `
+          + `${typeof key === 'string' ? JSON.stringify(key) : describe(key)} is not`, id);
+        continue;
+      }
+      if (seen.has(key)) fail(errors, file, dotted, `html_companions.${id} names ${key} twice`, id);
+      seen.add(key);
+    }
+  }
+}
+
+/**
+ * The block against the resolved graph: a node it does not carry, an artifact
+ * key the node does not declare, and a declared path that is not markdown each
+ * **warn**. The run owes nothing for any of them — `owedCompanions` skips all
+ * three — so nothing breaks; but each is a page the author expected and will
+ * never get, which is worth saying.
+ *
+ * A node an overlay's or the selected profile's `disable` removed is skipped
+ * in silence, for the reason `checkDisplayNodes` gives: a base that names a
+ * companion for an optional phase must stay clean under every overlay that
+ * trims that phase.
+ */
+function checkCompanionNodes({ prefix, block }, nodes, removed, warnings) {
+  if (!isMap(block)) return;
+  for (const [id, keys] of Object.entries(block)) {
+    const at = `${prefix}html_companions.${id}`;
+    if (!nodes.has(id)) {
+      if (!removed.has(id)) warnings.push(WARN.companionUnknownNode(at, id));
+      continue;
+    }
+    if (!Array.isArray(keys)) continue;
+    const outputs = nodes.get(id)?.outputs;
+    const artifacts = isMap(outputs) && isMap(outputs.artifacts) ? outputs.artifacts : {};
+    for (const [index, key] of keys.entries()) {
+      if (!isArtifactKey(key)) continue;
+      if (!Object.hasOwn(artifacts, key)) warnings.push(WARN.companionUnknownArtifact(`${at}.${index}`, id));
+      else if (!isMarkdown(artifacts[key])) warnings.push(WARN.companionNotMarkdown(`${at}.${index}`, id));
+    }
+  }
+}
+
+/**
  * The top level of a version 1 definition: `DEFINITION_KEYS` and nothing else.
  *
  * `profiles:` gets its own message rather than the generic one, because it is
@@ -2032,12 +2118,14 @@ function isPresent(value) {
 }
 
 function checkGraph(graph, errors, warnings, resolved = [], project = null) {
-  const { file, inputs, outputs, displays, nodes, origins, removed } = graph;
+  const { file, inputs, outputs, displays, companions, nodes, origins, removed } = graph;
 
   checkInputs(inputs, file, errors);
   checkOutputs(outputs, nodes, file, errors, removed, warnings);
   checkDisplayValues(displays[0].block, file, '', errors);
   for (const display of displays) checkDisplayNodes(display, nodes, warnings);
+  checkCompanionValues(companions[0].block, file, '', errors);
+  for (const block of companions) checkCompanionNodes(block, nodes, removed, warnings);
 
   for (const id of nodes.keys()) {
     if (!NODE_ID.test(id)) fail(errors, file, 'nodes',
@@ -3172,6 +3260,7 @@ function checkOverlayBaseExists(overlay, project, errors) {
 
 function checkOps(body, file, prefix, errors) {
   checkDisplayValues(body.display, file, prefix, errors);
+  checkCompanionValues(body.html_companions, file, prefix, errors);
 
   if (body.disable !== undefined) {
     if (!Array.isArray(body.disable)) fail(errors, file, `${prefix}disable`, 'disable must be a sequence of node ids', null);
