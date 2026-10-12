@@ -81,10 +81,8 @@ test('guide-template-lint: every failure is printed, never only the first, and i
 test('guide-template-lint: the five built-in guides follow the template', async t => {
   for (const name of BUILT_INS) {
     const definition = path.join(WORKFLOWS, `${name}.yml`);
-    // A built-in whose definition carries no brief: block has not been
-    // rewritten to the template yet.
-    const rewritten = /^brief:/m.test(fs.readFileSync(definition, 'utf8'));
-    await t.test(name, { todo: rewritten ? false : 'its guide is not rewritten to the template yet' }, () => {
+    await t.test(name, () => {
+      assert.match(fs.readFileSync(definition, 'utf8'), /^brief:/m, `${name}.yml carries no brief: block`);
       const result = lint(definition);
       assert.deepEqual(lines(result.stdout, 'FAIL: '), []);
       assert.equal(result.code, 0, result.stderr);
@@ -97,4 +95,16 @@ test('guide-template-lint: repository tooling — outside plugins/ and outside t
   assert.ok(!LINT.endsWith('.test.mjs'));
   const makefile = fs.readFileSync(path.join(ROOT, 'Makefile'), 'utf8');
   assert.match(makefile, /node --test tests\/engine\/\*\.test\.mjs/);
+});
+
+test('guide-template-lint: make validate runs the lint after the display-text lint', () => {
+  const makefile = fs.readFileSync(path.join(ROOT, 'Makefile'), 'utf8');
+  const target = makefile.slice(makefile.indexOf('\nvalidate:'));
+  const display = target.indexOf('Checking every display title, option label and header');
+  const step = target.indexOf('Checking every workflow guide follows the step template...');
+  const command = target.indexOf('node tests/guide-template-lint.mjs');
+  assert.ok(display > 0, 'the validate target has no display-text lint');
+  assert.ok(step > display, 'the guide lint step does not follow the display-text lint');
+  assert.ok(command > step, 'the validate target does not run node tests/guide-template-lint.mjs');
+  assert.ok(command < target.indexOf('Checking commands are flat'), 'the lint runs later than directly after the display-text lint');
 });

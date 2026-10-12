@@ -84,7 +84,7 @@ supplies the description.
 non-terminal run with no description is `RUN-FAILED`.
 
 **Summary.** The `research` entry carries the research reference and `design`
-the ingested design, each with `node: intake`; `ui-mockups` overwrites `design`
+the ingested design; `ui-mockups` overwrites `design`
 when that stretch runs.
 
 **Budget.** None: a source it cannot find is an absence, not a failure.
@@ -111,7 +111,7 @@ there, then set `task_context.clarifications_resolved` to true — also when no
 question was asked: the file is still written.
 
 **Summary.** The `codebase_analysis` entry carries the key files and the
-primary language, each mirrored entry with `node: codebase-analysis`.
+primary language.
 
 **Budget.** Expand the search patterns on the second attempt, and prompt the
 operator when the second also comes back thin.
@@ -179,7 +179,7 @@ never by value name. In `decisions`, what the gap analysis itself settled,
 uncertainty the user could still change as `open`; each consequence of a
 settled scope choice as a `tradeoff`; each gap outside this change's scope as a
 `followup`. The `gap_analysis` entry carries the integration points and
-`scope_clarifications` whether scope expanded, each with `node: gap-analysis`.
+`scope_clarifications` whether scope expanded.
 
 **Re-run.** Record the five characteristics and the risk level again too: a
 revise clears them, and a changed `mockups_needed` or `has_reproducible_defect`
@@ -240,7 +240,7 @@ to the project's design resources as `open`, its `change` what a revise would
 render instead: the revise of `mockup-approval` is the way to change the
 screens. Record the format actually used and any fallback note. The
 `ui_mockups` entry carries the components designed, and `design` the screen and
-component counts and the index path, each with `node: ui-mockups`; this
+component counts and the index path; this
 `design` overwrites the one `intake` seeded.
 
 **Re-run.** Hand the studio the existing mockups under
@@ -364,8 +364,7 @@ one such assumption, its `change` the correction Part B listed for it; each
 consequence accepted on purpose, such as a breaking change, as a `tradeoff`;
 each related problem left out of scope as a `followup`; each conflict with the
 architecture input as `open`, its `change` what would follow either way. The
-`architecture_decision` entry carries the chosen approach and its rationale,
-each mirrored entry with `node: specification`.
+`architecture_decision` entry carries the chosen approach and its rationale.
 
 Recommend the audit, never ask it. A set audit input's reason is "Asked for
 when the run started" or "Declined when the run started", and the gate is still
@@ -433,7 +432,7 @@ confirmed the spec goes in the summary. In `risks`, only the findings still open
 what a revise of the specification would do, the critical ones first; each
 finding the operator accepted as a `tradeoff`; one outside this change as a
 `followup`. A finding the run fixed or the operator settled is never an open
-risk. The `spec_audit` entry carries the verdict, with `node: spec-audit`.
+risk. The `spec_audit` entry carries the verdict.
 
 **Budget.** None: an audit that returns is an audit, whatever its verdict; a
 fix pass that fails leaves its findings open for the gate.
@@ -458,8 +457,7 @@ waves"). In `summary`, the groups in a line each and the estimated complexity.
 In `decisions`, the key ordering and dependency choices, `by: run`. In `risks`,
 each uncertainty the user could still change as `open`; each cost accepted on
 purpose, such as a group that must run alone, as a `tradeoff`. The
-`implementation_plan` entry carries the task-group count, with
-`node: planning`.
+`implementation_plan` entry carries the task-group count.
 
 **Re-run.** Regroup, split or reorder what the note names and keep the rest,
 and check coverage again, `implementation/visual-coverage.md` included when a
@@ -488,7 +486,7 @@ completed, the files changed and the incremental test results. In `decisions`,
 each choice the executor made where the plan left room, `by: run`. In `risks`,
 each known issue the user could still act on as `open`; each item deferred on
 purpose as a `tradeoff`; each problem found outside this change as a
-`followup`. The `implementation` entry carries `node: implementation`.
+`followup`.
 
 **Budget.** Fix a syntax error, an import or a failing test, and re-run. When
 the fifth attempt has not cleared it, stop and ask the operator rather than

@@ -878,7 +878,7 @@ const NODE_HEADING = /^##\s+`([^`]+)`\s*$/;
 /**
  * The names of every node heading in a companion — `` ## `x` `` outside a fenced
  * block — in file order, or an empty list when the companion is missing. Shared
- * H2s such as `## Run-scoped context` are not node headings and are not listed.
+ * H2s such as `## Embedded mode` are not node headings and are not listed.
  */
 function nodeHeadings(companion) {
   if (!isFile(companion)) return [];

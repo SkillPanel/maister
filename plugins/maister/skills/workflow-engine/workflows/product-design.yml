@@ -263,7 +263,7 @@ nodes:
     outputs:
       artifacts:
         # Written only when the invocation named a research task; the absence
-        # is sanctioned in the node prose.
+        # is sanctioned in `brief:` under `absent`.
         research_context: context/research-context
       values:
         # Derived from the design characteristics: greenfield or complex for
@@ -295,8 +295,8 @@ nodes:
     outputs:
       artifacts:
         design_context: analysis/design-context.md
-        # Written only for an enhancement; the absence is sanctioned in the
-        # node prose.
+        # Written only for an enhancement; the absence is sanctioned in
+        # `brief:` under `absent`.
         codebase_analysis: analysis/codebase-analysis.md
 
   context-approval:

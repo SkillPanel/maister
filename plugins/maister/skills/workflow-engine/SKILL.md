@@ -221,7 +221,7 @@ means).
 An invocation may arrive carrying `--from=PHASE` or `--reset-attempts`, because operators who
 used the 2.x plugin know both. Neither has an expression here. Resume recomputes the ready set
 from the frozen graph, so there is no mid-graph entry point to start from; and no attempt counter
-lives in state, because budgets are node prose rather than data.
+lives in state, because a budget is a prose rule rather than counted data.
 
 **Say so by name, before the first node runs.** Name the flag that arrived and state which of the
 two facts above makes it inert. No route in this plugin serves either flag: say that re-entry is
@@ -462,7 +462,7 @@ what is its own and never restates these.
 | gate | Asked from `gate-brief` (`references/gates.md`); record the answer, end the run on a stop, revise through `gate-revise`. A false guard skips it with its stretch, unless it reads a step's value and is no pure confirmation, or a choice is held. Sections hold exceptions only. |
 | every step | Before recording `completed`, check each declared artifact path. A missing one its `brief:` `absent` does not sanction is a failed self-check: re-drive the step, naming the path. Record a sanctioned absence under `absent` with its reason, and record every declared value. |
 | asks | Under question sets, all questions go in the step's one request per attempt; without them, the Without default is recorded `by: default`. Once `classes_questions` is recorded, ask only the ids on the classing writer's `ask:` line; held choices wait for the next checkpoint or `held-approval`. |
-| feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks lifted item for item, each tagged; `recommends` with a one-line reason, as `brief:` `recommends` directs once its input is set. Mirror it under each `summary_keys` entry. |
+| feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks item for item, tagged; `recommends` with a one-line reason as `brief:` directs once its input is set. Mirror it under each `summary_keys` entry, `node:` naming the step. |
 | named by a revise | Read the note from `prior-context`; revise the step's own artifacts in place; keep earlier answers unless the note reopens them; record the declared values again; say what changed and write the headline again. |
 | has a budget | The attempt count in `brief:` `budget` is a prose rule nothing enforces. When the last attempt fails, the budget-exhausted rows of *Recording an outcome* decide. |
 

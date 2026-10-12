@@ -282,8 +282,8 @@ test('each built-in\'s hash stays at the baseline, with and without a brief: blo
 
 for (const [name, expected] of Object.entries(SUMMARY_KEYS)) {
   const definition = readDefinition(path.join(WORKFLOWS, `${name}.yml`));
-  const carried = definition.doc && Object.hasOwn(definition.doc, 'brief');
-  test(`${name}'s brief: block names the guide's summary keys`, { todo: carried ? false : 'its yml carries no brief: yet' }, () => {
+  test(`${name}'s brief: block names the guide's summary keys`, () => {
+    assert.ok(Object.hasOwn(definition.doc, 'brief'), `${name}.yml carries no brief: block`);
     const merged = mergeBriefOf({ definition });
     const found = {};
     for (const [node, entry] of Object.entries(merged)) {

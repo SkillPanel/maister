@@ -65,6 +65,14 @@ umbrella's, plus 20,000 seeded random values parsed in process.
   scratch path masked. `SNAPSHOT_AREAS=1 node --test tests/engine/area-brief.test.mjs` rewrites the
   goldens after a reviewed change to what an area question says.
 
+- `guide-template-lint.mjs` — not a test: the step-template lint `make validate` runs over the
+  guide beside each built-in definition (or each `--definition=<yml>` given). A `FAIL:` line fails;
+  a word count over its target prints a `warning:` line only. `guide-template-lint.test.mjs` runs it
+  as a subprocess on the five built-ins and on the good and bad samples under
+  `fixtures/guide-template/`, one bad sample per failing check. `node-brief-size.test.mjs` freezes
+  each built-in and measures every node's `node-brief` output, warning over the 500-word target
+  (300 for an `agent:` or `skill:` step) and never failing on size.
+
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.
 
