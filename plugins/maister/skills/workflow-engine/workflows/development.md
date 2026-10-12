@@ -10,17 +10,13 @@ The engine executes every `direct:` node from its section below.
 **Does.** Establishes, before any analysis, the task directory, the state file
 and the context ingests the rest of the run reads from.
 
-1. **Initialize** as `orchestrator-patterns.md` § 5 says: the clock from the
-   shell, the state file with the task description, the risk placeholder and an
-   empty `phase_summaries` map, the dashboard opened unless `html_output` is
-   false, and the start banner shown.
+1. **Initialize** as `orchestrator-patterns.md` § 5 says.
 2. **Read the project configuration** for `options.mockup_format` (default
    `html`, read later by `ui-mockups`).
 3. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation section, predefined and operator-added alike. Record
-   them as `project_context.project_doc_paths`, a top-level sibling of the
-   orchestrator and task-context blocks, never nested inside either.
+   them as `project_context.project_doc_paths`, a top-level block of its own.
 4. **Detect research context** — when the invocation named a completed research
    task, as the sole argument or through the research input, copy its report and
    artifacts under `analysis/research-context/`. Record
@@ -118,9 +114,8 @@ operator when the second also comes back thin.
 
 ## `gap-analysis`
 
-**Does.** Two of its three declared values are guards that decide which later
-nodes run, so record the analyzer's assessment as returned, never adjusted by
-your own sense of the change's size.
+**Does.** Two of its declared values guard later nodes, so record the analyzer's
+assessment as returned, never adjusted by your own sense of the change's size.
 
 **Write the structured result to state before anything else**: the five task
 characteristics — a reproducible defect, whether existing code is modified,
@@ -135,12 +130,10 @@ the risk level to `task_context.risk_level`.
 The two declared guards:
 
 - `has_reproducible_defect` is the analyzer's own field, carried straight
-  through. It guards the failing-test stretch and its gate, and `tdd-green`.
+  through.
 - `mockups_needed` is true when the task is UI-heavy **and** the design-context
   mockups directory was not already populated by the intake ingest. Say in this
   node's summary which of the two clauses settled it.
-
-`risk_level` is declared but guards nothing; it is state and dashboard content.
 
 **Seed the optional-verification defaults** from the characteristics: a UI-heavy
 task seeds both browser tests and user documentation on; a task that creates new
@@ -172,14 +165,11 @@ beyond what the invocation described.
 code and the task, and the largest part of it ("Tags need a field on every note
 and a filter on list(); nothing in the store validates input today"); which
 optional work runs next is the gate's *Next* line, never the headline. In
-`summary`, the gaps found and why each optional stretch is on or off, said as
-the operator would say it ("no reproducible defect, so no failing test first"),
-never by value name. In `decisions`, what the gap analysis itself settled,
-`by: run` — not what `codebase-analysis` already recorded. In `risks`: each
-uncertainty the user could still change as `open`; each consequence of a
-settled scope choice as a `tradeoff`; each gap outside this change's scope as a
-`followup`. The `gap_analysis` entry carries the integration points and
-`scope_clarifications` whether scope expanded.
+`summary`, the gaps found and why each optional stretch is on or off ("no
+reproducible defect, so no failing test first"). In `decisions`, what the gap
+analysis itself settled, `by: run`. In `risks`, each gap outside this change's
+scope as a `followup`. The `gap_analysis` entry carries the integration points
+and `scope_clarifications` whether scope expanded.
 
 **Re-run.** Record the five characteristics and the risk level again too: a
 revise clears them, and a changed `mockups_needed` or `has_reproducible_defect`
@@ -258,60 +248,47 @@ assumptions page (Asks), then the specification itself, written every time by
 the `maister:specification-creator` agent, handed the `with:` values, Parts A
 and B and the `prior-context --node=specification` output.
 
-An ingested architecture constrains every part: when the intake copied one in —
-this node reads it as `architecture` — the interfaces, contracts and decisions
-it names are constraints on this repository's part of the change, never work to
-redo or choices to make again. A point where the codebase, the requirements or
-the specification cannot follow it is raised as an `open` risk, never resolved
-silently either way; a conflict the creator finds is listed in the
-specification as an open risk.
+An ingested architecture constrains every part: the interfaces, contracts and
+decisions it names are constraints on this repository's part of the change,
+never work to redo or choices to make again. A point where the codebase, the
+requirements or the specification cannot follow it is raised as an `open` risk,
+never resolved silently either way; a conflict the creator finds is listed in
+the specification as an open risk.
 
-**Write the chosen approach to `task_context.architecture_decision`** — the
-sibling field beside the summaries map — where later nodes read it.
+**Write the chosen approach to `task_context.architecture_decision`**, where
+later nodes read it.
 
 **Asks.** *Part A, technical and architecture clarification — conditional.*
 Skip it entirely for a simple, low-risk task with one obvious approach.
 
 - **Technical questions.** When the task admits several viable approaches, ask
   what the analysis and the scope decisions left open as **one page of at most
-  four tabs**, shaped like the `codebase-analysis` clarifications. Never ask
-  again what the scope decisions settled.
+  four tabs**, shaped like the `codebase-analysis` clarifications.
 - **The architecture choice.** When several architectural approaches are
   genuinely open, each open choice is a decision area by engine
-  `references/in-node-questions.md`, asked **one area per call**, never paged
-  with the technical tabs or another area, each option an approach.
-<!-- rich-picker -->
-  Each approach's own option carries its full description, pros and cons as its
-  preview, and the recommended one's preview adds why it is recommended.
-<!-- /rich-picker -->
-<!-- plain-picker
-  The question carries each approach's line with its key pro and con, because
-  the form shows no option descriptions beside the choices, and ends with
-  "Recommended: <approach> — <reason>" before the ask.
--->
+  `references/in-node-questions.md`, asked **one area per call**, each option an
+  approach.
 
-An area the architecture input already decides is not asked. The chosen
-approach is passed to the specification writer. Save what was asked to
-`analysis/technical-clarifications.md`, then set `task_context.tech_clarified`
-to true — also when this part was skipped.
+An area the architecture input already decides is not asked. Save what was
+asked to `analysis/technical-clarifications.md`, then set
+`task_context.tech_clarified` to true — also when this part was skipped.
 
 *Part B, the stories.* Each behaviour a user or a calling system triggers and
-then observes — deactivating a user, exporting a report — is one topic, drafted
-into one story by engine `references/in-node-questions.md` (*One topic is one
-drafted story*) from the analysis, the scope answers and the design context. A
-story the design brief already carries (`analysis/design-context/brief.md`) is
-not asked again. Ask each story as its own question, id `user-story-<topic>`,
-up to four to a page; a story whose framing depends on another's answer waits
-for the next page. A refactor, or a defect fix the failing test already pins,
-has no stories.
+then observes is one topic, drafted into one story by engine
+`references/in-node-questions.md` (*One topic is one drafted story*) from the
+analysis, the scope answers and the design context, under id
+`user-story-<topic>`. A story the design brief already carries
+(`analysis/design-context/brief.md`) is not asked again. A story whose framing
+depends on another's answer waits for the next page. A refactor, or a defect
+fix the failing test already pins, has no stories.
 
-*Part B, the assumptions tab.* Only what changes no story is an assumption.
-Frame the specification questions as confirmable assumptions, the count adapted
-to how much the invocation already said: a brief description earns six to
-eight, a standard one four to six, a detailed one two or three, asked as engine
-`references/in-node-questions.md` asks assumptions. Two are always among them:
-which existing components and patterns the change should reuse, and whether any
-visual assets exist that have not been ingested yet. A third, how users reach
+*Part B, the assumptions tab.* Frame the specification questions as
+confirmable assumptions, the count adapted to how much the invocation already
+said: a brief description earns six to eight, a standard one four to six, a
+detailed one two or three, asked as engine `references/in-node-questions.md`
+asks assumptions. Two are always among them: which existing components and
+patterns the change should reuse, and whether any visual assets exist that have
+not been ingested yet. A third, how users reach
 the feature and which personas it serves, only when the run drafted no story.
 The visual-assets assumption is not asked when the gap analysis recorded the
 task as not UI-heavy and intake found no design source;
@@ -347,9 +324,8 @@ specification as stated assumptions rather than settled fact.
 description, the user stories, the questions and answers, the similar features
 found, the functional requirements, the reuse opportunities, the scope
 boundaries and the technical considerations. Each story sits under **User
-stories** by its id, with its five parts and how it was settled — one nobody
-answered marked drafted, not confirmed; the specification keeps that section
-and the verification checks it, by id.
+stories** by its id, with its five parts and how it was settled; the
+specification keeps that section and the verification checks it, by id.
 
 **Summary.** The `headline` names what the specification settles and how many
 requirements it carries ("The spec adds tag filtering to list() and CSV export,
@@ -361,26 +337,22 @@ input settled for this repository, named as taken from it, `by: run`. In
 would change if it is wrong ("CSV cells are never quoted", change: "quote cells
 that hold a comma") — never a bare "Assumption: …"; a story taken as drafted is
 one such assumption, its `change` the correction Part B listed for it; each
-consequence accepted on purpose, such as a breaking change, as a `tradeoff`;
-each related problem left out of scope as a `followup`; each conflict with the
-architecture input as `open`, its `change` what would follow either way. The
-`architecture_decision` entry carries the chosen approach and its rationale.
+conflict with the architecture input as `open`, its `change` what would follow
+either way. The `architecture_decision` entry carries the chosen approach and
+its rationale.
 
 Recommend the audit, never ask it. A set audit input's reason is "Asked for
 when the run started" or "Declined when the run started", and the gate is still
 asked. Unset, recommend `continue-to-spec-audit`, reason "Cheaper than finding
-the same gaps during implementation", or a reason in this change's own terms
-("The spec changes a public API; an audit checks every caller before
-planning"). Recommend `continue-to-planning` only when this specification has
-nothing an audit would check, and say why ("A one-line configuration change
-with no open assumption").
+the same gaps during implementation", or a reason in this change's own terms.
+Recommend `continue-to-planning` only when this specification has nothing an
+audit would check, and say why ("A one-line configuration change with no open
+assumption").
 
-**Re-run.** The note arrives beside the previous summaries, the audit's
-findings among them when it ran; record what changed in
-`analysis/technical-clarifications.md` or `analysis/requirements.md`. When the
-audit already ran, recommend it again only when the revision changed what it
-checked, and say so; when the note asks for or against the audit, recommend
-what it says. Hand the creator the audit's findings still open — never the ones
+**Re-run.** Record what changed in `analysis/technical-clarifications.md` or
+`analysis/requirements.md`. When the audit already ran, recommend it again only
+when the revision changed what it checked, and say so; when the note asks for or
+against the audit, recommend what it says. Hand the creator the audit's findings still open — never the ones
 its fix pass applied.
 
 **Budget.** Regenerate the specification on the second attempt with the gaps
@@ -393,24 +365,18 @@ trusting them. Hand it the user's earlier answers — `analysis/requirements.md`
 and `analysis/technical-clarifications.md` when it exists — plus the
 `prior-context --background --node=spec-audit` output for the decisions, so it
 can tell a finding with one obvious fix from one that needs a decision. The
-report carries a verdict — pass, pass with concerns, or fail — issue counts by
-severity, and the findings, each graded fixable or needing a decision. The
 report is the auditor's: if it returns the report as text and the file does not
 exist, write that text to the path verbatim, once; never append to, edit or
 annotate it. Record the verdict in state.
 
 **The fix pass follows `orchestrator-patterns.md` § 6**, *The Specification
-Audit's Fix Pass*, step by step: the fixable findings go in one amend pass to
-the `maister:specification-creator` agent through the Task tool; one re-audit
-runs only when a fix changed a requirement; each applied fix goes in this
-node's summary's `fixes_applied` as `{finding, change}`, and the re-audits in
-`reaudit_count` (0 or 1).
+Audit's Fix Pass*, step by step; the amend passes go to the
+`maister:specification-creator` agent through the Task tool.
 
 **Asks.** Each finding that needs a decision is its own question (step 5
 there): write the auditor's decision findings to
 `verification/spec-audit-findings.json`, each `id` the auditor's `name`, and
-build the set with `finding-brief` for this node. The chosen changes go to the
-creator in one more amend pass, with no re-audit.
+build the set with `finding-brief` for this node.
 
 **With question sets** (`spec-audit-findings`): this node's one request, with
 the audit report and every fix written first.
@@ -424,15 +390,11 @@ findings the run fixed and what is left for planning ("The audit passes the
 spec after three fixes; one concern is left, not blocking a plan"). In
 `summary`, the verdict, the issue counts by severity, how many were fixed and
 the findings still open in plain words; when no re-audit ran, say that the
-report still lists the findings the run fixed. Never repeat a fix from
-`fixes_applied` in `decisions`. In `decisions`, only a point the spec left open
-that the audit resolved against the codebase, `by: audit`; a check that merely
-confirmed the spec goes in the summary. In `risks`, only the findings still open
-— undecided, not applied, or found by the re-audit — as `open`, their `change`
-what a revise of the specification would do, the critical ones first; each
-finding the operator accepted as a `tradeoff`; one outside this change as a
-`followup`. A finding the run fixed or the operator settled is never an open
-risk. The `spec_audit` entry carries the verdict.
+report still lists the findings the run fixed. In `decisions`, only a point the
+spec left open that the audit resolved against the codebase, `by: audit`; a
+check that merely confirmed the spec goes in the summary. In `risks`, the
+findings still open as § 6 step 6 hands them, their `change` what a revise of
+the specification would do. The `spec_audit` entry carries the verdict.
 
 **Budget.** None: an audit that returns is an audit, whatever its verdict; a
 fix pass that fails leaves its findings open for the gate.
@@ -455,9 +417,8 @@ is raised as an `open` risk in this node's summary.
 carries and how many waves they run in ("Four task groups, 23 steps, in three
 waves"). In `summary`, the groups in a line each and the estimated complexity.
 In `decisions`, the key ordering and dependency choices, `by: run`. In `risks`,
-each uncertainty the user could still change as `open`; each cost accepted on
-purpose, such as a group that must run alone, as a `tradeoff`. The
-`implementation_plan` entry carries the task-group count.
+a cost accepted on purpose, such as a group that must run alone, as a
+`tradeoff`. The `implementation_plan` entry carries the task-group count.
 
 **Re-run.** Regroup, split or reorder what the note names and keep the rest,
 and check coverage again, `implementation/visual-coverage.md` included when a
@@ -483,10 +444,7 @@ the groups completed, the files changed and the incremental test results.
 **Summary.** The `headline` gives what landed and how the tests stand ("All
 four task groups landed; 40 of 40 tests pass"). In `summary`, the task groups
 completed, the files changed and the incremental test results. In `decisions`,
-each choice the executor made where the plan left room, `by: run`. In `risks`,
-each known issue the user could still act on as `open`; each item deferred on
-purpose as a `tradeoff`; each problem found outside this change as a
-`followup`.
+each choice the executor made where the plan left room, `by: run`.
 
 **Budget.** Fix a syntax error, an import or a failing test, and re-run. When
 the fifth attempt has not cleared it, stop and ask the operator rather than
@@ -525,18 +483,15 @@ its own.
 
 1. **The reviews tab, which carries the verification plan.** Its question is the
    plan — the checks that always run, the recommended reviews and one line
-   saying the browser checks are decided at the verification gate ("Browser
-   checks: decided when you approve the verification") — written into the
-   question rather than printed ahead of it. **Each tab states its own choice
-   only**: the user guide belongs to its own tab. Say exactly when the test
-   suite runs: it already passed during implementation, so the first
-   verification pass does not run it again, and it runs on every pass after a
-   fix changes code — "Test suite: passed in implementation (40 of 40); runs
-   again after any fix". Never list it under "always runs". The options are
-   the bundles engine `references/in-node-questions.md` names: **"All four
-   reviews (Recommended)"** — code review, pragmatic review, reality check and
-   production readiness — then **"Code review only"**, then **"Choose
-   individually"**, whose multi-choice question marks none as recommended.
+   saying the browser checks are decided at the verification gate. **Each tab
+   states its own choice only**: the user guide belongs to its own tab. Say
+   exactly when the test suite runs: it already passed during implementation,
+   so the first verification pass does not run it again, and it runs on every
+   pass after a fix changes code — "Test suite: passed in implementation (40 of
+   40); runs again after any fix". Never list it under "always runs". The
+   options are the bundles engine `references/in-node-questions.md` names, the
+   four reviews being code review, pragmatic review, reality check and
+   production readiness; "Choose individually" marks none as recommended.
 2. **The user-guide tab — on or off.** The recommended option is the seed
    `gap-analysis` wrote to `orchestrator.options.user_docs_enabled` — on when it
    is true, off when it is false or absent — its description giving the reason
@@ -548,14 +503,12 @@ individually" opens a second form with one array property holding the four
 reviews, none of them preselected.
 -->
 
-Skip a question whose answer was already supplied. The user-docs input is
-tri-state, read here as `user_docs_flag`. Absent means ask. `yes` or `no` means
-the invocation settled it: leave the user-guide tab off the page, record the
-value as the declared `user_docs_enabled` and its state mirror, record it as a
-decision `by: operator` — the user chose it when they started the run — and say
-so in one line of the reviews tab's plan ("User guide: on — asked for when the
-run started"). In a terminal run the seed is a default for the recommendation,
-not an answer.
+The user-docs input (`user_docs_flag`) is tri-state. Absent means ask. `yes` or
+`no` settled it when the run started: leave the user-guide tab off the page,
+record the value as `user_docs_enabled` and its state mirror and as a decision
+`by: operator`, and say so in one line of the reviews tab's plan ("User guide:
+on — asked for when the run started"). In a terminal run the seed is a default
+for the recommendation, not an answer.
 
 **With question sets** (`standard-verifications`): in this node's one request;
 "Choose individually" is not offered.
@@ -584,8 +537,8 @@ the verifier reads them to decide which reviews run:
 gates its own companion on the HTML output option.
 
 **The fix loop follows `orchestrator-patterns.md` § 6**, *Fix-Then-Reverify
-Loop*, step by step — its two automatic re-checks, its fix records, its exit
-conditions. What this node adds: **each fix is also logged in the work log.**
+Loop*, step by step. What this node adds: **each fix is also logged in the work
+log.**
 
 > **GATE CHECK**: the canonical report and its companion must carry the *final*
 > post-fix verdict before this node completes. A report still showing the
@@ -594,9 +547,8 @@ conditions. What this node adds: **each fix is also logged in the work log.**
 
 **Asks.** The findings that need the user: write the verifier's decision fields
 to `verification/verification-findings.json`, each `id` the verifier's `name`,
-and build the set with `finding-brief` for this node, the first question naming
-the report's path. The gate after this node offers no revise, so a change the
-user picks is applied here, logged and re-checked like any fix.
+and build the set with `finding-brief` for this node. The gate after this node
+offers no revise, so a change the user picks is applied here.
 
 **With question sets** (`verification-findings`): this node's one request in its
 attempt, with the verification report and every fix so far written first.
@@ -618,14 +570,11 @@ critical is **not** proceeded past on a default: it reaches a person at
 ("Verification passes after three fixes; two warnings remain"); when
 `tdd-green` ran, it also says the failing test now passes. In `summary`, the
 total issues found, how many were fixed and how many remain by severity. In
-`fixes_applied`, every fix made without asking, `{finding, change}`; a fix is
-never also a decision. In `decisions`, each review finding the verifier itself
-settled, `by: audit`. In `risks`, each issue still needing a decision as
-`open`, the critical ones first; each issue left for later as a `followup`;
-each warning kept on purpose as a `tradeoff`. When the user chose "Stop", or the
-re-checks are spent with a critical issue left, add one `stop` risk saying why
-the run should not go on. `verification_context.last_status`, `issues_found`
-and `reviews`, which the verifier records every cycle, are not repeated.
+`decisions`, each review finding the verifier itself settled, `by: audit`. In
+`risks`, what § 6 step 9 hands the gate, the critical ones first; when the user
+chose "Stop", one `stop` risk saying why the run should not go on.
+`verification_context.last_status`, `issues_found` and `reviews`, which the
+verifier records every cycle, are not repeated.
 
 Recommend whether the browser checks run. A set browser-tests input's reason is
 "Asked for when the run started" or "Declined when the run started", and the
@@ -720,9 +669,7 @@ than retried.
    report always; the TDD gate artifacts, the mockups and their index, the
    audit, the browser reports and the user guide when the stretches that produce
    them ran. Say plainly which stretches were skipped and why. Take the
-   inventory from disk: `run-complete` reports each declared artifact or
-   companion missing; check by hand only a path a summary lists beyond the
-   declarations (`orchestrator-patterns.md` § 10).
+   inventory from disk as `orchestrator-patterns.md` § 10 says.
 2. **Present the executive summary**: what was built, which task groups landed,
    the verification verdict with any issues left open, and the risk level the
    gap analysis recorded.
@@ -747,12 +694,10 @@ than retried.
    around: under a dispatch driver the seed's close-out section says how it is
    reported; in a terminal run the held command goes under **Needs you**.
 
-**Close for whoever reads the end** (the engine skill's run-end rule, its six
-wrap-up sections and its order per driver). **Next** holds every one of step 4's
-next steps, a line each: commit first, with the message file's path, then the
-rest of this workflow's own four, then the fresh-session suggestion, none
-dropped or merged. Each `missing-artifact:` and `missing-companion:` line the
-verb printed is named in plain words under **Needs you**.
+**Close for whoever reads the end** (the engine skill's run-end rule).
+**Next** holds every one of step 4's next steps, a line each: commit first, with
+the message file's path, then the rest of this workflow's own four, then the
+fresh-session suggestion, none dropped or merged.
 
 **No close-out while a choice is held**: when the freeze recorded
 `orchestrator.classes_questions`, this node runs
