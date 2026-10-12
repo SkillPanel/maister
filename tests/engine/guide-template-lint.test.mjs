@@ -142,6 +142,20 @@ test('guide-template-lint: CRLF samples pass and fail exactly as their LF copies
   assert.equal(lint(crlf.out['bad-parts']).code, 1, 'a CRLF guide does not hide a failure');
 });
 
+test('guide-template-lint: a question with a With line and no Without line fails at its With line; a Without-only question passes', t => {
+  const withOnly = copied(t, ['good'], text => text.replace('**Without question sets** (`tone`): a plain tone, as the step\'s assumption.\n', ''));
+  const result = lint(withOnly.out.good);
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.deepEqual(lines(result.stdout, 'FAIL: '), [
+    `FAIL: ${path.join(withOnly.dir, 'good.md')}:23: scope: \`tone\` has a **With question sets** line and no **Without question sets** line`,
+  ]);
+
+  const withoutOnly = copied(t, ['good'], text => text.replace('**With question sets** (`tone`): in this step\'s one request.\n', ''));
+  const passing = lint(withoutOnly.out.good);
+  assert.equal(passing.code, 0, passing.stdout + passing.stderr);
+  assert.equal(passing.stdout, '');
+});
+
 test('guide-template-lint: a definition whose guide is missing is the script\'s own error, exit 2', t => {
   const { out } = copied(t, ['good'], undefined, { guides: false });
   const result = lint(out.good);

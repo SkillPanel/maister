@@ -297,10 +297,14 @@ function checkGateParts(parts, id, headingLine, out) {
 
 /**
  * Check 6 inside the Asks part: after the run-in only question-set paragraphs,
- * and at most one With and one Without per id.
+ * at most one With and one Without per id, and every id with a With line has a
+ * Without line — the Without line is the only place its default lives. A
+ * Without-only id is allowed.
  */
 function checkQuestionSets({ parts, id, out }) {
   const counts = new Map();
+  const withLines = new Map();
+  const withouts = new Set();
   const asks = parts.find(part => part.label === 'Asks');
   if (asks) {
     let sets = false;
@@ -315,7 +319,12 @@ function checkQuestionSets({ parts, id, out }) {
       const key = `${paragraph.marker[1]}\0${question}`;
       counts.set(key, (counts.get(key) ?? 0) + 1);
       if (counts.get(key) === 2) out.fail(paragraph.line, id, `\`${question}\` has a second **${paragraph.marker[1]} question sets** line`);
+      if (paragraph.marker[1] === 'Without') withouts.add(question);
+      else if (!withLines.has(question)) withLines.set(question, paragraph.line);
     }
+  }
+  for (const [question, line] of withLines) {
+    if (!withouts.has(question)) out.fail(line, id, `\`${question}\` has a **With question sets** line and no **Without question sets** line`);
   }
 }
 

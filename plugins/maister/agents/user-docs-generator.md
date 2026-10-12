@@ -48,7 +48,7 @@ The user documentation generator transforms technical specifications into user-f
 | `base_url` | Orchestrator | Application base URL for Playwright |
 | `output_path` | Orchestrator (optional) | Where the guide is written, relative to `task_path` (default `documentation/user-guide.md`); an absolute path is used as given |
 
-**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save the guide to the `output_path` (default `documentation/user-guide.md`; an absolute one is already under `task_path`), screenshots to `{task_path}/documentation/screenshots/`. NEVER write to project-level directories.
+**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save the guide to the `output_path` (relative to `task_path`, default `documentation/user-guide.md`; an absolute path is used as given), screenshots to `{task_path}/documentation/screenshots/`. NEVER write to project-level directories.
 
 ---
 

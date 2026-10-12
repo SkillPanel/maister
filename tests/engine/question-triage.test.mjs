@@ -259,6 +259,26 @@ test('inNodeQuestions reads a CRLF companion as it reads the LF one', () => {
   }
 });
 
+test('inNodeQuestions skips fenced rows: a fenced question line or node heading is an example, not a declaration', () => {
+  const text = [
+    '## `scope`',
+    '',
+    '**With question sets** (`tone`): in this step\'s one request.',
+    '',
+    '```',
+    '**With question sets** (`fenced-id`): an example.',
+    '## `fenced-node`',
+    '**Without question sets** (`other-id`): an example.',
+    '```',
+    '',
+    '**Without question sets** (`tone`): a plain tone.',
+    '',
+  ].join('\n');
+  const expected = [{ node: 'scope', id: 'tone' }];
+  assert.deepEqual(inNodeQuestions(text), expected);
+  assert.deepEqual(inNodeQuestions(text.replace(/\n/g, '\r\n')), expected);
+});
+
 /** A run with held items on two nodes, one approved, in a frozen order unlike the summaries'. */
 function heldRun() {
   const held = (id, extra = {}) => ({ decision: 'B', by: 'default', question_id: id, question: `Pick ${id}?`, triage: { version: 1, class: 'approve', family: 'signed-family', held: true }, ...extra });
