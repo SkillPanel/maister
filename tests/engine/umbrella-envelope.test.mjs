@@ -73,6 +73,8 @@ test('envelope: two ordered nodes for one member share its worktree and branch; 
 
   assert.equal(built.other.target.worktree, '.worktrees/2026-01-05-chain-beta');
   assert.equal(built.other.branch, 'feature/2026-01-05-chain-beta');
+  assert.deepEqual(['plan', 'change', 'other'].map((node) => built[node].dispatch_id), ['d-0001', 'd-0002', 'd-0003'],
+    'each node is its own dispatch, under its own id');
 });
 
 test('validate: two nodes for one member that needs does not order are refused, naming both', (t) => {

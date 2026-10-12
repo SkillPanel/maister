@@ -12,7 +12,8 @@
  *   validate  --root [--definition…]                            JSON on stdout
  *   prune     --root [--name --dry-run]                         JSON on stdout
  *   envelope  --run --node --ledger --root [--input-file]        JSON on stdout
- *             (overrides in the input file, or on stdin)
+ *             (overrides in the input file, or on stdin; opens the
+ *             dispatch's ledger entry when none records the node)
  *   seed      --envelope [--siblings]                           JSON on stdout
  *   ledger    --ledger --op --actor [--dispatch-id]             JSON on stdout
  *             [--run --input-file] (the op's args in the input file, or on stdin)
@@ -428,9 +429,10 @@ async function runPrune(flags) {
 }
 
 /**
- * Build and publish one node's dispatch envelope. `--root` is required rather
- * than derived: the manifest is consulted unconditionally, and walking up from
- * the run directory would guess at which workspace owns the run.
+ * Build and publish one node's dispatch envelope, opening its ledger entry in
+ * `--ledger` when none records the node yet. `--root` is required rather than
+ * derived: the manifest is consulted unconditionally, and walking up from the
+ * run directory would guess at which workspace owns the run.
  */
 async function runEnvelope(flags) {
   const input = await readDocument('envelope', flags, { required: false });
