@@ -13,12 +13,11 @@
 # it, so it has nothing to repeat its guard onto.
 #
 # `user_docs` is a real bool rather than the tri-state string the development
-# workflow takes, because neither this definition nor its prose form ever asks
-# about documentation in session: absent means off, exactly as the prose form's
-# seeded `docs_enabled: false` does. Only a declared bool may guard, which is
-# the second reason. `type` stays a string and is never referenced from a `when`
-# clause: the intake node validates it against the four allowed values and the
-# gap analysis declares the closed enum that the later nodes read.
+# workflow takes, because this workflow never asks about documentation in
+# session: absent means off. Only a declared bool may guard, which is the second
+# reason. `type` stays a string and is never referenced from a `when` clause:
+# the intake node validates it against the four allowed values and the gap
+# analysis declares the closed enum that the later nodes read.
 #
 # No node carries `on:`. Under the default, a `needs` entry is satisfied by a
 # completed or a skipped predecessor but never by a stopped one, which is what
@@ -33,13 +32,12 @@
 # the provider prefix is applied at invocation, so this one file is correct
 # under every generated variant without a rewrite.
 #
-# The node prose lives beside this file in `migration.md`, one section per node
-# id. Every `direct:` node is executed from its section there, and the three
+# The node prose lives beside this file in `migration.md`, one section per step
+# that needs one. Every `direct:` node is executed from its section, and the
 # operator questions asked inside nodes appear only in that prose — a reader of
 # this file alone cannot see them, and neither can the generated diagram. The
-# per-node recovery budgets live there too, never here: a budget written into
-# `with:` would read like a grammar feature while being inert data the engine
-# never consults.
+# `brief:` block below carries each node's summary keys, recovery budget and
+# in-node question defaults.
 name: migration
 version: 1
 description: "Moves code from one technology, platform or architecture pattern to another: it analyses the current state, plans an incremental migration with a rollback path, implements it and verifies compatibility. Use it for a framework or library upgrade, a platform change, a data or schema migration, or a move to a new architectural pattern."
@@ -56,8 +54,7 @@ inputs:
 # `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
 # member rather than inventing one; anything else fails validation. Each gate
 # carries the icon of the node it closes, so a phase and the approval that
-# closes it read as one pair. The same table lives in the prose beside this
-# file.
+# closes it read as one pair.
 display:
   icons:
     intake:                 analysis
@@ -131,6 +128,38 @@ html_companions:
   specification: [spec]
   planning: [plan]
   verification: [report]
+
+# What each node's brief prints beside its prose section: the phase keys its
+# summary is mirrored under, its recovery budget (a prose rule the engine never
+# enforces) and the default each in-node question takes when nobody can be
+# asked. Read beside the graph, not part of it: the block moves no graph hash.
+brief:
+  current-state-analysis:
+    summary_keys: [current_state_analysis]
+    budget: 2
+    questions:
+      clarifications: "None asked; the analysis's answers stand, and what it could not settle is recorded as unsettled."
+  gap-analysis:
+    summary_keys: [gap_analysis]
+    budget: 2
+  specification:
+    summary_keys: [specification]
+    budget: 2
+    questions:
+      specification-requirements: "The assumptions stand as framed, one `by: default` decision, carried as stated assumptions."
+  planning:
+    budget: 2
+  execution:
+    summary_keys: [implementation]
+    budget: 5
+  verification:
+    budget: 3
+  issue-resolution:
+    questions:
+      issue-resolution-findings: "Nothing asked; an unclassed issue stays an `open` risk, a classed one takes its classing outcome."
+      verification-fix-loop: "The loop runs unasked; decisions and risky fixes stay `open` risks, and the stop takes Continue as is."
+  documentation:
+    budget: 1
 
 nodes:
   intake:
