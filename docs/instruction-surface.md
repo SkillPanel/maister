@@ -60,10 +60,10 @@ to 5,097 B.
 
 **And since, 2026-10-12.** The five guides are rewritten to one step template, with what every
 step does by default stated once, in a conventions table in the engine `SKILL.md`, and the
-per-step data moved into each definition's `brief:` block: `development.md` 54,858 B → 43,180 B,
-`research.md` 43,633 B → 25,032 B, `product-design.md` 52,637 B → 39,343 B, `performance.md`
-39,786 B → 24,750 B and `migration.md` 40,051 B → 25,104 B, 230,965 B → 157,409 B in all. The
-engine `SKILL.md` grows from 54,593 B to 59,013 B with the table and the `node-brief` verb. What a
+per-step data moved into each definition's `brief:` block: `development.md` 54,858 B → 39,226 B,
+`research.md` 43,633 B → 19,905 B, `product-design.md` 52,637 B → 33,711 B, `performance.md`
+39,786 B → 19,843 B and `migration.md` 40,051 B → 20,603 B, 230,965 B → 133,288 B in all. The
+engine `SKILL.md` grows from 54,593 B to 60,082 B with the table and the `node-brief` verb. What a
 run loads changes more than the sum: a step reads its `node-brief` output — a derived header, the
 convention rows that apply and its own section — rather than its whole guide.
 

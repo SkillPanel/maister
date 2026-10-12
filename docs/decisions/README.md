@@ -38,7 +38,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - A review finding that needs a decision is asked as its own question, built by `finding-brief` from the reviewer's record with the accept option generated, after the step's own fixes; a classed gate's continue records every value it sets as its own item (ADR-0041)
 - While choices are held for approval, every checkpoint behind a step holding one offers `revise-<node>` for it, so one held choice is sent back without approving the rest (ADR-0042)
 - A delegate pastes the run context a verb prints; a definition declares which artifacts owe an HTML companion, outside the graph hash; `write-state` and `run-complete` name a missing one; a patch travels by here-string first; the gate-rule copies are held at an exact count (ADR-0043)
-- A step reads a brief the engine derives — its data from a non-hashed `brief:` block, the conventions stated once in the engine skill, then its own section in a fixed template a lint holds, word targets warning only; a `direct:` step may have no section, and a heading that names no step is warned about (ADR-0044)
+- A step reads a brief the engine derives — its data from a non-hashed `brief:` block, the conventions stated once in the engine skill, then its own section in a fixed template whose structure a lint holds; a question's default lives only in the step's Without line, an in-session answer is recorded on the asking step with whether it took the recommendation, a `direct:` step may have no section, and a heading that names no step is warned about (ADR-0044)
 
 ## Index
 

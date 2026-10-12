@@ -99,8 +99,9 @@ workspace with work in flight.
   checkpoint's continue also records each value it sets as its own decision.
 - **A record of who decided.** Every decision a run records says who settled it: the analysis,
   an audit, a default taken because nobody could be asked, or you. Your answers are kept in the
-  task's state, with whether you took the recommendation, and the dashboard shows each decision
-  with who settled it.
+  task's state, on the step that asked them, with whether you took the recommendation — read the
+  same whatever its case and whether or not the answer carries the "(Recommended)" label — and the
+  dashboard shows each decision with who settled it.
 - **Product design on the engine.** `/maister:product-design` runs as a definition like the others,
   with five pauses: after the intake, the context, the problem and personas, the design direction,
   and the specification and prototypes. A run driven from outside the session never chooses a
@@ -111,13 +112,15 @@ workspace with work in flight.
   (`html_companions`). A missing page is reported when its step completes, and again at the end
   of the run.
 - **One brief per step.** Before each step the engine prints its brief (`node-brief`): what the
-  run already knows about the step — its inputs, the files it writes, the questions it may ask and
-  their defaults, the checkpoint it feeds — the rules every step of its kind follows, and then only
-  that step's own section of the workflow's guide. The five built-in guides are about a third
-  shorter, each step written in one fixed shape, and the per-step data — summary keys, sanctioned
-  absences, attempt budgets, recommendations, question defaults — sits in the definition's
-  `brief:` block. In your own workflow, a step with nothing to say beyond those rules needs no
-  section in its guide; a guide heading that names no step is warned about rather than ignored.
+  run already knows about the step — its inputs, the files it writes, the questions it may ask,
+  the checkpoint it feeds — the rules every step of its kind follows that apply right now, and then
+  only that step's own section of the workflow's guide. The five built-in guides are about two
+  fifths shorter, each step written in one fixed shape that `make validate` checks for structure,
+  not length. The per-step data — summary keys, sanctioned absences, attempt budgets,
+  recommendations — sits in the definition's `brief:` block; a question's default is written once,
+  in the step's own section. In your own workflow, a step with nothing to say beyond those rules
+  needs no section in its guide; a guide heading that names no step is warned about rather than
+  ignored.
 - **Also new.** Umbrella workspaces span several repositories (`/maister:umbrella init`, `validate`
   and `prune`) and are driven as chains from the
   [maister cockpit](https://github.com/SkillPanel/maister-cockpit). On GitHub Copilot CLI, the
