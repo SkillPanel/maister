@@ -147,3 +147,13 @@ test('§ 14 lists the skip-guard warning the validator raises', () => {
   assert.ok(/^\| `skip-guard-not-pure:<node>` \|/m.test(checking),
     'grammar.md § 14 has a row for skip-guard-not-pure:<node>');
 });
+
+test('§ 11 states the step template: the Re-run part, the optional section and the fence rule', () => {
+  const start = REFERENCE_TEXT.indexOf('## 11. The prose companion');
+  const section = REFERENCE_TEXT.slice(start, REFERENCE_TEXT.indexOf('## 12. Overlays'));
+  assert.ok(start >= 0, 'grammar.md carries § 11');
+  assert.match(section, /\*\*Re-run\.\*\*/, '§ 11 names the Re-run part');
+  assert.match(section, /\*\*The section is optional\.\*\*/, '§ 11 says the section is optional');
+  assert.match(section, /inside a fenced code block is never a heading/, '§ 11 states the fenced-heading rule');
+  assert.doesNotMatch(REFERENCE_TEXT, /When re-run after a revise/, 'grammar.md cites no retired paragraph label');
+});

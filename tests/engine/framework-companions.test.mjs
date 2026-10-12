@@ -22,3 +22,17 @@ test('the post-compact hook exits 0 with hook JSON and stays LF', () => {
   assert.ok(context.length > 0, 'the hook prints a reminder');
   assert.ok(!fs.readFileSync(HOOK, 'utf8').includes('\r'), 'the hook stays LF');
 });
+
+const CHECKLIST = path.join(ROOT, 'plugins/maister/skills/orchestrator-framework/references/orchestrator-creation-checklist.md');
+
+test('the creation checklist asks for the step template, brief data and no retired sections', () => {
+  const text = fs.readFileSync(CHECKLIST, 'utf8');
+  assert.match(text, /\*\*Step template\*\*/, 'an item for the step template and its lint');
+  assert.match(text, /\*\*Brief data\*\*/, 'an item for the brief: block');
+  assert.match(text, /\*\*No gate section without an exception\*\*/, 'an item for gate sections');
+  assert.match(text, /\*\*Embedded mode only where it differs\*\*/, 'an item for the Embedded mode section');
+  for (const retired of ['Node prose header', 'Node prose sections', 'Gate brief content', 'Re-run paragraph',
+    'Run-scoped context', 'Phase summary keys']) {
+    assert.ok(!text.includes(retired), `the checklist no longer names "${retired}"`);
+  }
+});

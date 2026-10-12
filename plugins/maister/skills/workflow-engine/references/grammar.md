@@ -324,8 +324,8 @@ option, not in `needs`, so the graph stays acyclic and the ready set is computed
 - **Sub-runs.** A stretch that holds a `workflow:` node is refused: the child run it started is
   already finished, and running the node again would adopt it rather than run it anew.
 - **The note.** The operator's reason travels with the answer, and the re-run node reads it from
-  the prior context. The node prose of a `reruns` target says how it re-runs over its own earlier
-  output (§ 11).
+  the prior context. A `reruns` target re-runs over its own earlier output by the engine's re-run
+  convention, and its *Re-run* part says only what differs (§ 11).
 
 **A continue option may declare what its answer grants.** Approving a plan can also mean "push
 the branch and open the pull request", and the option says so, so the operator approves both with
@@ -476,9 +476,9 @@ An input named `embedded` has one meaning: the engine sets it when this workflow
 An artifact path is **literal** and stays inside the run's task directory: no `${…}`, no absolute
 path (a leading `/` or `\`, or a drive letter such as `C:`), no `..` segment. It may name a file or
 a directory.
-A node that does not produce a declared artifact has not completed — unless its prose sanctions
-the absence by name, and the node then records it on its summary under `absent`, keyed by the
-artifact's declared key (engine § *Recording an outcome*).
+A node that does not produce a declared artifact has not completed — unless its `brief:` `absent`
+sanctions the absence by name (§ 3.3), and the node then records it on its summary under `absent`,
+keyed by the artifact's declared key (engine § *Recording an outcome*).
 
 | Value type | Recorded as |
 |---|---|
@@ -580,24 +580,35 @@ word, every `` ## `x` `` heading outside a fence must name a section some node f
 after `direct:` for a `direct:` node, the node id for any other node or gate. One that names none
 warns `orphan-prose-section` (§ 14).
 
-**The section is the node's body.** It holds the steps, the fan-outs, the self-checks, the
-questions the node asks inline and the default each question takes when nobody can be asked, what
-the node writes into its closing summary for the gate brief, and its recovery budget. The engine
-reads it before running the node, not after it fails. Recovery budgets live here and never in
-`with:`, where they would be inert data.
+**The section is the node's own part of its brief.** The engine's node conventions (engine
+`SKILL.md` § *Node conventions*) already say how each scheme runs, how a gate is asked, what every
+step checks before it completes, what a closing summary carries and how a re-run works; a section
+states only what is the node's own and never restates them. `node-brief` prints the node's
+header, the conventions that apply to it and then its section, and the engine reads that before
+running the node. A section is built from up to six parts, each opened by a paragraph that starts
+with its bold label, in this order, each at most once:
 
-**A node a revise option names says how it runs again.** Its section carries a paragraph headed
-*When re-run after a revise*: read the note from the prior context, revise its own artifacts in
-place rather than start over, keep the answers it already has unless the note reopens them, record
-its declared values again (a revise clears them), and say in the summary what changed. Without it
-the node repeats its first attempt, or skips work because its artifacts already exist.
+| Part | Carries |
+|---|---|
+| `**Does.**` | The steps, fan-outs, self-checks and judgement; the only part that may hold subheadings |
+| `**Asks.**` | Framing for the questions the node asks inline, then its question-set lines |
+| `**Writes.**` | What the header cannot print about its files: a required shape, an undeclared write |
+| `**Summary.**` | An example headline and what goes into its decisions, risks and `recommends` |
+| `**Re-run.**` | Only what differs from the re-run convention, for a node a revise option names |
+| `**Budget.**` | What happens between recovery attempts; the number is `brief:` `budget` (§ 3.3) |
+
+A gate has a section only for an exception — behaviour neither its definition,
+`references/gates.md` nor the conventions carry — held in a single `**Exception.**` part. The data
+a step reads (its phase keys, sanctioned absences, budget, recommendation and question defaults)
+lives in `brief:`, never in the prose, and a budget never in `with:`, where it would be inert.
 
 **The top of the companion introduces the workflow.** Its `# Title` line is the workflow's title,
 and its first paragraph is the summary `/maister:run --list` shows and `/maister:work` offers the
 workflow by — unless the definition carries a `description:`, which is preferred. A project
 workflow with neither warns `workflow-undescribed`, because `/maister:work` has nothing to match
-a task against. A companion also carries an `## Embedded mode` section saying whether the
-workflow can run as a child (§ 13.1).
+a task against. Node sections follow it. A workflow that can run as a child and behaves
+differently as one adds an `## Embedded mode` section saying how (§ 13.1); one that runs the same
+way as a child carries none.
 
 ## 12. Overlays
 
@@ -683,11 +694,12 @@ for it can be one:
    `when: "!${inputs.embedded}"`.
 3. Declare a workflow-level `outputs:` block (§ 8.3) naming every artifact and value a parent may
    read.
-4. Give every question a node asks inside itself a default its prose names, because a child
-   under a cockpit or dispatch driver is never asked one. A question that truly needs a person
-   becomes a gate.
+4. Give every question a node asks inside itself a default in `brief:` `questions`, because a
+   child under a cockpit or dispatch driver is never asked one. A question that truly needs a
+   person becomes a gate.
 5. Keep exposed values short and flow-safe; detail belongs in an artifact.
-6. Say so under the companion's `## Embedded mode` heading.
+6. Where a step behaves differently as a child, say how under an `## Embedded mode` section of
+   the companion; a workflow that runs the same way as a child needs none.
 
 The calling node passes the child's inputs in `with:` and declares, under its own `outputs:`, the
 same keys the child exposes — an artifact by the path the child's producing node declares, a value
@@ -705,7 +717,8 @@ in its prose:
 
 - **The section states the loop:** run the check, fix what it found, run it again, and exit when
   the check passes.
-- **It states the budget,** as a number of attempts, in prose — never in `with:`.
+- **It states the budget:** the number of attempts in `brief:` `budget`, never in `with:`, and
+  what happens between attempts in its *Budget* part.
 - **It states what exhaustion means.** Under a terminal driver, ask whether to proceed with the
   known issues or stop. Under a cockpit or dispatch driver nobody can answer, so the node records
   `failed`, or records the issues it could not fix as open risks in its summary so the next gate
@@ -736,7 +749,7 @@ review, then a gate whose revise option re-runs the draft.
 
 Choosing *send back* resets `draft`, `review` and the gate; `draft` re-runs with the note, `review`
 reviews the new draft, and the gate asks again. At its ceiling of ten revisions the gate offers
-only publish and abandon. The `draft` section carries its *When re-run after a revise* paragraph (§ 11).
+only publish and abandon. The `draft` section carries its *Re-run* part (§ 11).
 
 ## 14. Checking a definition
 
