@@ -40,9 +40,10 @@ section, the enrichments, the brief — is named in its own question with what i
 settles, and each option says what it changes. More details is the last option
 while a slot is free, and typed as "details" when four options fill the slots.
 Every ask fits four options.
-Without previews, the question lists the draft's points, one line each, and More
-details carries the full text. --> The operator's own words are the free-text
-answer; no question offers an option to explain their thinking.
+Without previews, the question lists the draft's points, one line each, and More details carries the
+full text.
+The operator's own words are the free-text answer; no question offers an option
+to explain their thinking.
 
 **Every answered question is recorded** on the asking node's summary
 `decisions`, one entry per question (engine `references/in-node-questions.md`):
@@ -281,8 +282,8 @@ and gathers whatever extra context the operator has.
    when Files was chosen and the folder is still empty, ask once more — the
    question naming the folder, with *"Read the folder again (Recommended)"* and
    *"Go on without files"*.
-   Under this picker the four options are one property of type array, none of
-   them the default, and the links and topics a text property beside it.
+   Under this picker the four options are one property of type array, none of them the default, and
+   the links and topics a text property beside it.
 
    **With question sets** (`additional-context`): asked in this node's one
    request. A folder still empty after a Files answer is not asked about again,
@@ -451,12 +452,12 @@ says may be read two ways is answered the way that keeps it whole (engine
    constraints or success criteria"*, each description naming the change the run
    judges likeliest, from the weakest assumption; and **More details** last. A
    different change, or a rethink, is typed through Other.
-   The question lists the constraints and the success criteria, one line each,
-   after the statement. --> On a change, revise the draft and ask again; count
-   each round in `design_context.refinement_iterations.problem_statement`. After
-   the soft cap — two rounds for a simple design, three otherwise — the approve
-   option's description says how many rounds were taken; the operator can still
-   take one more.
+   The question lists the constraints and the success criteria, one line each, after the statement.
+   On a change, revise the draft and ask again; count each round in
+   `design_context.refinement_iterations.problem_statement`. After the soft cap
+   — two rounds for a simple design, three otherwise — the approve option's
+   description says how many rounds were taken; the operator can still take one
+   more.
 
    **With question sets** (`problem-refinement`): asked only when it is the
    first thing this node asks in its attempt; otherwise the default below.
@@ -646,9 +647,8 @@ time (engine `references/in-node-questions.md`).
    - **the options** are its alternatives, the recommended one first and marked
      `(Recommended)` with its reason; each other option's description gives its
      key pro and con in a few words; **More details** is last;
-   - **the recommendation**: the question's last line before the ask is
-     "Recommended: <alternative> — <reason>", because the form shows no option
-     descriptions;
+   - **the recommendation**: the question's last line before the ask is "Recommended: <alternative>
+     — <reason>", because the form shows no option descriptions;
    - **the cap**: an area with more alternatives than the options hold offers
      the recommended one and its strongest rivals and names the rest in the
      question text.

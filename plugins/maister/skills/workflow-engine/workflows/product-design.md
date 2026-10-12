@@ -45,9 +45,11 @@ The approve option's preview holds the draft — whole when it fits, as its poin
 when it would pass the preview's limit.
 <!-- /rich-picker -->
 <!-- plain-picker
-Without previews, the question lists the draft's points, one line each, and More
-details carries the full text. --> The operator's own words are the free-text
-answer; no question offers an option to explain their thinking.
+Without previews, the question lists the draft's points, one line each, and More details carries the
+full text.
+-->
+The operator's own words are the free-text answer; no question offers an option
+to explain their thinking.
 
 **Every answered question is recorded** on the asking node's summary
 `decisions`, one entry per question (engine `references/in-node-questions.md`):
@@ -287,8 +289,8 @@ and gathers whatever extra context the operator has.
    question naming the folder, with *"Read the folder again (Recommended)"* and
    *"Go on without files"*.
 <!-- plain-picker
-   Under this picker the four options are one property of type array, none of
-   them the default, and the links and topics a text property beside it.
+   Under this picker the four options are one property of type array, none of them the default, and
+   the links and topics a text property beside it.
 -->
 
    **With question sets** (`additional-context`): asked in this node's one
@@ -463,12 +465,13 @@ says may be read two ways is answered the way that keeps it whole (engine
    constraints and the success criteria.
 <!-- /rich-picker -->
 <!-- plain-picker
-   The question lists the constraints and the success criteria, one line each,
-   after the statement. --> On a change, revise the draft and ask again; count
-   each round in `design_context.refinement_iterations.problem_statement`. After
-   the soft cap — two rounds for a simple design, three otherwise — the approve
-   option's description says how many rounds were taken; the operator can still
-   take one more.
+   The question lists the constraints and the success criteria, one line each, after the statement.
+-->
+   On a change, revise the draft and ask again; count each round in
+   `design_context.refinement_iterations.problem_statement`. After the soft cap
+   — two rounds for a simple design, three otherwise — the approve option's
+   description says how many rounds were taken; the operator can still take one
+   more.
 
    **With question sets** (`problem-refinement`): asked only when it is the
    first thing this node asks in its attempt; otherwise the default below.
@@ -668,9 +671,8 @@ time (engine `references/in-node-questions.md`).
      recommended one's preview adds the reason it is recommended;
 <!-- /rich-picker -->
 <!-- plain-picker
-   - **the recommendation**: the question's last line before the ask is
-     "Recommended: <alternative> — <reason>", because the form shows no option
-     descriptions;
+   - **the recommendation**: the question's last line before the ask is "Recommended: <alternative>
+     — <reason>", because the form shows no option descriptions;
 -->
    - **the cap**: an area with more alternatives than the options hold offers
      the recommended one and its strongest rivals and names the rest in the
