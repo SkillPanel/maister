@@ -934,11 +934,12 @@ function displayOfRun(doc, runDir) {
  * Read by the same `sourcesOf` the display and `definitionOf` are, so the
  * companions a check holds a node to come from the files the run froze and not
  * from whatever a reader would locate today. An overlay that cannot be read is
- * left out of the merge, as `definitionOf` leaves it out of the fold.
+ * left out of the merge, as `definitionOf` leaves it out of the fold. A caller
+ * that has already read them passes `sources`, so they are read once.
  */
-export function companionsOfRun(doc, runDir) {
+export function companionsOfRun(doc, runDir, read = undefined) {
   try {
-    const sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
+    const sources = read !== undefined ? read : sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
     if (sources === null || !isPlainObject(sources.definition.doc)) return null;
     const definition = definitionOf(doc, runDir);
     if (definition === null) return null;
@@ -3143,14 +3144,21 @@ function stampAnswers(decisions, runDir, via) {
 
 /**
  * An in-node answer with `as_recommended` filled from its own `answer` and
- * `recommended`: true when the two read the same once trimmed. Left as it is
- * when it already carries the key, whatever its value, or when either text is
- * missing or not a string.
+ * `recommended`: true when the two read the same once each is trimmed, rid of
+ * a trailing "(Recommended)" and compared without regard to case — a picker
+ * labels the recommended option with that suffix, and the label is what an
+ * answer is often recorded as. Left as it is when it already carries the key,
+ * whatever its value, or when either text is missing or not a string.
  */
 function withAsRecommended(item) {
   if (Object.hasOwn(item, 'as_recommended')) return item;
   if (typeof item.answer !== 'string' || typeof item.recommended !== 'string') return item;
-  return { ...item, as_recommended: item.answer.trim() === item.recommended.trim() };
+  return { ...item, as_recommended: optionText(item.answer) === optionText(item.recommended) };
+}
+
+/** An option's text as `withAsRecommended` compares it. */
+function optionText(text) {
+  return text.trim().replace(/\s*\(recommended\)$/i, '').toLowerCase();
 }
 
 /** The driver kinds an answer given in session is stamped with; any other is `terminal`. */

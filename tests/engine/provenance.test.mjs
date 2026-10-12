@@ -390,6 +390,26 @@ test('an in-node answer sent without as_recommended gains it: true when the answ
   assert.equal(padded.as_recommended, true, 'compared after trimming');
 });
 
+test('as_recommended is judged case-insensitively, with a trailing "(Recommended)" on either side ignored', t => {
+  const [suffixed, recommendedSuffixed, cased, both] = recordAnswers(t, [
+    { answer: 'Yes (Recommended)', recommended: 'Yes' },
+    { answer: 'Yes', recommended: 'Yes  (Recommended) ' },
+    { answer: 'yes', recommended: 'YES' },
+    { answer: 'Keep it (recommended)', recommended: 'keep it' },
+  ]);
+  assert.equal(suffixed.as_recommended, true, 'the picker label carries the suffix');
+  assert.equal(recommendedSuffixed.as_recommended, true, 'the recommendation carries the suffix');
+  assert.equal(cased.as_recommended, true, 'case does not count');
+  assert.equal(both.as_recommended, true);
+
+  const [other, inner] = recordAnswers(t, [
+    { answer: 'No (Recommended)', recommended: 'Yes' },
+    { answer: 'Yes (Recommended) please', recommended: 'Yes' },
+  ]);
+  assert.equal(other.as_recommended, false, 'the suffix makes no other answer the recommended one');
+  assert.equal(inner.as_recommended, false, 'only a trailing suffix is removed');
+});
+
 test('an in-node answer sent without as_recommended gains false when the answer differs from the recommended one', t => {
   const [differs] = recordAnswers(t, [{ answer: 'No', recommended: 'Yes' }]);
   assert.equal(differs.as_recommended, false);
