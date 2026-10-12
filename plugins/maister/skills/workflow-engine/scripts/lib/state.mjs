@@ -3128,13 +3128,29 @@ function foldQuestionAnswer(entry, node, runDir, held, attempt = 1, writeWarning
  * reads `terminal` once stamped is then credited to that person as its
  * `actor` (`withPersonActor`); one with no `via`, or a driver's, gains none,
  * and a decision the run, an audit or a default settled is never touched.
+ * An answer sent with its `answer` and `recommended` but no `as_recommended`
+ * gains it too (`withAsRecommended`), so a brief counting the user's choices
+ * never reads a missing key as a choice against the recommendation.
  */
 function stampAnswers(decisions, runDir, via) {
   return decisions.map(item => {
     if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
-    if (!isPlaceholderName(item.answered_by)) return withPersonActor(item);
-    return withPersonActor({ ...item, answered_by: operatorName(runDir), ...(Object.hasOwn(item, 'via') ? {} : { via }) });
+    const judged = withAsRecommended(item);
+    if (!isPlaceholderName(judged.answered_by)) return withPersonActor(judged);
+    return withPersonActor({ ...judged, answered_by: operatorName(runDir), ...(Object.hasOwn(judged, 'via') ? {} : { via }) });
   });
+}
+
+/**
+ * An in-node answer with `as_recommended` filled from its own `answer` and
+ * `recommended`: true when the two read the same once trimmed. Left as it is
+ * when it already carries the key, whatever its value, or when either text is
+ * missing or not a string.
+ */
+function withAsRecommended(item) {
+  if (Object.hasOwn(item, 'as_recommended')) return item;
+  if (typeof item.answer !== 'string' || typeof item.recommended !== 'string') return item;
+  return { ...item, as_recommended: item.answer.trim() === item.recommended.trim() };
 }
 
 /** The driver kinds an answer given in session is stamped with; any other is `terminal`. */

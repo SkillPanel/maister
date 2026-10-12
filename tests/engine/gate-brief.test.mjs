@@ -157,6 +157,13 @@ test('gate-brief --json: the question is the one-line ask; the options are label
   assert.equal(result.brief, undefined, 'no brief is printed above the picker');
 });
 
+test('gate-brief --json: in-node answers recorded without as_recommended read as all as recommended when each took the recommended answer', t => {
+  const answers = ['a', 'b', 'c'].map(id => ({ decision: `${id}: Yes`, by: 'operator', question_id: id, question: 'Proceed?', answer: 'Yes', recommended: 'Yes' }));
+  const run = atApproval(t, { ...SUMMARY, decisions: answers });
+  const glance = picker(run, 'approval').options[0].preview.split('\n');
+  assert.equal(glance.at(-1), 'You made 3 choices, all as recommended.');
+});
+
 test('gate-brief --json: carries the full brief as more_details, every item whole and the risks grouped by tag', t => {
   const result = picker(atReview(t, { review: { decisions: ['Kept the glossary: new operators asked for it'] } }), 'review-approval');
   assert.equal(result.summaries, undefined, 'no material to compose a message from');

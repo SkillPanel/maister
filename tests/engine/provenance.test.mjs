@@ -375,3 +375,34 @@ test('a flat answer whose decision was already sent merges its provenance onto t
   assert.deepEqual(pick(summary.decisions[0], PROVENANCE), { actor: PERSON, on_behalf_of: 'lee', evidence: ['notes.md'], override_of: 'hold-draft' });
   for (const key of PROVENANCE) assert.equal(Object.hasOwn(summary, key), false, `no flat ${key} is left`);
 });
+
+/** The in-node answers a patch sends, `as_recommended` left to the writer unless named. */
+function recordAnswers(t, answers) {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { node_summaries: { analysis: { decisions: answers.map((each, index) => ({ decision: each.answer ?? 'Yes', by: 'operator', question_id: `q${index}`, question: 'Proceed?', ...each })) } } });
+  return readState(run).node_summaries.analysis.decisions;
+}
+
+test('an in-node answer sent without as_recommended gains it: true when the answer is the recommended one', t => {
+  const [same, padded] = recordAnswers(t, [{ answer: 'Yes', recommended: 'Yes' }, { answer: ' Yes ', recommended: 'Yes' }]);
+  assert.equal(same.as_recommended, true);
+  assert.equal(padded.as_recommended, true, 'compared after trimming');
+});
+
+test('an in-node answer sent without as_recommended gains false when the answer differs from the recommended one', t => {
+  const [differs] = recordAnswers(t, [{ answer: 'No', recommended: 'Yes' }]);
+  assert.equal(differs.as_recommended, false);
+});
+
+test('an as_recommended the patch sends is kept, whatever the answer and the recommendation say', t => {
+  const [kept, nulled] = recordAnswers(t, [{ answer: 'No', recommended: 'Yes', as_recommended: true }, { answer: 'Yes', recommended: 'Yes', as_recommended: null }]);
+  assert.equal(kept.as_recommended, true);
+  assert.equal(nulled.as_recommended, null);
+});
+
+test('an in-node answer with no recommended answer, or a non-string one, gains no as_recommended', t => {
+  const [bare, typed] = recordAnswers(t, [{ answer: 'Yes' }, { answer: 'Yes', recommended: 3 }]);
+  assert.equal(Object.hasOwn(bare, 'as_recommended'), false);
+  assert.equal(Object.hasOwn(typed, 'as_recommended'), false);
+});

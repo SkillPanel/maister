@@ -156,6 +156,7 @@ test('the asks row records each in-session answer as an operator decision on the
   assert.ok(asks, 'the table has an asks row');
   assert.match(asks.convention, /`by: operator`/, 'the asks row names `by: operator`');
   assert.match(asks.convention, /`question_id`/, 'the asks row names `question_id`');
+  assert.match(asks.convention, /`as_recommended`/, 'the asks row names `as_recommended`');
   assert.match(asks.convention, /`node_summaries`/, 'the asks row records on the step\'s `node_summaries` entry');
   assert.match(asks.convention, /summary|`node_summaries`/, 'recording lands on the step\'s own summary');
   const section = sectionLines('### Node conventions').filter(line => line.includes('`ask:`'));
