@@ -216,7 +216,7 @@ test('run-context: three refusals and the usage errors, none of which writes a f
   assert.equal(runContext(run, 'draft').code, 0);
   assert.equal(verb(['prior-context', `--state=${run.state}`, '--node=draft']).code, 0);
   const after = snapshot(run.root);
-  delete after['.maister/tasks/run-context/2026-01-06-other/orchestrator-state.yml'];
+  delete after[path.join('.maister', 'tasks', 'run-context', '2026-01-06-other', 'orchestrator-state.yml')];
   assert.deepEqual(after, before);
 
   // The codes the module raises are the ones its header lists, and each has a recovery row.
