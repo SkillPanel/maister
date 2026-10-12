@@ -74,8 +74,11 @@ document simply means "no overrides" and "no arguments".
 `.umbrella-input.json` in the one place the verb reads it from, then run the verb
 with `--input-file=<that path>`. Never send it through a heredoc or a pipe: a JSON
 heredoc is exactly the command shape an agent host's shell-safety check refuses, and
-a file needs no quoting in any shell. Each place belongs to one caller, so two
-callers working at once never meet at one path:
+a file needs no quoting in any shell. Unlike the workflow engine, which takes its
+JSON by here-string, this runtime keeps input files: several callers can act on
+one workspace at once, and a file anchored to each caller keeps their documents
+apart, which a single run's writes do not need. Each place belongs to one caller,
+so two callers working at once never meet at one path:
 
 | Verb | The input file |
 |---|---|

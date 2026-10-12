@@ -155,6 +155,13 @@ display:
     convergence-approval:  "Solutions"
     design-approval:       "Design"
 
+# The markdown artifacts that owe an HTML companion beside them, per node.
+# Read beside the graph, not part of it: the block moves no graph hash.
+html_companions:
+  research-foundation: [report]
+  solution-generation: [exploration]
+  high-level-design: [design, decision_log]
+
 nodes:
   research-foundation:
     uses: direct:research-foundation

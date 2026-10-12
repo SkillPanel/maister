@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, readState, scratch, verb, write } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 
 // `gate-brief` renders what the operator reads at a gate — the closing node's
@@ -25,8 +25,15 @@ const SUMMARY = {
   artifacts: [{ path: 'analysis/report.md', label: 'Report', html: null }],
 };
 
+/**
+ * The plain brief, its stdout read without the trailing `rules:` pointer: the
+ * pointer is appended after the renderer returns and sits outside the brief's
+ * budget, so every check here — bytes, last line, length — is on the brief
+ * itself. `rules-pointer.test.mjs` pins the pointer.
+ */
 function brief(run, node) {
-  return verb(['gate-brief', `--state=${run.state}`, `--node=${node}`]);
+  const result = verb(['gate-brief', `--state=${run.state}`, `--node=${node}`]);
+  return { ...result, stdout: briefOf(result.stdout) };
 }
 
 function oneline(run, node) {

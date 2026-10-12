@@ -47,6 +47,9 @@ import { isContextBlock } from './state.mjs';
 import { openRevision } from './revise.mjs';
 import { PROVENANCE_KEYS, riskOf, riskText } from './items.mjs';
 import { approvalKey, isOpenHeld, outstandingHeld } from './question-triage.mjs';
+// The run block an artifact writer's prompt opens with, so that one call
+// fetches both passages and the two can never be pasted out of order.
+import { runContext } from './run-context.mjs';
 
 /**
  * The two fields the artifact summary contract is written against. They lead
@@ -82,8 +85,22 @@ const NO_CHOICE_NOTE = '(held — no choice yet)';
  * Returns `{ok, text, errors}`. `text` is printed on stdout whether or not the
  * run has recorded anything yet: a run at its first node prints the sentence
  * saying so, which is a fact a delegate needs and an empty stdout is not.
+ *
+ * With `node`, the node's run context comes first, then one blank line, then
+ * exactly the text this verb prints without it. Its refusals are this verb's
+ * and stop it before anything is rendered; its warnings are passed on. Without
+ * `node`, nothing about the output changes.
  */
-export function priorContext({ state, background = false }) {
+export function priorContext({ state, background = false, node = null }) {
+  if (node === null) return priorPhases({ state, background });
+  const context = runContext({ state, node });
+  if (!context.ok) return context;
+  const prior = priorPhases({ state, background });
+  if (!prior.ok) return prior;
+  return { ok: true, text: `${context.text}\n${prior.text}`, errors: [], warnings: context.warnings };
+}
+
+function priorPhases({ state, background }) {
   let raw;
   try {
     raw = fs.readFileSync(state, 'utf8');

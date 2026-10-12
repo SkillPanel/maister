@@ -65,6 +65,7 @@ The Task prompt MUST include:
 | `selected_approach` | Orchestrator (`solution-convergence` node) | Which alternative was chosen |
 | `design_preferences` | Orchestrator (`high-level-design` node, Part A) | User's design preferences/constraints |
 | `project_doc_paths` | Orchestrator | Paths to project docs from INDEX.md (if available) |
+| `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
 **Accumulated Context** (Pattern 7):
 - `research_type`: technical, requirements, literature, mixed
@@ -229,19 +230,19 @@ Chosen option: [Option N], because [justification, 1-2 sentences]
 |------|---------|
 | `outputs/high-level-design.md` | Complete architecture design document |
 | `outputs/decision-log.md` | MADR-format architecture decision records |
-| `outputs/high-level-design.html` | Operator-facing HTML companion (style guide compliant) |
-| `outputs/decision-log.html` | Operator-facing HTML companion (style guide compliant) |
+| `outputs/high-level-design.html` | Operator-facing HTML companion, when `html:` is a path |
+| `outputs/decision-log.html` | Operator-facing HTML companion, when `html:` is a path |
 
 ### HTML Companion Reports
 
-After both md files are written, write their companions:
+After both md files are written, write their companions.
 
-**Companions are optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP these companions entirely: write only `high-level-design.md` and `decision-log.md`, note the skip in your summary, and continue. The steps below run only when `html_style_guide_path` is provided.
+Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write `outputs/high-level-design.html` and `outputs/decision-log.html`. With `off`, write only the markdown and return `companion: disabled`. With no `html:` line at all, write the markdown, return `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. A companion that fails never fails the markdown: keep the md and return `companion: failed` with the reason in warnings. With two companions, `companion` is `written` only when both are written, `failed` when either failed, and the warnings name which.
 
-1. **Read the style guide** at `html_style_guide_path` (provided in your prompt): self-contained single files, standard CSS block, breadcrumb bar (research suite), no external resources.
+1. **Follow the style guide**: self-contained single files, standard CSS block, breadcrumb bar (research suite), no external resources.
 2. **`high-level-design.html`**: stat tiles (components / decisions / architecture style); keep C4 ASCII diagrams as `<pre>` blocks (they're already diagrams — don't redraw); component table; design-decision summary table deep-linking ADR anchors in `decision-log.html#adr-NNN`.
 3. **`decision-log.html`**: stat tiles (ADR count by status); one card per ADR with status badge and anchor id (`#adr-001`) so other reports can deep-link.
-4. **Same content as the md twins**; **never block on them** — on failure keep the md, note the miss, continue.
+4. **Same content as the md twins.**
 
 ### Design Document Structure
 
@@ -322,6 +323,8 @@ After both md files are written, write their companions:
 status: "success" | "partial" | "failed"
 design_path: "outputs/high-level-design.md"
 decision_log_path: "outputs/decision-log.md"
+companion: "written" | "disabled" | "failed" | "not-requested"
+html_paths: ["outputs/high-level-design.html", "outputs/decision-log.html"]  # only the companions written; [] otherwise
 
 summary:
   architecture_style: "[event-driven, layered, microservices, etc.]"

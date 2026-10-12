@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { FIXTURES, freeze, freezePatch, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { FIXTURES, briefOf, freeze, freezePatch, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 
 // A workflow no built-in is named after, driven end to end the way a user's own
 // runs: authored into the project's `.maister/workflows/`, validated, resolved
@@ -332,7 +332,7 @@ test('gate-brief: the fan-out\'s summaries are pooled under their titles, the sk
   const result = brief(run);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.equal(result.stdout, [
+  assert.equal(briefOf(result.stdout), [
     'Dependency scan: Two advisories, both patched upstream.',
     '',
     'Licence scan: No copyleft licences.',
@@ -605,7 +605,7 @@ test('overlay: the gate brief reports the added node beside the scans, under the
   const { run } = atTriage(t, { overlaid: true, profile: 'quick' });
   const result = brief(run);
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, [
+  assert.equal(briefOf(result.stdout), [
     'Dependency scan: Two advisories, both patched upstream.',
     '',
     'Licence scan: No copyleft licences.',

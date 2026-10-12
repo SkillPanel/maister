@@ -1,0 +1,24 @@
+# Overlays the companions sample: replaces one node's list, clears another's,
+# adds a node with its own companion, and carries a profile that disables a
+# node the base owes a companion for and has the last word on another.
+extends: companions.yml
+
+html_companions:
+  specification: [spec, notes]
+  analysis: []
+  audit: [log]
+
+add:
+  audit:
+    uses: skill:implementation-verifier
+    needs: [review]
+    before: [wrap-up]
+    outputs:
+      artifacts:
+        log: verification/audit.md
+
+profiles:
+  lean:
+    disable: [review]
+    html_companions:
+      specification: [notes]

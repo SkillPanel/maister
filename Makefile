@@ -79,6 +79,23 @@ validate:
 	@echo "Checking gate markers are not nested inside code spans..."
 	@! grep -rnF '`→ **MANDATORY GATE** — fires ' plugins/maister/skills/ 2>/dev/null || (echo "FAIL: gate marker nested inside a code span" && exit 1)
 	@! grep -nF '→ Pause' plugins/maister/skills/orchestrator-framework/references/orchestrator-creation-checklist.md 2>/dev/null || (echo "FAIL: superseded transition marker in the orchestrator checklist" && exit 1)
+	@echo "Checking the gate-rule sentence is identical in every copy..."
+	@# An exact count, not a floor: a floor would let an extra copy hide a lost
+	@# one. A copy added on purpose updates these numbers together with
+	@# CLAUDE.md's list of copies (The gate rule).
+	@full='when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.'; \
+	tail='ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.'; \
+	want_full=15; want_tail=17; \
+	nf=$$(grep -rlF -- "$$full" CLAUDE.md plugins/ | wc -l | tr -d ' '); \
+	nt=$$(grep -rlF -- "$$tail" CLAUDE.md plugins/ | wc -l | tr -d ' '); \
+	if test "$$nf" -eq "$$want_full" && test "$$nt" -eq "$$want_tail"; then \
+	  echo "  the full sentence in $$nf files, its tail in $$nt"; \
+	else \
+	  echo "FAIL: the gate-rule sentence is in $$nf files ($$want_full expected) and its tail in $$nt ($$want_tail expected); a copy drifted, was lost or was added"; \
+	  echo "Files with the full sentence:"; grep -rlF -- "$$full" CLAUDE.md plugins/ | sort; \
+	  echo "Files with the tail:"; grep -rlF -- "$$tail" CLAUDE.md plugins/ | sort; \
+	  exit 1; \
+	fi
 	@echo "Checking the plugin-root variable is renamed for this CLI's vocabulary..."
 	@! grep -rn 'CLAUDE_PLUGIN_ROOT' plugins/maister-copilot/skills/ --include="*.md" 2>/dev/null || (echo "FAIL: a Claude-only plugin-root variable survives in the emitted skills" && exit 1)
 	@test "$$(grep -rl 'MAISTER_PLUGIN_ROOT' plugins/maister-copilot/skills/ --include="*.md" 2>/dev/null | wc -l | tr -d ' ')" = "$$(grep -rl 'CLAUDE_PLUGIN_ROOT' plugins/maister/skills/ --include="*.md" 2>/dev/null | wc -l | tr -d ' ')" || (echo "FAIL: the emitted skills' plugin-root variable count drifted from the source tree" && exit 1)

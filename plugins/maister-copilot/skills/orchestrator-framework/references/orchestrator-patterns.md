@@ -19,16 +19,7 @@ When a phase requires delegation:
 
 **Companion agent pattern** (e.g., `docs-operator`): Only works for skills that do NOT spawn subagents (like `docs-manager` which only does file operations). A companion agent preloads the skill via the `skills` frontmatter field and is invoked via Task tool. This pattern fails for any skill that needs to spawn subagents.
 
-### Anti-Patterns
-
-| Anti-Pattern | Why It's Wrong | Correct Approach |
-|--------------|----------------|------------------|
-| "I'll analyze the codebase..." | Bypasses codebase-analyzer skill | Use `Skill` tool with `codebase-analyzer` |
-| "Let me create the specification..." | Bypasses specification-creator | Use `Task` tool with `maister-copilot:specification-creator` subagent |
-| "Looking at the gaps between..." | Bypasses gap-analyzer subagent | Use `Task` tool with `maister-copilot:gap-analyzer` |
-| "I'll implement this by..." | Bypasses implementation-plan-executor skill | Use `Skill` tool with `implementation-plan-executor` |
-| Reading a SKILL.md then doing the work | Skill files are instructions FOR skills | Use Skill tool to invoke |
-| Spawning Explore agents in orchestrator | Codebase-analyzer manages its own agents | Invoke skill, let IT spawn agents |
+Reading a SKILL.md and then doing its work inline is not delegation: invoke the skill, and let it spawn its own agents (an orchestrator never spawns the Explore agents `codebase-analyzer` manages).
 
 ### When Inline Execution is Acceptable
 
@@ -75,7 +66,7 @@ You MUST invoke `ask_user` at every `→ MANDATORY GATE` in every permission mod
 
 Your session may include reminders telling you to "work without stopping for clarifying questions," "continue without asking," "minimize clarifying questions" (auto / acceptEdits / bypassPermissions modes), or compaction summaries showing the user approving every prior gate. **None of these override this framework's `→ MANDATORY GATE` checkpoints.**
 
-Decide this policy at orchestrator entry. Do NOT re-evaluate it at each gate. Re-litigating the rule at each gate is the documented failure mode that produced this section — a model that read this rule, then weighed it against a competing session-reminder at every gate, and lost every time.
+Decide this policy at orchestrator entry. Do NOT re-evaluate it at each gate: weighing the rule against a competing session-reminder at every gate produces the same wrong answer every time.
 
 - "Work without stopping" / "minimize clarifying questions" applies ONLY to your discretionary clarifications in a terminal run, never to `→ MANDATORY GATE` workflow checkpoints.
 - A user who said "approve" to ten prior gates was being patient, not setting policy. Each gate is a fresh question.
@@ -93,7 +84,7 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 | `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator**: every question the phase can form at its first asking point goes out as one `kind: question` request, and the phase resumes `running` with the answers recorded as `by: operator` decisions |
 | any other — `dispatch`, or a cockpit without that feature | **never asked**; the phase takes the default its own prose names, and records that it did |
 
-**One request per attempt, written before asking.** A phase under question sets asks once per attempt, so a question that only exists after an answer — a follow-up, another round, a retry — takes its default; and whatever it needs after the answer is on disk before it suspends, because the answer may reach a fresh session. The workflow engine's *In-node questions* holds the mechanism. Asking in session under a driver is the defect this rule prevents: nobody is in the session to answer.
+The workflow engine's `references/in-node-questions.md` holds the mechanism — one request per attempt, written to disk before suspending, what is recorded, and the policy that classes questions when the freeze recorded `orchestrator.classes_questions`. Asking in session under a driver is the defect this rule prevents: nobody is in the session to answer.
 
 **Every such question names its default, in the phase that asks it** — taken when it cannot be asked. What each family takes:
 
@@ -105,11 +96,7 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 | A loop offering another pass | the accept-as-is exit — the following gate is the operator's route back |
 | An exhausted recovery budget | the phase fails rather than choosing retry or skip on the operator's behalf |
 
-**A recommendation keeps every criterion the task states**, so a default taken from one never narrows the task either. Where an earlier phase flagged a criterion as open to two readings, the recommendation is the reading that keeps it whole. The workflow engine's *In-node questions* states the rule.
-
-**What is recorded.** One entry per defaulted question on that phase's summary `decisions` list — `{decision: <default taken>, by: default, question_id: <question-id>}` — where the id is the one the phase prose names and the decision is the default this run actually used, in the user's words. A state written before this shape may carry the older `defaulted: <id> -> <taken>` string; it still reads as a default. A phase that asked nothing because it had nothing to ask records nothing. The entry is an ordinary decision item and reaches the dashboard the way every other decision does (§ 4, § 8).
-
-**When the run's policy classes in-node questions** — the freeze recorded `orchestrator.classes_questions` — the phase sends its question set to the state writer before asking anything, and asks only what the writer's `ask:` line names: the writer settles what the run's autonomy ceiling allows, defaults what nobody can be asked, and holds an approval-class choice nobody can be asked for a person's approval. Held choices come first at the next checkpoint, whose continue approves them; with no checkpoint after them, the run asks one more before it closes. The workflow engine's *In-node questions* holds the mechanism.
+**A recommendation keeps every criterion the task states**, so a default taken from one never narrows the task either. Each default taken is recorded on the phase's summary `decisions` as `{decision: <default taken>, by: default, question_id: <question-id>}`; a phase that had nothing to ask records nothing.
 
 **A run started under a driver has its inputs**, so a task description or research question is never invented: if one is genuinely missing, stop with `RUN-FAILED` rather than inventing one.
 
@@ -123,12 +110,9 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 | Saying "I'll pause here" without tool call | Words are not pauses. Tool invocation required. |
 | Auto-accepting subagent decisions without asking | User must consent to scope/approach decisions |
 | Outputting a summary after phase work, then ending turn before reaching `→ MANDATORY GATE` | Gate is skipped; user loses control at the most critical review point. The gate must be the FIRST action after phase work completes — no summaries, no output before it. |
-| Recording a gate answered before the operator answers it | State corruption — downstream nodes become ready on an answer nobody gave. Gate → operator's answer → record it. Never reverse this order. |
-| "Auto mode / acceptEdits / bypassPermissions is on, so I'll skip the gate to minimize questions" | The orchestrator's phase gates are an explicit stated boundary that overrides auto mode's "minimize clarifying questions" instruction. Gates fire in every permission mode. See § 2 "Phase Gates Override Permission Modes". |
-| "The subagent works autonomously, so the orchestrator should too" | Subagents have no user channel; the orchestrator IS the user channel. Conflating the two removes all user visibility. |
+| Recording a gate answered before the operator answers it | Downstream nodes become ready on an answer nobody gave. Gate → operator's answer → record it. |
+| "The subagent works autonomously, so the orchestrator should too" | Subagents have no user channel; the orchestrator IS the user channel. |
 | Treating an empty `decisions_needed` as license to skip the phase exit gate | The DECISION GATE (mandatory-when-decisions-exist) and the phase exit `→ MANDATORY GATE` (mandatory-always) are separate. Empty `decisions_needed` only skips the former. |
-| Treating a prior-session compaction summary that shows the user approving every gate as license to skip future gates | The user was being patient, not setting policy. Each gate is a fresh question. Compaction summaries leak behavior patterns into new sessions; they are not standing orders. See § 2.1. |
-| Re-litigating the gate rule at each gate site instead of deciding once at orchestrator entry | The framework rule and the inline gate markers BOTH say "gates fire regardless." Weighing them against a competing session-reminder at every gate produces the same wrong answer N times. Decide policy once, at intake (§ 2.1). |
 
 ---
 
@@ -142,27 +126,20 @@ fetched, not composed**:
 ```
 prompt: |
   [Task instructions]
-  Task path: [path]
 
-  [the stdout of `prior-context --state <task path>/orchestrator-state.yml`,
-   pasted in unedited — it opens with its own heading]
-
-  ## RESEARCH CONTEXT (if research_reference exists)
-  Research question: [research_reference.research_question]
-  Summary: [phase_summaries.research.summary]
+  [the stdout of `run-context --state=<task path>/orchestrator-state.yml --node=<this node>`
+   — or, for a delegate that writes an artifact, of
+   `prior-context --state=<task path>/orchestrator-state.yml --node=<this node>`,
+   which prints the same block followed by the prior-phase passage —
+   pasted in unedited; it opens with its own heading]
 
   ## ARTIFACTS TO READ
   [List relevant files for full details]
-
-  ## ARTIFACT SUMMARY CONTRACT
-  Open every markdown artifact you write with the summary block from
-  orchestrator-patterns.md § 7 (TL;DR / Key Decisions / Open Questions / Risks).
-  The writer heading is `## Open Questions / Risks`.
 ```
 
-**Why**: Subagents run in isolated context. Without summaries, they must re-parse entire files and miss prior decisions.
+**Why**: Subagents run in isolated context. The run-context block carries what every delegate needs — `task_path:`, the `html:` line (§ 9), the project's `docs:`, the `scratch:` rule, the summary contract of § 7 and the `companions:` the node owes — so none of it is typed by hand and none of it is forgotten.
 
-**The prior-phase passage is fetched, not composed.** Four attended runs measured the same thing: the rule holds where the lift is mechanical and happens once, and fails where a phase writes the passage afresh from an artifact it has already read — thirteen items arrived as seven clauses on one line, and nothing in the prompt recorded that they had ever been thirteen. So the composing step is gone, and a hand-written `## CONTEXT FROM PRIOR PHASES` block is the superseded shape. The workflow engine's read-only `prior-context` verb takes the run's state file and prints the whole passage — every phase, its decisions and its risks, one bullet each with the count beside the heading, so a truncation shows up as a number that disagrees with its own bullets. It finds the run's context block itself, and renders `node_summaries` for a run that has none, so every workflow is served by the same call (`workflow-engine/SKILL.md` § *Executing a node* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — paste its stdout in, and leave it alone: trimming it, re-ordering it or tightening it is the same defect by hand. Re-using a rendering produced for an earlier delegate is not licensed however recent it looks: a summary written in between makes it stale, the prompt records nothing about when it was taken, and a prompt that happens to be current is current by timing rather than by construction. The verb reads the run and writes nothing, so the extra call costs nothing.
+**The prior-phase passage is fetched, not composed** — a hand-written `## CONTEXT FROM PRIOR PHASES` block drops items without a trace. The read-only `prior-context` verb prints every phase, its decisions and its risks, one bullet each with the count beside the heading, for every workflow (`workflow-engine/SKILL.md` § *Delegation by scheme* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — and paste its stdout unedited: trimming, re-ordering or tightening it is the same defect by hand, and a rendering taken for an earlier delegate is stale once a summary is written in between. The verb writes nothing, so the extra call costs nothing.
 
 ### Context Extraction
 
@@ -179,22 +156,13 @@ This enables context passing to downstream phases and supports resume.
 
 ### Decision Enforcement
 
-When a subagent returns `decisions_needed` items, the orchestrator MUST present them to the user via ask_user. Decisions are never silently skipped.
-
-**Anti-Patterns** (NEVER do this):
-
-| Anti-Pattern | Why It's Wrong |
-|---|---|
-| "I'll accept the recommended defaults" | User loses control over critical scope decisions |
-| Logging decisions without asking | Documentation is not consent |
-| "The recommendations are clear, no need to ask" | Clarity is not consent. User may disagree. |
-| Skipping decisions because task seems simple | Simple tasks can have non-obvious scope implications |
+When a subagent returns `decisions_needed` items, the orchestrator MUST present them to the user via ask_user. Decisions are never silently skipped, accepted on the user's behalf because the recommendation looks clear or the task simple, or logged without asking — documentation is not consent.
 
 **Decision Gate Pattern**:
 
 1. **Parse**: Extract all critical and important decisions from subagent output
 2. **Present**: every decision is its own **single-select question with its own option set** — NEVER flatten several decisions' options into a single question's option list (the user could pick two conflicting options from one decision, or none from another). Critical decisions: one `ask_user` call each, with full context in the question itself — what was found and why it needs the user — and each option's description saying what it changes, the recommended one first with its reason; a message above the call is never relied on. Important decisions: may be grouped as up to 4 **separate questions within one `ask_user` call**. A question may allow selecting multiple options ONLY when those options are genuinely non-exclusive (e.g. "which verifications to run?") — never as a way to bundle decisions.
-3. **Record each answer** on the phase's summary `decisions` as `{decision, by: operator, question_id, question, answer, recommended, as_recommended}` (the workflow engine's § *In-node questions* fills who answered, when and how). More details is never recorded.
+3. **Record each answer** on the phase's summary `decisions` as `{decision, by: operator, question_id, question, answer, recommended, as_recommended}` (the workflow engine's `references/in-node-questions.md` fills who answered, when and how). More details is never recorded.
 4. **SELF-CHECK**: "Did I present ALL decisions from `decisions_needed`? If not, STOP."
 
 **Scope note**: this grouping guidance applies to `decisions_needed` triage (pre-analyzed, independent decisions). Interactive convergence flows (e.g. research Phase 4) override it with strictly ONE question per call — later areas depend on earlier answers.
@@ -269,11 +237,11 @@ task:
   priority: null  # high | medium | low
 ```
 
-The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`). The keys the state writer seeds and merges beside them are the engine's (`workflow-engine/SKILL.md` § *Writing state*).
+The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`). The keys the state writer seeds and merges beside them are the engine's (`workflow-engine/references/writing-state.md`).
 
 ### Extension Pattern
 
-Workflows add domain-specific fields in their context block, at the **top level** of the state file — never nested under `orchestrator:`. The block's name is derived from the workflow's name: `<name>_context`, with the name's dashes written as underscores, and the state writer applies the rule (`workflow-engine/SKILL.md` § *Writing state*). The root carries exactly one context block, or none (a chain run, or a workflow whose nodes record only `node_summaries`, has none). The built-ins' blocks are below; development and product design are the two whose block does not carry their own name:
+Workflows add domain-specific fields in their context block, at the **top level** of the state file — never nested under `orchestrator:`. The block's name is derived from the workflow's name: `<name>_context`, with the name's dashes written as underscores, and the state writer applies the rule (`workflow-engine/references/writing-state.md`). The root carries exactly one context block, or none (a chain run, or a workflow whose nodes record only `node_summaries`, has none). The built-ins' blocks are below; development and product design are the two whose block does not carry their own name:
 
 | Domain | Context Field | Example Fields |
 |--------|---------------|----------------|
@@ -283,7 +251,7 @@ Workflows add domain-specific fields in their context block, at the **top level*
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |
 | Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
-Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/SKILL.md` § *Writing state*); the full schema of each block is in that workflow's node prose, `workflow-engine/workflows/<name>.md` ("Run-scoped context", "Phase summary keys", and for product design "The context block").
+Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/references/writing-state.md`); the full schema of each block is in that workflow's node prose, `workflow-engine/workflows/<name>.md` ("Run-scoped context", "Phase summary keys", and for product design "The context block").
 
 ### Shared: research_reference
 
@@ -413,7 +381,7 @@ needs them. The workflow engine's `verification` node prose (development and per
 5. **One question per issue, built by the engine.** Once the automatic fixes and re-checks are
    done, every issue still needing a person — a decision, a risky fix, a fixable one still open
    after the budget, one that keeps coming back — is written as a findings list and turned into
-   one question set by the workflow engine's `finding-brief` (engine § *Findings that need a
+   one question set by the workflow engine's `finding-brief` (engine `references/in-node-questions.md` § *Findings that need a
    decision*): one question per issue, most severe first, each with the verifier's proposed fix
    and the alternatives it names, "Accept the risk and list it", the recommended choice with its
    reason, and the issue's evidence in the question. Issues with one root cause (the same
@@ -538,60 +506,9 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 
 **There are no rewrite moments: the projection is the file's only writer.** It is a full projection of `orchestrator-state.yml` plus the summaries, never an incremental patch, and its `generated` stamp is the writer's own clock. A node that wants the dashboard current writes state. The implementation and verification phases run under a skill, outside the engine's turns, and the skill keeps the dashboard current from inside them the same way, never by writing the file. `implementation-plan-executor` sends the empty patch through `write-state` at entry, after every wave and at finalize; the projection derives the phase's `progress` from the plan's checkboxes and the work log's wave and revert headings. `implementation-verifier` records each cycle's `last_status` and `issues_found` in `verification_context`, and the verification panel is projected from that block. A skill run standalone, with no workflow run and so no state file, has no dashboard.
 
-**Schema** — the file is exactly one statement, `window.MAISTER_DATA = <strict JSON>;`, with double-quoted keys and nothing else; readers additionally accept an object literal and report it as degraded:
+**What it carries.** The file is one statement, `window.MAISTER_DATA = <strict JSON>;`, projected from state: the task (title, its workflow as `type`, status, path, the running phase's activity line), the task or design characteristics, one entry per phase (status, `started`/`completed` from the § 4 timestamps, skip reason, summary, decisions, risks, artifacts with their `html` companion, the gate's question and answer, and for the plan-executor phase a `progress` derived from the plan and the work log), and a verification panel mirrored from `verification_context`. Its shape is the projection's; nothing in a run composes it.
 
-```js
-window.MAISTER_DATA = {
-  generated: "[ISO 8601]",      // actual write-time date AND time from the system clock —
-                                // § 4 Timestamp Rule; never date-only, never T00:00:00Z.
-                                // (display only — the viewer detects updates by content comparison)
-  task: {
-    title: "", type: "development",  // the run's workflow: the <type> folder of its task path,
-                                      // as it is — a project's own workflow is its own type
-    status: "pending|in_progress|completed|failed|blocked",
-    description: "", path: "",
-    current_activity: null        // short present-continuous line for the running phase
-                                  // (the phase's activeForm) — shown as "Now: ..." in the header
-  },
-  characteristics: {},            // task_characteristics / design_characteristics when present
-  phases: [{
-    id: "phase-1", name: "", icon_hint: "analysis|spec|plan|code|verify|docs|done",
-                                  // icon_hint is OPTIONAL — absent means the viewer's default applies
-    status: "pending|in_progress|completed|skipped|failed",
-    started: null,                // full ISO 8601 date+time from system clock (§ 4 Timestamp Rule);
-                                  // set when the phase starts — drives elapsed/duration display
-    completed: null,              // full ISO 8601 date+time, set when the phase completes
-    skip_reason: null,            // when skipped
-    summary: null,                // from phase_summaries
-    decisions: [],                // [{decision, rationale}]; a bare string is read and reported
-    risks: [],                    // [string]; a resolved risk keeps its entry with a `resolved:` prefix
-    artifacts: [],                // [{path, label, html}] — paths relative to task root; a bare
-                                  // path string is read and reported as {path, label: null,
-                                  // html: null}
-    gate: null,                   // {question, answer} after the exit gate fires
-    progress: null                // interior progress of the plan-executor phase, derived by the
-                                  // projection from the plan and the work log. Shape:
-                                  // {groups_done, groups_total, current_wave, skipped: [], reverted: []}
-                                  // skipped/reverted hold group labels ("Group 4 — flaky DB fixture").
-                                  // Additive and optional: null/absent on every phase with no
-                                  // interior progress, and the viewer renders such phases exactly
-                                  // as before. Keep it on the phase when it completes, with
-                                  // groups_done == groups_total — a finished phase that goes blank
-                                  // reads as a phase that never ran.
-  }],
-  verification: {                 // mirror of verification_context, when it exists
-    status: null,
-    issues: [],                   // [{severity, category, description, fixable, fixed}]
-                                  // writers emit severity critical|warning|info; readers tolerate more
-                                  // When an issue gets fixed, KEEP its original severity and
-                                  // set fixed: true (the viewer dims it and shows ✓ fixed)
-    fixes: [],                    // [{description, …}] or [string]; both are read
-    reverify_count: 0
-  }
-}
-```
-
-**Cost discipline**: the data file repeats what the orchestrator already writes to state — keep summaries terse (1-2 sentences, no markdown). Do not duplicate artifact content into the data file; the dashboard links to artifacts instead.
+**Cost discipline**: the data file repeats what state holds — keep summaries terse (1-2 sentences, no markdown) and never copy artifact content into them; the dashboard links to artifacts instead.
 
 **Verbatim rule for decisions and risks**: `decisions` and `risks` entries are copied **verbatim** from the artifact's Key Decisions / Open Questions / Risks blocks (§ 7) — never re-summarized or shortened. The contract already caps their length at the source; compressing them again strips the meaning the operator needs.
 
@@ -607,50 +524,50 @@ The viewer decides presentation (hero artifacts per workflow type — none for a
 
 > **Config gate**: `options.html_output` false disables this section — see § 4 Project Configuration. Not gated: product-design's `visual-prototyping` mockups are design deliverables, not report companions.
 
-Selected high-value artifacts get a rich HTML companion written by the **same subagent** that writes the markdown, at the same time (one context read, md and HTML never drift):
+A companion is a rich HTML page beside a markdown artifact, for people to read. The markdown stays the source of truth — subagents read md, humans read HTML — and the companion adds visual structure (severity badges, matrices, embedded screenshots), never unique content.
 
-| Artifact (md) | Companion (html) | Written by |
-|---------------|------------------|------------|
-| `implementation/spec.md` | `implementation/spec.html` | specification-creator |
-| `implementation/implementation-plan.md` | `implementation/implementation-plan.html` | implementation-planner |
-| `verification/implementation-verification.md` | `verification/implementation-verification.html` | implementation-verifier |
-| `verification/e2e-verification-report.md` | `verification/e2e-verification-report.html` | e2e-test-verifier |
-| `verification/visual-fidelity.md` | `verification/visual-fidelity.html` | e2e-test-verifier |
-| `outputs/research-report.md` | `outputs/research-report.html` | research-synthesizer |
-| `outputs/solution-exploration.md` | `outputs/solution-exploration.html` | solution-brainstormer |
-| `outputs/high-level-design.md` | `outputs/high-level-design.html` | solution-designer |
-| `outputs/decision-log.md` | `outputs/decision-log.html` | solution-designer |
-| `analysis/alternatives.md` | `analysis/alternatives.html` | solution-brainstormer |
-| `analysis/design-decisions.md` | `analysis/design-decisions.html` | html-companion-writer |
-| `analysis/feature-spec.md` | `analysis/feature-spec.html` | html-companion-writer |
-| `outputs/product-brief.md` | `outputs/product-brief.html` | html-companion-writer |
+**Declared, not listed here.** Which artifacts owe one is part of the workflow definition: a top-level `html_companions` block maps a node id to the artifact keys of that node whose `.md` owes a sibling `.html` (`workflow-engine/references/grammar.md` § 3.2). An overlay or a profile may add, replace or clear a node's list. A definition without the block owes nothing.
 
-**Rules**:
-- The markdown remains the source of truth for subagent context passing — subagents read md, humans read HTML. The companion adds visual structure (severity badges, matrices, embedded screenshots), never unique content.
-- Companions follow the shared style guide: `html-report-style.md`, the file beside this one. Self-contained single file, no external resources, relative links/images only.
-- Orchestrators pass `html_style_guide_path` (the absolute path of that style guide — it sits next to the patterns file read at initialization) to every companion-writing **agent**, and omit it when `options.html_output` is false; an agent given no path writes only the `.md`. **Skills** that write companions (`implementation-verifier`) receive no such parameter: they resolve the guide themselves and gate on `orchestrator.options.html_output` in state.
-- Register companions in `phase_summaries.[phase].artifacts[].html` so the dashboard (§ 8) links HTML first with md fallback (`html: null` when companions are disabled).
-- Companion generation must never block the workflow: if it fails, keep the md, log the miss, continue.
+**Who writes it.** The delegate that writes the markdown writes the companion in the same pass, so the two never drift. A `direct:` node that owes one hands its finished md to html-companion-writer before its completion write. Companions follow `html-report-style.md`, the file beside this one: one self-contained file, no external resources, relative links and images only.
+
+**How a delegate learns of it.** The `run-context --node=<node>` block pasted into the prompt (§ 3) carries one `html:` line: `html: <absolute path of the style guide>` when the run has HTML output on and the node owes a companion, `html: off` otherwise, and a `companions:` list of the owed paths. A delegate returns `companion: written | disabled | failed | not-requested`:
+- `written` — every owed companion is on disk.
+- `disabled` — the prompt said `html: off`. Returned while `html:` was a path, it is a defect to report.
+- `not-requested` — the prompt had no `html:` line; the delegate wrote the markdown and warned. An absent line is never read as off: re-delegate with the run context.
+- `failed` — the markdown stands, the companion did not; run html-companion-writer once for it.
+
+Skills that write a companion (`implementation-verifier`) take no `html:` line: they resolve the guide themselves and gate on the run's `html_output` in state.
+
+**Registration.** A node's summary registers each companion as `artifacts[].html` beside its `path`, so the dashboard (§ 8) links HTML first with md fallback (`html: null` when companions are disabled). `write-state` fills it from disk when the summary is written.
+
+**Never block.** A companion that fails never fails the node or the workflow: keep the md, name the miss, continue.
+
+**Recovery on `companion-missing:`.** When a node completes without a companion it owes, `write-state` prints `companion-missing: <node> <path>` after its changed paths. Then:
+1. Run html-companion-writer once for that file, pasting `run-context --node=<node>` so it gets `html:`.
+2. When the node already has a summary, re-send `{"node_summaries":{"<node>":{}}}` to register the companion. When it has none, the summary's own write — still owed — registers it; never send the empty summary then.
+3. Never re-run the node. A `failed` result is left for `run-complete` to report (§ 10).
 
 ---
 
 ## 10. Finalization: Artifact Reconciliation
 
 State records what each phase produced; only disk records what each phase actually wrote. At
-finalization — the closing phase of every workflow — reconcile the two before declaring the task
-complete.
+finalization — the closing node of every workflow — the two are reconciled before the task is
+declared complete.
 
-**What to compare**: every `artifacts[].path` and every non-null `.html` beside it, in the
-`phase_summaries` of the run's context block (`<name>_context`, § 4) and in `node_summaries`.
-Resolve each against the task root and check it exists.
+**What the engine compares**: `run-complete` checks every declared artifact of a completed node
+and every companion the run's `html_companions` declares against disk. It prints one
+`missing-artifact: <node> <path>` line per absent artifact, then one
+`missing-companion: <node> <path>` line per absent companion. They are warnings: the run still
+closes. A declared artifact a node recorded under its summary's `absent` is not missing.
 
-**What to report**: a **Missing artifacts** block in the workflow summary, one line per absent
-path, naming the phase or node that declared it and the subagent or skill that owed it. When nothing is
-missing, omit the block — silence here means the declaration held. A declared artifact that a node
-recorded under its summary's `absent` is not missing: name it as *not produced*, with the reason
-recorded there, apart from the block.
+**What the closing node does**: relays those lines in a **Missing artifacts** block of the
+workflow summary, in plain words, naming the node that owed each path. It still checks any path a
+summary lists beyond the declarations (`artifacts[].path` and a non-null `.html` beside it). An
+artifact recorded under `absent` is named as *not produced*, with its reason, apart from the
+block. When nothing is missing, omit the block — silence here means the declaration held.
 
-**What not to do**: reconciliation reports, it never repairs. Do not re-run a phase, regenerate a
+**What not to do**: reconciliation reports, it never repairs. Do not re-run a node, regenerate a
 companion or delete the stale entry from state; the entry is the evidence that the artifact was
 promised. Nor does it block completion — a workflow with a missing artifact still finishes, with
 the miss named.

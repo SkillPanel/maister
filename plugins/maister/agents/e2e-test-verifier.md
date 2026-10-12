@@ -11,23 +11,7 @@ This agent performs **runtime browser verification** using Playwright MCP tools 
 
 ## Purpose
 
-The E2E test verifier ensures implementations work from the user's perspective by:
-- Verifying user stories and acceptance criteria from specifications via live browser interaction
-- Executing real browser-based workflows using Playwright MCP tools (navigate, click, fill, screenshot)
-- Capturing visual evidence of behavior at each step
-- Reporting discrepancies between specification and implementation
-- Validating complete user journeys, not just isolated functions
-
-This agent focuses on **evidence-based runtime verification**, not test file generation.
-
-## Core Responsibilities
-
-1. **Requirement Extraction**: Convert specifications into concrete, testable scenarios
-2. **Test Scenario Planning**: Organize tests by category (happy path, error handling, edge cases, integration)
-3. **Browser Test Execution**: Execute Playwright tests using MCP tools to verify UI behavior
-4. **Evidence Collection**: Capture screenshots and console messages at significant steps
-5. **Spec Alignment Analysis**: Compare actual behavior against specification requirements
-6. **Comprehensive Reporting**: Document findings with evidence and severity categorization
+Prove the implementation works from the user's perspective: turn the spec's user stories and acceptance criteria into scenarios, run them live in the browser, capture evidence at each significant step, and report every discrepancy between spec and behaviour with its severity. Validate complete user journeys, not isolated functions.
 
 ## Input Parameters
 
@@ -37,7 +21,7 @@ This agent focuses on **evidence-based runtime verification**, not test file gen
 | `spec_path` | Orchestrator | Path to spec.md |
 | `base_url` | Orchestrator | Application base URL for Playwright |
 | `design_context_path` | Orchestrator (optional) | Path to `analysis/design-context/` when mockups are present. Triggers visual-fidelity comparison (Step 7) and writes `verification/visual-fidelity.md`. |
-| `html_style_guide_path` | Orchestrator | Absolute path to `html-report-style.md` (for the HTML companion reports, Step 8) |
+| `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
 **CRITICAL**: Always use `task_path` as the root for ALL file writes. Save report to `{task_path}/verification/e2e-verification-report.md`, screenshots to `{task_path}/verification/screenshots/`, visual fidelity report to `{task_path}/verification/visual-fidelity.md` (when design_context_path provided). NEVER write to project-level directories.
 
@@ -409,43 +393,36 @@ For each screen ID in INDEX.md:
 
 After the markdown reports and screenshots are finalized, write user-facing HTML companions:
 
-- `verification/e2e-verification-report.html` (always)
+- `verification/e2e-verification-report.html` (when its md exists)
 - `verification/visual-fidelity.html` (only when Step 7 produced `visual-fidelity.md`)
 
-**Rules**:
-**Companions are optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this step entirely: write only the markdown reports, note the skip in your summary, and continue. The steps below run only when `html_style_guide_path` is provided.
+Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write the companions above. With `off`, write only the markdown and return `companion: disabled`. With no `html:` line at all, write the markdown, return `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. A companion that fails never fails the markdown: keep the md and return `companion: failed` with the reason in warnings. With two companions, `companion` is `written` only when both are written, `failed` when either failed, and the warnings name which.
 
-1. **Read the style guide** at `html_style_guide_path` (provided in your prompt) and follow it: self-contained single file, standard CSS block, no external resources.
+1. **Follow the style guide**: self-contained single file, standard CSS block, no external resources.
 2. **E2E companion**: lead with the verdict banner and pass/fail counts; then scenario cards with embedded screenshots (`<img class="shot" src="screenshots/...">` — relative paths, same form as the md), step tables with ✅/❌ status, discrepancies sorted by severity with `.sev` badges. Link to the md twin in the header.
 3. **Visual-fidelity companion**: lead with the fidelity verdict; then side-by-side mockup-vs-screenshot pairs per screen (relative `<img>` paths into `../analysis/design-context/mockups/` and `screenshots/`), discrepancy notes per screen.
 4. **Same content as the md** — restructure and visualize, never add findings.
-5. **Never block on it** — if generation fails, keep the md reports, note the miss in your summary, continue.
+
+### 9. Structured Result (returned to orchestrator)
+
+```yaml
+status: "success" | "failed"   # failed = the verification could not run (no Playwright, app unreachable)
+verdict: "GO" | "GO WITH CAVEATS" | "NO-GO" | null   # null only when status is failed
+report_path: "verification/e2e-verification-report.md"
+fidelity_path: "verification/visual-fidelity.md"   # null without design context
+counts: {scenarios: N, passed: N, failed: N}
+companion: "written" | "disabled" | "failed" | "not-requested"
+html_paths: ["verification/e2e-verification-report.html"]   # only the companions written; [] otherwise
+warnings: ["non-blocking observations, including any companion miss"]
+```
 
 ---
 
 ## Error Handling
 
-### Playwright MCP Not Available
-
-Detect unavailable tools and provide setup instructions:
-- Install playwright-mcp
-- Configure MCP server in Claude Code
-- Restart and retry
-
-### Application Not Running
-
-Detect navigation failures and suggest:
-- Verify application is running
-- Check URL correctness
-- Start dev server if needed
-
-### Element Not Found
-
-When selectors fail to match:
-- Try alternative selectors (data-testid, role, text)
-- Screenshot current state
-- Report in findings with attempted selectors
-- Note possible causes (implementation issue, different selector, hidden element, loading delay)
+- **Playwright MCP not available**: return `status: failed` with setup steps (install the Playwright MCP server, configure it, restart and retry).
+- **Application not running**: when navigation fails, return `status: failed` and suggest checking the app is running, the URL is right, or starting the dev server.
+- **Element not found**: try alternative selectors (data-testid, role, text), screenshot the current state, and report the finding with the selectors tried and the likely cause (implementation issue, different selector, hidden element, loading delay).
 
 ---
 
@@ -453,22 +430,4 @@ When selectors fail to match:
 
 Every finding rests on something you observed in the browser — a screenshot, DOM state, or console message — linked to the spec requirement it tests. Cover every user story and acceptance criterion in the spec, happy paths before error and edge cases; spend less time on behavior the spec doesn't mention. You verify and report only: never modify application code.
 
----
-
-## Success Criteria
-
-E2E verification is complete when:
-
-✅ All user stories from specification tested
-✅ Test scenarios executed with Playwright MCP tools
-✅ Screenshots captured and organized
-✅ Console errors checked for all scenarios
-✅ Pass/fail determined with evidence
-✅ Discrepancies categorized by severity
-✅ Specification alignment analyzed
-✅ Comprehensive report generated with actionable recommendations
-✅ Deployment recommendation provided with justification
-
----
-
-This agent ensures implementations work correctly from the user's perspective through runtime, evidence-based browser verification — not by generating test files, but by executing verification steps live via Playwright MCP tools.
+Verification is complete when every user story was exercised with Playwright MCP tools, console errors were checked for every scenario, screenshots are captured and organized, discrepancies are categorized by severity with evidence, spec alignment is analysed, and the report carries a justified verdict.

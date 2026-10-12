@@ -1,0 +1,38 @@
+# A small definition that declares HTML companions: two nodes owe one for a
+# markdown artifact, one artifact is JSON and owes none, and the last node
+# declares no block entry at all.
+name: companions
+version: 1
+
+html_companions:
+  analysis: [report]
+  specification: [spec]
+  review: [report]
+
+nodes:
+  analysis:
+    uses: direct:analysis
+    needs: []
+    outputs:
+      artifacts:
+        report: analysis/report.md
+        data: analysis/data.json
+
+  specification:
+    uses: direct:specification
+    needs: [analysis]
+    outputs:
+      artifacts:
+        spec: implementation/spec.md
+        notes: implementation/notes.md
+
+  review:
+    uses: direct:review
+    needs: [specification]
+    outputs:
+      artifacts:
+        report: verification/report.md
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [review]

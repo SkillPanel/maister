@@ -1,6 +1,6 @@
 # HTML Companion Report Style Guide
 
-Shared conventions for agents that emit an HTML companion next to a markdown artifact (orchestrator-patterns.md § 9). Goal: every companion looks like part of one family, regardless of which agent or session produced it.
+Shared conventions for agents that emit an HTML companion next to a markdown artifact. A delegate reaches this file through the `html:` line of the `run-context` block in its prompt; which artifacts owe a companion is declared in the workflow definition's `html_companions` (orchestrator-patterns.md § 9). Goal: every companion looks like part of one family, regardless of which agent or session produced it.
 
 ## Hard Rules
 

@@ -15,8 +15,8 @@
  * derive: the `--definition` and `--overlay` values `validate` and `resolve`
  * take, the inputs the definition declares (so a caller asks only for what is
  * missing), the nodes that dispatch into a member repository (which make the
- * definition a chain), and a title and a summary, so a router can say what the
- * workflow is for. The summary is the definition's own `description:` when it
+ * definition a chain), the HTML companions its nodes owe, and a title and a
+ * summary, so a router can say what the workflow is for. The summary is the definition's own `description:` when it
  * has one and the companion's opening paragraph otherwise; the title is the
  * companion's H1, and a workflow without one is labelled by its name.
  *
@@ -38,6 +38,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { companionsOf } from './companions.mjs';
 import { readDefinition } from './definition.mjs';
 import {
   TARGET_NAME, bareWorkflowName, companionSummary, foldDefinition, locateWorkflow, orphanOverlay, pluginRoot, projectRoot,
@@ -104,6 +105,9 @@ function one(name, root, { overlays: extra = [], profile = null } = {}) {
     // dispatching nodes are then the base's own. The caller's next step is
     // `validate` over the same overlays and profile, which refuses the run.
     dispatches: dispatchesOf(foldDefinition({ definition: read, overlays: layers, profile })),
+    // Which markdown artifacts owe an HTML page, merged over the same layers
+    // and profile, so an author sees what a run of this name will be held to.
+    html_companions: companionsFor({ definition: read, overlays: layers, profile }),
   };
 }
 
@@ -146,6 +150,20 @@ function nameMismatch(doc, name, file, root) {
 function dispatchesOf(doc) {
   const nodes = isMap(doc.nodes) ? doc.nodes : {};
   return Object.keys(nodes).filter(id => isMap(nodes[id]) && Object.hasOwn(nodes[id], 'dir')).sort();
+}
+
+/**
+ * The merged `html_companions:` block as a plain map, without the nodes an
+ * overlay's or the selected profile's `disable` removed: a run of this name
+ * never reaches those nodes, so it owes nothing for them. The folded graph
+ * already left them out, so the block keeps only the nodes it holds. A
+ * malformed block contributes nothing here; `validate` is where it is reported.
+ */
+function companionsFor({ definition, overlays, profile }) {
+  const folded = foldDefinition({ definition, overlays, profile });
+  const ids = new Set(isMap(folded?.nodes) ? Object.keys(folded.nodes) : []);
+  const merged = companionsOf({ definition, overlays, profile });
+  return Object.fromEntries(Object.entries(merged).filter(([id]) => ids.has(id)));
 }
 
 /**

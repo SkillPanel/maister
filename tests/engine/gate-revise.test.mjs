@@ -333,8 +333,8 @@ test('the refusal list is exactly the codes the verb raises', () => {
   assert.deepEqual([...raised].sort(), [...REFUSALS].sort());
 });
 
-test('every refusal has a recovery row in the engine skill', () => {
-  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8');
+test('every refusal has a recovery row in the gates reference', () => {
+  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'references/gates.md'), 'utf8');
   for (const code of REFUSALS) {
     const row = skill.split('\n').find(line => line.startsWith('|') && line.includes(`\`${code}\``));
     assert.ok(row, `no refusal row names ${code}`);

@@ -51,7 +51,7 @@ The Task prompt MUST include:
 | `task_description` | User input | What needs to be built |
 | `requirements_path` | Orchestrator | Path to `analysis/requirements.md` |
 | `project_context_paths` | Orchestrator | Paths to INDEX.md and all project docs discovered from INDEX.md |
-| `html_style_guide_path` | Orchestrator | Absolute path to `html-report-style.md` (for the spec.html companion) |
+| `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
 **Accumulated Context** (Pattern 7):
 - `risk_level`: low/medium/high
@@ -178,12 +178,11 @@ Create `implementation/spec.md` using this template:
 
 After writing spec.md, write `implementation/spec.html` — the user-facing companion (same content, visual structure):
 
-**Companion is optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this companion entirely: write only `spec.md`, set `html_path: null` in your result, and continue. The steps below run only when `html_style_guide_path` is provided.
+Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write `implementation/spec.html`. With `off`, write only the markdown and return `companion: disabled`. With no `html:` line at all, write the markdown, return `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. A companion that fails never fails the markdown: keep the md and return `companion: failed` with the reason in warnings. `html_path` is null unless the companion is written.
 
-1. **Read the style guide** at `html_style_guide_path` (provided in your prompt) and follow it: self-contained single file, standard CSS block, no external resources, relative links only.
+1. **Follow the style guide**: self-contained single file, standard CSS block, no external resources, relative links only.
 2. **Lead with** the TL;DR block and scope in/out side-by-side; then requirements table (id, requirement, priority), user-story cards, reusable-vs-new components table, visual-design references (link mockup files relatively when design-context exists), collapsed `<details>` for technical depth. Link to `spec.md` in the header.
 3. **Same content as the md** — restructure and visualize, never add findings or requirements absent from spec.md.
-4. **Never block on it** — if generation fails, keep spec.md, set `html_path: null` in your result with a warning, and continue.
 
 ### Phase 4: Coverage
 
@@ -202,7 +201,7 @@ specification instead of writing a new one. Each fix names its finding and the c
 - A fix that turns out not to be one clear change — it would alter scope or behaviour, or
   contradict an answer recorded in `requirements.md` — is not applied; return it as not applied
   with the reason.
-- Regenerate the HTML companion when one is produced, so it matches the amended spec.
+- Regenerate the HTML companion when the run context's `html:` line is a path, so it matches the amended spec.
 - Return, per fix, whether it was applied and whether it changed a requirement (added, removed
   or reworded what the change must do, as opposed to a test case, a limit or wording that
   states an existing requirement more precisely).
@@ -245,14 +244,15 @@ Adapt specification depth and focus based on `task_characteristics` from the gap
 | File | Content |
 |------|---------|
 | `implementation/spec.md` | Complete specification document |
-| `implementation/spec.html` | Operator-facing HTML companion (style guide compliant) |
+| `implementation/spec.html` | Operator-facing HTML companion, when `html:` is a path |
 
 ### Structured Result (returned to orchestrator)
 
 ```yaml
 status: "success" | "partial" | "failed"
 spec_path: "implementation/spec.md"
-html_path: "implementation/spec.html"  # null if companion generation failed
+companion: "written" | "disabled" | "failed" | "not-requested"
+html_path: "implementation/spec.html"  # null unless companion is written
 
 summary:
   goal: "[1-sentence goal]"

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ENGINE_DIR, FIXTURES, freeze, freezePatch, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import {
   FOCUS_BUDGET, FOCUS_LINES, approvesHeld, choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, requestOf, richPicker, unmarked,
@@ -1345,5 +1345,5 @@ test('held: the plain brief trims decisions, fixes and risks first, then the hel
   assert.match(tightLines[at], /^Held for your approval \(\+11 more in [^)]+\):$/, tight.stdout);
   assert.match(tightLines[at + 1], /^- Which held-1\?: /);
   assert.equal(tightLines.filter(line => line.startsWith('- ')).length, 1, tight.stdout);
-  assert.ok(tight.stdout.length > 1600, 'the brief is over its budget, so only the floor of one kept the held choice');
+  assert.ok(briefOf(tight.stdout).length > 1600, 'the brief alone, without its rules pointer, is over its budget, so only the floor of one kept the held choice');
 });

@@ -1,0 +1,20 @@
+# The child `companion-check.yml` starts as a sub-run, exposing the one
+# artifact its parent declares and owes a companion for.
+name: companion-check-child
+version: 1
+inputs:
+  subject: {type: string, required: true}
+
+outputs:
+  artifacts:
+    findings: scan.artifacts.findings
+
+nodes:
+  scan:
+    uses: direct:scan
+    needs: []
+    with:
+      subject: "${inputs.subject}"
+    outputs:
+      artifacts:
+        findings: analysis/findings.md

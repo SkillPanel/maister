@@ -377,9 +377,9 @@ test('every built-in asks the same questions, carried the same way, under each d
 // The prose the classing write adds, read from the shipped files
 // ---------------------------------------------------------------------------
 
-/** The engine's SKILL.md, in LF: a Windows checkout gives markdown CRLF. */
-function skillText() {
-  return fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').replace(/\r\n?/g, '\n');
+/** The engine's SKILL.md, or one of its references, in LF: a Windows checkout gives markdown CRLF. */
+function skillText(file = 'SKILL.md') {
+  return fs.readFileSync(path.join(ENGINE_DIR, file), 'utf8').replace(/\r\n?/g, '\n');
 }
 
 /** The text of the section headed exactly `heading`, up to the next heading of its level or above. */
@@ -432,20 +432,19 @@ test('the classing preamble and close-out lines add no question-set marker, so t
   }
 });
 
-test('every new refusal and warning has its row in the engine SKILL.md', () => {
-  const skill = skillText();
+test('every new refusal and warning has its row in the engine reference that holds its section', () => {
   const rows = {
-    'gate-brief-nothing-to-ask': '### Before every gate — the gate brief',
-    'gate-brief-nothing-held': '### Before every gate — the gate brief',
-    'run-held-unapproved': '### When `run-complete` refuses',
-    'held-gate-skipped': '## Writing state',
-    'autonomy-ceiling-parent-unread': '## Writing state',
+    'gate-brief-nothing-to-ask': ['references/gates.md', '## Before every gate — the gate brief'],
+    'gate-brief-nothing-held': ['references/gates.md', '## Before every gate — the gate brief'],
+    'run-held-unapproved': ['references/writing-state.md', '## When `run-complete` refuses'],
+    'held-gate-skipped': ['references/writing-state.md', '# Writing state'],
+    'autonomy-ceiling-parent-unread': ['references/writing-state.md', '# Writing state'],
   };
-  for (const [code, heading] of Object.entries(rows)) {
-    const section = sectionOf(skill, heading);
+  for (const [code, [file, heading]] of Object.entries(rows)) {
+    const section = sectionOf(skillText(file), heading);
     const row = section.split('\n').find(line => /^\s*(?:- |\| )/.test(line) && line.includes(`\`${code}`));
-    assert.ok(row, `${heading} has no row for ${code}`);
+    assert.ok(row, `${file} ${heading} has no row for ${code}`);
   }
-  const triage = sectionOf(skill, '## In-node questions');
-  assert.ok(triage.includes('### When the policy classes a question'), 'the classing subsection closes § In-node questions');
+  const triage = sectionOf(skillText('references/in-node-questions.md'), '# In-node questions');
+  assert.ok(triage.includes('## When the policy classes a question'), 'the classing subsection closes the in-node questions reference');
 });

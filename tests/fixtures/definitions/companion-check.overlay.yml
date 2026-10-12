@@ -1,0 +1,15 @@
+# Overlays the companion checks' definition with a node of its own that owes a
+# companion, declared in the overlay's own block.
+extends: companion-check.yml
+
+html_companions:
+  extra: [log]
+
+add:
+  extra:
+    uses: skill:implementation-verifier
+    needs: [review]
+    before: [audit]
+    outputs:
+      artifacts:
+        log: verification/extra.md

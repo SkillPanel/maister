@@ -20,16 +20,18 @@ Read one markdown artifact and write its sibling `.html` companion (same basenam
 
 ## Input (from the Task prompt)
 
-| Input | Purpose |
-|-------|---------|
-| `md_path` | Absolute path to the finalized markdown artifact to companion |
-| `html_style_guide_path` | Absolute path to `html-report-style.md` — READ IT FIRST, it is binding |
-| `artifact_label` | Human label for this artifact (e.g. "Product Brief", "Feature Spec", "Design Decisions") |
-| `report_suite` | List of sibling reports for the breadcrumb bar: `[{label, href}]` with hrefs relative to `md_path`'s directory (the orchestrator knows the task's report set). Mark which one is the current report. |
+| Input | Source | Purpose |
+|-------|--------|---------|
+| `md_path` | Orchestrator | Absolute path to the finalized markdown artifact to companion |
+| `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
+| `artifact_label` | Orchestrator | Human label for this artifact (e.g. "Product Brief", "Feature Spec", "Design Decisions") |
+| `report_suite` | Orchestrator | List of sibling reports for the breadcrumb bar: `[{label, href}]` with hrefs relative to `md_path`'s directory (the orchestrator knows the task's report set). Mark which one is the current report. |
+
+Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write the `md_path` sibling `.html`. With `off`, write nothing and return `status: success`, `companion: disabled`, `html_path: null`. With no `html:` line at all, write nothing, return `status: failed`, `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. The markdown is never yours to touch: a companion that fails (an unreadable or empty md, or a failed write) returns `status: failed`, `companion: failed` with the reason in warnings.
 
 ## Workflow
 
-1. **Read the style guide** at `html_style_guide_path`. It is binding: self-contained single file, standard CSS block, breadcrumb bar, stat-tile row, conditional anchor TOC, no external resources, all `.md` links `target="_blank" rel="noopener"`.
+1. **Read the style guide** at the `html:` path. It is binding: self-contained single file, standard CSS block, breadcrumb bar, stat-tile row, conditional anchor TOC, no external resources, all `.md` links `target="_blank" rel="noopener"`.
 2. **Read `md_path`** fully. The md is the single source of truth.
 3. **Derive the stat tiles** from the artifact's own content — pick 3-5 headline numbers that fit this artifact (e.g. brief → personas / key decisions / open risks; feature-spec → requirements / surfaces / out-of-scope; design-decisions → decisions / trade-offs accepted). If the artifact has no natural counts, use the most meaningful labels available; never fabricate numbers.
 4. **Write the companion** to the sibling path (`md_path` with `.html` instead of `.md`):
@@ -45,8 +47,9 @@ Read one markdown artifact and write its sibling `.html` companion (same basenam
 
 ```yaml
 status: "success" | "failed"
-html_path: "[path written, or null on failure]"
-warnings: ["any non-blocking observations"]
+html_path: "[path written]"  # null unless companion is written
+companion: "written" | "disabled" | "failed" | "not-requested"
+warnings: ["any non-blocking observations, and the reason for any companion other than written"]
 ```
 
 ## Quality Gates
@@ -55,4 +58,4 @@ warnings: ["any non-blocking observations"]
 - NEVER add content not present in the source md.
 - NEVER fetch external resources or embed base64 images; reference images relatively.
 - Write ONE file only. Do not touch the md, other artifacts, or state.
-- If the md is unreadable or empty, return `status: failed` with `html_path: null` — never write a broken companion. Companion generation must never block the workflow; the orchestrator keeps the md regardless.
+- If the md is unreadable or empty, return `status: failed`, `companion: failed` with `html_path: null` — never write a broken companion. Companion generation must never block the workflow; the orchestrator keeps the md regardless.

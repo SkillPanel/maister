@@ -1,0 +1,63 @@
+# The companion checks' definition: a node owing two companions, one owing a
+# companion for a JSON file it cannot have, a guarded node, a sub-run whose
+# artifact lives in its child's directory, and a node dispatched into a member
+# repository, whose work lands outside this run.
+name: companion-check
+version: 1
+inputs:
+  deep: {type: bool, required: false, default: false}
+
+html_companions:
+  draft: [report, data]
+  review: [notes, log]
+  deep-dive: [report]
+  audit: [findings]
+  remote: [findings]
+
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []
+    outputs:
+      artifacts:
+        report: analysis/report.md
+        data: analysis/data.json
+
+  review:
+    uses: direct:review
+    needs: [draft]
+    outputs:
+      artifacts:
+        notes: review/notes.md
+        log: review/log.md
+
+  deep-dive:
+    uses: direct:deep-dive
+    needs: [draft]
+    when: "${inputs.deep}"
+    outputs:
+      artifacts:
+        report: analysis/deep.md
+
+  audit:
+    uses: workflow:companion-check-child
+    needs: [review, deep-dive]
+    with:
+      subject: "the draft"
+    outputs:
+      artifacts:
+        findings: analysis/findings.md
+
+  remote:
+    uses: workflow:companion-check-child
+    dir: members/api
+    needs: [audit]
+    with:
+      subject: "the api"
+    outputs:
+      artifacts:
+        findings: analysis/remote.md
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [remote]

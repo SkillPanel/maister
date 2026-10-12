@@ -28,7 +28,7 @@ The Task prompt MUST include:
 | `task_path` | Orchestrator | Absolute path to task directory |
 | `task_characteristics` | Orchestrator state | Detected characteristics from gap-analyzer |
 | `task_description` | User input | What's being built |
-| `html_style_guide_path` | Orchestrator | Absolute path to `html-report-style.md` (for the implementation-plan.html companion) |
+| `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
 **Accumulated Context** (Pattern 7):
 - `phase_summaries`: Prior phase summaries (specification, gap analysis, codebase analysis, design)
@@ -285,13 +285,12 @@ Source: `analysis/design-context/INDEX.md`
 
 After the plan (and coverage matrix, when applicable) is written, write `implementation/implementation-plan.html` — the user-facing companion:
 
-**Companion is optional — gated by the orchestrator.** If `html_style_guide_path` is NOT provided in your prompt, SKIP this companion entirely: write only `implementation-plan.md`, set `html_path: null` in your result, and continue. The steps below run only when `html_style_guide_path` is provided.
+Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write `implementation/implementation-plan.html`. With `off`, write only the markdown and return `companion: disabled`. With no `html:` line at all, write the markdown, return `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. A companion that fails never fails the markdown: keep the md and return `companion: failed` with the reason in warnings. `html_path` is null unless the companion is written.
 
-1. **Read the style guide** at `html_style_guide_path` (provided in your prompt) and follow it: self-contained single file, standard CSS block, no external resources, relative links only.
+1. **Follow the style guide**: self-contained single file, standard CSS block, no external resources, relative links only.
 2. **Lead with** the TL;DR block and group/step counts; then task-group cards showing dependencies (arrow glyphs or inline SVG), per-group step checklists, files-to-modify as `<code>` chips, visual-references when present, and the coverage matrix as a table when `visual-coverage.md` exists. Link to `implementation-plan.md` in the header.
 3. **Progress markers (REQUIRED)**: render every task group and step with the style guide's Progress-Sync Convention — `<section data-group="N" class="group todo">` / `<li data-step="N.M" class="step todo">`, glyphs via CSS only. The implementation-plan-executor flips `todo`→`done` on these markers as groups complete; without them the companion goes stale during execution.
 4. **Same content as the md** — restructure and visualize, never add groups or steps absent from the plan.
-5. **Never block on it** — if generation fails, keep the md, set `html_path: null` in your result with a warning, and continue.
 
 ---
 
@@ -339,7 +338,7 @@ Before completing, verify:
 | File | Content |
 |------|---------|
 | `implementation/implementation-plan.md` | Complete implementation plan |
-| `implementation/implementation-plan.html` | Operator-facing HTML companion (style guide compliant) |
+| `implementation/implementation-plan.html` | Operator-facing HTML companion, when `html:` is a path |
 | `implementation/visual-coverage.md` | Coverage matrix (only when `analysis/design-context/INDEX.md` exists) |
 
 ### Task Items Created
@@ -352,7 +351,8 @@ Before completing, verify:
 ```yaml
 status: "success" | "failed"
 plan_path: "implementation/implementation-plan.md"
-html_path: "implementation/implementation-plan.html"  # null if companion generation failed
+companion: "written" | "disabled" | "failed" | "not-requested"
+html_path: "implementation/implementation-plan.html"  # null unless companion is written
 
 summary:
   task_groups: [count]
