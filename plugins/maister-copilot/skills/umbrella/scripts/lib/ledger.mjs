@@ -83,10 +83,10 @@ export const OWNERSHIP = Object.freeze({
 export const REFUSALS = Object.freeze({
   'ledger-locked': 'Another writer holds the entry or the allocation lock. Nothing was written. Wait and re-issue the same op; never delete the lock by hand — a leftover older than a minute is reclaimed by the next writer.',
   'ledger-entry-missing': 'No entry file exists for that dispatch id. Check the id, or create the entry first; re-issuing changes nothing.',
-  'ledger-entry-exists': 'An entry file already exists for that dispatch id. Address it with the op you meant instead of creating it again.',
+  'ledger-entry-exists': 'An entry already exists for that dispatch id, or already records that run\'s node — a node has one dispatch entry. Nothing was written. Address the entry the message names with the op you meant instead of creating it again.',
   'ledger-entry-unreadable': 'An entry file is on disk but outside the definition reader\'s subset. Repair the named file by hand; every write is blocked until it parses, because the index is regenerated from every entry.',
   'ledger-op-unknown': 'The op is not one of the frozen seven. Correct the op name; the set is closed.',
-  'ledger-args-invalid': 'The op arguments are missing a required field or carry an unusable value. Correct the arguments and re-issue.',
+  'ledger-args-invalid': 'The op arguments are missing a required field or carry an unusable value — create-entry, for one, needs a chain naming the run_id and node. Correct the arguments and re-issue.',
   'ledger-status-illegal': 'The status is outside the frozen enum, or the entry is closed and closed is terminal. Nothing was written.',
   'ledger-unwritable': 'The filesystem refused a read or a write the op depends on. Read `entry_written` before deciding: false (or absent) means nothing was published and the op may be re-issued once the path is writable; true means the entry is written and only the index regeneration failed, so the index is behind and any later op regenerates it — do not re-issue this one.',
   'ledger-temp-exists': 'The index temp is held by another writer and stayed held across every retry. The entry is written and the index is behind; re-issuing any op regenerates it. Do not re-issue this one — the mutation already landed and applying it twice is the failure this refusal is most often mistaken for.',
@@ -688,6 +688,12 @@ function nextDispatchId(p) {
  * An explicit `dispatch_id` is honoured — the daemon may be re-creating an entry
  * whose id is already published — and an id whose file exists refuses
  * `ledger-entry-exists` rather than overwriting a dispatch someone is running.
+ *
+ * **One entry per run and node.** `args.chain` is required, and a second
+ * creation for a run's node that an entry already records refuses
+ * `ledger-entry-exists` naming that entry. A dispatch's entry is opened by the
+ * envelope verb, and this is what keeps a caller that also creates one by hand
+ * from leaving a second, empty entry for the same work.
  */
 export function createEntry(call) {
   return guard(call?.dispatch_id ?? null, () => {
@@ -696,6 +702,8 @@ export function createEntry(call) {
     const at = requireAt(call.at);
     const args = requireArgs(call.args);
 
+    const chain = requireChain(args.chain);
+
     const release = lockAllocation(p);
     let id;
     let lock;
@@ -703,6 +711,11 @@ export function createEntry(call) {
       id = call.dispatch_id ? requireId(call.dispatch_id) : nextDispatchId(p);
       if (fs.existsSync(entryPath(p, id))) {
         throw new Refusal('ledger-entry-exists', `${entryPath(p, id)} already exists; create-entry never overwrites an entry`);
+      }
+      const holder = entryFor(p, chain);
+      if (holder !== null) {
+        throw new Refusal('ledger-entry-exists',
+          `${holder} already records node ${chain.node} of run ${chain.run_id}, and a node has one dispatch entry; address it with --dispatch-id=${holder} instead of creating another`);
       }
       lock = lockEntry(p, id);
     } catch (err) {
@@ -741,10 +754,11 @@ function buildEntry(id, at, args) {
     followups: [],
     closeout: null,
   };
-  // `chain` and `target` are declared as objects with no null member, so an
-  // absent one is omitted rather than written as null: emitting the null would
-  // produce an invalid entry the moment nobody supplied a chain.
-  if (args.chain !== undefined && args.chain !== null) entry.chain = requireMap(args.chain, 'chain');
+  // `chain` is required at creation (`requireChain`): an entry that names no
+  // run and node is one the cockpit cannot bind to a run. `target`, `provider`
+  // and `session` stay optional, and an absent one is omitted rather than
+  // written as null — `target` is declared as an object with no null member.
+  entry.chain = requireChain(args.chain);
   if (args.target !== undefined && args.target !== null) entry.target = requireMap(args.target, 'target');
   if (args.provider !== undefined && args.provider !== null) {
     entry.provider = requireEnum(args.provider, PROVIDERS, 'provider');
@@ -753,6 +767,40 @@ function buildEntry(id, at, args) {
     entry.session = checkSession(requireMap(args.session, 'session'));
   }
   return entry;
+}
+
+/**
+ * The `chain` a new entry must carry: the run and the node it dispatches. An
+ * entry without them is one no reader can bind to a run, and the cockpit
+ * refuses to start a worker for it — so it is refused at creation rather than
+ * written and discovered later. Entries already on disk are never re-checked.
+ */
+function requireChain(chain) {
+  if (!isPlainObject(chain)) {
+    throw new Refusal('ledger-args-invalid',
+      'create-entry needs args.chain with the run_id and node it dispatches; a dispatch\'s entry is opened by the envelope verb, which fills it from the envelope');
+  }
+  for (const field of ['run_id', 'node']) {
+    if (typeof chain[field] !== 'string' || chain[field] === '') {
+      throw new Refusal('ledger-args-invalid', `create-entry needs a non-empty args.chain.${field}`);
+    }
+  }
+  return chain;
+}
+
+/**
+ * The id of the entry already recording this run's node, or null. Read under
+ * the allocation lock, so two creators of the same node cannot both pass it.
+ * An unreadable entry is skipped here: whether it names this node is unknown,
+ * and the index regeneration that follows the write refuses it by name.
+ */
+function entryFor(p, chain) {
+  for (const id of entryNames(p)) {
+    const { doc } = readDefinition(entryPath(p, id));
+    const recorded = isPlainObject(doc?.chain) ? doc.chain : null;
+    if (recorded && recorded.run_id === chain.run_id && recorded.node === chain.node) return id;
+  }
+  return null;
 }
 
 function checkSession(session) {

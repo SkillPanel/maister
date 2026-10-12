@@ -303,6 +303,18 @@ consulted unconditionally — for the provider, for the autonomy tier, and to
 reject a member the manifest does not declare — and walking up from the run
 directory would only guess at which workspace owns it.
 
+**The envelope also opens the dispatch's ledger entry.** When no entry records
+the run's node yet, the verb creates one in `--ledger`, copying `chain`,
+`target`, `provider` and `session` from the envelope it publishes, so the two
+documents carry one id and cannot disagree; the report says `entry: created`.
+Running it again for the same node reuses that entry (`entry: existing`). Every
+check that can refuse the envelope runs before the entry is opened, so a refused
+envelope leaves the ledger as it was. A dispatching node therefore runs
+`envelope`, then `seed`, then prints its marker — it never writes `create-entry`
+for the dispatch, and never queries for an entry before building the envelope.
+An id given in the overrides is used as it stands when its entry records this
+run's node, and opened under that id when no entry holds it.
+
 A dispatch works in `.worktrees/<run_id>-<member>` inside the member, on the
 branch the manifest's `branch_convention` renders — `feature/{run_id}-{member}`
 as scaffolded. Both are keyed by the run and the member, not the node, so every
@@ -366,9 +378,11 @@ dispatches of the same outcome — an optional `siblings` field, a list of
 the `envelope` overrides — the prompt names each one as a reference to read for
 what it delivers and never to write. Without the field, nothing changes.
 
-**`ledger`** — for every state change to a dispatch. Seven ops: create an entry,
-claim it, update its status, add a constraint, add a follow-up, close it out,
-and query. Ownership is documented rather than enforced, because enforcing it in
+**`ledger`** — for every state change to a dispatch after the envelope opened
+it. Seven ops: create an entry, claim it, update its status, add a constraint,
+add a follow-up, close it out, and query. Creation is the envelope verb's: a
+`create-entry` must name the run and node in its `chain`, and a node has one
+entry, so a second creation for it is refused rather than written. Ownership is documented rather than enforced, because enforcing it in
 code would lock the daemon out of the same library: the engine owns creation,
 claiming and status; the daemon owns constraints, follow-ups and close-out;
 query takes no lock at all. Conflicts resolve on read by update time and actor —
@@ -449,6 +463,8 @@ Within a dispatching node the same "record before you announce" rule applies at
 a smaller scale: the ledger entry is written before the waiting marker is
 printed, because an envelope with no ledger entry is invisible to the cockpit
 and a marker with nothing behind it is a run that looks dispatched and is not.
+The envelope verb holds that order itself — it opens the entry before it
+publishes the envelope — so a node whose `envelope` call exited `0` has both.
 
 ---
 
@@ -564,9 +580,11 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-permissions-override-unsupported` | The dispatch carries a `permissions` override. Permissions belong to the autonomy tier and to nothing else: each tier renders one fixed allow and deny list, and a per-dispatch override would hand a worker permissions its tier never granted. The field is refused rather than ignored, because a discarded security override leaves the caller believing it was applied. Drop `permissions` from the override document and dispatch the node at the tier whose permissions you mean. Nothing was written. |
 | `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. Nothing was written. |
 | `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
-| `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. If the dispatch really is being redone, it is a new dispatch. |
-| `dispatch-unwritable` | The dispatch directory could not be written. Fix the path or its permissions, then re-run. |
-| `dispatch-temp-exists` | Another writer holds the temp twin. Wait a minute and re-run; delete nothing. |
+| `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. The check runs before the ledger entry is opened, so nothing was written. If the dispatch really is being redone, it is a new dispatch. |
+| `dispatch-id-mismatch` | The overrides name a `dispatch_id` whose ledger entry records a different run or node, and an envelope under that id would hand this node's work to another dispatch's records. Nothing was written. Drop `dispatch_id` from the overrides — the verb then uses this node's own entry, or opens one — or name the id the node's entry carries. |
+| `dispatch-unwritable` | The dispatch directory could not be written. Fix the path or its permissions, then re-run. When the report carries `entry_written: true`, the ledger entry was opened before the publish failed; re-running `envelope` finds it by its run and node and publishes under the same id, so it is never opened twice. |
+| `dispatch-temp-exists` | Another writer holds the temp twin. Wait a minute and re-run; delete nothing. As for `dispatch-unwritable`, `entry_written: true` means the entry landed and the re-run reuses it. |
+| A `ledger-*` code from `envelope` | Opening the dispatch's ledger entry was refused, and the ledger table below says why. No envelope was published. Unlike a ledger op, the recovery is to **run `envelope` again** once the cause is gone — even when the report carries `entry_written: true` — because the verb finds an entry that landed by its run and node and does not open a second. Never write the entry with `create-entry` instead. |
 | `value-not-flow-safe` | As above — an envelope value cannot be emitted safely on one line. A double quote in the statement or a node's `with:` arguments is spelled safely and never refused; a line break there, or a quote in any other field, is. Simplify the value the report names rather than repeating the write. |
 
 ### Seed
@@ -582,10 +600,10 @@ tool because the script said no is the drift this whole design removes.
 |---|---|
 | `ledger-locked` | **The one code whose recovery is to repeat the op.** Another writer holds the entry lock or the allocation lock. Wait and re-issue the same op; never delete the lock file. A temp older than a minute is reclaimed automatically by the next writer. |
 | `ledger-entry-missing` | The dispatch id names no entry. Either the id is wrong or the entry was never created — a caller defect either way. |
-| `ledger-entry-exists` | Creation was asked for an id that already has an entry. Ids are never reused; this is a caller holding a stale id. |
+| `ledger-entry-exists` | Creation was asked for an id that already has an entry, or for a run's node that an entry already records — a node has one entry, and the message names it. Ids are never reused; address the named entry with the op you meant. A dispatch's entry is the envelope verb's to open, so a driver that reaches this after `envelope` should simply drop its own `create-entry`. |
 | `ledger-entry-unreadable` | The entry is on disk but does not parse. The file needs repair; no op can proceed and repeating one will not help. Report the message verbatim. |
 | `ledger-op-unknown` | The op name is outside the seven. A typo, or a caller built against a different version. |
-| `ledger-args-invalid` | The arguments do not carry what the op needs. The report says which field. Fix the arguments and re-send — this is the one caller defect where a *corrected* re-send is the whole recovery. |
+| `ledger-args-invalid` | The arguments do not carry what the op needs — a `create-entry` without a `chain` naming the run and node, for one. The report says which field. Fix the arguments and re-send — this is the one caller defect where a *corrected* re-send is the whole recovery. |
 | `ledger-status-illegal` | A status outside the frozen enum, or a transition out of a closed entry. Closed is terminal by design; reopening a dispatch means creating a new one. |
 | `ledger-unwritable` | The ledger path could not be written. **Read `entry_written` before deciding.** Absent or `false`: nothing was published, so fix the environment and re-issue. `true`: the entry is written and only the index regeneration failed — the index is behind, the next op of any kind regenerates it, and re-issuing *this* op would apply the mutation twice. |
 | `ledger-temp-exists` | **The entry is written and the index is behind** — this code is not reachable as a lock conflict, because a held entry lock is reported as `ledger-locked`. It means the shared index temp stayed held across every retry, after the entry was already committed. Do not re-issue the op; any later op regenerates the index. |

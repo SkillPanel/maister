@@ -69,18 +69,23 @@
  * into a provider's command-line flags is a separate concern, and no flag of
  * any provider is spelled anywhere in this file.
  *
- * Nothing here is spawned, and no ledger entry is written: `create-entry` and
- * `claim` belong to the engine, and this module only *reads* the ledger, to
- * learn the dispatch id an entry already carries or the next free ordinal.
+ * Nothing here is spawned. The one ledger write is the dispatch's own entry:
+ * when no entry records this run's node yet, the verb opens one through the
+ * ledger's `create-entry`, with `chain`, `target`, `provider` and `session`
+ * copied from the envelope it is about to publish, so the entry and the
+ * envelope come from one document and carry one id. Everything that can refuse
+ * the envelope is judged first, so a refused envelope opens no entry. `claim`
+ * and every later op stay with their owners.
  *
  * The refusal set is closed: `dispatch-node-incomplete`,
  * `dispatch-graph-drifted`, `dispatch-autonomy-unresolved`,
  * `dispatch-autonomy-unknown`, `dispatch-workflow-not-driver-capable`,
  * `dispatch-run-unresolved`, `dispatch-permissions-override-unsupported`,
  * `dispatch-closeout-impossible`, `dispatch-siblings-invalid`,
- * `dispatch-envelope-exists`, `dispatch-unwritable`, `dispatch-temp-exists`,
- * and `value-not-flow-safe` from the shared emitter. Each is documented with
- * its recovery in `SKILL.md`.
+ * `dispatch-envelope-exists`, `dispatch-id-mismatch`, `dispatch-unwritable`,
+ * `dispatch-temp-exists`, and `value-not-flow-safe` from the shared emitter.
+ * A refusal of the entry's creation is reported under the ledger's own code.
+ * Each is documented with its recovery in `SKILL.md`.
  */
 
 import fs from 'node:fs';
@@ -89,6 +94,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
+import { createEntry } from './ledger.mjs';
 import { bareWorkflowName, locateTarget, resolve as resolveGraph, TARGET_REF } from '../../../workflow-engine/scripts/lib/graph.mjs';
 import { effectiveCeiling, loadPolicy, narrowerLevel } from '../../../workflow-engine/scripts/lib/policy.mjs';
 
@@ -157,6 +163,19 @@ export const PERMISSIONS = {
   },
 };
 
+/**
+ * How many times the verb chooses an id again when the ledger reports the one
+ * it chose as taken — another run's dispatch allocated it, or another call
+ * opened this node's entry, in the moment between the read and the write.
+ */
+const ALLOCATION_ATTEMPTS = 4;
+
+/** The actor the entry's creation is logged under: creation is the engine's op. */
+const ENTRY_ACTOR = 'engine';
+
+/** The report fields a ledger refusal may carry beside its code. */
+const LEDGER_FLAGS = ['entry_written', 'index_behind', 'log_behind'];
+
 /** The refusal names `commit` reports under, kept in this module's vocabulary. */
 const WRITE_CODES = { unwritable: 'dispatch-unwritable', tempExists: 'dispatch-temp-exists' };
 
@@ -187,23 +206,74 @@ const BUILTIN_SOURCE = /^(?:builtin:)?[a-z][a-z0-9-]*$/;
 // ---------------------------------------------------------------------------
 
 /**
- * The `envelope` verb: build one node's envelope and publish it.
+ * The `envelope` verb: build one node's envelope, open its ledger entry when
+ * none records the node yet, and publish the envelope.
  *
  * One options object, because that is the shape the entry point calls every
  * verb with. `overrides` arrives on stdin and is optional; an absent or empty
  * document is `{}`.
+ *
+ * The order is what keeps a refusal from leaving half a dispatch behind: the
+ * document is built and spelled, and the envelope's place checked, before the
+ * entry is opened; the entry is opened before the envelope is published, so an
+ * envelope on disk always names an entry that exists. Only a publish that fails
+ * after the entry landed leaves the entry alone, and the report says so with
+ * `entry_written` — running the verb again finds that entry by its run and node
+ * and publishes under the same id.
  */
 export function envelope({ run, node, ledger, root, overrides = {} }) {
   try {
     const manifest = readManifest(root);
-    const dispatchId = resolveDispatchId({ ledger, run, node, overrides });
-    const document = buildEnvelope({ run, node, manifest, root, dispatchId, overrides });
-    const written = writeEnvelope({ run, envelope: document });
-    if (!written.ok) return { ok: false, dispatch_id: dispatchId, errors: written.errors };
-    return { ok: true, dispatch_id: dispatchId, path: written.path, envelope: document, errors: [] };
+    for (let attempt = 1; ; attempt++) {
+      const found = resolveDispatchId({ ledger, run, node, overrides });
+      const document = buildEnvelope({ run, node, manifest, root, dispatchId: found.id, overrides });
+      assertUnpublished(run, document);
+      emit(document);
+
+      if (!found.existing) {
+        const opened = openEntry({ ledger, document });
+        if (!opened.ok) {
+          const taken = opened.errors[0]?.code === 'ledger-entry-exists';
+          if (taken && attempt < ALLOCATION_ATTEMPTS) continue;
+          return { ok: false, dispatch_id: found.id, ...ledgerFlags(opened), errors: opened.errors };
+        }
+      }
+
+      const entry = found.existing ? 'existing' : 'created';
+      const written = writeEnvelope({ run, envelope: document });
+      if (!written.ok) {
+        return { ok: false, dispatch_id: found.id, ...(found.existing ? {} : { entry_written: true }), errors: written.errors };
+      }
+      return { ok: true, dispatch_id: found.id, entry, path: written.path, envelope: document, errors: [] };
+    }
   } catch (err) {
     return refused(err);
   }
+}
+
+/**
+ * Open the dispatch's ledger entry from the envelope: the four blocks a reader
+ * binds a dispatch by, copied rather than restated, so the two documents
+ * cannot disagree. The id is the one the envelope carries, given explicitly;
+ * the ledger still takes its allocation lock and refuses an id or a node that
+ * is already taken, which is what the caller's retry turns on.
+ */
+function openEntry({ ledger, document }) {
+  return createEntry({
+    ledger,
+    actor: ENTRY_ACTOR,
+    dispatch_id: document.dispatch_id,
+    args: {
+      chain: document.chain,
+      target: document.target,
+      provider: document.provider,
+      session: document.session,
+    },
+  });
+}
+
+function ledgerFlags(result) {
+  return Object.fromEntries(LEDGER_FLAGS.filter((flag) => result[flag] !== undefined).map((flag) => [flag, result[flag]]));
 }
 
 // ---------------------------------------------------------------------------
@@ -925,45 +995,59 @@ function runIdOf({ state, run }) {
 // ---------------------------------------------------------------------------
 
 /**
- * The dispatch id this envelope carries.
+ * The dispatch id this envelope carries, and whether an entry already holds it.
  *
- * The engine allocates ids through the ledger's `create-entry`, and when it has
- * already done so it passes the id in on stdin — that is the ordinary path, and
- * it is checked first. Otherwise the ledger is read: an entry already naming
- * this run and node hands its id back, so re-emitting an envelope for a node is
- * idempotent rather than allocating a second id for the same work. Failing
- * both, the next free ordinal is reported.
+ * An entry already naming this run and node hands its id back, so re-emitting
+ * an envelope for a node is idempotent rather than opening a second dispatch
+ * for the same work. An id given in the overrides is honoured: when its entry
+ * exists it must record this run and node — a legacy entry that records no
+ * chain at all is accepted as it stands — and when it does not, the verb opens
+ * it under that id. Failing both, the next free ordinal is chosen, one past the
+ * entries present and the creations the log records.
  *
- * Nothing on this path writes. The allocation that takes a lock and records the
- * id belongs to the ledger; this only reads, so an envelope built and then
- * discarded consumes no id.
+ * Nothing on this path writes; the entry is opened by the caller, under the
+ * ledger's own lock, once the envelope has been judged.
  */
 export function resolveDispatchId({ ledger, run, node, overrides = {} }) {
-  const given = overrides.dispatch_id;
-  if (typeof given === 'string' && given !== '') return given;
-
   const runId = path.basename(path.resolve(run));
   const entries = path.join(ledger, 'entries');
+  const given = overrides.dispatch_id;
+  const named = typeof given === 'string' && given !== '' ? given : null;
+
   let highest = 0;
+  let mine = null;
+  let givenChain;
   for (const name of listDir(entries)) {
     if (!name.endsWith('.yml')) continue;
-    const read = readDefinition(path.join(entries, name));
-    const doc = read.doc;
-    if (doc !== null) {
-      const chain = mapOf(doc.chain);
-      if (chain.run_id === runId && chain.node === node && typeof doc.dispatch_id === 'string') {
-        return doc.dispatch_id;
-      }
+    const id = name.slice(0, -'.yml'.length);
+    const doc = readDefinition(path.join(entries, name)).doc;
+    const chain = doc === null ? null : mapOf(doc.chain);
+    if (id === named) givenChain = chain;
+    if (chain !== null && chain.run_id === runId && chain.node === node && typeof doc.dispatch_id === 'string') {
+      mine ??= doc.dispatch_id;
     }
-    highest = Math.max(highest, ordinalOf(name.slice(0, -'.yml'.length)));
+    highest = Math.max(highest, ordinalOf(id));
   }
+
+  if (named !== null) {
+    if (givenChain === undefined) return { id: named, existing: false };
+    const recorded = givenChain ?? {};
+    const bound = recorded.run_id !== undefined || recorded.node !== undefined;
+    if (bound && (recorded.run_id !== runId || recorded.node !== node)) {
+      throw new Refusal('dispatch-id-mismatch',
+        `the dispatch id ${named} belongs to node ${recorded.node ?? 'unnamed'} of run ${recorded.run_id ?? 'unnamed'}, not to node ${node} of run ${runId}; nothing was written. Drop dispatch_id from the overrides and the verb uses this node's own entry or opens one`);
+    }
+    return { id: named, existing: true };
+  }
+  if (mine !== null) return { id: mine, existing: true };
+
   // The log is consulted too, so an id recorded by a `create-entry` whose entry
   // file was later removed is still never handed out a second time.
   for (const line of logLines(path.join(ledger, 'ledger.log'))) {
     const parts = line.split(' ');
     if (parts[1] === 'create-entry' && parts[2]) highest = Math.max(highest, ordinalOf(parts[2]));
   }
-  return `d-${String(highest + 1).padStart(4, '0')}`;
+  return { id: `d-${String(highest + 1).padStart(4, '0')}`, existing: false };
 }
 
 function ordinalOf(id) {
@@ -1000,12 +1084,9 @@ function logLines(file) {
  * Removing it is the operator's decision, not this writer's.
  */
 export function writeEnvelope({ run, envelope: document }) {
-  const target = path.join(run, 'dispatch', `${document.chain.node}.envelope.yml`);
+  const target = envelopePath(run, document);
   try {
-    if (fs.existsSync(target)) {
-      throw new Refusal('dispatch-envelope-exists',
-        `${target} already exists; a published envelope is never rewritten, because the seed, the ledger entry and the worker all read this one file. Remove it deliberately if the dispatch is being rebuilt.`);
-    }
+    assertUnpublished(run, document);
     commit({
       target,
       text: emit(document),
@@ -1015,6 +1096,19 @@ export function writeEnvelope({ run, envelope: document }) {
     return { ok: true, path: target, errors: [] };
   } catch (err) {
     return refused(err, { path: target });
+  }
+}
+
+function envelopePath(run, document) {
+  return path.join(run, 'dispatch', `${document.chain.node}.envelope.yml`);
+}
+
+/** Checked before the entry is opened as well as at the publish, so no refusal orphans an entry. */
+function assertUnpublished(run, document) {
+  const target = envelopePath(run, document);
+  if (fs.existsSync(target)) {
+    throw new Refusal('dispatch-envelope-exists',
+      `${target} already exists; a published envelope is never rewritten, because the seed, the ledger entry and the worker all read this one file. Remove it deliberately if the dispatch is being rebuilt.`);
   }
 }
 

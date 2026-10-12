@@ -762,4 +762,6 @@ run a node of that definition starts (*Sub-runs*).
 
 **Do not use** to run a definition file by path, to start a chain, to author an eject or an
 overlay, to dispatch a `workflow:` node carrying `dir:` into a member repository, or as a
-workflow a user starts directly. Each of those is another skill's job, or the cockpit's.
+workflow a user starts directly. Each of those is another skill's job, or the cockpit's. A
+dispatch goes through the umbrella runtime's `envelope` verb, which opens the dispatch's ledger
+entry itself; a run never writes `create-entry` for a dispatch.

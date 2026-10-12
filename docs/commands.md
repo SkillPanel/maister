@@ -495,6 +495,10 @@ The autonomy ceiling — how much the worker's run may settle without asking —
 is clamped never wider than the dispatcher's: a dispatcher with none dispatches none, and an
 unknown level reads as `approve`. Nothing resolved writes no `ceiling` line, and nothing about it is
 ever refused.
+The envelope also opens the dispatch's ledger entry when none records the node yet, with the
+envelope's `chain`, `target`, `provider` and `session`, so the entry and the envelope carry one id.
+Building a node's envelope again reuses its entry, and a refused envelope writes nothing to the
+ledger.
 
 | Flag | Description |
 |------|-------------|
@@ -518,7 +522,9 @@ past it — a truncated prompt silently loses the close-out contract at the bott
 `add-constraint`, `add-followup`, `close-out` and the read-only `query`. Each one reads,
 mutates, writes atomically, regenerates the index and appends exactly one log line after the
 rename. Ids are allocated under a lock and never reused. `ledger-locked` is the one refusal
-whose recovery is to re-issue the same op.
+whose recovery is to re-issue the same op. A dispatch's entry is opened by `envelope`, not by
+hand: `create-entry` needs a `chain` naming the run and node, and refuses a second entry for a
+node one already records.
 
 | Flag | Description |
 |------|-------------|
