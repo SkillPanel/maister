@@ -59,6 +59,8 @@ export function umbrella(args, stdin) {
   return run(UMBRELLA, args, stdin);
 }
 
+const CHILD_TIMEOUT_MS = 60_000;
+
 /** Run a Node script as a child with the isolated environment: the hooks' tests use it too. */
 export function run(script, args, stdin, env = {}, cwd = undefined) {
   const input = stdin === undefined ? '' : typeof stdin === 'string' ? stdin : JSON.stringify(stdin);
@@ -74,7 +76,12 @@ export function run(script, args, stdin, env = {}, cwd = undefined) {
   // pointer into every scratch project; a test that wants one names its own.
   delete childEnv.CLAUDE_CODE_SESSION_ID;
   Object.assign(childEnv, env);
-  const result = spawnSync(process.execPath, [script, ...args], { input, encoding: 'utf8', env: childEnv, cwd });
+  // A child that never exits fails its test instead of holding the whole suite:
+  // no verb takes anywhere near this long.
+  const result = spawnSync(process.execPath, [script, ...args], { input, encoding: 'utf8', env: childEnv, cwd, timeout: CHILD_TIMEOUT_MS, killSignal: 'SIGKILL' });
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(`${path.basename(script)} ${args.join(' ')} did not exit within ${CHILD_TIMEOUT_MS} ms and was killed`);
+  }
   return { code: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
