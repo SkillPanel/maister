@@ -1752,8 +1752,11 @@ function isGate(recorded, byId, id) {
  * before a node this gate closes is in here, and so is any node since the
  * previous gate that no gate needed directly — neither was ever shown to the
  * operator, and this is the gate that moves past them.
+ *
+ * Exported for `node-brief`, whose `feeds:` line names the gates a step closes
+ * by this same answer.
  */
-function closingCandidates(recorded, byId, gate) {
+export function closingCandidates(recorded, byId, gate) {
   const direct = [];
   const stretch = [];
   const seen = new Set([gate]);
@@ -2038,8 +2041,9 @@ function optionWith(options, effect) {
  * value}`, or the value-missing refusal when no operand reads true and a
  * completed node never recorded a value one of them reads — an operand that
  * reads true decides the guard whatever another one would have said.
+ * Exported for `node-brief`, whose `when:` line reads a guard by this rule.
  */
-function evaluate(when, context) {
+export function evaluate(when, context) {
   let refusal = null;
   for (const operand of guardOperands(when)) {
     const read = evaluateReference(operand, when, context);

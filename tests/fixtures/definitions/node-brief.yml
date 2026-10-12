@@ -1,0 +1,92 @@
+# The node brief sample. `scope` records two values and asks a question;
+# `draft` finds its section under a name other than its id, owes a page, may
+# leave one file unwritten, keeps a budget, and recommends a continue from an
+# input; `approval` is a gate with a plain section, `audit-approval` one with
+# an exception; `wrap-up` has no section and runs from the conventions.
+name: node-brief
+version: 1
+description: "Scopes a note, drafts it, audits it when asked, and wraps up."
+inputs:
+  audit: {type: string, required: false}
+  deep: {type: bool, required: false, default: false}
+
+display:
+  titles:
+    draft: Drafting
+
+html_companions:
+  draft: [notes]
+
+brief:
+  draft:
+    summary_keys: [drafting]
+    absent:
+      extras: "Written only when the draft raises open questions."
+    budget: 2
+    recommends:
+      audit_flag:
+        "yes": continue-to-audit
+        "no": continue-to-wrap-up
+    questions:
+      tone: "A plain tone."
+
+nodes:
+  scope:
+    uses: direct:scope
+    needs: []
+    outputs:
+      artifacts:
+        scope_notes: analysis/scope.md
+      values:
+        wants_audit: bool
+        focus: {enum: [narrow, wide]}
+
+  draft:
+    uses: direct:draft-notes
+    needs: [scope]
+    with:
+      audit_flag: "${inputs.audit}"
+      deep: "${inputs.deep}"
+      focus: "${scope.values.focus}"
+      label: "Focus: ${scope.values.focus}"
+      sources:
+        notes: "${scope.artifacts.scope_notes}"
+        list: [plain, "${inputs.deep}"]
+    outputs:
+      artifacts:
+        notes: drafts/notes.md
+        extras: drafts/extras.md
+
+  approval:
+    type: gate
+    needs: [draft]
+    ask: "Draft complete. Continue?"
+    options:
+      continue-to-audit: {effect: continue, sets: {audit_enabled: true}}
+      continue-to-wrap-up: {effect: continue, sets: {audit_enabled: false}}
+      revise-draft: {effect: revise, reruns: draft}
+      stop-here: stop
+
+  audit:
+    uses: agent:spec-auditor
+    needs: [approval]
+    when: "${approval.values.audit_enabled}"
+    with:
+      notes: "${draft.artifacts.notes}"
+    outputs:
+      artifacts:
+        report: verification/audit.md
+
+  audit-approval:
+    type: gate
+    needs: [audit]
+    when: "${approval.values.audit_enabled}"
+    ask: "Audit complete. Continue?"
+    options:
+      continue-to-wrap-up: continue
+      revise-draft: {effect: revise, reruns: draft}
+      stop-here: stop
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [audit-approval]

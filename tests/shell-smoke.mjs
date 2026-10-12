@@ -11,8 +11,8 @@
  * with `\`, as `CLAUDE_PLUGIN_ROOT` is. cmd.exe takes no single quotes, so its
  * lines quote with `"`.
  *
- * The run: `locate`, `validate`, `resolve`, the freeze, `run-context` for a
- * node, two node writes with a patch no shell may touch, `area-brief`'s
+ * The run: `locate`, `validate`, `resolve`, the freeze, `run-context` and
+ * `node-brief` for a node, two node writes with a patch no shell may touch, `area-brief`'s
  * fallback at a node that declares no decision areas, `gate-brief --json` at
  * the gate, the dashboard projection and `resume-check`. The freeze travels in
  * the patch file under every shell; the node writes travel as a here-string
@@ -182,6 +182,10 @@ try {
   const context = call('run-context', [flag('state', statePath), '--node=analysis']);
   const taskLine = context.stdout.split('\n').find(line => line.startsWith('task_path: ')) ?? '';
   check('run-context prints the run block for a node, from a path holding a space', context.code === 0 && context.stdout.startsWith('## Run context\n') && taskLine.endsWith('shell-smoke') && taskLine.includes('project dir'), show(context));
+
+  // --- node-brief -----------------------------------------------------------
+  const nodeBriefed = call('node-brief', [flag('state', statePath), '--node=analysis']);
+  check('node-brief prints the brief of a node, from a path holding a space', nodeBriefed.code === 0 && nodeBriefed.stdout.startsWith('## Node: analysis') && /^rules: .+ § Node conventions$/m.test(nodeBriefed.stdout), show(nodeBriefed));
 
   // --- node writes ----------------------------------------------------------
   const route = HERE_STRING ? 'here-string' : 'patch file';

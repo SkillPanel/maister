@@ -73,9 +73,9 @@ freezing at test time, so editing a built-in does not stale a fixture.
 `make smoke` runs `node tests/shell-smoke.mjs --shell=bash`. Where the suite spawns `node` with an
 argv array, the smoke hands every engine call to a shell as one command line in the invocation
 contract's form, from a plugin copy and a project whose paths both hold a space: `locate`,
-`validate`, `resolve`, the freeze, two node writes, `area-brief` at a node that declares no
-decision areas (its fallback warning, exit 0 and nothing on stdout), `gate-brief --json`, the
-dashboard projection and `resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
+`validate`, `resolve`, the freeze, `run-context` and `node-brief` for a node, two node writes,
+`area-brief` at a node that declares no decision areas (its fallback warning, exit 0 and
+nothing on stdout), `gate-brief --json`, the dashboard projection and `resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
 input. `--shell` takes `bash`, `zsh`, `pwsh`, `powershell` or `cmd`; cmd.exe lines quote with `"`,
 every other shell's with `'`. CI runs it under bash on Ubuntu, and under pwsh, Windows PowerShell,
 cmd.exe and Git Bash on Windows, where the paths are written with `\`.

@@ -816,3 +816,18 @@ test('sectionless: a heading is matched by the name a step finds its section by,
   assert.deepEqual(renamed.report.warnings, []);
   assert.equal(renamed.report.resolved.find(entry => entry.node === 'review').from, 'companion');
 });
+
+test('sectionless: node-brief prints the conventions for a step with no section, and says it has none', t => {
+  const { home } = sectionless(t);
+  const run = scratch(t, { type: 'audits', name: '2026-01-05-sectionless-brief' });
+  freeze(run, { definition: path.join(home, 'sectionless.yml') });
+  const result = verb(['node-brief', `--state=${run.state}`, '--node=review']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.match(result.stdout, /^## Node: review — Review\nruns: direct:review — inline\n/);
+  assert.match(result.stdout, /^convention \(`direct:` step\): /m);
+  assert.match(result.stdout, /^convention \(every step\): /m);
+  assert.ok(result.stdout.endsWith('\n\nsection: none — the conventions above apply\n'), result.stdout);
+  // The step beside it, which has a section, prints it.
+  assert.ok(verb(['node-brief', `--state=${run.state}`, '--node=draft']).stdout.endsWith('\n\nWrite the note.\n'));
+});

@@ -40,6 +40,12 @@
  *                  guide or off, documentation, scratch rule, summary contract
  *                  and the companions the node owes — as markdown to paste;
  *                  read-only over a run
+ *   node-brief     --state, --node                            what a node
+ *                  reads before it runs — how it runs, its guard, attempt,
+ *                  inputs filled in, writes, questions, the checkpoint it
+ *                  feeds, its brief: data and the convention rows that apply,
+ *                  then its own section of the guide, as markdown; read-only
+ *                  over a run
  *   gate-brief     --state, --node, optional one of --oneline,
  *                  --json [--picker=rich|plain], --checkpoint, --request
  *                  [--reask=<revise option>]; with --patch-file
@@ -92,7 +98,8 @@
  * spelling, `rules: <file> § <heading>`: the last stdout paragraph of a text
  * form, a `rules` key of a `--json` form, one stderr line after a refusal's
  * message and before any `warning:`. Closed documents a driver reads and usage
- * errors carry none (`RULES`).
+ * errors carry none (`RULES`). `node-brief` names its rules too, as a line of
+ * its header rather than the last paragraph (`RULES`).
  *
  * Why the patch arrives in a file or on stdin rather than as an argument: no
  * quoting has to survive a shell, which is the same Windows-without-a-shell
@@ -168,6 +175,10 @@ const VERBS = {
   // because what a node owes is the node's, and the state records no
   // "current" one while a prompt is being composed.
   'run-context': { module: 'run-context.mjs', flags: ['state', 'node'] },
+  // Read-only as well: the brief a node reads before it runs. `--node` for
+  // `run-context`'s reason; nothing else is taken, because the definition,
+  // its overlays, the guide and the conventions are all found from the run.
+  'node-brief': { module: 'node-brief.mjs', flags: ['state', 'node'] },
   // The other verb that never writes state — only the panel beside it, a
   // display file. `--node` because a run has many gates and the
   // state records no "current" one while a question is being composed; the
@@ -218,6 +229,10 @@ const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
  * Each file is named relative to the engine skill's directory rather than to
  * its `references/`, so a pointer can name the skill's own `SKILL.md` as well
  * as a reference; every reference pointer still prints the path it always did.
+ *
+ * `nodeBrief` is the one pointer that is not the last stdout paragraph:
+ * `node-brief` prints it as a line of its header, before the node's section,
+ * so the section a model reads last stays the node's own.
  */
 const RULES = {
   gateBrief: ['references/gates.md', 'Before every gate — the gate brief'],
@@ -226,6 +241,7 @@ const RULES = {
   findingBrief: ['references/in-node-questions.md', 'Findings that need a decision'],
   writeRefused: ['references/writing-state.md', 'When a write is refused'],
   completeRefused: ['references/writing-state.md', 'When `run-complete` refuses'],
+  nodeBrief: ['SKILL.md', 'Node conventions'],
 };
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */
@@ -856,7 +872,20 @@ async function runRunContext(flags) {
   return reportContext(render({ state: flags.state, node: flags.node }));
 }
 
-/** The shared report of the two context verbs. */
+/**
+ * Print the brief a node reads before it runs. Reported like `run-context`;
+ * the `rules:` pointer is passed in and printed by the module inside the
+ * brief, so `reportContext` adds none of its own.
+ */
+async function runNodeBrief(flags) {
+  if (!flags.state) throw new UsageError('node-brief needs --state');
+  if (!flags.node) throw new UsageError('node-brief needs --node');
+  const module = await loadModule(VERBS['node-brief'].module);
+  const render = entryOf(module, 'nodeBrief', VERBS['node-brief'].module);
+  return reportContext(render({ state: flags.state, node: flags.node, rules: rulesOf('nodeBrief') }));
+}
+
+/** The shared report of the three context verbs. */
 function reportContext(result) {
   if (!result.ok) {
     for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
@@ -1110,6 +1139,7 @@ const RUNNERS = {
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
   'run-context': runRunContext,
+  'node-brief': runNodeBrief,
   'gate-brief': runGateBrief,
   'area-brief': runAreaBrief,
   'finding-brief': runFindingBrief,
