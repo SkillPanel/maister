@@ -42,6 +42,13 @@
  * graph reached by an overlay and by a hand-written eject must carry one
  * identity. If provenance entered the hash the two routes could never agree,
  * and comparing them would be meaningless.
+ *
+ * One reader of the prose companion lives here too: `proseSection` slices a
+ * node's section out of the guide beside a definition. The caller passes the
+ * section name — the node id — and the slicer finds the heading that is
+ * exactly that name, skipping fenced blocks, so a heading quoted in an example
+ * neither starts nor ends a section. The `direct:` check above is that slicer
+ * returning something.
  */
 
 import { createHash } from 'node:crypto';
@@ -754,23 +761,66 @@ function isFile(target) {
  * Whether the prose companion beside a definition carries a section for a node.
  * `direct:` nodes are executed by the engine itself from that section, so a
  * missing one is a node with no implementation at all.
- *
- * The heading must *be* the node id, not mention it: a section titled "Notes on
- * assess-scope failure modes" is prose about the node, and accepting it would
- * report an implementation that is not there.
  */
 function hasProseSection(file, name) {
-  if (!file) return false;
+  return proseSection(file, name) !== null;
+}
+
+/** An opening or closing code fence: three or more backticks or tildes. */
+const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+
+/**
+ * One node's section of the prose companion beside a definition file, or null
+ * when the companion is missing or carries no such section. The caller passes
+ * the section name — the node id — not a heading.
+ *
+ * A heading is a line outside a fenced block that starts with `#`; it names
+ * `name` when its text, with the `#`s, backticks and surrounding spacing
+ * removed, equals it. The heading must *be* the node id, not mention it: a
+ * section titled "Notes on assess-scope failure modes" is prose about the
+ * node, and accepting it would report an implementation that is not there.
+ *
+ * The section runs to the next heading outside a fence at the same or a higher
+ * level, so a `### Step` stays inside its node. Fences are skipped both ways:
+ * a heading quoted in an example neither opens a section nor closes one. The
+ * heading line itself, trailing blank lines and trailing `---` rules are
+ * dropped. Lines are split on LF with a trailing CR removed, so a CRLF checkout
+ * slices the same as an LF one.
+ */
+export function proseSection(file, name) {
+  if (!file) return null;
   const companion = file.replace(/\.ya?ml$/i, '.md');
-  if (companion === file || !isFile(companion)) return false;
-  const text = fs.readFileSync(companion, 'utf8');
-  for (const row of text.split('\n')) {
-    const line = row.replace(/\r$/, '');
+  if (companion === file || !isFile(companion)) return null;
+  const lines = fs.readFileSync(companion, 'utf8').split('\n').map(row => row.replace(/\r$/, ''));
+  let fence = null;
+  let found = null;
+  for (let at = 0; at < lines.length; at++) {
+    const line = lines[at];
+    const marker = FENCE.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && marker[2].trim() === '') fence = null;
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
     if (!line.startsWith('#')) continue;
+    const level = /^#+/.exec(line)[0].length;
+    if (found) {
+      if (level <= found.level) {
+        found.end = at;
+        break;
+      }
+      continue;
+    }
     const heading = line.replace(/^#+\s*/, '').replace(/`/g, '').trim();
-    if (heading === name) return true;
+    if (heading === name) found = { at, level, end: lines.length };
   }
-  return false;
+  if (!found) return null;
+  const body = lines.slice(found.at + 1, found.end);
+  while (body.length > 0 && (body.at(-1).trim() === '' || body.at(-1).trim() === '---')) body.pop();
+  return { companion, heading: lines[found.at], text: body.join('\n') };
 }
 
 // ---------------------------------------------------------------------------

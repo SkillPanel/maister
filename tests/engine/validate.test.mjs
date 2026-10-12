@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES, SAMPLE, freeze, readState, scratch, verb } from '../helpers.mjs';
 import { parseDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
+import { proseSection } from '../../plugins/maister/skills/workflow-engine/scripts/lib/graph.mjs';
 
 // Definition-agnostic, like `make diagram`: a built-in added to workflows/ is
 // covered here without an edit.
@@ -150,4 +151,102 @@ test('development freezes with the architecture input recorded, and without it a
   const plain = readState(without);
   assert.equal('architecture' in plain.orchestrator.options.inputs, false);
   assert.equal(plain.workflow.graph_hash, recorded.workflow.graph_hash);
+});
+
+// ---------------------------------------------------------------------------
+// the section slicer
+// ---------------------------------------------------------------------------
+
+/** A definition beside a prose companion holding `prose`, in a scratch directory. */
+function withCompanion(t, prose) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-slicer-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const definition = path.join(dir, 'sliced.yml');
+  fs.copyFileSync(SAMPLE, definition);
+  fs.writeFileSync(path.join(dir, 'sliced.md'), prose);
+  return definition;
+}
+
+const GUIDE = [
+  '# Guide',
+  '',
+  '## `analysis`',
+  '',
+  'Read the scope.',
+  '',
+  '### Step 1',
+  '',
+  'Write the report.',
+  '',
+  '---',
+  '',
+  '## `approval`',
+  '',
+  'Ask it.',
+  '',
+].join('\n');
+
+test('a section ends at the next heading of the same or a higher level, and an H3 stays inside', t => {
+  const file = withCompanion(t, GUIDE);
+  const section = proseSection(file, 'analysis');
+  assert.equal(section.companion, file.replace(/\.yml$/, '.md'));
+  assert.equal(section.heading, '## `analysis`');
+  assert.equal(section.text, '\nRead the scope.\n\n### Step 1\n\nWrite the report.');
+  const upper = withCompanion(t, '## `analysis`\nbody\n# Top\nafter\n');
+  assert.equal(proseSection(upper, 'analysis').text, 'body');
+});
+
+test('a heading-looking line inside a fence neither starts nor ends a section', t => {
+  const file = withCompanion(t, [
+    '## `analysis`',
+    'before',
+    '```md',
+    '## `approval`',
+    '## `implementation`',
+    '```',
+    'after',
+    '~~~',
+    '# Top',
+    '~~~',
+    'end',
+    '## `approval`',
+    'gate',
+  ].join('\n'));
+  assert.equal(proseSection(file, 'analysis').text,
+    'before\n```md\n## `approval`\n## `implementation`\n```\nafter\n~~~\n# Top\n~~~\nend');
+  assert.equal(proseSection(file, 'implementation'), null);
+  assert.equal(proseSection(file, 'approval').text, 'gate');
+});
+
+test('CRLF and LF input give the same slice', t => {
+  const lf = withCompanion(t, GUIDE);
+  const crlf = withCompanion(t, GUIDE.replace(/\n/g, '\r\n'));
+  assert.deepEqual(
+    { heading: proseSection(crlf, 'analysis').heading, text: proseSection(crlf, 'analysis').text },
+    { heading: proseSection(lf, 'analysis').heading, text: proseSection(lf, 'analysis').text },
+  );
+  assert.ok(!proseSection(crlf, 'analysis').text.includes('\r'));
+});
+
+test('the heading line, trailing blank lines and trailing rules are dropped', t => {
+  const file = withCompanion(t, '## analysis\nbody\n\n---\n\n---\n\n## approval\n');
+  const section = proseSection(file, 'analysis');
+  assert.equal(section.heading, '## analysis');
+  assert.equal(section.text, 'body');
+  assert.equal(proseSection(file, 'approval').text, '');
+});
+
+test('an absent section is null, and a direct: node validates exactly when its section slices', t => {
+  const fenced = withCompanion(t, '# Guide\n\n```\n## `analysis`\n```\n');
+  assert.equal(proseSection(fenced, 'analysis'), null);
+  assert.equal(proseSection(fenced, 'nowhere'), null);
+  assert.equal(proseSection(path.join(os.tmpdir(), 'no-such-definition.yml'), 'analysis'), null);
+  const refused = JSON.parse(verb(['validate', `--definition=${fenced}`]).stdout);
+  assert.equal(refused.ok, false);
+  assert.ok(refused.errors.some(error => /no section for "analysis"/.test(error.message)));
+
+  const present = withCompanion(t, GUIDE);
+  assert.notEqual(proseSection(present, 'analysis'), null);
+  const accepted = JSON.parse(verb(['validate', `--definition=${present}`]).stdout);
+  assert.deepEqual(accepted.errors, []);
 });
