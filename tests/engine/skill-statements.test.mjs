@@ -150,3 +150,15 @@ test('the conventions table carries no copy of the gate-rule sentence or its tai
   assert.ok(!section.includes(collapse(GATE_RULE)), 'no gate-rule sentence');
   assert.ok(!section.includes(collapse(GATE_RULE_TAIL)), 'no gate-rule tail');
 });
+
+test('the asks row records each in-session answer as an operator decision on the step\'s own summary', () => {
+  const asks = conventionRows().find(row => row.key === 'asks');
+  assert.ok(asks, 'the table has an asks row');
+  assert.match(asks.convention, /`by: operator`/, 'the asks row names `by: operator`');
+  assert.match(asks.convention, /`question_id`/, 'the asks row names `question_id`');
+  assert.match(asks.convention, /`node_summaries`/, 'the asks row records on the step\'s `node_summaries` entry');
+  assert.match(asks.convention, /summary|`node_summaries`/, 'recording lands on the step\'s own summary');
+  const section = sectionLines('### Node conventions').filter(line => line.includes('`ask:`'));
+  assert.equal(section.length, 1, 'only the asks row mentions `ask:`');
+  assert.ok(section[0].startsWith('| asks |'), 'the line mentioning `ask:` is the asks row');
+});
