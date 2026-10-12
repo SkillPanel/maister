@@ -89,8 +89,10 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    and record `design_context.research_reference`.
 4. **Detect the characteristics** and the complexity as
    `${MAISTER_PLUGIN_ROOT}/skills/product-design/references/characteristic-detection.md`
-   says; read it first. **When `simple` is true the depth wins**: record
-   `simple`, and when the signals said more, add
+   says; read it first. Record the six flags as
+   `design_context.design_characteristics` (*The context block*). **When
+   `simple` is true the depth wins** (*Depth*): record `simple`, and when the
+   signals said more, add
    `{risk: "detected as <level>; the simple depth was requested", tag: open, change: "run the full design"}`.
    **When `full` is true**, record `complex` and say so in the summary. When
    both are true, `simple` wins, and `risks` carries
@@ -420,10 +422,11 @@ read `analysis/design-decisions.md`; for a decision sheet with areas left open,
 a continue recorded at `direction-approval` means every recommendation was
 adopted, and the Key Decisions say so, naming who answered.
 
-A simple run has no decision record: the first section is **Approach** — the
-direction in a paragraph, and the one or two alternatives passed over, a line
-each with why. Its choices go in `decisions` as `{decision, by: run}`; one made
-on thin evidence is an `open` risk with the other way as its `change`.
+A simple run (*Depth*) has no decision record: the first section is
+**Approach** — the direction in a paragraph, and the one or two alternatives
+passed over, a line each with why. Its choices go in `decisions` as
+`{decision, by: run}`; one made on thin evidence is an `open` risk with the
+other way as its `change`.
 
 Write the user stories from `analysis/problem-statement.md` first, under **User
 stories**, each by its id and whole; they are not asked again. Each section
@@ -515,10 +518,10 @@ in a terminal run, and verify depth again for a complex design.
   screens**, as the specification describes them — never generic placeholders
   or technical diagrams;
 - `analysis/design-decisions.md` **only when the state records
-  `idea-convergence` completed** (in a simple run the specification's Approach
-  section carries the direction), and the personas' journeys from
-  `analysis/personas.md` **only when the state records `persona-exploration`
-  completed**.
+  `idea-convergence` completed** (in a simple run, *Depth*, the
+  specification's Approach section carries the direction), and the personas'
+  journeys from `analysis/personas.md` **only when the state records
+  `persona-exploration` completed**.
 
 The refinement loop is the studio's own, inside this node. Leave the companion
 up: the screens are reviewed at `specification-approval`, and `review-handoff`
@@ -553,7 +556,8 @@ to terminal mockups is a recorded note, not a retry.
 
 ## `review-handoff`
 
-**Does.** Runs on every path, because a parent reads what it writes.
+**Does.** Runs on every path, because a parent reads what it writes
+(*Embedded mode*).
 
 1. **For a complex design, check the specification once more**: each section
    answers what to build and how. A gap is named in the brief's Open Questions
@@ -567,7 +571,8 @@ to terminal mockups is a recorded note, not a retry.
    - **Persona cards**, when the state records `persona-exploration` completed;
    - **Design decisions**, a summary per decision area, pointing at the decision
      record and the alternatives, when the state records `idea-convergence`
-     completed; in a simple run, the specification's Approach section condensed;
+     completed; in a simple run (*Depth*), the specification's Approach
+     section condensed;
    - **Mockup references**, when the state records `visual-prototyping`
      completed — links to the files under `analysis/mockups/`, and terminal
      mockups inline;

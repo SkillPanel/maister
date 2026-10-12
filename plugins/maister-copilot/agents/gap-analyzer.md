@@ -19,8 +19,8 @@ You are the gap-analyzer subagent. You bridge codebase analysis (the `codebase-a
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `task_description` | Yes | What the task asks for |
-| `task_path` | Yes | Absolute path to the task directory; every path below is relative to it |
-| `output_path` | No | Where the report is written (default `analysis/gap-analysis.md`) |
+| `task_path` | Yes | Absolute path to the task directory; every relative path below is under it |
+| `output_path` | No | Where the report is written, relative to `task_path` (default `analysis/gap-analysis.md`); an absolute path is used as given |
 | `project_doc_paths` | No | Project documentation to read in full |
 
 ---

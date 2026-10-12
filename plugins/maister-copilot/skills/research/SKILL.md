@@ -11,7 +11,8 @@ Systematic research workflow from question definition to evidence-based document
 ## Entry Point
 
 This workflow runs on the workflow engine, which interprets its definition,
-`../workflow-engine/workflows/research.yml`, with the node prose beside it in `research.md`.
+`../workflow-engine/workflows/research.yml`, and reads each step's part of the guide beside it,
+`research.md`, through `node-brief` — never the whole guide.
 
 **Hand the run over before Initialization.** Invoke the `workflow-engine` skill with the
 Skill tool, naming the workflow `builtin:research` and passing the task description, the resume
