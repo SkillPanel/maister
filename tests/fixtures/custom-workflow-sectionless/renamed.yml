@@ -1,0 +1,13 @@
+# The review step finds its section under a name other than its id.
+name: renamed
+version: 1
+description: "Drafts a note, then reviews the draft from a section named after the target."
+
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []
+
+  review:
+    uses: direct:review-draft
+    needs: [draft]

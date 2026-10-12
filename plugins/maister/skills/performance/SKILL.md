@@ -11,7 +11,8 @@ Static-analysis-first performance optimization workflow. Identifies bottlenecks 
 ## Entry Point
 
 This workflow runs on the workflow engine, which interprets its definition,
-`../workflow-engine/workflows/performance.yml`, with the node prose beside it in `performance.md`.
+`../workflow-engine/workflows/performance.yml`, and reads each step's part of the guide beside it,
+`performance.md`, through `node-brief` — never the whole guide.
 
 **Hand the run over before Initialization.** Invoke the `maister:workflow-engine` skill with the
 Skill tool, naming the workflow `builtin:performance` and passing the task description, the resume

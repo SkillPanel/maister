@@ -22,6 +22,7 @@ const AREAS = pointer('in-node-questions.md', 'Decision areas from the brainstor
 const FINDINGS = pointer('in-node-questions.md', 'Findings that need a decision');
 const WRITE_REFUSED = pointer('writing-state.md', 'When a write is refused');
 const COMPLETE_REFUSED = pointer('writing-state.md', 'When `run-complete` refuses');
+const NODE_BRIEF = `${path.join(ENGINE_DIR, 'SKILL.md')} § Node conventions`;
 
 const BUDGET = 1600;
 
@@ -278,7 +279,7 @@ test('gate-brief: the brief before the pointer keeps within the budget at a gate
 // ---------------------------------------------------------------------------
 
 test('every pointer names a reference that exists and a heading of that reference, spelled exactly', () => {
-  for (const rules of [GATE_BRIEF, REVISING, AREAS, FINDINGS, WRITE_REFUSED, COMPLETE_REFUSED]) {
+  for (const rules of [GATE_BRIEF, REVISING, AREAS, FINDINGS, WRITE_REFUSED, COMPLETE_REFUSED, NODE_BRIEF]) {
     const [file, heading] = rules.split(' § ');
     assert.ok(fs.existsSync(file), `${path.relative(ENGINE_DIR, file)} exists`);
     const headings = fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n').split('\n')
@@ -299,4 +300,53 @@ test('the frozen-workflow refusal and an unfinished close each name the writing-
   const unfinished = verb(['run-complete', `--state=${run.state}`]);
   refusedWithPointer(unfinished, 'run-nodes-unfinished', COMPLETE_REFUSED);
   assert.equal(unfinished.stdout, 'RUN-FAILED: run-nodes-unfinished\n', 'the marker stays the only stdout line');
+});
+
+test('every existing pointer keeps its printed path, byte for byte, under the engine skill\'s references', t => {
+  // The pointer table names files relative to the engine skill directory, so it
+  // can point at SKILL.md too; the six pointers the verbs printed before stay
+  // spelled exactly as they were.
+  const spelled = (file, heading) => `${ENGINE_DIR}${path.sep}references${path.sep}${file} § ${heading}`;
+  const run = atApproval(t);
+  const gate = JSON.parse(gateBrief(run, '--node=approval', '--json').stdout).rules;
+  assert.equal(gate, spelled('gates.md', 'Before every gate — the gate brief'));
+
+  const areas = atConvergence(t);
+  assert.equal(JSON.parse(areaBrief(areas, '--area=storage', '--json').stdout).rules,
+    spelled('in-node-questions.md', 'Decision areas from the brainstorm'));
+
+  const findings = reviewing(t);
+  assert.equal(findingBrief(findings, { patch: true }).stdout,
+    `${findings.patch}${trailing(spelled('in-node-questions.md', 'Findings that need a decision'))}`);
+
+  const revise = refusedWithPointer(gateRevise(atReviewGate(t), 'nowhere'), 'revise-option-unknown',
+    spelled('gates.md', 'Revising at a gate'));
+  assert.ok(revise.length > 0);
+
+  const state = scratch(t);
+  freeze(state);
+  refusedWithPointer(verb(['write-state', `--state=${state.state}`], { nodes: { ghost: { status: 'completed' } } }),
+    'state-node-unknown', spelled('writing-state.md', 'When a write is refused'));
+  refusedWithPointer(verb(['run-complete', `--state=${state.state}`]),
+    'run-not-ended', spelled('writing-state.md', 'When `run-complete` refuses'));
+});
+
+test('node-brief: the one verb whose pointer is not the last paragraph — a header line naming the conventions table', t => {
+  // node-brief prints its rules: line inside the brief, before the node's
+  // section, so the section stays the last thing read; nothing is appended.
+  const run = scratch(t);
+  freeze(run);
+  const result = verb(['node-brief', `--state=${run.state}`, '--node=analysis']);
+  assert.equal(result.code, 0, result.stderr);
+  const lines = result.stdout.split('\n');
+  assert.deepEqual(lines.filter(line => line.startsWith('rules: ')), [`rules: ${NODE_BRIEF}`]);
+  const at = lines.indexOf(`rules: ${NODE_BRIEF}`);
+  assert.equal(lines[at + 1], '', 'a blank line parts the header from the section');
+  assert.ok(lines.slice(at + 2).some(line => line.trim() !== ''), 'the section follows the pointer');
+  assert.doesNotMatch(result.stdout, /\n\nrules: [^\n]*\n$/, 'no trailing pointer paragraph is appended');
+
+  // A refusal carries no pointer line: the recovery rows sit in the skill beside run-context's.
+  const refused = verb(['node-brief', `--state=${run.state}`, '--node=nowhere']);
+  assert.equal(refused.code, 1);
+  assert.doesNotMatch(refused.stderr, /rules:/);
 });

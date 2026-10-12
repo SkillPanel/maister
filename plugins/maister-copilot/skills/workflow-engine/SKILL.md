@@ -221,7 +221,7 @@ means).
 An invocation may arrive carrying `--from=PHASE` or `--reset-attempts`, because operators who
 used the 2.x plugin know both. Neither has an expression here. Resume recomputes the ready set
 from the frozen graph, so there is no mid-graph entry point to start from; and no attempt counter
-lives in state, because budgets are node prose rather than data.
+lives in state, because a budget is a prose rule rather than counted data.
 
 **Say so by name, before the first node runs.** Name the flag that arrived and state which of the
 two facts above makes it inert. No route in this plugin serves either flag: say that re-entry is
@@ -233,7 +233,7 @@ ordinary resume from the frozen state. **Never drop one silently.**
 
 ## The invocation contract
 
-One script, fifteen verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, sixteen verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -294,19 +294,23 @@ write a question set there themselves.
 | `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines, then any `missing-companion:` lines, and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state`, optional `--background`, optional `--node` | the prior phases' decisions and risks as markdown, to paste into a delegate prompt; `--background` frames them as background for a document written for end users; `--node` prints that node's `run-context` block first, then one blank line, then the same passage, with `run-context`'s refusals — reads the run, writes nothing |
 | `run-context` | `--state`, `--node` (the node about to delegate) | the run-scoped context a delegate prompt carries, as markdown to paste unedited (*Before anything else*, item 4); when the definition the run froze cannot be re-read, `companions: unknown` and one `warning: run-context-definition-unread` line, exit `0` — reads the run, writes nothing |
+| `node-brief` | `--state`, `--node` (the node about to run) | What the node reads before it runs, as markdown: how it runs, its guard and attempt, its `with:` values and `dir:` filled in, the files it writes with the pages it owes and the absences `brief:` allows, its questions under this run's driver, the checkpoint it feeds, its `brief:` data, the convention rows that apply now — a row that applies only later, under a recorded revise or on a last attempt, named on one `convention (…): see rules` line — and a `rules:` line, then the node's own section. A line that would only state the default (no guard, a first attempt not yet run, an unset recommends input) is left out. A gate gets the `gate-brief` call instead, unless its section carries an exception. Graph drift, an unread definition, a node the definition no longer carries or an unread conventions table is one `warning: node-brief-…` line, exit `0` — reads the run, writes nothing |
 | `gate-brief` | `--state`, `--node` (the gate), and at most one of: `--json` with `--picker=plain`, `--checkpoint`, `--request` or `--oneline`; or `--node` (a running node) with `--checkpoint` or `--request` and `--patch-file` — the node's question set as JSON in the patch file | The brief for a gate, or for a running node's question set. It writes no state, only the run's `display/next.json`. With no form, the brief as text within 1,600 characters, plus the trailing `rules:` line; `--node=held-approval` briefs the run's closing checkpoint. Each form's shape is `references/gates.md` § *The `gate-brief` forms* |
 | `area-brief` | `--state`, `--node` (the convergence node that is asking), and one form: `--area=<id>` with `--json` and `--picker=plain`; `--area=<id>` alone; or `--patch-file=<run>/.state-patch.json` with `--area` repeated or omitted | One decision area of the brainstorm, as a picker in the field shape of `gate-brief --json`, as its full write-up in markdown, or written as a driven question set to the patch file (`references/in-node-questions.md` § *Decision areas from the brainstorm*). A file it cannot use is one `warning: decision-areas-…` line on stderr, exit `0`, and the node composes the area itself. Writes no state and no `display/next.json` |
 | `finding-brief` | `--state`, `--node` (the reviewing node that is asking), `--findings-file=<file in the run>`, and optionally `--patch-file=<run>/.state-patch.json` | The node's findings that need a decision as one question set, printed as JSON or written to the patch file (`references/in-node-questions.md` § *Findings that need a decision*). A file it cannot use is one `warning: finding-list-…` line on stderr, exit `0`, and the node composes the questions itself. Writes no state |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume, with an operator `message` (*Resume*) — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
-`run-context`, and `prior-context` with `--node`, refuse with exit `1`, an empty stdout and the code first on stderr; nothing was written:
+`run-context`, `prior-context` with `--node`, and `node-brief` refuse with exit `1`, an empty stdout and the code first on stderr; nothing was written:
 
 | Refusal | Response |
 |---|---|
 | `run-context-state-unreadable` | `--state` cannot be read or parsed as a state document, and nothing was read further. Point `--state` at the run's `orchestrator-state.yml` — the run directory this node belongs to — and run the verb again. |
 | `run-context-not-a-run` | The file carries no `workflow:` block: the engine never froze it, so it has no nodes and no run context. Run the verb on the state of a frozen run — freeze it first through `write-state` (Step 4) — and never write the block by hand. |
 | `run-context-unknown-node` | `--node` is not a node of the run's frozen graph, or names `held-approval`, which delegates nothing. Name the node about to delegate, exactly as `workflow.nodes` spells it, and run the verb again; no state write fixes this. |
+| `node-brief-state-unreadable` | `--state` cannot be read or parsed as a state document, and nothing was read further. Point `--state` at the run's `orchestrator-state.yml` — the run directory this node belongs to — and run the verb again. |
+| `node-brief-not-a-run` | The file carries no `workflow:` block: the engine never froze it, so it has no nodes to brief. Run the verb on the state of a frozen run — freeze it first through `write-state` (Step 4) — and never write the block by hand. |
+| `node-brief-unknown-node` | `--node` is not a node of the run's frozen graph, or names `held-approval`, which is briefed by `gate-brief`. Name the node about to run, exactly as `workflow.nodes` spells it, and run the verb again; no state write fixes this. |
 
 `run-complete` ends a run and, under a dispatch driver, only once the close-out it owes is
 on disk. There it takes `--outbox` and `--dispatch-id` as well, because the state never records
@@ -409,7 +413,7 @@ The node's `uses` names both the mechanism and the target:
 |---|---|
 | `skill:<name>` | the Skill tool |
 | `agent:<name>` | the Task tool |
-| `direct:<name>` | inline, by this engine, following the node's section in the definition's prose companion |
+| `direct:<name>` | inline, by this engine, from the node's `node-brief` output |
 | `workflow:<name>` | with no `dir:`, it **starts a child run** — its own task directory, its own frozen graph, its own driver — and the node waits for it (*Sub-runs*). With `dir:` it keeps its dispatch meaning and is refused as a sub-run |
 
 **While a delegate runs, say so — the prompt otherwise looks like it is waiting for the user.**
@@ -436,15 +440,42 @@ the like, never pass a file path or a saved copy in its place, and never re-use 
 for an earlier delegate. **A delegate writing for end users — a user guide, user documentation —
 gets `prior-context --background` instead.**
 
-A `direct:` node's prose is the node's body: its steps, its fan-outs, its self-checks, the
-questions it asks inline, and how many times it may be re-driven. Read the section before
-executing the node, not after it fails. Whether those inline questions are asked at all
-follows the run's driver — see `references/in-node-questions.md` § *In-node questions*.
+Before executing any node, run `node-brief --state=<state> --node=<id>` and read its output
+whole. It prints what the run derives for the node and the conventions that apply to it, and
+its last part is the node's section of the prose companion: for a `direct:` node its steps,
+fan-outs, self-checks and the questions it asks inline. Whether those inline questions are
+asked at all follows the run's driver — see `references/in-node-questions.md`
+§ *In-node questions*.
+
+### Node conventions
+
+Every node follows the rows that apply to it: a step its scheme's row and `every step`, a gate
+the `gate` row, and any node each other row whose case it meets. A node's section states only
+what is its own and never restates these. `node-brief` prints a row whole while it applies: the
+`direct:` row only for a step that owes a page or has no section, `every step` only for a step
+that declares an output, `named by a revise` while a recorded revise names the step and `has a
+budget` on the last budgeted attempt; before then those two are named on one line that points
+here.
+
+| Applies to | Convention |
+|---|---|
+| `agent:` step | Task tool. The prompt carries the `with:` values; each declared path the agent writes, never one the Writes part keeps for the step — an `output_path` agent gets it as `outputs.artifacts` declares it, relative to the task directory, since it joins it to `task_path`; and `prior-context --node` pasted unedited (`run-context` if nothing earlier is needed). Its `headline` is the summary headline. |
+| `skill:` step | Skill tool, given the `with:` values and the `run-context` output; the skill's own result feeds the node summary. |
+| `direct:` step | Run inline from the node's section. A step that owes an HTML page hands its finished markdown to `html-companion-writer` before the completing write. A step with no section does only what these rows say. |
+| `workflow:` step | Starts a child run and waits for it (*Sub-runs*); its outcome is mapped, not judged (*Recording an outcome*). |
+| gate | Asked from `gate-brief` (`references/gates.md`); record the answer, end the run on a stop, revise through `gate-revise`. A false guard skips it with its stretch, unless it reads a step's value and is no pure confirmation, or a choice is held. Sections hold exceptions only. |
+| every step | Before recording `completed`, check each declared artifact path. A missing one its `brief:` `absent` does not sanction is a failed self-check: re-drive the step, naming the path. Record a sanctioned absence under `absent` with its reason, and record every declared value. |
+| asks | With question sets, ask them all in one request per attempt; without them, record the Without default `by: default`. Record each in-session answer as one `by: operator` decision with its `question_id`, question, answer, recommended answer and `as_recommended` on the step's own `node_summaries` entry, not only its mirror (`references/gates.md`). Once `classes_questions` is recorded, ask only the classing writer's `ask:` ids; held choices wait for the next checkpoint or `held-approval`. |
+| feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks item for item, tagged; `recommends` with a one-line reason as `brief:` directs once its input is set. Mirror it under each `summary_keys` entry, `node:` naming the step. |
+| named by a revise | Read the note from `prior-context`; revise the step's own artifacts in place; keep earlier answers unless the note reopens them; record the declared values again; say what changed and write the headline again. |
+| has a budget | The attempt count in `brief:` `budget` is a prose rule nothing enforces. When the last attempt fails, the budget-exhausted rows of *Recording an outcome* decide. |
 
 ### Interpolating `${…}`
 
 Before a node runs, the driver substitutes every `${…}` in its `with:` — however deeply nested —
-and in its `dir:`. Before a gate is asked, it substitutes the ones in its `ask:`. Nothing else is
+and in its `dir:`; `node-brief` prints both filled in by the rules below, so a step takes them
+from there rather than resolving them by hand. Before a gate is asked, it substitutes the ones in
+its `ask:`. Nothing else is
 interpolated: an artifact path is literal, a `when` is evaluated by the ready-set rule, and `uses`
 names a target as written. Each reference reads the run's state, never a recollection of it:
 
@@ -511,13 +542,13 @@ node is recorded `failed` and the run stops with `RUN-FAILED` (`references/in-no
 **A node that did not produce its declared artifacts has not completed.** Before recording
 a node `completed`, check that every path the node declares under `outputs.artifacts` exists
 — one `test -e` per declared path, against the path resolved from the task directory. A
-declared artifact that is missing is one of exactly two things, and the node prose is what
-tells them apart:
+declared artifact that is missing is one of exactly two things, and the node's `brief:` `absent`
+entry is what tells them apart (printed as "may be absent" on `node-brief`'s `writes:` line):
 
-| The node prose | The missing path means |
+| The node's `brief:` `absent` entry | The missing path means |
 |---|---|
 | sanctions the absence by name — the artifact's source may legitimately not exist | no such context; record `completed` with the absence on the node summary (below) |
-| says nothing about it, or says the file is written either way | the delegate skipped work it was asked to do; the node has **not** completed |
+| names nothing for it | the delegate skipped work it was asked to do; the node has **not** completed |
 
 Treat the second as a failed self-check and re-drive the node within its budget, naming the
 missing path in the context handed back; when the budget is exhausted, the table above decides.
@@ -525,18 +556,19 @@ missing path in the context handed back; when the budget is exhausted, the table
 **A sanctioned absence is recorded, not just described.** The completing write's node summary
 carries `absent: {<artifact-key>: "<reason>"}` — one entry per declared artifact the node
 completed without, named by its declared key (never its path), with the reason in a few words —
-and its `summary` still says it in prose. Record it only where the node prose sanctions the
-absence.
+and its `summary` still says it in prose. Record it only where the node's `brief:` `absent`
+entry sanctions the absence.
 
 **A phase key is never a node id.** `node_summaries` is keyed by node id, and `phase_summaries`
-by the workflow's phase keys: the node prose names the key each mirroring node writes under, and
-a node whose prose names none writes a node summary and nothing else.
+by the workflow's phase keys: the node's `brief:` `summary_keys` name the keys each mirroring
+node writes under, and a node that names none writes a node summary and nothing else.
 
 The writer mirrors a node's status onto its summary and registers, on a completing summary,
 every declared artifact on disk the entry does not list; the closing write still lists what the
-node prose asks for (`references/writing-state.md` § *Recording an outcome — the detail*).
+section asks for (`references/writing-state.md` § *Recording an outcome — the detail*).
 
-**Retry budgets are prose, never `with:` data**: nothing consults a budget written in `with:`.
+**Retry budgets are prose, never `with:` data**: nothing consults a budget written in `with:`;
+the number sits in the node's `brief:` `budget` and is printed as a prose rule.
 
 ---
 

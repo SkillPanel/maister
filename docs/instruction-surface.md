@@ -58,6 +58,15 @@ the engine reads. The framework's prose-path sections go with it — `orchestrat
 from 48,404 B to 44,429 B — and the creation checklist, rewritten for a definition, grows from 3,874 B
 to 5,097 B.
 
+**And since, 2026-10-12.** The five guides are rewritten to one step template, with what every
+step does by default stated once, in a conventions table in the engine `SKILL.md`, and the
+per-step data moved into each definition's `brief:` block: `development.md` 54,858 B → 39,226 B,
+`research.md` 43,633 B → 19,905 B, `product-design.md` 52,637 B → 33,711 B, `performance.md`
+39,786 B → 19,843 B and `migration.md` 40,051 B → 20,603 B, 230,965 B → 133,288 B in all. The
+engine `SKILL.md` grows from 54,593 B to 60,082 B with the table and the `node-brief` verb. What a
+run loads changes more than the sum: a step reads its `node-brief` output — a derived header, the
+convention rows that apply and its own section — rather than its whole guide.
+
 ## The session-start footprint: what a session pays before any work
 
 Measured 2026-09-11 and not re-taken: deleting a reference body changes nothing here, because a

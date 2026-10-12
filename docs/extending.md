@@ -18,7 +18,7 @@ by the same validator, frozen into a run's state the same way, and run like any 
 the terminal with `/maister:run <name>`, or driven by the cockpit. The only surface the plugin keeps closed is the *shape* of that grammar.
 
 **`/maister:workflow-author` helps you write them.** `new <name>` interviews you and writes the
-definition with a companion that already carries a section for every `direct:` node.
+definition with its companion, giving a section only to a `direct:` step that needs prose.
 `overlay <builtin>` shows what a built-in lets an overlay attach to or disable, and then writes
 the overlay. `check` validates like `/maister:run --check` and adds checks the validator does not
 make, on the skills and agents your nodes call and on artifact paths. `preview` draws the graph in
@@ -33,7 +33,7 @@ with a prose companion `.maister/workflows/<name>.md` beside it. A node is one e
 
 | Scheme | What runs |
 |---|---|
-| `direct:<name>` | The engine itself, following the section of that name in the prose companion |
+| `direct:<name>` | The engine itself, following the section of that name in the prose companion, or only the engine's node conventions when there is none |
 | `skill:<name>` | A skill, invoked by the host's Skill tool |
 | `agent:<name>` | An agent, invoked by the host's Task tool |
 | `workflow:<name>` | Another workflow definition — as a child run of its own, or dispatched into a member when the node carries `dir:` |
@@ -63,10 +63,13 @@ page covers what is specific to chains.
 **A `direct:` node is yours entirely.** Its body is the section in the prose companion whose
 heading *is* the name after `direct:` — conventionally the node id: `uses: direct:assess-scope`
 runs `## assess-scope`, in backticks or bare, at any heading level, never a heading that merely
-mentions it. Write the steps, the fan-outs, the self-checks and the questions the step asks inline;
-the engine reads that section before running the node, not after it fails. A `direct:` target with
-no section is a validation error, because the companion is the one reference a definition fully
-controls.
+mentions it. Write what is the step's own — its steps, fan-outs, self-checks and the questions it
+asks inline; the engine reads that section before running the node, not after it fails. The
+section is optional: a step with nothing of its own to say beyond the engine's node conventions
+gets none, and validation resolves it `from: conventions`. The companion file itself is required
+— a `direct:` target whose `<name>.md` does not exist is a validation error. Because a renamed
+node or a mistyped target would now fall back to the conventions silently, a `` ## `x` `` heading
+that no node finds its section by warns `orphan-prose-section`.
 
 **A `workflow:` node without `dir:` starts a child run.** The named workflow gets a task directory
 of its own — an ordinary dated one, of its own type, sitting beside the parent's rather than inside
@@ -136,10 +139,12 @@ a run, so a definition that does not validate never becomes one. In an umbrella 
 against the members the manifest declares. It needs that manifest, and it judges each definition
 as written, without overlays.
 
-`/maister:workflow-author check <name>` runs the same check and adds three things. It checks that
+`/maister:workflow-author check <name>` runs the same check and adds more. It checks that
 a skill or agent your project provides is registered under the name the node uses. It flags an
 installed plugin's skill named without its plugin, and an artifact path that leaves the run
-directory. `check --all` checks every workflow and overlay in the project at once, which is the
+directory. It names a step whose `brief:` data says it needs prose but has no section, a question
+id declared on one side only — in `brief:` or in the section — and an orphan heading, with the fix
+for each. `check --all` checks every workflow and overlay in the project at once, which is the
 pass to run after a plugin upgrade.
 
 **Writing the companion.** The companion `<name>.md` is what makes a definition runnable and
@@ -151,10 +156,29 @@ findable:
   same job and is preferred when present. A project workflow with neither is valid but warns
   `workflow-undescribed`, because nothing would offer it. There is no `title:` key: the heading is
   the title.
-- **Give every `direct:` node one section**, headed with the name after `direct:`. The section
-  holds the node's steps, its self-checks, the questions it asks inline and the answer each takes
-  when nobody is at the keyboard, what it writes into its closing summary for the next gate, and
-  its retry budget.
+- **Write a section only for a step that needs one**, headed with the name after `direct:`. The
+  engine's node conventions already state what every step does — check its declared artifacts,
+  record its values, hand a page to the HTML writer, run again in place after a revise, keep the
+  summary a gate reads — so a step that only does what its title and the conventions say needs no
+  section. One that asks a question, keeps a retry budget or owes its summary a hint gets one.
+- **Write the section in the template.** Bold run-in parts, in this order and each only when the
+  step has something of its own there: **Does.** what it does; **Asks.** its questions, one
+  ``**With question sets** (`id`): …`` and one ``**Without question sets** (`id`): …`` line per
+  question at the start of a line, the second saying what it takes when nobody is at the keyboard
+  — the one place that default is written;
+  **Writes.** what it writes beyond its declared outputs; **Summary.** a hint for its closing
+  summary; **Re-run.** what it does after a revise beyond the convention; **Budget.** what each
+  further attempt does differently. A gate gets no section unless it carries an **Exception.**;
+  `## Embedded mode` is written only where the workflow behaves differently as a child run.
+- **Put the step's data in `brief:`.** A top-level `brief:` block, keyed by node id, holds what a
+  step reads as data rather than prose: `budget` (the attempts it may make), `summary_keys`,
+  `absent` (an artifact it may leave unwritten, and why) and `recommends` (which continue option a
+  gate after it recommends for a value). It sits outside the graph hash, an overlay or profile may
+  change one item, and the grammar's § 3.3 has its shape.
+- **What a step runs from.** Before each node the run reads the engine's `node-brief` for it: a
+  short header, the convention rows that apply, the step's `brief:` data, then its section — or
+  `section: none` for a step without one. It is the orchestrator's verb, not a command you run;
+  the `brief:` block and the section are what you write.
 - **Declare the HTML companions.** A markdown artifact that people read as a page gets an HTML
   companion beside it when the run's `html_output` is on. List those artifacts in a top-level
   `html_companions:` block, node id to artifact keys —
@@ -191,8 +215,8 @@ prints two kinds of line:
 
 Both are warnings for you to read, never a refusal, and the run's wrap-up lists them under what
 needs you. A node that legitimately completes without one of its artifacts — say, a report
-written only when some input was given — says so in its prose, and records it on its summary as
-`absent: {<artifact-key>: "<reason>"}`. The verb prints neither line for it, and the dashboard
+written only when some input was given — names it in its `brief:` `absent`, and records it on
+its summary as `absent: {<artifact-key>: "<reason>"}`. The verb prints neither line for it, and the dashboard
 shows the artifact as not produced, with that reason. Both checks read the resolved graph and
 the `html_companions` block merged over your overlays and profile, so a node you add is held to
 the same rule as the built-in ones.
@@ -267,7 +291,8 @@ being validated in. The cost is that a typo surfaces when the node is reached ra
 validation, so read the warnings. To see what *did* resolve, and where, read the report's `resolved`
 list: one entry per target, naming the node, the target as written, which of the four places
 answered (`project`, `user`, `plugin` or `installed`) and the file it found. A skill you meant to come from
-your project that shows up as `plugin` is the shadowing case caught early.
+your project that shows up as `plugin` is the shadowing case caught early. A `direct:` target
+reads `companion` when its section answered and `conventions` when the step has none.
 
 **How the node runs.** The engine hands a `skill:` target to the host's Skill tool and an `agent:`
 target to the Task tool, by the name as written. The bare names of this plugin's own skills gain

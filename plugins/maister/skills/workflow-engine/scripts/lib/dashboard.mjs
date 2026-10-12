@@ -356,7 +356,7 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
  *
  * `node_summaries.<id>` is consulted first because `phases[].id` **is** the node
  * id; `<something>_context.phase_summaries.<key>` is the fallback, and only where
- * `key === id`. A workflow's key-to-node mapping table, in its node prose, is
+ * `key === id`. A workflow's key-to-node mapping, its `brief:` `summary_keys`, is
  * deliberately not carried into code: it exists so a human can line the two up
  * by eye, and a projection that guessed at it would attribute one phase's
  * decisions to another.
@@ -366,7 +366,7 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
  * **the two are never merged**: a field filled on both is the node summary's
  * alone. Taking the first entry whole instead let a node summary written with
  * empty lists hide the decisions and artifacts its phase summary recorded, and
- * an empty list is what a closing write sends when the node prose names the
+ * an empty list is what a closing write sends when its `brief:` names the
  * phase key as the place for them.
  *
  * The context block is found by suffix rather than against a frozen list of five

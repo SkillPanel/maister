@@ -48,7 +48,7 @@ are what an author sees first, the refusals are what fail a run.
 | **W3 — the parent records the link** | `write-state` against the **parent** state | `nodes.<node>`: `status: waiting`, `values: {task_path, run_id}` |
 | — | *the child runs, in session* | the ordinary engine loop against the child's state. Child gates are asked with the host's question tool and answered in the same turn; the child's own close-out runs `run-complete` with no wrap-up, since the parent's own ending carries it |
 | — | *no write: the re-resolve* | read the child's state, re-resolve the definition **it** names, compare hashes, read its declared `outputs:` and the producing nodes' declared paths |
-| **W4 — the parent adopts the outcome** | `write-state` against the **parent** state | `nodes.<node>`: the mapped status, `values` re-sent whole as `{task_path, run_id, …copied values}`; `node_summaries.<node>`, onto which the writer appends every artifact the node declares that the child wrote, spelled relative to the parent's run directory, and whose `absent` names each declared artifact the child never wrote because a guard skipped the child node that writes it; the `phase_summaries` key the node prose names when it mirrors one |
+| **W4 — the parent adopts the outcome** | `write-state` against the **parent** state | `nodes.<node>`: the mapped status, `values` re-sent whole as `{task_path, run_id, …copied values}`; `node_summaries.<node>`, onto which the writer appends every artifact the node declares that the child wrote, spelled relative to the parent's run directory, and whose `absent` names each declared artifact the child never wrote because a guard skipped the child node that writes it; the `phase_summaries` key its `brief:` entry names under `summary_keys` |
 | — | continue | the parent resumes its ready-set walk; `${<node>.artifacts.<key>}` and `${<node>.values.<key>}` resolve |
 
 **`WAITING-SUBRUN` is never printed under a terminal driver.** That is a rule, not an implication.
@@ -396,9 +396,9 @@ change and a companion paragraph.
    than part of declaring the block — it rewrites generated files, and may be batched with any
    other definition change in flight. What must not be deferred is the declaration: a diagram
    regenerated before the block is added records an identity no run will ever freeze.
-7. **Say so in the companion.** Keep the workflow's `## Embedded mode` heading — every companion
-   carries one — and rewrite its body: what the workflow declares, that the engine supplies
-   `embedded`, and which node the guard skips.
+7. **Say so in the companion, only where the workflow differs as a child.** When a step behaves
+   differently with `embedded` set beyond the guard, give the companion an `## Embedded mode`
+   section saying how; the guard, the `outputs:` block and the input already say the rest.
 
-A workflow that stays standalone says so in the same place and points here, rather than restating
-the recipe where it will go stale.
+A workflow that stays standalone, or runs as a child the same way it runs alone, needs no such
+section.

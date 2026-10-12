@@ -1,0 +1,9 @@
+# Adds a polishing step between the draft and its approval; its section is in
+# the overlay's own guide.
+extends: node-brief.yml
+
+add:
+  polish:
+    uses: direct:polish
+    needs: [draft]
+    before: [approval]

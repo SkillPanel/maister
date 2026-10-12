@@ -193,7 +193,7 @@ report says so.
 | `this grammar is version 1, written as the bare number` | write `version: 1`, unquoted |
 | `the required key "X" is missing` | add `X:` at the top of the definition |
 | `profiles belong to an overlay` | move the `profiles:` block into `<name>.overlay.yml` |
-| `the prose companion carries no section for "X"` | add a `## X` heading to the `.md` beside the file that declares the node — the overlay's own for a node an overlay adds |
+| `"X" has no prose companion: <path> does not exist` | create `<name>.md` beside the definition, with its `# Title` and opening paragraph — for a node an overlay adds, `<name>.overlay.md` beside the overlay |
 | `needs names "X", which no node declares` | correct the id, or declare node `X` |
 | `names an input that is not declared`, `when names the input "X", which is not declared` | declare the input under `inputs:`, or correct the name |
 | `which is outside this node's needs closure` | add the named node to this node's `needs` |

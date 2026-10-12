@@ -109,7 +109,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { approvesHeld, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
@@ -1752,19 +1752,13 @@ function isGate(recorded, byId, id) {
  * before a node this gate closes is in here, and so is any node since the
  * previous gate that no gate needed directly — neither was ever shown to the
  * operator, and this is the gate that moves past them.
+ *
+ * Exported for `node-brief`, whose `feeds:` line names the gates a step closes
+ * by this same answer.
  */
-function closingCandidates(recorded, byId, gate) {
-  const direct = [];
+export function closingCandidates(recorded, byId, gate) {
+  const { direct, visited: seen } = closedBy(gate, id => needsOf(recorded, byId, id), id => isGate(recorded, byId, id));
   const stretch = [];
-  const seen = new Set([gate]);
-  const visit = id => {
-    for (const need of needsOf(recorded, byId, id)) {
-      if (seen.has(need)) continue;
-      seen.add(need);
-      if (isGate(recorded, byId, need)) visit(need);
-      else direct.push(need);
-    }
-  };
   const behind = id => {
     for (const need of needsOf(recorded, byId, id)) {
       if (seen.has(need)) continue;
@@ -1774,7 +1768,6 @@ function closingCandidates(recorded, byId, gate) {
       behind(need);
     }
   };
-  visit(gate);
   for (const id of direct) behind(id);
   return { direct, stretch };
 }
@@ -2038,8 +2031,9 @@ function optionWith(options, effect) {
  * value}`, or the value-missing refusal when no operand reads true and a
  * completed node never recorded a value one of them reads — an operand that
  * reads true decides the guard whatever another one would have said.
+ * Exported for `node-brief`, whose `when:` line reads a guard by this rule.
  */
-function evaluate(when, context) {
+export function evaluate(when, context) {
   let refusal = null;
   for (const operand of guardOperands(when)) {
     const read = evaluateReference(operand, when, context);

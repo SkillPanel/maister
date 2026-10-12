@@ -1,0 +1,9 @@
+# A heading in the companion names no step: a renamed step left its section behind.
+name: orphaned
+version: 1
+description: "Drafts a note; its companion keeps a section for a step that is gone."
+
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []

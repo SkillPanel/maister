@@ -1,0 +1,25 @@
+# Overlays the brief sample: replaces one key of a node's entry and removes
+# another, removes a node's entry whole, adds a node with an entry of its own,
+# and carries a profile that disables a node and has the last word on another.
+extends: brief.yml
+
+brief:
+  analysis:
+    budget: 3
+    absent: null
+  review: null
+  extra:
+    summary_keys: [extra]
+
+add:
+  extra:
+    uses: skill:implementation-verifier
+    needs: [review]
+    before: [wrap-up]
+
+profiles:
+  lean:
+    disable: [audit]
+    brief:
+      specification:
+        summary_keys: [spec]

@@ -1,0 +1,36 @@
+# A guide template lint sample: a question id has two With lines (check 6).
+name: bad-question-sets
+version: 1
+description: "Scopes a note, drafts it, asks to continue, and wraps up."
+
+brief:
+  scope:
+    budget: 2
+
+nodes:
+  scope:
+    uses: direct:scope
+    needs: []
+    outputs:
+      artifacts:
+        scope_notes: analysis/scope.md
+
+  draft:
+    uses: direct:draft
+    needs: [scope]
+    outputs:
+      artifacts:
+        notes: drafts/notes.md
+
+  approval:
+    type: gate
+    needs: [draft]
+    ask: "Draft complete. Continue?"
+    options:
+      continue-to-wrap-up: continue
+      revise-draft: {effect: revise, reruns: draft}
+      stop-here: stop
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [approval]

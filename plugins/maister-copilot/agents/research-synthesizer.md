@@ -334,10 +334,11 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 2. `outputs/research-report.md` - Comprehensive research report
 3. `outputs/research-report.html` - Operator-facing HTML companion, only when the run context's `html:` line is a path
 
-**Structured result** returned to the orchestrator:
+#### Structured Result (returned to orchestrator)
 
 ```yaml
 status: "success" | "failed"
+headline: "[...]"   # one sentence, at most 220 characters: the answer the research reached; the node summary's headline
 report_path: "outputs/research-report.md"
 synthesis_path: "analysis/synthesis.md"
 companion: "written" | "disabled" | "failed" | "not-requested"

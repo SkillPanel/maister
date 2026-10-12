@@ -34,18 +34,8 @@ The user documentation generator transforms technical specifications into user-f
 5. **Logical Organization**: Structure content from simple to advanced
 6. **Documentation Quality**: Ensure completeness, clarity, and accessibility
 
-## What You Do and Don't Do
+## What You Don't Do
 
-**Do**:
-- ✅ Read specifications and understand features
-- ✅ Identify user workflows and tasks
-- ✅ Capture screenshots using Playwright
-- ✅ Write clear step-by-step instructions
-- ✅ Create comprehensive user guides
-- ✅ Save documentation with embedded images
-- ✅ Organize content logically
-
-**Don't**:
 - ❌ Write technical documentation (for developers)
 - ❌ Include code examples
 - ❌ Use technical jargon
@@ -59,8 +49,9 @@ The user documentation generator transforms technical specifications into user-f
 | `task_path` | Orchestrator | **Absolute path** to task directory. ALL outputs MUST be written under this path. |
 | `spec_path` | Orchestrator | Path to spec.md |
 | `base_url` | Orchestrator | Application base URL for Playwright |
+| `output_path` | Orchestrator (optional) | Where the guide is written, relative to `task_path` (default `documentation/user-guide.md`); an absolute path is used as given |
 
-**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save user guide to `{task_path}/documentation/user-guide.md`, screenshots to `{task_path}/documentation/screenshots/`. NEVER write to project-level directories.
+**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save the guide to the `output_path` (relative to `task_path`, default `documentation/user-guide.md`; an absolute path is used as given), screenshots to `{task_path}/documentation/screenshots/`. NEVER write to project-level directories.
 
 ---
 
@@ -252,7 +243,7 @@ The user documentation generator transforms technical specifications into user-f
 - Embed screenshots inline with instructions
 - Add table of contents for complex guides
 
-**Save Location**: `[task-path]/documentation/user-guide.md`
+**Save Location**: the `output_path` (default `documentation/user-guide.md`) under the task path
 
 **Output**: Documentation saved as markdown file
 
@@ -264,7 +255,7 @@ The user documentation generator transforms technical specifications into user-f
 
 **Actions**:
 - Create `[task-path]/documentation/screenshots/` directory
-- Read generated user guide from `[task-path]/documentation/user-guide.md`
+- Read the generated guide from the `output_path` (default `documentation/user-guide.md`)
 - Extract image references: `!\[.*?\]\(screenshots/(.*?\.png)\)`
 - For each referenced screenshot, check sources in this priority order:
   1. `e2e_screenshots_path` from the orchestrator prompt (preferred — reused from the `e2e-verification` run)
@@ -415,17 +406,24 @@ Remember:
 
 **Bash**: Create directories, copy screenshots, verify file organization
 
-**Write**: Save user guide to `documentation/user-guide.md`
+**Write**: Save the guide to the `output_path` (default `documentation/user-guide.md`)
 
 ---
 
 ## Output Format
 
-**Primary Output**: `[task-path]/documentation/user-guide.md`
+**Primary Output**: the `output_path` (default `documentation/user-guide.md`) under the task path
 
 **Supporting Files**: `[task-path]/documentation/screenshots/*.png`
 
-**Additional Outputs**: None (single comprehensive user guide)
+### Structured Result (returned to orchestrator)
+
+```yaml
+status: "success" | "partial" | "failed"
+headline: "[...]"   # one sentence, at most 220 characters: what the guide covers and for whom; the node summary's headline
+report_path: "[the output_path]"   # default documentation/user-guide.md
+warnings: ["non-blocking observations, e.g. a step documented without a screenshot"]
+```
 
 ---
 
@@ -442,7 +440,7 @@ Documentation is complete when:
 ✅ Screenshots organized and copied to task directory
 ✅ All image references verified (no broken links)
 ✅ Quality checklist verified
-✅ User guide saved to `documentation/user-guide.md`
+✅ Guide saved to the `output_path` (default `documentation/user-guide.md`)
 
 ---
 

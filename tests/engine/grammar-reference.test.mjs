@@ -27,7 +27,7 @@ const ARRAYS = {
   graph: [
     'DEFINITION_KEYS', 'NODE_KEYS', 'OVERLAY_KEYS', 'PROFILE_KEYS', 'DISPLAY_KEYS', 'OPTION_KEYS', 'OPTION_EFFECTS',
     'OPTION_GRANTS', 'ADDED_NODE_KEYS', 'OUTPUT_KINDS', 'SCHEMES', 'TUNABLE', 'ON_VALUES', 'INPUT_TYPES', 'INPUT_KEYS',
-    'RESERVED_PATHS', 'RESOLUTION_ORDER',
+    'RESERVED_PATHS', 'RESOLUTION_ORDER', 'BRIEF_KEYS',
   ],
   display: ['ICON_HINTS'],
 };
@@ -146,4 +146,14 @@ test('§ 14 lists the skip-guard warning the validator raises', () => {
   const checking = REFERENCE_TEXT.slice(REFERENCE_TEXT.indexOf('## 14. Checking a definition'));
   assert.ok(/^\| `skip-guard-not-pure:<node>` \|/m.test(checking),
     'grammar.md § 14 has a row for skip-guard-not-pure:<node>');
+});
+
+test('§ 11 states the step template: the Re-run part, the optional section and the fence rule', () => {
+  const start = REFERENCE_TEXT.indexOf('## 11. The prose companion');
+  const section = REFERENCE_TEXT.slice(start, REFERENCE_TEXT.indexOf('## 12. Overlays'));
+  assert.ok(start >= 0, 'grammar.md carries § 11');
+  assert.match(section, /\*\*Re-run\.\*\*/, '§ 11 names the Re-run part');
+  assert.match(section, /\*\*The section is optional\.\*\*/, '§ 11 says the section is optional');
+  assert.match(section, /inside a fenced code block is never a heading/, '§ 11 states the fenced-heading rule');
+  assert.doesNotMatch(REFERENCE_TEXT, /When re-run after a revise/, 'grammar.md cites no retired paragraph label');
 });

@@ -251,6 +251,7 @@ The areas appear in the decision areas file's order, and the alternatives in eac
 
 ```yaml
 status: "success" | "partial" | "failed"
+headline: "[...]"   # one sentence, at most 220 characters: the areas explored and what is recommended; the node summary's headline
 exploration_path: "outputs/solution-exploration.md"
 areas_path: "outputs/decision-areas.json" | null   # null when the file was not written; reason in warnings
 companion: "written" | "disabled" | "failed" | "not-requested"

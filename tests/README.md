@@ -65,6 +65,14 @@ umbrella's, plus 20,000 seeded random values parsed in process.
   scratch path masked. `SNAPSHOT_AREAS=1 node --test tests/engine/area-brief.test.mjs` rewrites the
   goldens after a reviewed change to what an area question says.
 
+- `guide-template-lint.mjs` — not a test: the step-template lint `make validate` runs over the
+  guide beside each built-in definition (or each `--definition=<yml>` given). It checks structure
+  only, and each `FAIL:` line fails. `guide-template-lint.test.mjs` runs it
+  as a subprocess on the five built-ins and on the good and bad samples under
+  `fixtures/guide-template/`, one bad sample per failing check. `node-brief-size.test.mjs` freezes
+  each built-in and prints the words of every node's `node-brief` output as a diagnostic table;
+  it fails only on a brief that does not print.
+
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.
 
@@ -73,9 +81,9 @@ freezing at test time, so editing a built-in does not stale a fixture.
 `make smoke` runs `node tests/shell-smoke.mjs --shell=bash`. Where the suite spawns `node` with an
 argv array, the smoke hands every engine call to a shell as one command line in the invocation
 contract's form, from a plugin copy and a project whose paths both hold a space: `locate`,
-`validate`, `resolve`, the freeze, two node writes, `area-brief` at a node that declares no
-decision areas (its fallback warning, exit 0 and nothing on stdout), `gate-brief --json`, the
-dashboard projection and `resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
+`validate`, `resolve`, the freeze, `run-context` and `node-brief` for a node, two node writes,
+`area-brief` at a node that declares no decision areas (its fallback warning, exit 0 and
+nothing on stdout), `gate-brief --json`, the dashboard projection and `resume-check`. It then starts each hook from its `hooks.json` entry, as the host does, with sample
 input. `--shell` takes `bash`, `zsh`, `pwsh`, `powershell` or `cmd`; cmd.exe lines quote with `"`,
 every other shell's with `'`. CI runs it under bash on Ubuntu, and under pwsh, Windows PowerShell,
 cmd.exe and Git Bash on Windows, where the paths are written with `\`.

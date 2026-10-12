@@ -1,0 +1,14 @@
+# A workflow whose second step has no section of its own: it runs from the
+# conventions, which is how a step that only does the obvious thing is written.
+name: sectionless
+version: 1
+description: "Drafts a note, then reviews it from the conventions alone."
+
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []
+
+  review:
+    uses: direct:review
+    needs: [draft]

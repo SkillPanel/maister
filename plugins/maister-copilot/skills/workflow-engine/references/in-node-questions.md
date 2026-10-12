@@ -10,9 +10,9 @@ them. They follow the same driver, and only the driver:
 
 | The run's driver | An in-node question is |
 |---|---|
-| absent, or `kind: terminal` | asked in session, exactly as the node prose describes it |
+| absent, or `kind: terminal` | asked in session, exactly as the node's *Asks* part describes it |
 | `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator** as one question set (*When a question suspends*) |
-| any other — `dispatch`, or a cockpit without that feature | **never asked**; the node takes the default its own prose names, and records that it did |
+| any other — `dispatch`, or a cockpit without that feature | **never asked**; the node takes the default its *Without question sets* line names, and records that it did |
 
 `orchestrator.driver.features` is the driver's own list of what it carries, seeded by whatever
 started the run (a sub-run's freeze copies its parent's); the engine only reads it. Without
@@ -272,9 +272,10 @@ asked and the default is taken. Asking in session anyway is never right: nobody 
 
 ## When nobody can be asked
 
-**Every in-node question names its default, in its own node prose** — taken under a driver
-without question sets, or for a question a node reaches after it has already asked. The families
-and what each takes:
+**Every in-node question names its default**, once, in the *Without question sets* line of its
+node's *Asks* part — taken under a driver without question sets, or for a question a node
+reaches after it has already asked. The families and what each
+takes:
 
 | The question | What is taken when it cannot be asked |
 |---|---|
@@ -299,8 +300,8 @@ list:
 {decision: "All four reviews", by: default, question_id: standard-verifications}
 ```
 
-`question_id` is the id the node prose names, and `decision` is the default this run actually
-took. A node that had nothing to ask records nothing. An answered question is recorded the same
+`question_id` is the id the node's *Without question sets* line names, and `decision` is the
+default this run actually took. A node that had nothing to ask records nothing. An answered question is recorded the same
 way, `by: operator` (`references/gates.md` § *Before every gate*). The older string form,
 `defaulted: <id> -> <taken>`, is still read as `by: default`.
 

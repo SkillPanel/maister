@@ -54,6 +54,7 @@
 import fs from 'node:fs';
 
 import { CLASSES, questionOutcome, triageFor } from './policy.mjs';
+import { guideRows } from './graph.mjs';
 import { attemptNumber, oneLine } from './items.mjs';
 
 /** The reserved closing checkpoint's id. */
@@ -120,13 +121,16 @@ const QUESTION_ID = /`([a-z0-9-]+)`/;
  * Every `{node, id}` a node-prose file names on its With/Without question-set
  * lines, in file order, each pair counted once. A line with no parenthesis — the
  * file's preamble, or a `With` line whose `Without` partner carries the id —
- * names no question.
+ * names no question. The file is walked as `guideRows` walks it, so a line
+ * inside a fenced block — an example of a heading or a question-set line —
+ * declares nothing.
  */
 export function inNodeQuestions(text) {
   const found = [];
   const seen = new Set();
   let node = null;
-  for (const line of text.split('\n')) {
+  for (const { text: line, fenced } of guideRows(text)) {
+    if (fenced) continue;
     const heading = NODE_HEADING.exec(line);
     if (heading) {
       node = heading[1];

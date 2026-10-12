@@ -934,11 +934,12 @@ function displayOfRun(doc, runDir) {
  * Read by the same `sourcesOf` the display and `definitionOf` are, so the
  * companions a check holds a node to come from the files the run froze and not
  * from whatever a reader would locate today. An overlay that cannot be read is
- * left out of the merge, as `definitionOf` leaves it out of the fold.
+ * left out of the merge, as `definitionOf` leaves it out of the fold. A caller
+ * that has already read them passes `sources`, so they are read once.
  */
-export function companionsOfRun(doc, runDir) {
+export function companionsOfRun(doc, runDir, read = undefined) {
   try {
-    const sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
+    const sources = read !== undefined ? read : sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
     if (sources === null || !isPlainObject(sources.definition.doc)) return null;
     const definition = definitionOf(doc, runDir);
     if (definition === null) return null;
@@ -955,7 +956,7 @@ export function companionsOfRun(doc, runDir) {
  * taken against the project root, as the freeze recorded them. Each caller
  * decides what an unreadable source costs it.
  */
-function sourcesOf(workflow, runDir) {
+export function sourcesOf(workflow, runDir) {
   const file = definitionPathOf({ workflow }, runDir);
   if (file === null) return null;
   const root = projectRootOf(runDir);
@@ -3128,13 +3129,36 @@ function foldQuestionAnswer(entry, node, runDir, held, attempt = 1, writeWarning
  * reads `terminal` once stamped is then credited to that person as its
  * `actor` (`withPersonActor`); one with no `via`, or a driver's, gains none,
  * and a decision the run, an audit or a default settled is never touched.
+ * An answer sent with its `answer` and `recommended` but no `as_recommended`
+ * gains it too (`withAsRecommended`), so a brief counting the user's choices
+ * never reads a missing key as a choice against the recommendation.
  */
 function stampAnswers(decisions, runDir, via) {
   return decisions.map(item => {
     if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
-    if (!isPlaceholderName(item.answered_by)) return withPersonActor(item);
-    return withPersonActor({ ...item, answered_by: operatorName(runDir), ...(Object.hasOwn(item, 'via') ? {} : { via }) });
+    const judged = withAsRecommended(item);
+    if (!isPlaceholderName(judged.answered_by)) return withPersonActor(judged);
+    return withPersonActor({ ...judged, answered_by: operatorName(runDir), ...(Object.hasOwn(judged, 'via') ? {} : { via }) });
   });
+}
+
+/**
+ * An in-node answer with `as_recommended` filled from its own `answer` and
+ * `recommended`: true when the two read the same once each is trimmed, rid of
+ * a trailing "(Recommended)" and compared without regard to case — a picker
+ * labels the recommended option with that suffix, and the label is what an
+ * answer is often recorded as. Left as it is when it already carries the key,
+ * whatever its value, or when either text is missing or not a string.
+ */
+function withAsRecommended(item) {
+  if (Object.hasOwn(item, 'as_recommended')) return item;
+  if (typeof item.answer !== 'string' || typeof item.recommended !== 'string') return item;
+  return { ...item, as_recommended: optionText(item.answer) === optionText(item.recommended) };
+}
+
+/** An option's text as `withAsRecommended` compares it. */
+function optionText(text) {
+  return text.trim().replace(/\s*\(recommended\)$/i, '').toLowerCase();
 }
 
 /** The driver kinds an answer given in session is stamped with; any other is `terminal`. */

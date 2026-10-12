@@ -77,6 +77,7 @@ judges nothing else — so a newer definition in a mixed fleet is a diagnostic, 
 | `display` | no | Icons, titles, option labels and gate headers for the dashboard and the gate question (§ 3.1) |
 | `nodes` | yes | Node id → node (§ 4) |
 | `html_companions` | no | Node id → the artifact keys whose markdown owes an HTML companion (§ 3.2) |
+| `brief` | no | Node id → the data a node's brief prints beside its prose (§ 3.3) |
 
 `profiles:` is not a definition key: profiles belong to an overlay, and a definition's own are
 refused rather than silently ignored. Nor is there a `title:` key: a workflow's title is its
@@ -138,6 +139,49 @@ the node without one prints `companion-missing:`, and closing the run prints
 `missing-companion:` for each still absent. A definition without the block owes nothing.
 The block is outside the recorded identity: declaring a companion moves no frozen run. It is
 not the prose companion of § 11, which is the definition's own `.md` file.
+
+### 3.3 `brief`
+
+What a node's brief prints beside its prose section — data a step reads, kept out of the prose
+so every workflow states it the same way and an overlay can change one item:
+
+```yaml
+brief:
+  specification:
+    summary_keys: [specification, architecture_decision]
+    absent: {technical_clarifications: "Written only when clarifications were needed."}
+    recommends: {audit_flag: {"yes": continue-to-spec-audit, "no": continue-to-planning}}
+```
+
+Keys are node ids; each entry holds any of these keys:
+
+<!-- vocabulary: BRIEF_KEYS -->
+| Key | Shape |
+|---|---|
+| `summary_keys` | A list of the phase keys the node mirrors its summary under, each lower-case letters, digits, underscores and dashes starting with a letter, none twice. A phase key is never derived from the node id |
+| `absent` | Artifact key → a one-line reason the node may leave that artifact unwritten |
+| `budget` | A whole number from 1 to 10: the recovery attempts the node may make, printed as a rule and not enforced. A node with no recovery budget has no `budget` key |
+| `recommends` | `with:` key → (value → continue option id): which option the gate the node feeds should recommend for each value. Values are read as text, so quote `"yes"`, `"no"`, `"true"`, `"false"` |
+
+A question the node asks inside itself has no key here: its default is stated once, in the
+*Without question sets* line of the node's section (§ 11), which the brief prints.
+
+**Merge.** The base, then each overlay's block, then the selected profile's, node by node and
+key by key: a later key replaces the earlier one, a key set to `null` removes it, and an entry
+set to `null` removes the node's entry. `null` is an overlay's or a profile's removal, and an
+error in a definition. A node an overlay or the profile disables gets no brief data.
+
+**Checks.** A block that is not a mapping, a key that is not a node id, an entry that is not a
+mapping, a key outside the table, and a value of the wrong shape or with a line break are errors,
+each located at its path (`brief.<node>.<key>…`, prefixed `profiles.<name>.` in a profile). A
+node the resolved graph does not carry, an `absent` key the node does not declare, a `recommends`
+key that is not one of its `with:` keys, and a recommended option that is not a continue option
+of a gate the node feeds each warn (§ 14); nothing is printed for that item. A node feeds the
+gates whose closing nodes hold it: a gate's needs, with a need that is itself a gate replaced by
+that gate's own needs — the nodes the brief's `feeds:` lines name.
+
+The block is outside the recorded identity: changing a budget or a summary key moves no frozen
+run, and `resolve` never prints it.
 
 ## 4. Nodes
 
@@ -205,9 +249,9 @@ is the workspace root. Both hosts' layouts are searched whatever host is running
   installed later or the project the chain runs in may still provide it. A typo therefore
   surfaces only when the node is reached — read the warnings.
 - **What resolved, and where.** The check's `resolved` list names each target and the tier that
-  answered it — `project`, `user`, `plugin` or `installed`, and `companion` for a `direct:`
-  section. A target you meant to come from your project that answers `plugin` is the shadowing
-  case caught early.
+  answered it — `project`, `user`, `plugin` or `installed`; for a `direct:` target, `companion`
+  when the companion carries its section and `conventions` when it has none (§ 11). A target you
+  meant to come from your project that answers `plugin` is the shadowing case caught early.
 
 A node that carries `dir:` is stricter: its target must resolve and must be able to run with
 nobody at the keyboard. The workspace validator judges that: a `workflow:` target always
@@ -284,8 +328,8 @@ option, not in `needs`, so the graph stays acyclic and the ready set is computed
 - **Sub-runs.** A stretch that holds a `workflow:` node is refused: the child run it started is
   already finished, and running the node again would adopt it rather than run it anew.
 - **The note.** The operator's reason travels with the answer, and the re-run node reads it from
-  the prior context. The node prose of a `reruns` target says how it re-runs over its own earlier
-  output (§ 11).
+  the prior context. A `reruns` target re-runs over its own earlier output by the engine's re-run
+  convention, and its *Re-run* part says only what differs (§ 11).
 
 **A continue option may declare what its answer grants.** Approving a plan can also mean "push
 the branch and open the pull request", and the option says so, so the operator approves both with
@@ -436,9 +480,9 @@ An input named `embedded` has one meaning: the engine sets it when this workflow
 An artifact path is **literal** and stays inside the run's task directory: no `${…}`, no absolute
 path (a leading `/` or `\`, or a drive letter such as `C:`), no `..` segment. It may name a file or
 a directory.
-A node that does not produce a declared artifact has not completed — unless its prose sanctions
-the absence by name, and the node then records it on its summary under `absent`, keyed by the
-artifact's declared key (engine § *Recording an outcome*).
+A node that does not produce a declared artifact has not completed — unless its `brief:` `absent`
+sanctions the absence by name (§ 3.3), and the node then records it on its summary under `absent`,
+keyed by the artifact's declared key (engine § *Recording an outcome*).
 
 | Value type | Recorded as |
 |---|---|
@@ -528,29 +572,47 @@ section is found by its heading:
   `## Notes on assess-scope` does not. By convention the name is the node id;
 - the companion is `<name>.md` beside the definition, or, for a node an overlay adds, the
   `.md` beside that overlay;
-- a line inside a fenced code block that starts with `#` is read as a heading too, so keep such a
-  line out of a fence;
-- a `direct:` target with no section is an error, because the companion is the one reference a
-  definition fully controls.
+- a line inside a fenced code block is never a heading, so a heading quoted in an example neither
+  opens a section nor closes one.
 
-**The section is the node's body.** It holds the steps, the fan-outs, the self-checks, the
-questions the node asks inline and the default each question takes when nobody can be asked, what
-the node writes into its closing summary for the gate brief, and its recovery budget. The engine
-reads it before running the node, not after it fails. Recovery budgets live here and never in
-`with:`, where they would be inert data.
+**The section is optional.** A `direct:` node whose companion carries no section for it runs from
+the engine's node conventions alone, and the check's `resolved` list says `conventions` for it
+rather than `companion`. The companion file itself is required: a `direct:` target whose
+companion does not exist is an error, `"<name>" has no prose companion: <path> does not exist`.
+Because a renamed node or a mistyped target would now fall back to the conventions without a
+word, every `` ## `x` `` heading outside a fence must name a section some node finds: the name
+after `direct:` for a `direct:` node, the node id for any other node or gate. One that names none
+warns `orphan-prose-section` (§ 14).
 
-**A node a revise option names says how it runs again.** Its section carries a paragraph headed
-*When re-run after a revise*: read the note from the prior context, revise its own artifacts in
-place rather than start over, keep the answers it already has unless the note reopens them, record
-its declared values again (a revise clears them), and say in the summary what changed. Without it
-the node repeats its first attempt, or skips work because its artifacts already exist.
+**The section is the node's own part of its brief.** The engine's node conventions (engine
+`SKILL.md` § *Node conventions*) already say how each scheme runs, how a gate is asked, what every
+step checks before it completes, what a closing summary carries and how a re-run works; a section
+states only what is the node's own and never restates them. `node-brief` prints the node's
+header, the conventions that apply to it and then its section, and the engine reads that before
+running the node. A section is built from up to six parts, each opened by a paragraph that starts
+with its bold label, in this order, each at most once:
+
+| Part | Carries |
+|---|---|
+| `**Does.**` | The steps, fan-outs, self-checks and judgement; the only part that may hold subheadings |
+| `**Asks.**` | Framing for the questions the node asks inline, then its question-set lines |
+| `**Writes.**` | What the header cannot print about its files: a required shape, an undeclared write |
+| `**Summary.**` | An example headline and what goes into its decisions, risks and `recommends` |
+| `**Re-run.**` | Only what differs from the re-run convention, for a node a revise option names |
+| `**Budget.**` | What happens between recovery attempts; the number is `brief:` `budget` (§ 3.3) |
+
+A gate has a section only for an exception — behaviour neither its definition,
+`references/gates.md` nor the conventions carry — held in a single `**Exception.**` part. The data
+a step reads (its phase keys, sanctioned absences, budget, recommendation and question defaults)
+lives in `brief:`, never in the prose, and a budget never in `with:`, where it would be inert.
 
 **The top of the companion introduces the workflow.** Its `# Title` line is the workflow's title,
 and its first paragraph is the summary `/maister:run --list` shows and `/maister:work` offers the
 workflow by — unless the definition carries a `description:`, which is preferred. A project
 workflow with neither warns `workflow-undescribed`, because `/maister:work` has nothing to match
-a task against. A companion also carries an `## Embedded mode` section saying whether the
-workflow can run as a child (§ 13.1).
+a task against. Node sections follow it. A workflow that can run as a child and behaves
+differently as one adds an `## Embedded mode` section saying how (§ 13.1); one that runs the same
+way as a child carries none.
 
 ## 12. Overlays
 
@@ -568,6 +630,7 @@ result is validated as a whole: an overlay that breaks the graph is an error, ne
 | `profiles` | Profile name → an alternative set of operations, applied only when selected |
 | `display` | Icons, titles, option labels and headers, including for added nodes (§ 3.1) |
 | `html_companions` | Companions owed, including by added nodes; a node's list replaces the base's (§ 3.2) |
+| `brief` | Brief data, including for added nodes; merged key by key, `null` removing (§ 3.3) |
 
 **Fold order:** the base, then for each overlay in order its `disable`, its `tune`, its `add`;
 then the selected profile's `disable`, `tune` and `add`. Validation reads the graph that results.
@@ -613,6 +676,7 @@ refused, because the node's dependents no longer wait for it. To change what a n
 | `add` | As above |
 | `display` | As above; the profile's wins |
 | `html_companions` | As above; the profile's wins |
+| `brief` | As above; the profile's wins, key by key |
 
 Every profile is validated whether or not it is selected, and a finding only one profile produces
 is prefixed with its name. Selecting a profile no overlay declares is an error.
@@ -634,11 +698,12 @@ for it can be one:
    `when: "!${inputs.embedded}"`.
 3. Declare a workflow-level `outputs:` block (§ 8.3) naming every artifact and value a parent may
    read.
-4. Give every question a node asks inside itself a default its prose names, because a child
-   under a cockpit or dispatch driver is never asked one. A question that truly needs a person
-   becomes a gate.
+4. Give every question a node asks inside itself a default in its *Without question sets* line,
+   because a child under a cockpit or dispatch driver is never asked one. A question that truly needs a
+   person becomes a gate.
 5. Keep exposed values short and flow-safe; detail belongs in an artifact.
-6. Say so under the companion's `## Embedded mode` heading.
+6. Where a step behaves differently as a child, say how under an `## Embedded mode` section of
+   the companion; a workflow that runs the same way as a child needs none.
 
 The calling node passes the child's inputs in `with:` and declares, under its own `outputs:`, the
 same keys the child exposes — an artifact by the path the child's producing node declares, a value
@@ -656,7 +721,8 @@ in its prose:
 
 - **The section states the loop:** run the check, fix what it found, run it again, and exit when
   the check passes.
-- **It states the budget,** as a number of attempts, in prose — never in `with:`.
+- **It states the budget:** the number of attempts in `brief:` `budget`, never in `with:`, and
+  what happens between attempts in its *Budget* part.
 - **It states what exhaustion means.** Under a terminal driver, ask whether to proceed with the
   known issues or stop. Under a cockpit or dispatch driver nobody can answer, so the node records
   `failed`, or records the issues it could not fix as open risks in its summary so the next gate
@@ -687,7 +753,7 @@ review, then a gate whose revise option re-runs the draft.
 
 Choosing *send back* resets `draft`, `review` and the gate; `draft` re-runs with the note, `review`
 reviews the new draft, and the gate asks again. At its ceiling of ten revisions the gate offers
-only publish and abandon. The `draft` section carries its *When re-run after a revise* paragraph (§ 11).
+only publish and abandon. The `draft` section carries its *Re-run* part (§ 11).
 
 ## 14. Checking a definition
 
@@ -713,6 +779,11 @@ Warnings never block, and each one is worth reading:
 | `skip-guard-not-pure:<node>` | A gate guarded by a value a non-gate node records that is more than a pure confirmation, so it is asked whatever its guard reads (§ 7); guard it on an input or a gate's value, or make it a single continue with no `sets` and no `grants` |
 | `icon-hint-unknown-node:<path>:<node>`, `title-unknown-node:<path>:<node>` | Display for a node the graph does not carry |
 | `html-companion-unknown-node:<path>:<node>`, `html-companion-unknown-artifact:<path>:<node>`, `html-companion-not-markdown:<path>:<node>` | An `html_companions` entry for a node the graph does not carry, a key the node does not declare, or a path that is not `.md`; nothing is owed for it |
+| `brief-unknown-node:<path>:<node>` | A `brief` entry for a node the graph does not carry; a node an overlay or profile disabled counts as removed and does not warn |
+| `brief-unknown-artifact:<path>:<node>` | An `absent` key the node does not declare under `outputs.artifacts` |
+| `brief-unknown-input:<path>:<node>` | A `recommends` key that is not one of the node's `with:` keys |
+| `brief-unknown-option:<path>:<node>` | A recommended option that is not a continue option of a gate the node feeds |
+| `orphan-prose-section:<companion>:<name>` | A `` ## `name` `` heading outside a fence that no node of the definition or overlay beside it finds its section by (§ 11) — a renamed node or a mistyped `direct:` target; rename the heading to the name, or delete the section. A node an overlay or profile disables still counts |
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |
 

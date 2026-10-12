@@ -183,7 +183,7 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 
 ### Phase 4: Coverage
 
-Before returning, make sure every answer in requirements.md is reflected in the spec, every story in its User stories section is in User Stories under its id and served by at least one core requirement, and — when `analysis/design-context/` exists — every screen/component in its INDEX.md is referenced by ID with the binding-inputs sentence. Fix gaps in spec.md directly.
+Before returning, make sure every answer in requirements.md is reflected in the spec, every story id in its User stories section is in User Stories under that id and served by at least one core requirement, every numbered functional requirement in requirements.md is covered in spec.md under its number, and — when `analysis/design-context/` exists — every screen/component in its INDEX.md is referenced by ID with the binding-inputs sentence. Fix gaps in spec.md directly. A story or requirement the spec cannot cover goes into `warnings` with its id and the reason, never silently.
 
 ---
 
@@ -247,6 +247,7 @@ Adapt specification depth and focus based on `task_characteristics` from the gap
 
 ```yaml
 status: "success" | "partial" | "failed"
+headline: "[...]"   # one sentence, at most 220 characters: what the spec commits to building; the node summary's headline
 spec_path: "implementation/spec.md"
 companion: "written" | "disabled" | "failed" | "not-requested"
 html_path: "implementation/spec.html"  # null unless companion is written
