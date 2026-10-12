@@ -319,3 +319,74 @@ test('node-brief: three refusals and the usage errors, none of which writes a fi
     assert.ok(tableRow.length > 160, `the row for ${code} is too short to tell an operator what to do`);
   }
 });
+
+/** A scratch project holding copies of the node-brief sample, its guide passed through `guide`, and any extra files. */
+function copiedSample(t, { guide = text => text, files = {} } = {}) {
+  const sample = scratch(t);
+  fs.copyFileSync(NODE_BRIEF, path.join(sample.root, 'node-brief.yml'));
+  fs.writeFileSync(path.join(sample.root, 'node-brief.md'), guide(fs.readFileSync(path.join(DEFINITIONS, 'node-brief.md'), 'utf8')));
+  for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(sample.root, name), text);
+  return sample;
+}
+
+test('node-brief: recommends compares the filled-in value as text, so a bool true finds "true"; an unmapped value leaves it to the section', t => {
+  const overlay = 'extends: node-brief.yml\nbrief:\n  draft:\n    recommends:\n      deep:\n        "true": continue-to-audit\n';
+  const sample = copiedSample(t, { files: { 'rec.overlay.yml': overlay } });
+  freeze(sample, { definition: path.join(sample.root, 'node-brief.yml'), overlays: [path.join(sample.root, 'rec.overlay.yml')] });
+
+  const unmapped = nodeBrief(sample.state, 'draft');
+  assert.equal(unmapped.code, 0, unmapped.stderr);
+  assert.match(unmapped.stdout, /^recommends: deep = false — the section decides$/m);
+  assert.doesNotMatch(unmapped.stdout, /^recommends: audit_flag/m, 'the overlay\'s recommends replaces the base\'s');
+
+  write(sample, { orchestrator: { options: { inputs: { deep: true } } } });
+  const mapped = nodeBrief(sample.state, 'draft');
+  assert.match(mapped.stdout, /^- deep: true$/m);
+  assert.match(mapped.stdout, /^recommends: deep = true → continue-to-audit$/m);
+});
+
+test('node-brief: a brief: block that only a profile carries reaches the brief when that profile is frozen', t => {
+  const overlay = 'extends: node-brief.yml\nprofiles:\n  lean:\n    brief:\n      draft:\n        budget: 5\n';
+  const plain = copiedSample(t, { files: { 'lean.overlay.yml': overlay } });
+  freeze(plain, { definition: path.join(plain.root, 'node-brief.yml'), overlays: [path.join(plain.root, 'lean.overlay.yml')] });
+  assert.match(nodeBrief(plain.state, 'draft').stdout, /^budget: 2 attempts — a prose rule; nothing enforces it$/m);
+
+  const lean = copiedSample(t, { files: { 'lean.overlay.yml': overlay } });
+  freeze(lean, { definition: path.join(lean.root, 'node-brief.yml'), overlays: [path.join(lean.root, 'lean.overlay.yml')], profile: 'lean' });
+  const result = nodeBrief(lean.state, 'draft');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^budget: 5 attempts — a prose rule; nothing enforces it$/m);
+  assert.match(result.stdout, /^summary keys: drafting$/m, 'the base\'s other brief: keys stay');
+});
+
+test('node-brief: a CRLF guide gives the same brief as its LF copy, see: line included, with no CR in it', t => {
+  const lf = copiedSample(t);
+  const crlf = copiedSample(t, { guide: text => text.replace(/\n/g, '\r\n') });
+  for (const each of [lf, crlf]) freeze(each, { definition: path.join(each.root, 'node-brief.yml'), orchestrator: { options: { html_output: true } } });
+  for (const node of ['scope', 'draft', 'audit-approval']) {
+    const [a, b] = [nodeBrief(lf.state, node), nodeBrief(crlf.state, node)];
+    assert.equal(b.code, 0, b.stderr);
+    assert.ok(!b.stdout.includes('\r'), node);
+    assert.equal(b.stdout.split(crlf.root).join('<root>'), a.stdout.split(lf.root).join('<root>'), node);
+  }
+  assert.match(nodeBrief(crlf.state, 'draft').stdout, /^see: .+ § Embedded mode$/m);
+});
+
+test('node-brief: a plain-picker passage at the end of a section is dropped there and never reaches the next node\'s slice', t => {
+  const baseline = copiedSample(t);
+  const edited = copiedSample(t, {
+    guide: text => text
+      // Unclosed when the section ends: dropped through the end of `scope`.
+      .replace('## `draft-notes`', '<!-- plain-picker\nThe question lists each focus.\n\n## `draft-notes`')
+      // Closed as the section's last lines: dropped with the blank line before it.
+      .replace('## `approval`', '<!-- plain-picker\nA plain list of tones.\n-->\n\n## `approval`'),
+  });
+  for (const each of [baseline, edited]) freeze(each, { definition: path.join(each.root, 'node-brief.yml') });
+
+  const scope = nodeBrief(edited.state, 'scope');
+  assert.equal(scope.code, 0, scope.stderr);
+  assert.ok(scope.stdout.endsWith(`${RULES}\n\n**Does.** Settle what the note covers and record \`wants_audit\` and \`focus\`.\n`), scope.stdout);
+  const mask = (text, root) => text.split(root).join('<root>');
+  assert.equal(mask(nodeBrief(edited.state, 'draft').stdout, edited.root), mask(nodeBrief(baseline.state, 'draft').stdout, baseline.root));
+  assert.doesNotMatch(nodeBrief(edited.state, 'draft').stdout, /plain-picker|each focus|plain list of tones/);
+});

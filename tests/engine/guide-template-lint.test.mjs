@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, ROOT, run } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, ROOT, run, scratch } from '../helpers.mjs';
 
 // The guide template lint runs as `make validate` runs it: a child process from
 // the repository root, its findings on stdout. Each committed sample is a
@@ -107,4 +107,37 @@ test('guide-template-lint: make validate runs the lint after the display-text li
   assert.ok(step > display, 'the guide lint step does not follow the display-text lint');
   assert.ok(command > step, 'the validate target does not run node tests/guide-template-lint.mjs');
   assert.ok(command < target.indexOf('Checking commands are flat'), 'the lint runs later than directly after the display-text lint');
+});
+
+/** Copies of samples under a scratch directory, each through `convert`; returns the copy's definition paths by name. */
+function copied(t, names, convert = text => text, { guides = true } = {}) {
+  const dir = scratch(t).root;
+  const out = {};
+  for (const name of names) {
+    for (const ext of guides ? ['yml', 'md'] : ['yml']) {
+      fs.writeFileSync(path.join(dir, `${name}.${ext}`), convert(fs.readFileSync(path.join(SAMPLES, `${name}.${ext}`), 'utf8')));
+    }
+    out[name] = path.join(dir, `${name}.yml`);
+  }
+  return { dir, out };
+}
+
+test('guide-template-lint: CRLF samples pass and fail exactly as their LF copies, on the same lines', t => {
+  const crlf = copied(t, ['good', 'bad-parts', 'over-target'], text => text.replace(/\n/g, '\r\n'));
+  const lf = copied(t, ['good', 'bad-parts', 'over-target']);
+  for (const name of ['good', 'bad-parts', 'over-target']) {
+    const [a, b] = [lint(lf.out[name]), lint(crlf.out[name])];
+    assert.equal(b.code, a.code, `${name}: ${b.stdout}${b.stderr}`);
+    assert.equal(b.stdout.split(crlf.dir).join('<dir>'), a.stdout.split(lf.dir).join('<dir>'), name);
+    assert.ok(!b.stdout.includes('\r'), name);
+  }
+  assert.equal(lint(crlf.out['bad-parts']).code, 1, 'a CRLF guide does not hide a failure');
+});
+
+test('guide-template-lint: a definition whose guide is missing is the script\'s own error, exit 2', t => {
+  const { out } = copied(t, ['good'], undefined, { guides: false });
+  const result = lint(out.good);
+  assert.equal(result.code, 2, result.stdout + result.stderr);
+  assert.equal(result.stdout, '');
+  assert.match(result.stderr, /^guide-template-lint: /);
 });
