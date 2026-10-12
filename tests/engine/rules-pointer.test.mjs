@@ -300,3 +300,32 @@ test('the frozen-workflow refusal and an unfinished close each name the writing-
   refusedWithPointer(unfinished, 'run-nodes-unfinished', COMPLETE_REFUSED);
   assert.equal(unfinished.stdout, 'RUN-FAILED: run-nodes-unfinished\n', 'the marker stays the only stdout line');
 });
+
+test('every existing pointer keeps its printed path, byte for byte, under the engine skill\'s references', t => {
+  // The pointer table names files relative to the engine skill directory, so it
+  // can point at SKILL.md too; the six pointers the verbs printed before stay
+  // spelled exactly as they were.
+  const spelled = (file, heading) => `${ENGINE_DIR}${path.sep}references${path.sep}${file} § ${heading}`;
+  const run = atApproval(t);
+  const gate = JSON.parse(gateBrief(run, '--node=approval', '--json').stdout).rules;
+  assert.equal(gate, spelled('gates.md', 'Before every gate — the gate brief'));
+
+  const areas = atConvergence(t);
+  assert.equal(JSON.parse(areaBrief(areas, '--area=storage', '--json').stdout).rules,
+    spelled('in-node-questions.md', 'Decision areas from the brainstorm'));
+
+  const findings = reviewing(t);
+  assert.equal(findingBrief(findings, { patch: true }).stdout,
+    `${findings.patch}${trailing(spelled('in-node-questions.md', 'Findings that need a decision'))}`);
+
+  const revise = refusedWithPointer(gateRevise(atReviewGate(t), 'nowhere'), 'revise-option-unknown',
+    spelled('gates.md', 'Revising at a gate'));
+  assert.ok(revise.length > 0);
+
+  const state = scratch(t);
+  freeze(state);
+  refusedWithPointer(verb(['write-state', `--state=${state.state}`], { nodes: { ghost: { status: 'completed' } } }),
+    'state-node-unknown', spelled('writing-state.md', 'When a write is refused'));
+  refusedWithPointer(verb(['run-complete', `--state=${state.state}`]),
+    'run-not-ended', spelled('writing-state.md', 'When `run-complete` refuses'));
+});

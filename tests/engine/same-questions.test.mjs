@@ -420,16 +420,26 @@ test('every closing node, and the engine\'s dispatched ending, asks held-approva
   assert.ok(ending.includes('`gate-brief-nothing-held`'), 'the ending names the nothing-held refusal');
 });
 
-test('the classing preamble and close-out lines add no question-set marker, so the parser counts stay', () => {
+test('the close-out order rule adds no question-set marker, the parser counts stay, and the classing rule is stated once', () => {
   for (const [name, count] of Object.entries(IN_NODE_COUNTS)) {
     const text = proseOf(name);
-    const added = [...paragraphsNaming(text, '`ask:`'), ...paragraphsNaming(text, 'held-approval')];
-    assert.ok(added.length >= 2, `${name}.md: the classing preamble or the close-out order rule is missing`);
-    for (const paragraph of added) {
+    const publish = text.indexOf(PUBLISH);
+    assert.ok(publish >= 0, `${name}.md: no close-out publish paragraph`);
+    const sectionStart = text.lastIndexOf('\n## `', publish);
+    const sectionEnd = text.indexOf('\n## ', publish);
+    const closing = text.slice(sectionStart, sectionEnd === -1 ? undefined : sectionEnd);
+    const held = paragraphsNaming(closing, 'held-approval');
+    assert.ok(held.length >= 1, `${name}.md: the closing node's close-out order rule is missing`);
+    for (const paragraph of held) {
       assert.ok(!/\*\*(With|Without) question sets\*\*/.test(paragraph), `${name}.md: a question-set marker in ${paragraph.slice(0, 80)}…`);
     }
     assert.equal(inNodeQuestions(text).length, count, `${name}.md: the parser count moved`);
   }
+  const conventions = sectionOf(skillText(), '### Node conventions');
+  const classing = conventions.split('\n').filter(line => line.includes('`ask:`'));
+  assert.equal(classing.length, 1, 'SKILL.md § Node conventions states the `ask:` classing rule once');
+  assert.match(classing[0], /^\| asks \|/, 'the classing rule is the asks row');
+  assert.ok(classing[0].includes('`classes_questions`'), 'the asks row names the fact that turns classing on');
 });
 
 test('every new refusal and warning has its row in the engine reference that holds its section', () => {

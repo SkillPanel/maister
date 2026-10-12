@@ -441,6 +441,25 @@ questions it asks inline, and how many times it may be re-driven. Read the secti
 executing the node, not after it fails. Whether those inline questions are asked at all
 follows the run's driver — see `references/in-node-questions.md` § *In-node questions*.
 
+### Node conventions
+
+Every node follows the rows that apply to it: a step its scheme's row and `every step`, a gate
+the `gate` row, and any node each other row whose case it meets. A node's section states only
+what is its own and never restates these.
+
+| Applies to | Convention |
+|---|---|
+| `agent:` step | Task tool. The prompt carries the `with:` values; each declared path the agent writes, never one the Writes part keeps for the step (`output_path` agents take theirs there); and `prior-context --node` pasted unedited (`run-context` if nothing earlier is needed). Its `headline` is the summary headline. |
+| `skill:` step | Skill tool, given the `with:` values and the `run-context` output; the skill's own result feeds the node summary. |
+| `direct:` step | Run inline from the node's section. A step that owes an HTML page hands its finished markdown to `html-companion-writer` before the completing write. A step with no section does only what these rows say. |
+| `workflow:` step | Starts a child run and waits for it (*Sub-runs*); its outcome is mapped, not judged (*Recording an outcome*). |
+| gate | Asked from `gate-brief` as `references/gates.md` says. Record the answer, end the run on a stop, and send a revise through `gate-revise`. A gate whose guard is false is skipped with its stretch. A gate has no section unless it carries an exception. |
+| every step | Before recording `completed`, check each declared artifact path. A missing one its `brief:` `absent` does not sanction is a failed self-check: re-drive the step, naming the path. Record a sanctioned absence under `absent` with its reason, and record every declared value. |
+| asks | Under question sets, all questions go in the step's one request per attempt; without them, the Without default is recorded `by: default`. Once `classes_questions` is recorded, ask only the ids on the classing writer's `ask:` line; held choices wait for the next checkpoint or `held-approval`. |
+| feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks lifted item for item, each tagged; `recommends` with a one-line reason, as `brief:` `recommends` directs once its input is set. Mirror it under each `summary_keys` entry. |
+| named by a revise | Read the note from `prior-context`; revise the step's own artifacts in place; keep earlier answers unless the note reopens them; record the declared values again; say what changed and write the headline again. |
+| has a budget | The attempt count in `brief:` `budget` is a prose rule nothing enforces. When the last attempt fails, the budget-exhausted rows of *Recording an outcome* decide. |
+
 ### Interpolating `${…}`
 
 Before a node runs, the driver substitutes every `${…}` in its `with:` — however deeply nested —
@@ -511,13 +530,13 @@ node is recorded `failed` and the run stops with `RUN-FAILED` (`references/in-no
 **A node that did not produce its declared artifacts has not completed.** Before recording
 a node `completed`, check that every path the node declares under `outputs.artifacts` exists
 — one `test -e` per declared path, against the path resolved from the task directory. A
-declared artifact that is missing is one of exactly two things, and the node prose is what
-tells them apart:
+declared artifact that is missing is one of exactly two things, and the node's `brief:` `absent`
+entry is what tells them apart (printed as "may be absent" on `node-brief`'s `writes:` line):
 
-| The node prose | The missing path means |
+| The node's `brief:` `absent` entry | The missing path means |
 |---|---|
 | sanctions the absence by name — the artifact's source may legitimately not exist | no such context; record `completed` with the absence on the node summary (below) |
-| says nothing about it, or says the file is written either way | the delegate skipped work it was asked to do; the node has **not** completed |
+| names nothing for it | the delegate skipped work it was asked to do; the node has **not** completed |
 
 Treat the second as a failed self-check and re-drive the node within its budget, naming the
 missing path in the context handed back; when the budget is exhausted, the table above decides.
@@ -525,18 +544,19 @@ missing path in the context handed back; when the budget is exhausted, the table
 **A sanctioned absence is recorded, not just described.** The completing write's node summary
 carries `absent: {<artifact-key>: "<reason>"}` — one entry per declared artifact the node
 completed without, named by its declared key (never its path), with the reason in a few words —
-and its `summary` still says it in prose. Record it only where the node prose sanctions the
-absence.
+and its `summary` still says it in prose. Record it only where the node's `brief:` `absent`
+entry sanctions the absence.
 
 **A phase key is never a node id.** `node_summaries` is keyed by node id, and `phase_summaries`
-by the workflow's phase keys: the node prose names the key each mirroring node writes under, and
-a node whose prose names none writes a node summary and nothing else.
+by the workflow's phase keys: the node's `brief:` `summary_keys` name the keys each mirroring
+node writes under, and a node that names none writes a node summary and nothing else.
 
 The writer mirrors a node's status onto its summary and registers, on a completing summary,
 every declared artifact on disk the entry does not list; the closing write still lists what the
-node prose asks for (`references/writing-state.md` § *Recording an outcome — the detail*).
+section asks for (`references/writing-state.md` § *Recording an outcome — the detail*).
 
-**Retry budgets are prose, never `with:` data**: nothing consults a budget written in `with:`.
+**Retry budgets are prose, never `with:` data**: nothing consults a budget written in `with:`;
+the number sits in the node's `brief:` `budget` and is printed as a prose rule.
 
 ---
 

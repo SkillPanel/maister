@@ -209,25 +209,29 @@ const VERBS = {
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 /**
- * The reference section that governs each moment a verb briefs or refuses, as
+ * The section that governs each moment a verb briefs or refuses, as
  * `<file> § <heading>`. A caller that reads the brief, or recovers from the
  * refusal, is told where its rules live instead of carrying them all in mind;
  * for a refusal the section is the one holding its recovery. The heading is a
  * heading's exact text, so the pointer is followed by a search, not a guess.
+ *
+ * Each file is named relative to the engine skill's directory rather than to
+ * its `references/`, so a pointer can name the skill's own `SKILL.md` as well
+ * as a reference; every reference pointer still prints the path it always did.
  */
 const RULES = {
-  gateBrief: ['gates.md', 'Before every gate — the gate brief'],
-  gateRevise: ['gates.md', 'Revising at a gate'],
-  areaBrief: ['in-node-questions.md', 'Decision areas from the brainstorm'],
-  findingBrief: ['in-node-questions.md', 'Findings that need a decision'],
-  writeRefused: ['writing-state.md', 'When a write is refused'],
-  completeRefused: ['writing-state.md', 'When `run-complete` refuses'],
+  gateBrief: ['references/gates.md', 'Before every gate — the gate brief'],
+  gateRevise: ['references/gates.md', 'Revising at a gate'],
+  areaBrief: ['references/in-node-questions.md', 'Decision areas from the brainstorm'],
+  findingBrief: ['references/in-node-questions.md', 'Findings that need a decision'],
+  writeRefused: ['references/writing-state.md', 'When a write is refused'],
+  completeRefused: ['references/writing-state.md', 'When `run-complete` refuses'],
 };
 
-/** One pointer's value: the reference's absolute path, then `§` and the heading. */
+/** One pointer's value: the file's absolute path, then `§` and the heading. */
 function rulesOf(moment) {
   const [file, heading] = RULES[moment];
-  return `${path.join(PLUGIN_ROOT, 'skills/workflow-engine/references', file)} § ${heading}`;
+  return `${path.join(PLUGIN_ROOT, 'skills/workflow-engine', file)} § ${heading}`;
 }
 
 /**
