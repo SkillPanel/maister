@@ -472,8 +472,8 @@ sections as approved"*; and **More details**.
 
 Then present a short summary of the specification.
 
-**Asks.** Each section's answer is recorded under its id with the section after
-it.
+**Asks.** Each section's answer is its own decision, `question_id`
+`specification-sections-<section>`.
 
 **With question sets** (`specification-sections`): every section in this node's
 one request, one question per section, each drafted and written to
