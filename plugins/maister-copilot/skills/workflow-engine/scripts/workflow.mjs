@@ -119,6 +119,8 @@ import { findEditionCollision } from '../../../lib/editions.mjs';
 // Shared with the umbrella runtime's `--input-file`: one rule for a document
 // read from a fixed file instead of stdin.
 import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
+// Shared with the umbrella runtime too: one bounded read of a document on stdin.
+import { readStdin, STDIN_IDLE_MS } from '../../../lib/stdin.mjs';
 
 /** The exit-code table, named so no call site writes a bare integer. */
 const EXIT = { OK: 0, REJECTED: 1, INTERNAL: 2 };
@@ -559,7 +561,7 @@ async function runWriteState(flags) {
   // here refuses both a start and a resume — including a driven one, where the
   // session-start warning is never read. Before stdin, so nothing is written.
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
-  const input = readInput(flags, 'the patch');
+  const input = await readInput(flags, 'the patch');
   const result = write({ state: flags.state, patch: input.document });
   return reportWrite(result, input, 'writeRefused');
 }
@@ -587,7 +589,7 @@ async function runGateRevise(flags) {
   if (!flags.option) throw new UsageError('gate-revise needs --option');
   const state = await loadModule(VERBS['write-state'].module);
   if (refusedForEditions(state, flags)) return EXIT.REJECTED;
-  const input = readInput(flags, 'the revise note');
+  const input = await readInput(flags, 'the revise note');
   const module = await loadModule(VERBS['gate-revise'].module);
   const revise = entryOf(module, 'gateRevise', VERBS['gate-revise'].module);
   const result = revise({ state: flags.state, node: flags.node, option: flags.option, input: input.document });
@@ -690,7 +692,7 @@ function reportWrite(result, input, rules) {
  */
 async function runGateRequest(flags) {
   if (!flags.state) throw new UsageError('gate-request needs --state');
-  const input = readInput(flags, 'the request document');
+  const input = await readInput(flags, 'the request document');
   // An edition without the gate module cannot suspend a run at all. That is
   // answered by name rather than as the internal failure a missing import
   // otherwise is, because a driven run reaching it has one right response and
@@ -726,17 +728,25 @@ const PATCH_FILE = '.state-patch.json';
  * and for `write-state` that is a sanctioned call — the validate-and-republish
  * step of a resume. Both sources go through the same parse, so one document
  * lands the same bytes whichever way it arrived. Given a file, stdin is never
- * read, so a caller with a terminal on stdin does not block.
+ * read. Without one, stdin is read to its end but never waited on for ever: a
+ * terminal is refused unread, and a pipe silent for `STDIN_IDLE_MS` without
+ * ending is refused (`lib/stdin.mjs` at the plugin root).
  */
-function readInput(flags, what) {
+async function readInput(flags, what) {
   if (flags['patch-file'] === undefined) {
-    let text;
+    let read;
     try {
-      text = fs.readFileSync(0, 'utf8');
+      read = await readStdin();
     } catch (err) {
       throw new UsageError(`${what} could not be read from stdin: ${err.message}`);
     }
-    return { document: parseDocument(text, `${what} on stdin`), file: null };
+    const routes = `Send it by here-string (<<< '<json>') or name it with --patch-file=<run>/${PATCH_FILE}`;
+    if (read.refused === 'tty') throw new UsageError(`${what} was not given: stdin is a terminal. ${routes}`);
+    if (read.refused === 'idle') {
+      throw new UsageError(`${what} on stdin never ended (${read.bytes} bytes received, no end of input within`
+        + ` ${STDIN_IDLE_MS} ms), so nothing was written. ${routes}`);
+    }
+    return { document: parseDocument(read.text, `${what} on stdin`), file: null };
   }
   const file = patchFileOf(flags);
   const text = readFileText(file, what, UsageError);

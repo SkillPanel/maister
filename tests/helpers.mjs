@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { after, before } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -59,9 +59,45 @@ export function umbrella(args, stdin) {
   return run(UMBRELLA, args, stdin);
 }
 
+const CHILD_TIMEOUT_MS = 60_000;
+
 /** Run a Node script as a child with the isolated environment: the hooks' tests use it too. */
 export function run(script, args, stdin, env = {}, cwd = undefined) {
   const input = stdin === undefined ? '' : typeof stdin === 'string' ? stdin : JSON.stringify(stdin);
+  // A child that never exits fails its test instead of holding the whole suite:
+  // no verb takes anywhere near this long.
+  const result = spawnSync(process.execPath, [script, ...args], { input, encoding: 'utf8', env: isolated(env), cwd, timeout: CHILD_TIMEOUT_MS, killSignal: 'SIGKILL' });
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(`${path.basename(script)} ${args.join(' ')} did not exit within ${CHILD_TIMEOUT_MS} ms and was killed`);
+  }
+  return { code: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+/**
+ * Run a Node script as a child whose stdin is a pipe this process holds open:
+ * `chunks` are written and the pipe is never ended, the writer that once left a
+ * verb blocked on stdin for hours. Resolves with the exit code, the signal and
+ * the stderr; a child still alive after `deadline` is killed, so the caller
+ * sees `signal: 'SIGKILL'` in seconds rather than waiting on it.
+ */
+export function heldOpen(script, args, chunks = [], env = {}, deadline = 5000) {
+  return new Promise(resolve => {
+    const child = spawn(process.execPath, [script, ...args], { env: isolated(env), stdio: ['pipe', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.stdout.resume();
+    for (const chunk of chunks) child.stdin.write(chunk);
+    const timer = setTimeout(() => child.kill('SIGKILL'), deadline);
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      child.stdin.destroy();
+      resolve({ code, signal, stderr });
+    });
+  });
+}
+
+/** The environment every child sees: isolated from the operator's own, with `env` laid over it. */
+function isolated(env) {
   const childEnv = {
     ...process.env,
     CLAUDE_CONFIG_DIR: EMPTY_CONFIG,
@@ -73,9 +109,7 @@ export function run(script, args, stdin, env = {}, cwd = undefined) {
   // A suite run from inside a session would otherwise write that session's run
   // pointer into every scratch project; a test that wants one names its own.
   delete childEnv.CLAUDE_CODE_SESSION_ID;
-  Object.assign(childEnv, env);
-  const result = spawnSync(process.execPath, [script, ...args], { input, encoding: 'utf8', env: childEnv, cwd });
-  return { code: result.status, stdout: result.stdout, stderr: result.stderr };
+  return Object.assign(childEnv, env);
 }
 
 /**

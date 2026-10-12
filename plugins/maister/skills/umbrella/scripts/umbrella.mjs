@@ -212,21 +212,32 @@ function checkFlags(verb, flags) {
  * ops that need none — and demanding an explicit `{}` from a caller who has
  * nothing to say would be a quoting rule for no gain. Both sources go through
  * the same parse, so one document lands the same bytes whichever way it
- * arrived. Given a file, stdin is never read, so a caller with a terminal on
- * stdin does not block.
+ * arrived. Given a file, stdin is never read. Without one, stdin is read to its
+ * end but never waited on for ever: a terminal is not read and counts as no
+ * input, and a pipe that goes silent without ending is refused (`lib/stdin.mjs`).
  */
 async function readDocument(verb, flags, { required }) {
   if (flags['input-file'] === undefined) {
-    let text;
+    const { readStdin, STDIN_IDLE_MS } = await pluginLibrary('stdin.mjs', 'stdin cannot be read');
+    let read;
     try {
-      text = fs.readFileSync(0, 'utf8');
+      read = await readStdin();
     } catch (err) {
       if (!required) return { document: {}, file: null };
       throw new UsageError(`the input could not be read from stdin: ${err.message}`);
     }
-    return { document: parseObject(text, 'the input on stdin', required), file: null };
+    const route = `Write it to ${INPUT_FILE} and name it with --input-file`;
+    if (read.refused === 'tty') {
+      if (!required) return { document: {}, file: null };
+      throw new UsageError(`the input was not given: stdin is a terminal. ${route}`);
+    }
+    if (read.refused === 'idle') {
+      throw new UsageError(`the input on stdin never ended (${read.bytes} bytes received, no end of input within`
+        + ` ${STDIN_IDLE_MS} ms), so nothing was written. ${route}`);
+    }
+    return { document: parseObject(read.text, 'the input on stdin', required), file: null };
   }
-  const lib = await inputFileLibrary();
+  const lib = await pluginLibrary('input-file.mjs', '--input-file cannot be read');
   const anchor = anchorOf(verb, flags);
   const file = lib.anchoredFile({
     given: flags['input-file'],
@@ -298,14 +309,15 @@ function anchorOf(verb, flags) {
 }
 
 /**
- * The shared input-file rule, loaded only when `--input-file` is given: a call
- * on stdin never depends on a file outside this skill, and a missing library is
- * a named internal failure, like a missing verb module.
+ * A shared library at the plugin root, loaded only by the route that needs it —
+ * the input-file rule when `--input-file` is given, the bounded stdin read when
+ * it is not — so a missing library is a named internal failure, like a missing
+ * verb module, rather than an import error before any verb runs.
  */
-async function inputFileLibrary() {
-  const specifier = new URL('../../../lib/input-file.mjs', import.meta.url);
+async function pluginLibrary(name, consequence) {
+  const specifier = new URL(`../../../lib/${name}`, import.meta.url);
   if (!fs.existsSync(fileURLToPath(specifier))) {
-    throw new Error('the plugin library lib/input-file.mjs is not present in this build, so --input-file cannot be read');
+    throw new Error(`the plugin library lib/${name} is not present in this build, so ${consequence}`);
   }
   return import(specifier.href);
 }
