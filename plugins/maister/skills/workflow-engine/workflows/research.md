@@ -31,120 +31,75 @@ The input defaults to false, and a run started by command never sets it.
 
 ## `research-foundation`
 
-**Does.** Four sequential steps, executed inline. On resume, check the
-artifacts each step declares and skip the ones already on disk.
-
-The freeze sends `research_question`, the question input verbatim, and
-`research_type` when the invocation supplied one, as its `context`, so
-`research_context` is on disk before this node starts. Step 1 writes a
+**Does.** Four steps in order. On resume, skip each step whose artifacts are on
+disk: the brief (1), the plan and `planning/sources.md` (2), any findings file
+(3), the synthesis and the report (4). The freeze has already written the
+question, and any supplied type, to `research_context`; step 1 writes a
 classified type over an absent one.
 
-**Each of steps 1–3 ends with one milestone write**, so the dashboard shows the
-longest stretch of the run as it fills. After a step's artifacts are on disk,
-make one `write-state` call carrying this node's `node_summaries` entry and its
-mirrored `phase-1` entry, each listing every artifact written so far, not just
-the latest step's — both replace whole. The call carries no `nodes` patch: the
-node is still `running`, and only its closing write changes that. Step 4 needs
-no milestone, because the closing write registers the report.
-
-The `phase-1` entry also carries `steps_completed`, the steps finished so far by
-name — `initialize`, `plan`, `gather`, `synthesize` — on every milestone and on
-the closing write. The context fields a step settles ride in that step's
-milestone as `context`, rather than as a write of their own.
+**Steps 1–3 each end with one milestone write**: this node's `node_summaries`
+entry and its `phase-1` mirror, each listing every artifact written so far
+(both replace whole), with `steps_completed` — `initialize`, `plan`, `gather`,
+`synthesize`, as far as reached, on every milestone and the closing write — and
+the context fields the step settled as `context`. No `nodes` patch: only the
+closing write changes the status.
 
 ### Step 1 — initialize (inline)
 
-*Writes* `planning/research-brief.md`. *Resume check*: if the brief exists, go
-to step 2.
+Write the brief: the question parsed, the type classified from its keywords when
+none was supplied, the scope (included, excluded, constraints) and the success
+criteria.
 
-Parse the question, classify the research type from its keywords when the
-invocation did not supply one, determine scope (included, excluded,
-constraints), define success criteria and write the brief.
+**When the question is too unclear to scope**, ask rather than guess: quote it
+and say in a line what makes it unclear; offer two or three sharpened readings
+generated from the question, the project documentation and the codebase, the
+closest first and `(Recommended)` with why, never one that drops part of what
+was asked, each answerable as it stands; the operator's own wording goes
+through Other.
 
-**When the question is too unclear to scope**, ask rather than guess. The
-question quotes the operator's question and says in a line what makes it
-unclear; its options are two or three sharpened readings of it, generated from
-the question, the project documentation and the codebase — the closest to what
-was asked first, marked `(Recommended)` with why it reads closest, and never a
-reading that drops part of what was asked (engine `references/in-node-questions.md`) — and
-the operator's own wording goes through Other. Each reading is a question the
-research could answer as it stands, so the answer is folded in without a second
-round.
-
-Then **discover the project documentation**: read the documentation index under
-`.maister/docs/` if one exists and extract every path from its
-project-documentation section — predefined and operator-added alike — recording
-them as `research_context.project_doc_paths`.
-
-The step's milestone records `research_type`, `research_question`, `scope` as a
-map of three lists — `included`, `excluded`, `constraints` — and
-`project_doc_paths`, which is `[]` when there is no index. The planner is
-handed the same scope.
+Then read the documentation index under `.maister/docs/`, if one exists, and
+take every path in its project-documentation section, predefined and
+operator-added alike. The milestone records `research_type`,
+`research_question`, `scope` as a map of three lists — `included`, `excluded`,
+`constraints` — and `project_doc_paths`, `[]` when there is no index.
 
 ### Step 2 — plan (delegate)
 
-*Writes* `planning/research-plan.md`, `planning/sources.md`. *Resume check*: if
-both exist, go to step 3.
+Delegate to the `maister:research-planner` agent. Context for the planner: the
+brief path, the research type, the question, the scope, `project_doc_paths` and
+`methodology_reference`, plus the `run-context` output. `methodology_reference`
+is the absolute path of
+`${CLAUDE_PLUGIN_ROOT}/skills/research/references/research-methodologies.md`;
+the planner reads it, this node does not.
 
-Delegate to the `maister:research-planner` agent. The planner, not this node,
-reads the methodology reference; pass its path rather than reading it here.
-
-Context for the planner: the research brief path, the research type, the
-research question, the scope, `project_doc_paths` and `methodology_reference`,
-plus the `run-context` output. `methodology_reference` is the absolute path of
-`${CLAUDE_PLUGIN_ROOT}/skills/research/references/research-methodologies.md`,
-which the planner reads in full before it classifies the question.
-
-When the planner returns, the step's milestone records `methodology` and
-`sources`, both lists lifted from what the planner wrote: the methods its plan
-chose, and the sources `planning/sources.md` names — read from the two files,
-not recomposed. The synthesizer's methodology comes from this record.
+The milestone records `methodology` and `sources`, lists read from the plan and
+`planning/sources.md`, not recomposed; the synthesizer's methodology comes from
+this record.
 
 ### Step 3 — gather (parallel delegates)
 
-*Writes* `analysis/findings/*.md`. *Resume check*: if any findings file exists,
-go to step 4.
+Take the categories from the plan's **Gathering Strategy** section, at most
+eight; when it names none, use codebase, documentation, configuration and
+external. Record `research_context.gathering_strategy` as exactly `categories`
+(those launched), `count` and `source` (`planner` or `default`).
 
-Read the **Gathering Strategy** section of the plan for the categories and the
-count, capped at eight. When the plan names none, fall back to four categories:
-codebase, documentation, configuration, external.
-
-Record the strategy as `research_context.gathering_strategy`, a map of exactly
-three fields: `categories`, the list actually launched; `count`, how many
-gatherers ran; and `source`, `planner` when the plan named the strategy and
-`default` when the fallback supplied it — all three whichever way it was chosen.
-
-Launch all N gatherers in ONE message, so they run in parallel. Each is the
-`maister:information-gatherer` agent. Context for each gatherer: its own
-`source_category` and the findings file prefix it writes under
-`analysis/findings/`, plus the `run-context` output.
+Launch every `maister:information-gatherer` in one message, so they run in
+parallel. Context for each gatherer: its `source_category` and its findings file
+prefix under `analysis/findings/`, plus the `run-context` output.
 
 ### Step 4 — synthesize (delegate)
 
-*Writes* `analysis/synthesis.md`, `outputs/research-report.md`. *Resume check*:
-if both exist, this node is complete.
+Delegate to the `maister:research-synthesizer` agent. Context for the
+synthesizer: the findings directory path, the question, the research type, the
+methodology and `project_doc_paths`, plus the `run-context` output. Read its
+`companion` from its structured result, never its prose; its overall confidence
+is `confidence_level`.
 
-Delegate to the research synthesizer, the `maister:research-synthesizer` agent.
-
-Context for the synthesizer: the findings directory path, the research
-question, the research type, the methodology and `project_doc_paths`, plus the
-`run-context` output.
-
-**Read the synthesizer's `companion`** from its structured result, never from its
-prose; its handling follows `orchestrator-patterns.md` § 9.
-
-The synthesizer returns pattern analysis and cross-references, the report that
-answers the question, a confidence level per finding and the documented gaps;
-the overall confidence is `confidence_level`.
-
-**Record `conclusions` in the same breath**, the node's second declared value:
-the one-line conclusion of the research — the sentence the executive summary
-opens with, reduced to a handle; the full conclusion is the report. It goes onto
-a one-line node entry, so it must be flow-safe: no newline, no carriage return,
-no tab, no quote character. A short hyphenated phrase inside the bare charset
-(`adapter-scope-bounded`) is preferred; a plain sentence without punctuation the
-emitter must escape is permitted. A value that is not flow-safe is refused at
-the write, which fails this node.
+**Record `conclusions` with it**: the executive summary's opening sentence
+reduced to a handle, flow-safe — no newline, carriage return, tab or quote. A
+short hyphenated phrase (`adapter-scope-bounded`) is preferred, a plain sentence
+with nothing to escape permitted; the write refuses anything else, failing this
+node.
 
 **Asks.** Before step 1, when the invocation supplied no question, ask the
 operator for it as free text; never invent one. Step 1 asks the clarification
@@ -177,34 +132,27 @@ the adapter on the production data set"); `followup` when it lies outside the
 question. The report is the `primary` artifact; the brief, the plan and the
 synthesis are `review`.
 
-Recommend the way on, never ask it: which way the run goes on is the answer to
-`foundation-approval`, and this node says which of its three continues it
-recommends. It reads the two flags as `brainstorm_flag` and `design_flag`:
+Recommend one of `foundation-approval`'s three continues, never ask it; a flag
+sets the recommendation, never the answer:
 
 - **`brainstorm_flag` is `yes`** — reason "Brainstorming asked for when the run
-  started". The design is decided at the brainstorming gate.
-- **`brainstorm_flag` is `no`** — recommend `continue-to-design` when
-  `design_flag` is `yes`, reason "Design asked for, brainstorming declined when
-  the run started"; otherwise `finish-with-research`, reason "Brainstorming
-  declined when the run started", with "and the design" added when `design_flag`
-  is `no` too. With `design_flag` absent, judge the design as below and
-  recommend `continue-to-design` when it is valuable.
+  started"; the design is decided at the brainstorming gate.
+- **`brainstorm_flag` is `no`** — `continue-to-design` when `design_flag` is
+  `yes` ("Design asked for, brainstorming declined when the run started"),
+  otherwise `finish-with-research` ("Brainstorming declined when the run
+  started", adding "and the design" when `design_flag` is `no`); with
+  `design_flag` absent, judge the design as below.
 - **`brainstorm_flag` is absent** — judge from the synthesis. Brainstorming is
-  valuable when it identified several viable approaches, when the problem sits in
-  a new domain rather than a well-understood one, and when competing trade-offs
-  were found. The design is valuable when the research points at architectural
-  decisions, when the research type is requirements-shaped or mixed, and when the
-  design artifacts would feed a development run. Recommend
-  `continue-to-brainstorming` when brainstorming is valuable, else
-  `continue-to-design` when the design is (or `design_flag` is `yes`), else
-  `finish-with-research`. The reason is in this research's own terms ("The
-  synthesis left three open choices about storage and sync"; "One approach
-  stands; the findings name two architectural decisions"; "The question is
-  answered; nothing is left to choose between").
+  valuable for several viable approaches, a new domain or competing trade-offs;
+  the design for architectural decisions, a requirements-shaped or mixed type,
+  or artifacts that would feed a development run. Recommend
+  `continue-to-brainstorming`, else `continue-to-design` (also when
+  `design_flag` is `yes`), else `finish-with-research`, the reason in this
+  research's own terms ("The synthesis left three open choices about storage
+  and sync").
 
-The gate is still asked: a flag sets the recommendation, never the answer. For
-the findings only, recommend nothing: the findings gate has one continue, so
-write no `recommends` and read neither flag.
+For the findings only, write no `recommends` and read neither flag: the findings
+gate has one continue.
 
 **Re-run.** The resume checks above do not apply. Rerun from the step the note
 reaches back to: the question or its scope, step 1; the sources or the method,
@@ -220,18 +168,15 @@ two, re-gathering for the gaps.
 ## `solution-generation`
 
 **Does.** Read the brainstorming-techniques reference first,
-`${CLAUDE_PLUGIN_ROOT}/skills/research/references/brainstorming-techniques.md` —
-divergent and convergent techniques, scope guardrails. Hand the delegate the
-absolute path of
+`${CLAUDE_PLUGIN_ROOT}/skills/research/references/brainstorming-techniques.md`.
+Hand the delegate the absolute path of
 `${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/references/decision-areas.md`, the
-file's shape, to read before it writes the file — it cannot expand the variable
-itself. An exploration that holds no alternatives fails the step like a missing
-one.
+areas file's shape; it cannot expand the variable. An exploration that holds no
+alternatives fails the step like a missing one.
 
-**Asks.** When the second attempt also fails, ask whether to try again:
-*"Brainstorming failed twice: <cause>. Try again?"*, with *"Try once more
-(Recommended)"*, its description saying why another attempt may work now, and
-*"Skip brainstorming"*, its description *"go on without the alternatives"*.
+**Asks.** When the second attempt also fails: *"Brainstorming failed twice:
+<cause>. Try again?"* — *"Try once more (Recommended)"*, saying why it may work
+now, or *"Skip brainstorming"*, *"go on without the alternatives"*.
 
 **With question sets** (`brainstormer-retry`): asked through the cockpit only
 when it is the first thing this node asks in its attempt; after an earlier
@@ -243,11 +188,9 @@ recorded `failed` rather than silently skipped, because skipped brainstorming
 satisfies everything downstream and would hide the failure. A re-drive is the
 operator's route back in.
 
-**Writes.** A return without `outputs/decision-areas.json` — `areas_path: null`,
-the reason in the agent's warnings — is not a failure, because convergence then
-asks from the markdown: record the absence with the agent's reason, and do not
-re-drive the node for it. Otherwise register the file with `role: evidence`,
-beside the markdown, and take the summary's count of decision areas from it.
+**Writes.** A return with `areas_path: null` is the sanctioned absence, never
+re-driven. Otherwise register the areas file with `role: evidence` beside the
+markdown, and take the summary's count of decision areas from it.
 
 **Summary.** For example: "Seven alternatives across three decision areas;
 event sourcing recommended overall". The recommendations go in `summary` and in
@@ -260,24 +203,20 @@ the exploration file, never in `decisions`: the operator decides area by area in
 
 ## `solution-convergence`
 
-**Does.** Executed inline and interactive. Ask each decision area as engine
-`references/in-node-questions.md` § *Decision areas from the brainstorm* says,
-from the file `with: decision_areas` names, in its order. *Resume check*: when
-the recorded decision areas already carry a chosen approach, skip those areas
-and resume at the first unresolved one.
+**Does.** Ask each decision area as engine `references/in-node-questions.md` §
+*Decision areas from the brainstorm* says. *Resume check*: skip the areas whose
+recorded entry already carries a chosen approach.
 
-Only when the verb prints a `decision-areas-*` warning, compose every area from
-`outputs/solution-exploration.md` yourself, every area with the same detail —
-never a full first area and a recommendation line for the rest:
+Only on a `decision-areas-*` warning, compose every area from
+`outputs/solution-exploration.md`, every one in the same detail — never a full
+first area and a recommendation line for the rest:
 
-- **the question**: the area's name, why the decision matters in a sentence
-  or two, and each alternative in one line — each named in words, never by a
-  code the report defines;
-- **the options**: this area's alternatives, the recommended one first and
-  marked `(Recommended)`, its description giving the reason in a sentence;
-  each other option's description giving its key pro and its key con in a
-  few words — where the tool shows no descriptions, the question's line for
-  it does — and **More details** last;
+- **the question**: the area's name, why it matters in a sentence or two, and
+  each alternative in one line, named in words, never by a report's code;
+- **the options**: the recommended alternative first, `(Recommended)`, its
+  description the reason; each other's description its key pro and con —
+  where the tool shows no descriptions, the question's line does — and
+  **More details** last;
 <!-- rich-picker -->
 - **the previews**: each alternative's own option carries its
   two-to-three-sentence description, its pros and its cons, and the
@@ -289,30 +228,22 @@ never a full first area and a recommendation line for the rest:
   descriptions; the question is plain text, with no `**` or list markers,
   which the form shows as typed;
 -->
-- **the cap**: an area carrying more alternatives than the options hold
-  beside More details offers the recommended alternative and its strongest
-  rivals, and names the remaining ones in the question text, which the user
-  reaches through the free-text answer. The cap binds the option list and
-  nothing else — every alternative is still in the question's lines and in
-  More details; an area silently reduced is a failure.
+- **the cap**: with more alternatives than the options hold beside More
+  details, offer the recommended one and its strongest rivals and name the
+  rest in the question, for the free-text answer; every alternative stays in
+  the question and in More details — an area silently reduced is a failure.
 
 A composed area's answer is recorded under
-`convergence-decisions-<the area's name as a slug>`. On More details (or
-"details", or a question about one alternative), write the area out in full —
-every alternative's two-to-three-sentence description, pros and cons and the
-detailed trade-off of the one asked about, then the recommendation and why —
-and ask the same area again; nothing is recorded. Before each composed
-question, check that it names this area, why it matters and every alternative,
-and that each option's description carries its pro and con; if not, write
-them out.
+`convergence-decisions-<the area's name as a slug>`. On More details (or a
+question about one alternative), write the area out in full — each
+alternative's description, pros and cons, the asked-about trade-off, then the
+recommendation and why — and ask the area again, recording nothing.
 
-Complete only when every decision area is in `decision_areas` — chosen,
-defaulted, or recorded open where a run without question sets could not
-default it. An area skipped for any reason, a missing file or a failed read, is
-resolved first, never papered over by a state write. Then write the chosen
-combination into this node's summary entry, never into a declared value:
-`selected_approach` is the identifier of the converged approach, not the
-per-area choices.
+Complete only when every area is in `decision_areas` — chosen, defaulted, or
+recorded open; an area skipped for any reason is resolved first, never papered
+over by a state write. The chosen combination goes in this node's summary entry;
+`selected_approach` is the converged approach's identifier, not the per-area
+choices.
 
 **Asks.** One question per decision area, in the file's order.
 
@@ -339,28 +270,23 @@ open `open` with the `change` that would settle it, a deferred idea worth its
 own task `followup`.
 
 The entry and its `phase-4` mirror carry two more keys and no others:
-`decision_areas`, a list whose every element has exactly `area` (the decision
-area's name), `alternatives_count` (how many alternatives were presented for
-it) and `chosen_approach` (the alternative the user picked) — the first two
-from the decision areas file when the areas came from it — and
-`deferred_ideas`, the ideas parked rather than decided. The writer refuses any
-other `decision_areas` shape; the resume check reads it.
+`decision_areas`, a list whose every element has exactly `area`,
+`alternatives_count` and `chosen_approach` — the first two from the areas file
+when the areas came from it — and `deferred_ideas`, the ideas parked rather than
+decided. The writer refuses any other `decision_areas` shape.
 
-Recommend the design, never ask it: whether the design follows is the answer
-to `convergence-approval`. A set `design_flag` gives the reason "Design asked
-for when the run started" or "Design declined when the run started". Absent,
-recommend `continue-to-design` when the converged approach leaves
-architectural decisions to record, the research type is requirements-shaped or
-mixed, or the design would feed a development run, with the reason in this
-convergence's own terms ("The chosen storage and sync approaches need their
-boundaries drawn"); otherwise `finish-without-design`, saying why ("The chosen
-approach is a configuration change with nothing to design").
+Recommend the design, never ask it. A set `design_flag` gives the reason "Design
+asked for when the run started" or "Design declined when the run started".
+Absent, recommend `continue-to-design` when the converged approach leaves
+architectural decisions to record, the type is requirements-shaped or mixed, or
+the design would feed a development run, the reason in this convergence's own
+terms ("The chosen storage and sync approaches need their boundaries drawn");
+otherwise `finish-without-design`, saying why.
 
-**Re-run.** The resume check does not apply. The earlier choices stand, read
-from this node's summary entry until this attempt rewrites it; re-ask only the
-areas the note reopens, each in full. Without question sets, take the
-alternative the note names for each area it names, recorded as the operator's
-choice. The brainstorm is not run again.
+**Re-run.** The resume check does not apply. Read the earlier choices from this
+node's summary entry and re-ask only the areas the note reopens, each in full;
+without question sets, take the alternative the note names for each, recorded as
+the operator's choice. The brainstorm is not run again.
 
 **Budget.** Re-read the exploration file and present the decision areas again.
 
@@ -368,47 +294,37 @@ choice. The brainstorm is not run again.
 
 ## `high-level-design`
 
-**Does.** Executed inline in three parts. Read the design-techniques reference
-first, `${CLAUDE_PLUGIN_ROOT}/skills/research/references/design-techniques.md` —
-decision-record format and decision-documentation patterns.
+**Does.** Three parts. Read the design-techniques reference first,
+`${CLAUDE_PLUGIN_ROOT}/skills/research/references/design-techniques.md`.
 
 ### Part A — design direction (inline)
 
-When convergence ran, confirm the selected approaches. When the foundation gate
-went to the design and skipped brainstorming, use the research report's
-recommendations as the design input instead. Then ask the constraints question.
+The design input is the selected approaches when convergence ran, else the
+research report's recommendations. Ask the constraints question.
 
 ### Part B — design generation (delegate)
 
-Delegate to the `maister:solution-designer` agent. Context for the
-designer: everything `with:` names and the design preferences from Part A, plus
-the `run-context` output. Paste it as `prior-context --node=high-level-design`.
-**When brainstorming was skipped**, `exploration` and `selected_approach`
-resolve to nothing: omit them from the delegate's context entirely rather than
-passing empty values, and say that the design input is the research report's
-recommendations.
+Delegate to the `maister:solution-designer` agent. Context for the designer:
+everything `with:` names and the Part A answer as `design_preferences`, plus the
+`prior-context --node=high-level-design` output. **When brainstorming was
+skipped**, omit `exploration` and `selected_approach` rather than passing empty
+values, and say the design input is the report's recommendations.
 
 ### Part C — summary (inline)
 
-Read both artifacts and present an executive
-summary: the architecture style and its key components, how many decisions were
-recorded, a one-line highlight per key decision, and the integration points with
-the existing system where there are any.
+Read both artifacts and present an executive summary: the architecture style and
+its key components, how many decisions were recorded, a one-line highlight per
+key decision, and the integration points with the existing system, if any.
 
 **Asks.** The constraints question, *"Any architectural constraints or
-preferences for the design?"*, names the selected approach per area (or the
-report's recommendations) in a line each, so the user answers against what
-they can see. Its options are the answers themselves: *"No extra constraints
-(Recommended)"* first, its description saying the design follows the chosen
-approach and the research alone, then one to three constraints generated from
-what the research found — "Keep zero runtime dependencies", "Stay ESM-only" —
-each worded so it can be handed to the designer as it stands. Anything else, or
-a combination, is typed through Other.
-
-When Part B's second attempt also fails: *"High-level design failed twice:
-<cause>. Try again?"*, with *"Try once more (Recommended)"*, its description
-saying why another attempt may work now, and *"Skip the design"*, its
-description *"finish with the research and the chosen approach"*.
+preferences for the design?"*, lists the design input a line per area. Options:
+*"No extra constraints (Recommended)"* — the design follows the chosen approach
+and the research alone — then one to three constraints generated from the
+findings, each worded to hand to the designer as it stands ("Keep zero runtime
+dependencies"). After Part B's second failure: *"High-level design failed twice:
+<cause>. Try again?"* — *"Try once more (Recommended)"*, saying why it may work
+now, or *"Skip the design"*, *"finish with the research and the chosen
+approach"*.
 
 **With question sets** (`design-constraints`): asked through the cockpit, in
 this node's one request.
