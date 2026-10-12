@@ -12,6 +12,27 @@
  * state, the convention rows of the engine skill that apply to the node, and
  * then only the node's own section of its guide.
  *
+ * What it leaves out. The header is read before every step, so a line that
+ * would only say the default is not printed, and a convention row is printed
+ * whole only while it applies:
+ * - `when:` only for a guarded node; `attempt:` only past the first attempt or
+ *   once the node has a status other than `pending`.
+ * - `recommends:` only for an input that is set; unset, the section decides
+ *   and a line saying so adds nothing.
+ * - An owed HTML page beside its markdown is named by its file name.
+ * - The `direct:` row only when the step owes a page or has no section — run
+ *   inline from the section is what `runs:` and the section already say.
+ * - `every step` only when the step declares an artifact or a value.
+ * - `named by a revise` whole on a re-run (attempt 2 or later), `has a budget`
+ *   whole on the last budgeted attempt; before then both are named on one
+ *   `convention (…): see rules` line, so the reader knows where they stand.
+ * - The scheme row of `agent:`, `skill:` and `workflow:` steps, `asks`,
+ *   `feeds a checkpoint` and `gate` print whole wherever they apply: each
+ *   carries a hand-over or a recording rule a step skips silently without it.
+ * An unread definition prints every row its scheme meets, whole.
+ * Paths stay repository-root-relative rather than task-relative: a delegate
+ * is handed them as printed, and its working directory is the project root.
+ *
  * What it reads. The state file; the definition the run froze, re-read and
  * re-resolved through `gate-brief`'s `reread`; its overlays and profile; the
  * guide beside the file a node comes from — the base definition's, or the
@@ -78,6 +99,7 @@ const REFERENCE = /\$\{([^}]*)\}/g;
 const WHOLE = /^\$\{([^}]*)\}$/;
 
 const NOT_RECORDED = '(not recorded yet)';
+const OWED = 'HTML page owed:';
 const NO_SECTION = 'section: none — the conventions above apply';
 const UNKNOWN_SECTION = 'section: unknown — the definition this run froze cannot be re-read';
 
@@ -140,7 +162,7 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
 
   const lines = gate
     ? gateLines({ node, title, resolved, context, convention, rules })
-    : stepLines({ node, title, resolved, entry, context, convention, rules, origin });
+    : stepLines({ node, title, resolved, entry, context, convention, table, rules, origin });
   lines.push('');
   if (resolved === null) {
     lines.push(gate ? `ask it: gate-brief --state=${path.resolve(state)} --node=${node}` : UNKNOWN_SECTION);
@@ -173,7 +195,7 @@ function inputsOf(doc) {
 // a task step (NB-5)
 // ---------------------------------------------------------------------------
 
-function stepLines({ node, title, resolved, entry, context, convention, rules, origin }) {
+function stepLines({ node, title, resolved, entry, context, convention, table, rules, origin }) {
   const uses = typeof resolved?.uses === 'string' ? resolved.uses : null;
   const scheme = uses ? uses.slice(0, uses.indexOf(':')) : String(entry.kind ?? '');
   const known = SCHEMES[scheme] ?? null;
@@ -182,12 +204,14 @@ function stepLines({ node, title, resolved, entry, context, convention, rules, o
 
   const lines = [`## Node: ${node} — ${title}`, `runs: ${uses ?? scheme} — ${how}`];
   if (resolved && typeof resolved.when === 'string') lines.push(whenLine(resolved.when, context));
-  lines.push(`attempt: ${attemptOf(entry)} — ${entry.status ?? 'pending'}`);
-  const keys = known ? [known.row, 'every step'] : ['every step'];
+  const attempt = attemptOf(entry);
+  const status = entry.status ?? 'pending';
+  if (attempt > 1 || status !== 'pending') lines.push(`attempt: ${attempt} — ${status}`);
   if (resolved === null) {
-    lines.push(...convention(keys), `rules: ${rules}`);
+    lines.push(...convention(known ? [known.row, 'every step'] : ['every step']), `rules: ${rules}`);
     return lines;
   }
+  const section = origin === null ? null : proseSection(origin, sectionNameOf(resolved));
 
   const brief = briefOfRun(context.doc, context.runDir)?.[node] ?? {};
   const withs = isPlainObject(resolved.with) ? resolved.with : {};
@@ -201,6 +225,10 @@ function stepLines({ node, title, resolved, entry, context, convention, rules, o
   if (Object.keys(values).length) {
     lines.push(`records: ${Object.entries(values).map(([key, type]) => `${key} (${typeText(type)})`).join(', ')}`);
   }
+
+  const keys = [];
+  if (known && (scheme !== 'direct' || section === null || writes.some(line => line.includes(OWED)))) keys.push(known.row);
+  if (writes.length || Object.keys(values).length) keys.push('every step');
 
   const asks = askLines(origin, resolved, brief, context.doc);
   if (asks.length) {
@@ -216,10 +244,7 @@ function stepLines({ node, title, resolved, entry, context, convention, rules, o
 
   for (const [key, mapping] of Object.entries(isPlainObject(brief.recommends) ? brief.recommends : {})) {
     const value = Object.hasOwn(filled, key) ? filled[key] : MISSING;
-    if (value === MISSING || value === null || value === '') {
-      lines.push(`recommends: ${key} unset — the section decides`);
-      continue;
-    }
+    if (value === MISSING || value === null || value === '') continue;
     const text = String(value);
     lines.push(Object.hasOwn(mapping, text)
       ? `recommends: ${key} = ${text} → ${mapping[text]}`
@@ -228,11 +253,12 @@ function stepLines({ node, title, resolved, entry, context, convention, rules, o
   if (Array.isArray(brief.summary_keys) && brief.summary_keys.length) lines.push(`summary keys: ${brief.summary_keys.join(', ')}`);
   if (Number.isInteger(brief.budget)) lines.push(`budget: ${brief.budget} attempt${brief.budget === 1 ? '' : 's'} — a prose rule; nothing enforces it`);
 
-  if (context.byId.size && [...context.byId.values()].some(each => rerunsOf(each).includes(node))) keys.push('named by a revise');
-  if (Number.isInteger(brief.budget)) keys.push('has a budget');
+  const later = [];
+  if ([...context.byId.values()].some(each => rerunsOf(each).includes(node))) (attempt > 1 ? keys : later).push('named by a revise');
+  if (Number.isInteger(brief.budget)) (attempt >= brief.budget ? keys : later).push('has a budget');
   lines.push(...convention(keys));
+  if (later.length && table !== null) lines.push(`convention (${later.join(', ')}): see rules`);
 
-  const section = origin === null ? null : proseSection(origin, sectionNameOf(resolved));
   if (section !== null) lines.push(...seeLines(section));
   lines.push(`rules: ${rules}`);
   return lines;
@@ -258,7 +284,7 @@ function writeLines(node, resolved, entry, brief, context) {
   const where = artifactBase(resolved, entry, context);
   return Object.entries(artifacts).map(([key, declared]) => {
     let line = `- ${key}: ${placed(declared, where)}`;
-    if (owed.has(key)) line += ` — HTML page owed: ${placed(owed.get(key), where)}`;
+    if (owed.has(key)) line += ` — ${OWED} ${pageOf(declared, owed.get(key), where)}`;
     if (Object.hasOwn(absent, key)) line += ` — may be absent: ${absent[key]}`;
     return line;
   });
@@ -277,6 +303,13 @@ function artifactBase(resolved, entry, context) {
     return typeof taskPath === 'string' && taskPath !== '' ? { base: taskPath } : { child: true };
   }
   return { base: taskPathOf(context) };
+}
+
+/** The owed page by its file name when it sits beside its markdown, else placed as any path is. */
+function pageOf(declared, html, where) {
+  const beside = typeof declared === 'string' && typeof html === 'string'
+    && path.posix.dirname(declared) === path.posix.dirname(html) && !html.includes('${');
+  return beside ? `${path.posix.basename(html)} beside it` : placed(html, where);
 }
 
 function placed(declared, where) {
@@ -300,8 +333,8 @@ function typeText(type) {
 }
 
 /**
- * `asks (<driver>):` and one line per question id the node's section declares,
- * saying how this run's driver settles it.
+ * `asks (<driver>): <ids>` for the question ids the node's section declares;
+ * when nobody can be asked, one line per id with the default that stands in.
  */
 function askLines(origin, resolved, brief, doc) {
   const ids = origin === null ? [] : declaredQuestionIds(origin, sectionNameOf(resolved));
@@ -310,11 +343,8 @@ function askLines(origin, resolved, brief, doc) {
   const sets = questionSets(doc);
   const asking = canAsk(doc);
   const phrase = sets ? 'question sets' : asking ? 'in session' : 'nobody can be asked';
-  return [`asks (${phrase}):`, ...ids.map(id => {
-    if (sets) return `- ${id}: asked in this step's question set`;
-    if (asking) return `- ${id}: asked in session`;
-    return `- ${id}: not asked — default: ${Object.hasOwn(defaults, id) ? defaults[id] : 'the Without line below'}`;
-  })];
+  if (sets || asking) return [`asks (${phrase}): ${ids.join(', ')}`];
+  return [`asks (${phrase}):`, ...ids.map(id => `- ${id}: not asked — default: ${Object.hasOwn(defaults, id) ? defaults[id] : 'the Without line below'}`)];
 }
 
 /** One `feeds:` line per gate whose closing nodes hold this one. */
