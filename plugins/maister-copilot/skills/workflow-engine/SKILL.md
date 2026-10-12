@@ -261,6 +261,8 @@ Never the JSON escape `'`, which a tool call decodes into a bare quote that ends
 string early. The typographic `’` may stand for an apostrophe only in a prose text value,
 never in code, a command, a path or a quoted identifier. A pipe (`echo '<json>' |` in front)
 is accepted too, but the command then no longer starts with the engine path.
+A verb never waits on stdin for ever: a terminal is refused unread, and input that stops
+arriving without ending is refused after a short wait, with nothing written.
 
 **bash and zsh take the here-string; on Windows every shell takes the patch file** —
 PowerShell and cmd have no here-string, and Git Bash can lose the backslashes of a JSON escape
