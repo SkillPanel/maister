@@ -39,7 +39,7 @@ the rest are asked only when the run does not already know the answer.
 specification audit runs is the answer to `specification-approval`, and whether
 the browser checks run is the answer to `verification-approval`: each gate
 offers one continue per way on, and the continue chosen sets the value the
-stretch's guard reads (engine § Gates). The operator approves the work and
+stretch's guard reads (engine `references/gates.md`). The operator approves the work and
 decides the step in one question, so neither step asks anything first. The node
 each gate closes writes which continue it recommends and why, as `recommends` on
 its closing summary; its section below says how it chooses.
@@ -47,7 +47,7 @@ its closing summary; its section below says how it chooses.
 **Every answer is recorded as one decision**, on the asking node's summary: one
 `by: operator` entry per answered question — a page of four tabs is four entries
 — carrying the question, the answer, the recommended answer and whether the two
-match, as engine § *In-node questions* says. More details is never recorded.
+match, as engine `references/in-node-questions.md` says. More details is never recorded.
 These entries are what the gate brief counts as the user's own choices, so a
 "Gate brief content" paragraph below never lists them again.
 
@@ -75,7 +75,7 @@ credited by its `by` and never an earlier node's decision or answer restated, re
 `change` a revise would make), `tradeoff` (a consequence kept on purpose),
 `followup` (outside this run's scope) or `stop` (the run should not go on).
 Findings go in the summary, never in the risks. The writing rules are engine
-§ *Before every gate*; each "Gate brief content" paragraph below names what
+`references/gates.md` § *Before every gate*; each "Gate brief content" paragraph below names what
 belongs where for its node.
 
 **Recovery budgets are prose here on purpose.** They must never be written into
@@ -123,7 +123,7 @@ to nodes:
 
 The node after a gate may be skipped by its guard. The gate brief names the node
 that actually runs next, with the skipped ones listed, so no node here names a
-destination (engine § Gates). Each continue option's label in the definition's
+destination (engine `references/gates.md`). Each continue option's label in the definition's
 `display:` block names the stretch that usually follows; where the guards leave
 no usual one, the label names none.
 
@@ -387,7 +387,7 @@ still writes the file and still sets the flag: it resolved the clarifications by
 having none to ask.
 
 **With question sets** (`clarifications`): asked through the cockpit, in this
-node's one request (*In-node questions*).
+node's one request (engine `references/in-node-questions.md`).
 
 **Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and the flag set exactly
@@ -451,7 +451,7 @@ never flattened into one question's option list; critical decisions get a call
 each with full context, important ones may be grouped as up to four separate
 questions in one call. Each question carries its decision whole — what is
 undecided, why it matters and what each option would change — never "the
-decision above" (engine § *In-node questions*). The option the analyzer
+decision above" (engine `references/in-node-questions.md`). The option the analyzer
 recommends comes first, marked `(Recommended)`, with the analyzer's reason in its
 description; More details is last while a slot is free, and every question fits
 four options. When both lists are empty, record that no scope decision was
@@ -463,7 +463,7 @@ what the invocation described, false when none did.
 
 **With question sets** (`scope-decisions`): asked through the cockpit, in this
 node's one request, each decision its own question, critical ones included
-(*In-node questions*).
+(engine `references/in-node-questions.md`).
 
 **Without question sets** (`scope-decisions`): each decision takes
 the option the analyzer recommended. A decision the analyzer left without a
@@ -524,11 +524,11 @@ each with `node: gap-analysis` on the entry.
 
 ## `gap-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate. Record the answer, and stop the run on the stop option — nothing after
 a stopped node ever becomes ready. Its revise option sends the run back to
-`gap-analysis` with the operator's note (engine § Gates, *Revising at a gate*).
+`gap-analysis` with the operator's note (engine `references/gates.md`, *Revising at a gate*).
 
 **Its question is deliberately neutral, and that is a recorded divergence.** The
 prose form routes three ways here by reading the task characteristics and names
@@ -573,7 +573,7 @@ in the gate artifact rather than proceeding on a test that proves nothing.
 
 ## `tdd-red-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, guarded by the same condition as the node before it. When no reproducible
 defect was found, this gate is skipped along with `tdd-red` and the run continues
@@ -660,7 +660,7 @@ overwrite is intended — see the precedence sentence in the phase-key section.
 
 ## `mockup-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, guarded by the same condition as the node before it. When mockups were
 not needed, this gate is skipped along with `ui-mockups` and the run continues to
@@ -668,7 +668,7 @@ the specification without asking. Record the answer, and stop the run on the
 stop option.
 
 **Its revise option is the way to change the screens.** It sends the run back to
-`ui-mockups` with the operator's note (engine § Gates, *Revising at a gate*): the
+`ui-mockups` with the operator's note (engine `references/gates.md`, *Revising at a gate*): the
 studio changes what the note names against the existing mockups, and this gate
 is asked again with the new gallery pointer. The revise suggestions come from
 the stretch's `open` risks, so a screen that could not bind to the design
@@ -707,8 +707,7 @@ fourth of the nine asks, in two kinds:
   More details last when the context is longer than the tab holds. Never ask
   again what the scope decisions already settled.
 - **The architecture choice.** When several architectural approaches are
-  genuinely open, each open choice is a decision area by engine § *In-node
-  questions*, asked **one area per call** with its full context, never paged
+  genuinely open, each open choice is a decision area by engine `references/in-node-questions.md`, asked **one area per call** with its full context, never paged
   with the technical tabs or with another area: the question names the area, why
   it matters and each approach in a line; each option is an approach, the
   recommended one first with its reason, its description its key trade-off in a
@@ -739,7 +738,7 @@ clarifications file, it records `technical_clarifications` under this node's
 
 **With question sets** (`technical-questions`): asked through the cockpit, in
 this node's one request, each architecture area its own question beside the
-technical ones (*In-node questions*).
+technical ones (engine `references/in-node-questions.md`).
 
 **Without question sets** (`technical-questions`): the recommended
 answer to each technical question and the recommended approach for each
@@ -755,7 +754,7 @@ drafted stories, then one page confirming the specification's assumptions.
 *The stories.* Group what the specification still has to settle by topic: each
 behaviour a user or a calling system triggers and then observes — deactivating
 a user, exporting a report — is one topic, and its open points are drafted into
-one story by engine § *In-node questions* (*One topic is one drafted story*),
+one story by engine `references/in-node-questions.md` (*One topic is one drafted story*),
 never asked as separate tabs. Draft each from the analysis, the gap analysis
 and its scope answers, and the design context. A story the design brief
 already carries (`analysis/design-context/brief.md`) was accepted there: it is
@@ -773,7 +772,7 @@ specification keeps it and the verification checks it, both by that id.
 
 **With question sets** (`user-story`): each story is its own question in the
 same request as the technical questions, its `why` naming what the story
-settles (*In-node questions*). Each draft, its corrections and its alternative
+settles (engine `references/in-node-questions.md`). Each draft, its corrections and its alternative
 are in `analysis/requirements.md` before the node suspends, so the answer is
 applied from the file.
 
@@ -789,7 +788,7 @@ description earns six to eight, a standard one four to six, a detailed one two
 or three focused ones. Offer "Accept all N as stated (Recommended)" first, its
 question stating each assumption on a line of its own — never "the assumptions
 above" — and go through them one by one, each stated in its own tab, four to a
-page, only when the user asks to (engine § *In-node questions*). Two are always
+page, only when the user asks to (engine `references/in-node-questions.md`). Two are always
 among them whatever the count: which existing components and patterns the
 change should reuse, and whether any visual assets exist that have not been
 ingested yet. A third, how users reach the feature and which personas it
@@ -798,15 +797,14 @@ actor and entry point already say it. The visual-assets assumption is the one
 exception to "always": when the gap analysis recorded the task as not UI-heavy
 and intake found no design source, the run already knows the answer — there is
 no interface to draw — so it is not asked, and `analysis/requirements.md` says
-"no visual assets: the change has no user interface" (engine § *In-node
-questions*, asking only what the run does not know). Save the whole round to
+"no visual assets: the change has no user interface" (engine `references/in-node-questions.md`, asking only what the run does not know). Save the whole round to
 `analysis/requirements.md` — the initial description, the user stories, the
 questions and answers, the similar features found, the functional
 requirements, the reuse opportunities, the scope boundaries and the technical
 considerations.
 
 **With question sets** (`specification-requirements`): asked through the
-cockpit, in the same request as the technical questions (*In-node questions*);
+cockpit, in the same request as the technical questions (engine `references/in-node-questions.md`);
 going through the assumptions one by one would be a second ask, so it is not
 offered.
 
@@ -839,7 +837,7 @@ yourself.
 **Recommend the audit, never ask it.** Whether the audit runs is the answer to
 `specification-approval`, whose two continues set the value the audit stretch's
 guard reads. This node only says which of the two it recommends, as
-`recommends` on its closing summary (engine § *Before every gate*), with a
+`recommends` on its closing summary (engine `references/gates.md` § *Before every gate*), with a
 one-line reason:
 
 - **The audit input was supplied** — this node reads it as `audit_flag`. `yes`
@@ -911,7 +909,7 @@ companion path under the specification entry's `artifacts[].html`.
 
 ## `specification-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded, and the one that decides the audit. Its two continues are
 `continue-to-spec-audit`, which sets `spec_audit_enabled` true so the audit
@@ -922,7 +920,7 @@ value the chosen continue sets on this gate, and the guards of `spec-audit` and
 `spec-audit-approval` read it. The continue `specification` recommends is the
 recommended option, its reason on that option; each continue's preview names
 where it leads. Its revise option sends the run back to `specification` with the
-operator's note (engine § Gates, *Revising at a gate*), and the audit is decided
+operator's note (engine `references/gates.md`, *Revising at a gate*), and the audit is decided
 again when the gate is asked once more.
 
 ---
@@ -967,7 +965,7 @@ this follows step by step):
 
 **Each finding that needs a decision is its own question** — the sixth of the
 nine asks, only when the audit (after its fix pass and re-audit) leaves one
-(`orchestrator-patterns.md` § 6, step 5; engine § *Findings that need a
+(`orchestrator-patterns.md` § 6, step 5; engine `references/in-node-questions.md` § *Findings that need a
 decision*). Write the auditor's decision findings, as its structured result
 gives them, to `verification/spec-audit-findings.json`, each finding's `id`
 the auditor's `name`, and build the set with `finding-brief` for this node.
@@ -1022,7 +1020,7 @@ spec-audit` on the entry.
 
 ## `spec-audit-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, guarded by the same condition as the node before it. When the operator
 chose `continue-to-planning` at `specification-approval`, this gate is skipped
@@ -1034,7 +1032,7 @@ the run back to `specification` with the operator's note, and the audit's open
 findings reach the re-run through the prior context. The
 specification is then approved again at `specification-approval`, which decides
 the audit again, and when the audit is chosen it runs before this gate asks once
-more (engine § Gates, *Revising at a gate*).
+more (engine `references/gates.md`, *Revising at a gate*).
 
 ---
 
@@ -1096,18 +1094,18 @@ entry's `artifacts[].html`.
 
 ## `planning-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says. Asked when the `publish`
+Ask it from `gate-brief --json` as engine `references/gates.md` says. Asked when the `publish`
 input is off, which is the default.
 
 A gate, guarded by that input alone. Record the answer, and stop the run on the
 stop option. Its revise option sends the run back to `planning` with the
-operator's note (engine § Gates, *Revising at a gate*).
+operator's note (engine `references/gates.md`, *Revising at a gate*).
 
 ---
 
 ## `planning-approval-publish`
 
-Ask it from `gate-brief --json` as engine § Gates says. Asked instead of
+Ask it from `gate-brief --json` as engine `references/gates.md` says. Asked instead of
 `planning-approval` when the `publish` input is on.
 
 A gate, guarded by that input alone. Record the answer, and stop the run on the
@@ -1167,7 +1165,7 @@ the entry.
 
 ## `implementation-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option.
 
@@ -1230,7 +1228,7 @@ after a stretch that may be skipped, so no one gate always precedes it.
    verification pass does not run it again, and it runs on every pass after a
    fix changes code — "Test suite: passed in implementation (40 of 40); runs
    again after any fix". Never list it under "always runs". The options are
-   bundles in one single-select (engine § *In-node questions*): **"All four
+   bundles in one single-select (engine `references/in-node-questions.md`): **"All four
    reviews (Recommended)"** — code review, pragmatic review, reality check and
    production readiness — its description saying why all four are worth their
    time for this change, then **"Code review only"**, then **"Choose
@@ -1262,14 +1260,14 @@ from the task characteristics is a default for the recommendation, not an
 answer — an operator is there, and the operator answers.
 
 **With question sets** (`standard-verifications`): asked through the cockpit, in
-this node's one request (*In-node questions*); "Choose individually" would need
+this node's one request (engine `references/in-node-questions.md`); "Choose individually" would need
 a second ask, so it is not offered.
 
 **Without question sets** (`standard-verifications`): the
 recommended bundle, all four reviews.
 
 **With question sets** (`user-docs`): asked through the cockpit, in this node's
-one request (*In-node questions*).
+one request (engine `references/in-node-questions.md`).
 
 **Without question sets** (`user-docs`): the recommendation, by
 the same rule, recorded as `user_docs_enabled`.
@@ -1330,12 +1328,12 @@ step by step):
   risky, the two re-checks are spent with fixable issues still open, or there is
   no progress (the same issues return, or new ones keep appearing) — and only
   once the automatic fixes and re-checks are done. **Each such issue is its own
-  question** (engine § *Findings that need a decision*): write the verifier's
+  question** (engine `references/in-node-questions.md` § *Findings that need a decision*): write the verifier's
   decision fields for those issues to `verification/verification-findings.json`,
   each issue's `id` the verifier's `name` (issues with one root cause are one
   finding), and build the set with `finding-brief` for this node. Send it
   through the classing write when the run classes questions, then ask what is
-  left to ask, paged as engine § *In-node questions* says, the first question
+  left to ask, paged as engine `references/in-node-questions.md` says, the first question
   naming the report's path; more than about eight first get the triage
   question. A change the user picks is applied, logged and re-checked like any
   fix — the gate after this node offers no revise, so this is where such a
@@ -1363,7 +1361,7 @@ outcome the classing write gives it.
 **With question sets** (`verification-fix-loop`): asked through the cockpit only
 when it is the first thing this node asks in its attempt, with the verification
 report and every fix so far written first; after an earlier request in the same
-attempt — the finding questions — the default below is taken (*In-node questions*).
+attempt — the finding questions — the default below is taken (engine `references/in-node-questions.md`).
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
@@ -1404,7 +1402,7 @@ the recommended one at the gate.
 **Recommend whether the browser checks run.** `verification-approval` decides
 them: `continue-to-browser-checks` runs the browser stretch next and
 `continue-past-verification` skips it. Write, in the same closing entry,
-`recommends` naming one of the two with a one-line reason (engine § *Before
+`recommends` naming one of the two with a one-line reason (engine `references/gates.md` § *Before
 every gate*):
 
 - **The browser-tests input was supplied** — this node reads it as
@@ -1435,7 +1433,7 @@ over, before asking the operator how to proceed.
 
 ## `verification-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded, and the one that decides the browser checks. Its two
 continues are `continue-to-browser-checks`, which sets `browser_tests_enabled`
@@ -1510,7 +1508,7 @@ reported as a finding rather than retried blindly.
 
 ## `e2e-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, guarded by the same condition as the node before it. When the operator
 chose `continue-past-verification` at `verification-approval`, this gate is
@@ -1565,7 +1563,7 @@ stop, so this is where such a fix is taken. Ask nothing when the generator
 suggested nothing.
 
 **With question sets** (`docs-fixes`): asked through the cockpit, in this node's
-one request, with the guide as written already on disk (*In-node questions*).
+one request, with the guide as written already on disk (engine `references/in-node-questions.md`).
 
 **Without question sets** (`docs-fixes`): apply the suggested
 changes, recorded as one `by: default` decision.
@@ -1586,7 +1584,7 @@ rather than retried.
 
 ## `docs-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, guarded by the same condition as the node before it. When user
 documentation was declined, this gate is skipped along with `user-docs` and the

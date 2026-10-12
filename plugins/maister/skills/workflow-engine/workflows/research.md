@@ -23,7 +23,7 @@ foundation gate, the areas and the convergence gate.
 Whether brainstorming runs, and whether the design runs without it, is the
 answer to `foundation-approval`; whether the design follows brainstorming is the
 answer to `convergence-approval`. Each gate offers one continue per way on, and
-the continue chosen sets the values the stretches' guards read (engine § Gates).
+the continue chosen sets the values the stretches' guards read (engine `references/gates.md`).
 The node each gate closes writes which continue it recommends and why, as
 `recommends` on its closing summary; its section below says how it chooses.
 A run for its findings only, `findings_only`, offers neither stretch: the
@@ -32,7 +32,7 @@ Anyone reasoning about how interactive this workflow is must read this file,
 not the graph.
 
 **Every answered question is recorded** on the asking node's summary
-`decisions`, one entry per question, as engine § *In-node questions* says:
+`decisions`, one entry per question, as engine `references/in-node-questions.md` says:
 `by: operator` with the question's id — the id its default names below — the
 question, the answer, the recommended answer and whether the two match. More
 details is never recorded.
@@ -93,7 +93,7 @@ either side.
 
 **What a gate needs from its closing node.** Each of the three nodes a gate
 needs — `research-foundation`, `solution-convergence` and `high-level-design` —
-writes, in its closing summary, what engine § *Before every gate* asks for: a
+writes, in its closing summary, what engine `references/gates.md` § *Before every gate* asks for: a
 one-sentence `headline` of at most 220 characters covering the whole stretch the
 gate closes, the findings in `summary`, decisions as `{decision, by}` items and
 risks as `{risk, tag, change}` objects. Each node's *Gate brief content*
@@ -225,7 +225,7 @@ question quotes the operator's question and says in a line what makes it
 unclear; its options are two or three sharpened readings of it, generated from
 the question, the project documentation and the codebase — the closest to what
 was asked first, marked `(Recommended)` with why it reads closest, and never a
-reading that drops part of what was asked (engine § *In-node questions*) — and
+reading that drops part of what was asked (engine `references/in-node-questions.md`) — and
 the operator's own wording goes through Other. Each reading is a question the
 research could answer as it stands, so the answer is folded in without a second
 round.
@@ -307,7 +307,7 @@ is a defect: name it in this node's `risks`.
 **Recommend the way on, never ask it.** Which way the run goes on is the answer
 to `foundation-approval`, whose three continues set the values the brainstorming
 and design guards read. This node only says which of the three it recommends, as
-`recommends` on its closing summary (engine § *Before every gate*), with a
+`recommends` on its closing summary (engine `references/gates.md` § *Before every gate*), with a
 one-line reason. It reads the two flags as `brainstorm_flag` and `design_flag`:
 
 - **`brainstorm_flag` is `yes`** — recommend `continue-to-brainstorming`, reason
@@ -398,7 +398,7 @@ succeeded; step 4 two attempts, requesting targeted re-gathering for the gaps.
 
 **With question sets** (`question-clarification`): asked through the cockpit, in
 this node's one request, its sharpened readings generated before it suspends
-(*In-node questions*).
+(engine `references/in-node-questions.md`).
 
 **Without question sets** (`question-clarification`): none. Step 1
 cannot ask an absent operator to clarify an unclear question, and it must not
@@ -414,7 +414,7 @@ the entry.
 
 ## `foundation-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, guarded off when the run is for its findings only, and otherwise the
 one that decides which way the run goes on. Its
@@ -432,7 +432,7 @@ Record the answer: the writer records the values the chosen continue sets on
 this gate, and the guards after it read them. The continue `research-foundation`
 recommends is the recommended option, its reason on that option; each continue's
 preview names where it leads. Its revise option sends the run back to
-`research-foundation` with the operator's note (engine § Gates, *Revising at a
+`research-foundation` with the operator's note (engine `references/gates.md`, *Revising at a
 gate*), and the way on is decided again when the gate is asked once more.
 
 **The choices are also run options.** The write that records the answer also
@@ -446,7 +446,7 @@ gate's own values are what the guards read.
 
 ## `findings-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, asked only when the run is for its findings only, in the place of
 `foundation-approval`, which is then skipped. It closes `research-foundation`
@@ -504,7 +504,7 @@ node round again needs a construct the grammar reserves without implementing.
 
 **With question sets** (`brainstormer-retry`): asked through the cockpit only
 when it is the first thing this node asks in its attempt; after an earlier
-request in the same attempt, the default below is taken (*In-node questions*).
+request in the same attempt, the default below is taken (engine `references/in-node-questions.md`).
 
 **Without question sets** (`brainstormer-retry`): none — neither
 retry nor skip. With the budget exhausted and nobody to ask, the node is
@@ -556,8 +556,8 @@ The protocol:
    their order from the file `with: decision_areas` names.
 2. For each decision area **sequentially** — do NOT pre-ask a later area before
    the current one is answered — ask **one question in this call**, carrying the
-   whole area itself (engine § *In-node questions*). Ask it from
-   `area-brief --json`, as engine § *Decision areas from the brainstorm* says,
+   whole area itself (engine `references/in-node-questions.md`). Ask it from
+   `area-brief --json`, as engine `references/in-node-questions.md` § *Decision areas from the brainstorm* says,
    pasted as given, and record the answer under the `question_id` it prints; on
    More details, print its `more_details` and ask the same area again. Only when
    the verb prints a `decision-areas-*` warning, compose the area yourself from
@@ -593,7 +593,7 @@ The protocol:
    (`question_id` the one `area-brief` printed, or for a composed area
    `convergence-decisions-<the area's name as a slug>`) and move on. If the user
    picks **More details** (or types "details", or asks about one alternative),
-   write the area out in full as engine § *In-node questions* says — every
+   write the area out in full as engine `references/in-node-questions.md` says — every
    alternative's two-to-three-sentence description, pros and cons and the
    detailed trade-off of the one asked about, then the recommendation and why —
    and ask the same area again. Nothing is recorded. The loop stays inside the
@@ -633,10 +633,10 @@ entry written without that key costs the user the whole area again.
 **With question sets** (`convergence-decisions`): asked through the cockpit,
 every area in this node's one request, one question per area with the same
 detail as above; an area whose choice depends on another names that area in its
-question (*In-node questions*). Each answer is recorded as an operator decision
+question (engine `references/in-node-questions.md`). Each answer is recorded as an operator decision
 and as the area's `chosen_approach`. From the file, the set is the engine's: run
 `area-brief --patch-file`, then `gate-brief --request --patch-file`, then read
-the patch file once and write the request over it, as engine § *Decision areas
+the patch file once and write the request over it, as engine `references/in-node-questions.md` § *Decision areas
 from the brainstorm* says — a re-ask after a revise names the reopened areas
 with `--area`. On a `decision-areas-*` warning, write the set from the composed
 areas instead.
@@ -707,7 +707,7 @@ the writer refuses any other shape.
 
 ## `convergence-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, guarded by the same condition as the two nodes before it, and the one
 that decides the design after brainstorming. When the foundation gate skipped
@@ -723,7 +723,7 @@ The write that records a continue also records its value as
 `orchestrator.options.design_enabled`, as `foundation-approval` does.
 
 Its revise option sends the run back to `solution-convergence` with the
-operator's note, which re-asks only the areas the note reopens (engine § Gates,
+operator's note, which re-asks only the areas the note reopens (engine `references/gates.md`,
 *Revising at a gate*); the brainstorm is not run again.
 
 ---
@@ -750,7 +750,7 @@ The answer feeds the delegate and decides nothing about the flow, which is why
 it is asked here rather than at a gate.
 
 **With question sets** (`design-constraints`): asked through the cockpit, in
-this node's one request (*In-node questions*).
+this node's one request (engine `references/in-node-questions.md`).
 
 **Without question sets** (`design-constraints`): none is
 supplied, and the delegate is invoked on the convergence output and the research
@@ -783,7 +783,7 @@ research and the chosen approach"*.
 **With question sets** (`designer-retry`): asked through the cockpit only when
 it is the first thing this node asks in its attempt; after an earlier request in
 the same attempt — the constraints question, say — the default below is taken
-(*In-node questions*).
+(engine `references/in-node-questions.md`).
 
 **Without question sets** (`designer-retry`): none — neither retry
 nor skip. The budget is exhausted and nobody is there, so the node is recorded
@@ -825,11 +825,11 @@ the entry.
 
 ## `design-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, guarded by the design condition: the design was chosen at the foundation
 gate or at the brainstorming gate. Skipped with the design node otherwise. Its revise option sends the run back to
-`high-level-design` with the operator's note (engine § Gates, *Revising at a
+`high-level-design` with the operator's note (engine `references/gates.md`, *Revising at a
 gate*).
 
 ---

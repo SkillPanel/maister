@@ -51,7 +51,7 @@ before asking anything, and asks only the ids the writer's `ask:` line names. Th
 settled, defaulted or held under the run's autonomy ceiling and are already on the node's
 summary. The engine skill states the rule once; no section below changes for it.
 
-**Every question carries what it asks about** (engine § *In-node questions*).
+**Every question carries what it asks about** (engine `references/in-node-questions.md`).
 This workflow presents drafts and asks about them — each story, the problem
 statement, the persona cards, each decision area, each specification section,
 the enrichments, the brief — and the question, its options and their previews
@@ -73,7 +73,7 @@ The operator's own words are always the question's free-text answer, which
 takes no option slot: no question offers an option to explain their thinking.
 
 **Every answered question is recorded** on the asking node's summary
-`decisions`, one entry per question, as engine § *In-node questions* says:
+`decisions`, one entry per question, as engine `references/in-node-questions.md` says:
 `by: operator` with the question's id — the id its default names below, with
 the topic, persona or section after it where a node asks several — the
 question, the answer, the recommended answer and whether the two match. A page
@@ -135,7 +135,7 @@ after its last gate.
 
 A gate question is authoring-time constant and covered by the graph hash, so it
 cannot say where the run is really going; the gate brief's `Next:` line names
-the node that actually runs, with the skipped ones listed (engine § Gates).
+the node that actually runs, with the skipped ones listed (engine `references/gates.md`).
 
 ---
 
@@ -412,7 +412,7 @@ and gathers whatever extra context the operator has.
 -->
 
    **With question sets** (`additional-context`): asked through the cockpit, in
-   this node's one request (*In-node questions*). Files go in the folder before
+   this node's one request (engine `references/in-node-questions.md`). Files go in the folder before
    answering; a folder still empty after a Files answer is not asked about
    again, and the run goes on without files.
 
@@ -469,7 +469,7 @@ and names that in `risks`.
 
 ## `characteristics-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says. Skipped in a simple run
+Ask it from `gate-brief --json` as engine `references/gates.md` says. Skipped in a simple run
 (*Depth*).
 
 A gate. Record the answer, and stop the run on the stop option — nothing after
@@ -480,7 +480,7 @@ checkpoint that reaches the operator in a terminal run and under a driver
 alike. Its revise option, `revise-characteristics`, sends the run back to
 `intake` with the operator's note: the note is the correction, `intake` applies
 it and derives again which optional parts run, and this gate is asked again
-(engine § Gates, *Revising at a gate*).
+(engine `references/gates.md`, *Revising at a gate*).
 
 ---
 
@@ -542,13 +542,13 @@ context-synthesis`.
 
 ## `context-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says. Skipped in a simple run
+Ask it from `gate-brief --json` as engine `references/gates.md` says. Skipped in a simple run
 (*Depth*).
 
 A gate. Record the answer, and stop the run on the stop option. Its revise
 option, `revise-context`, sends the run back to `context-synthesis` with the
 operator's note — the corrections and additions to fold in — and this gate is
-asked again (engine § Gates, *Revising at a gate*).
+asked again (engine `references/gates.md`, *Revising at a gate*).
 
 ---
 
@@ -562,7 +562,7 @@ so every question can be specific to this project. Then read what the run left
 uncertain: the `open` risks in `prior-context` — the characteristics and context
 checkpoints raised them — and the open questions of any imported research under
 `context/research-context/`. A criterion one of them says may be read two ways
-is answered the way that keeps it whole (engine § *In-node questions*).
+is answered the way that keeps it whole (engine `references/in-node-questions.md`).
 
 1. **Explore.** Announce exploration mode in a line, then ask context-aware
    questions **in pages of up to four** — two or three for a simple design, four
@@ -581,7 +581,7 @@ is answered the way that keeps it whole (engine § *In-node questions*).
 
    **With question sets** (`problem-questions`): the first page — the questions
    that stand on their own — is asked through the cockpit, in this node's one
-   request (*In-node questions*). A question that waits on another's answer is
+   request (engine `references/in-node-questions.md`). A question that waits on another's answer is
    not asked, and the draft is marked as a proposal where it rests on one.
 
    **Without question sets** (`problem-questions`): no question is
@@ -595,7 +595,7 @@ is answered the way that keeps it whole (engine § *In-node questions*).
    earlier answer names a behaviour the feature must support — removing a
    member, sharing a calendar — the questions about it are not asked one by
    one: they are drafted into one story and asked as one question, id
-   `user-story-<topic>`, in the same pages (engine § *In-node questions*, *One
+   `user-story-<topic>`, in the same pages (engine `references/in-node-questions.md`, *One
    topic is one drafted story*). Keep each story at the level of the journey —
    who acts, the situation they start from, what they do, what changes and is
    kept or recorded, what they and others see afterwards — and name a screen or
@@ -640,8 +640,7 @@ is answered the way that keeps it whole (engine § *In-node questions*).
 
    **With question sets** (`problem-refinement`): asked through the cockpit only
    when it is the first thing this node asks in its attempt; after an earlier
-   request in the same attempt, the default below is taken (*In-node
-   questions*).
+   request in the same attempt, the default below is taken (engine `references/in-node-questions.md`).
 
    **Without question sets** (`problem-refinement`): approve and
    continue — no round is taken and the count stays at zero.
@@ -691,7 +690,7 @@ and `problem-approval` still fires for the problem statement.
    one that narrows a criterion the description states.
 
    **With question sets** (`persona-questions`): the first page is asked through
-   the cockpit, in this node's one request (*In-node questions*); a question
+   the cockpit, in this node's one request (engine `references/in-node-questions.md`); a question
    that waits on another's answer is not asked, and the cards it would shape are
    marked as drafted.
 
@@ -716,8 +715,7 @@ and `problem-approval` still fires for the problem statement.
 
    **With question sets** (`persona-refinement`): asked through the cockpit only
    when it is the first thing this node asks in its attempt; after an earlier
-   request in the same attempt, the default below is taken (*In-node
-   questions*).
+   request in the same attempt, the default below is taken (engine `references/in-node-questions.md`).
 
    **Without question sets** (`persona-refinement`): approve and
    continue, with the count at zero. `problem-approval` is where they change.
@@ -748,7 +746,7 @@ and `node: persona-exploration`.
 
 ## `problem-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, **unguarded**, closing the problem statement and — when they were
 drafted — the personas. Its brief renders both summaries, or names the personas
@@ -756,7 +754,7 @@ skipped. Record the answer, and stop the run on the stop option.
 
 Its revise option re-runs the stretch from `problem-exploration` with the
 operator's note: the problem statement, then the personas when their guard
-holds, then this gate again (engine § Gates, *Revising at a gate*). One option
+holds, then this gate again (engine `references/gates.md`, *Revising at a gate*). One option
 covers both documents, because the personas are drawn from the problem statement
 and a revise that changed only one could leave them disagreeing; each node keeps
 what the note does not touch.
@@ -807,7 +805,7 @@ already discussed, which is what generating them apart avoids.
 
 **With question sets** (`brainstormer-retry`): asked through the cockpit only
 when it is the first thing this node asks in its attempt; after an earlier
-request in the same attempt, the default below is taken (*In-node questions*).
+request in the same attempt, the default below is taken (engine `references/in-node-questions.md`).
 
 **Without question sets** (`brainstormer-retry`): neither. With the
 budget exhausted and nobody to ask, the node is recorded `failed`. Inline
@@ -854,8 +852,8 @@ line, then walk the alternatives one decision area at a time.
    order from the file `with: decision_areas` names.
 2. **For each decision area, sequentially** — do not pre-ask a later one — ask
    **one question for this area**, carrying the whole area itself (engine
-   § *In-node questions*). Ask it from `area-brief --json`, as engine
-   § *Decision areas from the brainstorm* says, pasted as given, and record the
+   `references/in-node-questions.md`). Ask it from `area-brief --json`, as engine
+   `references/in-node-questions.md` § *Decision areas from the brainstorm* says, pasted as given, and record the
    answer under the `question_id` it prints; on More details, print its
    `more_details` and ask the same area again. Only when the verb prints a
    `decision-areas-*` warning, compose the area yourself from the alternatives,
@@ -907,8 +905,7 @@ line, then walk the alternatives one decision area at a time.
 > this call ask exactly one area?
 
 **With question sets** (`convergence-decisions`): asked through the cockpit —
-every decision area in this node's one request, one question per area (*In-node
-questions*). Each question names its area; its `why` says why the area matters
+every decision area in this node's one request, one question per area (engine `references/in-node-questions.md`). Each question names its area; its `why` says why the area matters
 and names any other area its choice depends on. Each alternative is an option
 whose description carries its key pros and cons, the recommended one carrying
 `recommended` and its reason. Before it suspends, `analysis/alternatives.md` and
@@ -920,7 +917,7 @@ rewritten as chosen, not proposed. Any two chosen alternatives that conflict are
 recorded as an `open` risk whose `change` names the switch that resolves it, for
 `direction-approval`. From the file, the set is the engine's: run
 `area-brief --patch-file`, then `gate-brief --request --patch-file`, then read
-the patch file once and write the request over it, as engine § *Decision areas
+the patch file once and write the request over it, as engine `references/in-node-questions.md` § *Decision areas
 from the brainstorm* says — a re-ask after a revise names the reopened areas
 with `--area`. On a `decision-areas-*` warning, write the set from the composed
 areas instead.
@@ -989,7 +986,7 @@ when the areas came from it — and `node: idea-convergence`.
 
 ## `direction-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says. Skipped in a simple run,
+Ask it from `gate-brief --json` as engine `references/gates.md` says. Skipped in a simple run,
 with the brainstorm and the convergence before it (*Depth*).
 
 A gate. Record the answer, and stop the run on the stop option. It follows the
@@ -1086,8 +1083,7 @@ contracts, ready to implement from.
    sections back until the end.
 
 **With question sets** (`specification-sections`): asked through the cockpit,
-every section in this node's one request, one question per section (*In-node
-questions*). Each section is drafted and written to `analysis/feature-spec.md`
+every section in this node's one request, one question per section (engine `references/in-node-questions.md`). Each section is drafted and written to `analysis/feature-spec.md`
 before it suspends; a change the operator asks for is applied after the answers
 without another round.
 
@@ -1113,7 +1109,7 @@ in full and asks again.
 
 **With question sets** (`depth-enrichment`): asked through the cockpit only when
 it is the first thing this node asks in its attempt; after the sections'
-request, the default below is taken (*In-node questions*).
+request, the default below is taken (engine `references/in-node-questions.md`).
 
 **Without question sets** (`depth-enrichment`): every enrichment
 is appended as drafted, marked as added by the depth check.
@@ -1221,7 +1217,7 @@ visual-prototyping`.
 
 ## `specification-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, **unguarded**, closing the specification and — when they were drawn —
 the prototypes. In a simple run it also approves the approach the specification
@@ -1300,7 +1296,7 @@ run's own close is `completion`'s.
 
    **With question sets** (`brief-approval`): asked through the cockpit, in this
    node's one request, the brief already written to `outputs/product-brief.md`
-   (*In-node questions*).
+   (engine `references/in-node-questions.md`).
 
    **Without question sets** (`brief-approval`): approve the brief.
    It is the last question of the run and the one to be most careful with: the

@@ -68,7 +68,7 @@ phase number. This table maps the 2.x prose form's phases to nodes:
 Both stretches at the end of this workflow can be skipped. A gate question is
 authoring-time constant and covered by the graph hash, so it cannot say where
 the run is really going; the gate brief's `Next:` line names the node that
-actually runs, with the skipped ones listed (engine § Gates).
+actually runs, with the skipped ones listed (engine `references/gates.md`).
 
 ---
 
@@ -87,7 +87,7 @@ paths, the scratch rule and the companions the node owes. What this workflow add
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
 > blocks **item for item** — the same count, the same words, the artifact's
 > order — into `phase_summaries`, into `node_summaries` and into the dashboard,
-> each item in the shape engine § Gates gives it: a decision with who settled
+> each item in the shape engine `references/gates.md` gives it: a decision with who settled
 > it, a risk with its tag. The items left out are a decision that restates an
 > earlier answer and a risk an earlier node already recorded: each is already
 > recorded where it was made. Rewriting them in your own words loses the sentence the operator is about to
@@ -255,7 +255,7 @@ only the target sends the explorers to code that does not exist yet.
 
 After the skill returns, write the current system's description and its
 technologies into `migration_context.current_system`. Then ask the clarifications
-as **one page** of at most four tabs (engine § *In-node questions*), one tab for
+as **one page** of at most four tabs (engine `references/in-node-questions.md`), one tab for
 each thing about the target system or the constraints that the analysis could
 not settle. Each tab's question states what the analysis found and what it could
 not settle; its options are two or three generated answers, the recommended one
@@ -271,11 +271,11 @@ run, which is why the page is asked here rather than at a gate.
 Save the answers to `analysis/clarifications.md`, then set
 `migration_context.clarifications_resolved` to true, and record each answered tab
 as a `by: operator` decision on this node's summary, one per question, as engine
-§ *In-node questions* says. A run that asked no question still writes the file
+`references/in-node-questions.md` says. A run that asked no question still writes the file
 and still sets the flag: it resolved the clarifications by having none to ask.
 
 **With question sets** (`clarifications`): asked through the cockpit, in this
-node's one request (*In-node questions*).
+node's one request (engine `references/in-node-questions.md`).
 
 **Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and
@@ -332,7 +332,7 @@ is `[]`; breaking changes found by reading the code go to
 `migration_context.breaking_changes`, never into `external_research`.
 
 **Gate brief content.** Read `analysis/target-state-plan.md` and write into this
-node's closing `node_summaries` entry, as engine § Gates says: a `headline` — the
+node's closing `node_summaries` entry, as engine `references/gates.md` says: a `headline` — the
 recommended strategy and the risk level in one sentence ("Move the API from
 Express 4 to 5 incrementally, in three phases; medium risk from two removed
 middleware hooks"); a `summary` of one labelled line for each of the current
@@ -361,11 +361,11 @@ and the risk level, and with `node: gap-analysis` on the entry.
 
 ## `gap-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option —
 nothing after a stopped node ever becomes ready. Its revise option sends the run
-back to `gap-analysis` with the operator's note (engine § Gates, *Revising at a
+back to `gap-analysis` with the operator's note (engine `references/gates.md`, *Revising at a
 gate*).
 
 The node the run reaches next is `specification` — nothing between here and
@@ -385,16 +385,15 @@ and its boundaries, the rollback expectations and downtime tolerance, and the
 existing code or configuration to preserve. The data specifics are an assumption
 only when the gap analysis classified the migration as `data`, and the dual-run
 requirements only when it recommended a dual-run strategy. Ask them as one
-question (engine § *In-node questions*) whose text lists each assumption on a
+question (engine `references/in-node-questions.md`) whose text lists each assumption on a
 line of its own, with what it rests on in a few words — never "the assumptions
 above" — and offer **"Accept all N as stated (Recommended)"** first, its reason
 that each one follows from the approved gap analysis, then "Go through them one
 by one", which pages them one tab each, and More details. Record the answer as
-`by: operator` decisions, one per question answered, as engine § *In-node
-questions* says, and save the round to `analysis/requirements.md`.
+`by: operator` decisions, one per question answered, as engine `references/in-node-questions.md` says, and save the round to `analysis/requirements.md`.
 
 **With question sets** (`specification-requirements`): asked through the
-cockpit, in this node's one request (*In-node questions*); "Go through them one
+cockpit, in this node's one request (engine `references/in-node-questions.md`); "Go through them one
 by one" would need a second ask, so it is not offered.
 
 **Without question sets** (`specification-requirements`): the
@@ -438,7 +437,7 @@ Record `migration_context.rollback_plan_created` and
 `migration_context.dual_run_configured` from what actually landed.
 
 **Gate brief content.** Read `implementation/spec.md` and write into this node's
-closing `node_summaries` entry, as engine § Gates says: a `headline` — the scope
+closing `node_summaries` entry, as engine `references/gates.md` says: a `headline` — the scope
 and the rollback approach in one sentence; the scope boundaries, the rollback
 approach, and the rollback expectations and the downtime tolerance — named
 whether or not Part A was answered — in `summary`; what the specification
@@ -471,11 +470,11 @@ the entry, and register the companion path under that entry's
 
 ## `specification-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option. Its
 revise option sends the run back to `specification` with the operator's note
-(engine § Gates, *Revising at a gate*).
+(engine `references/gates.md`, *Revising at a gate*).
 
 ---
 
@@ -498,7 +497,7 @@ constraint named when either is missing, because a plan without them leaves the
 execution with nothing to undo by.
 
 **Gate brief content.** Read `implementation/implementation-plan.md` and write
-into this node's closing `node_summaries` entry, as engine § Gates says: a
+into this node's closing `node_summaries` entry, as engine `references/gates.md` says: a
 `headline` — the groups, the steps and whether each carries its rollback step,
 in one sentence; a `summary` of one labelled line each for how many task groups
 it carries, the total number of steps and whether rollback steps are included;
@@ -523,11 +522,11 @@ nodes named in the phase-key section above and this is not one of them.
 
 ## `planning-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option. Its
 revise option sends the run back to `planning` with the operator's note (engine
-§ Gates, *Revising at a gate*).
+`references/gates.md`, *Revising at a gate*).
 
 ---
 
@@ -565,7 +564,7 @@ landed: the groups completed, the files changed, the incremental test results
 and whether the rollback procedure is still ready to run.
 
 **Gate brief content.** Read `implementation/work-log.md` and write into this
-node's closing `node_summaries` entry, as engine § Gates says: a `headline` —
+node's closing `node_summaries` entry, as engine `references/gates.md` says: a `headline` —
 the steps completed, the test result and whether the rollback is still ready, in
 one sentence; the migration steps completed, the files changed, the test results
 from the incremental runs and the rollback readiness status in `summary`; a
@@ -586,7 +585,7 @@ section pins.
 
 ## `execution-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option.
 
@@ -640,7 +639,7 @@ the node that owns it rather than leaving it to a gate.
 
 **Gate brief content.** Read `verification/implementation-verification.md` and
 `verification/compatibility-test-results.md` and write into this node's closing
-`node_summaries` entry, as engine § Gates says: a `headline` — the verdict, the
+`node_summaries` entry, as engine `references/gates.md` says: a `headline` — the verdict, the
 compatibility result and the data integrity status, in one sentence; the overall
 verdict, the issue counts by severity, the compatibility results, the data
 integrity status and the rollback test results in `summary`. **Tag each blocker
@@ -653,7 +652,7 @@ risk** that says why — the 2.x prose form stops the workflow by itself in that
 case, and the graph has no routing construct to stop with, so the gate brief
 recommending `stop-migration` is what replaces it. The `verification-approval`
 brief is rendered from this entry, and its `Next:` line names the node that
-actually runs (engine § Gates).
+actually runs (engine `references/gates.md`).
 
 **Recovery budget**: 3 attempts — fix the failing tests and re-run, three times
 over, before asking the operator how to proceed. **A data integrity issue is
@@ -664,7 +663,7 @@ never one of those attempts**: it is not retried, it is carried into
 
 ## `verification-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option.
 
@@ -712,12 +711,12 @@ step by step):
   two re-checks are spent with fixable issues still open, or there is no
   progress (the same issues return, or new ones keep appearing) — and only once
   the automatic fixes and re-checks are done. **Each such issue is its own
-  question** (engine § *Findings that need a decision*): write the verifier's
+  question** (engine `references/in-node-questions.md` § *Findings that need a decision*): write the verifier's
   decision fields for those issues to `verification/issue-resolution-findings.json`,
   each issue's `id` the verifier's `name` (issues with one root cause are one
   finding), and build the set with `finding-brief` for this node. Send it
   through the classing write when the run classes questions, then ask what is
-  left to ask, paged as engine § *In-node questions* says, the first question
+  left to ask, paged as engine `references/in-node-questions.md` says, the first question
   naming the report's path; more than about eight first get the triage
   question. A change the user picks is applied, logged and re-checked like any
   fix — the gate after this node offers no revise, so this is where such a
@@ -766,7 +765,7 @@ takes the outcome the classing write gives it.
 **With question sets** (`verification-fix-loop`): asked through the cockpit only
 when it is the first thing this node asks in its attempt, with the verification
 report and every fix so far written first; after an earlier request in the same
-attempt — the finding questions — the default below is taken (*In-node questions*).
+attempt — the finding questions — the default below is taken (engine `references/in-node-questions.md`).
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
@@ -788,7 +787,7 @@ outside is such an answer; a default is not.
 > carry the truth.
 
 **Gate brief content.** Write into this node's closing `node_summaries` entry,
-as engine § Gates says: a `headline` — what was fixed, what is left and whether
+as engine `references/gates.md` says: a `headline` — what was fixed, what is left and whether
 the run recommends stopping, in one sentence; the total issues found, how many
 were fixed and how many remain by severity in `summary`; each fix made without
 asking — the issue and the change in a few words each — in `fixes_applied`, so
@@ -809,7 +808,7 @@ refused.
 
 ## `resolution-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, **guarded on the same value as `issue-resolution`**. It asks only when
 that stretch ran; when the stretch was skipped this gate is skipped with it, and

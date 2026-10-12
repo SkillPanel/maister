@@ -271,3 +271,18 @@ test('gate-brief: the brief before the pointer keeps within the budget at a gate
   assert.ok(brief.length > BUDGET - 200, 'the gate is filled to the budget');
   assert.equal(result.stdout, `${brief.slice(0, -1)}${trailing(GATE_BRIEF)}`, 'the pointer comes after the brief, outside its budget');
 });
+
+// ---------------------------------------------------------------------------
+// every pointer lands
+// ---------------------------------------------------------------------------
+
+test('every pointer names a reference that exists and a heading of that reference, spelled exactly', () => {
+  for (const rules of [GATE_BRIEF, REVISING, AREAS, FINDINGS, WRITE_REFUSED, COMPLETE_REFUSED]) {
+    const [file, heading] = rules.split(' § ');
+    assert.ok(fs.existsSync(file), `${path.relative(ENGINE_DIR, file)} exists`);
+    const headings = fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n').split('\n')
+      .filter(line => /^#{1,6} /.test(line))
+      .map(line => line.replace(/^#{1,6} /, '').trim());
+    assert.ok(headings.includes(heading), `${path.basename(file)} has the heading "${heading}"`);
+  }
+});

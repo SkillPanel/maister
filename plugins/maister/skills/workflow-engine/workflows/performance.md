@@ -65,7 +65,7 @@ to nodes:
 | 9 | `finalization` | none — the workflow ends |
 
 The gate brief's `Next:` line names the node that actually runs after each gate
-(engine § Gates); here every node runs on every run, so it is always the next
+(engine `references/gates.md`); here every node runs on every run, so it is always the next
 node in the table.
 
 ---
@@ -84,7 +84,7 @@ paths, the scratch rule and the companions the node owes. What this workflow add
 > are copied out of the artifact's own Key Decisions and Open Questions / Risks
 > blocks **item for item** — the same count, the same words, the artifact's
 > order — into `phase_summaries`, into `node_summaries` and into the dashboard,
-> each item in the shape engine § Gates gives it: a decision with who settled
+> each item in the shape engine `references/gates.md` gives it: a decision with who settled
 > it, a risk with its tag. The items left out are a decision that restates an
 > earlier answer and a risk an earlier node already recorded: each is already
 > recorded where it was made.
@@ -238,8 +238,7 @@ files. A description that names only the symptom sends them nowhere in
 particular.
 
 After the skill returns, write the analysis summary, the key files and the
-primary language into state. Then ask **one page** (engine § *In-node
-questions*) of at most four tabs:
+primary language into state. Then ask **one page** (engine `references/in-node-questions.md`) of at most four tabs:
 
 - **Clarifications** — one tab for each thing about the performance concern, the
   suspected hotspots or the optimization goals that the analysis could not
@@ -268,10 +267,10 @@ Save the clarification answers to `analysis/clarifications.md`, then set
 clarification still writes the file and still sets the flag: it resolved the
 clarifications by having none to ask. Record each answered tab as a
 `by: operator` decision on this node's summary, one per question, as engine
-§ *In-node questions* says.
+`references/in-node-questions.md` says.
 
 **With question sets** (`clarifications`): asked through the cockpit, in this
-node's one request (*In-node questions*).
+node's one request (engine `references/in-node-questions.md`).
 
 **Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and
@@ -280,7 +279,7 @@ with nothing to ask, and what the analysis could not settle about hotspots or
 goals is recorded in the file as unsettled rather than guessed at.
 
 **With question sets** (`profiling-data`): asked through the cockpit, in the
-same request as the clarifications (*In-node questions*); its "Yes" option says
+same request as the clarifications (engine `references/in-node-questions.md`); its "Yes" option says
 the files must be in the folder before answering, because the node does not wait
 after it resumes.
 
@@ -325,7 +324,7 @@ anything, and `performance_context.bottleneck_priorities` with its `p0`, `p1`,
 `p2` and `p3` counts.
 
 **Gate brief content.** Read `analysis/performance-analysis.md` and write into
-this node's closing `node_summaries` entry, as engine § Gates says:
+this node's closing `node_summaries` entry, as engine `references/gates.md` says:
 
 - **`headline`** — one sentence for the whole analysis stretch, led by the top
   finding and what fixing it changes ("Found 5 bottlenecks, 2 critical: the
@@ -367,11 +366,11 @@ entry.
 
 ## `bottleneck-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option —
 nothing after a stopped node ever becomes ready. Its revise option sends the run
-back to `bottleneck-analysis` with the operator's note (engine § Gates,
+back to `bottleneck-analysis` with the operator's note (engine `references/gates.md`,
 *Revising at a gate*).
 
 **Its `ask:` drops the 2.x prose form's interpolated counts, and that is a
@@ -389,7 +388,7 @@ Executed inline in two parts, the second of them delegated. It turns the ranked
 bottleneck list into a specification the planner can break down.
 
 **Part A — optimization requirements (inline).** Ask **one page of three tabs**
-(engine § *In-node questions*), each recommending an answer with its reason:
+(engine `references/in-node-questions.md`), each recommending an answer with its reason:
 
 - **Priorities** — which bottlenecks to address. The question lists every
   critical (P0) and high (P1) bottleneck in its own text, one line each, named
@@ -426,12 +425,12 @@ descriptions, each option's reason is its line in the property's description.
 -->
 
 Record each answered tab as a `by: operator` decision, one per question, as
-engine § *In-node questions* says. Save the round to `analysis/requirements.md`
+engine `references/in-node-questions.md` says. Save the round to `analysis/requirements.md`
 together with the performance issue description, the bottleneck summary, the
 chosen priorities, the constraints and the targets.
 
 **With question sets** (`optimization-priorities`): asked through the cockpit,
-in this node's one request (*In-node questions*); "Choose individually" would
+in this node's one request (engine `references/in-node-questions.md`); "Choose individually" would
 need a second ask, so it is not offered.
 
 **Without question sets** (`optimization-priorities`): the
@@ -459,7 +458,7 @@ priority gathered in Part A uncovered, re-invoke it with the missing context
 rather than writing the specification yourself.
 
 **Gate brief content.** Read `implementation/spec.md` and write into this node's
-closing `node_summaries` entry, as engine § Gates says: a `headline` — how many
+closing `node_summaries` entry, as engine `references/gates.md` says: a `headline` — how many
 changes the specification plans and the impact it expects, in one sentence; the
 optimization targets, the number of changes and the expected impact in
 `summary`; the approach chosen as a `by: run` decision, beside the Part A
@@ -490,11 +489,11 @@ on the entry, and register the companion path under that entry's
 
 ## `specification-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option. Its
 revise option sends the run back to `specification` with the operator's note
-(engine § Gates, *Revising at a gate*).
+(engine `references/gates.md`, *Revising at a gate*).
 
 Its question names the specification audit, and the audit is what runs next on
 every run of this workflow; the gate brief's `Next:` line says the same.
@@ -534,7 +533,7 @@ Record each applied fix in this node's summary's `fixes_applied` as
 
 **Each finding that needs a decision is its own question**, only when the
 audit (after its fix pass and re-audit) leaves one (`orchestrator-patterns.md`
-§ 6, step 5; engine § *Findings that need a decision*). Write the auditor's
+§ 6, step 5; engine `references/in-node-questions.md` § *Findings that need a decision*). Write the auditor's
 decision findings, as its structured result gives them, to
 `verification/spec-audit-findings.json`, each finding's `id` the auditor's
 `name`, and build the set with `finding-brief` for this node. Send it through
@@ -559,7 +558,7 @@ A failing verdict does not end the run on its own. It is what the operator reads
 at the gate, and the gate's stop option is the route out.
 
 **Gate brief content.** Read `verification/spec-audit.md` and write into this
-node's closing `node_summaries` entry, as engine § Gates says: a `headline` —
+node's closing `node_summaries` entry, as engine `references/gates.md` says: a `headline` —
 the final verdict, how many findings the run fixed and what it means for
 planning, in one sentence; the overall verdict, the issue counts by severity
 and how many were fixed in `summary`; the fixes already in `fixes_applied`,
@@ -580,7 +579,7 @@ verdict; a fix pass that fails leaves its findings open for the gate.
 
 ## `spec-audit-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Its brief lists what the run fixed and, as open items, only
 the findings left; the revise option's suggested notes come from those. Record
@@ -588,7 +587,7 @@ the answer, and stop the run on the stop option. Its revise option sends the run
 back to `specification` with the operator's note; the audit's open findings
 reach the re-run through the prior context, and the
 specification is approved and audited again before this gate asks once more
-(engine § Gates, *Revising at a gate*).
+(engine `references/gates.md`, *Revising at a gate*).
 
 ---
 
@@ -609,7 +608,7 @@ groups that leave an optimization target uncovered, re-invoke it with the
 missing context rather than writing the plan yourself.
 
 **Gate brief content.** Read `implementation/implementation-plan.md` and write
-into this node's closing `node_summaries` entry, as engine § Gates says: a
+into this node's closing `node_summaries` entry, as engine `references/gates.md` says: a
 `headline` — the groups, the steps and the waves they run in, in one sentence;
 how many task groups it carries and the total number of steps in `summary`; the
 key dependencies between groups and the optimization sequence as `by: run`
@@ -634,11 +633,11 @@ nodes named in the phase-key section above and this is not one of them.
 
 ## `planning-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option. Its
 revise option sends the run back to `planning` with the operator's note (engine
-§ Gates, *Revising at a gate*).
+`references/gates.md`, *Revising at a gate*).
 
 ---
 
@@ -674,7 +673,7 @@ projection rather than a finding. Then record what
 landed: the groups completed, the files changed and the incremental test results.
 
 **Gate brief content.** Read `implementation/work-log.md` and write into this
-node's closing `node_summaries` entry, as engine § Gates says: a `headline` —
+node's closing `node_summaries` entry, as engine `references/gates.md` says: a `headline` —
 the optimizations applied and the test result, in one sentence; the
 optimizations applied, the files changed and the test results from the
 incremental runs in `summary`; a known issue as an `open` risk with its
@@ -694,7 +693,7 @@ implementation` on the entry.
 
 ## `implementation-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option.
 
@@ -715,14 +714,14 @@ run it again, and it runs on every pass after a fix changes code. Never list it
 under "always runs".
 
 Ask which additional verification checks to run, as bundles in one single-select
-(engine § *In-node questions*): **"Code review (Recommended)"**, its reason in
+(engine `references/in-node-questions.md`): **"Code review (Recommended)"**, its reason in
 the description, then **"Code review and production readiness"**, then **"No
 additional checks"**. A gate cannot express it: a gate's options map option ids
 to routes — continue, stop or revise — and this question picks a subset rather
 than a route.
 
 **With question sets** (`standard-verifications`): asked through the cockpit, in
-this node's one request (*In-node questions*).
+this node's one request (engine `references/in-node-questions.md`).
 
 **Without question sets** (`standard-verifications`): the
 recommended bundle, code review only — production readiness off. The reality
@@ -795,12 +794,12 @@ step by step):
   risky, the two re-checks are spent with fixable issues still open, or there is
   no progress (the same issues return, or new ones keep appearing) — and only
   once the automatic fixes and re-checks are done. **Each such issue is its own
-  question** (engine § *Findings that need a decision*): write the verifier's
+  question** (engine `references/in-node-questions.md` § *Findings that need a decision*): write the verifier's
   decision fields for those issues to `verification/verification-findings.json`,
   each issue's `id` the verifier's `name` (issues with one root cause are one
   finding), and build the set with `finding-brief` for this node. Send it
   through the classing write when the run classes questions, then ask what is
-  left to ask, paged as engine § *In-node questions* says, the first question
+  left to ask, paged as engine `references/in-node-questions.md` says, the first question
   naming the report's path; more than about eight first get the triage
   question. A change the user picks is applied, logged and re-checked like any
   fix — the gate after this node offers no revise, so this is where such a
@@ -827,7 +826,7 @@ outcome the classing write gives it.
 **With question sets** (`verification-fix-loop`): asked through the cockpit only
 when it is the first thing this node asks in its attempt, with the verification
 report and every fix so far written first; after an earlier request in the same
-attempt — the finding questions — the default below is taken (*In-node questions*).
+attempt — the finding questions — the default below is taken (engine `references/in-node-questions.md`).
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
@@ -849,7 +848,7 @@ outside is such an answer; a default is not.
 > carry the truth.
 
 **Gate brief content.** Read `verification/implementation-verification.md` and
-write into this node's closing `node_summaries` entry, as engine § Gates says: a
+write into this node's closing `node_summaries` entry, as engine `references/gates.md` says: a
 `headline` — the verdict, what was fixed and what is left, in one sentence; the
 total issues found, how many were fixed and how many remain by severity in
 `summary`; each fix made without asking — the issue and the change in a few
@@ -868,7 +867,7 @@ over, before asking the operator how to proceed.
 
 ## `verification-approval`
 
-Ask it from `gate-brief --json` as engine § Gates says.
+Ask it from `gate-brief --json` as engine `references/gates.md` says.
 
 A gate, unguarded. Record the answer, and stop the run on the stop option.
 

@@ -335,12 +335,12 @@ A `sets` key is lower-case letters and underscores, the form a guard reference e
 value is `true` or `false`. The writer records the chosen option's map as the gate's values when
 it records the answer, a skipped gate records every key false, and a revise that resets the gate
 clears them. The brief walks each continue on its own answer, so each option names where it leads,
-and the closing node may say which one it recommends and why (engine § Gates). `sets` is part of
+and the closing node may say which one it recommends and why (`references/gates.md`). `sets` is part of
 the graph's identity, its keys in sorted order, so adopting it moves the definition's hash.
 
 When the question needs a value from earlier in the run, interpolate it into `ask` (§ 9). The
 gate brief — the closing node's summary, decisions, risks and a recommended option — is rendered
-beside the question by the engine; the node prose feeds it through its summary (engine § Gates).
+beside the question by the engine; the node prose feeds it through its summary (`references/gates.md` § *Before every gate — the gate brief*).
 
 ## 7. Guards, `on:` and the ready set
 

@@ -93,7 +93,7 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 | `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator**: every question the phase can form at its first asking point goes out as one `kind: question` request, and the phase resumes `running` with the answers recorded as `by: operator` decisions |
 | any other — `dispatch`, or a cockpit without that feature | **never asked**; the phase takes the default its own prose names, and records that it did |
 
-**One request per attempt, written before asking.** A phase under question sets asks once per attempt, so a question that only exists after an answer — a follow-up, another round, a retry — takes its default; and whatever it needs after the answer is on disk before it suspends, because the answer may reach a fresh session. The workflow engine's *In-node questions* holds the mechanism. Asking in session under a driver is the defect this rule prevents: nobody is in the session to answer.
+**One request per attempt, written before asking.** A phase under question sets asks once per attempt, so a question that only exists after an answer — a follow-up, another round, a retry — takes its default; and whatever it needs after the answer is on disk before it suspends, because the answer may reach a fresh session. The workflow engine's `references/in-node-questions.md` holds the mechanism. Asking in session under a driver is the defect this rule prevents: nobody is in the session to answer.
 
 **Every such question names its default, in the phase that asks it** — taken when it cannot be asked. What each family takes:
 
@@ -105,11 +105,11 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 | A loop offering another pass | the accept-as-is exit — the following gate is the operator's route back |
 | An exhausted recovery budget | the phase fails rather than choosing retry or skip on the operator's behalf |
 
-**A recommendation keeps every criterion the task states**, so a default taken from one never narrows the task either. Where an earlier phase flagged a criterion as open to two readings, the recommendation is the reading that keeps it whole. The workflow engine's *In-node questions* states the rule.
+**A recommendation keeps every criterion the task states**, so a default taken from one never narrows the task either. Where an earlier phase flagged a criterion as open to two readings, the recommendation is the reading that keeps it whole. The workflow engine's `references/in-node-questions.md` states the rule.
 
 **What is recorded.** One entry per defaulted question on that phase's summary `decisions` list — `{decision: <default taken>, by: default, question_id: <question-id>}` — where the id is the one the phase prose names and the decision is the default this run actually used, in the user's words. A state written before this shape may carry the older `defaulted: <id> -> <taken>` string; it still reads as a default. A phase that asked nothing because it had nothing to ask records nothing. The entry is an ordinary decision item and reaches the dashboard the way every other decision does (§ 4, § 8).
 
-**When the run's policy classes in-node questions** — the freeze recorded `orchestrator.classes_questions` — the phase sends its question set to the state writer before asking anything, and asks only what the writer's `ask:` line names: the writer settles what the run's autonomy ceiling allows, defaults what nobody can be asked, and holds an approval-class choice nobody can be asked for a person's approval. Held choices come first at the next checkpoint, whose continue approves them; with no checkpoint after them, the run asks one more before it closes. The workflow engine's *In-node questions* holds the mechanism.
+**When the run's policy classes in-node questions** — the freeze recorded `orchestrator.classes_questions` — the phase sends its question set to the state writer before asking anything, and asks only what the writer's `ask:` line names: the writer settles what the run's autonomy ceiling allows, defaults what nobody can be asked, and holds an approval-class choice nobody can be asked for a person's approval. Held choices come first at the next checkpoint, whose continue approves them; with no checkpoint after them, the run asks one more before it closes. The workflow engine's `references/in-node-questions.md` holds the mechanism.
 
 **A run started under a driver has its inputs**, so a task description or research question is never invented: if one is genuinely missing, stop with `RUN-FAILED` rather than inventing one.
 
@@ -187,7 +187,7 @@ When a subagent returns `decisions_needed` items, the orchestrator MUST present 
 
 1. **Parse**: Extract all critical and important decisions from subagent output
 2. **Present**: every decision is its own **single-select question with its own option set** — NEVER flatten several decisions' options into a single question's option list (the user could pick two conflicting options from one decision, or none from another). Critical decisions: one `AskUserQuestion` call each, with full context in the question itself — what was found and why it needs the user — and each option's description saying what it changes, the recommended one first with its reason; a message above the call is never relied on. Important decisions: may be grouped as up to 4 **separate questions within one `AskUserQuestion` call**. A question may allow selecting multiple options ONLY when those options are genuinely non-exclusive (e.g. "which verifications to run?") — never as a way to bundle decisions.
-3. **Record each answer** on the phase's summary `decisions` as `{decision, by: operator, question_id, question, answer, recommended, as_recommended}` (the workflow engine's § *In-node questions* fills who answered, when and how). More details is never recorded.
+3. **Record each answer** on the phase's summary `decisions` as `{decision, by: operator, question_id, question, answer, recommended, as_recommended}` (the workflow engine's `references/in-node-questions.md` fills who answered, when and how). More details is never recorded.
 4. **SELF-CHECK**: "Did I present ALL decisions from `decisions_needed`? If not, STOP."
 
 **Scope note**: this grouping guidance applies to `decisions_needed` triage (pre-analyzed, independent decisions). Interactive convergence flows (e.g. research Phase 4) override it with strictly ONE question per call — later areas depend on earlier answers.
@@ -262,11 +262,11 @@ task:
   priority: null  # high | medium | low
 ```
 
-The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`). The keys the state writer seeds and merges beside them are the engine's (`workflow-engine/SKILL.md` § *Writing state*).
+The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`). The keys the state writer seeds and merges beside them are the engine's (`workflow-engine/references/writing-state.md`).
 
 ### Extension Pattern
 
-Workflows add domain-specific fields in their context block, at the **top level** of the state file — never nested under `orchestrator:`. The block's name is derived from the workflow's name: `<name>_context`, with the name's dashes written as underscores, and the state writer applies the rule (`workflow-engine/SKILL.md` § *Writing state*). The root carries exactly one context block, or none (a chain run, or a workflow whose nodes record only `node_summaries`, has none). The built-ins' blocks are below; development and product design are the two whose block does not carry their own name:
+Workflows add domain-specific fields in their context block, at the **top level** of the state file — never nested under `orchestrator:`. The block's name is derived from the workflow's name: `<name>_context`, with the name's dashes written as underscores, and the state writer applies the rule (`workflow-engine/references/writing-state.md`). The root carries exactly one context block, or none (a chain run, or a workflow whose nodes record only `node_summaries`, has none). The built-ins' blocks are below; development and product design are the two whose block does not carry their own name:
 
 | Domain | Context Field | Example Fields |
 |--------|---------------|----------------|
@@ -276,7 +276,7 @@ Workflows add domain-specific fields in their context block, at the **top level*
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |
 | Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
-Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/SKILL.md` § *Writing state*); the full schema of each block is in that workflow's node prose, `workflow-engine/workflows/<name>.md` ("Run-scoped context", "Phase summary keys", and for product design "The context block").
+Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/references/writing-state.md`); the full schema of each block is in that workflow's node prose, `workflow-engine/workflows/<name>.md` ("Run-scoped context", "Phase summary keys", and for product design "The context block").
 
 ### Shared: research_reference
 
@@ -406,7 +406,7 @@ needs them. The workflow engine's `verification` node prose (development and per
 5. **One question per issue, built by the engine.** Once the automatic fixes and re-checks are
    done, every issue still needing a person — a decision, a risky fix, a fixable one still open
    after the budget, one that keeps coming back — is written as a findings list and turned into
-   one question set by the workflow engine's `finding-brief` (engine § *Findings that need a
+   one question set by the workflow engine's `finding-brief` (engine `references/in-node-questions.md` § *Findings that need a
    decision*): one question per issue, most severe first, each with the verifier's proposed fix
    and the alternatives it names, "Accept the risk and list it", the recommended choice with its
    reason, and the issue's evidence in the question. Issues with one root cause (the same

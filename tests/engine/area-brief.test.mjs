@@ -439,11 +439,11 @@ const REFUSALS = [
   'area-brief-unknown-area',
 ];
 
-test('area-brief: the refusal list is exactly the codes the verb raises, each with a recovery row in the engine skill', () => {
+test('area-brief: the refusal list is exactly the codes the verb raises, each with a recovery row in the in-node questions reference', () => {
   const source = fs.readFileSync(path.join(ENGINE_DIR, 'scripts/lib/area-brief.mjs'), 'utf8');
   const raised = new Set([...source.matchAll(/refuse\('(area-brief-[a-z-]+)'/g)].map(match => match[1]));
   assert.deepEqual([...raised].sort(), [...REFUSALS].sort());
-  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'references/in-node-questions.md'), 'utf8');
   for (const code of REFUSALS) {
     assert.ok(source.split('*/')[0].includes(code), `the module header lists ${code}`);
     const row = skill.split('\n').find(line => line.startsWith('|') && line.includes(`\`${code}\``));
