@@ -11,7 +11,8 @@ Interactive workflow for product and feature design — from a fuzzy idea to a d
 ## Entry Point
 
 This workflow runs on the workflow engine, which interprets its definition,
-`../workflow-engine/workflows/product-design.yml`, with the node prose beside it in `product-design.md`.
+`../workflow-engine/workflows/product-design.yml`, and reads each step's part of the guide beside it,
+`product-design.md`, through `node-brief` — never the whole guide.
 
 **Hand the run over before Initialization.** Invoke the `maister:workflow-engine` skill with the
 Skill tool, naming the workflow `builtin:product-design` and passing the task description, the resume
