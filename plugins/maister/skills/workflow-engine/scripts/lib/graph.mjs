@@ -11,7 +11,7 @@
  * **Warn where a static check cannot decide, error where it can.** Only one of
  * the four target schemes is decidable here. A `direct:` node is executed by
  * this engine out of the prose companion beside its own definition, so a
- * missing section is a fact of the file in hand and an error. The other three
+ * missing companion is a fact of the file in hand and an error. The other three
  * name something an environment this validator cannot see may provide: a
  * `workflow:` target may come from a workspace eject, and a `skill:` or
  * `agent:` target from a plugin installed later or a project this definition
@@ -330,6 +330,7 @@ const WARN = {
   briefUnknownInput: (path, node) => `brief-unknown-input:${path}:${node}`,
   briefUnknownOption: (path, node) => `brief-unknown-option:${path}:${node}`,
   overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
+  orphanSection: (companion, name) => `orphan-prose-section:${companion}:${name}`,
   undescribed: (name) => `workflow-undescribed:${name} — the work command offers a project workflow by what it is for, `
     + 'and this one does not say: add a one-paragraph description: to the definition, '
     + 'or a paragraph under the title of its prose companion',
@@ -478,6 +479,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   if (hidden) warnings.push(hidden);
   const undescribed = undescribedWorkflow(definition);
   if (undescribed) warnings.push(undescribed);
+  warnings.push(...orphanSections(definition, overlays));
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) {
     checkGraph(graph, errors, warnings, resolved, project);
@@ -790,8 +792,8 @@ function isFile(target) {
 
 /**
  * Whether the prose companion beside a definition carries a section for a node.
- * `direct:` nodes are executed by the engine itself from that section, so a
- * missing one is a node with no implementation at all.
+ * A `direct:` node with one runs from it; one without runs from the node
+ * conventions alone.
  */
 function hasProseSection(file, name) {
   return proseSection(file, name) !== null;
@@ -852,6 +854,51 @@ export function proseSection(file, name) {
   const body = lines.slice(found.at + 1, found.end);
   while (body.length > 0 && (body.at(-1).trim() === '' || body.at(-1).trim() === '---')) body.pop();
   return { companion, heading: lines[found.at], text: body.join('\n') };
+}
+
+/**
+ * The name a node's section of the prose companion is found by: the name after
+ * `direct:` for a `direct:` node, and the node id for any other node or gate.
+ * By convention the two are the same, but the target is what `resolveTarget`
+ * slices by, so a reader of the companion that matched headings with ids would
+ * call the section of a renamed target an orphan and miss a mistyped one.
+ *
+ * The id is the node's own `id` when it carries one, as a resolved node does,
+ * or the second argument for a node read from a definition's `nodes:` map.
+ */
+export function sectionNameOf(node, id = node?.id) {
+  const uses = node?.uses;
+  if (typeof uses === 'string' && uses.startsWith('direct:')) return uses.slice('direct:'.length);
+  return id;
+}
+
+/** A node heading: an H2 whose whole text is one backticked name. */
+const NODE_HEADING = /^##\s+`([^`]+)`\s*$/;
+
+/**
+ * The names of every node heading in a companion — `` ## `x` `` outside a fenced
+ * block — in file order, or an empty list when the companion is missing. Shared
+ * H2s such as `## Run-scoped context` are not node headings and are not listed.
+ */
+function nodeHeadings(companion) {
+  if (!isFile(companion)) return [];
+  const names = [];
+  let fence = null;
+  for (const raw of fs.readFileSync(companion, 'utf8').split('\n')) {
+    const line = raw.replace(/\r$/, '');
+    const marker = FENCE.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && marker[2].trim() === '') fence = null;
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
+    const heading = NODE_HEADING.exec(line);
+    if (heading) names.push(heading[1].trim());
+  }
+  return names;
 }
 
 // ---------------------------------------------------------------------------
@@ -1171,8 +1218,12 @@ function hiddenOverlay(definition, overlays) {
  * provide resolves, and the report says where.
  *
  * `direct:` is the decidable one and stays an error. Its implementation is the
- * section in the prose companion beside the definition being validated, which
- * is a file in hand: no environment can supply it later.
+ * prose companion beside the file that declared the node, which is a file in
+ * hand: no environment can supply it later. A section named after the target
+ * resolves `from: 'companion'`; a companion with no such section resolves
+ * `from: 'conventions'`, the step running from the engine's node conventions
+ * alone; only a missing companion is an error. A heading left behind by a
+ * rename is caught by the `orphan-prose-section` warning instead.
  *
  * The scheme check and the charset check below are errors under every scheme,
  * absent target or not — the charset check is also the traversal guard, so a
@@ -1201,9 +1252,11 @@ function resolveTarget(uses, origin, project) {
     return { message: `"${written}" is not a ${scheme} name: expected ${TARGET_NAME.source}` };
   }
   if (scheme === 'direct') {
-    return hasProseSection(origin, name)
-      ? { resolved: { at: companionOf(origin), from: 'companion' } }
-      : { message: `the prose companion carries no section for "${name}"` };
+    const companion = companionOf(origin);
+    if (hasProseSection(origin, name)) return { resolved: { at: companion, from: 'companion' } };
+    return isFile(companion)
+      ? { resolved: { at: companion, from: 'conventions' } }
+      : { message: `"${name}" has no prose companion: ${companion} does not exist` };
   }
   // All four homes, not the built-in alone: the report says which one answered,
   // and a target no environment in hand can see still warns rather than errors.
@@ -1284,6 +1337,41 @@ function undescribedWorkflow(definition) {
   if (typeof doc.description === 'string' && doc.description.trim() !== '') return null;
   if (companionSummary(file).summary !== null) return null;
   return WARN.undescribed(stem);
+}
+
+/**
+ * A node heading in a prose companion that no node finds its section by. Since
+ * a `direct:` step with no section runs from the conventions, a heading left
+ * behind by a renamed node or a mistyped target would otherwise be prose that
+ * silently never runs, so each one warns `orphan-prose-section`.
+ *
+ * Each companion is judged against the nodes the file beside it declares: the
+ * definition's `nodes:`, or an overlay's `add:` entries, its profiles' included.
+ * Declared, not resolved: a node an overlay or a profile disables still names
+ * its heading, because the base's prose is not wrong for being trimmed in one
+ * project. The warning never blocks.
+ */
+function orphanSections(definition, overlays) {
+  const warnings = [];
+  const judge = (file, declared) => {
+    if (typeof file !== 'string' || !/\.ya?ml$/i.test(file)) return;
+    const names = new Set(Object.entries(declared).map(([id, node]) => sectionNameOf(node, id)));
+    const companion = companionOf(file);
+    for (const name of nodeHeadings(companion)) {
+      if (!names.has(name)) warnings.push(WARN.orphanSection(companion, name));
+    }
+  };
+  if (isMap(definition?.doc)) judge(definition.file, isMap(definition.doc.nodes) ? definition.doc.nodes : {});
+  for (const overlay of overlays) {
+    const doc = overlay?.doc;
+    if (!isMap(doc)) continue;
+    const declared = { ...(isMap(doc.add) ? doc.add : {}) };
+    for (const body of Object.values(isMap(doc.profiles) ? doc.profiles : {})) {
+      if (isMap(body) && isMap(body.add)) Object.assign(declared, body.add);
+    }
+    judge(overlay.file, declared);
+  }
+  return warnings;
 }
 
 /**

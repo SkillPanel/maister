@@ -1,0 +1,13 @@
+# The review step names its section mistyped, while the heading keeps the step id.
+name: mistyped
+version: 1
+description: "Drafts a note, then reviews it under a mistyped target."
+
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []
+
+  review:
+    uses: direct:reveiw
+    needs: [draft]

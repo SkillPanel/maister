@@ -1,0 +1,9 @@
+# The same steps with no prose companion beside the definition at all.
+name: uncompanioned
+version: 1
+description: "Drafts a note with no companion beside it."
+
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []

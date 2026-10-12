@@ -737,3 +737,82 @@ test('dashboard: with no task path, the type is the workflow\'s own name', t => 
   assert.equal(readState(run).orchestrator?.task_path ?? null, null, 'the freeze records no task path of its own');
   assert.equal(readDashboard(run).task.type, 'release-audit');
 });
+
+// ---------------------------------------------------------------------------
+// section-less direct: steps
+// ---------------------------------------------------------------------------
+
+// A `direct:` step with no section of its own runs from the conventions, so long
+// as the companion it would be looked for in exists. Every case runs from a
+// project of its own, holding the sectionless fixtures, so the authored
+// workflow above is never touched.
+const SECTIONLESS = path.join(FIXTURES, 'custom-workflow-sectionless');
+
+function sectionless(t) {
+  const run = scratch(t, { type: 'audits', name: '2026-01-05-sectionless' });
+  const home = path.join(run.root, '.maister/workflows');
+  fs.cpSync(SECTIONLESS, home, { recursive: true });
+  const check = (name, { overlay = null, profile = null } = {}) => {
+    const args = ['validate', `--definition=${path.join(home, `${name}.yml`)}`];
+    if (overlay) args.push(`--overlay=${path.join(home, `${overlay}.overlay.yml`)}`);
+    if (profile) args.push(`--profile=${profile}`);
+    const result = verb(args, undefined, { CLAUDE_PROJECT_DIR: run.root });
+    return { code: result.code, report: JSON.parse(result.stdout) };
+  };
+  return { home, check };
+}
+
+test('sectionless: a direct: step with no section validates from the conventions', t => {
+  const { home, check } = sectionless(t);
+  const { code, report } = check('sectionless');
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(report.warnings, []);
+  const companion = path.join(home, 'sectionless.md');
+  assert.deepEqual(report.resolved.map(entry => [entry.node, entry.from, entry.at]), [
+    ['draft', 'companion', companion],
+    ['review', 'conventions', companion],
+  ]);
+});
+
+test('sectionless: a direct: step whose companion does not exist is refused, naming the missing file', t => {
+  const { home, check } = sectionless(t);
+  const { code, report } = check('uncompanioned');
+  assert.notEqual(code, 0);
+  assert.equal(report.ok, false);
+  const companion = path.join(home, 'uncompanioned.md');
+  assert.ok(report.errors.some(error => error.message === `"draft" has no prose companion: ${companion} does not exist`),
+    JSON.stringify(report.errors));
+});
+
+test('sectionless: an overlay adds a section-less step, its companion only a title and a paragraph', t => {
+  const { home, check } = sectionless(t);
+  for (const profile of [null, 'lean']) {
+    const { code, report } = check('sectionless', { overlay: 'polishing', profile });
+    assert.equal(code, 0, JSON.stringify(report.errors));
+    assert.deepEqual(report.warnings, [], 'a step the profile disables still names its heading');
+    const polish = report.resolved.find(entry => entry.node === 'polish');
+    assert.deepEqual([polish.from, polish.at], ['conventions', path.join(home, 'polishing.overlay.md')]);
+  }
+});
+
+test('sectionless: a heading naming no step warns, and the workflow still validates', t => {
+  const { home, check } = sectionless(t);
+  const { code, report } = check('orphaned');
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.warnings, [`orphan-prose-section:${path.join(home, 'orphaned.md')}:drafting`],
+    'a heading quoted in a fence is not a heading');
+});
+
+test('sectionless: a heading is matched by the name a step finds its section by, not by the step id', t => {
+  const { home, check } = sectionless(t);
+  const mistyped = check('mistyped');
+  assert.equal(mistyped.code, 0, JSON.stringify(mistyped.report.errors));
+  assert.deepEqual(mistyped.report.warnings, [`orphan-prose-section:${path.join(home, 'mistyped.md')}:review`]);
+  assert.equal(mistyped.report.resolved.find(entry => entry.node === 'review').from, 'conventions');
+
+  const renamed = check('renamed');
+  assert.equal(renamed.code, 0, JSON.stringify(renamed.report.errors));
+  assert.deepEqual(renamed.report.warnings, []);
+  assert.equal(renamed.report.resolved.find(entry => entry.node === 'review').from, 'companion');
+});

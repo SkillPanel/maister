@@ -236,17 +236,18 @@ test('the heading line, trailing blank lines and trailing rules are dropped', t 
   assert.equal(proseSection(file, 'approval').text, '');
 });
 
-test('an absent section is null, and a direct: node validates exactly when its section slices', t => {
+test('an absent section is null, and a direct: node resolves from its section when it slices, from the conventions when not', t => {
   const fenced = withCompanion(t, '# Guide\n\n```\n## `analysis`\n```\n');
   assert.equal(proseSection(fenced, 'analysis'), null);
   assert.equal(proseSection(fenced, 'nowhere'), null);
   assert.equal(proseSection(path.join(os.tmpdir(), 'no-such-definition.yml'), 'analysis'), null);
-  const refused = JSON.parse(verb(['validate', `--definition=${fenced}`]).stdout);
-  assert.equal(refused.ok, false);
-  assert.ok(refused.errors.some(error => /no section for "analysis"/.test(error.message)));
+  const sectionless = JSON.parse(verb(['validate', `--definition=${fenced}`]).stdout);
+  assert.deepEqual(sectionless.errors, []);
+  assert.equal(sectionless.resolved.find(entry => entry.node === 'analysis').from, 'conventions');
 
   const present = withCompanion(t, GUIDE);
   assert.notEqual(proseSection(present, 'analysis'), null);
   const accepted = JSON.parse(verb(['validate', `--definition=${present}`]).stdout);
   assert.deepEqual(accepted.errors, []);
+  assert.equal(accepted.resolved.find(entry => entry.node === 'analysis').from, 'companion');
 });

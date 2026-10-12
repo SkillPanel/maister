@@ -245,9 +245,9 @@ is the workspace root. Both hosts' layouts are searched whatever host is running
   installed later or the project the chain runs in may still provide it. A typo therefore
   surfaces only when the node is reached — read the warnings.
 - **What resolved, and where.** The check's `resolved` list names each target and the tier that
-  answered it — `project`, `user`, `plugin` or `installed`, and `companion` for a `direct:`
-  section. A target you meant to come from your project that answers `plugin` is the shadowing
-  case caught early.
+  answered it — `project`, `user`, `plugin` or `installed`; for a `direct:` target, `companion`
+  when the companion carries its section and `conventions` when it has none (§ 11). A target you
+  meant to come from your project that answers `plugin` is the shadowing case caught early.
 
 A node that carries `dir:` is stricter: its target must resolve and must be able to run with
 nobody at the keyboard. The workspace validator judges that: a `workflow:` target always
@@ -568,10 +568,17 @@ section is found by its heading:
   `## Notes on assess-scope` does not. By convention the name is the node id;
 - the companion is `<name>.md` beside the definition, or, for a node an overlay adds, the
   `.md` beside that overlay;
-- a line inside a fenced code block that starts with `#` is read as a heading too, so keep such a
-  line out of a fence;
-- a `direct:` target with no section is an error, because the companion is the one reference a
-  definition fully controls.
+- a line inside a fenced code block is never a heading, so a heading quoted in an example neither
+  opens a section nor closes one.
+
+**The section is optional.** A `direct:` node whose companion carries no section for it runs from
+the engine's node conventions alone, and the check's `resolved` list says `conventions` for it
+rather than `companion`. The companion file itself is required: a `direct:` target whose
+companion does not exist is an error, `"<name>" has no prose companion: <path> does not exist`.
+Because a renamed node or a mistyped target would now fall back to the conventions without a
+word, every `` ## `x` `` heading outside a fence must name a section some node finds: the name
+after `direct:` for a `direct:` node, the node id for any other node or gate. One that names none
+warns `orphan-prose-section` (§ 14).
 
 **The section is the node's body.** It holds the steps, the fan-outs, the self-checks, the
 questions the node asks inline and the default each question takes when nobody can be asked, what
@@ -759,6 +766,7 @@ Warnings never block, and each one is worth reading:
 | `brief-unknown-artifact:<path>:<node>` | An `absent` key the node does not declare under `outputs.artifacts` |
 | `brief-unknown-input:<path>:<node>` | A `recommends` key that is not one of the node's `with:` keys |
 | `brief-unknown-option:<path>:<node>` | A recommended option that is not a continue option of a gate the node feeds |
+| `orphan-prose-section:<companion>:<name>` | A `` ## `name` `` heading outside a fence that no node of the definition or overlay beside it finds its section by (§ 11) — a renamed node or a mistyped `direct:` target; rename the heading to the name, or delete the section. A node an overlay or profile disables still counts |
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |
 

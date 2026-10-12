@@ -1,0 +1,13 @@
+# Adds a section-less step before the review; its companion holds only the
+# title and the opening paragraph.
+extends: sectionless
+
+add:
+  polish:
+    uses: direct:polish
+    needs: [draft]
+    before: [review]
+
+profiles:
+  lean:
+    disable: [draft]
